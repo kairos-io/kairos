@@ -1,6 +1,6 @@
 # cOS + k3s = c3OS
 
-A dead simple [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative with k3s.
+A dead simple [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative with k3s based on openSUSE.
 
 ## Build
 
