@@ -85,3 +85,11 @@ RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN rm -rf installer.sh
 
 RUN mkinitrd
+
+ARG OS_NAME=c3OS
+ARG OS_VERSION=${K3S_VERSION}
+ARG OS_REPO=quay.io/mudler/c3os
+ARG OS_LABEL=latest
+
+RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
+    rm /usr/lib/os-release.tmpl
