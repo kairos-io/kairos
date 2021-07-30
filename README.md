@@ -1,4 +1,4 @@
-# cOS + k3s = c3OS
+# [![Docker Repository on Quay](https://quay.io/repository/mudler/c3os/status "Docker Repository on Quay")](https://quay.io/repository/mudler/c3os) cOS + k3s = c3OS
 
 A dead simple [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative with k3s based on openSUSE.
 
