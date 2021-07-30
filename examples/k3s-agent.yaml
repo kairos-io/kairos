@@ -1,0 +1,24 @@
+name: "Default deployment"
+stages:     
+   network:
+     - if: '[ ! -f "/run/cos/recovery_mode" ]'
+       name: "Setup k3s"
+       environment_file: "/etc/systemd/system/k3s-agent.service.env"
+       environment:
+         FOO: "bar"
+       systemctl:
+         start: 
+         - k3s-agent
+     - commands:
+       - |
+            chmod 600 /etc/systemd/system/k3s-agent.service.env
+   initramfs:
+     - name: "Setup users"
+      #  users:
+      #   root:
+      #     password: "c3os"
+       authorized_keys:
+        c3os: 
+        - github:mudler
+       commands:
+       - passwd -l c3os
