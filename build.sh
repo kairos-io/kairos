@@ -9,4 +9,4 @@ docker build -t $IMAGE .
 docker run -v $PWD:/cOS \
            -v /var/run:/var/run \
            --entrypoint /usr/bin/luet-makeiso \
-           -ti --rm quay.io/costoolkit/toolchain ./iso.yaml --image $IMAGE --output $ISO
+           -i --rm quay.io/costoolkit/toolchain ./iso.yaml --image $IMAGE --output $ISO
