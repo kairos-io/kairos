@@ -76,13 +76,13 @@ RUN luet install -y \
     utils/k9s \
     utils/nerdctl
 
-COPY files/ /
-
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 RUN curl -sfL https://get.k3s.io > installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
+
+COPY files/ /
 
 RUN mkinitrd
 

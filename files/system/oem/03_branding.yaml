@@ -1,0 +1,5 @@
+name: "Branding"
+stages:
+   initramfs:
+     - name: "Branding"
+       hostname: "c3os"

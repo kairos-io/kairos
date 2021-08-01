@@ -12,6 +12,8 @@ stages:
      - commands:
        - |
             chmod 600 /etc/systemd/system/k3s-agent.service.env
+       - ulimit -u unlimited
+       - ulimit -n 900000
    initramfs:
      - name: "Setup users"
       #  users:
