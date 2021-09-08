@@ -65,10 +65,16 @@ COPY conf/luet.yaml /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
-
 RUN luet install -y \
-    meta/cos-minimal \
-    utils/k9s
+       toolchain/yip \
+       toolchain/luet \
+       utils/installer \
+       system/cos-setup \
+       system/immutable-rootfs \
+       system/grub2-config \
+       system/base-dracut-modules \
+       utils/k9s \
+       utils/nerdctl
 
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 RUN curl -sfL https://get.k3s.io > installer.sh

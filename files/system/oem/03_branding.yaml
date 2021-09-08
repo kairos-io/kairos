@@ -3,3 +3,13 @@ stages:
    initramfs:
      - name: "Branding"
        hostname: "c3os"
+     - name: "Default systemd config"
+       systemd:
+        enable:
+        - multi-user.target
+        - getty@tty1
+        - iscsid
+        mask:
+        - purge-kernels
+       commands:
+       - systemctl set-default multi-user.target
