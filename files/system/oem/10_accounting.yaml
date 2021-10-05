@@ -11,11 +11,16 @@ stages:
      - name: "Setup users"
        users:
         c3os:
-          passwd: "c3os"
+          passwd: ""
           shell: /bin/bash
           homedir: "/home/c3os"
           groups:
           - "admin"
+     - name: "Set user password if running in live"
+       if: "[ -e /run/cos/live_mode ]"
+       users:
+        c3os:
+          passwd: "c3os"
      - name: "Setup sudo"
        files:
        - path: "/etc/sudoers"
