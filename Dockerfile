@@ -68,7 +68,13 @@ COPY conf/luet.yaml /etc/luet/luet.yaml
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
 RUN luet install -y \
-       meta/cos-core \
+       toolchain/yip \
+       toolchain/luet \
+       utils/installer \
+       system/cos-setup \
+       system/immutable-rootfs \
+       system/grub2-config \
+       system/base-dracut-modules \
        utils/k9s \
        utils/nerdctl
 
