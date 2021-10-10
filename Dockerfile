@@ -1,4 +1,4 @@
-ARG LUET_VERSION=0.16.7
+ARG LUET_VERSION=0.18.1
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM opensuse/leap:15.3
@@ -68,13 +68,7 @@ COPY conf/luet.yaml /etc/luet/luet.yaml
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
 RUN luet install -y \
-       toolchain/yip \
-       toolchain/luet \
-       utils/installer \
-       system/cos-setup \
-       system/immutable-rootfs \
-       system/grub2-config \
-       system/base-dracut-modules \
+       meta/cos-core \
        utils/edgevpn \
        systemd-service/edgevpn \
        utils/k9s \
