@@ -75,6 +75,8 @@ RUN luet install -y \
        system/immutable-rootfs \
        system/grub2-config \
        system/base-dracut-modules \
+       utils/edgevpn \
+       systemd-service/edgevpn \
        utils/k9s \
        utils/nerdctl
 
