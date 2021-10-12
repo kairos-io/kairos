@@ -9,6 +9,7 @@ stages:
         - multi-user.target
         - getty@tty1
         - iscsid
+        - systemd-timesyncd
         mask:
         - purge-kernels
        commands:
