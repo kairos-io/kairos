@@ -21,6 +21,7 @@ RUN zypper in -y \
     grub2-i386-pc \
     grub2-x86_64-efi \
     haveged \
+    htop \
     iproute2 \
     iptables \
     iputils \
