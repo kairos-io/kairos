@@ -73,7 +73,8 @@ RUN luet install -y \
        utils/edgevpn \
        systemd-service/edgevpn \
        utils/k9s \
-       utils/nerdctl
+       utils/nerdctl \
+       utils/croc
 
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
