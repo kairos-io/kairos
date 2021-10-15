@@ -42,6 +42,7 @@ RUN zypper in -y \
     mdadm \
     multipath-tools \
     nano \
+    nethogs \
     nfs-utils \
     open-iscsi \
     open-vm-tools \
