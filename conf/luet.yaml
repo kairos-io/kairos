@@ -24,9 +24,9 @@ repositories:
     - "https://get.mocaccino.org/mocaccino-os-commons"
 - name: "mocaccino-extra"
   description: "MocaccinoOS extra Repository"
-  type: "http"
+  type: "docker"
   enable: true
   cached: true
   priority: 2
   urls:
-    - "https://get.mocaccino.org/mocaccino-extra"
+    - "quay.io/mocaccino/extra"
