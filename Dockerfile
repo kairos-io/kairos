@@ -1,4 +1,4 @@
-ARG LUET_VERSION=0.18.1
+ARG LUET_VERSION=0.19.2
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM opensuse/leap:15.3
