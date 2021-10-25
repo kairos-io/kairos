@@ -73,8 +73,6 @@ RUN luet install -y \
        meta/cos-core \
        utils/edgevpn \
        systemd-service/edgevpn \
-       container/docker \
-       systemd-service/dockerd \
        utils/k9s \
        utils/nerdctl \
        utils/croc \
