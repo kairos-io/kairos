@@ -3,7 +3,7 @@ FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM opensuse/leap:15.3
 ARG K3S_VERSION=v1.21.4+k3s1
-ARG C3OS_VERSION=-c3OS9
+ARG C3OS_VERSION=-c3OS10
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 RUN zypper in -y \
