@@ -6,6 +6,13 @@ ARG K3S_VERSION=v1.21.4+k3s1
 ARG C3OS_VERSION=-c3OS11
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
+# Enable cosign keyless verify
+ENV COSIGN_EXPERIMENTAL=1
+# Repo containing signatures
+ENV COSIGN_REPOSITORY=raccos/releases-green
+# Skip this repo artifacts verify as they are not signed
+ENV COSIGN_SKIP=".*quay.io/mocaccino/extra.*"
+
 RUN zypper in -y \
     bash-completion \
     conntrack-tools \
@@ -69,7 +76,11 @@ COPY conf/luet.yaml /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
-RUN luet install -y \
+
+# Install cosign packages
+RUN luet install -y meta/cos-verify
+
+RUN luet install --plugin luet-cosign -y \
        meta/cos-core \
        utils/edgevpn \
        systemd-service/edgevpn \
@@ -77,7 +88,6 @@ RUN luet install -y \
        utils/nerdctl \
        utils/croc \
        utils/tailscale
-
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
 RUN curl -sfL https://get.k3s.io > installer.sh
