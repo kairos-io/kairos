@@ -11,7 +11,7 @@ ENV COSIGN_EXPERIMENTAL=1
 # Repo containing signatures
 ENV COSIGN_REPOSITORY=raccos/releases-green
 # Skip this repo artifacts verify as they are not signed
-ENV COSIGN_SKIP=".*quay.io/mocaccino/extra.*"
+ENV COSIGN_SKIP=".*quay.io/mocaccino/.*"
 
 RUN zypper in -y \
     bash-completion \
