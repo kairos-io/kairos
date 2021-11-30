@@ -16,12 +16,12 @@ repositories:
   - "quay.io/costoolkit/releases-green"
 - name: "mocaccino-os-commons"
   description: "MocaccinoOS Commons repository"
-  type: "http"
+  type: "docker"
   enable: true
   cached: true
   priority: 2
   urls:
-    - "https://get.mocaccino.org/mocaccino-os-commons"
+    - "quay.io/mocaccino/os-commons"
 - name: "mocaccino-extra"
   description: "MocaccinoOS extra Repository"
   type: "docker"
