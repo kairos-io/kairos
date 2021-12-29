@@ -3,7 +3,7 @@ FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM opensuse/leap:15.3
 ARG K3S_VERSION=v1.21.4+k3s1
-ARG C3OS_VERSION=-c3OS18
+ARG C3OS_VERSION=-c3OS19
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 # Enable cosign keyless verify
@@ -27,6 +27,7 @@ RUN zypper in -y \
     gptfdisk \
     grub2-i386-pc \
     grub2-x86_64-efi \
+    nohang \
     haveged \
     htop \
     iproute2 \
@@ -94,6 +95,7 @@ RUN curl -sfL https://get.k3s.io > installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
+RUN systemctl enable nohang
 COPY files/ /
 
 RUN mkinitrd
