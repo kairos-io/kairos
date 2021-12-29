@@ -13,7 +13,7 @@ ENV COSIGN_REPOSITORY=raccos/releases-green
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/mocaccino/.*"
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Leap_15.3/utilities.repo && zypper ref
 
 RUN zypper in -y \
     bash-completion \
