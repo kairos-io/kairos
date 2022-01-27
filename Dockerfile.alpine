@@ -19,6 +19,7 @@ RUN apk add  \
    grub \
    grub-efi \
    grub-bios \
+   bash \
    connman \
    gettext \
    squashfs-tools \
