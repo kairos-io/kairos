@@ -34,7 +34,7 @@ jobs:
           bash build.sh
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os.iso.zip
+          name: c3os-${{ matrix.flavor }}.iso.zip
           path: |
             *.iso
             *.sha256
