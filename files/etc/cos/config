@@ -1,10 +1,3 @@
-GRUB_ENTRY_NAME=c3os
-VERIFY=false
-_COSIGN=false
-UPGRADE_IMAGE="quay.io/mudler/c3os:latest"
-CHANNEL_UPGRADES=false
-RECOVERY_IMAGE="quay.io/mudler/c3os:latest"
-
 # Label of the OEM volume
 OEM_LABEL="COS_OEM"
 

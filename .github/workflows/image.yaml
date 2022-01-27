@@ -8,6 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "opensuse"
+         - flavor: "alpine"
     steps:
       - uses: actions/checkout@v2
       - run: |
@@ -21,8 +27,11 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/mudler/c3os:${{ matrix.flavor }}-latest
         run: |
-          IMAGE=quay.io/mudler/c3os:latest bash build.sh
+          bash build.sh
       - uses: actions/upload-artifact@v2
         with:
           name: c3os.iso.zip
@@ -32,4 +41,4 @@ jobs:
           if-no-files-found: error
       - name: Push to quay
         run: | 
-          docker push quay.io/mudler/c3os:latest
+          docker push quay.io/mudler/c3os:${{ matrix.flavor }}-latest

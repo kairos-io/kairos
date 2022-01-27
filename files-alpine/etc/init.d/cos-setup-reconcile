@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+
+depend() {
+  provide cos-setup-reconcile
+}
+
+start() {
+  # TODO: replace with supervisord
+  cos-setup-reconcile &
+
+  eend 0
+}
+
+stop() {
+  pkill -9 cos-setup-reconcile
+}

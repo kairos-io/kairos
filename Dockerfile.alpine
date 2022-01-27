@@ -1,0 +1,78 @@
+ARG LUET_VERSION=0.19.2
+ARG BASE_IMAGE=opensuse/leap:15.3
+FROM quay.io/luet/base:$LUET_VERSION AS luet
+
+FROM $BASE_IMAGE
+ARG K3S_VERSION
+ARG C3OS_VERSION
+
+ARG ARCH=amd64
+ENV ARCH=${ARCH}
+# Enable cosign keyless verify
+ENV COSIGN_EXPERIMENTAL=1
+# Repo containing signatures
+ENV COSIGN_REPOSITORY=raccos/releases-green
+# Skip this repo artifacts verify as they are not signed
+ENV COSIGN_SKIP=".*quay.io/mocaccino/.*"
+
+RUN apk add  \
+   grub \
+   grub-efi \
+   grub-bios \
+   connman \
+   squashfs-tools \
+   openrc \
+   parted \
+   e2fsprogs \
+   dosfstools \
+   coreutils \
+   which \
+   curl \
+   nano \
+   gawk \
+   haveged \
+   tar \
+   rsync
+
+# Copy the luet config file pointing to the upgrade repository
+COPY repositories.yaml /etc/luet/luet.yaml
+
+# Copy luet from the official images
+COPY --from=luet /usr/bin/luet /usr/bin/luet
+
+# Install cosign packages
+RUN luet install -y meta/cos-verify
+
+RUN luet install --plugin luet-cosign -y \
+       meta/cos-core \
+       utils/edgevpn \
+       systemd-service/edgevpn \
+       utils/k9s \
+       utils/nerdctl \
+       utils/croc \
+       system/kernel \
+       system/dracut-initrd \
+       utils/tailscale
+
+ENV INSTALL_K3S_VERSION=${K3S_VERSION}
+ENV INSTALL_K3S_BIN_DIR="/usr/bin"
+RUN curl -sfL https://get.k3s.io > installer.sh
+RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
+RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
+RUN rm -rf installer.sh
+RUN systemctl enable nohang
+COPY files/ /
+COPY files-alpine/ /
+
+RUN mkdir -p /etc/runlevels/default && \
+      ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
+      ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
+      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile
+
+ARG OS_NAME=c3OS
+ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
+ARG OS_REPO=quay.io/mudler/c3os
+ARG OS_LABEL=alpine-latest
+
+RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
+    rm /usr/lib/os-release.tmpl

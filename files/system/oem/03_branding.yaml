@@ -4,6 +4,7 @@ stages:
      - name: "Branding"
        hostname: "c3os"
      - name: "Default systemd config"
+       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
        systemd:
         enable:
         - multi-user.target

@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+
+depend() {
+  provide cos-setup-boot
+}
+
+start() {
+  elemental run-stage boot
+  eend 0
+}

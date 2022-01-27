@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+
+depend() {
+  after net
+  provide cos-setup-network
+}
+
+start() {
+  elemental run-stage network
+  eend 0
+}
