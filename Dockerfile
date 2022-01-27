@@ -1,9 +1,11 @@
 ARG LUET_VERSION=0.19.2
+ARG BASE_IMAGE=opensuse/leap:15.3
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
-FROM opensuse/leap:15.3
+FROM $BASE_IMAGE
 ARG K3S_VERSION=v1.21.4+k3s1
-ARG C3OS_VERSION=-c3OS21
+ARG C3OS_VERSION=-c3OS22
+
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 # Enable cosign keyless verify
@@ -75,7 +77,7 @@ RUN zypper in -y \
     which
 
 # Copy the luet config file pointing to the upgrade repository
-COPY conf/luet.yaml /etc/luet/luet.yaml
+COPY repositories.yaml /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
