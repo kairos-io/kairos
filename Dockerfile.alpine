@@ -1,5 +1,5 @@
 ARG LUET_VERSION=0.19.2
-ARG BASE_IMAGE=opensuse/leap:15.3
+ARG BASE_IMAGE=alpine
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM $BASE_IMAGE
