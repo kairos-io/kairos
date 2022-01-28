@@ -102,7 +102,10 @@ RUN apk --no-cache add  \
       open-vm-tools-guestinfo \
       open-vm-tools-static \
       open-vm-tools-vmbackup
- 
+
+# System services
+RUN rc-update add sshd
+
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml
 
