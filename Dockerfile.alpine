@@ -137,6 +137,10 @@ RUN mkdir -p /etc/runlevels/default && \
       ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
       ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
       ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile
+      
+# Symlinks to make cos-installer work
+RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
+    ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
