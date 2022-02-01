@@ -1,5 +1,13 @@
 ARG LUET_VERSION=0.19.2
 ARG BASE_IMAGE=opensuse/leap:15.3
+
+FROM golang as builder
+
+COPY ./ /work
+
+WORKDIR /work/installer
+RUN CGO_ENABLED=0 go build -o c3os
+
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM $BASE_IMAGE
@@ -14,6 +22,8 @@ ENV COSIGN_EXPERIMENTAL=1
 ENV COSIGN_REPOSITORY=raccos/releases-green
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/mocaccino/.*"
+
+COPY --from=builder /work/installer/c3os /usr/bin/c3os
 
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Leap_15.3/utilities.repo && zypper ref
 
@@ -99,7 +109,9 @@ RUN curl -sfL https://get.k3s.io > installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
+
 RUN systemctl enable nohang
+
 COPY files/ /
 
 RUN mkinitrd

@@ -24,3 +24,6 @@ luet:
     urls:
       - quay.io/costoolkit/releases-green
     type: docker
+
+overlay:
+  isoimage: files-iso

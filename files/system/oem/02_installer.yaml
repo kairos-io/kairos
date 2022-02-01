@@ -1,0 +1,8 @@
+name: "Start installer on tty1"
+stages:
+    initramfs:
+     - if: |
+            cat /proc/cmdline | grep -q "CDLABEL" || cat /proc/cmdline | grep -q "nodepair.enable"
+       commands:
+       - systemctl disable getty@tty1
+       - systemctl enable c3os

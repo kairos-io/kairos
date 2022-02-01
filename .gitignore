@@ -1,2 +1,6 @@
 *.iso
 *.iso.sha256
+/installer/c3os
+/installer/installer
+/c3os
+/dist
