@@ -39,7 +39,6 @@ RUN apk --no-cache add  \
       blkid \
       busybox-initscripts \
       ca-certificates \
-      connman \
       conntrack-tools \
       coreutils \
       cryptsetup \
@@ -104,7 +103,12 @@ RUN apk --no-cache add  \
       open-vm-tools-vmbackup
 
 # System services
-RUN rc-update add sshd
+RUN rc-update add sshd boot && \
+    rc-update add connman boot && \
+    rc-update add acpid boot && \
+    rc-update add hwclock boot && \
+    rc-update add syslog boot && \
+    rc-update add udev sysinit
 
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml
