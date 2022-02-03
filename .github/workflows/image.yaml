@@ -2,8 +2,7 @@ name: Build image
 
 on: 
  push:
-   branches:
-     - master
+ pull_request:
 
 jobs:
   build:
@@ -25,6 +24,7 @@ jobs:
           sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
           sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Login to Quay Registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
         env:
@@ -40,5 +40,6 @@ jobs:
             *.sha256
           if-no-files-found: error
       - name: Push to quay
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: | 
           docker push quay.io/mudler/c3os:${{ matrix.flavor }}-latest
