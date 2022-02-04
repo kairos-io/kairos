@@ -9,6 +9,7 @@ builds:
       - windows
     goarch:
       - amd64
+      - 386
     main: ./installer/
     id: "c3os"
     binary: "c3os"

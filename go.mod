@@ -3,7 +3,7 @@ module github.com/mudler/c3os
 go 1.17
 
 require (
-	github.com/mudler/go-nodepair v0.0.0-20220204212318-a166303d0620
+	github.com/mudler/go-nodepair v0.0.0-20220204221811-d62bcd19499c
 	github.com/urfave/cli v1.22.5
 )
 
