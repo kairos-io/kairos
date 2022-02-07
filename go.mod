@@ -3,12 +3,20 @@ module github.com/mudler/c3os
 go 1.17
 
 require (
+	github.com/denisbrodbeck/machineid v1.0.1
+	github.com/ipfs/go-log v1.0.5
+	github.com/joho/godotenv v1.4.0
+	github.com/mudler/edgevpn v0.9.0
 	github.com/mudler/go-nodepair v0.0.0-20220204221811-d62bcd19499c
+	github.com/onsi/ginkgo/v2 v2.1.1
+	github.com/onsi/gomega v1.17.0
 	github.com/urfave/cli v1.22.5
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
 	github.com/atomicgo/cursor v0.0.1 // indirect
+	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59 // indirect
 	github.com/benbjohnson/clock v1.1.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd v0.22.0-beta // indirect
@@ -39,7 +47,6 @@ require (
 	github.com/ipfs/go-datastore v0.5.1 // indirect
 	github.com/ipfs/go-ipfs-util v0.0.2 // indirect
 	github.com/ipfs/go-ipns v0.1.2 // indirect
-	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-log/v2 v2.4.0 // indirect
 	github.com/ipld/go-ipld-prime v0.14.3 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
@@ -107,8 +114,8 @@ require (
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
-	github.com/mudler/edgevpn v0.9.0 // indirect
 	github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58 // indirect
+	github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6 // indirect
 	github.com/multiformats/go-base32 v0.0.4 // indirect
 	github.com/multiformats/go-base36 v0.1.0 // indirect
 	github.com/multiformats/go-multiaddr v0.4.1 // indirect
@@ -119,6 +126,7 @@ require (
 	github.com/multiformats/go-multihash v0.1.0 // indirect
 	github.com/multiformats/go-multistream v0.2.2 // indirect
 	github.com/multiformats/go-varint v0.0.6 // indirect
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
@@ -129,7 +137,8 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/pterm/pterm v0.12.33 // indirect
+	github.com/pterm/pterm v0.12.36 // indirect
+	github.com/qeesung/image2ascii v1.0.1 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
@@ -139,6 +148,7 @@ require (
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
+	github.com/wayneashleyberry/terminal-dimensions v1.1.0 // indirect
 	github.com/whyrusleeping/go-keyspace v0.0.0-20160322163242-5b898ac5add1 // indirect
 	github.com/whyrusleeping/mdns v0.0.0-20190826153040-b9b60ed33aa9 // indirect
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
@@ -161,6 +171,5 @@ require (
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )

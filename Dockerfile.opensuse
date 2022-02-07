@@ -111,7 +111,6 @@ RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN rm -rf installer.sh
 
 RUN systemctl enable nohang
-
 COPY files/ /
 
 RUN mkinitrd

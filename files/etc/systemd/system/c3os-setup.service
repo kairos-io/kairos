@@ -1,0 +1,10 @@
+[Unit]
+Description=c3os setup
+After=network.target
+Wants=network.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/c3os setup
+[Install]
+WantedBy=multi-user.target
