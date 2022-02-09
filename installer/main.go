@@ -10,12 +10,14 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mudler/c3os/installer/systemd"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
+	"github.com/mudler/edgevpn/pkg/node"
 	nodepair "github.com/mudler/go-nodepair"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/pterm/pterm"
@@ -81,6 +83,22 @@ func main() {
 
 					fmt.Println("Payload sent, installation will start on the machine briefly")
 
+					return nil
+				},
+			},
+			{
+				Name:      "generate-token",
+				Aliases:   []string{"g"},
+				UsageText: "Generate a network token",
+				Action: func(c *cli.Context) error {
+					l := int(^uint(0) >> 1)
+					args := c.Args()
+					if len(args) > 0 {
+						if i, err := strconv.Atoi(args[0]); err == nil {
+							l = i
+						}
+					}
+					fmt.Println(node.GenerateNewConnectionData(l).Base64())
 					return nil
 				},
 			},
