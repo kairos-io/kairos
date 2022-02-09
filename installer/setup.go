@@ -49,14 +49,16 @@ func setup(dir string) error {
 	}
 
 	// Setup systemd unit and starts it
-	systemd.EdgeVPN.Prepare(map[string]string{
+	if err := systemd.EdgeVPN.Prepare(map[string]string{
 		"EDGEVPNTOKEN":          c.C3OS.NetworkToken,
 		"API":                   "true",
 		"APILISTEN":             apiAddress,
 		"EDGEVPNLOWPROFILEVPNN": "true",
 		"DHCP":                  "true",
 		"DHCPLEASEDIR":          "/usr/local/.c3os/lease",
-	})
+	}); err != nil {
+		l.Warnf("failed preparing edgevpn: '%s'", err.Error())
+	}
 
 	if role.SentinelExist() {
 		return nil

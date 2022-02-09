@@ -1,22 +1,18 @@
 package role
 
 import (
-	"hash/fnv"
 	"math/rand"
 	"time"
+
+	utils "github.com/mudler/edgevpn/pkg/utils"
 
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
-func hash(s string) uint32 {
-	h := fnv.New32a()
-	h.Write([]byte(s))
-	return h.Sum32()
-}
-
 // TODO: HA-Auto
 
 func Auto(c *service.RoleConfig) error {
+	advertizing, _ := c.Client.AdvertizingNodes()
 	actives, _ := c.Client.ActiveNodes()
 
 	c.Logger.Info("Active nodes:", actives)
@@ -27,25 +23,9 @@ func Auto(c *service.RoleConfig) error {
 	}
 
 	// first get available nodes
-	nodes := []string{}
-	leaderboard := map[string]uint32{}
-
-	leader := actives[0]
-
-	// Compute who is leader at the moment
-	for _, a := range actives {
-		leaderboard[a] = hash(a)
-		if leaderboard[leader] < leaderboard[a] {
-			leader = a
-		}
-		// This prevent to assign roles to ourselves
-		//if a != c.UUID {
-		nodes = append(nodes, a)
-		//}
-	}
-
+	nodes := advertizing
+	leader := utils.Leader(advertizing)
 	// From now on, only the leader keeps processing
-	c.Logger.Info("Leaderboard: ", leaderboard)
 	if leader != c.UUID {
 		c.Logger.Infof("<%s> not a leader, leader is '%s', sleeping", c.UUID, leader)
 		return nil

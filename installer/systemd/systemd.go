@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/joho/godotenv"
 )
 
@@ -52,27 +53,19 @@ func WriteEnv(envFile string, config map[string]string) error {
 	return godotenv.Write(env, envFile)
 }
 
-func (u Unit) Prepare(opts map[string]string) error {
+func (u Unit) Prepare(opts map[string]string) (err error) {
 
 	// Setup systemd unit and starts it
-	if err := WriteEnv("/etc/systemd/system.conf.d/edgevpn-c3os.env",
-		opts,
-	); err != nil {
-		return err
-	}
+	err = multierror.Append(WriteEnv("/etc/systemd/system.conf.d/edgevpn-c3os.env", opts))
+	err = multierror.Append(systemdWriteUnit("edgevpn@", string(u)))
+	err = multierror.Append(StartUnit("edgevpn@c3os"))
+	err = multierror.Append(EnableUnit("edgevpn@c3os"))
 
-	if err := systemdWriteUnit("edgevpn@", string(u)); err != nil {
-		return err
-	}
-
-	StartUnit("edgevpn@c3os")
-	EnableUnit("edgevpn@c3os")
-
-	return nil
+	return
 }
 
-func StartUnit(s string) {
-	exec.Command("/bin/sh", "-c", "systemctl", "start", "--no-block", s).Run()
+func StartUnit(s string) error {
+	return exec.Command("/bin/sh", "-c", "systemctl", "start", "--no-block", s).Run()
 }
 
 func EnableUnit(s string) error {
