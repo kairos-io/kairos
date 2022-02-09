@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+
+	"github.com/pterm/pterm"
 )
 
 func optsToArgs(options map[string]string) (res []string) {
@@ -51,6 +53,7 @@ func runInstall(options map[string]string) {
 	}
 
 	if reboot {
+		pterm.Info.Println("Rebooting node")
 		exec.Command("reboot").Start()
 	}
 }

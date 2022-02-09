@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -163,25 +162,14 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 					defer cancel()
 
 					go func() {
-						prompt("")
+						prompt("p2p device enrollment started, press any key to abort pairing and drop to shell. To re-start enrollment, run 'c3os install'. Waiting for registration.")
 						// give tty1 back
 						systemd.StartUnit("getty@tty1")
 						cancel()
 					}()
 
-					noSpinner := os.Getenv("NOSPINNER") == "true"
-					var spinnerSuccess *pterm.SpinnerPrinter
-					if !noSpinner {
-						spinnerSuccess, _ = pterm.DefaultSpinner.Start("p2p device enrollment started, press any key to abort pairing and drop to shell. To re-start enrollment, run 'c3os install'. Waiting for registration. ")
-					}
 					if err := nodepair.Receive(ctx, &r, nodepair.WithToken(tk)); err != nil {
-						if !noSpinner {
-							spinnerSuccess.Stop()
-						}
 						return err
-					}
-					if !noSpinner {
-						spinnerSuccess.Stop()
 					}
 
 					if len(r) == 0 {
@@ -191,9 +179,7 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 					pterm.Info.Println("Starting installation")
 					runInstall(r)
 
-					prompt("Installation completed, press any key to reboot")
-
-					exec.Command("reboot").Run()
+					pterm.Info.Println("Installation completed, press enter to go back to the shell.")
 					return nil
 				},
 			},
