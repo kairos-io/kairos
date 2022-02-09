@@ -1,6 +1,27 @@
-# [![Docker Repository on Quay](https://quay.io/repository/mudler/c3os/status "Docker Repository on Quay")](https://quay.io/repository/mudler/c3os) cOS + k3s = c3OS
+<h1 align="center">
+  <br>
+     <img src="https://user-images.githubusercontent.com/2420543/153508410-a806a385-ae3e-417e-b87e-7472f21689e3.png" width=500>
+	<br>
+    C3OS
+<br>
+</h1>
 
-A dead simple [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative with k3s based on openSUSE.
+<h3 align="center">Create Decentralized Kubernetes clusters </h3>
+<p align="center">
+  <a href="https://github.com/mudler/c3os/issues"><img src="https://img.shields.io/github/issues/mudler/c3os"></a>
+  <a href="https://quay.io/repository/mudler/c3os"> <img src="https://quay.io/repository/mudler/c3os/status"></a>
+</p>
+
+<p align="center">
+	 <br>
+    Automatic Node discovery - Automatic VPN - K3s
+</p>
+
+<hr>
+
+A [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative with k3s based on openSUSE and Alpine.
+
+[Documentation available here](https://mudler.github.io/c3os).
 
 ## Run 
 
@@ -8,7 +29,13 @@ Download the ISO from the latest [releases](https://github.com/mudler/c3os/relea
 
 ## Installation
 
-Boot the ISO and install `c3os` with `cos-install --config <config-file>` or either place it in `/oem` after install. The config file can be a cloud-init file, or a URL pointing to a cloud-init file.
+Boot the ISO and follow the instructions on screen. The openSUSE variant supports automatic peer discovery and device pairing.
+
+Use the `c3os` CLI to register and handle node installation remotely, check out the [documentation](https://mudler.github.io/c3os).
+
+### Manual
+
+Install `c3os` with `cos-install --config <config-file>` or either place it in `/oem` after install. The config file can be a cloud-init file, or a URL pointing to a cloud-init file.
 
 ## Build
 

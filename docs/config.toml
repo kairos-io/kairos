@@ -1,0 +1,33 @@
+baseURL = 'http://example.org/'
+languageCode = 'en-us'
+title = 'c3os'
+# Change the default theme to be use when building the site with Hugo
+theme = "hugo-theme-learn"
+
+[params]
+  editURL = "https://github.com/mudler/c3os/edit/master/docs/content/"
+  description = "Documentation for c3os"
+  author = "Ettore Di Giacinto"
+  #themeVariant = "c3os"
+  themeVariant = "blue"
+# For search functionality
+
+[[Languages.en.menu.shortcuts]]
+name = "<i class='fas fa-fw fa-download'></i> Download"
+identifier = "download"
+url = "https://github.com/mudler/c3os/releases"
+weight = 1
+[[Languages.en.menu.shortcuts]]
+name = "<i class='fas fa-fw fa-github'></i> Github"
+identifier = "github"
+url = "https://github.com/mudler/c3os"
+weight = 1
+[[Languages.en.menu.shortcuts]]
+name = "<i class='fas fa-fw fa-bookmark'></i> cOS Documentation"
+identifier = "hugodoc"
+url = "https://rancher-sandbox.github.io/cos-toolkit-docs/docs"
+weight = 20
+
+[outputs]
+home = [ "HTML", "RSS", "JSON"]
+

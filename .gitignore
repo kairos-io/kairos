@@ -4,3 +4,5 @@
 /installer/installer
 /c3os
 /dist
+/docs/bin
+/docs/.hugo_build.lock
