@@ -162,7 +162,7 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 					defer cancel()
 
 					go func() {
-						prompt("p2p device enrollment started, press any key to abort pairing and drop to shell. To re-start enrollment, run 'c3os install'. Waiting for registration.")
+						prompt("Waiting for registration, press any key to abort pairing. To restart run 'c3os install'.")
 						// give tty1 back
 						systemd.StartUnit("getty@tty1")
 						cancel()
