@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/pterm/pterm"
+	"gopkg.in/yaml.v2"
 )
 
 func optsToArgs(options map[string]string) (res []string) {
@@ -35,6 +35,9 @@ func runInstall(options map[string]string) {
 		os.Exit(1)
 	}
 
+	c := &Config{}
+	yaml.Unmarshal([]byte(cloudInit), c)
+
 	_, reboot := options["reboot"]
 
 	ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
@@ -52,8 +55,7 @@ func runInstall(options map[string]string) {
 		os.Exit(1)
 	}
 
-	if reboot {
-		pterm.Info.Println("Rebooting node")
-		exec.Command("reboot").Start()
+	if reboot || c.C3OS.Reboot {
+		Reboot()
 	}
 }

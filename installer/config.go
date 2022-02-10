@@ -10,10 +10,14 @@ import (
 
 type C3OSConfig struct {
 	NetworkToken string `yaml:"network_token,omitempty"`
+	Offline      bool   `yaml:"offline"`
+	Reboot       bool   `yaml:"reboot"`
+	Device       string `yaml:"device"`
 }
 
 type Config struct {
-	C3OS C3OSConfig `yaml:"c3os,omitempty"`
+	C3OS             *C3OSConfig `yaml:"c3os,omitempty"`
+	cloudFileContent string
 }
 
 func ScanConfig(dir string) (c *Config, err error) {
@@ -26,6 +30,10 @@ func ScanConfig(dir string) (c *Config, err error) {
 		b, err := ioutil.ReadFile(f)
 		if err == nil {
 			yaml.Unmarshal(b, c)
+			if c.C3OS != nil {
+				c.cloudFileContent = string(b)
+				break
+			}
 		}
 	}
 	return c, nil

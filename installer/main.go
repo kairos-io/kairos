@@ -138,6 +138,22 @@ func main() {
 				Aliases: []string{"i"},
 				Action: func(c *cli.Context) error {
 
+					// Reads config, and if present and offline is defined,
+					// runs the installation
+					cc, err := ScanConfig("/oem")
+					if err == nil && cc.C3OS.Offline {
+						runInstall(map[string]string{
+							"device": cc.C3OS.Device,
+							"cc":     cc.cloudFileContent,
+						})
+						if cc.C3OS.Reboot {
+							Reboot()
+						} else {
+							systemd.StartUnit("getty@tty1")
+						}
+						return nil
+					}
+
 					printBanner(banner)
 					tk := nodepair.GenerateToken()
 

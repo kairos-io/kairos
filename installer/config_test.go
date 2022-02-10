@@ -37,6 +37,10 @@ c3os:
  network_token: "foo"
 `), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
+			err = ioutil.WriteFile(filepath.Join(d, "b"), []byte(`
+fooz:
+			`), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
 
 			c, err := ScanConfig(d)
 			Expect(err).ToNot(HaveOccurred())
