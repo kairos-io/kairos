@@ -17,14 +17,19 @@ func Auto(c *service.RoleConfig) error {
 
 	c.Logger.Info("Active nodes:", actives)
 
-	if len(actives) < 2 {
+	if len(actives) < 2 && len(advertizing) < 2 {
 		c.Logger.Info("Not enough nodes")
 		return nil
 	}
 
 	// first get available nodes
 	nodes := advertizing
-	leader := utils.Leader(advertizing)
+	leader := c.UUID
+
+	if len(advertizing) != 0 {
+		leader = utils.Leader(advertizing)
+	}
+
 	// From now on, only the leader keeps processing
 	if leader != c.UUID {
 		c.Logger.Infof("<%s> not a leader, leader is '%s', sleeping", c.UUID, leader)
