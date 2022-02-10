@@ -65,13 +65,13 @@ func (u Unit) Prepare(opts map[string]string) (err error) {
 }
 
 func StartUnit(s string) error {
-	return exec.Command("/bin/sh", "-c", "systemctl", "start", "--no-block", s).Run()
+	return exec.Command("/bin/sh", "-c", fmt.Sprintf("systemctl start --no-block %s", s)).Run()
 }
 
 func EnableUnit(s string) error {
-	return exec.Command("/bin/sh", "-c", "systemctl", "enable", s).Run()
+	return exec.Command("/bin/sh", "-c", fmt.Sprintf("systemctl enable %s", s)).Run()
 }
 
 func StartUnitBlocking(s string) error {
-	return exec.Command("/bin/sh", "-c", "systemctl", "start", s).Run()
+	return exec.Command("/bin/sh", "-c", fmt.Sprintf("systemctl start %s", s)).Run()
 }
