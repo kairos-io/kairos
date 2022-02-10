@@ -6,3 +6,6 @@ chapter = true
 pre = "<b>2. </b>"
 +++
 
+# Installing c3os on baremetal, VMs, ...
+
+## Automated, Paired and take over install

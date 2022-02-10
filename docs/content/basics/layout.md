@@ -2,7 +2,7 @@
 title = "Layout"
 date = 2022-02-09T17:56:26+01:00
 weight = 1
-pre = "<b>-. </b>"
+pre = "<b>- </b>"
 +++
 
 c3OS is an immutable Distribution, built with the [cOS-toolkit](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/).

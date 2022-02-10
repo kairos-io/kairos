@@ -9,6 +9,7 @@ theme = "hugo-theme-learn"
   description = "Documentation for c3os"
   author = "Ettore Di Giacinto"
   #themeVariant = "c3os"
+  disableLandingPageButton = true
   themeVariant = "blue"
 # For search functionality
 
