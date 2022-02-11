@@ -11,6 +11,7 @@ stages:
         PERSISTENT_STATE_PATHS: >-
           /etc/systemd
           /etc/rancher
+          /etc/sysconfig
           /etc/ssh
           /etc/iscsi 
           /etc/cni
