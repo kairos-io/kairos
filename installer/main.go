@@ -3,24 +3,17 @@ package main
 import (
 	//"fmt"
 
-	"context"
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/mudler/c3os/installer/systemd"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/edgevpn/pkg/node"
-	nodepair "github.com/mudler/go-nodepair"
-	qr "github.com/mudler/go-nodepair/qrcode"
-	"github.com/pterm/pterm"
 	"github.com/urfave/cli"
+	"gopkg.in/yaml.v2"
 )
 
 func main() {
@@ -46,6 +39,9 @@ func main() {
 					&cli.BoolFlag{
 						Name: "reboot",
 					},
+					&cli.BoolFlag{
+						Name: "poweroff",
+					},
 				},
 				Action: func(c *cli.Context) error {
 					args := c.Args()
@@ -54,34 +50,24 @@ func main() {
 						ref = args[0]
 					}
 
-					b, _ := ioutil.ReadFile(c.String("config"))
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-					// dmesg -D to suppress tty ev
-
-					fmt.Println("Sending registration payload, please wait")
-
-					config := map[string]string{
-						"device": c.String("device"),
-						"cc":     string(b),
+					return register(ref, c.String("config"), c.String("device"), c.Bool("reboot"), c.Bool("poweroff"))
+				},
+			},
+			{
+				Name:      "create-config",
+				Aliases:   []string{"c"},
+				UsageText: "Create a config with a generated network token",
+				Action: func(c *cli.Context) error {
+					l := int(^uint(0) >> 1)
+					args := c.Args()
+					if len(args) > 0 {
+						if i, err := strconv.Atoi(args[0]); err == nil {
+							l = i
+						}
 					}
-
-					if c.Bool("reboot") {
-						config["reboot"] = ""
-					}
-
-					err := nodepair.Send(
-						ctx,
-						config,
-						nodepair.WithReader(qr.Reader),
-						nodepair.WithToken(ref),
-					)
-					if err != nil {
-						return err
-					}
-
-					fmt.Println("Payload sent, installation will start on the machine briefly")
-
+					cc := &Config{C3OS: &C3OSConfig{NetworkToken: node.GenerateNewConnectionData(l).Base64()}}
+					y, _ := yaml.Marshal(cc)
+					fmt.Println(string(y))
 					return nil
 				},
 			},
@@ -138,72 +124,7 @@ func main() {
 				Name:    "install",
 				Aliases: []string{"i"},
 				Action: func(c *cli.Context) error {
-
-					// Reads config, and if present and offline is defined,
-					// runs the installation
-					cc, err := ScanConfig("/oem")
-					if err == nil && cc.C3OS != nil && cc.C3OS.Offline {
-						runInstall(map[string]string{
-							"device": cc.C3OS.Device,
-							"cc":     cc.cloudFileContent,
-						})
-						if cc.C3OS.Reboot {
-							Reboot()
-						} else {
-							svc, err := systemd.Getty(1)
-							if err == nil {
-								svc.Start()
-							}
-						}
-						return nil
-					}
-
-					printBanner(banner)
-					tk := nodepair.GenerateToken()
-
-					pterm.DefaultBox.WithTitle("Installation").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
-						`Welcome to c3os!
-p2p device installation enrollment is starting.
-A QR code will be displayed below. 
-In another machine, run "c3os register" with the QR code visible on screen,
-or "c3os register <file>" to register the machine from a photo.
-IF the qrcode is not displaying correctly,
-try booting with another vga option from the boot cmdline (e.g. vga=791).`)
-
-					pterm.Info.Println("Starting in 5 seconds...")
-					pterm.Print("\n\n") // Add two new lines as spacer.
-
-					time.Sleep(5 * time.Second)
-
-					qr.Print(tk)
-
-					r := map[string]string{}
-					ctx, cancel := context.WithCancel(context.Background())
-					defer cancel()
-
-					go func() {
-						prompt("Waiting for registration, press any key to abort pairing. To restart run 'c3os install'.")
-						// give tty1 back
-						svc, err := systemd.Getty(1)
-						if err == nil {
-							svc.Start()
-						}
-						cancel()
-					}()
-
-					if err := nodepair.Receive(ctx, &r, nodepair.WithToken(tk)); err != nil {
-						return err
-					}
-
-					if len(r) == 0 {
-						return errors.New("no configuration, stopping installation")
-					}
-
-					pterm.Info.Println("Starting installation")
-					runInstall(r)
-
-					pterm.Info.Println("Installation completed, press enter to go back to the shell.")
-					return nil
+					return install("/oem")
 				},
 			},
 		},

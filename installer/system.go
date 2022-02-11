@@ -9,3 +9,8 @@ func Reboot() {
 	pterm.Info.Println("Rebooting node")
 	utils.SH("reboot")
 }
+
+func PowerOFF() {
+	pterm.Info.Println("Shutdown node")
+	utils.SH("shutdown -h now")
+}

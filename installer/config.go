@@ -13,6 +13,7 @@ type C3OSConfig struct {
 	Offline      bool   `yaml:"offline"`
 	Reboot       bool   `yaml:"reboot"`
 	Device       string `yaml:"device"`
+	Poweroff     bool   `yaml:"poweroff"`
 }
 
 type Config struct {
