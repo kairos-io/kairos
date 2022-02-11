@@ -7,6 +7,7 @@ import (
 	"os"
 
 	role "github.com/mudler/c3os/installer/role"
+	"github.com/mudler/c3os/installer/utils"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 
@@ -48,16 +49,37 @@ func setup(dir string) error {
 		return err
 	}
 
-	// Setup systemd unit and starts it
-	if err := systemd.EdgeVPN.Prepare(map[string]string{
+	svc, err := systemd.EdgeVPN("c3os")
+	if err != nil {
+		return err
+	}
+
+	// Setup edgevpn instance
+	err = utils.WriteEnv("/etc/systemd/system.conf.d/edgevpn-c3os.env", map[string]string{
 		"EDGEVPNTOKEN":          c.C3OS.NetworkToken,
 		"API":                   "true",
 		"APILISTEN":             apiAddress,
 		"EDGEVPNLOWPROFILEVPNN": "true",
 		"DHCP":                  "true",
 		"DHCPLEASEDIR":          "/usr/local/.c3os/lease",
-	}); err != nil {
-		l.Warnf("failed preparing edgevpn: '%s'", err.Error())
+	})
+	if err != nil {
+		return err
+	}
+
+	err = svc.WriteUnit()
+	if err != nil {
+		return err
+	}
+
+	err = svc.Start()
+	if err != nil {
+		return err
+	}
+
+	err = svc.Enable()
+	if err != nil {
+		return err
 	}
 
 	if role.SentinelExist() {

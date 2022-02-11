@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/mudler/c3os/installer/systemd"
+	"github.com/mudler/c3os/installer/utils"
+
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
@@ -25,22 +27,27 @@ func Master(c *service.RoleConfig) error {
 	// Configure k3s service to start on edgevpn0
 	c.Logger.Info("Configuring k3s")
 
+	svc, err := systemd.NewService(systemd.WithName("k3s"))
+	if err != nil {
+		return err
+	}
+
 	// Setup systemd unit and starts it
-	if err := systemd.WriteEnv("/etc/systemd/system/k3s.service.env",
+	if err := utils.WriteEnv("/etc/sysconfig/k3s",
 		map[string]string{},
 	); err != nil {
 		return err
 	}
 
-	if err := systemd.OverrideServiceCmd("k3s", "/usr/bin/k3s server --flannel-iface=edgevpn0"); err != nil {
+	if err := svc.OverrideCmd("/usr/bin/k3s server --flannel-iface=edgevpn0"); err != nil {
 		return err
 	}
 
-	if err := systemd.StartUnitBlocking("k3s"); err != nil {
+	if err := svc.StartBlocking(); err != nil {
 		return err
 	}
 
-	if err := systemd.EnableUnit("k3s"); err != nil {
+	if err := svc.Enable(); err != nil {
 		return err
 	}
 

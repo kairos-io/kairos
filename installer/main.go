@@ -119,7 +119,8 @@ func main() {
 				Name: "get-kubeconfig",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name: "api",
+						Name:  "api",
+						Value: "localhost:8080",
 					},
 				},
 				Action: func(c *cli.Context) error {
@@ -149,7 +150,10 @@ func main() {
 						if cc.C3OS.Reboot {
 							Reboot()
 						} else {
-							systemd.StartUnit("getty@tty1")
+							svc, err := systemd.Getty(1)
+							if err == nil {
+								svc.Start()
+							}
 						}
 						return nil
 					}
@@ -180,7 +184,10 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 					go func() {
 						prompt("Waiting for registration, press any key to abort pairing. To restart run 'c3os install'.")
 						// give tty1 back
-						systemd.StartUnit("getty@tty1")
+						svc, err := systemd.Getty(1)
+						if err == nil {
+							svc.Start()
+						}
 						cancel()
 					}()
 
