@@ -37,7 +37,7 @@ func setup(dir string) error {
 		return err
 	}
 
-	if c.C3OS.NetworkToken == "" {
+	if c.C3OS == nil || c.C3OS.NetworkToken == "" {
 		return errors.New("No network token")
 	}
 

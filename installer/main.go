@@ -141,7 +141,7 @@ func main() {
 					// Reads config, and if present and offline is defined,
 					// runs the installation
 					cc, err := ScanConfig("/oem")
-					if err == nil && cc.C3OS.Offline {
+					if err == nil && cc.C3OS != nil && cc.C3OS.Offline {
 						runInstall(map[string]string{
 							"device": cc.C3OS.Device,
 							"cc":     cc.cloudFileContent,
