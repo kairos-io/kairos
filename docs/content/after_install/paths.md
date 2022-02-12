@@ -6,7 +6,7 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-The following paths are used by c3os:
+The following paths are relevant for c3os:
 
 | Path | Description |
 |:--|:--|

@@ -4,9 +4,11 @@
 ![background](https://user-images.githubusercontent.com/2420543/153506895-fb978c1e-8197-42e2-9ce2-3be6e0907acc.jpg?classes=shadow&width=50pc)
 
 
-C3os is a lightweight Kubernetes distro that supports automatic node discovery, focused on creating private disposable distributed kubernetes clusters.
+C3OS is a lightweight Kubernetes distro that supports automatic node discovery, automatic role assignment and VPN out of the box. C3OS nodes connect autonomously via P2P VPN, without any central server. 
 
-C3os allows to create highly decentralized automated kubernetes clusters with Decentralized Device Pairing or via cloud-init.
+C3OS is focused on creating private disposable distributed kubernetes clusters.
+
+Configuration and installation is done via Decentralized Device Pairing or via cloud-init.
 
 c3OS is:
 - Immutable

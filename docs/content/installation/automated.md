@@ -16,6 +16,7 @@ A cloud-init of the following form can be supplied as a datasource (CDROM, etc.)
 c3os:
   device: "/dev/sda"
   reboot: true
+  poweroff: true
   offline: true # Required, for automated installations
   network_token: ....
 
