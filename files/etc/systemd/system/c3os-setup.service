@@ -1,6 +1,6 @@
 [Unit]
 Description=c3os setup
-After=network.target
+After=cos-setup-network
 Wants=network.target
 [Service]
 Type=oneshot
