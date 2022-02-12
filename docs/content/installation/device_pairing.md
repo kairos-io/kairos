@@ -74,3 +74,7 @@ c3os register --device /dev/sda --config config.yaml <file.png>
 ```
 
 At this point, wait until the pairing is complete and the installation will start automatically in the new node.
+
+## Join new nodes
+
+To join new nodes, simply re-apply the process to new nodes by specifying the same `config.yaml` for all the machines. The machines will connect automatically between themselves, either remotely on local network.

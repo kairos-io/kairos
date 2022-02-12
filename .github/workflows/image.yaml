@@ -54,6 +54,7 @@ jobs:
          - flavor: "opensuse"
          - flavor: "alpine"
     steps:
+      - uses: actions/checkout@v2
       - name: Install deps
         run: |
           brew install hudochenkov/sshpass/sshpass
@@ -62,9 +63,10 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: c3os-${{ matrix.flavor }}.iso.zip
-      - uses: actions/checkout@v2
       - run: |
-              sh build_vm.sh *.iso
+              ls -liah
+              iso=$(ls *.iso)
+              sh build_vm.sh $iso
       - uses: actions/upload-artifact@v2
         with:
           name: c3os-${{ matrix.flavor }}.images.zip
