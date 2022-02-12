@@ -43,3 +43,32 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: | 
           docker push quay.io/mudler/c3os:${{ matrix.flavor }}-latest
+
+  build-vm-images:
+    needs: build
+    runs-on: macos-10.15
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "opensuse"
+         - flavor: "alpine"
+    steps:
+      - name: Install deps
+        run: |
+          brew install hudochenkov/sshpass/sshpass
+          brew install qemu
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.iso.zip
+      - uses: actions/checkout@v2
+      - run: |
+              sh build_vm.sh *.iso
+      - uses: actions/upload-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.images.zip
+          path: |
+            *.qcow2
+            *.ova
+          if-no-files-found: error
