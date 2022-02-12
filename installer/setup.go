@@ -54,15 +54,20 @@ func setup(dir string) error {
 		return err
 	}
 
+	vpnOpts := map[string]string{
+		"EDGEVPNTOKEN":         c.C3OS.NetworkToken,
+		"API":                  "true",
+		"APILISTEN":            apiAddress,
+		"EDGEVPNLOWPROFILEVPN": "true",
+		"DHCP":                 "true",
+		"DHCPLEASEDIR":         "/usr/local/.c3os/lease",
+	}
+	// Override opts with user-supplied
+	for k, v := range c.VPN {
+		vpnOpts[k] = v
+	}
 	// Setup edgevpn instance
-	err = utils.WriteEnv("/etc/systemd/system.conf.d/edgevpn-c3os.env", map[string]string{
-		"EDGEVPNTOKEN":          c.C3OS.NetworkToken,
-		"API":                   "true",
-		"APILISTEN":             apiAddress,
-		"EDGEVPNLOWPROFILEVPNN": "true",
-		"DHCP":                  "true",
-		"DHCPLEASEDIR":          "/usr/local/.c3os/lease",
-	})
+	err = utils.WriteEnv("/etc/systemd/system.conf.d/edgevpn-c3os.env", vpnOpts)
 	if err != nil {
 		return err
 	}

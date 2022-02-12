@@ -41,6 +41,10 @@ stages:
         - github:mudler
 c3os:
   network_token: "...."
+
+vpn:
+  # EdgeVPN environment options
+  DHCP: "true"
 ```
 
 {{% notice note %}}

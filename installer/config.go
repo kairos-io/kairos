@@ -17,7 +17,8 @@ type C3OSConfig struct {
 }
 
 type Config struct {
-	C3OS             *C3OSConfig `yaml:"c3os,omitempty"`
+	C3OS             *C3OSConfig       `yaml:"c3os,omitempty"`
+	VPN              map[string]string `yaml:"vpn,omitempty"`
 	cloudFileContent string
 }
 
