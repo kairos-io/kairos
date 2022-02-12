@@ -44,6 +44,7 @@ jobs:
         run: | 
           docker push quay.io/mudler/c3os:${{ matrix.flavor }}-latest
 
+# Test start
   build-vm-images:
     needs: build
     runs-on: macos-10.15
@@ -69,8 +70,91 @@ jobs:
               sh build_vm.sh $iso
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.images.zip
+          name: c3os-${{ matrix.flavor }}.qcow2
           path: |
             *.qcow2
+      - uses: actions/upload-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.ova
+          path: |
             *.ova
           if-no-files-found: error
+
+  prepare-test:
+    runs-on: ubuntu-latest
+    needs: build-vm-images
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+      - run: |
+          go build -o c3os ./installer/
+          ./c3os create-config > config.yaml
+      - uses: actions/upload-artifact@v2
+        with:
+          name: config.yaml
+          path: config.yaml
+          if-no-files-found: error
+
+  driver:
+    needs: prepare-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+      - run: |
+          go build -o c3os ./installer/
+          curl -L https://raw.githubusercontent.com/mudler/edgevpn/master/install.sh | sudo INSTALL_BIN_DIR=/usr/bin sh
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: config.yaml
+      - name: Connect
+        run: |
+          export EDGEVPNTOKEN=$(docker run --rm -v "${PWD}":/workdir mikefarah/yq '.c3os.network_token' config.yaml)
+          echo "Token $EDGEVPNTOKEN"
+          sudo sysctl -w net.core.rmem_max=2500000
+          sudo -E edgevpn --dhcp --api &
+      - name: "Test"
+        run: |
+          bash ./.github/test.sh
+
+  cluster-nodes:
+    needs: prepare-test
+    runs-on: macos-10.15
+    strategy:
+      fail-fast: true
+      matrix:
+       include:
+         - flavor: "opensuse"
+           node: "A" # Arbitrary field
+         - flavor: "opensuse"
+           node: "B"
+    steps:
+      - uses: actions/checkout@v2
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.ova
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: config.yaml
+      - name: Install deps
+        run: |
+          brew install cdrtools jq
+      - run: |
+              ls -liah
+              ova=$(ls *.ova)
+              sh start_vm.sh $ova $PWD/config.yaml

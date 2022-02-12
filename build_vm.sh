@@ -81,6 +81,8 @@ fi
 set -e
 
 VBoxManage controlvm "${machine_id}" poweroff &>/dev/null || true
+VBoxManage storageattach "${machine_id}" --storagectl 'sata controller' --port 1 --device 0 --type dvddrive --medium emptydrive --forceunmount || true
+
 echo "Exporting $outdir/$outfile.qcow2..."
 qemu-img convert -f vdi -O qcow2 $tmpdir/sda.vdi $outdir/$outfile.qcow2
 echo "Exporting $outdir/$outfile.ova..."

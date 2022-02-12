@@ -6,3 +6,4 @@
 /dist
 /docs/bin
 /docs/.hugo_build.lock
+/build
