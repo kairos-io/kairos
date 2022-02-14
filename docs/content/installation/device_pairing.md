@@ -10,31 +10,19 @@ pre = "<b>- </b>"
  Only the openSUSE variant supports automatic peer discovery and device pairing.
 {{% /notice %}}
 
-For pairing a c3os node, you will use the `c3os` CLI which is downloadable as part of the releases from another machine, which will be used to pair a new node.
+For pairing a c3os node, you will use the `c3os` CLI which is downloadable as part of the releases from another machine, it will be used to pair and install a new node or join a node to an existing cluster.
 
 ## Start the c3os ISO
 
 Download and mount the ISO in either baremetal or a VM that you wish to use as a node for your cluster.
+
 It doesn't matter if you are joining a node to an existing cluster or creating a new one, the procedure is still the same.
 
 A GRUB menu will be displayed:
 
 ![VirtualBox_test22_10_02_2022_20_56_55](https://user-images.githubusercontent.com/2420543/153488323-1ab451c3-d6ef-4109-b535-be8a823ba356.png?classes=border,shadow)
 
-The first menu entry starts `c3os` in **Decentralized Device Pairing** pairing mode, while the second is reserved for manual installations.
-
-{{% notice note %}}
-
-If needed to connect over ssh, the system have an hardcoded username/password when booting from the LiveCD:
-
-```
-user: c3os
-pass: c3os
-```
-
-Note, after the installation the password login is disabled, so users and ssh keys to login must be configured via cloud-init.
-
-{{% /notice %}}
+The first menu entry starts `c3os` in **Decentralized Device Pairing** pairing mode and is the default, while the second is reserved for manual installations.
 
 Once booted the first entry, a boot splash screen will appear, and right after a QR code will be printed out of the screen
 ![VirtualBox_test22_10_02_2022_20_56_29](https://user-images.githubusercontent.com/2420543/153488315-a4290028-b856-436d-a43a-ea0404003fdf.png?classes=border,shadow)
@@ -69,18 +57,20 @@ The configuration config file is in [cloud-init](https://rancher-sandbox.github.
 
 ## Pair the machine
 
-The VM once booted will print-out a QR code like the following:
+The VM once finished booting will print-out a QR code like the following:
 
 ![VirtualBox_test22_10_02_2022_20_56_36](https://user-images.githubusercontent.com/2420543/153488321-07e63e5f-d9e3-48ce-b551-8b457ece14a9.png?classes=border,shadow)
 
 
-You can use it to pair the machine, by either providing a photo or by just calling `c3os register` which will by default take a screenshot:
+You can use now the QR code to pair the machine by either providing a screenshot or photo of it, or by just calling `c3os register` which will take a screenshot by default:
 
 ```
 c3os register --reboot --device /dev/sda --config config.yaml
 ```
 
-Optionally we can specify an image where to extract the QR code from with:
+We can also specify here if the machine after install needs to be rebooted (`--reboot`) or shut down (`--poweroff`). The cloud-init configuration file must be provided with the `--config` flag.
+
+Optionally we can specify an image where to extract the QR code from, by specifying an image file as argument:
 
 ```
 c3os register --device /dev/sda --config config.yaml <file.png>
@@ -91,3 +81,18 @@ At this point, wait until the pairing is complete and the installation will star
 ## Join new nodes
 
 To join new nodes, simply re-apply the process to new nodes by specifying the same `config.yaml` for all the machines. The machines will connect automatically between themselves, either remotely on local network.
+
+## Default credentials
+
+If needed to connect over ssh, the system have an hardcoded username/password when booting from the LiveCD:
+
+```
+user: c3os
+pass: c3os
+```
+
+{{% notice note %}}
+
+Note, after the installation the password login is disabled, so users and ssh keys to login must be configured via cloud-init.
+
+{{% /notice %}}
