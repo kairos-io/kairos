@@ -6,8 +6,8 @@ chapter = true
 pre = "<b>1. </b>"
 +++
 
-# Exploring c3os basics
+# Basics
 
-## Layout, Architecture, the CLI
+### Layout, Architecture, the CLI
 
-C3OS nodes autonomously connect and configure each other via P2P. No central server is needed.
+C3OS is a GNU/Linux distribution which is focused on bringing `k3s` on distributed environments with as less friction as possible.

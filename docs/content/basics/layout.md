@@ -1,7 +1,7 @@
 +++
 title = "Layout"
 date = 2022-02-09T17:56:26+01:00
-weight = 1
+weight = 2
 pre = "<b>- </b>"
 +++
 
@@ -19,4 +19,4 @@ A running system will look like as follows:
 / immutable
 ```
 
-[See also cOS docs](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/immutable_rootfs/)
+[See also cOS docs](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/immutable_rootfs/).

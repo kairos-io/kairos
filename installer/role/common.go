@@ -1,14 +1,18 @@
 package role
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 )
 
 func getIP() string {
-	ifaces, _ := net.Interfaces()
-	// handle err
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		fmt.Println("failed getting system interfaces")
+		return ""
+	}
 	for _, i := range ifaces {
 		if i.Name == "edgevpn0" {
 			addrs, _ := i.Addrs()
@@ -25,11 +29,8 @@ func getIP() string {
 					return ip.String()
 
 				}
-
-				// process IP address
 			}
 		}
-
 	}
 	return ""
 }

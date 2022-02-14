@@ -13,10 +13,6 @@ import (
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
-const (
-	ProcessK3sMaster = "k3smaster"
-)
-
 func Master(c *service.RoleConfig) error {
 
 	ip := getIP()

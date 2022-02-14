@@ -13,7 +13,6 @@ import (
 )
 
 func Worker(c *service.RoleConfig) error {
-
 	masterIP, _ := c.Client.Get("master", "ip")
 	if masterIP == "" {
 		c.Logger.Info("MasterIP not there still..")
@@ -27,10 +26,6 @@ func Worker(c *service.RoleConfig) error {
 	}
 
 	nodeToken = strings.TrimRight(nodeToken, "\n")
-
-	// K3S_URL=https://10.1.0.3:6443
-	// K3S_TOKEN=xx
-	// k3s agent --flannel-iface=edgevpn0 --node-ip 10.1.0.4
 
 	ip := getIP()
 	if ip == "" {
