@@ -2,7 +2,6 @@
   <br>
      <img src="https://user-images.githubusercontent.com/2420543/153508410-a806a385-ae3e-417e-b87e-7472f21689e3.png" width=500>
 	<br>
-    C3OS
 <br>
 </h1>
 
@@ -19,7 +18,14 @@
 
 <hr>
 
-A [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative with k3s based on openSUSE and Alpine.
+
+C3OS is a lightweight Kubernetes GNU/Linux [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative that supports automatic node discovery, automatic role assignment and VPN out of the box with no kubernetes networking configuration required. 
+
+C3OS creates multi-nodes Kubernetes cluster that connects autonomously in a hybrid P2P VPN which bridges nodes without any central server also behind nat.
+
+- No infrastructure is required. C3OS can be used to bootstrap a cluster entirely from the ground-up.
+- LAN, remote networks, multi-region/zones, NAT - No network configuration or opening port outside is required. Nodes will connect each other via holepunching and using hops wherever necessary.
+- Zero kubernetes configuration - Nodes autonomously discover and configure themselves to form a Kubernetes cluster. The same configuration/bootstrapping process applies wether creating new clusters or joining nodes to existing one.
 
 [Documentation available here](https://mudler.github.io/c3os).
 
@@ -29,7 +35,7 @@ Download the ISO from the latest [releases](https://github.com/mudler/c3os/relea
 
 ## Installation
 
-Boot the ISO and follow the instructions on screen. The openSUSE variant supports automatic peer discovery and device pairing.
+Boot the ISO and follow the instructions on screen. The openSUSE variant supports automatic peer discovery and [device pairing](https://mudler.github.io/c3os/installation/device_pairing/).
 
 Use the `c3os` CLI to register and handle node installation remotely, check out the [documentation](https://mudler.github.io/c3os).
 
@@ -43,26 +49,6 @@ Needs only docker.
 
 Run `build.sh`, should produce a docker image along with an ISO
 
-## Cloud-init examples
-
-`c3os` supports the standard cloud-init syntax and the extended one from the [cOS toolkit](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/).
-
-Examples using the extended notation for running k3s as agent or server are in `examples/`. 
-
 ## Upgrades
 
-`c3os` supports both manual and upgrades within kubernetes with `system-upgrade-controller`.
-
-For an example of how to trigger an upgrade, [see the cOS toolkit documentation](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/getting-started/upgrading/#integration-with-system-upgrade-controller).
-
-
-## Default user
-
-The system have an hardcoded username/password when running from the LiveCD:
-
-```
-user: c3os
-pass: c3os
-```
-
-Note, after the upgrade the password login is disabled, so users and ssh keys to login must be configured via cloud-init.
+[Docs](https://mudler.github.io/c3os/after_install/upgrades/)

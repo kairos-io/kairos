@@ -23,6 +23,19 @@ A GRUB menu will be displayed:
 
 The first menu entry starts `c3os` in **Decentralized Device Pairing** pairing mode, while the second is reserved for manual installations.
 
+{{% notice note %}}
+
+If needed to connect over ssh, the system have an hardcoded username/password when booting from the LiveCD:
+
+```
+user: c3os
+pass: c3os
+```
+
+Note, after the installation the password login is disabled, so users and ssh keys to login must be configured via cloud-init.
+
+{{% /notice %}}
+
 Once booted the first entry, a boot splash screen will appear, and right after a QR code will be printed out of the screen
 ![VirtualBox_test22_10_02_2022_20_56_29](https://user-images.githubusercontent.com/2420543/153488315-a4290028-b856-436d-a43a-ea0404003fdf.png?classes=border,shadow)
 

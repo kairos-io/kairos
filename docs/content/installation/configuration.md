@@ -40,6 +40,13 @@ stages:
         - github:mudler
 ```
 
+
+## Syntax
+
+`c3os` supports the standard cloud-init syntax and the extended one from the [cOS toolkit](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/).
+
+Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/mudler/c3os/tree/master/examples). 
+
 ## Datasource
 
 The configuration file can also be used to drive automated installation and deployments by mounting an ISO in the node with the `cidata` label. The ISO must contain a `user-data` (which contain your configuration) and `meta-data` file.

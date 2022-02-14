@@ -6,11 +6,11 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-# Get kubeconfig
+## Get kubeconfig
 
 On all nodes of the cluster it's possible to invoke `c3os get-kubeconfig` to recover the kubeconfig file
 
-# Connect to the cluster network
+## Connect to the cluster network
 
 Network tokens can be used to connect to the VPN created by the cluster. They are infact tokens of [edgevpn](https://github.com/mudler/edgevpn) networks, and thus can be used to connect to. Refer to the [edgeVPN](https://mudler.github.io/edgevpn/docs/getting-started/cli/) documentation on how to connect to the VPN, but it boils down to run `edgevpn`:
 
@@ -18,7 +18,7 @@ Network tokens can be used to connect to the VPN created by the cluster. They ar
 EDGEVPNTOKEN=<network_token> edgevpn --dhcp
 ```
 
-# Setup process
+## Setup process
 
 `c3os` node at first boot will start the `c3os-setup` service, you can always check what's happening by running `journalctl -fu c3os-setup`.
 

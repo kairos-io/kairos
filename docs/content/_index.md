@@ -2,19 +2,21 @@
 
 # C3os
 
-C3OS is a lightweight Kubernetes distro that supports automatic node discovery, automatic role assignment and VPN out of the box. C3OS nodes connect autonomously via P2P VPN, without any central server. 
+C3OS is a lightweight Kubernetes GNU/Linux distro that supports automatic node discovery, automatic role assignment and VPN out of the box with no kubernetes networking configuration required. 
 
-C3OS is focused on creating private disposable distributed kubernetes clusters.
+C3OS creates multi-nodes Kubernetes cluster that connects autonomously in a hybrid P2P VPN which bridges nodes without any central server also behind nat.
 
-Configuration and installation is done via Decentralized Device Pairing or via cloud-init.
+- No infrastructure is required. C3OS can be used to bootstrap a cluster entirely from the ground-up.
+- LAN, remote networks, multi-region/zones, NAT - No network configuration or opening port outside is required. Nodes will connect each other via holepunching and using hops wherever necessary.
+- Zero kubernetes configuration - Nodes autonomously discover and configure themselves to form a Kubernetes cluster. The same configuration/bootstrapping process applies wether creating new clusters or joining nodes to existing one.
+  
+Configuration and installation is done via **Decentralized Device Pairing** or **cloud-init** for manual/automated mass-installs.
 
-c3OS is:
-- Immutable
-- cloud-init driven
-- P2P first
-- Automatized in every aspect
-
-By default cluster nodes are connected each other via a p2p VPN which will also coordinates and prepare the nodes roles automatically, transparently to the user. There is no central server needed, and nodes will try to automatically connect each other by holepunching, snatting, and creating intermediate hops as necessary.
+c3OS have:
+- an Immutable layout
+- cloud-init support
+- P2P layer
+- Strong enphasis on automation - the only configuration which is required is to generate a network token
 
 c3OS is composed of:
 - [k3s](https://k3s.io) as a Kubernetes distribution
