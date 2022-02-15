@@ -82,17 +82,3 @@ At this point, wait until the pairing is complete and the installation will star
 
 To join new nodes, simply re-apply the process to new nodes by specifying the same `config.yaml` for all the machines. The machines will connect automatically between themselves, either remotely on local network.
 
-## Default credentials
-
-If needed to connect over ssh, the system have an hardcoded username/password when booting from the LiveCD:
-
-```
-user: c3os
-pass: c3os
-```
-
-{{% notice note %}}
-
-Note, after the installation the password login is disabled, so users and ssh keys to login must be configured via cloud-init.
-
-{{% /notice %}}
