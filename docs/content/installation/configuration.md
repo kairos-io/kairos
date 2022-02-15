@@ -19,6 +19,8 @@ c3os:
   poweroff: true
   # Set to true when installing without Pairing
   offline: true
+  # Manually set node role. Available: master, worker. Defaults auto (none)
+  role: "master"
 
 vpn:
   # EdgeVPN environment options
