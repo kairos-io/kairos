@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"time"
 
+	config "github.com/mudler/c3os/installer/config"
+
 	systemd "github.com/mudler/c3os/installer/systemd"
 	nodepair "github.com/mudler/go-nodepair"
 	qr "github.com/mudler/go-nodepair/qrcode"
@@ -29,11 +31,11 @@ func optsToArgs(options map[string]string) (res []string) {
 func install(dir string) error {
 	// Reads config, and if present and offline is defined,
 	// runs the installation
-	cc, err := ScanConfig(dir)
+	cc, err := config.Scan(dir)
 	if err == nil && cc.C3OS != nil && cc.C3OS.Offline {
 		runInstall(map[string]string{
 			"device": cc.C3OS.Device,
-			"cc":     cc.cloudFileContent,
+			"cc":     cc.String(),
 		})
 
 		svc, err := systemd.Getty(1)
@@ -109,7 +111,7 @@ func runInstall(options map[string]string) {
 		os.Exit(1)
 	}
 
-	c := &Config{}
+	c := &config.Config{}
 	yaml.Unmarshal([]byte(cloudInit), c)
 
 	_, reboot := options["reboot"]

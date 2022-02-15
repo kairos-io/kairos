@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	config "github.com/mudler/c3os/installer/config"
 	role "github.com/mudler/c3os/installer/role"
 	"github.com/mudler/c3os/installer/utils"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
@@ -27,13 +28,11 @@ func uuid() string {
 
 // setup needs edgevpn and k3s installed locally
 // (both k3s and k3s-agent systemd services)
-func setup(dir string) error {
-
-	apiAddress := "127.0.0.1:8080"
+func setup(apiAddress, dir string, force bool) error {
 	os.MkdirAll("/usr/local/.c3os", 0600)
 
 	// Reads config
-	c, err := ScanConfig(dir)
+	c, err := config.Scan(dir)
 	if err != nil {
 		return err
 	}
@@ -87,19 +86,19 @@ func setup(dir string) error {
 		return err
 	}
 
-	if role.SentinelExist() {
+	if !force && role.SentinelExist() {
+		l.Info("Node already set-up, nothing to do. Run c3os setup --force to force node setup")
 		return nil
 	}
 
 	cc := service.NewClient(
 		"c3os",
-		edgeVPNClient.NewClient(edgeVPNClient.WithHost(fmt.Sprintf("http://%s", apiAddress))))
+		edgeVPNClient.NewClient(edgeVPNClient.WithHost(apiAddress)))
 	logging.SetAllLoggers(lvl)
 
-	k, err := service.NewNode(
+	nodeOpts := []service.Option{
 		service.WithLogger(l),
 		service.WithClient(cc),
-		//	service.WithAPIAddress(apiAddress),
 		service.WithUUID(uuid()),
 		service.WithStateDir("/usr/local/.c3os/state"),
 		service.WithNetworkToken(c.C3OS.NetworkToken),
@@ -118,7 +117,14 @@ func setup(dir string) error {
 				RoleHandler: role.Auto,
 			},
 		),
-	)
+	}
+
+	// Optionally set up a specific node role if the user has defined so
+	if c.C3OS.Role != "" {
+		nodeOpts = append(nodeOpts, service.WithDefaultRoles(c.C3OS.Role))
+	}
+
+	k, err := service.NewNode(nodeOpts...)
 	if err != nil {
 		return err
 	}

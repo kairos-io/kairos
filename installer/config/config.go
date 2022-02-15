@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"io/ioutil"
@@ -8,21 +8,26 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type C3OSConfig struct {
+type C3OS struct {
 	NetworkToken string `yaml:"network_token,omitempty"`
 	Offline      bool   `yaml:"offline"`
 	Reboot       bool   `yaml:"reboot"`
 	Device       string `yaml:"device"`
 	Poweroff     bool   `yaml:"poweroff"`
+	Role         string `yaml:"role"`
 }
 
 type Config struct {
-	C3OS             *C3OSConfig       `yaml:"c3os,omitempty"`
+	C3OS             *C3OS             `yaml:"c3os,omitempty"`
 	VPN              map[string]string `yaml:"vpn,omitempty"`
 	cloudFileContent string
 }
 
-func ScanConfig(dir string) (c *Config, err error) {
+func (c Config) String() string {
+	return c.cloudFileContent
+}
+
+func Scan(dir string) (c *Config, err error) {
 	c = &Config{}
 	files, err := listFiles(dir)
 	if err != nil {

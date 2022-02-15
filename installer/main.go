@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	config "github.com/mudler/c3os/installer/config"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/edgevpn/pkg/node"
@@ -65,7 +66,7 @@ func main() {
 							l = i
 						}
 					}
-					cc := &Config{C3OS: &C3OSConfig{NetworkToken: node.GenerateNewConnectionData(l).Base64()}}
+					cc := &config.Config{C3OS: &config.C3OS{NetworkToken: node.GenerateNewConnectionData(l).Base64()}}
 					y, _ := yaml.Marshal(cc)
 					fmt.Println(string(y))
 					return nil
@@ -88,8 +89,17 @@ func main() {
 				},
 			},
 			{
-				Name:      "setup",
-				Aliases:   []string{"s"},
+				Name:    "setup",
+				Aliases: []string{"s"},
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name: "force",
+					},
+					&cli.StringFlag{
+						Name:  "api",
+						Value: "http://localhost:8080",
+					},
+				},
 				UsageText: "Automatically setups the node",
 				Action: func(c *cli.Context) error {
 					dir := "/oem"
@@ -98,7 +108,7 @@ func main() {
 						dir = args[0]
 					}
 
-					return setup(dir)
+					return setup(c.String("api"), dir, c.Bool("force"))
 				},
 			},
 			{
@@ -106,17 +116,42 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "api",
-						Value: "localhost:8080",
+						Value: "http://localhost:8080",
 					},
 				},
 				Action: func(c *cli.Context) error {
 					cc := service.NewClient(
 						"c3os",
-						edgeVPNClient.NewClient(edgeVPNClient.WithHost(fmt.Sprintf("http://%s", c.String("api")))))
+						edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
 					str, _ := cc.Get("kubeconfig", "master")
 					b, _ := base64.URLEncoding.DecodeString(str)
 					masterIP, _ := cc.Get("master", "ip")
 					fmt.Println(strings.ReplaceAll(string(b), "127.0.0.1", masterIP))
+					return nil
+				},
+			},
+			{
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "api",
+						Value: "http://localhost:8080",
+					},
+				},
+				Name:        "set-role",
+				Description: "Set node role. Usage: <uuid> <role>. Available roles: worker and master.",
+				Action: func(c *cli.Context) error {
+					cc := service.NewClient(
+						"c3os",
+						edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
+					return cc.Set("role", c.Args()[0], c.Args()[1])
+				},
+			},
+			{
+				Name:        "uuid",
+				Description: "Print node uuid",
+				Aliases:     []string{"u"},
+				Action: func(c *cli.Context) error {
+					fmt.Println(uuid())
 					return nil
 				},
 			},
