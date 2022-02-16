@@ -12,6 +12,8 @@ jobs:
       matrix:
        include:
          - flavor: "opensuse"
+#        - flavor: "ubuntu"
+         - flavor: "fedora"
          - flavor: "alpine"
     steps:
       - uses: actions/checkout@v2

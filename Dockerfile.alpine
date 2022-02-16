@@ -124,10 +124,8 @@ RUN luet install --plugin luet-cosign -y \
        utils/edgevpn \
        utils/k9s \
        utils/nerdctl \
-       utils/croc \
        system/kernel \
-       system/dracut-initrd \
-       utils/tailscale
+       system/dracut-initrd
 
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"

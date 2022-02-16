@@ -1,5 +1,5 @@
 ARG LUET_VERSION=0.19.2
-ARG BASE_IMAGE=opensuse/leap:15.3
+ARG BASE_IMAGE=fedora:33
 
 FROM golang as builder
 
@@ -19,75 +19,46 @@ ENV ARCH=${ARCH}
 # Enable cosign keyless verify
 ENV COSIGN_EXPERIMENTAL=1
 # Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-green
+ENV COSIGN_REPOSITORY=raccos/releases-blue
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/mocaccino/.*"
 
 COPY --from=builder /work/installer/c3os /usr/bin/c3os
-
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Leap_15.3/utilities.repo && zypper ref
-
-RUN zypper in -y \
-    bash-completion \
-    conntrack-tools \
-    coreutils \
-    curl \
-    device-mapper \
-    dosfstools \
+RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
+RUN dnf install -y \
+    NetworkManager \
+    squashfs-tools \ 
+    dracut-live \
+    efibootmgr \
+    audit \
+    kernel \
+    sudo \
+    kernel-modules \
+    systemd \
+    parted \
     dracut \
     e2fsprogs \
-    findutils \
-    gawk \
-    gptfdisk \
-    grub2-i386-pc \
-    grub2-x86_64-efi \
-    nohang \
-    haveged \
-    htop \
-    iproute2 \
-    iptables \
-    iputils \
-    issue-generator \
-    jq \
-    kernel-default \
-    kernel-firmware-bnx2 \
-    kernel-firmware-i915 \
-    kernel-firmware-intel \
-    kernel-firmware-iwlwifi \
-    kernel-firmware-mellanox \
-    kernel-firmware-network \
-    kernel-firmware-platform \
-    kernel-firmware-realtek \
-    less \
-    lsscsi \
-    lvm2 \
-    mdadm \
-    multipath-tools \
+    dosfstools \
+    coreutils \
+    device-mapper \
+    grub2 \
+    which \
+    curl \
     nano \
-    nethogs \
-    nfs-utils \
-    open-iscsi \
-    open-vm-tools \
-    parted \
-    pigz \
-    policycoreutils \
-    procps \
-    python-azure-agent \
-    qemu-guest-agent \
-    rng-tools \
-    rsync \
-    squashfs \
-    strace \
-    systemd \
-    systemd-sysvinit \
+    nohang-desktop \
+    gawk \
+    haveged \
     tar \
-    timezone \
-    tmux \
-    vim \
-    which && zypper cc
+    openssh-server \
+    shim-x64 \
+    grub2-pc \
+    grub2-efi-x64 \
+    grub2-efi-x64-modules \
+    rsync && dnf clean all
 
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml
+RUN sed -i 's/green/blue/g' /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
@@ -98,7 +69,6 @@ RUN luet install -y meta/cos-verify
 RUN luet install --plugin luet-cosign -y \
        meta/cos-core \
        utils/edgevpn \
-       systemd-service/edgevpn \
        utils/k9s \
        utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
@@ -108,14 +78,21 @@ RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
 
-RUN systemctl enable nohang
+RUN systemctl enable nohang-desktop.service
+RUN systemctl enable sshd
+
 COPY files/ /
 
-RUN mkinitrd
+RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
+    ln -sf "${kernel#/boot/}" /boot/vmlinuz
+RUN kernel=$(ls /lib/modules | head -n1) && \
+    dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
+    ln -sf "initrd-${kernel}" /boot/initrd
+RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
-ARG OS_REPO=quay.io/c3os/c3os
+ARG OS_REPO=quay.io/mudler/c3os
 ARG OS_LABEL=latest
 
 RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
