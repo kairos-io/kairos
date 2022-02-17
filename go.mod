@@ -1,4 +1,4 @@
-module github.com/mudler/c3os
+module github.com/c3os-io/c3os
 
 go 1.17
 

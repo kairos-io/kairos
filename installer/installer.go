@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"time"
 
-	config "github.com/mudler/c3os/installer/config"
+	config "github.com/c3os-io/c3os/installer/config"
 
-	systemd "github.com/mudler/c3os/installer/systemd"
+	systemd "github.com/c3os-io/c3os/installer/systemd"
 	nodepair "github.com/mudler/go-nodepair"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/pterm/pterm"

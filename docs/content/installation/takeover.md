@@ -16,7 +16,7 @@ export DEVICE=/dev/sda
 ```
 
 ```
-export IMAGE=quay.io/mudler/c3os:v1.21.4-19
+export IMAGE=quay.io/c3os/c3os:v1.21.4-19
 ```
 
 ```

@@ -29,10 +29,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/mudler/c3os:${{ matrix.flavor }}-latest
+          IMAGE: quay.io/c3os/c3os:${{ matrix.flavor }}-latest
         run: |
           TAG=${GITHUB_REF##*/}
-          ISO=c3os-$FLAVOR-$TAG IMAGE=quay.io/mudler/c3os:$FLAVOR-$TAG bash build.sh
+          ISO=c3os-$FLAVOR-$TAG IMAGE=quay.io/c3os/c3os:$FLAVOR-$TAG bash build.sh
           mkdir release
           mv *.iso release/
           mv *.sha256 release/
@@ -40,7 +40,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: | 
           TAG=${GITHUB_REF##*/}
-          docker push quay.io/mudler/c3os:${{ matrix.flavor }}-$TAG
+          docker push quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
       - name: Release
         uses: fnkr/github-action-ghr@v1
         if: startsWith(github.ref, 'refs/tags/')

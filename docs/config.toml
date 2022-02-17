@@ -5,7 +5,7 @@ title = 'c3os'
 theme = "hugo-theme-learn"
 
 [params]
-  editURL = "https://github.com/mudler/c3os/edit/master/docs/content/"
+  editURL = "https://github.com/c3os-io/c3os/edit/master/docs/content/"
   description = "Documentation for c3os"
   author = "Ettore Di Giacinto"
   #themeVariant = "c3os"
@@ -16,12 +16,12 @@ theme = "hugo-theme-learn"
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-download'></i> Download"
 identifier = "download"
-url = "https://github.com/mudler/c3os/releases"
+url = "https://github.com/c3os-io/c3os/releases"
 weight = 1
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-github'></i> Github"
 identifier = "github"
-url = "https://github.com/mudler/c3os"
+url = "https://github.com/c3os-io/c3os"
 weight = 1
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-bookmark'></i> cOS Documentation"

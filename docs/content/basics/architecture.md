@@ -6,7 +6,7 @@ pre = "<b>- </b>"
 +++
 
 
-C3OS comes as ISO and as a CLI which can be downloaded from the [release page](https://github.com/mudler/c3os/releases). The CLI setups `k3s` and is also used to automatically register nodes in a private, user-defined network. 
+C3OS comes as ISO and as a CLI which can be downloaded from the [release page](https://github.com/c3os-io/c3os/releases). The CLI setups `k3s` and is also used to automatically register nodes in a private, user-defined network. 
 
 Currently **Alpine**-based and **openSUSE**-based flavors are available, the **openSUSE**-based flavor supports autonomous kubernetes bootstrapping with the `c3os` CLI.
 

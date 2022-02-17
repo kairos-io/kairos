@@ -67,7 +67,7 @@ fi
 
 TMP_DIR=$(mktemp -d -t c3os-install.XXXXXXXXXX)
 
-download $TMP_DIR/out.tar.gz  https://github.com/mudler/c3os/releases/download/$c3os_version/c3os-$c3os_version-Linux-x86_64.tar.gz
+download $TMP_DIR/out.tar.gz  https://github.com/c3os-io/c3os/releases/download/$c3os_version/c3os-$c3os_version-Linux-x86_64.tar.gz
 
 # TODO verify w/ checksum
 tar xvf $TMP_DIR/out.tar.gz -C $TMP_DIR

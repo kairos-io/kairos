@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mudler/c3os/installer/utils"
+	"github.com/c3os-io/c3os/installer/utils"
 )
 
 type ServiceUnit struct {

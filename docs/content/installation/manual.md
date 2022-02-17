@@ -45,4 +45,4 @@ c3os:
 
 Automatic nodes configuration can be disabled by not specifying a `network_token` in the configuration file.
 
-In that case no VPN and k3s is configured automatically, see the [examples](https://github.com/mudler/c3os/tree/master/examples) to configure k3s manually.
+In that case no VPN and k3s is configured automatically, see the [examples](https://github.com/c3os-io/c3os/tree/master/examples) to configure k3s manually.

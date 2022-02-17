@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"os"
 
-	config "github.com/mudler/c3os/installer/config"
-	role "github.com/mudler/c3os/installer/role"
-	"github.com/mudler/c3os/installer/utils"
+	config "github.com/c3os-io/c3os/installer/config"
+	role "github.com/c3os-io/c3os/installer/role"
+	"github.com/c3os-io/c3os/installer/utils"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 
+	systemd "github.com/c3os-io/c3os/installer/systemd"
 	"github.com/denisbrodbeck/machineid"
 	logging "github.com/ipfs/go-log"
-	systemd "github.com/mudler/c3os/installer/systemd"
 )
 
 func uuid() string {

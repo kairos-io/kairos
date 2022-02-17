@@ -29,7 +29,7 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/mudler/c3os:${{ matrix.flavor }}-latest
+          IMAGE: quay.io/c3os/c3os:${{ matrix.flavor }}-latest
         run: |
           bash build.sh
       - uses: actions/upload-artifact@v2
@@ -42,7 +42,7 @@ jobs:
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: | 
-          docker push quay.io/mudler/c3os:${{ matrix.flavor }}-latest
+          docker push quay.io/c3os/c3os:${{ matrix.flavor }}-latest
 
 # Test start
   build-vm-images:

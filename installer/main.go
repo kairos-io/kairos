@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	config "github.com/mudler/c3os/installer/config"
+	config "github.com/c3os-io/c3os/installer/config"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/edgevpn/pkg/node"

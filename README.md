@@ -7,7 +7,7 @@
 
 <h3 align="center">Create Decentralized Kubernetes clusters </h3>
 <p align="center">
-  <a href="https://github.com/mudler/c3os/issues"><img src="https://img.shields.io/github/issues/mudler/c3os"></a>
+  <a href="https://github.com/c3os-io/c3os/issues"><img src="https://img.shields.io/github/issues/c3os-io/c3os"></a>
   <a href="https://quay.io/repository/mudler/c3os"> <img src="https://quay.io/repository/mudler/c3os/status"></a>
 </p>
 
@@ -27,17 +27,17 @@ C3OS creates multi-nodes Kubernetes cluster with [k3s](https://k3s.io) that conn
 - LAN, remote networks, multi-region/zones, NAT - No network configuration or opening port outside is required. Nodes will connect each other via holepunching and using hops wherever necessary.
 - Zero kubernetes configuration - Nodes autonomously discover and configure themselves to form a Kubernetes cluster. The same configuration/bootstrapping process applies wether creating new clusters or joining nodes to existing one.
 
-[Documentation available here](https://mudler.github.io/c3os).
+[Documentation available here](https://c3os-io.github.io/c3os).
 
 ## Run 
 
-Download the ISO from the latest [releases](https://github.com/mudler/c3os/releases).
+Download the ISO from the latest [releases](https://github.com/c3os-io/c3os/releases).
 
 ## Installation
 
-Boot the ISO and follow the instructions on screen. The openSUSE variant supports automatic peer discovery and [device pairing](https://mudler.github.io/c3os/installation/device_pairing/).
+Boot the ISO and follow the instructions on screen. The openSUSE variant supports automatic peer discovery and [device pairing](https://c3os-io.github.io/c3os/installation/device_pairing/).
 
-Use the `c3os` CLI to register and handle node installation remotely, check out the [documentation](https://mudler.github.io/c3os).
+Use the `c3os` CLI to register and handle node installation remotely, check out the [documentation](https://c3os-io.github.io/c3os).
 
 ### Manual
 
@@ -51,4 +51,4 @@ Run `build.sh`, should produce a docker image along with an ISO
 
 ## Upgrades
 
-[Docs](https://mudler.github.io/c3os/after_install/upgrades/)
+[Docs](https://c3os-io.github.io/c3os/after_install/upgrades/)

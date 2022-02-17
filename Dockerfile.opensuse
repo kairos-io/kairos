@@ -117,7 +117,7 @@ RUN mkinitrd
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
-ARG OS_REPO=quay.io/mudler/c3os
+ARG OS_REPO=quay.io/c3os/c3os
 ARG OS_LABEL=latest
 
 RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
