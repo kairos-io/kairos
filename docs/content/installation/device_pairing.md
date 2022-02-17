@@ -42,10 +42,11 @@ stages:
         - github:mudler
 c3os:
   network_token: "...."
+  # Optionally, set a network id (for multiple clusters in the same network)
+  # network_id: "dev"
+  # Optionally set a role
+  # role: "master"
 
-vpn:
-  # EdgeVPN environment options
-  DHCP: "true"
 ```
 
 {{% notice note %}}

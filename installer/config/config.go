@@ -14,7 +14,8 @@ type C3OS struct {
 	Reboot       bool   `yaml:"reboot"`
 	Device       string `yaml:"device"`
 	Poweroff     bool   `yaml:"poweroff"`
-	Role         string `yaml:"role"`
+	Role         string `yaml:"role,omitempty"`
+	NetworkID    string `yaml:"network_id,omitempty"`
 }
 
 type Config struct {

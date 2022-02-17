@@ -91,8 +91,14 @@ func setup(apiAddress, dir string, force bool) error {
 		return nil
 	}
 
+	networkID := "c3os"
+
+	if c.C3OS.NetworkID != "" {
+		networkID = c.C3OS.NetworkID
+	}
+
 	cc := service.NewClient(
-		"c3os",
+		networkID,
 		edgeVPNClient.NewClient(edgeVPNClient.WithHost(apiAddress)))
 	logging.SetAllLoggers(lvl)
 

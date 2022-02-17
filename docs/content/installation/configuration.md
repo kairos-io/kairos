@@ -21,6 +21,9 @@ c3os:
   offline: true
   # Manually set node role. Available: master, worker. Defaults auto (none)
   role: "master"
+  # User defined network-id. Can be used to have multiple clusters in the same network
+  network_id: "dev"  
+
 
 vpn:
   # EdgeVPN environment options
@@ -28,6 +31,8 @@ vpn:
   # Disable DHT (for airgap)
   EDGEVPNDHT: "false"
   EDGEVPNMAXCONNS: "200"
+  # If DHCP is enabled, it's the starting IP
+  ADDRESS: "10.2.0.30/24" 
   # See all EDGEVPN options:
   # - https://github.com/mudler/edgevpn/blob/master/cmd/util.go#L33
   # - https://github.com/mudler/edgevpn/blob/master/cmd/main.go#L48
