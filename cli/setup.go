@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	config "github.com/c3os-io/c3os/installer/config"
-	role "github.com/c3os-io/c3os/installer/role"
-	"github.com/c3os-io/c3os/installer/systemd"
-	"github.com/c3os-io/c3os/installer/vpn"
+	config "github.com/c3os-io/c3os/cli/config"
+	role "github.com/c3os-io/c3os/cli/role"
+	"github.com/c3os-io/c3os/cli/systemd"
+	"github.com/c3os-io/c3os/cli/vpn"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 

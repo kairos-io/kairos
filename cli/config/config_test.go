@@ -20,7 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
-	. "github.com/c3os-io/c3os/installer/config"
+	. "github.com/c3os-io/c3os/cli/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v2"

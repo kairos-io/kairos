@@ -97,7 +97,7 @@ jobs:
         with:
           go-version: 1.16
       - run: |
-          go build -o c3os ./installer/
+          go build -o c3os ./cli/
           ./c3os create-config > config.yaml
       - uses: actions/upload-artifact@v2
         with:
@@ -118,7 +118,7 @@ jobs:
         with:
           go-version: 1.16
       - run: |
-          go build -o c3os ./installer/
+          go build -o c3os ./cli/
           curl -L https://raw.githubusercontent.com/mudler/edgevpn/master/install.sh | sudo INSTALL_BIN_DIR=/usr/bin sh
       - name: Download artifacts
         uses: actions/download-artifact@v2

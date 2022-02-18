@@ -7,8 +7,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/c3os-io/c3os/installer/github"
-	"github.com/c3os-io/c3os/installer/utils"
+	"github.com/c3os-io/c3os/cli/github"
+	"github.com/c3os-io/c3os/cli/utils"
 )
 
 func upgrade(version string, force bool) error {

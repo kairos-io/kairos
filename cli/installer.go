@@ -9,10 +9,10 @@ import (
 	"os/exec"
 	"time"
 
-	config "github.com/c3os-io/c3os/installer/config"
-	"github.com/c3os-io/c3os/installer/utils"
+	config "github.com/c3os-io/c3os/cli/config"
+	"github.com/c3os-io/c3os/cli/utils"
 
-	systemd "github.com/c3os-io/c3os/installer/systemd"
+	systemd "github.com/c3os-io/c3os/cli/systemd"
 	nodepair "github.com/mudler/go-nodepair"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/pterm/pterm"

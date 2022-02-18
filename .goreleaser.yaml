@@ -10,7 +10,7 @@ builds:
     goarch:
       - amd64
       - 386
-    main: ./installer/
+    main: ./cli/
     id: "c3os"
     binary: "c3os"
 source:

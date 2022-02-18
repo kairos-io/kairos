@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/c3os-io/c3os/installer/config"
-	"github.com/c3os-io/c3os/installer/systemd"
-	"github.com/c3os-io/c3os/installer/utils"
+	"github.com/c3os-io/c3os/cli/config"
+	"github.com/c3os-io/c3os/cli/systemd"
+	"github.com/c3os-io/c3os/cli/utils"
 )
 
 func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) error {

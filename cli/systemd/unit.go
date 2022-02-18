@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/c3os-io/c3os/installer/utils"
+	"github.com/c3os-io/c3os/cli/utils"
 )
 
 type ServiceUnit struct {

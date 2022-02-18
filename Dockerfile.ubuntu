@@ -5,7 +5,7 @@ FROM golang as builder
 
 COPY ./ /work
 
-WORKDIR /work/installer
+WORKDIR /work/cli
 RUN CGO_ENABLED=0 go build -o c3os
 
 FROM quay.io/luet/base:$LUET_VERSION AS luet
@@ -23,7 +23,7 @@ ENV COSIGN_REPOSITORY=raccos/releases-orange
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/mocaccino/.*"
 ENV DEBIAN_FRONTEND=noninteractive
-COPY --from=builder /work/installer/c3os /usr/bin/c3os
+COPY --from=builder /work/cli/c3os /usr/bin/c3os
 RUN apt update
 RUN apt install -y software-properties-common
 RUN add-apt-repository ppa:oibaf/test

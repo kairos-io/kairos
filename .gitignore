@@ -1,7 +1,7 @@
 *.iso
 *.iso.sha256
-/installer/c3os
-/installer/installer
+/cli/c3os
+/cli/cli
 /c3os
 /dist
 /docs/bin

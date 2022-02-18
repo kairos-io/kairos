@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/c3os-io/c3os/installer/systemd"
-	"github.com/c3os-io/c3os/installer/utils"
+	"github.com/c3os-io/c3os/cli/systemd"
+	"github.com/c3os-io/c3os/cli/utils"
 
 	service "github.com/mudler/edgevpn/api/client/service"
 )

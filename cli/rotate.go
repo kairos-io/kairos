@@ -1,9 +1,9 @@
 package main
 
 import (
-	config "github.com/c3os-io/c3os/installer/config"
-	systemd "github.com/c3os-io/c3os/installer/systemd"
-	"github.com/c3os-io/c3os/installer/vpn"
+	config "github.com/c3os-io/c3os/cli/config"
+	systemd "github.com/c3os-io/c3os/cli/systemd"
+	"github.com/c3os-io/c3os/cli/vpn"
 )
 
 func rotate(configDir, newToken, apiAddress, rootDir string, restart bool) error {
