@@ -10,6 +10,7 @@ import (
 	"time"
 
 	config "github.com/c3os-io/c3os/installer/config"
+	"github.com/c3os-io/c3os/installer/utils"
 
 	systemd "github.com/c3os-io/c3os/installer/systemd"
 	nodepair "github.com/mudler/go-nodepair"
@@ -46,7 +47,7 @@ func install(dir string) error {
 		return nil
 	}
 
-	printBanner(banner)
+	utils.PrintBanner(banner)
 	tk := nodepair.GenerateToken()
 
 	pterm.DefaultBox.WithTitle("Installation").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
@@ -70,7 +71,7 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 	defer cancel()
 
 	go func() {
-		prompt("Waiting for registration, press any key to abort pairing. To restart run 'c3os install'.")
+		utils.Prompt("Waiting for registration, press any key to abort pairing. To restart run 'c3os install'.")
 		// give tty1 back
 		svc, err := systemd.Getty(1)
 		if err == nil {
@@ -133,10 +134,10 @@ func runInstall(options map[string]string) {
 	}
 
 	if reboot || c.C3OS != nil && c.C3OS.Reboot {
-		Reboot()
+		utils.Reboot()
 	}
 
 	if poweroff || c.C3OS != nil && c.C3OS.Poweroff {
-		PowerOFF()
+		utils.PowerOFF()
 	}
 }

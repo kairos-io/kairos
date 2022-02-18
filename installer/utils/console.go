@@ -1,4 +1,4 @@
-package main
+package utils
 
 import (
 	"bufio"
@@ -12,7 +12,7 @@ import (
 	"github.com/qeesung/image2ascii/convert"
 )
 
-func prompt(t string) (string, error) {
+func Prompt(t string) (string, error) {
 	if t != "" {
 		pterm.Info.Println(t)
 	}
@@ -24,7 +24,7 @@ func prompt(t string) (string, error) {
 	return strings.TrimSpace(answer), nil
 }
 
-func printBanner(d []byte) {
+func PrintBanner(d []byte) {
 	img, _, _ := image.Decode(bytes.NewReader(d))
 
 	convertOptions := convert.DefaultOptions

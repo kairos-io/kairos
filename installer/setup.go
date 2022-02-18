@@ -8,11 +8,11 @@ import (
 
 	config "github.com/c3os-io/c3os/installer/config"
 	role "github.com/c3os-io/c3os/installer/role"
-	"github.com/c3os-io/c3os/installer/utils"
+	"github.com/c3os-io/c3os/installer/systemd"
+	"github.com/c3os-io/c3os/installer/vpn"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 
-	systemd "github.com/c3os-io/c3os/installer/systemd"
 	"github.com/denisbrodbeck/machineid"
 	logging "github.com/ipfs/go-log"
 )
@@ -48,41 +48,7 @@ func setup(apiAddress, dir string, force bool) error {
 		return err
 	}
 
-	svc, err := systemd.EdgeVPN("c3os")
-	if err != nil {
-		return err
-	}
-
-	vpnOpts := map[string]string{
-		"EDGEVPNTOKEN":         c.C3OS.NetworkToken,
-		"API":                  "true",
-		"APILISTEN":            apiAddress,
-		"EDGEVPNLOWPROFILEVPN": "true",
-		"DHCP":                 "true",
-		"DHCPLEASEDIR":         "/usr/local/.c3os/lease",
-	}
-	// Override opts with user-supplied
-	for k, v := range c.VPN {
-		vpnOpts[k] = v
-	}
-	// Setup edgevpn instance
-	err = utils.WriteEnv("/etc/systemd/system.conf.d/edgevpn-c3os.env", vpnOpts)
-	if err != nil {
-		return err
-	}
-
-	err = svc.WriteUnit()
-	if err != nil {
-		return err
-	}
-
-	err = svc.Start()
-	if err != nil {
-		return err
-	}
-
-	err = svc.Enable()
-	if err != nil {
+	if err := vpn.Setup(systemd.EdgeVPNDefaultInstance, apiAddress, "/", true, c); err != nil {
 		return err
 	}
 

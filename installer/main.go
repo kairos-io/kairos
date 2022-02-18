@@ -3,6 +3,7 @@ package main
 import (
 	//"fmt"
 
+	"context"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	config "github.com/c3os-io/c3os/installer/config"
+	"github.com/c3os-io/c3os/installer/github"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/edgevpn/pkg/node"
@@ -28,6 +30,39 @@ func main() {
 		Copyright:   "Ettore Di Giacinto",
 
 		Commands: []cli.Command{
+			{
+				Name: "upgrade",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name: "force",
+					},
+				},
+				Subcommands: []cli.Command{
+					{
+						Name: "list-releases",
+						Action: func(c *cli.Context) error {
+							rels, err := github.FindReleases(context.Background(), "", "c3os-io/c3os")
+							if err != nil {
+								return err
+							}
+
+							for _, r := range rels {
+								fmt.Printf("- %s\n", r)
+							}
+							return nil
+						},
+					},
+				},
+				Action: func(c *cli.Context) error {
+					args := c.Args()
+					var v string
+					if len(args) == 1 {
+						v = args[0]
+					}
+
+					return upgrade(v, c.Bool("force"))
+				},
+			},
 			{
 				Name: "register",
 				Flags: []cli.Flag{
@@ -97,7 +132,7 @@ func main() {
 					},
 					&cli.StringFlag{
 						Name:  "api",
-						Value: "http://localhost:8080",
+						Value: "http://127.0.0.1:8080",
 					},
 				},
 				UsageText: "Automatically setups the node",
@@ -112,16 +147,50 @@ func main() {
 				},
 			},
 			{
+				Name:    "rotate",
+				Aliases: []string{"r"},
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name: "restart",
+					},
+					&cli.StringFlag{
+						Name:   "token",
+						EnvVar: "TOKEN",
+					},
+					&cli.StringFlag{
+						Name:  "api",
+						Value: "127.0.0.1:8080",
+					},
+					&cli.StringFlag{
+						Name: "root-dir",
+					},
+				},
+				UsageText: "Rotate network token manually in the node",
+				Action: func(c *cli.Context) error {
+					dir := "/oem"
+					args := c.Args()
+					if len(args) > 0 {
+						dir = args[0]
+					}
+
+					return rotate(dir, c.String("token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
+				},
+			},
+			{
 				Name: "get-kubeconfig",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "api",
 						Value: "http://localhost:8080",
 					},
+					&cli.StringFlag{
+						Name:  "network-id",
+						Value: "c3os",
+					},
 				},
 				Action: func(c *cli.Context) error {
 					cc := service.NewClient(
-						"c3os",
+						c.String("network-id"),
 						edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
 					str, _ := cc.Get("kubeconfig", "master")
 					b, _ := base64.URLEncoding.DecodeString(str)
@@ -136,12 +205,16 @@ func main() {
 						Name:  "api",
 						Value: "http://localhost:8080",
 					},
+					&cli.StringFlag{
+						Name:  "network-id",
+						Value: "c3os",
+					},
 				},
 				Name:        "set-role",
 				Description: "Set node role. Usage: <uuid> <role>. Available roles: worker and master.",
 				Action: func(c *cli.Context) error {
 					cc := service.NewClient(
-						"c3os",
+						c.String("network-id"),
 						edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
 					return cc.Set("role", c.Args()[0], c.Args()[1])
 				},

@@ -16,9 +16,11 @@ Restart=always
 [Install]
 WantedBy=multi-user.target`
 
-func EdgeVPN(instance string) (ServiceUnit, error) {
-	return NewService(WithName("edgevpn"), WithInstance(instance), WithUnitContent(edgevpnUnit))
+func EdgeVPN(instance, rootDir string) (ServiceUnit, error) {
+	return NewService(WithName("edgevpn"), WithInstance(instance), WithUnitContent(edgevpnUnit), WithRoot(rootDir))
 }
+
+const EdgeVPNDefaultInstance string = "c3os"
 
 func Getty(i int) (ServiceUnit, error) {
 	return NewService(WithName("getty"), WithInstance(fmt.Sprintf("tty%d", i)))

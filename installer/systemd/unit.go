@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/c3os-io/c3os/installer/utils"
 )
@@ -12,6 +13,7 @@ import (
 type ServiceUnit struct {
 	content        string
 	name, instance string
+	rootdir        string
 }
 
 const overrideCmdTemplate string = `
@@ -21,6 +23,13 @@ ExecStart=%s
 `
 
 type ServiceOpts func(*ServiceUnit) error
+
+func WithRoot(n string) ServiceOpts {
+	return func(su *ServiceUnit) error {
+		su.rootdir = n
+		return nil
+	}
+}
 
 func WithName(n string) ServiceOpts {
 	return func(su *ServiceUnit) error {
@@ -58,39 +67,49 @@ func (s ServiceUnit) WriteUnit() error {
 	if s.instance != "" {
 		uname = fmt.Sprintf("%s@", s.name)
 	}
-	return ioutil.WriteFile(fmt.Sprintf("/etc/systemd/system/%s.service", uname), []byte(s.content), 0600)
+
+	if err := ioutil.WriteFile(filepath.Join(s.rootdir, fmt.Sprintf("/etc/systemd/system/%s.service", uname)), []byte(s.content), 0600); err != nil {
+		return err
+	}
+
+	utils.SH("systemctl daemon-reload")
+	return nil
 }
 
 func (s ServiceUnit) OverrideCmd(cmd string) error {
-	svcDir := fmt.Sprintf("/etc/systemd/system/%s.service.d/", s.name)
+	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/systemd/system/%s.service.d/", s.name))
 	os.MkdirAll(svcDir, 0600)
 
 	return ioutil.WriteFile(filepath.Join(svcDir, "override.conf"), []byte(fmt.Sprintf(overrideCmdTemplate, cmd)), 0600)
 }
 
 func (s ServiceUnit) Start() error {
-	uname := s.name
-	if s.instance != "" {
-		uname = fmt.Sprintf("%s@%s", s.name, s.instance)
-	}
-	_, err := utils.SH(fmt.Sprintf("systemctl start --no-block %s", uname))
-	return err
+	return s.systemctl("start", false)
+}
+
+func (s ServiceUnit) Restart() error {
+	return s.systemctl("restart", false)
 }
 
 func (s ServiceUnit) Enable() error {
-	uname := s.name
-	if s.instance != "" {
-		uname = fmt.Sprintf("%s@%s", s.name, s.instance)
-	}
-	_, err := utils.SH(fmt.Sprintf("systemctl enable %s", uname))
-	return err
+	return s.systemctl("enable", false)
 }
 
 func (s ServiceUnit) StartBlocking() error {
+	return s.systemctl("start", true)
+}
+
+func (s ServiceUnit) systemctl(action string, blocking bool) error {
 	uname := s.name
 	if s.instance != "" {
 		uname = fmt.Sprintf("%s@%s", s.name, s.instance)
 	}
-	_, err := utils.SH(fmt.Sprintf("systemctl start %s", uname))
+	args := []string{action}
+	if !blocking {
+		args = append(args, "--no-block")
+	}
+	args = append(args, uname)
+
+	_, err := utils.SH(fmt.Sprintf("systemctl %s", strings.Join(args, " ")))
 	return err
 }
