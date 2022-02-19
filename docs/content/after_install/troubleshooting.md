@@ -6,6 +6,10 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
+## Root permission
+
+By default there is no root user set. A default user (`c3os`) is created and can use `sudo` without password authentication during LiveCD bootup.
+
 ## Get kubeconfig
 
 On all nodes of the cluster it's possible to invoke `c3os get-kubeconfig` to recover the kubeconfig file

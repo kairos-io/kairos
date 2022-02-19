@@ -24,7 +24,6 @@ c3os:
   # User defined network-id. Can be used to have multiple clusters in the same network
   network_id: "dev"  
 
-
 vpn:
   # EdgeVPN environment options
   DHCP: "true"
