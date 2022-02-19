@@ -2,6 +2,13 @@ ARG LUET_VERSION=0.19.2
 ARG BASE_IMAGE=alpine
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
+FROM golang as builder
+
+COPY ./ /work
+
+WORKDIR /work/cli
+RUN CGO_ENABLED=0 go build -o c3os
+
 FROM $BASE_IMAGE
 ARG K3S_VERSION
 ARG C3OS_VERSION
@@ -140,11 +147,15 @@ COPY files-alpine/ /
 RUN mkdir -p /etc/runlevels/default && \
       ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
       ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
-      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile
-      
+      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
+      ln -sf /etc/init.d/c3os-setup /etc/runlevels/default/c3os-setup
+
 # Symlinks to make cos-installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
     ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
+
+# Drop env files from k3s as we will generate them
+RUN rm -rf /etc/rancher/k3s/k3s.env /etc/rancher/k3s/k3s-agent.env && touch /etc/rancher/k3s/.keep
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
@@ -153,3 +164,5 @@ ARG OS_LABEL=alpine-latest
 
 RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
     rm /usr/lib/os-release.tmpl
+
+COPY --from=builder /work/cli/c3os /usr/bin/c3os

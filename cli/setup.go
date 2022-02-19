@@ -9,6 +9,7 @@ import (
 	config "github.com/c3os-io/c3os/cli/config"
 	role "github.com/c3os-io/c3os/cli/role"
 	"github.com/c3os-io/c3os/cli/systemd"
+	"github.com/c3os-io/c3os/cli/utils"
 	"github.com/c3os-io/c3os/cli/vpn"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	service "github.com/mudler/edgevpn/api/client/service"
@@ -29,6 +30,8 @@ func uuid() string {
 // setup needs edgevpn and k3s installed locally
 // (both k3s and k3s-agent systemd services)
 func setup(apiAddress, dir string, force bool) error {
+	utils.SH("sysctl -w net.core.rmem_max=2500000")
+
 	os.MkdirAll("/usr/local/.c3os", 0600)
 
 	// Reads config
@@ -38,7 +41,7 @@ func setup(apiAddress, dir string, force bool) error {
 	}
 
 	if c.C3OS == nil || c.C3OS.NetworkToken == "" {
-		return errors.New("No network token")
+		return errors.New("no network token")
 	}
 
 	l := logging.Logger("c3os")

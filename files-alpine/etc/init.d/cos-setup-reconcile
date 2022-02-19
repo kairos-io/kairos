@@ -4,13 +4,12 @@ depend() {
   provide cos-setup-reconcile
 }
 
-start() {
-  # TODO: replace with supervisord
-  cos-setup-reconcile &
-
-  eend 0
-}
-
-stop() {
-  pkill -9 cos-setup-reconcile
-}
+supervisor=supervise-daemon
+name="cos-setup-reconcile"
+command="cos-setup-reconcile"
+command_args=">> /var/log/cos-setup-reconcile.log 2>&1"
+pidfile="/var/run/cos-setup-reconcile.pid"
+respawn_delay=5
+set -o allexport
+if [ -f /etc/environment ]; then source /etc/environment; fi
+set +o allexport

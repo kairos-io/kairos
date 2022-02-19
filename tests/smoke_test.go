@@ -17,7 +17,7 @@ var _ = Describe("c3os", func() {
 	Context("live cd", func() {
 		It("has default service active", func() {
 			out, _ := machine.SSHCommand("sudo systemctl status c3os-setup")
-			Expect(out).Should(ContainSubstring("No network token"))
+			Expect(out).Should(ContainSubstring("no network token"))
 			out, _ = machine.SSHCommand("sudo systemctl status c3os")
 			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
 		})

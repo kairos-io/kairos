@@ -14,7 +14,7 @@ import (
 func upgrade(version string, force bool) error {
 	if version == "" {
 		releases, _ := github.FindReleases(context.Background(), "", "c3os-io/c3os")
-		version = releases[len(releases)-1]
+		version = releases[0]
 		fmt.Println("latest release is ", version)
 	}
 
@@ -28,7 +28,7 @@ func upgrade(version string, force bool) error {
 		return errors.New("no flavor detected")
 	}
 
-	args := []string{"--no-verify", "--no-cosign", "--docker-image", fmt.Sprintf("quay.io/c3os/c3os:%s-%s", flavor, version)}
+	args := []string{"--no-verify", "--docker-image", fmt.Sprintf("quay.io/c3os/c3os:%s-%s", flavor, version)}
 
 	cmd := exec.Command("cos-upgrade", args...)
 	cmd.Env = os.Environ()
