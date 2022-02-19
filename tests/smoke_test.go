@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -76,12 +77,25 @@ var _ = Describe("c3os", func() {
 				return out
 			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
-			// Eventually(func() string {
-			// 	machine.SSHCommand("c3os get-kubeconfig > kubeconfig")
-			// 	out, _ := machine.SSHCommand("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
-			// 	fmt.Println(out)
-			// 	return out
-			// }, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
+			Eventually(func() string {
+				machine.SSHCommand("c3os get-kubeconfig > kubeconfig")
+				out, _ := machine.SSHCommand("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
+				fmt.Println(out)
+				return out
+			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
+		})
+
+		It("upgrades", func() {
+			version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
+
+			machine.SSHCommand("sudo c3os upgrade --image quay.io/mudler/c3os:v1.21.4-19")
+			machine.SSHCommand("sudo sync")
+			machine.Restart()
+
+			machine.EventuallyConnects(700)
+
+			version2, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
+			Expect(version).ToNot(Equal(version2))
 		})
 	})
 })
