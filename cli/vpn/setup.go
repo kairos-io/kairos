@@ -1,6 +1,7 @@
 package vpn
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -30,6 +31,8 @@ func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) e
 	for k, v := range c.VPN {
 		vpnOpts[k] = v
 	}
+
+	os.MkdirAll("/etc/systemd/system.conf.d/", 0600)
 	// Setup edgevpn instance
 	err = utils.WriteEnv(filepath.Join(rootDir, "/etc/systemd/system.conf.d/edgevpn-c3os.env"), vpnOpts)
 	if err != nil {

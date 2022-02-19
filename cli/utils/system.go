@@ -14,7 +14,7 @@ func Reboot() {
 
 func PowerOFF() {
 	pterm.Info.Println("Shutdown node")
-	SH("shutdown -h now")
+	SH("shutdown")
 }
 
 func Version() string {

@@ -1,7 +1,6 @@
 package mos_test
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/c3os-io/c3os/tests/machine"
@@ -38,7 +37,7 @@ var _ = Describe("c3os", func() {
 	})
 
 	Context("first-boot", func() {
-		It("succeeds in setup", func() {
+		It("configure k3s", func() {
 			_, err := machine.SSHCommand("cat /run/cos/live_mode")
 			Expect(err).To(HaveOccurred())
 
@@ -51,17 +50,20 @@ var _ = Describe("c3os", func() {
 					ContainSubstring("Configuring k3s"),
 				))
 
+		})
+
+		It("propagate kubeconfig", func() {
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("c3os get-kubeconfig")
 				return out
 			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
-			Eventually(func() string {
-				machine.SSHCommand("c3os get-kubeconfig > kubeconfig")
-				out, _ := machine.SSHCommand("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
-				fmt.Println(out)
-				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
+			// Eventually(func() string {
+			// 	machine.SSHCommand("c3os get-kubeconfig > kubeconfig")
+			// 	out, _ := machine.SSHCommand("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
+			// 	fmt.Println(out)
+			// 	return out
+			// }, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
 		})
 	})
 })
