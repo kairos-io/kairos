@@ -113,3 +113,8 @@ func (s ServiceUnit) systemctl(action string, blocking bool) error {
 	_, err := utils.SH(fmt.Sprintf("systemctl %s", strings.Join(args, " ")))
 	return err
 }
+
+func (s ServiceUnit) SetEnvFile(es string) error {
+
+	return nil
+}

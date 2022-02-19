@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/c3os-io/c3os/cli/systemd"
+	"github.com/c3os-io/c3os/cli/machine"
 	"github.com/c3os-io/c3os/cli/utils"
 
 	service "github.com/mudler/edgevpn/api/client/service"
@@ -34,7 +34,7 @@ func Worker(c *service.RoleConfig) error {
 
 	c.Logger.Info("Configuring k3s-agent", ip, masterIP, nodeToken)
 
-	svc, err := systemd.NewService(systemd.WithName("k3s-agent"))
+	svc, err := machine.K3sAgent()
 	if err != nil {
 		return err
 	}
@@ -49,11 +49,15 @@ func Worker(c *service.RoleConfig) error {
 		return err
 	}
 
+	if err := svc.SetEnvFile("/etc/sysconfig/k3s-agent"); err != nil {
+		return err
+	}
+
 	if err := svc.OverrideCmd(fmt.Sprintf("/usr/bin/k3s agent --with-node-id --node-ip %s --flannel-iface=edgevpn0", ip)); err != nil {
 		return err
 	}
 
-	if err := svc.StartBlocking(); err != nil {
+	if err := svc.Start(); err != nil {
 		return err
 	}
 

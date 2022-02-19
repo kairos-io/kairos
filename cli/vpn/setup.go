@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	"github.com/c3os-io/c3os/cli/config"
-	"github.com/c3os-io/c3os/cli/systemd"
+	"github.com/c3os-io/c3os/cli/machine"
 	"github.com/c3os-io/c3os/cli/utils"
 )
 
 func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) error {
-	svc, err := systemd.EdgeVPN(instance, rootDir)
+	svc, err := machine.EdgeVPN(instance, rootDir)
 	if err != nil {
 		return err
 	}

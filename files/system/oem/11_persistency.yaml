@@ -12,6 +12,7 @@ stages:
           /etc/systemd
           /etc/rancher
           /etc/sysconfig
+          /etc/runlevels
           /etc/ssh
           /etc/iscsi 
           /etc/cni

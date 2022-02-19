@@ -7,8 +7,8 @@ import (
 	"os"
 
 	config "github.com/c3os-io/c3os/cli/config"
+	"github.com/c3os-io/c3os/cli/machine"
 	role "github.com/c3os-io/c3os/cli/role"
-	"github.com/c3os-io/c3os/cli/systemd"
 	"github.com/c3os-io/c3os/cli/utils"
 	"github.com/c3os-io/c3os/cli/vpn"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
@@ -51,7 +51,7 @@ func setup(apiAddress, dir string, force bool) error {
 		return err
 	}
 
-	if err := vpn.Setup(systemd.EdgeVPNDefaultInstance, apiAddress, "/", true, c); err != nil {
+	if err := vpn.Setup(machine.EdgeVPNDefaultInstance, apiAddress, "/", true, c); err != nil {
 		return err
 	}
 

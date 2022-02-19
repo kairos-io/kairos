@@ -2,7 +2,7 @@ package main
 
 import (
 	config "github.com/c3os-io/c3os/cli/config"
-	systemd "github.com/c3os-io/c3os/cli/systemd"
+	machine "github.com/c3os-io/c3os/cli/machine"
 	"github.com/c3os-io/c3os/cli/vpn"
 )
 
@@ -16,13 +16,13 @@ func rotate(configDir, newToken, apiAddress, rootDir string, restart bool) error
 		return err
 	}
 
-	err = vpn.Setup(systemd.EdgeVPNDefaultInstance, apiAddress, rootDir, false, c)
+	err = vpn.Setup(machine.EdgeVPNDefaultInstance, apiAddress, rootDir, false, c)
 	if err != nil {
 		return err
 	}
 
 	if restart {
-		svc, err := systemd.EdgeVPN(systemd.EdgeVPNDefaultInstance, rootDir)
+		svc, err := machine.EdgeVPN(machine.EdgeVPNDefaultInstance, rootDir)
 		if err != nil {
 			return err
 		}
