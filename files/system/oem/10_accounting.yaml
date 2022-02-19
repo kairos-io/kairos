@@ -11,7 +11,7 @@ stages:
      - name: "Setup users"
        users:
         c3os:
-          passwd: ""
+          passwd: "!"
           shell: /bin/bash
           homedir: "/home/c3os"
           groups:
