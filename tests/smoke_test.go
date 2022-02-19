@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"os"
 	"time"
 
 	"github.com/c3os-io/c3os/tests/machine"
@@ -15,10 +16,16 @@ var _ = Describe("c3os", func() {
 
 	Context("live cd", func() {
 		It("has default service active", func() {
-			out, _ := machine.SSHCommand("sudo systemctl status c3os-setup")
-			Expect(out).Should(ContainSubstring("no network token"))
-			out, _ = machine.SSHCommand("sudo systemctl status c3os")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
+			if os.Getenv("FLAVOR") == "alpine" {
+				out, _ := machine.SSHCommand("sudo rc-status")
+				Expect(out).Should(ContainSubstring("c3os"))
+				Expect(out).Should(ContainSubstring("c3os-setup"))
+			} else {
+				out, _ := machine.SSHCommand("sudo systemctl status c3os-setup")
+				Expect(out).Should(ContainSubstring("no network token"))
+				out, _ = machine.SSHCommand("sudo systemctl status c3os")
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
+			}
 		})
 	})
 
@@ -40,15 +47,26 @@ var _ = Describe("c3os", func() {
 		It("configure k3s", func() {
 			_, err := machine.SSHCommand("cat /run/cos/live_mode")
 			Expect(err).To(HaveOccurred())
+			if os.Getenv("FLAVOR") == "alpine" {
+				Eventually(func() string {
+					out, _ := machine.SSHCommand("cat /var/log/c3os-setup.log")
+					return out
+				}, 900*time.Second, 10*time.Second).Should(
+					Or(
+						ContainSubstring("Configuring k3s-agent"),
+						ContainSubstring("Configuring k3s"),
+					))
+			} else {
+				Eventually(func() string {
+					out, _ := machine.SSHCommand("sudo systemctl status c3os-setup")
+					return out
+				}, 900*time.Second, 10*time.Second).Should(
+					Or(
+						ContainSubstring("Configuring k3s-agent"),
+						ContainSubstring("Configuring k3s"),
+					))
 
-			Eventually(func() string {
-				out, _ := machine.SSHCommand("sudo systemctl status c3os-setup")
-				return out
-			}, 900*time.Second, 10*time.Second).Should(
-				Or(
-					ContainSubstring("Configuring k3s-agent"),
-					ContainSubstring("Configuring k3s"),
-				))
+			}
 
 		})
 

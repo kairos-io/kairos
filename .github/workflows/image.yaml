@@ -93,8 +93,10 @@ jobs:
        include:
          - flavor: "opensuse"
            node: "A" # Arbitrary field
-         - flavor: "opensuse"
-           node: "B"
+      #   - flavor: "opensuse"
+      #     node: "B"
+         - flavor: "alpine"
+           node: "C"
     steps:
       - uses: actions/checkout@v2
       - name: Download artifacts
@@ -117,4 +119,4 @@ jobs:
               go get github.com/onsi/gomega/...
               go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.3
               go install github.com/onsi/ginkgo/v2/ginkgo
-              CREATE_VM=true ginkgo -r ./tests/
+              CREATE_VM=true FLAVOR=${{ matrix.flavor }} ginkgo -r ./tests/
