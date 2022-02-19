@@ -36,6 +36,9 @@ func main() {
 					&cli.BoolFlag{
 						Name: "force",
 					},
+					&cli.StringFlag{
+						Name: "image",
+					},
 				},
 				Subcommands: []cli.Command{
 					{
@@ -60,7 +63,7 @@ func main() {
 						v = args[0]
 					}
 
-					return upgrade(v, c.Bool("force"))
+					return upgrade(v, c.String("image"), c.Bool("force"))
 				},
 			},
 			{

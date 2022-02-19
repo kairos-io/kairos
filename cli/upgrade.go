@@ -11,8 +11,8 @@ import (
 	"github.com/c3os-io/c3os/cli/utils"
 )
 
-func upgrade(version string, force bool) error {
-	if version == "" {
+func upgrade(version, image string, force bool) error {
+	if version == "" && image == "" {
 		releases, _ := github.FindReleases(context.Background(), "", "c3os-io/c3os")
 		version = releases[0]
 		fmt.Println("latest release is ", version)
@@ -28,8 +28,12 @@ func upgrade(version string, force bool) error {
 		return errors.New("no flavor detected")
 	}
 
-	args := []string{"--no-verify", "--docker-image", fmt.Sprintf("quay.io/c3os/c3os:%s-%s", flavor, version)}
+	img := fmt.Sprintf("quay.io/c3os/c3os:%s-%s", flavor, version)
+	if image != "" {
+		img = image
+	}
 
+	args := []string{"--no-verify", "--docker-image", img}
 	cmd := exec.Command("cos-upgrade", args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
