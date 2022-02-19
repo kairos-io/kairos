@@ -193,7 +193,7 @@ func main() {
 						c.String("network-id"),
 						edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
 					str, _ := cc.Get("kubeconfig", "master")
-					b, _ := base64.URLEncoding.DecodeString(str)
+					b, _ := base64.RawURLEncoding.DecodeString(str)
 					masterIP, _ := cc.Get("master", "ip")
 					fmt.Println(strings.ReplaceAll(string(b), "127.0.0.1", masterIP))
 					return nil
