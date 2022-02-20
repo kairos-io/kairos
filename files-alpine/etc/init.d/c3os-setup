@@ -2,10 +2,13 @@
 
 name=c3os-setup
 description="c3os setup"
-command="/usr/bin/c3os"
-command_args="setup >> /var/log/c3os-setup.log 2>&1"
 
 depend() {
-	after  
+	after cos-setup-network
 	use net 
+}
+
+start() {
+  /usr/bin/c3os setup >> /var/log/c3os-setup.log 2>&1
+  eend 0
 }
