@@ -93,10 +93,10 @@ jobs:
        include:
          - flavor: "opensuse"
            node: "A" # Arbitrary field
-      #   - flavor: "opensuse"
-      #     node: "B"
-         - flavor: "alpine"
-           node: "C"
+         - flavor: "opensuse"
+           node: "B"
+#         - flavor: "alpine"
+#           node: "C"
     steps:
       - uses: actions/checkout@v2
       - name: Download artifacts
