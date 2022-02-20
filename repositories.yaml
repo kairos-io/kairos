@@ -6,6 +6,7 @@ repositories:
   cached: true
   priority: 1
   verify: false
+  reference: 20220216143646-repository.yaml
   urls:
   - "quay.io/costoolkit/releases-green"
 - name: "mocaccino-os-commons"
