@@ -31,9 +31,7 @@ RUN dnf install -y \
     dracut-live \
     efibootmgr \
     audit \
-    kernel \
     sudo \
-    kernel-modules \
     systemd \
     parted \
     dracut \
@@ -70,7 +68,11 @@ RUN luet install --plugin luet-cosign -y \
        meta/cos-core \
        utils/edgevpn \
        utils/k9s \
-       utils/nerdctl && luet cleanup
+       utils/nerdctl \
+       system/kernel \
+       system/dracut-initrd \
+       && luet cleanup
+
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
 RUN curl -sfL https://get.k3s.io > installer.sh
@@ -83,12 +85,12 @@ RUN systemctl enable sshd
 
 COPY files/ /
 
-RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-    ln -sf "${kernel#/boot/}" /boot/vmlinuz
-RUN kernel=$(ls /lib/modules | head -n1) && \
-    dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
-    ln -sf "initrd-${kernel}" /boot/initrd
-RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+# RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
+#     ln -sf "${kernel#/boot/}" /boot/vmlinuz
+# RUN kernel=$(ls /lib/modules | head -n1) && \
+#     dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
+#     ln -sf "initrd-${kernel}" /boot/initrd
+# RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
