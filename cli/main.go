@@ -5,6 +5,7 @@ import (
 
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -42,6 +43,11 @@ func main() {
 				},
 				Subcommands: []cli.Command{
 					{
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name: "output",
+							},
+						},
 						Name: "list-releases",
 						Action: func(c *cli.Context) error {
 							rels, err := github.FindReleases(context.Background(), "", "c3os-io/c3os")
@@ -49,9 +55,19 @@ func main() {
 								return err
 							}
 
-							for _, r := range rels {
-								fmt.Printf("- %s\n", r)
+							switch strings.ToLower(c.String("output")) {
+							case "yaml":
+								d, _ := yaml.Marshal(rels)
+								fmt.Println(string(d))
+							case "json":
+								d, _ := json.Marshal(rels)
+								fmt.Println(string(d))
+							default:
+								for _, r := range rels {
+									fmt.Println(r)
+								}
 							}
+
 							return nil
 						},
 					},
