@@ -16,7 +16,8 @@ ARG C3OS_VERSION
 ARG ARCH=amd64
 ENV ARCH=${ARCH}
 # Enable cosign keyless verify
-ENV COSIGN_EXPERIMENTAL=1
+# Temporary disable
+ENV COSIGN_EXPERIMENTAL=0
 # Repo containing signatures
 ENV COSIGN_REPOSITORY=raccos/releases-green
 # Skip this repo artifacts verify as they are not signed
