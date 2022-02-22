@@ -65,7 +65,7 @@ COPY --from=luet /usr/bin/luet /usr/bin/luet
 # Install cosign packages
 RUN luet install -y meta/cos-verify
 
-RUN luet install --plugin luet-cosign -y \
+RUN luet install -y \
        meta/cos-core \
        utils/edgevpn \
        utils/k9s \
