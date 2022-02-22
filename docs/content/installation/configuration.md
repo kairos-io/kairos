@@ -30,11 +30,33 @@ vpn:
   # Disable DHT (for airgap)
   EDGEVPNDHT: "false"
   EDGEVPNMAXCONNS: "200"
-  # If DHCP is enabled, it's the starting IP
+  # If DHCP is false, it's required to be given a specific node IP. Can be arbitrary
   ADDRESS: "10.2.0.30/24" 
   # See all EDGEVPN options:
   # - https://github.com/mudler/edgevpn/blob/master/cmd/util.go#L33
   # - https://github.com/mudler/edgevpn/blob/master/cmd/main.go#L48
+
+k3s:
+  # Additional env/args for k3s server instances
+  env:
+    K3S_RESOLV_CONF: ""
+    K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
+  args:
+  - --label ""
+  - --data-dir ""
+  # Enabling below it replaces args/env entirely
+  # replace_env: true
+  # replace_args: true
+
+k3s-agent:
+  # Additional env/args for k3s agent instances
+  env:
+    K3S_NODE_NAME: "foo"
+  args:
+  - --private-registry "..."
+  # Enabling below it replaces args/env entirely
+  # replace_env: true
+  # replace_args: true
 
 # Cloud init syntax to setup users. 
 # See https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/

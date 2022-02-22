@@ -5,7 +5,11 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+
+	service "github.com/mudler/edgevpn/api/client/service"
 )
+
+type Role func(*service.RoleConfig) error
 
 func getIP() string {
 	ifaces, err := net.Interfaces()

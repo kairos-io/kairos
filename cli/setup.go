@@ -81,15 +81,15 @@ func setup(apiAddress, dir string, force bool) error {
 		service.WithRoles(
 			service.RoleKey{
 				Role:        "master",
-				RoleHandler: role.Master,
+				RoleHandler: role.Master(c),
 			},
 			service.RoleKey{
 				Role:        "worker",
-				RoleHandler: role.Worker,
+				RoleHandler: role.Worker(c),
 			},
 			service.RoleKey{
 				Role:        "auto",
-				RoleHandler: role.Auto,
+				RoleHandler: role.Auto(),
 			},
 		),
 	}
