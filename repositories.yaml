@@ -9,19 +9,12 @@ repositories:
   reference: 20220221194910-repository.yaml
   urls:
   - "quay.io/costoolkit/releases-green"
-- name: "mocaccino-os-commons"
-  description: "MocaccinoOS Commons repository"
+- name: "c3os"
+  # https://github.com/c3os-io/packages
+  description: "c3os repository"
   type: "docker"
   enable: true
   cached: true
   priority: 2
   urls:
-    - "quay.io/mocaccino/os-commons"
-- name: "mocaccino-extra"
-  description: "MocaccinoOS extra Repository"
-  type: "docker"
-  enable: true
-  cached: true
-  priority: 2
-  urls:
-    - "quay.io/mocaccino/extra"
+    - "quay.io/c3os/packages"

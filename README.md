@@ -8,7 +8,7 @@
 <h3 align="center">Create Decentralized Kubernetes clusters </h3>
 <p align="center">
   <a href="https://github.com/c3os-io/c3os/issues"><img src="https://img.shields.io/github/issues/c3os-io/c3os"></a>
-  <a href="https://quay.io/repository/mudler/c3os"> <img src="https://quay.io/repository/mudler/c3os/status"></a>
+  <a href="https://quay.io/repository/c3os/c3os"> <img src="https://quay.io/repository/mudler/c3os/status"></a>
 </p>
 
 <p align="center">

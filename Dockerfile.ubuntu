@@ -22,7 +22,7 @@ ENV COSIGN_EXPERIMENTAL=0
 # Repo containing signatures
 ENV COSIGN_REPOSITORY=raccos/releases-orange
 # Skip this repo artifacts verify as they are not signed
-ENV COSIGN_SKIP=".*quay.io/mocaccino/.*"
+ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 ENV DEBIAN_FRONTEND=noninteractive
 COPY --from=builder /work/cli/c3os /usr/bin/c3os
 RUN apt update
