@@ -32,3 +32,39 @@ c3os:
 ```
 
 As always, IPs here are arbitrary as they are virtual ips in the VPN which is created between the cluster nodes.
+
+# Run only k3s without VPNs
+
+`c3os` can be also used without any VPN and P2P network. Infact, `k3s` is already pre-installed, and it is sufficient to not specify any `c3os` block in the cloud init configuration.
+
+For example, to start `k3s` as a server with `c3os` it's sufficient to specify the `k3s` service in the config file:
+
+```yaml
+name: "Default deployment"
+stages:     
+   network:
+     - if: '[ ! -f "/run/cos/recovery_mode" ]'
+       name: "Setup k3s"
+       environment_file: "/etc/sysconfig/k3s"
+       environment:
+         K3S_TOKEN: "..."
+       systemctl:
+         start: 
+         - k3s
+```
+
+And similarly for an `agent`:
+
+```yaml
+name: "Default deployment"
+stages:     
+   network:
+     - if: '[ ! -f "/run/cos/recovery_mode" ]'
+       name: "Setup k3s"
+       environment_file: "/etc/sysconfig/k3s-agent"
+       environment:
+         K3S_TOKEN: "..."
+       systemctl:
+         start: 
+         - k3s-agent
+```
