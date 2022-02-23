@@ -199,8 +199,9 @@ func main() {
 				Name: "bridge",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
-						Name:   "network-token",
-						EnvVar: "NETWORK_TOKEN",
+						Name:     "network-token",
+						Required: true,
+						EnvVar:   "NETWORK_TOKEN",
 					},
 					&cli.StringFlag{
 						Name:  "api",

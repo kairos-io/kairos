@@ -83,3 +83,28 @@ At this point, wait until the pairing is complete and the installation will star
 
 To join new nodes, simply re-apply the process to new nodes by specifying the same `config.yaml` for all the machines. The machines will connect automatically between themselves, either remotely on local network.
 
+## Get kubeconfig and connect to the nodes
+
+In the machine you are using for bootstrapping (your workstation, a jumpbox, or ..) run in a new terminal, and leave it open (CTRL+C to abort):
+
+```bash
+c3os bridge --network-token <TOKEN>
+```
+
+This command will create a tun device in your machine and will make possible to contact each node in the cluster.
+
+An API is also available at [localhost:8080](http://localhost:8080). 
+
+After a few moments of bootstrapping, you should be able to see your nodes in the "Machine" tab.
+
+In an new terminal window run:
+
+```bash
+c3os get-kubeconfig > kubeconfig
+```
+
+You should be now able to use the kubeconfig file as usual.
+
+{{% notice note %}}
+`c3os bridge` acts like `kubectl proxy`. you need to keep it open to operate the kubernetes cluster and access the API.
+{{% /notice %}}

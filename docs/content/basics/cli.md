@@ -140,6 +140,12 @@ After the pairing is done, the node will start installation with the provided op
 
 A `--device` and a `--config` file are required in order to have a functional installation.
 
+## `bridge`
+
+Connect to the nodes in the VPN p2p network by creating a tun device on the host.
+
+It needs a `--network-token`(`$NETWORK_TOKEN`) argument and exposes an API endpoint available at [localhost:8080](http://localhost:8080) to monitor the network status.
+
 ## `install` 
 
 Called by c3os nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
@@ -147,4 +153,3 @@ Called by c3os nodes on boot and not meant to be used manually. It kicks in the 
 ## `setup` 
 
 Called by c3os nodes on boot and not meant to be used manually. It prepares `edgevpn` and `k3s` bootstrapping the node and the VPN.
-
