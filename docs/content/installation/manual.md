@@ -24,13 +24,13 @@ Note, after the installation the password login is disabled, so users and ssh ke
 {{% /notice %}}
 
 
-Login over SSH or via console and run:
+Login over SSH as the `c3os` user or via console with `c3os:c3os` and run:
 
 ```bash
-cos-installer --config $CONFIG
+sudo cos-installer --cloud-init $CONFIG
 ```
 
-Where the config can be a cloud-init file:
+Where the config can be a cloud-init file or a URL to it:
 
 ```yaml
 #cloud-init
@@ -45,4 +45,4 @@ c3os:
 
 Automatic nodes configuration can be disabled by not specifying a `network_token` in the configuration file.
 
-In that case no VPN and k3s is configured automatically, see the [examples](https://github.com/c3os-io/c3os/tree/master/examples) to configure k3s manually.
+In that case no VPN and either k3s is configured automatically, see also the [examples](https://github.com/c3os-io/c3os/tree/master/examples) folder in the repository to configure k3s manually.
