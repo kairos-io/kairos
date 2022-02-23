@@ -9,7 +9,7 @@ require (
 	github.com/ipfs/go-log v1.0.5
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.10.0
-	github.com/mudler/go-nodepair v0.0.0-20220222201307-c3f99faf4f79
+	github.com/mudler/go-nodepair v0.0.0-20220223175428-76dad7d611c6
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.17.0
 	github.com/pterm/pterm v0.12.36

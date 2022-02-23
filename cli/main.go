@@ -173,8 +173,8 @@ func main() {
 						Name: "restart",
 					},
 					&cli.StringFlag{
-						Name:   "token",
-						EnvVar: "TOKEN",
+						Name:   "network-token",
+						EnvVar: "NETWORK_TOKEN",
 					},
 					&cli.StringFlag{
 						Name:  "api",
@@ -192,8 +192,36 @@ func main() {
 						dir = args[0]
 					}
 
-					return rotate(dir, c.String("token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
+					return rotate(dir, c.String("network-token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
 				},
+			},
+			{
+				Name: "bridge",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:   "network-token",
+						EnvVar: "NETWORK_TOKEN",
+					},
+					&cli.StringFlag{
+						Name:  "api",
+						Value: "127.0.0.1:8080",
+					},
+					&cli.BoolFlag{
+						Name:   "dhcp",
+						EnvVar: "DHCP",
+					},
+					&cli.StringFlag{
+						Value:  "10.1.0.254/24",
+						Name:   "address",
+						EnvVar: "ADDRESS",
+					},
+					&cli.StringFlag{
+						Value:  "/tmp/c3os",
+						Name:   "lease-dir",
+						EnvVar: "lease-dir",
+					},
+				},
+				Action: bridge,
 			},
 			{
 				Name: "get-kubeconfig",

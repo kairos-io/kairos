@@ -84,7 +84,7 @@ var _ = Describe("c3os", func() {
 			// }, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
 		})
 
-		It("upgrades", func() {
+		It("upgrades to a specific version", func() {
 			version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 
 			machine.SSHCommand("sudo c3os upgrade --image quay.io/mudler/c3os:v1.21.4-19")

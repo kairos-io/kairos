@@ -882,6 +882,8 @@ github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58 h1:bMXak5giXx
 github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58/go.mod h1:bZC4k76DbPOxOcMq6Z9oEKAZrOhsfh9jAZ9Hu3qVAQI=
 github.com/mudler/go-nodepair v0.0.0-20220222201307-c3f99faf4f79 h1:Cq5CWu8GCvWIWyVTAd3Jx+TwiY8zuhp88ufyikYbQUI=
 github.com/mudler/go-nodepair v0.0.0-20220222201307-c3f99faf4f79/go.mod h1:Bz6vvkZSQWrRc6FKlbj27CZx5F0fmq3apHHhvfkysQc=
+github.com/mudler/go-nodepair v0.0.0-20220223175428-76dad7d611c6 h1:Y1qQi5fqnHpruHojRkKkPyWwz3ax7tolUt5X2qTWMhA=
+github.com/mudler/go-nodepair v0.0.0-20220223175428-76dad7d611c6/go.mod h1:Bz6vvkZSQWrRc6FKlbj27CZx5F0fmq3apHHhvfkysQc=
 github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6 h1:LiWUDzDh/DkFYhUeIIdWPuMt/LsEVD3vc/QKDVXlWAY=
 github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6/go.mod h1:HGGAOJhipApckwNV8ZTliRJqxctUv3xRY+zbQEwuytc=
 github.com/multiformats/go-base32 v0.0.3/go.mod h1:pLiuGC8y0QR3Ue4Zug5UzK9LjgbkL8NSQj0zQ5Nz/AA=
