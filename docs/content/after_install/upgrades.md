@@ -54,17 +54,25 @@ You can use the `version` field in the resource to tweak the `c3os version` depe
 
 ## Manual
 
-### Upgrade to latest
-
 Upgrades can be triggered manually as well from the nodes.
 
-To upgrade to latest available version, run `c3os upgrade`. 
+To upgrade to latest available version, run from a shell of a cluster node:
 
-To specify a version, run `c3os upgrade <version>`. Use `--force` to force upgrading to avoid checking versions. All the available versions can be list with: `c3os upgrade list-releases`.
+```bash
+c3os upgrade
+```
+
+To specify a version, just run 
+
+```bash
+c3os upgrade <version>
+```
+
+Use `--force` to force upgrading to avoid checking versions. All the available versions can be list with: `c3os upgrade list-releases`.
 
 It is possible altough to use the same commandset from `cOS`. So for example, the following works too:
 
-```
+```bash
 cos-upgrade --no-verify --docker-image quay.io/c3os/c3os:opensuse-v1.21.4-22
 ```
 
