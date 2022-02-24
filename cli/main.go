@@ -267,6 +267,24 @@ func main() {
 					return cc.Set("role", c.Args()[0], c.Args()[1])
 				},
 			},
+
+			{
+				Name:        "get-network-token",
+				Description: "Print network token",
+				Action: func(c *cli.Context) error {
+					dir := "/oem"
+					args := c.Args()
+					if len(args) > 0 {
+						dir = args[0]
+					}
+					cc, err := config.Scan(dir)
+					if err != nil {
+						return err
+					}
+					fmt.Print(cc.C3OS.NetworkToken)
+					return nil
+				},
+			},
 			{
 				Name:        "uuid",
 				Description: "Print node uuid",
