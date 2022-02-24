@@ -1,0 +1,24 @@
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: os-upgrade
+  namespace: system-upgrade
+  labels:
+    k3s-upgrade: server
+spec:
+  concurrency: 1
+  #version:  latest
+  version: "opensuse-v1.21.4-31"
+  nodeSelector:
+    matchExpressions:
+      - {key: kubernetes.io/hostname, operator: Exists}
+  serviceAccountName: system-upgrade
+  cordon: true
+  drain:
+    force: true
+    disableEviction: true
+  upgrade:
+    image: quay.io/c3os/c3os
+    command:
+    - "/usr/sbin/suc-upgrade"

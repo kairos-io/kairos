@@ -1,0 +1,49 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rotate-token
+  namespace: system-upgrade
+type: Opaque
+stringData:
+  network_token: ""
+  rotate.sh: |
+      #!/bin/bash
+      secrets="/rotate-token"
+      set -x -e
+      HOST_DIR="${HOST_DIR:-/host}"
+
+      c3os get-network-token $HOST_DIR/oem > current_token
+
+      if [ "$FORCE" != "true" ]; then
+          if diff current_token $secrets/network_token >/dev/null; then
+              echo Network token up to date
+              exit 0
+          fi
+      fi
+
+      NETWORK_TOKEN=$(cat $secrets/network_token) c3os rotate /host/oem
+      nsenter -i -m -t 1 -- reboot
+      exit 1
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: network-token-rotation
+  namespace: system-upgrade
+spec:
+  concurrency: 1
+  nodeSelector:
+    matchExpressions:
+      - {key: kubernetes.io/hostname, operator: Exists}
+  serviceAccountName: system-upgrade
+  secrets:
+    - name: rotate-token
+      path: /rotate-token
+  version: latest
+  drain:
+    force: false
+  upgrade:
+    image: quay.io/c3os/c3os
+    command: ["sh"]
+    args: [ "/rotate-token/rotate.sh"]
