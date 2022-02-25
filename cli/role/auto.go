@@ -29,22 +29,22 @@ func Auto() Role {
 
 		// first get available nodes
 		nodes := advertizing
-		leader := c.UUID
+		shouldBeLeader := c.UUID
 
 		if len(advertizing) != 0 {
-			leader = utils.Leader(advertizing)
+			shouldBeLeader = utils.Leader(advertizing)
 		}
 
 		lead, _ := c.Client.Get("auto", "leader")
 
 		// From now on, only the leader keeps processing
 		// TODO: Make this more reliable with consensus
-		if leader != c.UUID && lead != c.UUID {
-			c.Logger.Infof("<%s> not a leader, leader is '%s', sleeping", c.UUID, leader)
+		if shouldBeLeader != c.UUID && lead != c.UUID {
+			c.Logger.Infof("<%s> not a leader, leader is '%s', sleeping", c.UUID, shouldBeLeader)
 			return nil
 		}
 
-		if lead == "" || !contains(nodes, lead) {
+		if shouldBeLeader == c.UUID && (lead == "" || !contains(nodes, lead)) {
 			c.Client.Set("auto", "leader", c.UUID)
 			c.Logger.Info("Announcing ourselves as leader, backing off")
 			return nil

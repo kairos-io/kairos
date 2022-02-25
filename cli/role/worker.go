@@ -15,11 +15,10 @@ import (
 func Worker(cc *config.Config) Role {
 	return func(c *service.RoleConfig) error {
 
-		r, err := c.Client.Get("role", c.UUID)
-		if err != nil || r != "worker" {
+		if cc.C3OS.Role != "" {
 			// propagate role if we were forced by configuration
-			// This unblocks eventual auto instances that try to assign roles
-			c.Client.Set("role", c.UUID, "worker")
+			// This unblocks eventual auto instances to try to assign roles
+			c.Client.Set("role", c.UUID, cc.C3OS.Role)
 		}
 
 		if SentinelExist() {

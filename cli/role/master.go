@@ -58,11 +58,10 @@ func Master(cc *config.Config) Role {
 			return errors.New("node doesn't have an ip yet")
 		}
 
-		r, err := c.Client.Get("role", c.UUID)
-		if err != nil || r != "master" {
+		if cc.C3OS.Role != "" {
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
-			c.Client.Set("role", c.UUID, "master")
+			c.Client.Set("role", c.UUID, cc.C3OS.Role)
 		}
 
 		if SentinelExist() {
