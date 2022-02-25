@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 
@@ -39,12 +38,12 @@ func agent(apiAddress, dir string, force bool) error {
 	if err != nil {
 		return err
 	}
+	l := logging.Logger("c3os")
 
 	if c.C3OS == nil || c.C3OS.NetworkToken == "" {
-		return errors.New("no network token")
+		l.Info("No network token provided, exiting.")
+		return nil
 	}
-
-	l := logging.Logger("c3os")
 
 	lvl, err := logging.LevelFromString("debug")
 	if err != nil {

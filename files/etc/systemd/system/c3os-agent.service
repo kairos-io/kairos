@@ -3,7 +3,8 @@ Description=c3os agent
 After=cos-setup-network.service
 Wants=network.target
 [Service]
-Restart=always
+Restart=on-failure
+RestartSec=5s
 ExecStart=/usr/bin/c3os agent
 [Install]
 WantedBy=multi-user.target
