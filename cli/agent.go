@@ -54,11 +54,6 @@ func agent(apiAddress, dir string, force bool) error {
 		return err
 	}
 
-	if !force && role.SentinelExist() {
-		l.Info("Node already set-up, nothing to do. Run c3os agent --force to force node setup")
-		return nil
-	}
-
 	networkID := "c3os"
 
 	if c.C3OS.NetworkID != "" {

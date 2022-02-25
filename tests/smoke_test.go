@@ -57,7 +57,7 @@ var _ = Describe("c3os", func() {
 				Eventually(func() string {
 					out, _ := machine.SSHCommand("cat /var/log/c3os-agent.log")
 					return out
-				}, 900*time.Second, 10*time.Second).Should(
+				}, 30*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("Configuring k3s-agent"),
 						ContainSubstring("Configuring k3s"),
@@ -66,14 +66,12 @@ var _ = Describe("c3os", func() {
 				Eventually(func() string {
 					out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
 					return out
-				}, 900*time.Second, 10*time.Second).Should(
+				}, 30*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("Configuring k3s-agent"),
 						ContainSubstring("Configuring k3s"),
 					))
-
 			}
-
 		})
 
 		It("propagate kubeconfig", func() {
