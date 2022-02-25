@@ -24,10 +24,10 @@ var _ = Describe("c3os", func() {
 				Expect(out).Should(ContainSubstring("c3os"))
 				Expect(out).Should(ContainSubstring("c3os-agent"))
 			} else {
-				Eventually(func() string {
-					out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
-					return out
-				}, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
+				// Eventually(func() string {
+				// 	out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
+				// 	return out
+				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
 				out, _ := machine.SSHCommand("sudo systemctl status c3os")
 				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
