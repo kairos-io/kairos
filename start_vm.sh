@@ -1,5 +1,5 @@
 #!/bin/sh
-# Author: Ettore Di Giacinto <mudler@luet.io>
+# Author: Ettore Di Giacinto <mudler@c3os.io>
 # Simple scripts that runs a VM and keeps the process open for a while
 # It is used in tests, but can be useful for local testing
 

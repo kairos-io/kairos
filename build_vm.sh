@@ -1,5 +1,5 @@
 #!/bin/sh
-# Author: Ettore Di Giacinto <mudler@luet.io>
+# Author: Ettore Di Giacinto <mudler@c3os.io>
 # Simple c3os builder of ova and qcow images from ISOs on VBox
 # mainly purpose is to run it on github actions in macOS runners.
 

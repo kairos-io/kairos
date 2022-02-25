@@ -1,6 +1,6 @@
-baseURL = 'http://example.org/'
+baseURL = 'https://docs.c3os.io/'
 languageCode = 'en-us'
-title = 'c3os'
+title = 'c3os documentation'
 # Change the default theme to be use when building the site with Hugo
 theme = "hugo-theme-learn"
 

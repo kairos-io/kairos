@@ -1,4 +1,4 @@
-// Copyright © 2022 Ettore Di Giacinto <mudler@mocaccino.org>
+// Copyright © 2022 Ettore Di Giacinto <mudler@c3os.io>
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by

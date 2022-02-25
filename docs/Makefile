@@ -8,6 +8,7 @@ export ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
 .PHONY: build
 build:
 	scripts/build.sh
+	cp -rf CNAME public/
 
 .PHONY: serve
 serve:
