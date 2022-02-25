@@ -1,6 +1,6 @@
-name: "Start installer on tty1"
+name: "Start agent on tty1"
 stages:
-    initramfs:
+    boot:
     - if: '[ ! -f "/run/cos/recovery_mode" ]'
       commands:
-       - systemctl enable c3os-agent
+       - systemctl start c3os-agent

@@ -6,15 +6,23 @@ import (
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
-
+func contains(slice []string, elem string) bool {
+	for _, s := range slice {
+		if elem == s {
+			return true
+		}
+	}
+	return false
+}
 func Auto() Role {
 	return func(c *service.RoleConfig) error {
 		advertizing, _ := c.Client.AdvertizingNodes()
 		actives, _ := c.Client.ActiveNodes()
 
 		c.Logger.Info("Active nodes:", actives)
+		c.Logger.Info("Advertizing nodes:", advertizing)
 
-		if len(actives) < 2 && len(advertizing) < 2 {
+		if len(advertizing) < 2 {
 			c.Logger.Info("Not enough nodes")
 			return nil
 		}
@@ -27,9 +35,23 @@ func Auto() Role {
 			leader = utils.Leader(advertizing)
 		}
 
+		lead, _ := c.Client.Get("auto", "leader")
+
 		// From now on, only the leader keeps processing
-		if leader != c.UUID {
+		// TODO: Make this more reliable with consensus
+		if leader != c.UUID && lead != c.UUID {
 			c.Logger.Infof("<%s> not a leader, leader is '%s', sleeping", c.UUID, leader)
+			return nil
+		}
+
+		if lead == "" || !contains(nodes, lead) {
+			c.Client.Set("auto", "leader", c.UUID)
+			c.Logger.Info("Announcing ourselves as leader, backing off")
+			return nil
+		}
+
+		if lead != c.UUID {
+			c.Logger.Info("Backing off, as we are not currently flagged as leader")
 			return nil
 		}
 
