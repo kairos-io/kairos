@@ -1,12 +1,15 @@
 package mos_test
 
 import (
+	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/c3os-io/c3os/tests/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 )
 
 var _ = Describe("c3os", func() {
@@ -22,7 +25,7 @@ var _ = Describe("c3os", func() {
 				Expect(out).Should(ContainSubstring("c3os-agent"))
 			} else {
 				Eventually(func() string {
-					out, _ := machine.SSHCommand("sudo journalctl -u c3os-agent")
+					out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
 					return out
 				}, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
@@ -87,6 +90,21 @@ var _ = Describe("c3os", func() {
 			// }, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
 		})
 
+		It("has roles", func() {
+			uuid, _ := machine.SSHCommand("c3os uuid")
+			Expect(uuid).ToNot(Equal(""))
+			Eventually(func() string {
+				out, _ := machine.SSHCommand("c3os roles list")
+				return out
+			}, 900*time.Second, 10*time.Second).Should(And(
+				ContainSubstring(uuid),
+				ContainSubstring("worker"),
+				ContainSubstring("master"),
+				HaveRoles("master", 1),
+				HaveMinMaxRoles("worker", 1, 2),
+			))
+		})
+
 		It("upgrades to a specific version", func() {
 			version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 
@@ -101,3 +119,29 @@ var _ = Describe("c3os", func() {
 		})
 	})
 })
+
+func HaveRoles(name string, times int) types.GomegaMatcher {
+	return WithTransform(
+		func(actual interface{}) (int, error) {
+			switch s := actual.(type) {
+			case string:
+				return strings.Count(s, name), nil
+			default:
+				return 0, fmt.Errorf("HaveRoles expects a string, but got %T", actual)
+			}
+		}, Equal(times))
+}
+
+func HaveMinMaxRoles(name string, min, max int) types.GomegaMatcher {
+	return WithTransform(
+		func(actual interface{}) (int, error) {
+			switch s := actual.(type) {
+			case string:
+				return strings.Count(s, name), nil
+			default:
+				return 0, fmt.Errorf("HaveRoles expects a string, but got %T", actual)
+			}
+		}, SatisfyAll(
+			BeNumerically(">", min),
+			BeNumerically("<", max)))
+}

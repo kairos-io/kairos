@@ -248,23 +248,54 @@ func main() {
 				},
 			},
 			{
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "api",
-						Value: "http://localhost:8080",
+				Name: "role",
+				Subcommands: []cli.Command{
+					{
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "api",
+								Value: "http://localhost:8080",
+							},
+							&cli.StringFlag{
+								Name:  "network-id",
+								Value: "c3os",
+							},
+						},
+						Name:        "set",
+						Description: "Set node role. Usage: <uuid> <role>. Available roles: worker and master.",
+						Action: func(c *cli.Context) error {
+							cc := service.NewClient(
+								c.String("network-id"),
+								edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
+							return cc.Set("role", c.Args()[0], c.Args()[1])
+						},
 					},
-					&cli.StringFlag{
-						Name:  "network-id",
-						Value: "c3os",
+					{
+						Flags: []cli.Flag{
+							&cli.StringFlag{
+								Name:  "api",
+								Value: "http://localhost:8080",
+							},
+							&cli.StringFlag{
+								Name:  "network-id",
+								Value: "c3os",
+							},
+						},
+						Name:        "list",
+						Description: "List node roles",
+						Action: func(c *cli.Context) error {
+							cc := service.NewClient(
+								c.String("network-id"),
+								edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
+							advertizing, _ := cc.AdvertizingNodes()
+							fmt.Println("Node\tRole")
+							for _, a := range advertizing {
+								role, _ := cc.Get("role", a)
+								fmt.Printf("%s\t%s\n", a, role)
+							}
+							return nil
+						},
 					},
-				},
-				Name:        "set-role",
-				Description: "Set node role. Usage: <uuid> <role>. Available roles: worker and master.",
-				Action: func(c *cli.Context) error {
-					cc := service.NewClient(
-						c.String("network-id"),
-						edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
-					return cc.Set("role", c.Args()[0], c.Args()[1])
 				},
 			},
 
@@ -290,7 +321,7 @@ func main() {
 				Description: "Print node uuid",
 				Aliases:     []string{"u"},
 				Action: func(c *cli.Context) error {
-					fmt.Println(uuid())
+					fmt.Print(uuid())
 					return nil
 				},
 			},
