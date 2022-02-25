@@ -95,6 +95,8 @@ jobs:
            node: "A" # Arbitrary field
          - flavor: "opensuse"
            node: "B"
+         - flavor: "opensuse"
+           node: "C"
 #         - flavor: "alpine"
 #           node: "C"
     steps:
