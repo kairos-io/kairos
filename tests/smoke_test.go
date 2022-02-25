@@ -92,7 +92,7 @@ var _ = Describe("c3os", func() {
 			uuid, _ := machine.SSHCommand("c3os uuid")
 			Expect(uuid).ToNot(Equal(""))
 			Eventually(func() string {
-				out, _ := machine.SSHCommand("c3os roles list")
+				out, _ := machine.SSHCommand("c3os role list")
 				return out
 			}, 900*time.Second, 10*time.Second).Should(And(
 				ContainSubstring(uuid),
