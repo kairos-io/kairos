@@ -149,7 +149,7 @@ RUN mkdir -p /etc/runlevels/default && \
       ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
       ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
       ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
-      ln -sf /etc/init.d/c3os-setup /etc/runlevels/default/c3os-setup
+      ln -sf /etc/init.d/c3os-agent /etc/runlevels/default/c3os-agent
 
 # Symlinks to make cos-installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \

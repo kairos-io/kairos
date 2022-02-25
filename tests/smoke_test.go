@@ -19,9 +19,9 @@ var _ = Describe("c3os", func() {
 			if os.Getenv("FLAVOR") == "alpine" {
 				out, _ := machine.SSHCommand("sudo rc-status")
 				Expect(out).Should(ContainSubstring("c3os"))
-				Expect(out).Should(ContainSubstring("c3os-setup"))
+				Expect(out).Should(ContainSubstring("c3os-agent"))
 			} else {
-				out, _ := machine.SSHCommand("sudo systemctl status c3os-setup")
+				out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
 				Expect(out).Should(ContainSubstring("no network token"))
 				out, _ = machine.SSHCommand("sudo systemctl status c3os")
 				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
@@ -49,7 +49,7 @@ var _ = Describe("c3os", func() {
 			Expect(err).To(HaveOccurred())
 			if os.Getenv("FLAVOR") == "alpine" {
 				Eventually(func() string {
-					out, _ := machine.SSHCommand("cat /var/log/c3os-setup.log")
+					out, _ := machine.SSHCommand("cat /var/log/c3os-agent.log")
 					return out
 				}, 900*time.Second, 10*time.Second).Should(
 					Or(
@@ -58,7 +58,7 @@ var _ = Describe("c3os", func() {
 					))
 			} else {
 				Eventually(func() string {
-					out, _ := machine.SSHCommand("sudo systemctl status c3os-setup")
+					out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
 					return out
 				}, 900*time.Second, 10*time.Second).Should(
 					Or(

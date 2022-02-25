@@ -143,8 +143,8 @@ func main() {
 				},
 			},
 			{
-				Name:    "setup",
-				Aliases: []string{"s"},
+				Name:    "agent",
+				Aliases: []string{"a"},
 				Flags: []cli.Flag{
 					&cli.BoolFlag{
 						Name: "force",
@@ -162,7 +162,7 @@ func main() {
 						dir = args[0]
 					}
 
-					return setup(c.String("api"), dir, c.Bool("force"))
+					return agent(c.String("api"), dir, c.Bool("force"))
 				},
 			},
 			{

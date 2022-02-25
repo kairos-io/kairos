@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
+	"time"
 
 	"github.com/c3os-io/c3os/cli/config"
 	"github.com/c3os-io/c3os/cli/machine"
@@ -15,11 +15,47 @@ import (
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
+func propagateMasterData(ip string, c *service.RoleConfig) error {
+	defer func() {
+		// Avoid polluting the API.
+		// The ledger already retries in the background to update the blockchain, but it has
+		// a default timeout where it would stop trying afterwards.
+		// Each request here would have it's own background announce, so that can become expensive
+		// when network is having lot of changes on its way.
+		time.Sleep(30 * time.Second)
+	}()
+
+	tokenB, err := ioutil.ReadFile("/var/lib/rancher/k3s/server/node-token")
+	if err != nil {
+		c.Logger.Error(err)
+		return err
+	}
+
+	nodeToken := string(tokenB)
+	nodeToken = strings.TrimRight(nodeToken, "\n")
+	if nodeToken != "" {
+		c.Client.Set("nodetoken", "token", nodeToken)
+	}
+
+	kubeB, err := ioutil.ReadFile("/etc/rancher/k3s/k3s.yaml")
+	if err != nil {
+		c.Logger.Error(err)
+		return err
+	}
+	kubeconfig := string(kubeB)
+	if kubeconfig != "" {
+		c.Client.Set("kubeconfig", "master", base64.RawURLEncoding.EncodeToString(kubeB))
+	}
+	c.Client.Set("master", "ip", ip)
+	return nil
+}
+
 func Master(cc *config.Config) Role {
 	return func(c *service.RoleConfig) error {
+
 		ip := getIP()
 		if ip == "" {
-			return errors.New("master doesn't have an ip yet")
+			return errors.New("node doesn't have an ip yet")
 		}
 
 		r, err := c.Client.Get("role", c.UUID)
@@ -27,6 +63,11 @@ func Master(cc *config.Config) Role {
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
 			c.Client.Set("role", c.UUID, "master")
+		}
+
+		if SentinelExist() {
+			c.Logger.Info("Node already configured, backing off")
+			return propagateMasterData(ip, c)
 		}
 
 		// Configure k3s service to start on edgevpn0
@@ -77,32 +118,10 @@ func Master(cc *config.Config) Role {
 			return err
 		}
 
-		tokenB, err := ioutil.ReadFile("/var/lib/rancher/k3s/server/node-token")
-		if err != nil {
-			c.Logger.Error(err)
-			return err
-		}
-
-		nodeToken := string(tokenB)
-		nodeToken = strings.TrimRight(nodeToken, "\n")
-		if nodeToken != "" {
-			c.Client.Set("nodetoken", "token", nodeToken)
-		}
-
-		kubeB, err := ioutil.ReadFile("/etc/rancher/k3s/k3s.yaml")
-		if err != nil {
-			c.Logger.Error(err)
-			return err
-		}
-		kubeconfig := string(kubeB)
-		if kubeconfig != "" {
-			c.Client.Set("kubeconfig", "master", base64.RawURLEncoding.EncodeToString(kubeB))
-		}
-		c.Client.Set("master", "ip", ip)
+		propagateMasterData(ip, c)
 
 		CreateSentinel()
 
-		os.Exit(0)
 		return nil
 	}
 }

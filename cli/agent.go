@@ -29,7 +29,7 @@ func uuid() string {
 
 // setup needs edgevpn and k3s installed locally
 // (both k3s and k3s-agent systemd services)
-func setup(apiAddress, dir string, force bool) error {
+func agent(apiAddress, dir string, force bool) error {
 	utils.SH("sysctl -w net.core.rmem_max=2500000")
 
 	os.MkdirAll("/usr/local/.c3os", 0600)
@@ -56,7 +56,7 @@ func setup(apiAddress, dir string, force bool) error {
 	}
 
 	if !force && role.SentinelExist() {
-		l.Info("Node already set-up, nothing to do. Run c3os setup --force to force node setup")
+		l.Info("Node already set-up, nothing to do. Run c3os agent --force to force node setup")
 		return nil
 	}
 

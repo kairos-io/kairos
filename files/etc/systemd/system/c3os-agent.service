@@ -1,10 +1,10 @@
 [Unit]
-Description=c3os setup
-After=cos-setup-network
+Description=c3os agent
+After=cos-setup-network.service
 Wants=network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/bin/c3os setup
+ExecStart=/usr/bin/c3os agent
 [Install]
 WantedBy=multi-user.target

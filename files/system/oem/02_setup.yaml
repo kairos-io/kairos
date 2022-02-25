@@ -3,4 +3,4 @@ stages:
     initramfs:
     - if: '[ ! -f "/run/cos/recovery_mode" ]'
       commands:
-       - systemctl enable c3os-setup
+       - systemctl enable c3os-agent

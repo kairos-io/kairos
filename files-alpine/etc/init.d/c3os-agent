@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+
+depend() {
+  provide c3os-agent
+}
+
+supervisor=supervise-daemon
+name="c3os-agent"
+command="c3os agent"
+command_args=">> /var/log/c3os-agent.log 2>&1"
+pidfile="/var/run/c3os-agent.pid"
+respawn_delay=5
+set -o allexport
+if [ -f /etc/environment ]; then source /etc/environment; fi
+set +o allexport

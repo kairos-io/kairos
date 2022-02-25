@@ -34,11 +34,11 @@ EDGEVPNTOKEN=<network_token> edgevpn --dhcp
 
 ## Setup process
 
-`c3os` node at first boot will start the `c3os-setup` service, you can always check what's happening by running `journalctl -fu c3os-setup`.
+`c3os` node at first boot will start the `c3os-agent` service, you can always check what's happening by running `journalctl -fu c3os-agent`.
 
 This service will setup `k3s` and `edgevpn` dynamically on first-boot, once it configures the machine it does not run on boot anymore, unless `/usr/local/.c3os/deployed` is removed..
 
-Those are the steps executed in sequence by the `c3os-setup` service:
+Those are the steps executed in sequence by the `c3os-agent` service:
 
 - Will create a `edgevpn@c3os` service and enabled on start. The configuration for the connection is stored in `/etc/systemd/system.conf.d/edgevpn-c3os.env` and depends on the cloud-init configuration file provided during installation time
 - Automatic role negotiation starts, nodes will co-ordinate for an IP and a role

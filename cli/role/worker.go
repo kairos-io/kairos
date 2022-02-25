@@ -3,7 +3,6 @@ package role
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/c3os-io/c3os/cli/config"
@@ -15,6 +14,19 @@ import (
 
 func Worker(cc *config.Config) Role {
 	return func(c *service.RoleConfig) error {
+
+		r, err := c.Client.Get("role", c.UUID)
+		if err != nil || r != "worker" {
+			// propagate role if we were forced by configuration
+			// This unblocks eventual auto instances that try to assign roles
+			c.Client.Set("role", c.UUID, "worker")
+		}
+
+		if SentinelExist() {
+			c.Logger.Info("Node already configured, backing off")
+			return nil
+		}
+
 		masterIP, _ := c.Client.Get("master", "ip")
 		if masterIP == "" {
 			c.Logger.Info("MasterIP not there still..")
@@ -32,13 +44,6 @@ func Worker(cc *config.Config) Role {
 		ip := getIP()
 		if ip == "" {
 			return errors.New("node doesn't have an ip yet")
-		}
-
-		r, err := c.Client.Get("role", c.UUID)
-		if err != nil || r != "worker" {
-			// propagate role if we were forced by configuration
-			// This unblocks eventual auto instances that try to assign roles
-			c.Client.Set("role", c.UUID, "worker")
 		}
 
 		c.Logger.Info("Configuring k3s-agent", ip, masterIP, nodeToken)
@@ -98,7 +103,6 @@ func Worker(cc *config.Config) Role {
 
 		CreateSentinel()
 
-		os.Exit(0)
 		return nil
 	}
 }
