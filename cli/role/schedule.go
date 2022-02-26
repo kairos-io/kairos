@@ -4,12 +4,13 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/c3os-io/c3os/cli/config"
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
 // scheduleRoles assigns roles to nodes. Meant to be called only by leaders
 // TODO: HA-Auto
-func scheduleRoles(nodes []string, c *service.RoleConfig) error {
+func scheduleRoles(nodes []string, c *service.RoleConfig, cc *config.Config) error {
 	rand.Seed(time.Now().Unix())
 
 	// Assign roles to nodes
@@ -33,12 +34,23 @@ func scheduleRoles(nodes []string, c *service.RoleConfig) error {
 
 	if !existsMaster && len(unassignedNodes) > 0 {
 		var selected string
+		toSelect := unassignedNodes
+
+		// Avoid to schedule to ourselves if we have a static role
+		if cc.C3OS.Role != "" {
+			toSelect = []string{}
+			for _, u := range unassignedNodes {
+				if u != c.UUID {
+					toSelect = append(toSelect, u)
+				}
+			}
+		}
 
 		// select one node without roles to become master
-		if len(unassignedNodes) == 1 {
-			selected = unassignedNodes[0]
+		if len(toSelect) == 1 {
+			selected = toSelect[0]
 		} else {
-			selected = unassignedNodes[rand.Intn(len(unassignedNodes)-1)]
+			selected = toSelect[rand.Intn(len(toSelect)-1)]
 		}
 
 		c.Client.Set("role", selected, "master")

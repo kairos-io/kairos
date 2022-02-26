@@ -1,6 +1,7 @@
 package role
 
 import (
+	"github.com/c3os-io/c3os/cli/config"
 	utils "github.com/mudler/edgevpn/pkg/utils"
 
 	service "github.com/mudler/edgevpn/api/client/service"
@@ -14,7 +15,7 @@ func contains(slice []string, elem string) bool {
 	}
 	return false
 }
-func Auto() Role {
+func Auto(cc *config.Config) Role {
 	return func(c *service.RoleConfig) error {
 		advertizing, _ := c.Client.AdvertizingNodes()
 		actives, _ := c.Client.ActiveNodes()
@@ -51,6 +52,6 @@ func Auto() Role {
 			return nil
 		}
 
-		return scheduleRoles(nodes, c)
+		return scheduleRoles(nodes, c, cc)
 	}
 }

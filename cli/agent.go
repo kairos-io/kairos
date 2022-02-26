@@ -83,7 +83,7 @@ func agent(apiAddress, dir string, force bool) error {
 			},
 			service.RoleKey{
 				Role:        "auto",
-				RoleHandler: role.Auto(),
+				RoleHandler: role.Auto(c),
 			},
 		),
 	}
