@@ -98,8 +98,8 @@ var _ = Describe("c3os", func() {
 				ContainSubstring(uuid),
 				ContainSubstring("worker"),
 				ContainSubstring("master"),
-				HaveRoles("master", 1),
-				HaveMinMaxRoles("worker", 1, 2),
+				HaveMinMaxRole("master", 1, 1),
+				HaveMinMaxRole("worker", 1, 1),
 			))
 		})
 
@@ -118,19 +118,7 @@ var _ = Describe("c3os", func() {
 	})
 })
 
-func HaveRoles(name string, times int) types.GomegaMatcher {
-	return WithTransform(
-		func(actual interface{}) (int, error) {
-			switch s := actual.(type) {
-			case string:
-				return strings.Count(s, name), nil
-			default:
-				return 0, fmt.Errorf("HaveRoles expects a string, but got %T", actual)
-			}
-		}, Equal(times))
-}
-
-func HaveMinMaxRoles(name string, min, max int) types.GomegaMatcher {
+func HaveMinMaxRole(name string, min, max int) types.GomegaMatcher {
 	return WithTransform(
 		func(actual interface{}) (int, error) {
 			switch s := actual.(type) {
@@ -140,6 +128,6 @@ func HaveMinMaxRoles(name string, min, max int) types.GomegaMatcher {
 				return 0, fmt.Errorf("HaveRoles expects a string, but got %T", actual)
 			}
 		}, SatisfyAll(
-			BeNumerically(">", min),
-			BeNumerically("<", max)))
+			BeNumerically(">=", min),
+			BeNumerically("<=", max)))
 }
