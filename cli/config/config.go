@@ -11,10 +11,10 @@ import (
 
 type C3OS struct {
 	NetworkToken string `yaml:"network_token,omitempty"`
-	Offline      bool   `yaml:"offline"`
-	Reboot       bool   `yaml:"reboot"`
-	Device       string `yaml:"device"`
-	Poweroff     bool   `yaml:"poweroff"`
+	Offline      bool   `yaml:"offline,omitempty"`
+	Reboot       bool   `yaml:"reboot,omitempty"`
+	Device       string `yaml:"device,omitempty"`
+	Poweroff     bool   `yaml:"poweroff,omitempty"`
 	Role         string `yaml:"role,omitempty"`
 	NetworkID    string `yaml:"network_id,omitempty"`
 }

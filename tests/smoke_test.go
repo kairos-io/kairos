@@ -37,7 +37,7 @@ var _ = Describe("c3os", func() {
 
 	Context("install", func() {
 		It("to disk with custom config", func() {
-			err := machine.SendFile("assets/config.yaml", "/tmp/config.yaml", "0770")
+			err := machine.SendFile(os.Getenv("CLOUD_INIT"), "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
 			out, _ := machine.SSHCommand("sudo cos-installer --cloud-init /tmp/config.yaml /dev/sda")
