@@ -27,3 +27,9 @@ stages:
           /var/lib/longhorn
           /var/lib/cni
         PERSISTENT_STATE_BIND: "true"
+    - if: '[ ! -f /run/cos/recovery_mode ] && [ ! -f /run/cos/live_mode ]'
+      name: "Grow persistent"
+      layout:
+        device:
+          label: COS_PERSISTENT
+        expand_partition:
