@@ -21,34 +21,36 @@
 
 C3OS is a lightweight Kubernetes GNU/Linux [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative that supports automatic node discovery, automatic role assignment and VPN out of the box with no kubernetes networking configuration required. 
 
-C3OS creates multi-nodes Kubernetes cluster with [k3s](https://k3s.io) that connects autonomously in a hybrid P2P VPN which bridges nodes without any central server also behind nat.
+C3OS creates multi-nodes Kubernetes cluster with [k3s](https://k3s.io) that connects autonomously in a hybrid P2P VPN which bridges nodes without any central server, also behind nat.
 
 - No infrastructure is required. C3OS can be used to bootstrap a cluster entirely from the ground-up.
 - LAN, remote networks, multi-region/zones, NAT - No network configuration or opening port outside is required. Nodes will connect each other via holepunching and using hops wherever necessary.
 - Zero kubernetes configuration - Nodes autonomously discover and configure themselves to form a Kubernetes cluster. The same configuration/bootstrapping process applies wether creating new clusters or joining nodes to existing one.
 
-[Documentation available here](https://c3os-io.github.io/c3os).
+[Documentation available here](https://docs.c3os.io).
 
-## Run 
+## Run c3os
 
 Download the ISO from the latest [releases](https://github.com/c3os-io/c3os/releases).
 
-## Installation
+## Automated installation
 
-Boot the ISO and follow the instructions on screen. The openSUSE variant supports automatic peer discovery and [device pairing](https://c3os-io.github.io/c3os/installation/device_pairing/).
+Boot the ISO and follow the instructions on screen. The openSUSE variant supports automatic peer discovery and [device pairing](https://docs.c3os.io/installation/device_pairing/).
 
-Use the `c3os` CLI to register and handle node installation remotely, check out the [documentation](https://c3os-io.github.io/c3os).
+Use the `c3os` CLI to register and handle node installation remotely, check out the [documentation](https://docs.c3os.io).
 
-### Manual
+## Manual Installation
 
-Install `c3os` with `cos-install --config <config-file>` or either place it in `/oem` after install. The config file can be a cloud-init file, or a URL pointing to a cloud-init file.
+After booting, it is possible to install `c3os` manually with `sudo cos-install --config <config-file>` or either place it in `/oem` after install. The config file can be a cloud-init file, or a URL pointing to a cloud-init file.
 
-## Build
+The default user pass is `c3os:c3os` on LiveCD mediums. See [Docs](https://docs.c3os.io/installation/manual/).
+
+## Upgrades
+
+Upgrades can be triggered with Kubernetes or manually. See [Docs](https://docs.c3os.io/after_install/upgrades/).
+
+## Building c3os
 
 Needs only docker.
 
 Run `build.sh`, should produce a docker image along with an ISO
-
-## Upgrades
-
-[Docs](https://c3os-io.github.io/c3os/after_install/upgrades/)
