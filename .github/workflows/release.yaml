@@ -48,18 +48,55 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GHR_PATH: release/
+          GHR_PARALLELISM: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # - run: |
-      #     mv release/*.iso ./
-      #     mv release/*.sha256 ./
-      # - uses: actions/upload-artifact@v2
-      #   with:
-      #     name: c3os-${{ matrix.flavor }}.iso.zip
-      #     path: |
-      #       *.iso
-      #       *.sha256
-      #     if-no-files-found: error
+      - run: |
+          mv release/*.iso ./
+          mv release/*.sha256 ./
+      - uses: actions/upload-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.iso.zip
+          path: |
+            *.iso
+            *.sha256
+          if-no-files-found: error
 
+
+  build-vm-images:
+    needs: build
+    runs-on: macos-10.15
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "opensuse"
+         - flavor: "alpine"
+#         - flavor: "ubuntu"
+         - flavor: "fedora"
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install deps
+        run: |
+          brew install hudochenkov/sshpass/sshpass
+          brew install qemu
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.iso.zip
+      - run: |
+              ls -liah
+              iso=$(ls *.iso)
+              sh build_vm.sh $iso
+              mkdir release
+              mv *.qcow2.tar.xz release/
+              mv *.ova release/
+      - name: Release
+        uses: fnkr/github-action-ghr@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GHR_PATH: release/
+          GHR_PARALLELISM: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   # build-vm-images:
   #   needs: build
   #   runs-on: macos-10.15
