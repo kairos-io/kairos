@@ -44,6 +44,9 @@ func scheduleRoles(nodes []string, c *service.RoleConfig) error {
 		c.Client.Set("role", selected, "master")
 		c.Logger.Info("-> Set master to", selected)
 		currentRoles[selected] = "master"
+		// Return here, so next time we get called
+		// makes sure master is set.
+		return nil
 	}
 
 	// cycle all empty roles and assign worker roles

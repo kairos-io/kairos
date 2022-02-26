@@ -25,6 +25,9 @@ func propagateMasterData(ip string, c *service.RoleConfig) error {
 		time.Sleep(30 * time.Second)
 	}()
 
+	// If we are configured as master, always signal our role
+	c.Client.Set("role", c.UUID, "master")
+
 	tokenB, err := ioutil.ReadFile("/var/lib/rancher/k3s/server/node-token")
 	if err != nil {
 		c.Logger.Error(err)

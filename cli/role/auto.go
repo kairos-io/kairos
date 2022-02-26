@@ -29,11 +29,7 @@ func Auto() Role {
 
 		// first get available nodes
 		nodes := advertizing
-		shouldBeLeader := c.UUID
-
-		if len(advertizing) != 0 {
-			shouldBeLeader = utils.Leader(advertizing)
-		}
+		shouldBeLeader := utils.Leader(advertizing)
 
 		lead, _ := c.Client.Get("auto", "leader")
 
