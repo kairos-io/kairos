@@ -177,3 +177,105 @@ func connectToHost() (*ssh.Client, *ssh.Session, error) {
 
 	return client, session, nil
 }
+
+// GatherAllLogs will try to gather as much info from the system as possible, including services, dmesg and os related info
+func GatherAllLogs(services []string, logFiles []string) {
+	// services
+	for _, ser := range services {
+		out, err := SSHCommand(fmt.Sprintf("journalctl -u %s -o short-iso >> /tmp/%s.log", ser, ser))
+		if err != nil {
+			fmt.Printf("Error getting journal for service %s: %s\n", ser, err.Error())
+			fmt.Printf("Output from command: %s\n", out)
+		}
+		SSHCommand(fmt.Sprintf("/tmp/%s.log", ser))
+	}
+
+	// log files
+	for _, file := range logFiles {
+		GatherLog(file)
+	}
+
+	// dmesg
+	out, err := SSHCommand("dmesg > /tmp/dmesg")
+	if err != nil {
+		fmt.Printf("Error getting dmesg : %s\n", err.Error())
+		fmt.Printf("Output from command: %s\n", out)
+	}
+	GatherLog("/tmp/dmesg")
+
+	// grab full journal
+	out, err = SSHCommand("journalctl -o short-iso > /tmp/journal.log")
+	if err != nil {
+		fmt.Printf("Error getting full journalctl info : %s\n", err.Error())
+		fmt.Printf("Output from command: %s\n", out)
+	}
+	GatherLog("/tmp/journal.log")
+
+	// uname
+	out, err = SSHCommand("uname -a > /tmp/uname.log")
+	if err != nil {
+		fmt.Printf("Error getting uname info : %s\n", err.Error())
+		fmt.Printf("Output from command: %s\n", out)
+	}
+	GatherLog("/tmp/uname.log")
+
+	// disk info
+	out, err = SSHCommand("lsblk -a >> /tmp/disks.log")
+	if err != nil {
+		fmt.Printf("Error getting disk info : %s\n", err.Error())
+		fmt.Printf("Output from command: %s\n", out)
+	}
+	out, err = SSHCommand("blkid >> /tmp/disks.log")
+	if err != nil {
+		fmt.Printf("Error getting disk info : %s\n", err.Error())
+		fmt.Printf("Output from command: %s\n", out)
+	}
+	GatherLog("/tmp/disks.log")
+
+	// Grab users
+	GatherLog("/etc/passwd")
+	// Grab system info
+	GatherLog("/etc/os-release")
+
+}
+
+// GatherLog will try to scp the given log from the machine to a local file
+func GatherLog(logPath string) {
+	fmt.Printf("Trying to get file: %s\n", logPath)
+	sshConfig := &ssh.ClientConfig{
+		User:    user(),
+		Auth:    []ssh.AuthMethod{ssh.Password(pass())},
+		Timeout: 30 * time.Second, // max time to establish connection
+	}
+	sshConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+
+	scpClient := scp.NewClientWithTimeout(host(), sshConfig, 10*time.Second)
+	defer scpClient.Close()
+
+	err := scpClient.Connect()
+	if err != nil {
+		fmt.Println("Couldn't establish a connection to the remote server ", err)
+		return
+	}
+
+	baseName := filepath.Base(logPath)
+	_ = os.Mkdir("logs", 0755)
+
+	f, _ := os.Create(fmt.Sprintf("logs/%s", baseName))
+	// Close the file after it has been copied
+	// Close client connection after the file has been copied
+	defer scpClient.Close()
+	defer f.Close()
+
+	ctx, can := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer can()
+	err = scpClient.CopyFromRemote(ctx, f, logPath)
+	if err != nil {
+		fmt.Printf("Error while copying file: %s\n", err.Error())
+		return
+	}
+	// Change perms so its world readable
+	_ = os.Chmod(fmt.Sprintf("logs/%s", baseName), 0666)
+	fmt.Printf("File %s copied!\n", baseName)
+
+}

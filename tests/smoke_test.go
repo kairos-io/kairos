@@ -17,6 +17,32 @@ var _ = Describe("c3os", func() {
 		machine.EventuallyConnects()
 	})
 
+	AfterEach(func() {
+		if CurrentGinkgoTestDescription().Failed {
+			machine.SSHCommand("k3s kubectl get pods -A -o json > /tmp/pods.json")
+			machine.SSHCommand("k3s kubectl get events -A -o json > /tmp/events.json")
+			machine.SSHCommand("df -h > /tmp/disk")
+			machine.SSHCommand("mount > /tmp/mounts")
+			machine.SSHCommand("blkid > /tmp/blkid")
+
+			machine.GatherAllLogs(
+				[]string{
+					"c3os-agent",
+					"cos-setup-boot",
+					"cos-setup-network",
+					"c3os",
+					"k3s",
+				},
+				[]string{
+					"/tmp/pods.json",
+					"/tmp/disk",
+					"/tmp/mounts",
+					"/tmp/blkid",
+					"/tmp/events.json",
+				})
+		}
+	})
+
 	Context("live cd", func() {
 		It("has default service active", func() {
 			if os.Getenv("FLAVOR") == "alpine" {
