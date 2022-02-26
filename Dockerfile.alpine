@@ -157,7 +157,7 @@ RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
 
 # Drop env files from k3s as we will generate them
 RUN rm -rf /etc/rancher/k3s/k3s.env /etc/rancher/k3s/k3s-agent.env && touch /etc/rancher/k3s/.keep
-
+RUN touch /var/run/.keep
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
 ARG OS_REPO=quay.io/c3os/c3os

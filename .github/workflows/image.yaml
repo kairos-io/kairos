@@ -74,9 +74,9 @@ jobs:
               sh build_vm.sh $iso
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.qcow2
+          name: c3os-${{ matrix.flavor }}.qcow2.tar.xz
           path: |
-            *.qcow2
+            *.qcow2.tar.xz
       - uses: actions/upload-artifact@v2
         with:
           name: c3os-${{ matrix.flavor }}.ova
