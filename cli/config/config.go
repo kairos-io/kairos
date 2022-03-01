@@ -17,6 +17,7 @@ type C3OS struct {
 	Poweroff     bool   `yaml:"poweroff,omitempty"`
 	Role         string `yaml:"role,omitempty"`
 	NetworkID    string `yaml:"network_id,omitempty"`
+	DNS          bool   `yaml:"dns,omitempty"`
 }
 
 type K3s struct {
