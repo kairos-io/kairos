@@ -182,7 +182,7 @@ func connectToHost() (*ssh.Client, *ssh.Session, error) {
 func GatherAllLogs(services []string, logFiles []string) {
 	// services
 	for _, ser := range services {
-		out, err := SSHCommand(fmt.Sprintf("journalctl -u %s -o short-iso >> /tmp/%s.log", ser, ser))
+		out, err := SSHCommand(fmt.Sprintf("sudo journalctl -u %s -o short-iso >> /tmp/%s.log", ser, ser))
 		if err != nil {
 			fmt.Printf("Error getting journal for service %s: %s\n", ser, err.Error())
 			fmt.Printf("Output from command: %s\n", out)
@@ -196,7 +196,7 @@ func GatherAllLogs(services []string, logFiles []string) {
 	}
 
 	// dmesg
-	out, err := SSHCommand("dmesg > /tmp/dmesg")
+	out, err := SSHCommand("sudo dmesg > /tmp/dmesg")
 	if err != nil {
 		fmt.Printf("Error getting dmesg : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
@@ -204,7 +204,7 @@ func GatherAllLogs(services []string, logFiles []string) {
 	GatherLog("/tmp/dmesg")
 
 	// grab full journal
-	out, err = SSHCommand("journalctl -o short-iso > /tmp/journal.log")
+	out, err = SSHCommand("sudo journalctl -o short-iso > /tmp/journal.log")
 	if err != nil {
 		fmt.Printf("Error getting full journalctl info : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
@@ -220,23 +220,25 @@ func GatherAllLogs(services []string, logFiles []string) {
 	GatherLog("/tmp/uname.log")
 
 	// disk info
-	out, err = SSHCommand("lsblk -a >> /tmp/disks.log")
+	out, err = SSHCommand("sudo lsblk -a >> /tmp/disks.log")
 	if err != nil {
 		fmt.Printf("Error getting disk info : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
 	}
-	out, err = SSHCommand("blkid >> /tmp/disks.log")
+	out, err = SSHCommand("sudo blkid >> /tmp/disks.log")
 	if err != nil {
 		fmt.Printf("Error getting disk info : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
 	}
 	GatherLog("/tmp/disks.log")
+	SSHCommand("sudo chmod -R 777 /tmp")
+	SSHCommand("sudo chmod 777 /etc/passwd")
+	SSHCommand("sudo chmod 777 /etc/os-release")
 
 	// Grab users
 	GatherLog("/etc/passwd")
 	// Grab system info
 	GatherLog("/etc/os-release")
-
 }
 
 // GatherLog will try to scp the given log from the machine to a local file

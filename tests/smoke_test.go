@@ -19,11 +19,11 @@ var _ = Describe("c3os", func() {
 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
-			machine.SSHCommand("k3s kubectl get pods -A -o json > /tmp/pods.json")
-			machine.SSHCommand("k3s kubectl get events -A -o json > /tmp/events.json")
-			machine.SSHCommand("df -h > /tmp/disk")
-			machine.SSHCommand("mount > /tmp/mounts")
-			machine.SSHCommand("blkid > /tmp/blkid")
+			machine.SSHCommand("sudo k3s kubectl get pods -A -o json > /tmp/pods.json")
+			machine.SSHCommand("sudo k3s kubectl get events -A -o json > /tmp/events.json")
+			machine.SSHCommand("sudo df -h > /tmp/disk")
+			machine.SSHCommand("sudo mount > /tmp/mounts")
+			machine.SSHCommand("sudo blkid > /tmp/blkid")
 
 			machine.GatherAllLogs(
 				[]string{
@@ -129,10 +129,28 @@ var _ = Describe("c3os", func() {
 			))
 		})
 
+		It("can propagate dns and it is functional", func() {
+			Eventually(func() string {
+				machine.SSHCommand(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+				out, _ := machine.SSHCommand("ping -c 1 foo.bar")
+				return out
+			}, 900*time.Second, 10*time.Second).Should(And(
+				ContainSubstring("2.2.2.2"),
+			))
+			Eventually(func() string {
+				out, _ := machine.SSHCommand("ping -c 1 google.com")
+				return out
+			}, 900*time.Second, 10*time.Second).Should(And(
+				ContainSubstring("64 bytes from"),
+			))
+		})
+
 		It("upgrades to a specific version", func() {
 			version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 
-			machine.SSHCommand("sudo c3os upgrade --image quay.io/mudler/c3os:v1.21.4-19")
+			out, _ := machine.SSHCommand("sudo c3os upgrade")
+			Expect(out).To(ContainSubstring("Upgrade completed"))
+
 			machine.SSHCommand("sudo sync")
 			machine.Restart()
 
