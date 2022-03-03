@@ -15,11 +15,12 @@ Configuration and installation is done via **Decentralized Device Pairing** or *
 c3OS have:
 - an Immutable layout
 - cloud-init support
-- P2P layer
+- P2P layer (which can be disabled)
 - Strong enphasis on automation - the only configuration which is required is to generate a network token
+- Embedded cluster DNS (optional)
 
 c3OS is composed of:
 - [k3s](https://k3s.io) as a Kubernetes distribution
-- [edgevpn](https://mudler.github.io/edgevpn) as fabric for the distributed network, node coordination and bootstrap
+- [edgevpn](https://mudler.github.io/edgevpn) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster.
 - [cOS-toolkit](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/) as a fundament to build the Linux derivative. Indeed, any `cOS` docs applies to `c3os` as well.
 - [nohang](https://github.com/hakavlad/nohang) A sophisticated low memory handler for Linux 

@@ -23,6 +23,8 @@ c3os:
   role: "master"
   # User defined network-id. Can be used to have multiple clusters in the same network
   network_id: "dev"  
+  # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
+  dns: true
 
 vpn:
   # EdgeVPN environment options
@@ -78,3 +80,34 @@ Examples using the extended notation for running k3s as agent or server are in [
 ## Datasource
 
 The configuration file can also be used to drive automated installation and deployments by mounting an ISO in the node with the `cidata` label. The ISO must contain a `user-data` (which contain your configuration) and `meta-data` file.
+
+## Embedded DNS
+
+When `c3os.dns` is set to `true` embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server, for example, assuming `c3os bridge` is running in a separate terminal:
+
+```bash
+curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'
+```
+
+Will add the `foo.bar` domain with `2.2.2.2` as `A` response. 
+
+Every node with `dns` enabled will be able to resolve the domain after the domain is correctly announced.
+
+You can check out the dns in the [DNS page in the API](http://localhost:8080/dns.html), see also [the EdgeVPN docs](https://mudler.github.io/edgevpn/docs/concepts/overview/dns/).
+
+Furthermore, is possible to tweak DNS server which are used to forward requests for domain listed outside, and as well it's possible to lock down resolving only to nodes in the blockchain, by customizing the configuration file:
+
+```yaml
+c3os:
+  network_token: "...."
+  # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
+  dns: true
+
+vpn:
+  # Disable DNS forwarding
+  DNSFORWARD: "false"
+  # Set cache size
+  DNSCACHESIZE: "200"
+  # Set DNS forward server
+  DNSFORWARDSERVER: "8.8.8.8:53"
+```
