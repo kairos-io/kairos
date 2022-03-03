@@ -68,3 +68,22 @@ stages:
          start: 
          - k3s-agent
 ```
+
+## Single node cluster with default user/password
+
+```yaml
+c3os:
+  network_token: "...."
+  role: "master"
+vpn:
+  # EdgeVPN environment options
+  DHCP: "false"
+  ADDRESS: "10.1.0.2/24"
+  
+stages:
+   initramfs:
+     - name: "Set user and password"
+       users:
+        c3os:
+          passwd: "c3os"
+```
