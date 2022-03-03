@@ -129,6 +129,16 @@ var _ = Describe("c3os", func() {
 			))
 		})
 
+		It("has machines with different IPs", func() {
+			Eventually(func() string {
+				out, _ := machine.SSHCommand(`curl http://localhost:8080/api/machines`)
+				return out
+			}, 900*time.Second, 10*time.Second).Should(And(
+				ContainSubstring("10.1.0.1"),
+				ContainSubstring("10.1.0.2"),
+			))
+		})
+
 		It("can propagate dns and it is functional", func() {
 			Eventually(func() string {
 				machine.SSHCommand(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
@@ -148,7 +158,7 @@ var _ = Describe("c3os", func() {
 		It("upgrades to a specific version", func() {
 			version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 
-			out, _ := machine.SSHCommand("sudo c3os upgrade")
+			out, _ := machine.SSHCommand("sudo c3os upgrade v1.21.4-32")
 			Expect(out).To(ContainSubstring("Upgrade completed"))
 
 			machine.SSHCommand("sudo sync")
