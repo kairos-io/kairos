@@ -59,6 +59,8 @@ or "c3os register <file>" to register the machine from a photo.
 IF the qrcode is not displaying correctly,
 try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 
+	pterm.Info.Println("Press any key to abort pairing. To restart run 'c3os install'.")
+
 	pterm.Info.Println("Starting in 5 seconds...")
 	pterm.Print("\n\n") // Add two new lines as spacer.
 
@@ -71,14 +73,14 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 	defer cancel()
 
 	go func() {
-		utils.Prompt("Waiting for registration, press any key to abort pairing. To restart run 'c3os install'.")
+		// Wait for user input and go back to shell
+		utils.Prompt("")
 		cancel()
 		// give tty1 back
 		svc, err := machine.Getty(1)
 		if err == nil {
 			svc.Start()
 		}
-
 	}()
 
 	if err := nodepair.Receive(ctx, &r, nodepair.WithToken(tk)); err != nil {
