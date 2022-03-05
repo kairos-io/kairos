@@ -57,7 +57,7 @@ RUN apt install -y \
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml
 RUN sed -i 's/green/orange/g' /etc/luet/luet.yaml && \
-    sed -i 's/reference: .*/reference: 20220221174834-repository.yaml/g' /etc/luet/luet.yaml
+    sed -i 's/reference: .*/reference: 20220304072303-repository.yaml/g' /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet

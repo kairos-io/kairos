@@ -6,7 +6,7 @@ repositories:
   cached: true
   priority: 1
   verify: false
-  reference: 20220221194910-repository.yaml
+  reference: 20220304090252-repository.yaml
   urls:
   - "quay.io/costoolkit/releases-green"
 - name: "c3os"
