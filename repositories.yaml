@@ -1,20 +1,30 @@
 repositories:
-- name: "cos"
+- &cos
+  name: "cos"
   description: "cOS official"
   type: "docker"
-  enable: true
+  arch: amd64
   cached: true
   priority: 1
-  verify: false
   reference: 20220304090252-repository.yaml
   urls:
   - "quay.io/costoolkit/releases-green"
-- name: "c3os"
+- &c3os
+  name: "c3os"
   # https://github.com/c3os-io/packages
   description: "c3os repository"
   type: "docker"
-  enable: true
+  arch: amd64
   cached: true
   priority: 2
   urls:
     - "quay.io/c3os/packages"
+- <<: *c3os
+  arch: arm64
+  urls:
+    - "quay.io/c3os/packages-arm"
+- <<: *cos
+  arch: "arm64"
+  urls:
+  - "quay.io/costoolkit/releases-green-arm64"
+  reference: 20220305143408-repository.yaml

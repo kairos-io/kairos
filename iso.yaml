@@ -26,4 +26,4 @@ luet:
     type: docker
 
 overlay:
-  isoimage: files-iso
+  isoimage: overlay/files-iso

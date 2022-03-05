@@ -70,7 +70,7 @@ fooz:
 			`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			err = ReplaceToken(d, "baz")
+			err = ReplaceToken([]string{d, "/doesnotexist"}, "baz")
 			Expect(err).ToNot(HaveOccurred())
 
 			content, err := ioutil.ReadFile(filepath.Join(d, "test"))

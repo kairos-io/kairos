@@ -82,7 +82,7 @@ RUN systemctl enable ssh
 RUN systemctl enable NetworkManager.service
 RUN echo "auto lo" > /etc/network/interfaces
 RUN echo "iface lo inet loopback" >> /etc/network/interfaces
-COPY files/ /
+COPY overlay/files/ /
 
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo

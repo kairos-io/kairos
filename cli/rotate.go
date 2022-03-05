@@ -6,12 +6,12 @@ import (
 	"github.com/c3os-io/c3os/cli/vpn"
 )
 
-func rotate(configDir, newToken, apiAddress, rootDir string, restart bool) error {
+func rotate(configDir []string, newToken, apiAddress, rootDir string, restart bool) error {
 	if err := config.ReplaceToken(configDir, newToken); err != nil {
 		return err
 	}
 
-	c, err := config.Scan(configDir)
+	c, err := config.Scan(configDir...)
 	if err != nil {
 		return err
 	}

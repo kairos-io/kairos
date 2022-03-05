@@ -40,12 +40,15 @@ func (c Config) String() string {
 	return c.cloudFileContent
 }
 
-func Scan(dir string) (c *Config, err error) {
+func Scan(dir ...string) (c *Config, err error) {
 	c = &Config{}
-	files, err := listFiles(dir)
-	if err != nil {
-		return nil, err
+	files := []string{}
+	for _, d := range dir {
+		if f, err := listFiles(d); err == nil {
+			files = append(files, f...)
+		}
 	}
+
 	for _, f := range files {
 		b, err := ioutil.ReadFile(f)
 		if err == nil {
@@ -75,11 +78,13 @@ func listFiles(dir string) ([]string, error) {
 	return content, err
 }
 
-func ReplaceToken(dir, token string) (err error) {
+func ReplaceToken(dir []string, token string) (err error) {
 	c := &Config{}
-	files, err := listFiles(dir)
-	if err != nil {
-		return err
+	files := []string{}
+	for _, d := range dir {
+		if f, err := listFiles(d); err == nil {
+			files = append(files, f...)
+		}
 	}
 	var configFile string
 	perms := os.ModePerm

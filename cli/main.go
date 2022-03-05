@@ -156,13 +156,13 @@ func main() {
 				},
 				UsageText: "Automatically setups the node",
 				Action: func(c *cli.Context) error {
-					dir := "/oem"
+					dirs := []string{"/oem", "/usr/local/cloud-config"}
 					args := c.Args()
 					if len(args) > 0 {
-						dir = args[0]
+						dirs = args
 					}
 
-					return agent(c.String("api"), dir, c.Bool("force"))
+					return agent(c.String("api"), dirs, c.Bool("force"))
 				},
 			},
 			{
@@ -186,13 +186,13 @@ func main() {
 				},
 				UsageText: "Rotate network token manually in the node",
 				Action: func(c *cli.Context) error {
-					dir := "/oem"
+					dirs := []string{"/oem", "/usr/local/cloud-config"}
 					args := c.Args()
 					if len(args) > 0 {
-						dir = args[0]
+						dirs = args
 					}
 
-					return rotate(dir, c.String("network-token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
+					return rotate(dirs, c.String("network-token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
 				},
 			},
 			{
@@ -303,12 +303,12 @@ func main() {
 				Name:        "get-network-token",
 				Description: "Print network token",
 				Action: func(c *cli.Context) error {
-					dir := "/oem"
+					dirs := []string{"/oem", "/usr/local/cloud-config"}
 					args := c.Args()
 					if len(args) > 0 {
-						dir = args[0]
+						dirs = args
 					}
-					cc, err := config.Scan(dir)
+					cc, err := config.Scan(dirs...)
 					if err != nil {
 						return err
 					}
@@ -329,7 +329,7 @@ func main() {
 				Name:    "install",
 				Aliases: []string{"i"},
 				Action: func(c *cli.Context) error {
-					return install("/oem")
+					return install("/oem", "/usr/local/cloud-config")
 				},
 			},
 		},

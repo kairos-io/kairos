@@ -85,7 +85,7 @@ RUN rm -rf installer.sh
 RUN systemctl enable nohang-desktop.service
 RUN systemctl enable sshd
 
-COPY files/ /
+COPY overlay/files/ /
 
 # RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
 #     ln -sf "${kernel#/boot/}" /boot/vmlinuz

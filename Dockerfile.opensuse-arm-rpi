@@ -1,4 +1,4 @@
-ARG LUET_VERSION=0.19.2
+ARG LUET_VERSION=0.22.7-1
 ARG BASE_IMAGE=opensuse/leap:15.3
 
 FROM golang as builder
@@ -14,7 +14,7 @@ FROM $BASE_IMAGE
 ARG K3S_VERSION
 ARG C3OS_VERSION
 
-ARG ARCH=amd64
+ARG ARCH=arm64
 ENV ARCH=${ARCH}
 # Enable cosign keyless verify
 # Temporary disable
@@ -29,6 +29,13 @@ COPY --from=builder /work/cli/c3os /usr/bin/c3os
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Leap_15.3/utilities.repo && zypper ref
 
 RUN zypper in -y \
+    raspberrypi-eeprom \
+    bcm43xx-firmware \
+    wireless-tools \
+    wpa_supplicant \
+    iw \
+    systemd-sysvinit \
+    grub2-arm64-efi \
     bash-completion \
     conntrack-tools \
     coreutils \
@@ -51,14 +58,7 @@ RUN zypper in -y \
     issue-generator \
     jq \
     kernel-default \
-    kernel-firmware-bnx2 \
-    kernel-firmware-i915 \
-    kernel-firmware-intel \
-    kernel-firmware-iwlwifi \
-    kernel-firmware-mellanox \
-    kernel-firmware-network \
-    kernel-firmware-platform \
-    kernel-firmware-realtek \
+    kernel-firmware-all \
     less \
     lsscsi \
     lvm2 \
@@ -112,8 +112,11 @@ RUN rm -rf installer.sh
 
 RUN systemctl enable nohang
 COPY overlay/files/ /
+COPY overlay/files-opensuse-arm-rpi/ /
 
 RUN mkinitrd
+
+RUN ln -sf Image /boot/vmlinuz
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}

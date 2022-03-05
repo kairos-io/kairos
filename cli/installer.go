@@ -29,10 +29,10 @@ func optsToArgs(options map[string]string) (res []string) {
 	return
 }
 
-func install(dir string) error {
+func install(dir ...string) error {
 	// Reads config, and if present and offline is defined,
 	// runs the installation
-	cc, err := config.Scan(dir)
+	cc, err := config.Scan(dir...)
 	if err == nil && cc.C3OS != nil && cc.C3OS.Offline {
 		runInstall(map[string]string{
 			"device": cc.C3OS.Device,

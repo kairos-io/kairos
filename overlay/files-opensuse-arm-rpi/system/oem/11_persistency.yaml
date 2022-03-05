@@ -5,7 +5,7 @@ stages:
       name: "Layout configuration"
       environment_file: /run/cos/cos-layout.env
       environment:
-        VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
+        VOLUMES: "LABEL=COS_PERSISTENT:/usr/local"
         OVERLAY: "tmpfs:25%"
         RW_PATHS: "/var /etc /srv"
         PERSISTENT_STATE_PATHS: >-

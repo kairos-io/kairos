@@ -28,13 +28,13 @@ func uuid() string {
 
 // setup needs edgevpn and k3s installed locally
 // (both k3s and k3s-agent systemd services)
-func agent(apiAddress, dir string, force bool) error {
+func agent(apiAddress string, dir []string, force bool) error {
 	utils.SH("sysctl -w net.core.rmem_max=2500000")
 
 	os.MkdirAll("/usr/local/.c3os", 0600)
 
 	// Reads config
-	c, err := config.Scan(dir)
+	c, err := config.Scan(dir...)
 	if err != nil {
 		return err
 	}
