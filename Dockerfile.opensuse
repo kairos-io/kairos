@@ -51,14 +51,7 @@ RUN zypper in -y \
     issue-generator \
     jq \
     kernel-default \
-    kernel-firmware-bnx2 \
-    kernel-firmware-i915 \
-    kernel-firmware-intel \
-    kernel-firmware-iwlwifi \
-    kernel-firmware-mellanox \
-    kernel-firmware-network \
-    kernel-firmware-platform \
-    kernel-firmware-realtek \
+    kernel-firmware-all \
     less \
     lsscsi \
     lvm2 \
