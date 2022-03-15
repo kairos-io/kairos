@@ -24,6 +24,11 @@ identifier = "github"
 url = "https://github.com/c3os-io/c3os"
 weight = 1
 [[Languages.en.menu.shortcuts]]
+name = "<i class='fas fa-fw fa-comments'></i> Matrix chat"
+identifier = "matrix"
+url = "https://matrix.to/#/!dCNJFBhFCygdCFDdfD:matrix.org?via=matrix.org"
+weight = 1
+[[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-bookmark'></i> cOS Documentation"
 identifier = "hugodoc"
 url = "https://rancher-sandbox.github.io/cos-toolkit-docs/docs"
