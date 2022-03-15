@@ -26,7 +26,7 @@ weight = 1
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-comments'></i> Matrix chat"
 identifier = "matrix"
-url = "https://matrix.to/#/!dCNJFBhFCygdCFDdfD:matrix.org?via=matrix.org"
+url = "https://matrix.to/#/#c3os:matrix.org"
 weight = 1
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-bookmark'></i> cOS Documentation"
