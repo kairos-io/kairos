@@ -122,11 +122,11 @@ func runInstall(options map[string]string) {
 	_, poweroff := options["poweroff"]
 
 	ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
-	args := []string{}
+	args := []string{"install"}
 	args = append(args, optsToArgs(options)...)
 	args = append(args, "-c", f.Name(), fmt.Sprintf("%s", device))
 
-	cmd := exec.Command("cos-installer", args...)
+	cmd := exec.Command("elemental", args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin

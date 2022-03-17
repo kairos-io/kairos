@@ -73,7 +73,7 @@ Use `--force` to force upgrading to avoid checking versions. All the available v
 It is possible altough to use the same commandset from `cOS`. So for example, the following works too:
 
 ```bash
-cos-upgrade --no-verify --docker-image quay.io/c3os/c3os:opensuse-v1.21.4-22
+elemental upgrade --no-verify --docker-image quay.io/c3os/c3os:opensuse-v1.21.4-22
 ```
 
 c3os images are released on [quay.io](https://quay.io/repository/c3os/c3os).

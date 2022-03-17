@@ -33,8 +33,8 @@ func upgrade(version, image string, force bool) error {
 		img = image
 	}
 
-	args := []string{"--no-verify", "--docker-image", img}
-	cmd := exec.Command("cos-upgrade", args...)
+	args := []string{"upgrade", "--no-verify", "--docker-image", img}
+	cmd := exec.Command("elemental", args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin

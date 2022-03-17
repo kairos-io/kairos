@@ -151,7 +151,7 @@ RUN mkdir -p /etc/runlevels/default && \
       ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
       ln -sf /etc/init.d/c3os-agent /etc/runlevels/default/c3os-agent
 
-# Symlinks to make cos-installer work
+# Symlinks to make elemental installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
     ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 

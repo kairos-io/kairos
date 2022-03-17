@@ -66,7 +66,7 @@ var _ = Describe("c3os", func() {
 			err := machine.SendFile(os.Getenv("CLOUD_INIT"), "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
-			out, _ := machine.SSHCommand("sudo cos-installer --cloud-init /tmp/config.yaml /dev/sda")
+			out, _ := machine.SSHCommand("sudo elemental install --cloud-init /tmp/config.yaml /dev/sda")
 			Expect(out).Should(ContainSubstring("COS_ACTIVE"))
 
 			machine.SSHCommand("sudo sync")

@@ -10,7 +10,7 @@ SSH_USER="${SSH_USER:-c3os}"
 SSHPASS="${SSH_PASS:-c3os}"
 export SSHPASS
 HD_SIZE="${HD_SIZE:-30000}"
-INSTALL_COMMAND="${INSTALL_COMMAND:-sudo /bin/sh -c 'cos-installer /dev/sda && sync'}"
+INSTALL_COMMAND="${INSTALL_COMMAND:-sudo /bin/sh -c 'elemental install /dev/sda && sync'}"
 
 HAS_SSHPASS="$(type "sshpass" &> /dev/null && echo true || echo false)"
 HAS_VBOX="$(type "VBoxManage" &> /dev/null && echo true || echo false)"

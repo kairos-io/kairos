@@ -27,7 +27,7 @@ Note, after the installation the password login is disabled, so users and ssh ke
 Login over SSH as the `c3os` user or via console with `c3os:c3os` and run:
 
 ```bash
-sudo cos-installer --cloud-init $CONFIG
+sudo elemental install --cloud-init $CONFIG
 ```
 
 Where the config can be a cloud-init file or a URL to it:
