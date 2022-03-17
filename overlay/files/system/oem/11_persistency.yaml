@@ -33,6 +33,8 @@ stages:
         device:
           label: COS_PERSISTENT
         expand_partition:
+          # Size 0 is required to specify all remaining space
+          size: 0
   boot:
   - if: "[ ! -d /usr/local/cloud-config ]"
     commands:
