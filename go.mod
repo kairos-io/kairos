@@ -8,7 +8,7 @@ require (
 	github.com/google/go-github/v40 v40.0.0
 	github.com/ipfs/go-log v1.0.5
 	github.com/joho/godotenv v1.4.0
-	github.com/mudler/edgevpn v0.11.0
+	github.com/mudler/edgevpn v0.11.1
 	github.com/mudler/go-nodepair v0.0.0-20220223175428-76dad7d611c6
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.17.0
@@ -76,7 +76,7 @@ require (
 	github.com/libp2p/go-conn-security-multistream v0.3.0 // indirect
 	github.com/libp2p/go-eventbus v0.2.1 // indirect
 	github.com/libp2p/go-flow-metrics v0.0.3 // indirect
-	github.com/libp2p/go-libp2p v0.18.0-rc6 // indirect
+	github.com/libp2p/go-libp2p v0.18.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-blankhost v0.3.0 // indirect
 	github.com/libp2p/go-libp2p-connmgr v0.3.1 // indirect
