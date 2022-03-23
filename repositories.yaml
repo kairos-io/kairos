@@ -6,7 +6,7 @@ repositories:
   arch: amd64
   cached: true
   priority: 1
-  reference: 20220316163618-repository.yaml
+  reference: 20220323171740-repository.yaml
   urls:
   - "quay.io/costoolkit/releases-green"
 - &c3os
@@ -27,4 +27,4 @@ repositories:
   arch: "arm64"
   urls:
   - "quay.io/costoolkit/releases-green-arm64"
-  reference: 20220316161422-repository.yaml
+  reference: 20220323162944-repository.yaml
