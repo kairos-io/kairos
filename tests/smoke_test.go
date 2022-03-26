@@ -34,6 +34,8 @@ var _ = Describe("c3os", func() {
 					"k3s",
 				},
 				[]string{
+					"/var/log/edgevpn.log",
+					"/var/log/c3os-agent.log",
 					"/tmp/pods.json",
 					"/tmp/disk",
 					"/tmp/mounts",
