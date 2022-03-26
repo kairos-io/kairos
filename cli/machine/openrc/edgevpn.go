@@ -11,7 +11,7 @@ supervisor=supervise-daemon
 name="edgevpn"
 command="edgevpn"
 command_args=">> /var/log/edgevpn.log 2>&1"
-pidfile="/var/run/edgevpn.pid"
+pidfile="/run/edgevpn.pid"
 respawn_delay=5
 set -o allexport
 if [ -f /etc/environment ]; then source /etc/environment; fi
