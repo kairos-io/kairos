@@ -14,7 +14,12 @@ func Reboot() {
 
 func PowerOFF() {
 	pterm.Info.Println("Shutdown node")
-	SH("shutdown")
+	switch Flavor() {
+	case "alpine":
+		SH("poweroff")
+	default:
+		SH("shutdown")
+	}
 }
 
 func Version() string {
