@@ -182,6 +182,18 @@ jobs:
         uses: mikefarah/yq@master
         with:
           cmd: yq -i '.c3os.dns = true' 'config.yaml'
+      - name: Set
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -i '.vpn.EDGEVPNLEDGERINTERVAL = 30' 'config.yaml'
+      - name: Set
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -i '.vpn.EDGEVPNLEDGERSYNCINTERVAL = 45' 'config.yaml'
+      - name: Set
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -i '.vpn.EDGEVPNLOGLEVEL = debug' 'config.yaml'
       - name: Show config
         run: |
               cat config.yaml

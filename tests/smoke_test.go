@@ -103,6 +103,16 @@ var _ = Describe("c3os", func() {
 			}
 		})
 
+		It("configure edgevpn", func() {
+			Eventually(func() string {
+				out, _ := machine.SSHCommand("sudo cat /etc/systemd/system.conf.d/edgevpn-c3os.env")
+				return out
+			}, 1*time.Minute, 1*time.Second).Should(
+				And(
+					ContainSubstring("EDGEVPNLOGLEVEL=\"debug\""),
+				))
+		})
+
 		It("propagate kubeconfig", func() {
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("c3os get-kubeconfig")
