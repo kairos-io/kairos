@@ -86,7 +86,7 @@ var _ = Describe("c3os", func() {
 				Eventually(func() string {
 					out, _ := machine.SSHCommand("sudo cat /var/log/c3os-agent.log")
 					return out
-				}, 30*time.Minute, 1*time.Second).Should(
+				}, 90*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("Configuring k3s-agent"),
 						ContainSubstring("Configuring k3s"),
@@ -103,7 +103,7 @@ var _ = Describe("c3os", func() {
 			}
 		})
 
-		It("configure edgevpn", func() {
+		PIt("configure edgevpn", func() {
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("sudo cat /etc/systemd/system.conf.d/edgevpn-c3os.env")
 				return out
