@@ -19,14 +19,15 @@ var _ = Describe("c3os", func() {
 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
-			machine.SSHCommand("sudo k3s kubectl get pods -A -o json > /tmp/pods.json")
-			machine.SSHCommand("sudo k3s kubectl get events -A -o json > /tmp/events.json")
-			machine.SSHCommand("sudo df -h > /tmp/disk")
-			machine.SSHCommand("sudo mount > /tmp/mounts")
-			machine.SSHCommand("sudo blkid > /tmp/blkid")
+			machine.SSHCommand("sudo k3s kubectl get pods -A -o json > /run/pods.json")
+			machine.SSHCommand("sudo k3s kubectl get events -A -o json > /run/events.json")
+			machine.SSHCommand("sudo df -h > /run/disk")
+			machine.SSHCommand("sudo mount > /run/mounts")
+			machine.SSHCommand("sudo blkid > /run/blkid")
 
 			machine.GatherAllLogs(
 				[]string{
+					"edgevpn@c3os",
 					"c3os-agent",
 					"cos-setup-boot",
 					"cos-setup-network",
@@ -36,11 +37,11 @@ var _ = Describe("c3os", func() {
 				[]string{
 					"/var/log/edgevpn.log",
 					"/var/log/c3os-agent.log",
-					"/tmp/pods.json",
-					"/tmp/disk",
-					"/tmp/mounts",
-					"/tmp/blkid",
-					"/tmp/events.json",
+					"/run/pods.json",
+					"/run/disk",
+					"/run/mounts",
+					"/run/blkid",
+					"/run/events.json",
 				})
 		}
 	})

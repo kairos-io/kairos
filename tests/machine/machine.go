@@ -182,12 +182,12 @@ func connectToHost() (*ssh.Client, *ssh.Session, error) {
 func GatherAllLogs(services []string, logFiles []string) {
 	// services
 	for _, ser := range services {
-		out, err := SSHCommand(fmt.Sprintf("sudo journalctl -u %s -o short-iso >> /tmp/%s.log", ser, ser))
+		out, err := SSHCommand(fmt.Sprintf("sudo journalctl -u %s -o short-iso >> /run/%s.log", ser, ser))
 		if err != nil {
 			fmt.Printf("Error getting journal for service %s: %s\n", ser, err.Error())
 			fmt.Printf("Output from command: %s\n", out)
 		}
-		SSHCommand(fmt.Sprintf("/tmp/%s.log", ser))
+		SSHCommand(fmt.Sprintf("/run/%s.log", ser))
 	}
 
 	// log files
@@ -196,44 +196,41 @@ func GatherAllLogs(services []string, logFiles []string) {
 	}
 
 	// dmesg
-	out, err := SSHCommand("sudo dmesg > /tmp/dmesg")
+	out, err := SSHCommand("sudo dmesg > /run/dmesg")
 	if err != nil {
 		fmt.Printf("Error getting dmesg : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
 	}
-	GatherLog("/tmp/dmesg")
+	GatherLog("/run/dmesg")
 
 	// grab full journal
-	out, err = SSHCommand("sudo journalctl -o short-iso > /tmp/journal.log")
+	out, err = SSHCommand("sudo journalctl -o short-iso > /run/journal.log")
 	if err != nil {
 		fmt.Printf("Error getting full journalctl info : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
 	}
-	GatherLog("/tmp/journal.log")
+	GatherLog("/run/journal.log")
 
 	// uname
-	out, err = SSHCommand("uname -a > /tmp/uname.log")
+	out, err = SSHCommand("uname -a > /run/uname.log")
 	if err != nil {
 		fmt.Printf("Error getting uname info : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
 	}
-	GatherLog("/tmp/uname.log")
+	GatherLog("/run/uname.log")
 
 	// disk info
-	out, err = SSHCommand("sudo lsblk -a >> /tmp/disks.log")
+	out, err = SSHCommand("sudo lsblk -a >> /run/disks.log")
 	if err != nil {
 		fmt.Printf("Error getting disk info : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
 	}
-	out, err = SSHCommand("sudo blkid >> /tmp/disks.log")
+	out, err = SSHCommand("sudo blkid >> /run/disks.log")
 	if err != nil {
 		fmt.Printf("Error getting disk info : %s\n", err.Error())
 		fmt.Printf("Output from command: %s\n", out)
 	}
-	GatherLog("/tmp/disks.log")
-	SSHCommand("sudo chmod -R 777 /tmp")
-	SSHCommand("sudo chmod 777 /etc/passwd")
-	SSHCommand("sudo chmod 777 /etc/os-release")
+	GatherLog("/run/disks.log")
 
 	// Grab users
 	GatherLog("/etc/passwd")
@@ -243,6 +240,7 @@ func GatherAllLogs(services []string, logFiles []string) {
 
 // GatherLog will try to scp the given log from the machine to a local file
 func GatherLog(logPath string) {
+	SSHCommand("sudo chmod 777 " + logPath)
 	fmt.Printf("Trying to get file: %s\n", logPath)
 	sshConfig := &ssh.ClientConfig{
 		User:    user(),
