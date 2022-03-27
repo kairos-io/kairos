@@ -108,7 +108,8 @@ RUN apk --no-cache add  \
       open-vm-tools-deploypkg \
       open-vm-tools-guestinfo \
       open-vm-tools-static \
-      open-vm-tools-vmbackup
+      open-vm-tools-vmbackup \
+      openntpd
 
 # System services
 RUN rc-update add sshd boot && \
@@ -116,7 +117,8 @@ RUN rc-update add sshd boot && \
     rc-update add acpid boot && \
     rc-update add hwclock boot && \
     rc-update add syslog boot && \
-    rc-update add udev sysinit
+    rc-update add udev sysinit && \
+    rc-update add ntpd boot
 
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml
