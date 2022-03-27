@@ -83,7 +83,7 @@ var _ = Describe("c3os", func() {
 			Expect(err).To(HaveOccurred())
 			if os.Getenv("FLAVOR") == "alpine" {
 				Eventually(func() string {
-					out, _ := machine.SSHCommand("cat /var/log/c3os-agent.log")
+					out, _ := machine.SSHCommand("sudo cat /var/log/c3os-agent.log")
 					return out
 				}, 30*time.Minute, 1*time.Second).Should(
 					Or(
