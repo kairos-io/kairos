@@ -193,7 +193,7 @@ jobs:
       - name: Set
         uses: mikefarah/yq@master
         with:
-          cmd: yq -i '.vpn.EDGEVPNLOGLEVEL = debug' 'config.yaml'
+          cmd: yq -i '.vpn.EDGEVPNLOGLEVEL = "debug"' 'config.yaml'
       - name: Show config
         run: |
               cat config.yaml
