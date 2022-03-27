@@ -10,7 +10,7 @@ depend() {
 supervisor=supervise-daemon
 name="edgevpn"
 command="edgevpn"
-command_args=">> /var/log/edgevpn.log 2>&1"
+supervise_daemon_args="--stdout /var/log/edgevpn.log --stderr /var/log/edgevpn.log"
 pidfile="/run/edgevpn.pid"
 respawn_delay=5
 set -o allexport

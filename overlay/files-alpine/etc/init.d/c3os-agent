@@ -7,7 +7,7 @@ depend() {
 supervisor=supervise-daemon
 name="c3os-agent"
 command="c3os agent"
-command_args=">> /var/log/c3os-agent.log 2>&1"
+supervise_daemon_args="--stdout /var/log/c3os-agent.log --stderr /var/log/c3os-agent.log"
 pidfile="/run/c3os-agent.pid"
 respawn_delay=5
 set -o allexport
