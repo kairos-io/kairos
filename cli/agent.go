@@ -39,23 +39,23 @@ func agent(apiAddress string, dir []string, force bool) error {
 		return err
 	}
 
+	l := logging.Logger("c3os")
+
+	if c.C3OS == nil || c.C3OS.NetworkToken == "" {
+		fmt.Println("No network token provided, exiting.")
+		return nil
+	}
+
 	logLevel := c.C3OS.LogLevel
 	if logLevel == "" {
 		logLevel = "debug"
 	}
-
-	l := logging.Logger("c3os")
 
 	lvl, err := logging.LevelFromString(logLevel)
 	if err != nil {
 		return err
 	}
 	logging.SetAllLoggers(lvl)
-
-	if c.C3OS == nil || c.C3OS.NetworkToken == "" {
-		l.Info("No network token provided, exiting.")
-		return nil
-	}
 
 	if err := vpn.Setup(machine.EdgeVPNDefaultInstance, apiAddress, "/", true, c); err != nil {
 		return err
