@@ -133,6 +133,7 @@ RUN luet install -y \
        meta/cos-core \
        utils/edgevpn \
        utils/k9s \
+       system-openrc/cos-setup \
        utils/nerdctl \
        system/kernel \
        system/dracut-initrd

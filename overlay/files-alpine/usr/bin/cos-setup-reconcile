@@ -1,9 +1,0 @@
-#!/bin/sh
-
-SLEEP_TIME=${SLEEP_TIME:-360}
-
-while :
-do
-    elemental run-stage "reconcile"
-    sleep "$SLEEP_TIME"
-done
