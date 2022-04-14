@@ -50,6 +50,7 @@ jobs:
           ISO=c3os-${{ matrix.flavor }}-$TAG
           IMAGE=quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
           FLAVOR=${{ matrix.flavor }}
+          set +e
           source versions.sh
           # Set output parameters.
           echo ::set-output name=c3os_version::${C3OS_VERSION}
