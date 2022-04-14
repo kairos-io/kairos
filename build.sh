@@ -1,8 +1,8 @@
 #!/bin/bash
 
-set -ex
-
 source versions.sh
+
+set -ex
 
 docker build --build-arg C3OS_VERSION=$C3OS_VERSION \
              --build-arg K3S_VERSION=$K3S_VERSION \

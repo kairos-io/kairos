@@ -56,9 +56,7 @@ RUN dnf install -y \
     rsync && dnf clean all
 
 # Copy the luet config file pointing to the upgrade repository
-COPY repositories.yaml /etc/luet/luet.yaml
-RUN sed -i 's/green/blue/g' /etc/luet/luet.yaml && \
-    sed -i 's/reference: .*/reference: 20220328031516-repository.yaml/g' /etc/luet/luet.yaml
+COPY repositories.yaml.fedora /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
