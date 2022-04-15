@@ -6,7 +6,7 @@ repositories:
     arch: amd64
     cached: true
     priority: 1
-    reference: "20220414123852-repository.yaml"
+    reference: "20220415072451-repository.yaml"
     urls:
       - "quay.io/costoolkit/releases-green"
   - !!merge <<: *cos
