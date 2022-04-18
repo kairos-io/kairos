@@ -137,6 +137,8 @@ RUN luet install -y \
        system-openrc/cos-setup \
        utils/k9s \
        container/kubectl \
+       system/kernel \
+       system/dracut-initrd \
        utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
@@ -149,9 +151,8 @@ COPY overlay/files/ /
 COPY overlay/files-alpine/ /
 COPY overlay/files-opensuse-arm-rpi/ /
 
-RUN mkinitrd
 
-RUN ln -sf Image /boot/vmlinuz
+# RUN ln -sf Image /boot/vmlinuz
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
