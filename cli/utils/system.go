@@ -14,10 +14,9 @@ func Reboot() {
 
 func PowerOFF() {
 	pterm.Info.Println("Shutdown node")
-	switch Flavor() {
-	case "alpine":
+	if IsOpenRCBased() {
 		SH("poweroff")
-	default:
+	} else {
 		SH("shutdown")
 	}
 }
@@ -32,4 +31,9 @@ func Flavor() string {
 	release, _ := godotenv.Read("/etc/os-release")
 	v := release["NAME"]
 	return strings.ReplaceAll(v, "c3os-", "")
+}
+
+func IsOpenRCBased() bool {
+	f := Flavor()
+	return f == "alpine" || f == "alpine-arm-rpi"
 }

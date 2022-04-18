@@ -19,14 +19,13 @@ type Service interface {
 }
 
 func EdgeVPN(instance, rootDir string) (Service, error) {
-	switch utils.Flavor() {
-	case "alpine":
+	if utils.IsOpenRCBased() {
 		return openrc.NewService(
 			openrc.WithName("edgevpn"),
 			openrc.WithUnitContent(openrc.EdgevpnUnit),
 			openrc.WithRoot(rootDir),
 		)
-	default:
+	} else {
 		return systemd.NewService(
 			systemd.WithName("edgevpn"),
 			systemd.WithInstance(instance),
@@ -51,10 +50,9 @@ func (fakegetty) Start() error {
 }
 
 func Getty(i int) (Service, error) {
-	switch utils.Flavor() {
-	case "alpine":
+	if utils.IsOpenRCBased() {
 		return &fakegetty{}, nil
-	default:
+	} else {
 		return systemd.NewService(
 			systemd.WithName("getty"),
 			systemd.WithInstance(fmt.Sprintf("tty%d", i)),
@@ -63,12 +61,11 @@ func Getty(i int) (Service, error) {
 }
 
 func K3s() (Service, error) {
-	switch utils.Flavor() {
-	case "alpine":
+	if utils.IsOpenRCBased() {
 		return openrc.NewService(
 			openrc.WithName("k3s"),
 		)
-	default:
+	} else {
 		return systemd.NewService(
 			systemd.WithName("k3s"),
 		)
@@ -76,12 +73,11 @@ func K3s() (Service, error) {
 }
 
 func K3sAgent() (Service, error) {
-	switch utils.Flavor() {
-	case "alpine":
+	if utils.IsOpenRCBased() {
 		return openrc.NewService(
 			openrc.WithName("k3s-agent"),
 		)
-	default:
+	} else {
 		return systemd.NewService(
 			systemd.WithName("k3s-agent"),
 		)

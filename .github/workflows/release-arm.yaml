@@ -19,6 +19,10 @@ jobs:
             dockerfile: "Dockerfile.opensuse-arm-rpi"
             platforms: "linux/arm64"
             model: rpi64
+          - flavor: "alpine-arm-rpi"
+            dockerfile: "Dockerfile.alpine-arm-rpi"
+            platforms: "linux/arm64"
+            model: rpi64
     steps:
       - uses: actions/checkout@v2
       - run: |

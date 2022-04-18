@@ -1,0 +1,163 @@
+ARG LUET_VERSION=0.22.7-1
+ARG BASE_IMAGE=alpine
+
+FROM golang as builder
+
+COPY ./ /work
+
+WORKDIR /work/cli
+RUN CGO_ENABLED=0 go build -o c3os
+
+FROM quay.io/luet/base:$LUET_VERSION AS luet
+
+FROM $BASE_IMAGE
+ARG K3S_VERSION
+ARG C3OS_VERSION
+
+ARG ARCH=arm64
+ENV ARCH=${ARCH}
+# Enable cosign keyless verify
+# Temporary disable
+ENV COSIGN_EXPERIMENTAL=0
+# Repo containing signatures
+ENV COSIGN_REPOSITORY=raccos/releases-green
+# Skip this repo artifacts verify as they are not signed
+ENV COSIGN_SKIP=".*quay.io/c3os/.*"
+
+COPY --from=builder /work/cli/c3os /usr/bin/c3os
+
+RUN apk --no-cache add  \
+      grub \
+      grub-efi \
+      grub-bios \
+      bash \
+      connman \
+      gettext \
+      squashfs-tools \
+      openrc \
+      parted \
+      e2fsprogs \
+      dosfstools \
+      coreutils \
+      which \
+      curl \
+      nano \
+      gawk \
+      haveged \
+      tar \
+      rsync \
+      bash-completion \
+      blkid \
+      busybox-initscripts \
+      ca-certificates \
+      conntrack-tools \
+      coreutils \
+      cryptsetup \
+      curl \
+      dbus \
+      dmidecode \
+      dosfstools \
+      e2fsprogs \
+      e2fsprogs-extra \
+      efibootmgr \
+      eudev \
+      findutils \
+      gcompat \
+      grub-efi \
+      haveged \
+      htop \
+      hvtools \
+      iproute2 \
+      iptables \
+      irqbalance \
+      iscsi-scst \
+      jq \
+      kbd-bkeymaps \
+      lm-sensors \
+      libc6-compat \
+      libusb \
+      logrotate \
+      lsscsi \
+      lvm2 \
+      lvm2-extra \
+      mdadm \
+      mdadm-misc \
+      mdadm-udev \
+      multipath-tools \
+      ncurses \
+      ncurses-terminfo \
+      nfs-utils \
+      open-iscsi \
+      openrc \
+      openssh-client \
+      openssh-server \
+      parted \
+      procps \
+      qemu-guest-agent \
+      rng-tools \
+      rsync \
+      strace \
+      smartmontools \
+      sudo \
+      tar \
+      tzdata \
+      util-linux \
+      vim \
+      wireguard-tools \
+      wpa_supplicant \
+      xfsprogs \
+      xz \
+      open-vm-tools \
+      open-vm-tools-deploypkg \
+      open-vm-tools-guestinfo \
+      open-vm-tools-static \
+      open-vm-tools-vmbackup \
+      openntpd
+
+# System services
+RUN rc-update add sshd boot && \
+    rc-update add connman boot && \
+    rc-update add acpid boot && \
+    rc-update add hwclock boot && \
+    rc-update add syslog boot && \
+    rc-update add udev sysinit && \
+    rc-update add ntpd boot
+
+# Copy the luet config file pointing to the upgrade repository
+COPY repositories.yaml /etc/luet/luet.yaml
+
+# Copy luet from the official images
+COPY --from=luet /usr/bin/luet /usr/bin/luet
+
+# Install cosign packages
+RUN luet install -y meta/cos-verify
+
+RUN luet install -y \
+       meta/cos-core \
+       utils/edgevpn \
+       system-openrc/cos-setup \
+       utils/k9s \
+       container/kubectl \
+       utils/nerdctl && luet cleanup
+ENV INSTALL_K3S_VERSION=${K3S_VERSION}
+ENV INSTALL_K3S_BIN_DIR="/usr/bin"
+RUN curl -sfL https://get.k3s.io > installer.sh
+RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
+RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
+RUN rm -rf installer.sh
+
+COPY overlay/files/ /
+COPY overlay/files-alpine/ /
+COPY overlay/files-opensuse-arm-rpi/ /
+
+RUN mkinitrd
+
+RUN ln -sf Image /boot/vmlinuz
+
+ARG OS_NAME=c3OS
+ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
+ARG OS_REPO=quay.io/c3os/c3os
+ARG OS_LABEL=latest
+
+RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
+    rm /usr/lib/os-release.tmpl
