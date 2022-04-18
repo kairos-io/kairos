@@ -29,7 +29,6 @@ COPY --from=builder /work/cli/c3os /usr/bin/c3os
 RUN apk --no-cache add  \
       grub \
       grub-efi \
-      grub-bios \
       bash \
       connman \
       gettext \
