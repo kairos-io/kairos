@@ -66,6 +66,9 @@ RUN luet install -y meta/cos-verify
 RUN luet install -y \
        meta/cos-core \
        utils/edgevpn \
+       cloud-config/recovery \
+       cloud-config/live \
+       cloud-config/network \
        utils/k9s \
        utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}

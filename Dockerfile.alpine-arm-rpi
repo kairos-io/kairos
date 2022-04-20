@@ -135,6 +135,9 @@ RUN luet install -y \
        meta/cos-core \
        utils/edgevpn \
        system-openrc/cos-setup \
+       cloud-config/recovery \
+       cloud-config/live \
+       cloud-config/network \
        utils/k9s \
        container/kubectl \
        system/kernel \

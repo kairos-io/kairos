@@ -131,6 +131,9 @@ RUN luet install -y meta/cos-verify
 
 RUN luet install -y \
        meta/cos-core \
+       cloud-config/recovery \
+       cloud-config/live \
+       cloud-config/network \
        utils/edgevpn \
        utils/k9s \
        system-openrc/cos-setup \

@@ -92,6 +92,9 @@ RUN luet install -y meta/cos-verify
 RUN luet install -y \
        meta/cos-core \
        utils/edgevpn \
+       cloud-config/recovery \
+       cloud-config/live \
+       cloud-config/network \
        systemd-service/edgevpn \
        utils/k9s \
        container/kubectl \
