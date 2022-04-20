@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io/ioutil"
 	"runtime"
 	"time"
 
@@ -114,6 +115,10 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 	time.Sleep(5 * time.Second)
 
 	qr.Print(tk)
+
+	if d, err := ioutil.ReadFile("/run/recovery_pass"); err == nil {
+		pterm.Info.Println("SSH username: c3os password: " + string(d))
+	}
 
 	// Wait for user input and go back to shell
 	utils.Prompt("")
