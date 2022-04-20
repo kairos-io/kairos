@@ -1,0 +1,15 @@
+[Unit]
+Description=c3os recovery
+After=sysinit.target
+[Service]
+Type=oneshot
+StandardInput=tty
+StandardOutput=tty
+LimitNOFILE=49152
+ExecStartPre=-/bin/sh -c "dmesg -D"
+ExecStartPre=-/bin/sh -c "sysctl -w net.core.rmem_max=2500000"
+TTYPath=/dev/tty1
+RemainAfterExit=yes
+ExecStart=/usr/bin/c3os recovery
+[Install]
+WantedBy=multi-user.target

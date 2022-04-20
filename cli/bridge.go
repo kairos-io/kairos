@@ -13,14 +13,32 @@ import (
 	"github.com/mudler/edgevpn/pkg/node"
 	"github.com/mudler/edgevpn/pkg/services"
 	"github.com/mudler/edgevpn/pkg/vpn"
+	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/urfave/cli"
 )
 
 // bridge is just starting a VPN with edgevpn to the given network token.
 func bridge(c *cli.Context) error {
+	qrCodePath := ""
+	fromQRCode := false
+
+	if c.String("qr-code-image") != "" {
+		qrCodePath = c.String("qr-code-image")
+		fromQRCode = true
+	}
+	if c.Bool("qr-code-snapshot") {
+		qrCodePath = ""
+		fromQRCode = true
+	}
+
+	token := c.String("network-token")
+	if fromQRCode {
+		token = qr.Reader(qrCodePath)
+	}
+
 	ctx := context.Background()
 	nc := config.Config{
-		NetworkToken:   c.String("network-token"),
+		NetworkToken:   token,
 		Address:        c.String("address"),
 		Libp2pLogLevel: "error",
 		FrameTimeout:   "30s",
@@ -49,7 +67,7 @@ func bridge(c *cli.Context) error {
 			Interval: time.Duration(120) * time.Second,
 		},
 		Connection: config.Connection{
-			AutoRelay:      false,
+			AutoRelay:      true,
 			MaxConnections: 100,
 			MaxStreams:     100,
 			HolePunch:      true,

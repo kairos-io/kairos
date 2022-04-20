@@ -200,8 +200,18 @@ func main() {
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:     "network-token",
-						Required: true,
+						Required: false,
 						EnvVar:   "NETWORK_TOKEN",
+					},
+					&cli.BoolFlag{
+						Name:     "qr-code-snapshot",
+						Required: false,
+						EnvVar:   "QR_CODE_SNAPSHOT",
+					},
+					&cli.StringFlag{
+						Name:     "qr-code-image",
+						Required: false,
+						EnvVar:   "QR_CODE_IMAGE",
 					},
 					&cli.StringFlag{
 						Name:  "api",
@@ -331,6 +341,11 @@ func main() {
 				Action: func(c *cli.Context) error {
 					return install("/oem", "/usr/local/cloud-config")
 				},
+			},
+			{
+				Name:    "recovery",
+				Aliases: []string{"r"},
+				Action:  recovery,
 			},
 		},
 	}
