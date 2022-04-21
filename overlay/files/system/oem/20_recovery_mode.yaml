@@ -1,8 +1,9 @@
 name: "Start recovery on tty1"
 stages:
     initramfs:
-     - if: |
-         [ -f "/run/cos/recovery_mode" ] || ( [ -f "/run/cos/live_mode" ]  && cat /proc/cmdline | grep -q "recoverymode" )
+     - name: "Starts c3os-recovery and generate a temporary pass"
+       if: |
+         [ -f "/run/cos/recovery_mode" ] || ( [ -f "/run/cos/live_mode" ] && cat /proc/cmdline | grep -q "vpnrecoverymode" )
        commands:
        - systemctl disable getty@tty1
        - systemctl enable c3os-recovery
@@ -11,8 +12,10 @@ stages:
        - |
           echo "Recovery mode. login with: c3os:$(cat /run/recovery_pass)" >> /etc/issue.d/02-login
     # Starts installer on boot in Alpine and openRC based
-     - if: |
-         [ -f "/run/cos/recovery_mode" ] || ( [ -f "/run/cos/live_mode" ]  && cat /proc/cmdline | grep -q "recoverymode" )
+     - name: "Starts c3os-recovery with openRC-based systems"
+       if: |
+         [ -f "/etc/inittab" ] && \
+         ( [ -f "/run/cos/recovery_mode" ] || ( [ -f "/run/cos/live_mode" ] && cat /proc/cmdline | grep -q "vpnrecoverymode" ) )
        commands:
        - sed -i -e 's/tty1.*//g' /etc/inittab
        - echo "tty1::respawn:/usr/bin/c3os recovery" >> /etc/inittab
