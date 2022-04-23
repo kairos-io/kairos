@@ -36,7 +36,7 @@ jobs:
           SHORTREF=${GITHUB_SHA::8}
           # If this is git tag, use the tag name as a docker tag
           if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${{ matrix.flavor }}-${GITHUB_REF#refs/tags/}
+            VERSION=${GITHUB_REF#refs/tags/}
           fi
           TAGS="${DOCKER_IMAGE}:${{ matrix.flavor }}-${VERSION},${DOCKER_IMAGE}:${{ matrix.flavor }}-${SHORTREF}"
           # If the VERSION looks like a version number, assume that
