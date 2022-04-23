@@ -79,6 +79,26 @@ var _ = Describe("c3os", func() {
 	})
 
 	Context("first-boot", func() {
+
+		It("has default services on", func() {
+			if os.Getenv("FLAVOR") == "alpine" {
+				out, _ := machine.SSHCommand("sudo rc-status")
+				Expect(out).Should(ContainSubstring("c3os"))
+				Expect(out).Should(ContainSubstring("c3os-agent"))
+			} else {
+				// Eventually(func() string {
+				// 	out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
+				// 	return out
+				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
+
+				out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os-agent.service; enabled; vendor preset: disabled)"))
+
+				out, _ = machine.SSHCommand("sudo systemctl status systemd-timesyncd")
+				Expect(out).Should(ContainSubstring("loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled; vendor preset: disabled)"))
+			}
+		})
+
 		It("configure k3s", func() {
 			_, err := machine.SSHCommand("cat /run/cos/live_mode")
 			Expect(err).To(HaveOccurred())
