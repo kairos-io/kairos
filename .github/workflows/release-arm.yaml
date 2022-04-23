@@ -109,6 +109,7 @@ jobs:
           pushd cOS-toolkit
           mkdir build
           sudo ./images/arm-img-builder.sh --model ${{ matrix.model }} --docker-image ${{ steps.prep.outputs.current }} build/c3os-${{ matrix.flavor }}-$VERSION.img
+          sudo xz -v build/c3os-${{ matrix.flavor }}-$VERSION.img
           sudo mv build ../
           popd
       - name: Upload Image
@@ -124,10 +125,9 @@ jobs:
           name: ${{ matrix.flavor }}-image
           path: build
           if-no-files-found: error
-      - name: "Release"
+      - name: Release
+        uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
-        uses: fnkr/github-action-ghr@v1
-        env:
-          GHR_COMPRESS: xz
-          GHR_PATH: build/
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            build/*

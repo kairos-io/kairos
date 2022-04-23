@@ -44,12 +44,11 @@ jobs:
           TAG=${GITHUB_REF##*/}
           docker push quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
       - name: Release
-        uses: fnkr/github-action-ghr@v1
+        uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GHR_PATH: release/
-          GHR_PARALLELISM: 1
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            release/*
       - run: |
           mv release/*.iso ./
           mv release/*.sha256 ./
@@ -122,9 +121,8 @@ jobs:
               mv *.qcow2.tar.xz release/
               mv *.ova release/
       - name: Release
-        uses: fnkr/github-action-ghr@v1
+        uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GHR_PATH: release/
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHR_PARALLELISM: 1
+        with:
+          files: |
+            release/*
