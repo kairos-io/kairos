@@ -83,9 +83,6 @@ RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
 
-RUN systemctl enable nohang-desktop.service
-RUN systemctl enable sshd
-
 COPY overlay/files/ /
 
 # RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \

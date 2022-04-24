@@ -10,6 +10,9 @@ stages:
         - getty@tty1
         - iscsid
         - systemd-timesyncd
+        - nohang
+        - nohang-desktop
+        - sshd
         mask:
         - purge-kernels
        commands:
