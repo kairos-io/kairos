@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"runtime"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/c3os-io/c3os/cli/utils"
 	"github.com/ipfs/go-log"
@@ -146,11 +143,6 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 	}
 
 	return nil
-}
-
-func setWinsize(f *os.File, w, h int) {
-	syscall.Syscall(syscall.SYS_IOCTL, f.Fd(), uintptr(syscall.TIOCSWINSZ),
-		uintptr(unsafe.Pointer(&struct{ h, w, x, y uint16 }{uint16(h), uint16(w), 0, 0})))
 }
 
 func sshServer(listenAdddr, password string) {
