@@ -7,10 +7,6 @@ stages:
        commands:
        - systemctl disable getty@tty1
        - systemctl enable c3os-recovery
-       - echo $RANDOM > /run/recovery_pass
-       - echo c3os:$(cat /run/recovery_pass) | chpasswd 
-       - |
-          echo "Recovery mode. login with: c3os:$(cat /run/recovery_pass)" >> /etc/issue.d/02-login
     # Starts installer on boot in Alpine and openRC based
      - name: "Starts c3os-recovery with openRC-based systems"
        if: |

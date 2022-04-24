@@ -56,7 +56,7 @@ func propagateMasterData(ip string, c *service.RoleConfig) error {
 func Master(cc *config.Config) Role {
 	return func(c *service.RoleConfig) error {
 
-		ip := getIP()
+		ip := utils.GetInterfaceIP("edgevpn0")
 		if ip == "" {
 			return errors.New("node doesn't have an ip yet")
 		}

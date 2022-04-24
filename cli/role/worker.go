@@ -40,7 +40,7 @@ func Worker(cc *config.Config) Role {
 
 		nodeToken = strings.TrimRight(nodeToken, "\n")
 
-		ip := getIP()
+		ip := utils.GetInterfaceIP("edgevpn0")
 		if ip == "" {
 			return errors.New("node doesn't have an ip yet")
 		}

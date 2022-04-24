@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"fmt"
+	"net"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -36,4 +38,32 @@ func Flavor() string {
 func IsOpenRCBased() bool {
 	f := Flavor()
 	return f == "alpine" || f == "alpine-arm-rpi"
+}
+
+func GetInterfaceIP(in string) string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		fmt.Println("failed getting system interfaces")
+		return ""
+	}
+	for _, i := range ifaces {
+		if i.Name == in {
+			addrs, _ := i.Addrs()
+			// handle err
+			for _, addr := range addrs {
+				var ip net.IP
+				switch v := addr.(type) {
+				case *net.IPNet:
+					ip = v.IP
+				case *net.IPAddr:
+					ip = v.IP
+				}
+				if ip != nil {
+					return ip.String()
+
+				}
+			}
+		}
+	}
+	return ""
 }

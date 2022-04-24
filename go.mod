@@ -4,7 +4,9 @@ go 1.17
 
 require (
 	github.com/bramvdbogaerde/go-scp v1.2.0
+	github.com/creack/pty v1.1.19-0.20220421211855-0d412c9fbeb1
 	github.com/denisbrodbeck/machineid v1.0.1
+	github.com/gliderlabs/ssh v0.1.1
 	github.com/google/go-github/v40 v40.0.0
 	github.com/ipfs/go-log v1.0.5
 	github.com/joho/godotenv v1.4.0
@@ -21,6 +23,7 @@ require (
 )
 
 require (
+	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 // indirect
 	github.com/atomicgo/cursor v0.0.1 // indirect
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
