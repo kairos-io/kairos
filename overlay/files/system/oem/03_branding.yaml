@@ -4,7 +4,8 @@ stages:
      - name: "Branding"
        hostname: "c3os"
      - name: "Default systemd config"
-       systemd:
+       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+       systemctl:
         enable:
         - multi-user.target
         - getty@tty1
