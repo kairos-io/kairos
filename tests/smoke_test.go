@@ -99,6 +99,14 @@ var _ = Describe("c3os", func() {
 			}
 		})
 
+		It("has additional grub menu entry", func() {
+			machine.SSHCommand("sudo mkdir -p /tmp/mnt/STATE")
+			machine.SSHCommand("sudo mount $(blkid -L COS_STATE) /tmp/mnt/STATE")
+			out, _ := machine.SSHCommand("sudo cat /tmp/mnt/STATE/grubmenu")
+			Expect(out).Should(ContainSubstring("c3os vpn recovery"))
+			machine.SSHCommand("sudo umount /tmp/mnt/STATE")
+		})
+
 		It("configure k3s", func() {
 			_, err := machine.SSHCommand("cat /run/cos/live_mode")
 			Expect(err).To(HaveOccurred())
