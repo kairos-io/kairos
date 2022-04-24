@@ -97,6 +97,14 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 
 	pterm.Info.Println("Installation completed, press enter to go back to the shell.")
 
+	utils.Prompt("")
+	cancel()
+	// give tty1 back
+	svc, err := machine.Getty(1)
+	if err == nil {
+		svc.Start()
+	}
+
 	return nil
 }
 
