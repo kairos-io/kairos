@@ -71,7 +71,7 @@ var _ = Describe("c3os", func() {
 
 			out, _ := machine.SSHCommand("sudo elemental install --cloud-init /tmp/config.yaml /dev/sda")
 			Expect(out).Should(ContainSubstring("COS_ACTIVE"))
-
+			fmt.Println(out)
 			machine.SSHCommand("sudo sync")
 			machine.DetachCD()
 			machine.Restart()
@@ -100,9 +100,15 @@ var _ = Describe("c3os", func() {
 		})
 
 		It("has additional grub menu entry", func() {
-			machine.SSHCommand("sudo mkdir -p /tmp/mnt/STATE")
-			machine.SSHCommand("sudo mount $(blkid -L COS_STATE) /tmp/mnt/STATE")
-			out, _ := machine.SSHCommand("sudo cat /tmp/mnt/STATE/grubmenu")
+			state, _ := machine.SSHCommand("sudo blkid -L COS_STATE")
+			state = strings.TrimSpace(state)
+			out, _ := machine.SSHCommand("sudo blkid")
+			fmt.Println(out)
+			out, _ = machine.SSHCommand("sudo mkdir -p /tmp/mnt/STATE")
+			fmt.Println(out)
+			out, _ = machine.SSHCommand("sudo mount " + state + " /tmp/mnt/STATE")
+			fmt.Println(out)
+			out, _ = machine.SSHCommand("sudo cat /tmp/mnt/STATE/grubmenu")
 			Expect(out).Should(ContainSubstring("c3os vpn recovery"))
 			machine.SSHCommand("sudo umount /tmp/mnt/STATE")
 		})
