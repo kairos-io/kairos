@@ -68,6 +68,7 @@ RUN luet install -y \
        utils/edgevpn \
        cloud-config/recovery \
        cloud-config/live \
+       cloud-config/rootfs \
        cloud-config/network \
        utils/k9s \
        utils/nerdctl && luet cleanup

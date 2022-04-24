@@ -72,6 +72,7 @@ RUN luet install -y \
        cloud-config/recovery \
        cloud-config/live \
        cloud-config/network \
+       cloud-config/rootfs \
        system/kernel \
        system/dracut-initrd \
        && luet cleanup
