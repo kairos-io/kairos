@@ -104,7 +104,7 @@ func recovery(c *cli.Context) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go startRecoveryVPN(ctx, tk, "10.1.20.20/24", "fatal")
+	go startRecoveryVPN(ctx, tk, "10.1.0.20/24", "fatal")
 	pterm.DefaultBox.WithTitle("Recovery").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
 		`Welcome to c3os recovery mode!
 p2p device recovery mode is starting.
