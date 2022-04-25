@@ -101,10 +101,10 @@ jobs:
       - name: Build Image
         id: build_image
         env:
-          STATE_SIZE: "4000"
-          RECOVERY_SIZE: "3000"
-          SIZE: "8000"
-          DEFAULT_ACTIVE_SIZE: "1200"
+          STATE_SIZE: "6200"
+          RECOVERY_SIZE: "4200"
+          SIZE: "16000"
+          DEFAULT_ACTIVE_SIZE: "2000"
         run: |
           git clone https://github.com/rancher-sandbox/cOS-toolkit
           curl -LO https://github.com/rancher-sandbox/elemental/releases/download/v0.0.13/elemental-v0.0.13-Linux-x86_64.tar.gz
