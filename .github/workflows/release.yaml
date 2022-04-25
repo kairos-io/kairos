@@ -120,9 +120,17 @@ jobs:
               mkdir release
               mv *.qcow2.tar.xz release/
               mv *.ova release/
+      - uses: web3-storage/add-to-web3@v2
+        id: web3
+        with:
+          web3_token: ${{ secrets.WEB3_STORAGE_TOKEN }}
+          path_to_add: 'release'
+      - run: |
+          mkdir dist
+          echo ${{ steps.web3.outputs.url }} > dist/c3os-${{ matrix.flavor }}.qcow2.url.txt
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            release/*
+            dist/*

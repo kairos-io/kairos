@@ -83,7 +83,6 @@ jobs:
           path: |
             *.ova
           if-no-files-found: error
-
   prepare-test:
     needs: build
     runs-on: ubuntu-latest
