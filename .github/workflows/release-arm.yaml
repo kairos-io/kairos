@@ -100,6 +100,11 @@ jobs:
              echo "VERSION=$TAG" >> $GITHUB_ENV
       - name: Build Image
         id: build_image
+        env:
+          STATE_SIZE: "4000"
+          RECOVERY_SIZE: "3000"
+          SIZE: "8000"
+          DEFAULT_ACTIVE_SIZE: "1200"
         run: |
           git clone https://github.com/rancher-sandbox/cOS-toolkit
           curl -LO https://github.com/rancher-sandbox/elemental/releases/download/v0.0.13/elemental-v0.0.13-Linux-x86_64.tar.gz
@@ -108,7 +113,7 @@ jobs:
           curl https://luet.io/install.sh | sudo sh
           pushd cOS-toolkit
           mkdir build
-          sudo ./images/arm-img-builder.sh --model ${{ matrix.model }} --docker-image ${{ steps.prep.outputs.current }} build/c3os-${{ matrix.flavor }}-$VERSION.img
+          sudo -E ./images/arm-img-builder.sh --model ${{ matrix.model }} --docker-image ${{ steps.prep.outputs.current }} build/c3os-${{ matrix.flavor }}-$VERSION.img
           sudo xz -v build/c3os-${{ matrix.flavor }}-$VERSION.img
           sudo mv build ../
           popd
