@@ -32,20 +32,20 @@ func startRecoveryVPN(ctx context.Context, token, address, loglevel string) erro
 		Address:        address,
 		Libp2pLogLevel: "error",
 		FrameTimeout:   "30s",
-
-		LogLevel:      loglevel,
-		LowProfile:    true,
-		VPNLowProfile: true,
-		Interface:     "c3osrecovery0",
-		Concurrency:   runtime.NumCPU(),
-		PacketMTU:     1420,
-		InterfaceMTU:  1200,
+		BootstrapIface: true,
+		LogLevel:       loglevel,
+		LowProfile:     true,
+		VPNLowProfile:  true,
+		Interface:      "c3osrecovery0",
+		Concurrency:    runtime.NumCPU(),
+		PacketMTU:      1420,
+		InterfaceMTU:   1200,
 		Ledger: config.Ledger{
 			AnnounceInterval: time.Duration(30) * time.Second,
 			SyncInterval:     time.Duration(30) * time.Second,
 		},
 		NAT: config.NAT{
-			Service:           false,
+			Service:           true,
 			Map:               true,
 			RateLimit:         true,
 			RateLimitGlobal:   10,
@@ -58,6 +58,8 @@ func startRecoveryVPN(ctx context.Context, token, address, loglevel string) erro
 			Interval: time.Duration(120) * time.Second,
 		},
 		Connection: config.Connection{
+			RelayV1: true,
+
 			AutoRelay:      true,
 			MaxConnections: 100,
 			MaxStreams:     100,

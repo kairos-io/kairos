@@ -45,6 +45,7 @@ func bridge(c *cli.Context) error {
 		LogLevel:       "debug",
 		LowProfile:     true,
 		VPNLowProfile:  true,
+		BootstrapIface: true,
 		Interface:      "c3os0",
 		Concurrency:    runtime.NumCPU(),
 		PacketMTU:      1420,
@@ -54,7 +55,7 @@ func bridge(c *cli.Context) error {
 			SyncInterval:     time.Duration(30) * time.Second,
 		},
 		NAT: config.NAT{
-			Service:           false,
+			Service:           true,
 			Map:               true,
 			RateLimit:         true,
 			RateLimitGlobal:   10,
@@ -67,6 +68,7 @@ func bridge(c *cli.Context) error {
 			Interval: time.Duration(120) * time.Second,
 		},
 		Connection: config.Connection{
+			RelayV1:        true,
 			AutoRelay:      true,
 			MaxConnections: 100,
 			MaxStreams:     100,
