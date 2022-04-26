@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/c3os-io/c3os/cli/github"
+	"github.com/hashicorp/go-version"
 )
 
 // Run it as "go run ./.github/tag.go 40" where 40 is the c3os internal version
@@ -19,13 +21,43 @@ func main() {
 		panic("Internal version is required")
 	}
 
+	minorV := func(segments []int) string {
+		return fmt.Sprintf("%d.%d", segments[0], segments[1])
+	}
+
+	processed := map[string][]string{}
+	toprocess := []string{}
 	for _, v := range releases {
+
 		if strings.Contains(v, "rc") {
 			continue
 		}
-		v = strings.ReplaceAll(v, "+k3s1", "")
-		fmt.Println(v)
 
+		v = strings.ReplaceAll(v, "+k3s1", "")
+		semver, err := version.NewVersion(v)
+		if err != nil {
+			fmt.Println("Skipping", v, "not semver")
+			continue
+		}
+		segments := semver.Segments()
+
+		processed[minorV(segments)] = append(processed[minorV(segments)], v)
+
+	}
+
+	for _, v := range processed {
+		versions := make([]*version.Version, len(v))
+		for i, raw := range v {
+			v, _ := version.NewVersion(raw)
+			versions[i] = v
+		}
+
+		// After this, the versions are properly sorted
+		sort.Sort(version.Collection(versions))
+		toprocess = append(toprocess, versions[len(versions)-1].Original())
+	}
+
+	for _, v := range toprocess {
 		expectedTag := fmt.Sprintf("%s-%s", v, internalVersion)
 		if !checkTag(expectedTag) {
 			fmt.Println(expectedTag, "missing")
