@@ -1,7 +1,7 @@
 +++
 title = "Customizing the system image"
 date = 2022-02-09T17:56:26+01:00
-weight = 4
+weight = 5
 chapter = false
 pre = "<b>- </b>"
 +++
