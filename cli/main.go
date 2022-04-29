@@ -203,6 +203,12 @@ func main() {
 						Required: false,
 						EnvVar:   "NETWORK_TOKEN",
 					},
+					&cli.StringFlag{
+						Name:     "log-level",
+						Required: false,
+						EnvVar:   "LOGLEVEL",
+						Value:"info",
+					},
 					&cli.BoolFlag{
 						Name:     "qr-code-snapshot",
 						Required: false,

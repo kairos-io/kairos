@@ -3,7 +3,7 @@ stages:
     initramfs:
      - name: "Starts c3os-recovery and generate a temporary pass"
        if: |
-         cat /proc/cmdline | grep -q "vpnrecoverymode"
+         cat /proc/cmdline | grep -q "c3os.remote_recovery_mode"
        commands:
        - systemctl disable getty@tty1
        - systemctl enable c3os-recovery
@@ -11,7 +11,7 @@ stages:
      - name: "Starts c3os-recovery with openRC-based systems"
        if: |
          [ -f "/etc/inittab" ] && \
-         ( cat /proc/cmdline | grep -q "vpnrecoverymode" )
+         ( cat /proc/cmdline | grep -q "c3os.remote_recovery_mode" )
        commands:
        - sed -i -e 's/tty1.*//g' /etc/inittab
        - echo "tty1::respawn:/usr/bin/c3os recovery" >> /etc/inittab

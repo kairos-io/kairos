@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/c3os-io/c3os/cli/utils"
@@ -19,15 +20,15 @@ import (
 	"github.com/mudler/edgevpn/pkg/logger"
 	"github.com/mudler/edgevpn/pkg/node"
 	"github.com/mudler/edgevpn/pkg/services"
-	"github.com/mudler/edgevpn/pkg/vpn"
 	nodepair "github.com/mudler/go-nodepair"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/pterm/pterm"
 )
 
-func startRecoveryVPN(ctx context.Context, token, address, loglevel string) error {
+const recoveryAddr = "127.0.0.1:2222"
 
-	nc := config.Config{
+func networkConfig(token, address, loglevel, i string) *config.Config {
+	return &config.Config{
 		NetworkToken:   token,
 		Address:        address,
 		Libp2pLogLevel: "error",
@@ -36,7 +37,7 @@ func startRecoveryVPN(ctx context.Context, token, address, loglevel string) erro
 		LogLevel:       loglevel,
 		LowProfile:     true,
 		VPNLowProfile:  true,
-		Interface:      "c3osrecovery0",
+		Interface:      i,
 		Concurrency:    runtime.NumCPU(),
 		PacketMTU:      1420,
 		InterfaceMTU:   1200,
@@ -66,13 +67,19 @@ func startRecoveryVPN(ctx context.Context, token, address, loglevel string) erro
 			HolePunch:      true,
 		},
 	}
+}
+
+func startRecoveryService(ctx context.Context, token, name, address, loglevel string) error {
+
+	nc := networkConfig(token, "", loglevel, "c3osrecovery0")
 
 	lvl, err := log.LevelFromString(loglevel)
 	if err != nil {
 		lvl = log.LevelError
 	}
 	llger := logger.New(lvl)
-	o, vpnOpts, err := nc.ToOpts(llger)
+
+	o, _, err := nc.ToOpts(llger)
 	if err != nil {
 		llger.Fatal(err.Error())
 	}
@@ -83,12 +90,13 @@ func startRecoveryVPN(ctx context.Context, token, address, loglevel string) erro
 			time.Duration(10)*time.Second,
 			time.Duration(10)*time.Second)...)
 
-	opts, err := vpn.Register(vpnOpts...)
-	if err != nil {
-		return err
-	}
+	// opts, err := vpn.Register(vpnOpts...)
+	// if err != nil {
+	// 	return err
+	// }
+	o = append(o, services.RegisterService(llger, time.Duration(5*time.Second), name, address)...)
 
-	e, err := node.New(append(o, opts...)...)
+	e, err := node.New(o...)
 	if err != nil {
 		return err
 	}
@@ -103,13 +111,17 @@ func recovery(c *cli.Context) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go startRecoveryVPN(ctx, tk, "10.1.0.20/24", "fatal")
+	serviceUUID := utils.RandStringRunes(10)
+	generatedPassword := utils.RandStringRunes(7)
+
+	startRecoveryService(ctx, tk, serviceUUID, recoveryAddr, "fatal")
+
 	pterm.DefaultBox.WithTitle("Recovery").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
 		`Welcome to c3os recovery mode!
 p2p device recovery mode is starting.
 A QR code with a generated network token will be displayed below that can be used to connect 
-over with "c3os bridge --qr-code-image /path/to/image.jpg" from another machine.
-The machine will have the 10.1.0.20 ip in the VPN and you can SSH it on port 2222.
+over with "c3os bridge --qr-code-image /path/to/image.jpg" from another machine, 
+further instruction will appear on the bridge CLI to connect over via SSH.
 IF the qrcode is not displaying correctly,
 try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 
@@ -117,23 +129,12 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 
 	time.Sleep(5 * time.Second)
 
-	generatedPassword := utils.RandStringRunes(7)
+	pterm.Info.Printfln(
+		"starting ssh server on '%s', password: '%s' service: '%s' ", recoveryAddr, generatedPassword, serviceUUID)
 
-	ip := ""
-	for ip == "" {
-		pterm.Info.Println("Waiting for interface to be ready...")
-		ip = utils.GetInterfaceIP("c3osrecovery0")
-		time.Sleep(5 * time.Second)
-	}
+	qr.Print(encodeRecoveryToken(tk, serviceUUID, generatedPassword))
 
-	pterm.Info.Println("Interface ready")
-
-	pterm.Print("\n\n") // Add two new lines as spacer.
-
-	qr.Print(tk)
-	pterm.Info.Println("starting ssh server on 10.1.0.20:2222, password: ", generatedPassword)
-
-	go sshServer("10.1.0.20:2222", generatedPassword)
+	go sshServer(recoveryAddr, generatedPassword)
 
 	// Wait for user input and go back to shell
 	utils.Prompt("")
@@ -145,6 +146,16 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 	}
 
 	return nil
+}
+
+const sep = "_CREDENTIALS_"
+
+func encodeRecoveryToken(data ...string) string {
+	return strings.Join(data, sep)
+}
+
+func decodeRecoveryToken(recoverytoken string) []string {
+	return strings.Split(recoverytoken, sep)
 }
 
 func sshServer(listenAdddr, password string) {

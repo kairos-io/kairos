@@ -21,8 +21,12 @@ Network tokens can be used to connect to the VPN created by the cluster. They ar
 The `c3os` CLI can be used to connect as well, with the `bridge` command:
 
 ```bash
-c3os bridge --network-token <TOKEN>
+sudo c3os bridge --network-token <TOKEN>
 ```
+
+{{% notice note %}}
+The command needs root permissions as it sets up a local tun interface to connect to the VPN.
+{{% /notice %}}
 
 Afterward you can connect to [localhost:8080](http://localhost:8080) to access the network API and verify machines are connected.
 

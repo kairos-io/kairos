@@ -15,7 +15,7 @@ stages:
          group: 0
          permsisions: 0600
          content: |
-            menuentry "c3os vpn recovery" --id vpnrecovery {
+            menuentry "c3os remote recovery" --id remoterecovery {
               if search.file /cOS/recovery.squashfs ; then
                 set img=/cOS/recovery.squashfs
                 set recoverylabel=COS_RECOVERY
@@ -27,7 +27,7 @@ stages:
               loopback loop0 /$img
               set root=($root)
               source (loop0)/etc/cos/bootargs.cfg
-              linux (loop0)$kernel $kernelcmd ${extra_cmdline} ${extra_recovery_cmdline} vga=795 vpnrecoverymode
+              linux (loop0)$kernel $kernelcmd ${extra_cmdline} ${extra_recovery_cmdline} vga=795 c3os.remote_recovery_mode
               initrd (loop0)$initramfs
             }
     - name: "umount state"

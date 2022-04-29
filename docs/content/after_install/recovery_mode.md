@@ -1,25 +1,25 @@
 +++
-title = "VPN Recovery mode"
+title = "Remote Recovery mode"
 date = 2022-02-09T17:56:26+01:00
 weight = 4
 chapter = false
 pre = "<b>- </b>"
 +++
 
-The c3os vpn recovery mode can be used to recover a damaged system, or to regain access remotely (with assistance) to a machine which has been lost access to. The recovery mode is accessible only from the GRUB menu, from both the LiveCD and an installed system.
+The c3os recovery mode can be used to recover a damaged system, or to regain access remotely (with assistance) to a machine which has been lost access to. The recovery mode is accessible only from the GRUB menu, from both the LiveCD and an installed system.
 
 {{% notice note %}}
-On installed system there are two recovery modes available during boot. Below it is described only how the VPN recovery works. The manual recovery entry has nothing special from the standard cOS recovery mode. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote VPN access.
+On installed system there are two recovery modes available during boot. Below it is described only how the c3os remote recovery works. The manual recovery entry has nothing special from the standard cOS recovery mode. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote access.
 {{% /notice %}}
 
 ## Boot into recovery mode
 
-VPN recovery mode can be accessed either via ISO or from an installed system.
+c3os recovery mode can be accessed either via ISO or from an installed system.
 
 A GRUB menu will be displayed:
 ![Screenshot from 2022-04-28 17-48-06](https://user-images.githubusercontent.com/2420543/165800177-3e4cccd8-f67c-43a2-bd88-329478539400.png)
 
-Select the last entry `c3os (vpn recovery mode)` and press enter.
+Select the last entry `c3os (remote recovery mode)` and press enter.
 
 At this point the boot process starts and you should be welcomed by the `c3os` screen: 
 
@@ -35,23 +35,20 @@ At this stage, take a screenshot or a photo, just save the image with the QR cod
 
 In another machine you are using to connect to your server (your workstation, a jumpbox, or ..) use the `c3os` CLI to connect over the remote machine:
 
-```bash
-sudo ./c3os bridge --qr-code-image /path/to/image.png
+```
+$ ./c3os bridge --qr-code-image /path/to/image.png
+ INFO   Connecting to service kAIsuqiwKR
+ INFO   SSH access password is yTXlkak
+ INFO   SSH server reachable at 127.0.0.1:2200
+ INFO   To connect, keep this terminal open and run in another terminal 'ssh 127.0.0.1 -p 2200' the password is  yTXlkak
+ INFO   Note: the connection might not be available instantly and first attempts will likely fail.
+ INFO         Few attempts might be required before establishing a tunnel to the host.
+ INFO   Starting EdgeVPN network
+ INFO   Node ID: 12D3KooWSTRBCTNGZ61wzK5tgYvFi8rQVxkXJCDUYngBWGDSyoBK
+ INFO   Node Addresses: [/ip4/192.168.1.233/tcp/36071 /ip4/127.0.0.1/tcp/36071 /ip6/::1/tcp/37661]
+ INFO   Bootstrapping DHT
 ```
 
-At this point the bridge should start, and you should be able to see connection messages in the terminal. The machine in recovery mode will be accessible at `10.1.0.20`. The bridge operates in the foreground, so you have to kill by hitting CTRL-C.
+At this point the bridge should start, and you should be able to see connection messages in the terminal. You can connect to the remote machine by using `ssh` and pointing it locally at `127.0.0.1:2200`. The username is not relevant, the password is print from the CLI.
 
-In another terminal now indeed you can try to ping the machine (note, it might take some delay to create the tunnel, so first attempts might fail):
-
-```bash
-$ ping 10.1.0.20                                               
-PING 10.1.0.20 (10.1.0.20) 56(84) bytes of data.               
-64 bytes from 10.1.0.20: icmp_seq=16 ttl=64 time=685 ms                                                                        
-64 bytes from 10.1.0.20: icmp_seq=17 ttl=64 time=444 ms  
-```
-
-once you can ping the machine, you should be able to ssh with the password showed below the QR code:
-
-```
-ssh 10.1.0.20 -p 2222
-```
+The bridge operates in the foreground, so you have to kill by hitting CTRL-C.
