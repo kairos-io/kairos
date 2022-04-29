@@ -109,7 +109,7 @@ var _ = Describe("c3os", func() {
 			out, _ = machine.SSHCommand("sudo mount " + state + " /tmp/mnt/STATE")
 			fmt.Println(out)
 			out, _ = machine.SSHCommand("sudo cat /tmp/mnt/STATE/grubmenu")
-			Expect(out).Should(ContainSubstring("c3os vpn recovery"))
+			Expect(out).Should(ContainSubstring("c3os remote recovery"))
 			machine.SSHCommand("sudo umount /tmp/mnt/STATE")
 		})
 
