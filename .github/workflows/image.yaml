@@ -12,8 +12,8 @@ jobs:
       matrix:
        include:
          - flavor: "opensuse"
-         - flavor: "fedora"
-         - flavor: "ubuntu"
+         #- flavor: "fedora"
+         #- flavor: "ubuntu"
          - flavor: "alpine"
     steps:
       - uses: actions/checkout@v2
@@ -57,7 +57,7 @@ jobs:
          - flavor: "opensuse"
          - flavor: "alpine"
 #         - flavor: "ubuntu"
-         - flavor: "fedora"
+#         - flavor: "fedora"
     steps:
       - uses: actions/checkout@v2
       - name: Install deps
