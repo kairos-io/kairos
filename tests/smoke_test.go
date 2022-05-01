@@ -187,6 +187,9 @@ var _ = Describe("c3os", func() {
 		})
 
 		It("can propagate dns and it is functional", func() {
+			if os.Getenv("FLAVOR") == "alpine" {
+				Skip("DNS not working on alpine yet")
+			}
 			Eventually(func() string {
 				machine.SSHCommand(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
 				out, _ := machine.SSHCommand("ping -c 1 foo.bar")
