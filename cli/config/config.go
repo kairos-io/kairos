@@ -2,9 +2,12 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v2"
 )
@@ -139,4 +142,12 @@ func ReplaceToken(dir []string, token string) (err error) {
 	}
 
 	return ioutil.WriteFile(configFile, d, perms)
+}
+
+func SaveCloudConfig(name string, yc yip.YipConfig) error {
+	dnsYAML, err := yaml.Marshal(yc)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filepath.Join("oem", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
 }

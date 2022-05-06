@@ -6,14 +6,15 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.2.0
 	github.com/creack/pty v1.1.19-0.20220421211855-0d412c9fbeb1
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/gliderlabs/ssh v0.1.1
+	github.com/gliderlabs/ssh v0.2.2
 	github.com/google/go-github/v40 v40.0.0
 	github.com/ipfs/go-log v1.0.5
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.14.3
 	github.com/mudler/go-nodepair v0.0.0-20220223175428-76dad7d611c6
+	github.com/mudler/yip v0.0.0-20220321143540-2617d71ea02a
 	github.com/onsi/ginkgo/v2 v2.1.3
-	github.com/onsi/gomega v1.17.0
+	github.com/onsi/gomega v1.18.0
 	github.com/pterm/pterm v0.12.36
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/urfave/cli v1.22.5
@@ -35,6 +36,7 @@ require (
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/cgroups v1.0.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
+	github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
@@ -52,12 +54,12 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gookit/color v1.5.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/go-version v1.4.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/go-cid v0.1.0 // indirect
@@ -66,6 +68,8 @@ require (
 	github.com/ipfs/go-ipns v0.1.2 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/ipld/go-ipld-prime v0.14.4 // indirect
+	github.com/itchyny/gojq v0.12.2 // indirect
+	github.com/itchyny/timefmt-go v0.1.2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
@@ -157,6 +161,7 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.33.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e // indirect
 	github.com/raulk/clock v1.1.0 // indirect
 	github.com/raulk/go-watchdog v1.2.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
@@ -166,6 +171,7 @@ require (
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/twpayne/go-vfs v1.5.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect

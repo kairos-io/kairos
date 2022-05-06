@@ -1,6 +1,7 @@
 package vpn
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/c3os-io/c3os/cli/machine"
 	"github.com/c3os-io/c3os/cli/machine/systemd"
 	"github.com/c3os-io/c3os/cli/utils"
+	yip "github.com/mudler/yip/pkg/schema"
 )
 
 func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) error {
@@ -36,8 +38,6 @@ func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) e
 	if c.C3OS.DNS {
 		vpnOpts["DNSADDRESS"] = "127.0.0.1:53"
 		vpnOpts["DNSFORWARD"] = "true"
-		// TODO: Currently DNS set up is supported only on opensuse,
-		// Extend this to other flavors too.
 		if !utils.IsOpenRCBased() {
 			if _, err := os.Stat("/etc/sysconfig/network/config"); err == nil {
 				utils.WriteEnv("/etc/sysconfig/network/config", map[string]string{
@@ -51,6 +51,12 @@ func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) e
 					}
 				}
 			}
+		}
+		if err := config.SaveCloudConfig("dns", yip.YipConfig{
+			Name:   "DNS Configuration",
+			Stages: map[string][]yip.Stage{"network": {{Dns: yip.DNS{Nameservers: []string{"127.0.0.1"}}}}},
+		}); err != nil {
+			fmt.Println("Failed installing DNS")
 		}
 	}
 
