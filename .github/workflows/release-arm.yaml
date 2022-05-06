@@ -103,7 +103,7 @@ jobs:
         env:
           STATE_SIZE: "6200"
           RECOVERY_SIZE: "4200"
-          SIZE: "16000"
+          SIZE: "15200"
           DEFAULT_ACTIVE_SIZE: "2000"
         run: |
           git clone https://github.com/rancher-sandbox/cOS-toolkit
