@@ -136,6 +136,7 @@ RUN luet install -y \
        utils/edgevpn \
        system-openrc/cos-setup \
        cloud-config/recovery \
+       cloud-config/boot-assessment \
        cloud-config/live \
        cloud-config/network \
        cloud-config/rootfs \

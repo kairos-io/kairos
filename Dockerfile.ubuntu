@@ -70,6 +70,7 @@ RUN luet install -y \
        cloud-config/live \
        cloud-config/rootfs \
        cloud-config/network \
+       cloud-config/boot-assessment \
        utils/k9s \
        utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}

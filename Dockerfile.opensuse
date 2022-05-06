@@ -94,6 +94,7 @@ RUN luet install -y \
        utils/edgevpn \
        cloud-config/recovery \
        cloud-config/live \
+       cloud-config/boot-assessment \
        cloud-config/network \
        cloud-config/rootfs \
        systemd-service/edgevpn \

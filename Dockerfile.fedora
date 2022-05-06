@@ -70,6 +70,7 @@ RUN luet install -y \
        utils/k9s \
        utils/nerdctl \
        cloud-config/recovery \
+       cloud-config/boot-assessment \
        cloud-config/live \
        cloud-config/network \
        cloud-config/rootfs \
