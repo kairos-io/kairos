@@ -1,0 +1,19 @@
+name: cOS bump
+on: 
+ schedule:
+   - cron: 0 20 * * *
+ workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Bump cos 🔧
+      run: |
+           bash ./.github/bump_cos.sh
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v4
+      with:
+        commit-message: "Bump cOS"
