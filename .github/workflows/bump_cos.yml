@@ -8,11 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-      with:
-        submodules: 'recursive'
     - name: Bump cos 🔧
       run: |
-           sudo bash ./.github/bump_cos.sh
+           docker run --name=yq -v "${PWD}":/workdir mikefarah/yq
+           docker cp yq:/usr/bin/yq ./
+           export YQ=$PWD/yq
+           sudo -E bash ./.github/bump_cos.sh
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
       with:
