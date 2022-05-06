@@ -1,31 +1,17 @@
-name: "Default deployment"
+# The following configuration 
+# configures k3s manually with the c3os configuration mechanism.
+
 stages:     
-   network:
-     - if: '[ ! -f "/run/cos/recovery_mode" ]'
-       name: "Setup k3s"
-       environment_file: "/etc/systemd/system/k3s.service.env"
-       environment:
-         FOO: "bar"
-       systemctl:
-         start: 
-         - k3s
-     - commands:
-       - |
-            chmod 600 /etc/systemd/system/k3s.service.env
    initramfs:
-   # Disable password, enable only ssh access
-     - if: '[ ! -d "/home/c3os" ]'
-       name: "Ensure home directory is present"
-       commands:
-       - mkdir /home/c3os
-       - chmod 755 /home/c3os
-       - chown -R c3os /home/c3os
      - name: "Setup users"
       #  users:
-      #   root:
+      #   c3os:
       #     password: "c3os"
        authorized_keys:
         c3os: 
         - github:mudler
        commands:
        - passwd -l c3os
+
+k3s:
+  enabled: true

@@ -80,14 +80,19 @@ func Master(cc *config.Config) Role {
 			return err
 		}
 
+		k3sConfig := config.K3s{}
+		if cc.K3s.Enabled {
+			k3sConfig = cc.K3s
+		}
+
 		env := map[string]string{}
-		if !cc.K3s.ReplaceEnv {
+		if !k3sConfig.ReplaceEnv {
 			// Override opts with user-supplied
-			for k, v := range cc.K3s.Env {
+			for k, v := range k3sConfig.Env {
 				env[k] = v
 			}
 		} else {
-			env = cc.K3s.Env
+			env = k3sConfig.Env
 		}
 
 		// Setup systemd unit and starts it
@@ -98,10 +103,10 @@ func Master(cc *config.Config) Role {
 		}
 
 		args := []string{"--flannel-iface=edgevpn0"}
-		if cc.K3s.ReplaceArgs {
-			args = cc.K3s.Args
+		if k3sConfig.ReplaceArgs {
+			args = k3sConfig.Args
 		} else {
-			args = append(args, cc.K3s.Args...)
+			args = append(args, k3sConfig.Args...)
 		}
 
 		if err := svc.OverrideCmd(fmt.Sprintf("/usr/bin/k3s server %s", strings.Join(args, " "))); err != nil {

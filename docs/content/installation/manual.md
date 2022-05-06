@@ -43,6 +43,33 @@ c3os:
 
 ## Manual K3s configuration
 
-Automatic nodes configuration can be disabled by not specifying a `network_token` in the configuration file.
+Automatic nodes configuration can be disabled by disabling the `c3os` block in the configuration file.
 
-In that case no VPN and either k3s is configured automatically, see also the [examples](https://github.com/c3os-io/c3os/tree/master/examples) folder in the repository to configure k3s manually.
+In that case, VPN is not configured, but you can still configure k3s automatically with the `k3s` and `k3s-agent` block:
+
+```yaml
+k3s:
+  enabled: true
+  # Additional env/args for k3s server instances
+  env:
+    K3S_RESOLV_CONF: ""
+    K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
+  args:
+  - --cluster-init
+```
+
+for agent:
+
+
+```yaml
+k3s-agent:
+  enabled: true
+  # Additional env/args for k3s server instances
+  env:
+    K3S_RESOLV_CONF: ""
+    K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
+  args:
+  - --cluster-init
+```
+
+See also the [examples](https://github.com/c3os-io/c3os/tree/master/examples) folder in the repository to configure k3s manually.

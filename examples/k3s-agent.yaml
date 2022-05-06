@@ -1,3 +1,5 @@
+# This file shows a complete manual cloud-config file.
+# The following starts and enables the k3s services manually by leveraging systemctl
 name: "Default deployment"
 stages:     
    network:

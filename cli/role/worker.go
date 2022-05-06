@@ -52,18 +52,23 @@ func Worker(cc *config.Config) Role {
 			return err
 		}
 
+		k3sConfig := config.K3s{}
+		if cc.K3sAgent.Enabled {
+			k3sConfig = cc.K3sAgent
+		}
+
 		env := map[string]string{
 			"K3S_URL":   fmt.Sprintf("https://%s:6443", masterIP),
 			"K3S_TOKEN": nodeToken,
 		}
 
-		if !cc.K3sAgent.ReplaceEnv {
+		if !k3sConfig.ReplaceEnv {
 			// Override opts with user-supplied
-			for k, v := range cc.K3sAgent.Env {
+			for k, v := range k3sConfig.Env {
 				env[k] = v
 			}
 		} else {
-			env = cc.K3sAgent.Env
+			env = k3sConfig.Env
 		}
 
 		// Setup systemd unit and starts it
@@ -82,10 +87,10 @@ func Worker(cc *config.Config) Role {
 			fmt.Sprintf("--node-ip %s", ip),
 			"--flannel-iface=edgevpn0",
 		}
-		if cc.K3sAgent.ReplaceArgs {
-			args = cc.K3sAgent.Args
+		if k3sConfig.ReplaceArgs {
+			args = k3sConfig.Args
 		} else {
-			args = append(args, cc.K3sAgent.Args...)
+			args = append(args, k3sConfig.Args...)
 		}
 
 		if err := svc.OverrideCmd(fmt.Sprintf("/usr/bin/k3s agent %s", strings.Join(args, " "))); err != nil {
