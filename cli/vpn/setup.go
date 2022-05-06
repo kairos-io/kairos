@@ -53,8 +53,9 @@ func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) e
 			}
 		}
 		if err := config.SaveCloudConfig("dns", yip.YipConfig{
-			Name:   "DNS Configuration",
-			Stages: map[string][]yip.Stage{"network": {{Dns: yip.DNS{Nameservers: []string{"127.0.0.1"}}}}},
+			Name: "DNS Configuration",
+			Stages: map[string][]yip.Stage{
+				config.NetworkStage.String(): {{Dns: yip.DNS{Nameservers: []string{"127.0.0.1"}}}}},
 		}); err != nil {
 			fmt.Println("Failed installing DNS")
 		}

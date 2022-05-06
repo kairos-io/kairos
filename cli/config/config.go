@@ -144,10 +144,20 @@ func ReplaceToken(dir []string, token string) (err error) {
 	return ioutil.WriteFile(configFile, d, perms)
 }
 
-func SaveCloudConfig(name string, yc yip.YipConfig) error {
+type Stage string
+
+const (
+	NetworkStage Stage = "network"
+)
+
+func (n Stage) String() string {
+	return string(n)
+}
+
+func SaveCloudConfig(name Stage, yc yip.YipConfig) error {
 	dnsYAML, err := yaml.Marshal(yc)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filepath.Join("oem", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
+	return ioutil.WriteFile(filepath.Join("usr", "local", "cloud-config", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
 }
