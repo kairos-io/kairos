@@ -11,7 +11,7 @@ require (
 	github.com/ipfs/go-log v1.0.5
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.14.3
-	github.com/mudler/go-nodepair v0.0.0-20220507200136-4dc13b4a3cff
+	github.com/mudler/go-nodepair v0.0.0-20220507200954-3aabba176647
 	github.com/mudler/yip v0.0.0-20220321143540-2617d71ea02a
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.18.0
