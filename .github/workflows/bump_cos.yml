@@ -2,6 +2,8 @@ name: cOS bump
 on: 
  schedule:
    - cron: 0 20 * * *
+ push:
+    branches: [ test_auto ]
  workflow_dispatch:
 jobs:
   build:
@@ -18,7 +20,7 @@ jobs:
     - name: Create Pull Request
       uses: peter-evans/create-pull-request@v4
       with:
-        token: ${{ secrets.PAT }}
+        token: ${{ secrets.PAT_TOKEN }}
         push-to-fork: ci-robbot/c3os
         commit-message: ":arrow_up: Bump cOS"
         title: "cOS bump"
