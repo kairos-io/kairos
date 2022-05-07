@@ -41,7 +41,7 @@ func agent(apiAddress string, dir []string, force bool) error {
 
 	l := logging.Logger("c3os")
 
-	tokenNotDefined := (c.C3OS != nil && c.C3OS.NetworkToken == "")
+	tokenNotDefined := (c.C3OS != nil || c.C3OS.NetworkToken == "")
 
 	if c.C3OS == nil && !c.K3s.Enabled && !c.K3sAgent.Enabled {
 		fmt.Println("No c3os/k3s configuration provided, exiting.")
