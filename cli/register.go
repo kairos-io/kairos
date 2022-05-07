@@ -9,7 +9,7 @@ import (
 	qr "github.com/mudler/go-nodepair/qrcode"
 )
 
-func register(arg, configFile, device string, reboot, poweroff bool) error {
+func register(loglevel, arg, configFile, device string, reboot, poweroff bool) error {
 	b, _ := ioutil.ReadFile(configFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -35,6 +35,7 @@ func register(arg, configFile, device string, reboot, poweroff bool) error {
 		config,
 		nodepair.WithReader(qr.Reader),
 		nodepair.WithToken(arg),
+		nodepair.WithLogLevel(loglevel),
 	)
 	if err != nil {
 		return err

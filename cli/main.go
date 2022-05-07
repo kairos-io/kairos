@@ -97,7 +97,11 @@ func main() {
 					&cli.BoolFlag{
 						Name: "poweroff",
 					},
+					&cli.StringFlag{
+						Name: "log-level",
+					},
 				},
+
 				Action: func(c *cli.Context) error {
 					args := c.Args()
 					var ref string
@@ -105,7 +109,7 @@ func main() {
 						ref = args[0]
 					}
 
-					return register(ref, c.String("config"), c.String("device"), c.Bool("reboot"), c.Bool("poweroff"))
+					return register(c.String("log-level"), ref, c.String("config"), c.String("device"), c.Bool("reboot"), c.Bool("poweroff"))
 				},
 			},
 			{
@@ -207,7 +211,7 @@ func main() {
 						Name:     "log-level",
 						Required: false,
 						EnvVar:   "LOGLEVEL",
-						Value:"info",
+						Value:    "info",
 					},
 					&cli.BoolFlag{
 						Name:     "qr-code-snapshot",

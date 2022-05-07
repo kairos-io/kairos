@@ -11,7 +11,7 @@ require (
 	github.com/ipfs/go-log v1.0.5
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.14.3
-	github.com/mudler/go-nodepair v0.0.0-20220223175428-76dad7d611c6
+	github.com/mudler/go-nodepair v0.0.0-20220507200136-4dc13b4a3cff
 	github.com/mudler/yip v0.0.0-20220321143540-2617d71ea02a
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.18.0
@@ -60,7 +60,6 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/go-version v1.4.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/go-cid v0.1.0 // indirect
