@@ -20,7 +20,7 @@ var TempDir string
 
 func Delete() {
 	utils.SH(fmt.Sprintf(`VBoxManage controlvm "%s" poweroff`, ID))
-	utils.SH(fmt.Sprintf(`VBoxManage unregistervm "%s"`, ID))
+	utils.SH(fmt.Sprintf(`VBoxManage unregistervm --delete "%s"`, ID))
 	utils.SH(fmt.Sprintf(`VBoxManage closemedium disk "%s"`, filepath.Join(TempDir, "disk.vdi")))
 	os.RemoveAll(TempDir)
 	utils.SH(fmt.Sprintf("rm -rf ~/VirtualBox\\ VMs/%s", ID))
@@ -188,6 +188,7 @@ func GatherAllLogs(services []string, logFiles []string) {
 			fmt.Printf("Output from command: %s\n", out)
 		}
 		SSHCommand(fmt.Sprintf("/run/%s.log", ser))
+		GatherLog(fmt.Sprintf("/run/%s.log", ser))
 	}
 
 	// log files

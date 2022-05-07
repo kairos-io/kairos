@@ -18,6 +18,7 @@ func TestSuite(t *testing.T) {
 }
 
 var tempDir string
+var sshPort string
 
 var machineID string = os.Getenv("MACHINE_ID")
 
@@ -49,12 +50,19 @@ var _ = BeforeSuite(func() {
 		machine.ID = machineID
 		machine.TempDir = t
 
-		sshPort := "2222"
+		sshPort = "2222"
 
 		if os.Getenv("SSH_PORT") != "" {
 			sshPort = os.Getenv("SSH_PORT")
 		}
 
-		machine.Create(sshPort)
+		prepareVM()
 	}
 })
+
+func prepareVM() {
+	if os.Getenv("CREATE_VM") == "true" {
+		machine.Delete()
+		machine.Create(sshPort)
+	}
+}

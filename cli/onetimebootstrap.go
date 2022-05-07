@@ -17,6 +17,7 @@ func oneTimeBootstrap(c *config.Config) error {
 		fmt.Println("Sentinel exists, nothing to do. exiting.")
 		return nil
 	}
+	fmt.Println("One time bootstrap starting")
 
 	var svc machine.Service
 	k3sConfig := config.K3s{}

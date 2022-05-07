@@ -12,7 +12,7 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
-var _ = Describe("c3os", func() {
+var _ = Describe("c3os smoke",Label("smoke"), func() {
 	BeforeEach(func() {
 		machine.EventuallyConnects()
 	})

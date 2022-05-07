@@ -1,0 +1,9 @@
+stages:
+   initramfs:
+     - name: "Set user and password"
+       users:
+        c3os:
+          passwd: "c3os"
+
+k3s:
+  enabled: true
