@@ -7,19 +7,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+      with:
+        ssh-key: ${{ secrets.SSH_KEY }}
     - name: Bump cos 🔧
       run: |
            docker run --name=yq -v "${PWD}":/workdir mikefarah/yq
            docker cp yq:/usr/bin/yq ./
            export YQ=$PWD/yq
            sudo -E bash ./.github/bump_cos.sh
-    - name: Create pull request
-      uses: devops-infra/action-pull-request@v0.4.2
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v4
       with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          title: Bump cOS
-#    - name: Create Pull Request
-#      uses: peter-evans/create-pull-request@v4
-#      with:
-#        commit-message: "Bump cOS"
+        commit-message: ":arrow_up: Bump cOS"
+        title: "cOS bump"
+        body: "Bump of cOS repositories"
