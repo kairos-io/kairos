@@ -446,6 +446,8 @@ github.com/hashicorp/go-syslog v1.0.0/go.mod h1:qPfqrKkXGihmCqbJM2mZgkZGvKG1dFdv
 github.com/hashicorp/go-uuid v1.0.0/go.mod h1:6SBZvOh/SIDV7/2o3Jml5SYk/TvGqwFJ/bN7x4byOro=
 github.com/hashicorp/go-uuid v1.0.1/go.mod h1:6SBZvOh/SIDV7/2o3Jml5SYk/TvGqwFJ/bN7x4byOro=
 github.com/hashicorp/go-version v1.2.0/go.mod h1:fltr4n8CU8Ke44wwGCBoEymUuxUHl09ZGVZPK5anwXA=
+github.com/hashicorp/go-version v1.4.0 h1:aAQzgqIrRKRa7w75CKpbBxYsmUoPjzVm1W59ca1L0J4=
+github.com/hashicorp/go-version v1.4.0/go.mod h1:fltr4n8CU8Ke44wwGCBoEymUuxUHl09ZGVZPK5anwXA=
 github.com/hashicorp/go.net v0.0.1/go.mod h1:hjKkEWcCURg++eb33jQU7oqQcI9XDCnUzHA0oac0k90=
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
@@ -996,12 +998,6 @@ github.com/mudler/edgevpn v0.14.3/go.mod h1:isLYopGyALVtE1qtRvMI/cTMKYmgmVB5X0eP
 github.com/mudler/entities v0.0.0-20211108084227-d1414478861b/go.mod h1:qquFT9tYp+/NO7tTotto4BT9zSRYSMDxo2PGZwujpFA=
 github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58 h1:bMXak5giXxc++J/TUY7qW24D8ASxqLQRqOoduuFgdIM=
 github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58/go.mod h1:bZC4k76DbPOxOcMq6Z9oEKAZrOhsfh9jAZ9Hu3qVAQI=
-github.com/mudler/go-nodepair v0.0.0-20220507194240-73ce2e04ab57 h1:gLkJ0KiqLbyRRcObePCehxhc4CYMp93ru77HbS2vB38=
-github.com/mudler/go-nodepair v0.0.0-20220507194240-73ce2e04ab57/go.mod h1:KU8NqS1PhoJ8qVfPyXclR/XptuoxML8jQdb7eheJjqo=
-github.com/mudler/go-nodepair v0.0.0-20220507200136-4dc13b4a3cff h1:TjX/n2CpmSBdbgt3uWmfPpEe6UNeSVQoYNPe0199be4=
-github.com/mudler/go-nodepair v0.0.0-20220507200136-4dc13b4a3cff/go.mod h1:KU8NqS1PhoJ8qVfPyXclR/XptuoxML8jQdb7eheJjqo=
-github.com/mudler/go-nodepair v0.0.0-20220507200954-3aabba176647 h1:RIqwNxk+9PdBe3sGhSBNi0VyGKd535yDhYmZEuUl2bs=
-github.com/mudler/go-nodepair v0.0.0-20220507200954-3aabba176647/go.mod h1:KU8NqS1PhoJ8qVfPyXclR/XptuoxML8jQdb7eheJjqo=
 github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1 h1:CJZab2AadIHFmrLPXzU025RJDAtVbHaStVaUnfT1v2k=
 github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1/go.mod h1:KU8NqS1PhoJ8qVfPyXclR/XptuoxML8jQdb7eheJjqo=
 github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6 h1:LiWUDzDh/DkFYhUeIIdWPuMt/LsEVD3vc/QKDVXlWAY=
