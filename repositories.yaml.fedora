@@ -6,14 +6,14 @@ repositories:
     arch: amd64
     cached: true
     priority: 1
-    reference: "20220507043839-repository.yaml"
+    reference: "20220508171947-repository.yaml"
     urls:
       - "quay.io/costoolkit/releases-blue"
   - !!merge <<: *cos
     arch: "arm64"
     urls:
       - "quay.io/costoolkit/releases-blue-arm64"
-    reference: "20220507043944-repository.yaml"
+    reference: "20220508182519-repository.yaml"
   - &c3os
     name: "c3os"
     # https://github.com/c3os-io/packages
