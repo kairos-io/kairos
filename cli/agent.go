@@ -49,7 +49,7 @@ func agent(apiAddress string, dir []string, force bool) error {
 	}
 
 	if tokenNotDefined && (c.K3s.Enabled || c.K3sAgent.Enabled) {
-		return oneTimeBootstrap(c)
+		return oneTimeBootstrap(c, func() error { return vpn.Setup(machine.EdgeVPNDefaultInstance, apiAddress, "/", true, c) })
 	} else if tokenNotDefined {
 		fmt.Println("No network token provided, exiting.")
 		return nil

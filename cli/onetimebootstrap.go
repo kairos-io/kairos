@@ -12,7 +12,7 @@ import (
 	"github.com/c3os-io/c3os/cli/utils"
 )
 
-func oneTimeBootstrap(c *config.Config) error {
+func oneTimeBootstrap(c *config.Config, vpnSetupFN func() error) error {
 	if role.SentinelExist() {
 		fmt.Println("Sentinel exists, nothing to do. exiting.")
 		return nil
@@ -68,6 +68,12 @@ func oneTimeBootstrap(c *config.Config) error {
 
 	if err := svc.Enable(); err != nil {
 		return err
+	}
+
+	if len(c.VPN) > 0 {
+		if err := vpnSetupFN(); err != nil {
+			return err
+		}
 	}
 
 	return role.CreateSentinel()
