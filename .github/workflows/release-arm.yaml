@@ -52,7 +52,7 @@ jobs:
       - name: OS versions
         id: versions
         run: |
-          TAG=${GITHUB_REF##*/}
+          export TAG=${GITHUB_REF##*/}
           ISO=c3os-${{ matrix.flavor }}-$TAG
           IMAGE=quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
           FLAVOR=${{ matrix.flavor }}

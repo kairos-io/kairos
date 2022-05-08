@@ -33,7 +33,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/c3os/c3os:${{ matrix.flavor }}-latest
         run: |
-          TAG=${GITHUB_REF##*/}
+          export TAG=${GITHUB_REF##*/}
           ISO=c3os-$FLAVOR-$TAG IMAGE=quay.io/c3os/c3os:$FLAVOR-$TAG bash build.sh
           mkdir release
           mv *.iso release/

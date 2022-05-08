@@ -1,6 +1,6 @@
 #!/bin/bash
 
-GIT_TAG="$(git describe --tags --abbrev=0 --exact-match --dirty)"
+GIT_TAG="${TAG:-$(git describe --tags --abbrev=0 --exact-match --dirty)}"
 
 if [ -z "$GIT_TAG" ]; then
   echo "Dirty tag"
