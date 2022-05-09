@@ -51,11 +51,24 @@ jobs:
           echo ::set-output name=current::${DOCKER_IMAGE}:${{ matrix.flavor }}-${SHORTREF}
       - name: OS versions
         id: versions
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           export TAG=${GITHUB_REF##*/}
           ISO=c3os-${{ matrix.flavor }}-$TAG
           IMAGE=quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
           FLAVOR=${{ matrix.flavor }}
+          set +e
+          source versions.sh
+          # Set output parameters.
+          echo ::set-output name=c3os_version::${C3OS_VERSION}
+          echo ::set-output name=k3s_version::${K3S_VERSION}
+          echo ::set-output name=luet_version::${LUET_VERSION}
+          echo ::set-output name=os_label::${OS_LABEL}
+          echo ::set-output name=os_name::${OS_NAME}
+      - name: OS versions
+        id: versions
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        run: |
           set +e
           source versions.sh
           # Set output parameters.
