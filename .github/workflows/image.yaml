@@ -242,7 +242,7 @@ jobs:
               go get github.com/onsi/gomega/...
               go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.3
               go install github.com/onsi/ginkgo/v2/ginkgo
-              CLOUD_INIT=$PWD/config.yaml CREATE_VM=true FLAVOR=${{ matrix.flavor }} ginkgo --fail-fast -r ./tests/
+              CLOUD_INIT=$PWD/config.yaml CREATE_VM=true FLAVOR=${{ matrix.flavor }} ginkgo --label-filter smoke --fail-fast -r ./tests/
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
