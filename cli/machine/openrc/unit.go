@@ -58,19 +58,12 @@ func (s ServiceUnit) WriteUnit() error {
 	return nil
 }
 
+// TODO: This is too much k3s specific
 func (s ServiceUnit) OverrideCmd(cmd string) error {
+	cmd = strings.ReplaceAll(cmd, "/usr/bin/k3s ", "")
+	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/rancher/k3s/%s.env", s.name))
 
-	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/init.d/%s", s.name))
-
-	d, err := ioutil.ReadFile(svcDir)
-	if err != nil {
-		return err
-	}
-
-	ss := strings.ReplaceAll(string(d), "command_args=\"agent \\", fmt.Sprintf("command_args=\"%s \\", cmd))
-	ss = strings.ReplaceAll(ss, "command_args=\"server \\", fmt.Sprintf("command_args=\"%s \\", cmd))
-
-	return ioutil.WriteFile(svcDir, []byte(ss), 0600)
+	return ioutil.WriteFile(svcDir, []byte(fmt.Sprintf(`command_args="%s >>/var/log/%s.log 2>&1"`, cmd, s.name)), 0600)
 }
 
 func (s ServiceUnit) Start() error {
