@@ -203,8 +203,38 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
 
+  prepare-alpine-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          git fetch --prune --unshallow
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+            go-version: '^1.16'
+      - name: Prepare config
+        run: |
+              go build -o c3os ./cli
+              ./c3os create-config > config.yaml
+              cat tests/assets/config.yaml >> config.yaml
+      - name: Enable dns
+        uses: mikefarah/yq@master
+        with:
+          cmd: yq -i '.c3os.dns = true' 'config.yaml'
+      - name: Show config
+        run: |
+              cat config.yaml
+      - uses: actions/upload-artifact@v2
+        with:
+          name: config.yaml
+          path: |
+             config.yaml
+          if-no-files-found: error
+
   test-alpine:
-    needs: test
+    needs: prepare-alpine-test
     runs-on: macos-10.15
     strategy:
       fail-fast: true
