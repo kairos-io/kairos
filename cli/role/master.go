@@ -95,8 +95,7 @@ func Master(cc *config.Config) Role {
 			env = k3sConfig.Env
 		}
 
-		// Setup systemd unit and starts it
-		if err := utils.WriteEnv("/etc/sysconfig/k3s",
+		if err := utils.WriteEnv(machine.K3sEnvUnit("k3s"),
 			env,
 		); err != nil {
 			return err
@@ -110,10 +109,6 @@ func Master(cc *config.Config) Role {
 		}
 
 		if err := svc.OverrideCmd(fmt.Sprintf("/usr/bin/k3s server %s", strings.Join(args, " "))); err != nil {
-			return err
-		}
-
-		if err := svc.SetEnvFile("/etc/sysconfig/k3s"); err != nil {
 			return err
 		}
 

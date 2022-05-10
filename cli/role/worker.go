@@ -72,13 +72,9 @@ func Worker(cc *config.Config) Role {
 		}
 
 		// Setup systemd unit and starts it
-		if err := utils.WriteEnv("/etc/sysconfig/k3s-agent",
+		if err := utils.WriteEnv(machine.K3sEnvUnit("k3s-agent"),
 			env,
 		); err != nil {
-			return err
-		}
-
-		if err := svc.SetEnvFile("/etc/sysconfig/k3s-agent"); err != nil {
 			return err
 		}
 

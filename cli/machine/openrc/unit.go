@@ -84,16 +84,3 @@ func (s ServiceUnit) Enable() error {
 func (s ServiceUnit) StartBlocking() error {
 	return s.Start()
 }
-
-func (s ServiceUnit) SetEnvFile(es string) error {
-	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/init.d/%s", s.name))
-
-	d, err := ioutil.ReadFile(svcDir)
-	if err != nil {
-		return err
-	}
-
-	ss := string(d) + "\nsource " + es + "\n"
-
-	return ioutil.WriteFile(svcDir, []byte(ss), 0600)
-}
