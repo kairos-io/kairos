@@ -81,6 +81,20 @@ Examples using the extended notation for running k3s as agent or server are in [
 
 The configuration file can also be used to drive automated installation and deployments by mounting an ISO in the node with the `cidata` label. The ISO must contain a `user-data` (which contain your configuration) and `meta-data` file.
 
+### ISO as datasource
+
+Optionally it's possible to pass by the configuration by mounting an additional iso to the VM with the cloud config.
+
+To create an ISO as datasource, generate an ISO with the configuration file, for example:
+
+```bash
+$ mkdir -p build
+$ cd build
+$ touch meta-data
+$ cp -rfv cloud_init.yaml user-data
+$ mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
+```
+
 ## Embedded DNS
 
 When `c3os.dns` is set to `true` embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server, for example, assuming `c3os bridge` is running in a separate terminal:
