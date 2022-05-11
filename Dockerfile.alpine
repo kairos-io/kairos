@@ -118,6 +118,7 @@ RUN rc-update add sshd boot && \
     rc-update add hwclock boot && \
     rc-update add syslog boot && \
     rc-update add udev sysinit && \
+    rc-update add udev-trigger sysinit && \
     rc-update add openntpd boot
 
 # Copy the luet config file pointing to the upgrade repository
