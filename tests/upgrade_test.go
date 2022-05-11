@@ -109,7 +109,7 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 			Eventually(func() string {
 				var out string
 				if os.Getenv("FLAVOR") == "alpine" {
-					out, _ = machine.Sudo("systemctl status c3os-agent")
+					out, _ = machine.Sudo("cat /var/log/c3os-agent.log")
 				} else {
 					out, _ = machine.Sudo("systemctl status c3os-agent")
 				}
@@ -142,19 +142,19 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 				err = ioutil.WriteFile(temp.Name(), data.Bytes(), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = machine.SendFile(temp.Name(), "/tmp/kubectl.yaml", "0770")
+				err = machine.SendFile(temp.Name(), "./kubectl.yaml", "0770")
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() string {
-					out, _ := kubectl("apply -f /tmp/kubectl.yaml")
+					out, _ := kubectl("apply -f kubectl.yaml")
 					return out
 				}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
 
-				err = machine.SendFile("assets/suc.yaml", "/tmp/suc.yaml", "0770")
+				err = machine.SendFile("assets/suc.yaml", "./suc.yaml", "0770")
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() string {
-					out, _ := kubectl("apply -f /tmp/suc.yaml")
+					out, _ := kubectl("apply -f suc.yaml")
 					return out
 				}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
 

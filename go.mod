@@ -10,7 +10,7 @@ require (
 	github.com/google/go-github/v40 v40.0.0
 	github.com/ipfs/go-log v1.0.5
 	github.com/joho/godotenv v1.4.0
-	github.com/mudler/edgevpn v0.14.3
+	github.com/mudler/edgevpn v0.14.4-0.20220509214459-6ed92ef81a25
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
 	github.com/mudler/yip v0.0.0-20220321143540-2617d71ea02a
 	github.com/onsi/ginkgo/v2 v2.1.3

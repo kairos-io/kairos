@@ -15,7 +15,6 @@ type Service interface {
 	OverrideCmd(string) error
 	Enable() error
 	Restart() error
-	SetEnvFile(es string) error
 }
 
 func EdgeVPN(instance, rootDir string) (Service, error) {
@@ -81,5 +80,13 @@ func K3sAgent() (Service, error) {
 		return systemd.NewService(
 			systemd.WithName("k3s-agent"),
 		)
+	}
+}
+
+func K3sEnvUnit(unit string) string {
+	if utils.IsOpenRCBased() {
+		return fmt.Sprintf("/etc/rancher/k3s/%s.env", unit)
+	} else {
+		return fmt.Sprintf("/etc/sysconfig/%s", unit)
 	}
 }

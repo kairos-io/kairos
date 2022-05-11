@@ -42,7 +42,7 @@ func oneTimeBootstrap(c *config.Config, vpnSetupFN func() error) error {
 		)
 	}
 
-	envFile := fmt.Sprintf("/etc/sysconfig/%s", svcName)
+	envFile := machine.K3sEnvUnit(svcName)
 	if svc == nil {
 		return fmt.Errorf("could not detect OS")
 	}
@@ -55,10 +55,6 @@ func oneTimeBootstrap(c *config.Config, vpnSetupFN func() error) error {
 	}
 
 	if err := svc.OverrideCmd(fmt.Sprintf("/usr/bin/k3s %s %s", svcRole, strings.Join(k3sConfig.Args, " "))); err != nil {
-		return err
-	}
-
-	if err := svc.SetEnvFile(envFile); err != nil {
 		return err
 	}
 
