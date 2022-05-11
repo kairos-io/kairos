@@ -142,11 +142,11 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 				err = ioutil.WriteFile(temp.Name(), data.Bytes(), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = machine.SendFile(temp.Name(), "./kubectl.yaml", "0770")
+				err = machine.SendFile(temp.Name(), "/tmp/kubectl.yaml", "0770")
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() string {
-					out, _ := kubectl("apply -f kubectl.yaml")
+					out, _ := kubectl("apply -f /tmp/kubectl.yaml")
 					return out
 				}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
 
@@ -172,6 +172,5 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 				}, 20*time.Minute, 10*time.Second).Should(ContainSubstring("c3OS44"))
 			})
 		})
-
 	})
 })
