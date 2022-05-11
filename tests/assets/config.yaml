@@ -4,3 +4,4 @@ stages:
        users:
         c3os:
           passwd: "c3os"
+hostname: c3os-{{ trunc 4 .Random }}

@@ -236,7 +236,9 @@ jobs:
           if-no-files-found: error
 
   test-alpine:
-    needs: prepare-alpine-test
+    needs: 
+    - prepare-alpine-test
+    - test
     runs-on: macos-10.15
     strategy:
       fail-fast: true
