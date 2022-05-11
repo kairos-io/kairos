@@ -157,9 +157,20 @@ COPY overlay/files/ /
 COPY overlay/files-alpine/ /
 COPY overlay/files-opensuse-arm-rpi/ /
 
+RUN mkdir -p /etc/runlevels/default && \
+      ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
+      ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
+      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
+      ln -sf /etc/init.d/c3os-agent /etc/runlevels/default/c3os-agent
+
+# Symlinks to make elemental installer work
+RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
+    ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 
 # RUN ln -sf Image /boot/vmlinuz
 
+# Drop env files from k3s as we will generate them
+RUN rm -rf /etc/rancher/k3s/k3s.env /etc/rancher/k3s/k3s-agent.env && touch /etc/rancher/k3s/.keep
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
 ARG OS_REPO=quay.io/c3os/c3os
