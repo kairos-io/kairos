@@ -12,3 +12,14 @@ stages:
        commands:
        - sed -i -e 's/tty1.*//g' /etc/inittab
        - echo "tty1::respawn:/usr/bin/c3os install" >> /etc/inittab
+     - if: |
+            cat /proc/cmdline | grep -q "interactive-install"
+       commands:
+       - systemctl disable getty@tty1
+       - systemctl enable c3os-interactive
+    # Starts installer on boot in Alpine and openRC based
+     - if: |
+            cat /proc/cmdline | grep -q "interactive-install"
+       commands:
+       - sed -i -e 's/tty1.*//g' /etc/inittab
+       - echo "tty1::respawn:/usr/bin/c3os interactive-install --shell" >> /etc/inittab

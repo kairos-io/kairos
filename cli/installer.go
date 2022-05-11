@@ -108,7 +108,7 @@ try booting with another vga option from the boot cmdline (e.g. vga=791).`)
 	return nil
 }
 
-func runInstall(options map[string]string) {
+func runInstall(options map[string]string) error {
 	f, _ := ioutil.TempFile("", "xxxx")
 
 	device, ok := options["device"]
@@ -151,4 +151,5 @@ func runInstall(options map[string]string) {
 	if poweroff || c.C3OS != nil && c.C3OS.Poweroff {
 		utils.PowerOFF()
 	}
+	return nil
 }

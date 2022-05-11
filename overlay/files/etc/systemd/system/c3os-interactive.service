@@ -1,0 +1,14 @@
+[Unit]
+Description=c3os interactive-installer
+After=sysinit.target
+[Service]
+Type=oneshot
+StandardInput=tty
+StandardOutput=tty
+LimitNOFILE=49152
+ExecStartPre=-/bin/sh -c "dmesg -D"
+TTYPath=/dev/tty1
+RemainAfterExit=yes
+ExecStart=/usr/bin/c3os interactive-install --shell
+[Install]
+WantedBy=multi-user.target

@@ -346,6 +346,18 @@ func main() {
 				},
 			},
 			{
+				Name: "interactive-install",
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name: "shell",
+					},
+				},
+				Description: "Starts interactive installation",
+				Action: func(c *cli.Context) error {
+					return interactiveInstall(c.Bool("shell"))
+				},
+			},
+			{
 				Name:    "install",
 				Aliases: []string{"i"},
 				Action: func(c *cli.Context) error {

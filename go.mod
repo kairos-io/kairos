@@ -6,6 +6,7 @@ require (
 	github.com/bramvdbogaerde/go-scp v1.2.0
 	github.com/creack/pty v1.1.19-0.20220421211855-0d412c9fbeb1
 	github.com/denisbrodbeck/machineid v1.0.1
+	github.com/erikgeiser/promptkit v0.6.0
 	github.com/gliderlabs/ssh v0.2.2
 	github.com/google/go-github/v40 v40.0.0
 	github.com/ipfs/go-log v1.0.5
@@ -26,6 +27,7 @@ require (
 require (
 	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 // indirect
 	github.com/atomicgo/cursor v0.0.1 // indirect
+	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -33,8 +35,12 @@ require (
 	github.com/c-robinson/iplib v1.0.3 // indirect
 	github.com/cenkalti/backoff/v4 v4.1.3 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/charmbracelet/bubbles v0.10.3 // indirect
+	github.com/charmbracelet/bubbletea v0.20.0 // indirect
+	github.com/charmbracelet/lipgloss v0.5.0 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/containerd/cgroups v1.0.3 // indirect
+	github.com/containerd/console v1.0.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
@@ -60,7 +66,6 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
-	github.com/hashicorp/go-version v1.4.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/go-cid v0.1.0 // indirect
@@ -139,6 +144,9 @@ require (
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58 // indirect
 	github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6 // indirect
+	github.com/muesli/ansi v0.0.0-20211018074035-2e021307bc4b // indirect
+	github.com/muesli/reflow v0.3.0 // indirect
+	github.com/muesli/termenv v0.11.1-0.20220212125758-44cd13922739 // indirect
 	github.com/multiformats/go-base32 v0.0.4 // indirect
 	github.com/multiformats/go-base36 v0.1.0 // indirect
 	github.com/multiformats/go-multiaddr v0.5.0 // indirect
