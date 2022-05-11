@@ -122,6 +122,8 @@ jobs:
        include:
          - flavor: "opensuse"
            node: "A" # Arbitrary field
+         - flavor: "alpine"
+           node: "B" # Arbitrary field
     steps:
       - uses: actions/checkout@v2
       - name: Download artifacts
