@@ -56,6 +56,9 @@ jobs:
           if [ -z "$TAG" ]; then
             TAG=dev
           fi
+          if [ "$TAG" == "master" ]; then
+            TAG=v1.23.6-dev
+          fi
           ISO=c3os-${{ matrix.flavor }}-$TAG
           IMAGE=quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
           FLAVOR=${{ matrix.flavor }}
