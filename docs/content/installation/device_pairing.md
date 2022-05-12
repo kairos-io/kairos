@@ -6,10 +6,6 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-{{% notice note %}}
- Only the openSUSE variant supports automatic peer discovery and device pairing.
-{{% /notice %}}
-
 For pairing a c3os node, you will use the `c3os` CLI which is downloadable as part of the releases from another machine, it will be used to pair and install a new node or join a node to an existing cluster.
 
 ## Start the c3os ISO
