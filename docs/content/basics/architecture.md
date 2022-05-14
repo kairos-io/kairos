@@ -8,11 +8,12 @@ pre = "<b>- </b>"
 
 C3OS comes as ISO and as a CLI which can be downloaded from the [release page](https://github.com/c3os-io/c3os/releases). The CLI setups `k3s` and is also used to automatically register nodes in a private, user-defined network. 
 
-Currently **Alpine**-based and **openSUSE**-based flavors are available, the **openSUSE**-based flavor supports autonomous kubernetes bootstrapping with the `c3os` CLI.
+Currently **Alpine**-based and **openSUSE**-based flavors are available, they both supports autonomous kubernetes bootstrapping with the `c3os` CLI.
 
-C3OS nodes based on **openSUSE** autonomously connect and configure each other via P2P, no network setup and no central server is needed. 
+C3OS nodes can also autonomously connect and configure each other via a P2P hybrid mesh, no network setup and no central server is needed in that case. 
+They will reach each other also if they are in different networks and behind NAT, establishing a fixed, hybrid virtual network.
 
-Nodes can discovery each other also if they are in different networks and behind NAT.
+## Architecture
 
 c3OS uses [edgevpn](https://github.com/mudler/edgevpn) to coordinate, automatically discover/configure and establish a p2p vpn network between the cluster nodes.
 
