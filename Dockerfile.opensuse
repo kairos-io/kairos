@@ -81,8 +81,6 @@ RUN zypper in -y \
     vim \
     which && zypper cc
 
-RUN systemctl enable fail2ban
-
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml
 

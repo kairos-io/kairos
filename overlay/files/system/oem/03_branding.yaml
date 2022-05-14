@@ -13,6 +13,7 @@ stages:
         - systemd-timesyncd
         - nohang
         - nohang-desktop
+        - fail2ban
         - sshd
         mask:
         - purge-kernels
