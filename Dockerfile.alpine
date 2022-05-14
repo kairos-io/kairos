@@ -58,6 +58,7 @@ RUN apk --no-cache add  \
       e2fsprogs-extra \
       efibootmgr \
       eudev \
+      fail2ban \
       findutils \
       gcompat \
       grub-efi \
@@ -119,7 +120,8 @@ RUN rc-update add sshd boot && \
     rc-update add syslog boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
-    rc-update add openntpd boot
+    rc-update add openntpd boot && \
+    rc-update add fail2ban
 
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml

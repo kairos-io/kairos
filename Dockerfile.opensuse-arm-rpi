@@ -52,6 +52,7 @@ RUN zypper in -y \
     nohang \
     haveged \
     htop \
+    fail2ban \
     iproute2 \
     iptables \
     iputils \
@@ -86,6 +87,8 @@ RUN zypper in -y \
     tmux \
     vim \
     which && zypper cc
+
+RUN systemctl enable fail2ban
 
 # Copy the luet config file pointing to the upgrade repository
 COPY repositories.yaml /etc/luet/luet.yaml
