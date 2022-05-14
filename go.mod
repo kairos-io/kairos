@@ -10,6 +10,7 @@ require (
 	github.com/gliderlabs/ssh v0.2.2
 	github.com/google/go-github/v40 v40.0.0
 	github.com/ipfs/go-log v1.0.5
+	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.14.4-0.20220509214459-6ed92ef81a25
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
@@ -25,6 +26,7 @@ require (
 )
 
 require (
+	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 // indirect
 	github.com/atomicgo/cursor v0.0.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
@@ -53,6 +55,8 @@ require (
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/gen2brain/shm v0.0.0-20200228170931-49f9650110c5 // indirect
+	github.com/ghodss/yaml v1.0.0 // indirect
+	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -66,6 +70,7 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-version v1.4.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/go-cid v0.1.0 // indirect
@@ -77,6 +82,7 @@ require (
 	github.com/itchyny/gojq v0.12.2 // indirect
 	github.com/itchyny/timefmt-go v0.1.2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
+	github.com/jaypipes/pcidb v1.0.0 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jbenet/goprocess v0.1.4 // indirect
 	github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240 // indirect
@@ -141,6 +147,7 @@ require (
 	github.com/mikioh/tcpopt v0.0.0-20190314235656-172688c1accc // indirect
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 // indirect
 	github.com/minio/sha256-simd v1.0.0 // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
 	github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58 // indirect
 	github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6 // indirect
@@ -208,5 +215,6 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	howett.net/plist v1.0.0 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )

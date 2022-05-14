@@ -9,6 +9,7 @@ import (
 	config "github.com/c3os-io/c3os/cli/config"
 	"github.com/c3os-io/c3os/cli/utils"
 	"github.com/erikgeiser/promptkit/textinput"
+	"github.com/jaypipes/ghw"
 	"github.com/mudler/edgevpn/pkg/node"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pterm/pterm"
@@ -40,14 +41,42 @@ func isYes(s string) bool {
 	return false
 }
 
+const (
+	_ = 1 << (10 * iota)
+	KiB
+	MiB
+	GiB
+	TiB
+)
+
 func interactiveInstall(spawnShell bool) error {
 	utils.PrintBanner(banner)
 	pterm.DefaultBox.WithTitle("Installation").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
 		`Interactive installation. Documentation is available at https://docs.c3os.io.`)
 
+	disks := []string{}
+	maxSize := float64(0)
+	preferedDevice := "/dev/sda"
+
+	block, err := ghw.Block()
+	if err == nil {
+		for _, disk := range block.Disks {
+			size := float64(disk.SizeBytes) / float64(GiB)
+			if size > maxSize {
+				maxSize = size
+				preferedDevice = "/dev/" + disk.Name
+			}
+			disks = append(disks, fmt.Sprintf("/dev/%s: %s (%.2f GiB) ", disk.Name, disk.Model, float64(disk.SizeBytes)/float64(GiB)))
+		}
+	}
+
+	pterm.Info.Println("Available Disks:")
+	for _, d := range disks {
+		pterm.Info.Println(" " + d)
+	}
 	var networkToken string
 
-	device, err := prompt("What's the target install device?", "/dev/sda", "Cannot be empty", false, false)
+	device, err := prompt("What's the target install device?", preferedDevice, "Cannot be empty", false, false)
 	if err != nil {
 		return err
 	}
