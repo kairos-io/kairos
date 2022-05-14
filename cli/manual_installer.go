@@ -95,12 +95,12 @@ func interactiveInstall(spawnShell bool) error {
 		userPassword = "!"
 	}
 
-	githubUsername, err := prompt("Github username to grant SSH access to", "", canBeEmpty, true, false)
+	sshUsername, err := prompt("Username to grant SSH access to (github/gitlab supported)", "github:someuser", canBeEmpty, true, false)
 	if err != nil {
 		return err
 	}
 
-	sshPubkey, err := prompt("SSH pubkey", "", canBeEmpty, true, false)
+	sshPubkey, err := prompt("SSH pubkey", "github:username", canBeEmpty, true, false)
 	if err != nil {
 		return err
 	}
@@ -150,8 +150,8 @@ func interactiveInstall(spawnShell bool) error {
 			PasswordHash: userPassword,
 			Groups:       []string{"admin"},
 		}
-		if githubUsername != "" {
-			user.SSHAuthorizedKeys = []string{fmt.Sprintf("github:%s", githubUsername)}
+		if sshUsername != "" {
+			user.SSHAuthorizedKeys = append(user.SSHAuthorizedKeys, sshUsername)
 		}
 
 		if sshPubkey != "" {
