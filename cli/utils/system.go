@@ -26,6 +26,7 @@ func PowerOFF() {
 func Version() string {
 	release, _ := godotenv.Read("/etc/os-release")
 	v := release["VERSION"]
+	v = strings.ReplaceAll(v, "+k3s1-c3OS", "-")
 	return strings.ReplaceAll(v, "+k3s-c3OS", "-")
 }
 
