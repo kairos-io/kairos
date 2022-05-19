@@ -131,6 +131,15 @@ func interactiveInstall(spawnShell bool) error {
 		return err
 	}
 
+	allGood, err := prompt("Are settings ok?", "n", yesNo, true, false)
+	if err != nil {
+		return err
+	}
+
+	if !isYes(allGood) {
+		return interactiveInstall(spawnShell)
+	}
+
 	c := &config.Config{
 		C3OS: &config.C3OS{
 			NetworkToken: networkToken,
