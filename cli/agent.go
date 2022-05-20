@@ -48,7 +48,10 @@ func agent(apiAddress string, dir []string, force bool) error {
 		return nil
 	}
 
-	if tokenNotDefined && (c.K3s.Enabled || c.K3sAgent.Enabled) {
+	// Do onetimebootstrap if K3s or K3s-agent are enabled.
+	// Those blocks are not required to be enabled in case of a c3os
+	// full automated setup. Otherwise, they must be explicitly enabled.
+	if c.K3s.Enabled || c.K3sAgent.Enabled {
 		return oneTimeBootstrap(c, func() error { return vpn.Setup(machine.EdgeVPNDefaultInstance, apiAddress, "/", true, c) })
 	} else if tokenNotDefined {
 		fmt.Println("No network token provided, exiting.")

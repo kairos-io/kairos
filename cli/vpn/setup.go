@@ -14,6 +14,11 @@ import (
 )
 
 func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) error {
+
+	if c.C3OS == nil || c.C3OS.NetworkToken == "" {
+		return fmt.Errorf("no network token defined")
+	}
+
 	svc, err := machine.EdgeVPN(instance, rootDir)
 	if err != nil {
 		return err
