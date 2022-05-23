@@ -15,7 +15,7 @@ jobs:
 #        - flavor: "ubuntu"
 #         - flavor: "fedora"
          - flavor: "alpine"
-         - flavor: "tumbleweed"
+       #  - flavor: "tumbleweed"
     steps:
       - uses: actions/checkout@v2
       - run: |
@@ -71,7 +71,7 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "alpine"
-         - flavor: "tumbleweed"
+        # - flavor: "tumbleweed"
 #         - flavor: "ubuntu"
 #         - flavor: "fedora"
     steps:
@@ -109,7 +109,7 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "alpine"
-         - flavor: "tumbleweed"
+      #   - flavor: "tumbleweed"
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v2
