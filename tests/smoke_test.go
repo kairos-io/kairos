@@ -152,6 +152,9 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 		})
 
 		It("propagate kubeconfig", func() {
+			if os.Getenv("FLAVOR") == "alpine" {
+				Skip("Skip on alpine")
+			}
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("c3os get-kubeconfig")
 				return out
@@ -165,6 +168,9 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 		})
 
 		It("has roles", func() {
+			if os.Getenv("FLAVOR") == "alpine" {
+				Skip("Skip on alpine")
+			}
 			uuid, _ := machine.SSHCommand("c3os uuid")
 			Expect(uuid).ToNot(Equal(""))
 			Eventually(func() string {
@@ -180,6 +186,9 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 		})
 
 		It("has machines with different IPs", func() {
+			if os.Getenv("FLAVOR") == "alpine" {
+				Skip("Skip on alpine")
+			}
 			Eventually(func() string {
 				out, _ := machine.SSHCommand(`curl http://localhost:8080/api/machines`)
 				return out
