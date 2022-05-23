@@ -89,7 +89,7 @@ RUN zypper in -y \
     which && zypper cc
 
 # Copy the luet config file pointing to the upgrade repository
-COPY repositories.yaml /etc/luet/luet.yaml
+COPY repositories/repositories.yaml /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
@@ -105,7 +105,6 @@ RUN luet install -y \
        cloud-config/network \
        cloud-config/rootfs \
        cloud-config/boot-assessment \
-       systemd-service/edgevpn \
        utils/k9s \
        container/kubectl \
        utils/nerdctl && luet cleanup

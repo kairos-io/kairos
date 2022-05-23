@@ -13,23 +13,23 @@ set -x
 latest_tag=$(last_snapshot quay.io/costoolkit/releases-teal)
 latest_tag_arm64=$(last_snapshot quay.io/costoolkit/releases-teal-arm64)
 
-$YQ eval '.repositories[0].reference = "'$latest_tag'-repository.yaml"' -i repositories.yaml
-$YQ eval '.repositories[1].reference = "'$latest_tag_arm64'-repository.yaml"' -i repositories.yaml
+$YQ eval '.repositories[0].reference = "'$latest_tag'-repository.yaml"' -i repositories/repositories.yaml
+$YQ eval '.repositories[1].reference = "'$latest_tag_arm64'-repository.yaml"' -i repositories/repositories.yaml
 
 latest_tag_blue=$(last_snapshot quay.io/costoolkit/releases-blue)
 latest_tag_blue_arm64=$(last_snapshot quay.io/costoolkit/releases-blue-arm64)
 
-$YQ eval '.repositories[0].reference = "'$latest_tag_blue'-repository.yaml"' -i repositories.yaml.fedora
-$YQ eval '.repositories[1].reference = "'$latest_tag_blue_arm64'-repository.yaml"' -i repositories.yaml.fedora
+$YQ eval '.repositories[0].reference = "'$latest_tag_blue'-repository.yaml"' -i repositories/repositories.yaml.fedora
+$YQ eval '.repositories[1].reference = "'$latest_tag_blue_arm64'-repository.yaml"' -i repositories/repositories.yaml.fedora
 
 latest_tag_orange=$(last_snapshot quay.io/costoolkit/releases-orange)
 latest_tag_orange_arm64=$(last_snapshot quay.io/costoolkit/releases-orange-arm64)
 
-$YQ eval '.repositories[0].reference = "'$latest_tag_orange'-repository.yaml"' -i repositories.yaml.ubuntu
-$YQ eval '.repositories[1].reference = "'$latest_tag_orange_arm64'-repository.yaml"' -i repositories.yaml.ubuntu
+$YQ eval '.repositories[0].reference = "'$latest_tag_orange'-repository.yaml"' -i repositories/repositories.yaml.ubuntu
+$YQ eval '.repositories[1].reference = "'$latest_tag_orange_arm64'-repository.yaml"' -i repositories/repositories.yaml.ubuntu
 
 latest_tag=$(last_snapshot quay.io/costoolkit/releases-green)
 latest_tag_arm64=$(last_snapshot quay.io/costoolkit/releases-green-arm64)
 
-$YQ eval '.repositories[0].reference = "'$latest_tag'-repository.yaml"' -i repositories.yaml.tumbleweed
-$YQ eval '.repositories[1].reference = "'$latest_tag_arm64'-repository.yaml"' -i repositories.yaml.tumbleweed
+$YQ eval '.repositories[0].reference = "'$latest_tag'-repository.yaml"' -i repositories/repositories.yaml.tumbleweed
+$YQ eval '.repositories[1].reference = "'$latest_tag_arm64'-repository.yaml"' -i repositories/repositories.yaml.tumbleweed

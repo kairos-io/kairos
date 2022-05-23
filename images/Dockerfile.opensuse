@@ -1,5 +1,5 @@
 ARG LUET_VERSION=0.19.2
-ARG BASE_IMAGE=fedora:33
+ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM golang as builder
 
@@ -20,43 +20,69 @@ ENV ARCH=${ARCH}
 # Temporary disable
 ENV COSIGN_EXPERIMENTAL=0
 # Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-blue
+ENV COSIGN_REPOSITORY=raccos/releases-teal
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 
 COPY --from=builder /work/cli/c3os /usr/bin/c3os
-RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
-RUN dnf install -y \
-    NetworkManager \
-    squashfs-tools \ 
-    dracut-live \
-    efibootmgr \
-    audit \
-    sudo \
-    systemd \
-    parted \
+
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && zypper ref
+
+RUN zypper in -y \
+    bash-completion \
+    conntrack-tools \
+    coreutils \
+    curl \
+    device-mapper \
+    dosfstools \
     dracut \
     e2fsprogs \
-    dosfstools \
-    coreutils \
-    device-mapper \
-    grub2 \
-    which \
-    curl \
-    nano \
-    nohang-desktop \
+    findutils \
     gawk \
+    gptfdisk \
+    grub2-i386-pc \
+    grub2-x86_64-efi \
+    nohang \
+    fail2ban \
     haveged \
+    htop \
+    iproute2 \
+    iptables \
+    iputils \
+    issue-generator \
+    jq \
+    kernel-default \
+    kernel-firmware-all \
+    less \
+    lsscsi \
+    lvm2 \
+    mdadm \
+    multipath-tools \
+    nano \
+    nethogs \
+    nfs-utils \
+    open-iscsi \
+    open-vm-tools \
+    parted \
+    pigz \
+    policycoreutils \
+    procps \
+    python-azure-agent \
+    qemu-guest-agent \
+    rng-tools \
+    rsync \
+    squashfs \
+    strace \
+    systemd \
+    systemd-sysvinit \
     tar \
-    openssh-server \
-    shim-x64 \
-    grub2-pc \
-    grub2-efi-x64 \
-    grub2-efi-x64-modules \
-    rsync && dnf clean all
+    timezone \
+    tmux \
+    vim \
+    which && zypper cc
 
 # Copy the luet config file pointing to the upgrade repository
-COPY repositories.yaml.fedora /etc/luet/luet.yaml
+COPY repositories/repositories.yaml /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
@@ -67,17 +93,15 @@ RUN luet install -y meta/cos-verify
 RUN luet install -y \
        meta/cos-core \
        utils/edgevpn \
-       utils/k9s \
-       utils/nerdctl \
        cloud-config/recovery \
-       cloud-config/boot-assessment \
        cloud-config/live \
+       cloud-config/boot-assessment \
        cloud-config/network \
        cloud-config/rootfs \
-       system/kernel \
-       system/dracut-initrd \
-       && luet cleanup
-
+       systemd-service/edgevpn \
+       utils/k9s \
+       container/kubectl \
+       utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
 RUN curl -sfL https://get.k3s.io > installer.sh
@@ -87,16 +111,11 @@ RUN rm -rf installer.sh
 
 COPY overlay/files/ /
 
-# RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-#     ln -sf "${kernel#/boot/}" /boot/vmlinuz
-# RUN kernel=$(ls /lib/modules | head -n1) && \
-#     dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
-#     ln -sf "initrd-${kernel}" /boot/initrd
-# RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+RUN mkinitrd
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
-ARG OS_REPO=quay.io/mudler/c3os
+ARG OS_REPO=quay.io/c3os/c3os
 ARG OS_LABEL=latest
 
 RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \

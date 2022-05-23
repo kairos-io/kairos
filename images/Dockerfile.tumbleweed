@@ -1,5 +1,5 @@
-ARG LUET_VERSION=0.22.7-1
-ARG BASE_IMAGE=opensuse/leap:15.4
+ARG LUET_VERSION=0.19.2
+ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM golang as builder
 
@@ -14,28 +14,21 @@ FROM $BASE_IMAGE
 ARG K3S_VERSION
 ARG C3OS_VERSION
 
-ARG ARCH=arm64
+ARG ARCH=amd64
 ENV ARCH=${ARCH}
 # Enable cosign keyless verify
 # Temporary disable
 ENV COSIGN_EXPERIMENTAL=0
 # Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-teal
+ENV COSIGN_REPOSITORY=raccos/releases-green
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 
 COPY --from=builder /work/cli/c3os /usr/bin/c3os
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && zypper ref
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
 
 RUN zypper in -y \
-    raspberrypi-eeprom \
-    bcm43xx-firmware \
-    wireless-tools \
-    wpa_supplicant \
-    iw \
-    systemd-sysvinit \
-    grub2-arm64-efi \
     bash-completion \
     conntrack-tools \
     coreutils \
@@ -50,9 +43,9 @@ RUN zypper in -y \
     grub2-i386-pc \
     grub2-x86_64-efi \
     nohang \
+    fail2ban \
     haveged \
     htop \
-    fail2ban \
     iproute2 \
     iptables \
     iputils \
@@ -89,7 +82,7 @@ RUN zypper in -y \
     which && zypper cc
 
 # Copy the luet config file pointing to the upgrade repository
-COPY repositories.yaml /etc/luet/luet.yaml
+COPY repositories/repositories.yaml.tumbleweed /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
@@ -102,10 +95,9 @@ RUN luet install -y \
        utils/edgevpn \
        cloud-config/recovery \
        cloud-config/live \
+       cloud-config/boot-assessment \
        cloud-config/network \
        cloud-config/rootfs \
-       cloud-config/boot-assessment \
-       systemd-service/edgevpn \
        utils/k9s \
        container/kubectl \
        utils/nerdctl && luet cleanup
@@ -117,11 +109,8 @@ RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN rm -rf installer.sh
 
 COPY overlay/files/ /
-COPY overlay/files-opensuse-arm-rpi/ /
 
 RUN mkinitrd
-
-RUN ln -sf Image /boot/vmlinuz
 
 ARG OS_NAME=c3OS
 ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}

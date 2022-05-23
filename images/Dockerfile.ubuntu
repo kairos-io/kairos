@@ -55,7 +55,7 @@ RUN apt install -y \
 	rsync \
         linux-image-generic && apt-get clean
 # Copy the luet config file pointing to the upgrade repository
-COPY repositories.yaml.ubuntu /etc/luet/luet.yaml
+COPY repositories/repositories.yaml.ubuntu /etc/luet/luet.yaml
 
 # Copy luet from the official images
 COPY --from=luet /usr/bin/luet /usr/bin/luet
