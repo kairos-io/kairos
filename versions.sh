@@ -14,7 +14,7 @@ internal_version=${gt[1]}
 k8s_version=${gt[0]}
 
 OS_ID=${OS_ID:-c3os}
-IMAGE="${IMAGE:-$OS_ID}"
+IMAGE="${IMAGE:-${OS_ID}:latest}"
 ISO="${ISO:-$OS_ID}"
 FLAVOR="${FLAVOR:-opensuse}"
 C3OS_VERSION="${C3OS_VERSION:--c3OS$internal_version}"

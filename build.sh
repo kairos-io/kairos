@@ -4,6 +4,8 @@ source versions.sh
 
 set -ex
 
+echo "Building $ISO from $IMAGE"
+
 docker build --build-arg C3OS_VERSION=$C3OS_VERSION \
              --build-arg K3S_VERSION=$K3S_VERSION \
              --build-arg LUET_VERSION=$LUET_VERSION \
@@ -14,5 +16,4 @@ docker build --build-arg C3OS_VERSION=$C3OS_VERSION \
 
 docker run -v $PWD:/cOS \
            -v /var/run:/var/run \
-           --entrypoint /usr/bin/luet-makeiso \
-           -i --rm quay.io/costoolkit/toolchain:0.8.7-16-gdcaac339 ./iso.yaml --image $IMAGE --output $ISO
+           -i --rm quay.io/costoolkit/elemental:v0.0.15-605346d --name $ISO --debug build-iso --date=false --local --overlay-iso /cOS/overlay/files-iso $IMAGE --output /cOS/
