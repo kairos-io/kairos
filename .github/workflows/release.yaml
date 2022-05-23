@@ -87,7 +87,7 @@ jobs:
       - run: |
               ls -liah
               iso=$(ls *.iso)
-              sh build_vm.sh $iso
+              bash scripts/build_vm.sh $iso
       - uses: actions/upload-artifact@v2
         with:
           name: c3os-${{ matrix.flavor }}.qcow2.tar.xz
