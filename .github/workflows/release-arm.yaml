@@ -17,7 +17,7 @@ jobs:
       matrix:
         include:
           - flavor: "opensuse-arm-rpi"
-            dockerfile: "Dockerfile.opensuse-arm-rpi"
+            dockerfile: "images/Dockerfile.opensuse-arm-rpi"
             platforms: "linux/arm64"
             model: rpi64
           # - flavor: "tumbleweed-arm-rpi"
@@ -25,7 +25,7 @@ jobs:
           #   platforms: "linux/arm64"
           #   model: rpi64
           - flavor: "alpine-arm-rpi"
-            dockerfile: "Dockerfile.alpine-arm-rpi"
+            dockerfile: "images/Dockerfile.alpine-arm-rpi"
             platforms: "linux/arm64"
             model: rpi64
     steps:
