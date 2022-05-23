@@ -8,11 +8,11 @@ repositories:
     priority: 1
     reference: "v0.8.10-1-repository.yaml"
     urls:
-      - "quay.io/costoolkit/releases-teal"
+      - "quay.io/costoolkit/releases-green"
   - !!merge <<: *cos
     arch: "arm64"
     urls:
-      - "quay.io/costoolkit/releases-teal-arm64"
+      - "quay.io/costoolkit/releases-green-arm64"
     reference: "v0.8.10-1-repository.yaml"
   - &c3os
     name: "c3os"

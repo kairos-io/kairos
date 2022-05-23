@@ -1,5 +1,5 @@
 ARG LUET_VERSION=0.19.2
-ARG BASE_IMAGE=opensuse/leap:15.3
+ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM golang as builder
 
@@ -20,13 +20,13 @@ ENV ARCH=${ARCH}
 # Temporary disable
 ENV COSIGN_EXPERIMENTAL=0
 # Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-green
+ENV COSIGN_REPOSITORY=raccos/releases-teal
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 
 COPY --from=builder /work/cli/c3os /usr/bin/c3os
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Leap_15.3/utilities.repo && zypper ref
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && zypper ref
 
 RUN zypper in -y \
     bash-completion \

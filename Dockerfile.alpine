@@ -19,7 +19,7 @@ ENV ARCH=${ARCH}
 # Temporary disable
 ENV COSIGN_EXPERIMENTAL=0
 # Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-green
+ENV COSIGN_REPOSITORY=raccos/releases-teal
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 

@@ -1,5 +1,5 @@
 ARG LUET_VERSION=0.22.7-1
-ARG BASE_IMAGE=opensuse/leap:15.4
+ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM golang as builder
 
@@ -20,13 +20,13 @@ ENV ARCH=${ARCH}
 # Temporary disable
 ENV COSIGN_EXPERIMENTAL=0
 # Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-teal
+ENV COSIGN_REPOSITORY=raccos/releases-green
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 
 COPY --from=builder /work/cli/c3os /usr/bin/c3os
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && zypper ref
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
 
 RUN zypper in -y \
     raspberrypi-eeprom \
