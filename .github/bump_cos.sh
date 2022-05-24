@@ -4,7 +4,7 @@ set -e
 root_dir=$(git rev-parse --show-toplevel)
 
 last_snapshot() {
-    echo $(docker run --rm quay.io/skopeo/stable list-tags docker://$1 | jq -rc '.Tags | map(select(. | contains("-repository.yaml"))) | sort | .[-1]' | sed "s/-repository.yaml//g")
+    echo $(docker run --rm quay.io/skopeo/stable list-tags docker://$1 | jq -rc '.Tags | map(select( (. | contains("-repository.yaml")) and ( . | contains("v")))) | sort_by(. | sub("v";"") | sub("-repository.yaml";"") | sub("-";"") | split(".") | map(tonumber) ) | .[-1]' | sed "s/-repository.yaml//g")
 }
 
 YQ=${YQ:-docker run --rm -v "${PWD}":/workdir mikefarah/yq}
