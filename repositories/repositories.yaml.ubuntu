@@ -6,14 +6,14 @@ repositories:
     arch: amd64
     cached: true
     priority: 1
-    reference: "v0.8.10-repository.yaml"
+    reference: "v0.8.10-1-repository.yaml"
     urls:
       - "quay.io/costoolkit/releases-orange"
   - !!merge <<: *cos
     arch: "arm64"
     urls:
       - "quay.io/costoolkit/releases-orange-arm64"
-    reference: "v0.8.10-repository.yaml"
+    reference: "v0.8.10-1-repository.yaml"
   - &c3os
     name: "c3os"
     # https://github.com/c3os-io/packages
