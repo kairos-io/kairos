@@ -33,7 +33,7 @@ func upgrade(version, image string, force bool) error {
 		img = image
 	}
 
-	args := []string{"upgrade", "--no-verify", "--docker-image", img}
+	args := []string{"upgrade", "--system.uri", fmt.Sprintf("docker:%s", img)}
 	cmd := exec.Command("elemental", args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout

@@ -76,7 +76,7 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			out, _ := machine.Sudo("elemental install --cloud-init /tmp/config.yaml /dev/sda")
-			Expect(out).Should(ContainSubstring("COS_ACTIVE"))
+			Expect(out).Should(ContainSubstring("Running after-install hook"))
 			fmt.Println(out)
 			machine.Sudo("sync")
 			machine.DetachCD()

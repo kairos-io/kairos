@@ -16,4 +16,4 @@ docker build --build-arg C3OS_VERSION=$C3OS_VERSION \
 
 docker run -v $PWD:/cOS \
            -v /var/run:/var/run \
-           -i --rm quay.io/costoolkit/elemental:v0.0.15-605346d --name $ISO --debug build-iso --date=false --local --overlay-iso /cOS/overlay/files-iso $IMAGE --output /cOS/
+           -i --rm quay.io/costoolkit/elemental:v0.0.15-8a78e6b --name $ISO --debug build-iso --date=false --local --overlay-iso /cOS/overlay/files-iso $IMAGE --output /cOS/

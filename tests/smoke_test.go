@@ -70,7 +70,7 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			out, _ := machine.SSHCommand("sudo elemental install --cloud-init /tmp/config.yaml /dev/sda")
-			Expect(out).Should(ContainSubstring("COS_ACTIVE"))
+			Expect(out).Should(ContainSubstring("Running after-install hook"))
 			fmt.Println(out)
 			machine.SSHCommand("sudo sync")
 			machine.DetachCD()
@@ -99,21 +99,35 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 			}
 		})
 
-		It("has additional grub menu entry", func() {
+		It("has correct grub menu entries", func() {
 			if os.Getenv("FLAVOR") == "alpine" {
 				Skip("not working on alpine yet")
 			}
-			state, _ := machine.SSHCommand("sudo blkid -L COS_STATE")
-			state = strings.TrimSpace(state)
-			out, _ := machine.SSHCommand("sudo blkid")
-			fmt.Println(out)
-			out, _ = machine.SSHCommand("sudo mkdir -p /tmp/mnt/STATE")
-			fmt.Println(out)
-			out, _ = machine.SSHCommand("sudo mount " + state + " /tmp/mnt/STATE")
-			fmt.Println(out)
-			out, _ = machine.SSHCommand("sudo cat /tmp/mnt/STATE/grubmenu")
-			Expect(out).Should(ContainSubstring("c3os remote recovery"))
-			machine.SSHCommand("sudo umount /tmp/mnt/STATE")
+
+			By("checking entries", func() {
+				state, _ := machine.SSHCommand("sudo blkid -L COS_STATE")
+				state = strings.TrimSpace(state)
+				out, _ := machine.SSHCommand("sudo blkid")
+				fmt.Println(out)
+				out, _ = machine.SSHCommand("sudo mkdir -p /tmp/mnt/STATE")
+				fmt.Println(out)
+				out, _ = machine.SSHCommand("sudo mount " + state + " /tmp/mnt/STATE")
+				fmt.Println(out)
+				out, _ = machine.SSHCommand("sudo cat /tmp/mnt/STATE/grubmenu")
+				Expect(out).Should(ContainSubstring("c3os remote recovery"))
+
+				grub, _ := machine.SSHCommand("sudo cat /tmp/mnt/STATE/grub_oem_env")
+				Expect(grub).Should(ContainSubstring("default_menu_entry=c3os"))
+
+				machine.SSHCommand("sudo umount /tmp/mnt/STATE")
+			})
+		})
+
+		It("has default image sizes", func() {
+			for _, p := range []string{"active.img", "passive.img"} {
+				out, _ := machine.SSHCommand(`sudo stat -c "%s" /run/initramfs/cos-state/cOS/` + p )
+				Expect(out).Should(ContainSubstring("2097152000"))
+			}
 		})
 
 		It("configure k3s", func() {
