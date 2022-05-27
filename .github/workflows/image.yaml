@@ -46,10 +46,14 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: | 
           docker push quay.io/c3os/c3os:${{ matrix.flavor }}-latest
-
+      - name: Push to testing
+        run: | 
+          docker tag quay.io/c3os/c3os:${{ matrix.flavor }}-latest ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+          docker push ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
 # Test start
   build-vm-images:
-    needs: build
+    needs: 
+    - build
     runs-on: macos-10.15
     strategy:
       fail-fast: false
@@ -115,8 +119,11 @@ jobs:
              config.yaml
           if-no-files-found: error
 
-  single-test:
-    needs: prepare-test
+  upgrade-single-node-k8s-test:
+    needs: 
+    - prepare-test
+    - upgrade-test
+    - upgrade-latest-with-cli-test
     runs-on: macos-10.15
     strategy:
       fail-fast: true
@@ -149,12 +156,11 @@ jobs:
               ls -liah
               export ISO=$PWD/$(ls *.iso)
               export GOPATH="/Users/runner/go"
-              PATH=$PATH:$GOPATH/bin
-              go get github.com/onsi/ginkgo/v2
-              go get github.com/onsi/gomega/...
-              go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.3
-              go install github.com/onsi/ginkgo/v2/ginkgo
-              CLOUD_INIT=$PWD/config.yaml CREATE_VM=true FLAVOR=${{ matrix.flavor }} ginkgo --label-filter upgrade --fail-fast -r ./tests/
+              export PATH=$PATH:$GOPATH/bin
+              export CLOUD_INIT=$PWD/config.yaml 
+              export CREATE_VM=true 
+              export FLAVOR=${{ matrix.flavor }}
+              ./.github/run_test.sh "upgrade-k8s"
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
@@ -162,8 +168,12 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
 
-  test:
-    needs: prepare-test
+  decentralized-k8s-test-opensuse:
+    needs: 
+    - prepare-test
+    - upgrade-single-node-k8s-test
+    - upgrade-test
+    - upgrade-latest-with-cli-test
     runs-on: macos-10.15
     strategy:
       fail-fast: true
@@ -196,12 +206,11 @@ jobs:
               ls -liah
               export ISO=$PWD/$(ls *.iso)
               export GOPATH="/Users/runner/go"
-              PATH=$PATH:$GOPATH/bin
-              go get github.com/onsi/ginkgo/v2
-              go get github.com/onsi/gomega/...
-              go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.3
-              go install github.com/onsi/ginkgo/v2/ginkgo
-              CLOUD_INIT=$PWD/config.yaml CREATE_VM=true FLAVOR=${{ matrix.flavor }} ginkgo --label-filter smoke --fail-fast -r ./tests/
+              export PATH=$PATH:$GOPATH/bin
+              export CLOUD_INIT=$PWD/config.yaml
+              export CREATE_VM=true
+              export FLAVOR=${{ matrix.flavor }}
+              ./.github/run_test.sh "decentralized-k8s"
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
@@ -239,10 +248,12 @@ jobs:
              config.yaml
           if-no-files-found: error
 
-  test-alpine:
+  decentralized-k8s-test-alpine:
     needs: 
     - prepare-alpine-test
-    - test
+    - decentralized-k8s-test-opensuse
+    - upgrade-test
+    - upgrade-latest-with-cli-test
     runs-on: macos-10.15
     strategy:
       fail-fast: true
@@ -275,12 +286,11 @@ jobs:
               ls -liah
               export ISO=$PWD/$(ls *.iso)
               export GOPATH="/Users/runner/go"
-              PATH=$PATH:$GOPATH/bin
-              go get github.com/onsi/ginkgo/v2
-              go get github.com/onsi/gomega/...
-              go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.3
-              go install github.com/onsi/ginkgo/v2/ginkgo
-              CLOUD_INIT=$PWD/config.yaml CREATE_VM=true FLAVOR=${{ matrix.flavor }} ginkgo --label-filter smoke --fail-fast -r ./tests/
+              export PATH=$PATH:$GOPATH/bin
+              export CLOUD_INIT=$PWD/config.yaml
+              export CREATE_VM=true
+              export FLAVOR=${{ matrix.flavor }}
+              ./.github/run_test.sh "decentralized-k8s"
       - uses: actions/upload-artifact@v2
         if: failure()
         with:
@@ -288,7 +298,114 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
 
+  latest-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: robinraju/release-downloader@v1.3
+      with:     
+      # A flag to set the download target as latest release
+      # The default value is 'false'
+        latest: true
+        repository: "c3os-io/c3os"
+        fileName: "*"
+        out-file-path: "last-release"
+    - uses: actions/upload-artifact@v2
+      with:
+          name: latest-release.zip
+          path: last-release
+          if-no-files-found: error
 
+  upgrade-latest-with-cli-test:
+    needs: 
+    - build
+    - latest-release
+    runs-on: macos-10.15
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+           node: "A" # Arbitrary field
+         - flavor: "opensuse"
+           node: "B"
+#         - flavor: "alpine"
+#           node: "C"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: latest-release.zip
+    - name: Install deps
+      run: |
+        brew install cdrtools jq
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+          go-version: '^1.16'
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls c3os-${{ matrix.flavor }}-*.iso)
+            export GOPATH="/Users/runner/go"
+            export CONTAINER_IMAGE=ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+            export PATH=$PATH:$GOPATH/bin
+            export CLOUD_INIT=$PWD/tests/assets/config.yaml
+            export CREATE_VM=true
+            export FLAVOR=${{ matrix.flavor }} 
+            ./.github/run_test.sh "upgrade-latest-with-cli"
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: ${{ matrix.flavor }}-upgrade-test.logs.zip
+        path: tests/**/logs/*
+        if-no-files-found: warn
+
+
+
+  upgrade-test:
+    needs: 
+    - build
+    - latest-release
+    runs-on: macos-10.15
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+           node: "A" # Arbitrary field
+         - flavor: "opensuse"
+           node: "B"
+#         - flavor: "alpine"
+#           node: "C"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: latest-release.zip
+    - name: Install deps
+      run: |
+        brew install cdrtools jq
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+          go-version: '^1.16'
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls c3os-${{ matrix.flavor }}-*.iso)
+            export GOPATH="/Users/runner/go"
+            export CONTAINER_IMAGE=ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+            export PATH=$PATH:$GOPATH/bin
+            export CLOUD_INIT=$PWD/tests/assets/config.yaml
+            export CREATE_VM=true
+            export FLAVOR=${{ matrix.flavor }}
+            ./.github/run_test.sh "upgrade-latest-with-kubernetes"
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: ${{ matrix.flavor }}-upgrade-test.logs.zip
+        path: tests/**/logs/*
+        if-no-files-found: warn
   # test-tumbleweed:
   #   needs: 
   #   - prepare-test

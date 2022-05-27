@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/c3os-io/c3os/tests/machine"
@@ -14,46 +15,50 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
+func sucYAML(image, version string) string {
+	return `
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: os-upgrade
+  namespace: system-upgrade
+  labels:
+    k3s-upgrade: server
+spec:
+  concurrency: 1
+  version: "` + version + `"
+  nodeSelector:
+    matchExpressions:
+      - {key: kubernetes.io/hostname, operator: Exists}
+  serviceAccountName: system-upgrade
+  cordon: false
+  upgrade:
+    image: "` + image + `"
+    command:
+    - "/usr/sbin/suc-upgrade"
+`
+
+}
+
+var _ = Describe("k3s upgrade test from k8s", Label("upgrade-latest-with-kubernetes"), func() {
+	containerImage := os.Getenv("CONTAINER_IMAGE")
+
 	BeforeEach(func() {
 		machine.EventuallyConnects()
 	})
 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
-			machine.Sudo("k3s kubectl get pods -A -o json > /run/pods.json")
-			machine.Sudo("k3s kubectl get events -A -o json > /run/events.json")
-			machine.Sudo("cat /proc/cmdline > /run/cmdline")
-			machine.Sudo("chmod 777 /run/events.json")
-
-			machine.Sudo("df -h > /run/disk")
-			machine.Sudo("mount > /run/mounts")
-			machine.Sudo("blkid > /run/blkid")
-
-			machine.GatherAllLogs(
-				[]string{
-					"edgevpn@c3os",
-					"c3os-agent",
-					"cos-setup-boot",
-					"cos-setup-network",
-					"c3os",
-					"k3s",
-				},
-				[]string{
-					"/var/log/edgevpn.log",
-					"/var/log/c3os-agent.log",
-					"/run/pods.json",
-					"/run/disk",
-					"/run/mounts",
-					"/run/blkid",
-					"/run/events.json",
-					"/run/cmdline",
-				})
+			gatherLogs()
 		}
 	})
 
 	Context("live cd", func() {
 		It("has default service active", func() {
+			if containerImage == "" {
+				Fail("CONTAINER_IMAGE needs to be set")
+			}
 			if os.Getenv("FLAVOR") == "alpine" {
 				out, _ := machine.Sudo("rc-status")
 				Expect(out).Should(ContainSubstring("c3os"))
@@ -105,7 +110,7 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 			}
 		})
 
-		It("has kubeconfig", func() {
+		It("upgrades from kubernetes", func() {
 			Eventually(func() string {
 				var out string
 				if os.Getenv("FLAVOR") == "alpine" {
@@ -121,12 +126,15 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 				return out
 			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
+			kubectl := func(s string) (string, error) {
+				return machine.Sudo("k3s kubectl " + s)
+			}
+
+			currentVersion, err := machine.SSHCommand("source /etc/os-release; echo $VERSION")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(currentVersion).To(ContainSubstring("c3OS"))
+
 			By("installing system-upgrade-controller", func() {
-
-				kubectl := func(s string) (string, error) {
-					return machine.Sudo("k3s kubectl " + s)
-				}
-
 				resp, err := http.Get("https://github.com/rancher/system-upgrade-controller/releases/download/v0.9.1/system-upgrade-controller.yaml")
 				Expect(err).ToNot(HaveOccurred())
 				defer resp.Body.Close()
@@ -149,14 +157,23 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 					out, _ := kubectl("apply -f /tmp/kubectl.yaml")
 					return out
 				}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
+			})
 
-				err = machine.SendFile("assets/suc.yaml", "./suc.yaml", "0770")
+			By("triggering an upgrade", func() {
+				suc := sucYAML(strings.ReplaceAll(containerImage, ":8h", ""), "8h")
+
+				err := ioutil.WriteFile("assets/generated.yaml", []byte(suc), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
+
+				err = machine.SendFile("assets/generated.yaml", "./suc.yaml", "0770")
+				Expect(err).ToNot(HaveOccurred())
+				fmt.Println(suc)
 
 				Eventually(func() string {
 					out, _ := kubectl("apply -f suc.yaml")
+					fmt.Println(out)
 					return out
-				}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
+				}, 900*time.Second, 10*time.Second).Should(ContainSubstring("created"))
 
 				Eventually(func() string {
 					out, _ := kubectl("get pods -A")
@@ -167,9 +184,13 @@ var _ = Describe("k3s upgrade test", Label("upgrade"), func() {
 				Eventually(func() string {
 					out, _ := kubectl("get pods -A")
 					fmt.Println(out)
-					version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
+					version, err := machine.SSHCommand("source /etc/os-release; echo $VERSION")
+					if err != nil || !strings.Contains(version, "c3OS") {
+						// If we met error, keep going with the Eventually
+						return currentVersion
+					}
 					return version
-				}, 20*time.Minute, 10*time.Second).Should(ContainSubstring("c3OS44"))
+				}, 20*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
 			})
 		})
 	})

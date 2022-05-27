@@ -12,37 +12,14 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
-var _ = Describe("c3os smoke", Label("smoke"), func() {
+var _ = Describe("c3os decentralized k8s test", Label("decentralized-k8s"), func() {
 	BeforeEach(func() {
 		machine.EventuallyConnects()
 	})
 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
-			machine.SSHCommand("sudo k3s kubectl get pods -A -o json > /run/pods.json")
-			machine.SSHCommand("sudo k3s kubectl get events -A -o json > /run/events.json")
-			machine.SSHCommand("sudo df -h > /run/disk")
-			machine.SSHCommand("sudo mount > /run/mounts")
-			machine.SSHCommand("sudo blkid > /run/blkid")
-
-			machine.GatherAllLogs(
-				[]string{
-					"edgevpn@c3os",
-					"c3os-agent",
-					"cos-setup-boot",
-					"cos-setup-network",
-					"c3os",
-					"k3s",
-				},
-				[]string{
-					"/var/log/edgevpn.log",
-					"/var/log/c3os-agent.log",
-					"/run/pods.json",
-					"/run/disk",
-					"/run/mounts",
-					"/run/blkid",
-					"/run/events.json",
-				})
+			gatherLogs()
 		}
 	})
 
@@ -125,7 +102,7 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 
 		It("has default image sizes", func() {
 			for _, p := range []string{"active.img", "passive.img"} {
-				out, _ := machine.SSHCommand(`sudo stat -c "%s" /run/initramfs/cos-state/cOS/` + p )
+				out, _ := machine.SSHCommand(`sudo stat -c "%s" /run/initramfs/cos-state/cOS/` + p)
 				Expect(out).Should(ContainSubstring("2097152000"))
 			}
 		})
@@ -166,9 +143,6 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 		})
 
 		It("propagate kubeconfig", func() {
-			if os.Getenv("FLAVOR") == "alpine" {
-				Skip("Skip on alpine")
-			}
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("c3os get-kubeconfig")
 				return out
@@ -182,9 +156,6 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 		})
 
 		It("has roles", func() {
-			if os.Getenv("FLAVOR") == "alpine" {
-				Skip("Skip on alpine")
-			}
 			uuid, _ := machine.SSHCommand("c3os uuid")
 			Expect(uuid).ToNot(Equal(""))
 			Eventually(func() string {
@@ -200,9 +171,6 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 		})
 
 		It("has machines with different IPs", func() {
-			if os.Getenv("FLAVOR") == "alpine" {
-				Skip("Skip on alpine")
-			}
 			Eventually(func() string {
 				out, _ := machine.SSHCommand(`curl http://localhost:8080/api/machines`)
 				return out
@@ -232,9 +200,6 @@ var _ = Describe("c3os smoke", Label("smoke"), func() {
 		})
 
 		It("upgrades to a specific version", func() {
-			if os.Getenv("FLAVOR") == "alpine" {
-				Skip("not working on alpine yet")
-			}
 			version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 
 			out, _ := machine.SSHCommand("sudo c3os upgrade v1.21.4-32")

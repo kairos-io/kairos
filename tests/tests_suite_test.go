@@ -66,3 +66,34 @@ func prepareVM() {
 		machine.Create(sshPort)
 	}
 }
+
+func gatherLogs() {
+	machine.Sudo("k3s kubectl get pods -A -o json > /run/pods.json")
+	machine.Sudo("k3s kubectl get events -A -o json > /run/events.json")
+	machine.Sudo("cat /proc/cmdline > /run/cmdline")
+	machine.Sudo("chmod 777 /run/events.json")
+
+	machine.Sudo("df -h > /run/disk")
+	machine.Sudo("mount > /run/mounts")
+	machine.Sudo("blkid > /run/blkid")
+
+	machine.GatherAllLogs(
+		[]string{
+			"edgevpn@c3os",
+			"c3os-agent",
+			"cos-setup-boot",
+			"cos-setup-network",
+			"c3os",
+			"k3s",
+		},
+		[]string{
+			"/var/log/edgevpn.log",
+			"/var/log/c3os-agent.log",
+			"/run/pods.json",
+			"/run/disk",
+			"/run/mounts",
+			"/run/blkid",
+			"/run/events.json",
+			"/run/cmdline",
+		})
+}
