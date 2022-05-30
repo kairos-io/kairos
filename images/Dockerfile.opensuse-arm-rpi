@@ -74,8 +74,12 @@ RUN zypper in -y \
     pigz \
     policycoreutils \
     procps \
-    python-azure-agent \
-    qemu-guest-agent \
+    sudo \
+    sysconfig \
+    sysconfig-netconfig \
+    sysvinit-tools \
+    wicked \
+    wicked-service \
     rng-tools \
     rsync \
     squashfs \
