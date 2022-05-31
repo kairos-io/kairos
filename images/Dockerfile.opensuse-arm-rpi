@@ -6,7 +6,7 @@ FROM golang as builder
 COPY ./ /work
 
 WORKDIR /work/cli
-RUN CGO_ENABLED=0 go build -o c3os
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o c3os
 
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
