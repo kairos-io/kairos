@@ -31,6 +31,18 @@ RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utili
 RUN zypper in -y \
     raspberrypi-eeprom \
     bcm43xx-firmware \
+    raspberrypi-firmware-dt \
+    raspberrypi-firmware \
+    kernel-firmware-usb-network \
+    kernel-firmware-serial \
+    kernel-firmware-realtek \
+    kernel-firmware-network \
+    kernel-firmware-iwlwifi \
+    kernel-firmware-brcm \
+    kernel-firmware-bluetooth \
+    kernel-firmware-atheros \
+    kernel-firmware-ath11k \
+    kernel-firmware-ath10k \
     wireless-tools \
     wpa_supplicant \
     iw \
@@ -59,7 +71,6 @@ RUN zypper in -y \
     issue-generator \
     jq \
     kernel-default \
-    kernel-firmware-all \
     less \
     lsscsi \
     lvm2 \
