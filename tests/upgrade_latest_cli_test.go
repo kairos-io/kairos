@@ -70,7 +70,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			out, err := machine.Sudo("c3os upgrade --force --image " + containerImage)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).To(ContainSubstring("Upgrade completed"))
-			Expect(out).To(ContainSubstring("Unpacking docker image: " + containerImage))
+			Expect(out).To(ContainSubstring(containerImage))
 
 			machine.Sudo("reboot")
 			machine.EventuallyConnects(750)
