@@ -121,7 +121,7 @@ jobs:
           tar -xvf elemental-v0.0.13-Linux-x86_64.tar.gz
           sudo cp elemental /usr/bin/elemental
           curl https://luet.io/install.sh | sudo sh
-          pushd cOS-toolkit
+          pushd elemental-toolkit
           mkdir build
           sudo -E ./images/arm-img-builder.sh --model ${{ matrix.model }} --docker-image ${{ steps.prep.outputs.current }} build/c3os-${{ matrix.flavor }}-$VERSION.img
           sudo xz -v build/c3os-${{ matrix.flavor }}-$VERSION.img
