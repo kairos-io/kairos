@@ -116,8 +116,8 @@ jobs:
           SIZE: "15200"
           DEFAULT_ACTIVE_SIZE: "2000"
         run: |
-          git clone https://github.com/rancher-sandbox/cOS-toolkit
-          curl -LO https://github.com/rancher-sandbox/elemental/releases/download/v0.0.13/elemental-v0.0.13-Linux-x86_64.tar.gz
+          git clone https://github.com/rancher/elemental-toolkit
+          curl -LO https://github.com/rancher/elemental-cli/releases/download/v0.0.13/elemental-v0.0.13-Linux-x86_64.tar.gz
           tar -xvf elemental-v0.0.13-Linux-x86_64.tar.gz
           sudo cp elemental /usr/bin/elemental
           curl https://luet.io/install.sh | sudo sh
