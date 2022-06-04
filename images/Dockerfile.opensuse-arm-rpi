@@ -95,6 +95,7 @@ RUN zypper in -y \
     rsync \
     squashfs \
     strace \
+    openssh \
     systemd \
     systemd-sysvinit \
     tar \
