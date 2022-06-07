@@ -2,9 +2,11 @@
 
 # C3os
 
-C3OS is a lightweight Kubernetes GNU/Linux [cOS](https://github.com/rancher-sandbox/cOS-toolkit) derivative that supports automatic node discovery, automatic role assignment and optionally VPN out of the box with no kubernetes networking configuration required. 
+C3OS is a lightweight Kubernetes-focused GNU/Linux derivative built with [Elemental-toolkit](https://github.com/rancher/elemental-toolkit) that optionally supports automatic node discovery, automatic role assignment and optionally VPN out of the box with no kubernetes networking configuration required. 
 
 C3OS can also create multi-nodes Kubernetes cluster with [k3s](https://k3s.io) that connects autonomously in a hybrid P2P mesh VPN which bridges nodes without any central server, also behind nat, or it can be just used standalone as a k3s server.
+
+C3OS is entirely backed up by community, It's Free and Open Source, under the Apache 2.0 License. Feel free to open issues or contribute with PRs!
 
 - No infrastructure is required. C3OS can be used to bootstrap a cluster entirely from the ground-up.
 - LAN, remote networks, multi-region/zones, NAT - No network configuration or opening port outside is required. Nodes will connect each other via holepunching and using hops wherever necessary.
@@ -19,8 +21,8 @@ Configuration and installation is done via **Decentralized Device Pairing**, **c
 c3OS have:
 - an Immutable layout
 - cloud-init support
-- P2P layer (which can be disabled)
-- Strong enphasis on automation - the only configuration which is required is to generate a network token
+- P2P hybrid layer (optional, which can be disabled)
+- Strong enphasis on automation - the only configuration which is required is to generate a network token (optional)
 - Embedded cluster DNS (optional)
 
 c3OS is composed of:

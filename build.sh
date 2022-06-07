@@ -18,5 +18,5 @@ docker run -v $PWD:/cOS \
            -v /var/run:/var/run \
            -i --rm quay.io/costoolkit/elemental:v0.0.15-8a78e6b --name $ISO --debug build-iso --date=false --local --overlay-iso /cOS/overlay/files-iso $IMAGE --output /cOS/
 
-# See: https://github.com/rancher-sandbox/elemental/issues/228
+# See: https://github.com/rancher/elemental-cli/issues/228
 sha256sum $ISO.iso > $ISO.iso.sha256

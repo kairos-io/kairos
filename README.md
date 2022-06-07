@@ -18,7 +18,7 @@
 
 <hr>
 
-C3OS is a lightweight Kubernetes-focused GNU/Linux [elemental](https://github.com/rancher/elemental-toolkit) derivative that optionally supports automatic node discovery, automatic role assignment and optionally VPN out of the box with no kubernetes networking configuration required. 
+C3OS is a lightweight Kubernetes-focused GNU/Linux derivative built with [Elemental-toolkit](https://github.com/rancher/elemental-toolkit) that optionally supports automatic node discovery, automatic role assignment and optionally VPN out of the box with no kubernetes networking configuration required. 
 
 C3OS can also create multi-nodes Kubernetes cluster with [k3s](https://k3s.io) that connects autonomously in a hybrid P2P mesh VPN which bridges nodes without any central server, also behind nat, or it can be just used standalone as a k3s server.
 
