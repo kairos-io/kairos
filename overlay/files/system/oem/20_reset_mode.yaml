@@ -1,0 +1,17 @@
+name: "Start reset on tty1"
+stages:
+    initramfs:
+     - name: "Starts c3os-reset"
+       if: |
+         cat /proc/cmdline | grep -q "c3os.reset"
+       commands:
+       - systemctl disable getty@tty1
+       - systemctl enable c3os-reset
+    # Starts installer on boot in Alpine and openRC based
+     - name: "Starts c3os-reset with openRC-based systems"
+       if: |
+         [ -f "/etc/inittab" ] && \
+         ( cat /proc/cmdline | grep -q "c3os.reset" )
+       commands:
+       - sed -i -e 's/tty1.*//g' /etc/inittab
+       - echo "tty1::respawn:/usr/bin/c3os reset" >> /etc/inittab

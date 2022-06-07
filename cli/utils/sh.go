@@ -2,6 +2,7 @@ package utils
 
 import (
 	"io/ioutil"
+	"os"
 	"os/exec"
 
 	"github.com/joho/godotenv"
@@ -21,4 +22,12 @@ func WriteEnv(envFile string, config map[string]string) error {
 	}
 
 	return godotenv.Write(env, envFile)
+}
+
+func Shell() *exec.Cmd {
+	cmd := exec.Command("/bin/sh")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd
 }

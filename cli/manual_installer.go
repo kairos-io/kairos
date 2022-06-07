@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	config "github.com/c3os-io/c3os/cli/config"
@@ -216,11 +214,7 @@ func interactiveInstall(spawnShell bool) error {
 	}
 
 	if spawnShell {
-		cmd := exec.Command("/bin/sh")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
-		return cmd.Run()
+		return utils.Shell().Run()
 	}
 	return err
 }

@@ -520,6 +520,21 @@ See also https://docs.c3os.io/after_install/recovery_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
 			},
+
+			{
+				Name:   "reset",
+				Action: reset,
+				Usage:  "Starts c3os reset mode",
+				Description: `
+Starts c3os reset mode, it will nuke completely the node data and restart fresh.
+Attention ! this will delete any persistent data on the node. It is equivalent to re-init the node right after the installation.
+
+In reset mode a the node will automatically reset
+
+See also https://docs.c3os.io/after_install/reset_mode/ for documentation.
+
+This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
+			},
 		},
 	}
 
