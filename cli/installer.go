@@ -30,6 +30,8 @@ func optsToArgs(options map[string]string) (res []string) {
 }
 
 func install(dir ...string) error {
+	tk := ""
+
 	// Reads config, and if present and offline is defined,
 	// runs the installation
 	cc, err := config.Scan(dir...)
@@ -45,10 +47,14 @@ func install(dir ...string) error {
 		}
 
 		return nil
+	} else if err == nil && cc.C3OS != nil && cc.C3OS.NetworkToken != "" {
+		tk = cc.C3OS.NetworkToken
 	}
 
 	utils.PrintBanner(banner)
-	tk := nodepair.GenerateToken()
+	if tk == "" {
+		tk = nodepair.GenerateToken()
+	}
 
 	pterm.DefaultBox.WithTitle("Installation").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
 		`Welcome to c3os!
