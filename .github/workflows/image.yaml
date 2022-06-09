@@ -48,6 +48,8 @@ jobs:
           if-no-files-found: error
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        env:
+          COSIGN_EXPERIMENTAL: 1
         run: | 
           docker push quay.io/c3os/c3os:${{ matrix.flavor }}-latest
           cosign sign quay.io/c3os/c3os:${{ matrix.flavor }}-latest
