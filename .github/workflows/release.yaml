@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
     strategy:
       fail-fast: false
       matrix:
@@ -22,6 +24,8 @@ jobs:
           git fetch --prune --unshallow
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
       - name: Release space from worker
         run: |
           sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
@@ -44,6 +48,7 @@ jobs:
         run: | 
           TAG=${GITHUB_REF##*/}
           docker push quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
+          cosign sign quay.io/c3os/c3os:${{ matrix.flavor }}-$TAG
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')

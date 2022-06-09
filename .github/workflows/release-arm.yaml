@@ -12,6 +12,8 @@ on:
 jobs:
   docker:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
     strategy:
       fail-fast: false
       matrix:
@@ -78,7 +80,8 @@ jobs:
         uses: docker/setup-qemu-action@master
         with:
           platforms: all
-
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
@@ -104,6 +107,11 @@ jobs:
             OS_NAME=${{ steps.versions.outputs.os_name }}
           push: true
           tags: ${{ steps.prep.outputs.tags }}
+      - name: Sign the images with GitHub OIDC Token
+        run: cosign sign ${TAGS}
+        env:
+          TAGS: ${{ steps.prep.outputs.tags }}
+          COSIGN_EXPERIMENTAL: 1
       - name: Export version
         run: |
              TAG=${GITHUB_REF##*/}
