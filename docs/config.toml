@@ -29,9 +29,9 @@ identifier = "matrix"
 url = "https://matrix.to/#/#c3os:matrix.org"
 weight = 1
 [[Languages.en.menu.shortcuts]]
-name = "<i class='fas fa-fw fa-bookmark'></i> cOS Documentation"
+name = "<i class='fas fa-fw fa-bookmark'></i> Element Documentation"
 identifier = "hugodoc"
-url = "https://rancher-sandbox.github.io/cos-toolkit-docs/docs"
+url = "https://rancher.github.io/elemental-toolkit/docs"
 weight = 20
 
 [outputs]

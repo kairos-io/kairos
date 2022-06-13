@@ -9,7 +9,7 @@ pre = "<b>- </b>"
 The c3os recovery mode can be used to recover a damaged system, or to regain access remotely (with assistance) to a machine which has been lost access to. The recovery mode is accessible only from the GRUB menu, from both the LiveCD and an installed system.
 
 {{% notice note %}}
-On installed system there are two recovery modes available during boot. Below it is described only how the c3os remote recovery works. The manual recovery entry has nothing special from the standard cOS recovery mode. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote access.
+On installed system there are two recovery modes available during boot. Below it is described only how the c3os remote recovery works. The manual recovery entry has nothing special from the standard Element recovery mode. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote access.
 {{% /notice %}}
 
 ## Boot into recovery mode
