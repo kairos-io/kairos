@@ -61,7 +61,7 @@ c3os:
   poweroff: false
 
 # Cloud init syntax to setup users. 
-# See https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/
+# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/
 stages:
    network:
      - name: "Setup users"
@@ -91,7 +91,7 @@ c3os:
   poweroff: false
 
 # Cloud init syntax to setup users. 
-# See https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/
+# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/
 stages:
    network:
      - name: "Setup users"

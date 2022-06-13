@@ -7,7 +7,7 @@ pre = "<b>- </b>"
 
 ## Kubernetes
 
-Upgrades can be triggered from Kubernetes with `system-upgrade-controller` installed in your cluster. [See the cOS documentation](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/getting-started/upgrading/#integration-with-system-upgrade-controller)
+Upgrades can be triggered from Kubernetes with `system-upgrade-controller` installed in your cluster. [See the Elemental-toolkit documentation](https://rancher.github.io/elemental-toolkit/docs/getting-started/upgrading/#integration-with-system-upgrade-controller)
 
 
 System upgrade controller needs to be installed in the cluster which is targeted for the upgrades, for example:
@@ -70,7 +70,7 @@ c3os upgrade <version>
 
 Use `--force` to force upgrading to avoid checking versions. All the available versions can be list with: `c3os upgrade list-releases`.
 
-It is possible altough to use the same commandset from `cOS`. So for example, the following works too:
+It is possible altough to use the same commandset from `Elemental-toolkit`. So for example, the following works too:
 
 ```bash
 elemental upgrade --no-verify --docker-image quay.io/c3os/c3os:opensuse-v1.21.4-22
@@ -78,4 +78,4 @@ elemental upgrade --no-verify --docker-image quay.io/c3os/c3os:opensuse-v1.21.4-
 
 c3os images are released on [quay.io](https://quay.io/repository/c3os/c3os).
 
-[See also the general cOS documentation](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/getting-started/upgrading/#upgrade-to-a-specific-container-image) which applies for `c3os` as well.
+[See also the general Elemental-toolkit documentation](https://rancher.github.io/elemental-toolkit/docs/getting-started/upgrading/#upgrade-to-a-specific-container-image) which applies for `c3os` as well.

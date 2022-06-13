@@ -50,7 +50,7 @@ If you are creating a new cluster, you need to create a new network token with t
 {{% /notice %}}
 
 
-The configuration config file is in [cloud-init](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/) syntax and you can customize it further to setup the machine behavior.
+The configuration config file is in [cloud-init](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/) syntax and you can customize it further to setup the machine behavior.
 
 ## Pair the machine
 

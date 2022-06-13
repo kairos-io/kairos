@@ -61,7 +61,7 @@ k3s-agent:
   # replace_args: true
 
 # Cloud init syntax to setup users. 
-# See https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/
+# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/
 stages:
    network:
      - name: "Setup users"
@@ -73,7 +73,7 @@ stages:
 
 ## Syntax
 
-`c3os` supports the standard cloud-init syntax and the extended one from the [cOS toolkit](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/reference/cloud_init/).
+`c3os` supports the standard cloud-init syntax and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/).
 
 Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/c3os-io/c3os/tree/master/examples). 
 

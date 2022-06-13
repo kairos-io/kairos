@@ -6,7 +6,7 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-`c3os` supports takeover installations, see also [the cOS docs](https://rancher-sandbox.github.io/cos-toolkit-docs/docs/getting-started/install/#installation-from-3rd-party-livecd-or-rescue-mediums) here are few summarized steps:
+`c3os` supports takeover installations, see also [the Elemental-toolkit docs](https://rancher.github.io/elemental-toolkit/docs/getting-started/install/#installation-from-3rd-party-livecd-or-rescue-mediums) here are few summarized steps:
 
 - From the Dedicated control panel (OVH, Hetzner, etc.), boot in rescue mode
 - [install docker](https://docs.docker.com/engine/install/debian/) and run for example:
