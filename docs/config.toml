@@ -29,7 +29,7 @@ identifier = "matrix"
 url = "https://matrix.to/#/#c3os:matrix.org"
 weight = 1
 [[Languages.en.menu.shortcuts]]
-name = "<i class='fas fa-fw fa-bookmark'></i> Element Documentation"
+name = "<i class='fas fa-fw fa-bookmark'></i> Elemental-toolkit Documentation"
 identifier = "hugodoc"
 url = "https://rancher.github.io/elemental-toolkit/docs"
 weight = 20
