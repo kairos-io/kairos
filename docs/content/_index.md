@@ -28,5 +28,5 @@ c3OS have:
 c3OS is composed of:
 - [k3s](https://k3s.io) as a Kubernetes distribution
 - [edgevpn](https://mudler.github.io/edgevpn) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster.
-- [element-toolkit](https://rancher.github.io/elemental-toolkit/docs/) as a fundament to build the Linux derivative. Indeed, any `Element` docs applies to `c3os` as well.
+- [element-toolkit](https://rancher.github.io/elemental-toolkit/docs/) as a fundament to build the Linux derivative. Indeed, any `Elemental` docs applies to `c3os` as well.
 - [nohang](https://github.com/hakavlad/nohang) A sophisticated low memory handler for Linux 

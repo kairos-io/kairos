@@ -73,7 +73,7 @@ stages:
 
 ## Syntax
 
-`c3os` supports the standard cloud-init syntax and the extended one from the [Element toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/).
+`c3os` supports the standard cloud-init syntax and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/).
 
 Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/c3os-io/c3os/tree/master/examples). 
 
