@@ -99,26 +99,28 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 				kubectl := func(s string) (string, error) {
 					return machine.Sudo("k3s kubectl " + s)
 				}
-
-				resp, err := http.Get("https://github.com/rancher/system-upgrade-controller/releases/download/v0.9.1/system-upgrade-controller.yaml")
-				Expect(err).ToNot(HaveOccurred())
-				defer resp.Body.Close()
-				data := bytes.NewBuffer([]byte{})
-
-				_, err = io.Copy(data, resp.Body)
-				Expect(err).ToNot(HaveOccurred())
-
 				temp, err := ioutil.TempFile("", "temp")
 				Expect(err).ToNot(HaveOccurred())
 
 				defer os.RemoveAll(temp.Name())
-				err = ioutil.WriteFile(temp.Name(), data.Bytes(), os.ModePerm)
-				Expect(err).ToNot(HaveOccurred())
-
-				err = machine.SendFile(temp.Name(), "/tmp/kubectl.yaml", "0770")
-				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(func() string {
+					// Re-attempt to download in case it fails
+					resp, err := http.Get("https://github.com/rancher/system-upgrade-controller/releases/download/v0.9.1/system-upgrade-controller.yaml")
+					Expect(err).ToNot(HaveOccurred())
+					defer resp.Body.Close()
+					data := bytes.NewBuffer([]byte{})
+
+					_, err = io.Copy(data, resp.Body)
+					Expect(err).ToNot(HaveOccurred())
+
+					err = ioutil.WriteFile(temp.Name(), data.Bytes(), os.ModePerm)
+					Expect(err).ToNot(HaveOccurred())
+
+					err = machine.SendFile(temp.Name(), "/tmp/kubectl.yaml", "0770")
+					Expect(err).ToNot(HaveOccurred())
+
+					kubectl("apply -f /tmp/kubectl.yaml")
 					out, _ := kubectl("apply -f /tmp/kubectl.yaml")
 					return out
 				}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
