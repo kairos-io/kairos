@@ -54,6 +54,10 @@ func Scan(dir ...string) (c *Config, err error) {
 	}
 
 	for _, f := range files {
+		if fileSize(f) > 1.0 {
+			fmt.Println("warning: Skipping file ", f, "as exceeds 1 MB in size")
+			continue
+		}
 		b, err := ioutil.ReadFile(f)
 		if err == nil {
 			yaml.Unmarshal(b, c)
@@ -66,6 +70,28 @@ func Scan(dir ...string) (c *Config, err error) {
 	return c, nil
 }
 
+func fileSize(f string) float64 {
+	file, err := os.Open(f)
+	if err != nil {
+		return 0
+	}
+	defer file.Close()
+
+	stat, err := file.Stat()
+	if err != nil {
+		return 0
+	}
+
+	var bytes int64
+	bytes = stat.Size()
+
+	var kilobytes int64
+	kilobytes = (bytes / 1024)
+
+	var megabytes float64
+	megabytes = (float64)(kilobytes / 1024) // cast to type float64
+	return megabytes
+}
 func listFiles(dir string) ([]string, error) {
 	content := []string{}
 

@@ -502,7 +502,7 @@ See also https://docs.c3os.io/installation/device_pairing/ for documentation.
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 				Aliases: []string{"i"},
 				Action: func(c *cli.Context) error {
-					return install("/oem", "/usr/local/cloud-config")
+					return install("/oem", "/usr/local/cloud-config", "/run/initramfs/live")
 				},
 			},
 			{
