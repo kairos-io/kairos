@@ -5,6 +5,6 @@ Wants=network.target
 [Service]
 Restart=on-failure
 RestartSec=5s
-ExecStart=/usr/bin/c3os agent
+ExecStart=/usr/bin/c3os-agent start
 [Install]
 WantedBy=multi-user.target

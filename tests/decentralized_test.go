@@ -144,7 +144,7 @@ var _ = Describe("c3os decentralized k8s test", Label("decentralized-k8s"), func
 
 		It("propagate kubeconfig", func() {
 			Eventually(func() string {
-				out, _ := machine.SSHCommand("c3os get-kubeconfig")
+				out, _ := machine.SSHCommand("c3os-agent get-kubeconfig")
 				return out
 			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
@@ -156,10 +156,10 @@ var _ = Describe("c3os decentralized k8s test", Label("decentralized-k8s"), func
 		})
 
 		It("has roles", func() {
-			uuid, _ := machine.SSHCommand("c3os uuid")
+			uuid, _ := machine.SSHCommand("c3os-agent uuid")
 			Expect(uuid).ToNot(Equal(""))
 			Eventually(func() string {
-				out, _ := machine.SSHCommand("c3os role list")
+				out, _ := machine.SSHCommand("c3os-agent role list")
 				return out
 			}, 900*time.Second, 10*time.Second).Should(And(
 				ContainSubstring(uuid),
@@ -202,7 +202,7 @@ var _ = Describe("c3os decentralized k8s test", Label("decentralized-k8s"), func
 		It("upgrades to a specific version", func() {
 			version, _ := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 
-			out, _ := machine.SSHCommand("sudo c3os upgrade v1.21.4-32")
+			out, _ := machine.SSHCommand("sudo c3os-agent upgrade v1.21.4-32")
 			Expect(out).To(ContainSubstring("Upgrade completed"))
 
 			machine.SSHCommand("sudo sync")

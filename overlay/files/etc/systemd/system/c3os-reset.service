@@ -8,6 +8,6 @@ StandardOutput=tty
 LimitNOFILE=49152
 TTYPath=/dev/tty1
 RemainAfterExit=yes
-ExecStart=/usr/bin/c3os reset
+ExecStart=/usr/bin/c3os-agent reset
 [Install]
 WantedBy=multi-user.target

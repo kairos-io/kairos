@@ -6,8 +6,10 @@ FROM golang as builder
 
 COPY ./ /work
 
-WORKDIR /work/cli
-RUN CGO_ENABLED=0 go build -o c3os
+WORKDIR /work
+RUN CGO_ENABLED=0 go build -o c3os ./cmd/cli
+RUN CGO_ENABLED=0 go build -o c3os-agent ./cmd/agent
+RUN CGO_ENABLED=0 go build -o agent-provider-c3os ./cmd/provider
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
@@ -176,4 +178,6 @@ ARG OS_LABEL=alpine-latest
 RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
     rm /usr/lib/os-release.tmpl
 
-COPY --from=builder /work/cli/c3os /usr/bin/c3os
+COPY --from=builder /work/c3os /usr/bin/c3os
+COPY --from=builder /work/c3os-agent /usr/bin/c3os-agent
+COPY --from=builder /work/agent-provider-c3os /usr/bin/agent-provider-c3os
