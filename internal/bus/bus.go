@@ -25,9 +25,9 @@ type Bus struct {
 }
 
 func (b *Bus) Initialize() {
-	b.Manager.Autoload("agent-provider").Register()
+	b.Manager.Autoload("agent-provider", "/system/providers").Register()
 
-	for i, _ := range b.Manager.Events {
+	for i := range b.Manager.Events {
 		e := b.Manager.Events[i]
 		b.Manager.Response(e, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 			if os.Getenv("BUS_DEBUG") == "true" {
