@@ -26,6 +26,18 @@ builds:
     main: ./cmd/agent/
     id: "c3os-agent"
     binary: "c3os-agent"
+  - ldflags:
+      - -w -s
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - 386
+    main: ./cmd/provider/
+    id: "agent-provider-c3os"
+    binary: "agent-provider-c3os"
 source:
   enabled: true
   name_template: '{{ .ProjectName }}-{{ .Tag }}-source'
