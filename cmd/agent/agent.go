@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"syscall"
 
 	"github.com/c3os-io/c3os/internal/bus"
+	"github.com/c3os-io/c3os/internal/utils"
 	events "github.com/c3os-io/c3os/pkg/bus"
 	config "github.com/c3os-io/c3os/pkg/config"
 	"github.com/nxadm/tail"
@@ -23,7 +25,6 @@ func agent(apiAddress string, dir []string, force bool) error {
 		return err
 	}
 
-	//	l := logging.Logger("c3os")
 	f, err := ioutil.TempFile(os.TempDir(), "c3os")
 	if err != nil {
 		return err
@@ -38,6 +39,12 @@ func agent(apiAddress string, dir []string, force bool) error {
 	if err != nil {
 		return err
 	}
+
+	defer os.RemoveAll(f.Name())
+
+	utils.OnSignal(func() {
+		os.RemoveAll(f.Name())
+	}, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		for line := range t.Lines {

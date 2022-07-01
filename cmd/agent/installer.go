@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	events "github.com/c3os-io/c3os/pkg/bus"
@@ -34,6 +35,13 @@ func optsToArgs(options map[string]string) (res []string) {
 }
 
 func install(dir ...string) error {
+	utils.OnSignal(func() {
+		svc, err := machine.Getty(1)
+		if err == nil {
+			svc.Start()
+		}
+	}, syscall.SIGINT, syscall.SIGTERM)
+
 	tk := ""
 	r := map[string]string{}
 	bus.Manager.Response(events.EventChallenge, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
@@ -78,7 +86,6 @@ func install(dir ...string) error {
 		qr.Print(tk)
 	}
 
-	// TODO: handle CTRL+C signals
 	if _, err := bus.Manager.Publish(events.EventInstall, events.InstallPayload{Token: tk, Config: cc.String()}); err != nil {
 		return err
 	}
@@ -96,6 +103,7 @@ func install(dir ...string) error {
 	pterm.Info.Println("Installation completed, press enter to go back to the shell.")
 
 	utils.Prompt("")
+
 	// give tty1 back
 	svc, err := machine.Getty(1)
 	if err == nil {
