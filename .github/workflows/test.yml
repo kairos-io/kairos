@@ -22,6 +22,13 @@ jobs:
             go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
             go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
             go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          distribution: goreleaser
+          version: latest
+          args: build --rm-dist --skip-validate --snapshot
       - name: Run tests
         run: |
           ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd
@@ -29,3 +36,8 @@ jobs:
         uses: codecov/codecov-action@v2
         with:
           file: ./coverage.out
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build.zip
+          path: |
+            dist/*
