@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/machine"
 	"github.com/c3os-io/c3os/internal/utils"
@@ -16,9 +17,9 @@ import (
 
 func reset(c *cli.Context) error {
 
-	utils.PrintBanner(banner)
+	cmd.PrintBranding(banner)
 
-	cmd.PrintTextFromFile("/etc/c3os/reset_text", "Reset")
+	cmd.PrintTextFromFile(c3os.BrandingFile("reset_text"), "Reset")
 
 	// We don't close the lock, as none of the following actions are expected to return
 	lock := sync.Mutex{}

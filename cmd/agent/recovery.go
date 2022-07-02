@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/utils"
 	config "github.com/c3os-io/c3os/pkg/config"
@@ -63,7 +64,7 @@ func startRecoveryService(ctx context.Context, token, name, address, loglevel st
 
 func recovery(c *cli.Context) error {
 
-	utils.PrintBanner(banner)
+	cmd.PrintBranding(banner)
 	tk := nodepair.GenerateToken()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -73,7 +74,7 @@ func recovery(c *cli.Context) error {
 
 	startRecoveryService(ctx, tk, serviceUUID, recoveryAddr, "fatal")
 
-	cmd.PrintTextFromFile("/etc/c3os/recovery_text", "Recovery")
+	cmd.PrintTextFromFile(c3os.BrandingFile("recovery_text"), "Recovery")
 
 	time.Sleep(5 * time.Second)
 

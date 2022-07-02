@@ -11,11 +11,12 @@ import (
 	"time"
 
 	events "github.com/c3os-io/c3os/pkg/bus"
+	config "github.com/c3os-io/c3os/pkg/config"
 
 	"github.com/c3os-io/c3os/internal/bus"
+	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/utils"
-	config "github.com/c3os-io/c3os/pkg/config"
 
 	machine "github.com/c3os-io/c3os/internal/machine"
 	qr "github.com/mudler/go-nodepair/qrcode"
@@ -76,9 +77,9 @@ func install(dir ...string) error {
 		return err
 	}
 
-	utils.PrintBanner(banner)
+	cmd.PrintBranding(banner)
 
-	cmd.PrintTextFromFile("/etc/c3os/install_text", "Installation")
+	cmd.PrintTextFromFile(c3os.BrandingFile("install_text"), "Installation")
 
 	time.Sleep(5 * time.Second)
 

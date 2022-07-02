@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/utils"
 	config "github.com/c3os-io/c3os/pkg/config"
 	"github.com/erikgeiser/promptkit/textinput"
@@ -48,7 +49,7 @@ const (
 )
 
 func interactiveInstall(spawnShell bool) error {
-	utils.PrintBanner(banner)
+	cmd.PrintBranding(banner)
 	pterm.DefaultBox.WithTitle("Installation").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
 		`Interactive installation. Documentation is available at https://docs.c3os.io.`)
 
