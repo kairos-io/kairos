@@ -14,4 +14,4 @@ stages:
          ( cat /proc/cmdline | grep -q "c3os.reset" )
        commands:
        - sed -i -e 's/tty1.*//g' /etc/inittab
-       - echo "tty1::respawn:/usr/bin/c3os reset" >> /etc/inittab
+       - echo "tty1::respawn:/usr/bin/c3os-agent reset" >> /etc/inittab

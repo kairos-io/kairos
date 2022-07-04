@@ -59,13 +59,13 @@ Upgrades can be triggered manually as well from the nodes.
 To upgrade to latest available version, run from a shell of a cluster node:
 
 ```bash
-c3os upgrade
+c3os-agent upgrade
 ```
 
 To specify a version, just run 
 
 ```bash
-c3os upgrade <version>
+c3os-agent upgrade <version>
 ```
 
 Use `--force` to force upgrading to avoid checking versions. All the available versions can be list with: `c3os upgrade list-releases`.

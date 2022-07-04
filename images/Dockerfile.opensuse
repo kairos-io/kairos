@@ -5,8 +5,11 @@ FROM golang as builder
 
 COPY ./ /work
 
-WORKDIR /work/cli
-RUN CGO_ENABLED=0 go build -o c3os
+WORKDIR /work
+RUN apt-get update && apt-get install -y upx
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o c3os ./cmd/cli && upx c3os
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o c3os-agent ./cmd/agent && upx c3os-agent
+RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o agent-provider-c3os ./cmd/provider && upx agent-provider-c3os
 
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 
@@ -24,7 +27,9 @@ ENV COSIGN_REPOSITORY=raccos/releases-teal
 # Skip this repo artifacts verify as they are not signed
 ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 
-COPY --from=builder /work/cli/c3os /usr/bin/c3os
+COPY --from=builder /work/c3os /usr/bin/c3os
+COPY --from=builder /work/c3os-agent /usr/bin/c3os-agent
+COPY --from=builder /work/agent-provider-c3os /usr/bin/agent-provider-c3os
 
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && zypper ref
 
