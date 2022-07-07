@@ -1,0 +1,43 @@
+name: Unit tests
+on:
+  pull_request:
+  push:
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.18'
+      - name: Deps
+        run: |
+            go mod download
+            go get github.com/onsi/gomega/...
+            go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
+            go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
+            go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
+            go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+      -
+        name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          distribution: goreleaser
+          version: latest
+          args: build --rm-dist --skip-validate --snapshot
+      - name: Run tests
+        run: |
+          ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd
+      - name: Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          file: ./coverage.out
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build.zip
+          path: |
+            dist/*

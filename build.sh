@@ -20,7 +20,7 @@ docker build --build-arg C3OS_VERSION=$C3OS_VERSION \
 docker run -v $PWD:/cOS \
            -v /var/run:/var/run \
            -e https_proxy -e http_proxy -e no_proxy \
-           -i --rm quay.io/costoolkit/elemental:v0.0.15-8a78e6b --name $ISO --debug build-iso --date=false --local --overlay-iso /cOS/overlay/files-iso $IMAGE --output /cOS/
+           -i --rm quay.io/costoolkit/elemental:v0.0.15-8a78e6b --repo quay.io/costoolkit/releases-teal --name $ISO --debug build-iso --date=false --local --overlay-iso /cOS/overlay/files-iso $IMAGE --output /cOS/
 
 # See: https://github.com/rancher/elemental-cli/issues/228
 sha256sum $ISO.iso > $ISO.iso.sha256

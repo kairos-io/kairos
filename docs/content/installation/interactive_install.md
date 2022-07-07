@@ -26,5 +26,5 @@ A boot splash screen will appear, and right after a prompt, asking for installat
 After entering all the details, the installation will start, returning finally at the shell.
 
 {{% notice note %}}
-The interactive installer can be also started manually with `c3os interactive-install` from the LiveCD.
+The interactive installer can be also started manually with `c3os-agent interactive-install` from the LiveCD.
 {{% /notice %}}

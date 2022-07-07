@@ -11,7 +11,7 @@ stages:
             cat /proc/cmdline | grep -q "nodepair.enable"
        commands:
        - sed -i -e 's/tty1.*//g' /etc/inittab
-       - echo "tty1::respawn:/usr/bin/c3os install" >> /etc/inittab
+       - echo "tty1::respawn:/usr/bin/c3os-agent install" >> /etc/inittab
      - if: |
             cat /proc/cmdline | grep -q "interactive-install"
        commands:
@@ -22,4 +22,4 @@ stages:
             cat /proc/cmdline | grep -q "interactive-install"
        commands:
        - sed -i -e 's/tty1.*//g' /etc/inittab
-       - echo "tty1::respawn:/usr/bin/c3os interactive-install --shell" >> /etc/inittab
+       - echo "tty1::respawn:/usr/bin/c3os-agent interactive-install --shell" >> /etc/inittab

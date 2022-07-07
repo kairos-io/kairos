@@ -1,0 +1,9 @@
+Welcome to c3os recovery mode!
+p2p device recovery mode is starting.
+A QR code with a generated network token will be displayed below that can be used to connect 
+over with "c3os bridge --qr-code-image /path/to/image.jpg" from another machine, 
+further instruction will appear on the bridge CLI to connect over via SSH.
+IF the qrcode is not displaying correctly,
+try booting with another vga option from the boot cmdline (e.g. vga=791).
+
+Press any key to abort recovery. To restart the process run 'c3os recovery'.

@@ -1,0 +1,11 @@
+Welcome to c3os!
+p2p device installation enrollment is starting.
+A QR code will be displayed below. 
+In another machine, run "c3os register" with the QR code visible on screen,
+or "c3os register <file>" to register the machine from a photo.
+IF the qrcode is not displaying correctly,
+try booting with another vga option from the boot cmdline (e.g. vga=791).
+
+Press any key to abort pairing. To restart run 'c3os install'.
+
+Starting in 5 seconds...
