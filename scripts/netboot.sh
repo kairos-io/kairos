@@ -4,8 +4,6 @@
 ISO=$1
 OUTPUT_NAME=$2
 
-zypper in -y cdrtools
-
 isoinfo -x /rootfs.squashfs -R -i $ISO > $OUTPUT_NAME.squashfs
 isoinfo -x /boot/kernel.xz -R -i $ISO > $OUTPUT_NAME-kernel
 isoinfo -x /boot/rootfs.xz -R -i $ISO > $OUTPUT_NAME-initrd

@@ -1,33 +1,9 @@
-ARG LUET_VERSION=0.19.2
 ARG BASE_IMAGE=ubuntu:20.04
-
-FROM golang as builder
-
-COPY ./ /work
-
-WORKDIR /work
-RUN bash images/build.sh
-
-FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
-ARG C3OS_VERSION
 
-ARG ARCH=amd64
-ENV ARCH=${ARCH}
-# Enable cosign keyless verify
-# Temporary disable
-ENV COSIGN_EXPERIMENTAL=0
-# Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-orange
-# Skip this repo artifacts verify as they are not signed
-ENV COSIGN_SKIP=".*quay.io/c3os/.*"
 ENV DEBIAN_FRONTEND=noninteractive
-
-COPY --from=builder /work/c3os /usr/bin/c3os
-COPY --from=builder /work/c3os-agent /usr/bin/c3os-agent
-COPY --from=builder /work/agent-provider-c3os /usr/bin/agent-provider-c3os
 
 RUN apt update
 RUN apt install -y software-properties-common
@@ -58,25 +34,7 @@ RUN apt install -y \
 	haveged \
 	rsync \
         linux-image-generic && apt-get clean
-# Copy the luet config file pointing to the upgrade repository
-COPY repositories/repositories.yaml.ubuntu /etc/luet/luet.yaml
 
-# Copy luet from the official images
-COPY --from=luet /usr/bin/luet /usr/bin/luet
-
-# Install cosign packages
-RUN luet install -y meta/cos-verify
-
-RUN luet install -y \
-       meta/cos-core \
-       utils/edgevpn \
-       cloud-config/recovery \
-       cloud-config/live \
-       cloud-config/rootfs \
-       cloud-config/network \
-       cloud-config/boot-assessment \
-       utils/k9s \
-       utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
 RUN curl -sfL https://get.k3s.io > installer.sh
@@ -89,7 +47,6 @@ RUN systemctl enable ssh
 RUN systemctl enable NetworkManager.service
 RUN echo "auto lo" > /etc/network/interfaces
 RUN echo "iface lo inet loopback" >> /etc/network/interfaces
-COPY overlay/files/ /
 
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
@@ -97,18 +54,3 @@ RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 # Setup auto network on ubuntu
 RUN sed -i 's/managed=false/managed=true/g' /etc/NetworkManager/NetworkManager.conf
 RUN touch /etc/NetworkManager/conf.d/10-globally-managed-devices.conf
-
-RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-    ln -sf "${kernel#/boot/}" /boot/vmlinuz
-RUN kernel=$(ls /lib/modules | head -n1) && \
-    dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
-    ln -sf "initrd-${kernel}" /boot/initrd
-RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
-
-ARG OS_NAME=c3OS
-ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
-ARG OS_REPO=quay.io/mudler/c3os
-ARG OS_LABEL=latest
-
-RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
-    rm /usr/lib/os-release.tmpl

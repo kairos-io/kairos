@@ -1,32 +1,7 @@
-ARG LUET_VERSION=0.22.7-1
 ARG BASE_IMAGE=alpine
-
-FROM golang as builder
-
-COPY ./ /work
-
-WORKDIR /work
-RUN bash images/build.sh
-
-FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
-ARG C3OS_VERSION
-
-ARG ARCH=arm64
-ENV ARCH=${ARCH}
-# Enable cosign keyless verify
-# Temporary disable
-ENV COSIGN_EXPERIMENTAL=0
-# Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-teal
-# Skip this repo artifacts verify as they are not signed
-ENV COSIGN_SKIP=".*quay.io/c3os/.*"
-
-COPY --from=builder /work/c3os /usr/bin/c3os
-COPY --from=builder /work/c3os-agent /usr/bin/c3os-agent
-COPY --from=builder /work/agent-provider-c3os /usr/bin/agent-provider-c3os
 
 RUN apk --no-cache add  \
       grub \
@@ -127,39 +102,12 @@ RUN rc-update add sshd boot && \
     rc-update add openntpd boot && \
     rc-update add fail2ban
 
-# Copy the luet config file pointing to the upgrade repository
-COPY repositories/repositories.yaml /etc/luet/luet.yaml
-
-# Copy luet from the official images
-COPY --from=luet /usr/bin/luet /usr/bin/luet
-
-# Install cosign packages
-RUN luet install -y meta/cos-verify
-
-RUN luet install -y \
-       meta/cos-core \
-       utils/edgevpn \
-       system-openrc/cos-setup \
-       cloud-config/recovery \
-       cloud-config/boot-assessment \
-       cloud-config/live \
-       cloud-config/network \
-       cloud-config/rootfs \
-       utils/k9s \
-       container/kubectl \
-       system/kernel \
-       system/dracut-initrd \
-       utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
 RUN curl -sfL https://get.k3s.io > installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
-
-COPY overlay/files/ /
-COPY overlay/files-alpine/ /
-COPY overlay/files-opensuse-arm-rpi/ /
 
 RUN mkdir -p /etc/runlevels/default && \
       ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
@@ -176,12 +124,3 @@ RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
 # Drop env files from k3s as we will generate them
 RUN rm -rf /etc/rancher/k3s/k3s.env /etc/rancher/k3s/k3s-agent.env && touch /etc/rancher/k3s/.keep
 
-RUN ln -sf Image /boot/vmlinuz
-
-ARG OS_NAME=c3OS
-ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
-ARG OS_REPO=quay.io/c3os/c3os
-ARG OS_LABEL=latest
-
-RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
-    rm /usr/lib/os-release.tmpl

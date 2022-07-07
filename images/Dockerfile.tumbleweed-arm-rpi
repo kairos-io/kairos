@@ -1,32 +1,8 @@
-ARG LUET_VERSION=0.22.7-1
+
 ARG BASE_IMAGE=opensuse/tumbleweed
 
-FROM golang as builder
-
-COPY ./ /work
-
-WORKDIR /work
-RUN bash images/build.sh
-
-FROM quay.io/luet/base:$LUET_VERSION AS luet
-
-FROM $BASE_IMAGE
 ARG K3S_VERSION
-ARG C3OS_VERSION
-
-ARG ARCH=arm64
-ENV ARCH=${ARCH}
-# Enable cosign keyless verify
-# Temporary disable
-ENV COSIGN_EXPERIMENTAL=0
-# Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-green
-# Skip this repo artifacts verify as they are not signed
-ENV COSIGN_SKIP=".*quay.io/c3os/.*"
-
-COPY --from=builder /work/c3os /usr/bin/c3os
-COPY --from=builder /work/c3os-agent /usr/bin/c3os-agent
-COPY --from=builder /work/agent-provider-c3os /usr/bin/agent-provider-c3os
+FROM $BASE_IMAGE
 
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
 
@@ -90,44 +66,9 @@ RUN zypper in -y \
     vim \
     which && zypper cc
 
-# Copy the luet config file pointing to the upgrade repository
-COPY repositories/repositories.yaml /etc/luet/luet.yaml
-
-# Copy luet from the official images
-COPY --from=luet /usr/bin/luet /usr/bin/luet
-
-# Install cosign packages
-RUN luet install -y meta/cos-verify
-
-RUN luet install -y \
-       meta/cos-core \
-       utils/edgevpn \
-       cloud-config/recovery \
-       cloud-config/live \
-       cloud-config/network \
-       cloud-config/rootfs \
-       cloud-config/boot-assessment \
-       utils/k9s \
-       container/kubectl \
-       utils/nerdctl && luet cleanup
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
 RUN curl -sfL https://get.k3s.io > installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
-
-COPY overlay/files/ /
-COPY overlay/files-opensuse-arm-rpi/ /
-
-RUN mkinitrd
-
-RUN ln -sf Image /boot/vmlinuz
-
-ARG OS_NAME=c3OS
-ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
-ARG OS_REPO=quay.io/c3os/c3os
-ARG OS_LABEL=latest
-
-RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
-    rm /usr/lib/os-release.tmpl

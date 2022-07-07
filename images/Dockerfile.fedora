@@ -1,32 +1,7 @@
-ARG LUET_VERSION=0.19.2
 ARG BASE_IMAGE=fedora:33
-
-FROM golang as builder
-
-COPY ./ /work
-
-WORKDIR /work
-RUN bash images/build.sh
-
-FROM quay.io/luet/base:$LUET_VERSION AS luet
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
-ARG C3OS_VERSION
-
-ARG ARCH=amd64
-ENV ARCH=${ARCH}
-# Enable cosign keyless verify
-# Temporary disable
-ENV COSIGN_EXPERIMENTAL=0
-# Repo containing signatures
-ENV COSIGN_REPOSITORY=raccos/releases-blue
-# Skip this repo artifacts verify as they are not signed
-ENV COSIGN_SKIP=".*quay.io/c3os/.*"
-
-COPY --from=builder /work/c3os /usr/bin/c3os
-COPY --from=builder /work/c3os-agent /usr/bin/c3os-agent
-COPY --from=builder /work/agent-provider-c3os /usr/bin/agent-provider-c3os
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 RUN dnf install -y \
@@ -58,49 +33,9 @@ RUN dnf install -y \
     grub2-efi-x64-modules \
     rsync && dnf clean all
 
-# Copy the luet config file pointing to the upgrade repository
-COPY repositories/repositories.yaml.fedora /etc/luet/luet.yaml
-
-# Copy luet from the official images
-COPY --from=luet /usr/bin/luet /usr/bin/luet
-
-# Install cosign packages
-RUN luet install -y meta/cos-verify
-
-RUN luet install -y \
-       meta/cos-core \
-       utils/edgevpn \
-       utils/k9s \
-       utils/nerdctl \
-       cloud-config/recovery \
-       cloud-config/boot-assessment \
-       cloud-config/live \
-       cloud-config/network \
-       cloud-config/rootfs \
-       system/kernel \
-       system/dracut-initrd \
-       && luet cleanup
-
 ENV INSTALL_K3S_VERSION=${K3S_VERSION}
 ENV INSTALL_K3S_BIN_DIR="/usr/bin"
 RUN curl -sfL https://get.k3s.io > installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
 RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
 RUN rm -rf installer.sh
-
-COPY overlay/files/ /
-
-# RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-#     ln -sf "${kernel#/boot/}" /boot/vmlinuz
-# RUN kernel=$(ls /lib/modules | head -n1) && \
-#     dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
-#     ln -sf "initrd-${kernel}" /boot/initrd
-# RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
-
-ARG OS_NAME=c3OS
-ARG OS_VERSION=${K3S_VERSION}${C3OS_VERSION}
-ARG OS_REPO=quay.io/mudler/c3os
-ARG OS_LABEL=latest
-
-RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
-    rm /usr/lib/os-release.tmpl

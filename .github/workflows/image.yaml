@@ -39,6 +39,8 @@ jobs:
           IMAGE: quay.io/c3os/c3os:${{ matrix.flavor }}-latest
         run: |
           bash build.sh
+          sudo mv build/* .
+          sudo rm -rf build
       - uses: actions/upload-artifact@v2
         with:
           name: c3os-${{ matrix.flavor }}.iso.zip
