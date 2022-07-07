@@ -43,6 +43,10 @@ jobs:
           mkdir release
           mv *.iso release/
           mv *.sha256 release/
+          mv *.ipxe release/
+          mv *.squashfs release/
+          mv *-initrd release/
+          mv *-kernel release/
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')
         env:

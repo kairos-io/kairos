@@ -45,6 +45,17 @@ func install(dir ...string) error {
 
 	tk := ""
 	r := map[string]string{}
+
+	mergeOption := func(cloudConfig string) {
+		c := &config.Config{}
+		yaml.Unmarshal([]byte(cloudConfig), c)
+		for k, v := range c.Options {
+			if k == "cc" {
+				continue
+			}
+			r[k] = v
+		}
+	}
 	bus.Manager.Response(events.EventChallenge, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		tk = r.Data
 	})
@@ -57,12 +68,13 @@ func install(dir ...string) error {
 
 	// Reads config, and if present and offline is defined,
 	// runs the installation
-	cc, err := config.Scan(dir...)
+	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine)
 	if err == nil && cc.C3OS != nil && cc.C3OS.Offline {
-		runInstall(map[string]string{
-			"device": cc.C3OS.Device,
-			"cc":     cc.String(),
-		})
+		r["cc"] = cc.String()
+		r["device"] = cc.C3OS.Device
+		mergeOption(cc.String())
+
+		runInstall(r)
 
 		svc, err := machine.Getty(1)
 		if err == nil {
@@ -95,6 +107,22 @@ func install(dir ...string) error {
 		return errors.New("no configuration, stopping installation")
 	}
 
+	cloudConfig, exists := r["cc"]
+	mergeOption(cloudConfig)
+
+	ccData := map[string]interface{}{}
+	yaml.Unmarshal([]byte(cc.String()), &ccData)
+	if exists {
+		yaml.Unmarshal([]byte(cloudConfig), &ccData)
+	}
+
+	out, err := yaml.Marshal(ccData)
+	if err != nil {
+		return fmt.Errorf("failed marshalling cc: %w", err)
+	}
+
+	r["cc"] = string(out)
+
 	pterm.Info.Println("Starting installation")
 	utils.SH("elemental run-stage c3os-install.pre")
 	bus.RunHookScript("/usr/bin/c3os-agent.install.pre.hook")
@@ -116,6 +144,7 @@ func install(dir ...string) error {
 
 func runInstall(options map[string]string) error {
 	f, _ := ioutil.TempFile("", "xxxx")
+	defer os.RemoveAll(f.Name())
 
 	device, ok := options["device"]
 	if !ok {

@@ -6,10 +6,7 @@ FROM golang as builder
 COPY ./ /work
 
 WORKDIR /work
-RUN apt-get update && apt-get install -y upx
-RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o c3os ./cmd/cli && upx c3os
-RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o c3os-agent ./cmd/agent && upx c3os-agent
-RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o agent-provider-c3os ./cmd/provider && upx agent-provider-c3os
+RUN bash images/build.sh
 
 FROM quay.io/luet/base:$LUET_VERSION AS luet
 

@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 
+	retry "github.com/avast/retry-go"
+	"github.com/c3os-io/c3os/internal/machine"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v2"
@@ -33,25 +36,43 @@ type K3s struct {
 }
 
 type Config struct {
-	C3OS             *C3OS             `yaml:"c3os,omitempty"`
-	K3sAgent         K3s               `yaml:"k3s-agent,omitempty"`
-	K3s              K3s               `yaml:"k3s,omitempty"`
-	VPN              map[string]string `yaml:"vpn,omitempty"`
-	cloudFileContent string
-	location         string
+	C3OS     *C3OS             `yaml:"c3os,omitempty"`
+	K3sAgent K3s               `yaml:"k3s-agent,omitempty"`
+	K3s      K3s               `yaml:"k3s,omitempty"`
+	VPN      map[string]string `yaml:"vpn,omitempty"`
+	//cloudFileContent string
+	originalData map[string]interface{}
+	location     string
+	ConfigURL    string            `yaml:"config_url,omitempty"`
+	Options      map[string]string `yaml:"options,omitempty"`
+}
+
+func (c Config) Data() map[string]interface{} {
+	return c.originalData
 }
 
 func (c Config) String() string {
-	if c.cloudFileContent == "" {
+	if len(c.originalData) == 0 {
 		dat, err := yaml.Marshal(c)
 		if err == nil {
 			return string(dat)
 		}
 	}
-	return c.cloudFileContent
+
+	dat, _ := yaml.Marshal(c.originalData)
+	return string(dat)
 }
 
-func Scan(dir ...string) (c *Config, err error) {
+func Scan(opts ...Option) (c *Config, err error) {
+
+	o := &Options{}
+
+	if err := o.Apply(opts...); err != nil {
+		return nil, err
+	}
+
+	dir := o.ScanDir
+
 	c = &Config{}
 	files := []string{}
 	for _, d := range dir {
@@ -69,12 +90,55 @@ func Scan(dir ...string) (c *Config, err error) {
 		if err == nil {
 			yaml.Unmarshal(b, c)
 			if c.C3OS != nil || c.K3s.Enabled || c.K3sAgent.Enabled {
-				c.cloudFileContent = string(b)
+				//	c.cloudFileContent = string(b)
 				c.location = f
+				yaml.Unmarshal(b, &c.originalData)
 				break
 			}
 		}
 	}
+
+	if o.MergeBootCMDLine {
+		d, err := machine.DotToYAML(o.BootCMDLineFile)
+		if err == nil { // best-effort
+			yaml.Unmarshal(d, c)
+			// Merge back to originalData only config which are part of the config structure
+			// This avoid garbage as unrelated bootargs to be merged in.
+			dat, err := yaml.Marshal(c)
+			if err == nil {
+				yaml.Unmarshal(dat, &c.originalData)
+			}
+		}
+	}
+
+	if c.ConfigURL != "" {
+		var body []byte
+
+		err := retry.Do(
+			func() error {
+				resp, err := http.Get(c.ConfigURL)
+				if err != nil {
+					return err
+				}
+				defer resp.Body.Close()
+
+				body, err = ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+
+				return nil
+			},
+		)
+
+		if err != nil {
+			return c, fmt.Errorf("could not merge configs: %w", err)
+		}
+
+		yaml.Unmarshal(body, c)
+		yaml.Unmarshal(body, &c.originalData)
+	}
+
 	return c, nil
 }
 
@@ -100,6 +164,7 @@ func fileSize(f string) float64 {
 	megabytes = (float64)(kilobytes / 1024) // cast to type float64
 	return megabytes
 }
+
 func listFiles(dir string) ([]string, error) {
 	content := []string{}
 
@@ -117,29 +182,9 @@ func listFiles(dir string) ([]string, error) {
 }
 
 func ReplaceToken(dir []string, token string) (err error) {
-	c := &Config{}
-	files := []string{}
-	for _, d := range dir {
-		if f, err := listFiles(d); err == nil {
-			files = append(files, f...)
-		}
-	}
-	var configFile string
-	perms := os.ModePerm
-	for _, f := range files {
-		b, err := ioutil.ReadFile(f)
-		if err == nil {
-			yaml.Unmarshal(b, c)
-			if c.C3OS != nil {
-				configFile = f
-				c.cloudFileContent = string(b)
-				i, err := os.Stat(f)
-				if err == nil {
-					perms = i.Mode()
-				}
-				break
-			}
-		}
+	c, err := Scan(Directories(dir...))
+	if err != nil {
+		return err
 	}
 
 	if c.C3OS == nil {
@@ -176,7 +221,12 @@ func ReplaceToken(dir []string, token string) (err error) {
 		return err
 	}
 
-	return ioutil.WriteFile(configFile, d, perms)
+	fi, err := os.Stat(c.location)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(c.location, d, fi.Mode().Perm())
 }
 
 type Stage string

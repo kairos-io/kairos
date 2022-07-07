@@ -30,9 +30,9 @@ var _ = Describe("Get config", func() {
 	Context("directory", func() {
 		It("reads config file greedly", func() {
 
-			var cc string = `
+			var cc string = `baz: bar
 c3os:
-  network_token: "foo"
+  network_token: foo
 `
 			d, _ := ioutil.TempDir("", "xxxx")
 			defer os.RemoveAll(d)
@@ -44,7 +44,7 @@ fooz:
 			`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(d)
+			c, err := Scan(Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			Expect(c.C3OS.NetworkToken).To(Equal("foo"))
@@ -85,6 +85,31 @@ fooz:
 				"c3os": map[interface{}]interface{}{"network_token": "baz"},
 				"bb":   map[interface{}]interface{}{"nothing": "foo"},
 			}))
+		})
+
+		It("merges with bootargs", func() {
+
+			var cc string = `
+c3os:
+  network_token: "foo"
+
+bb: 
+  nothing: "foo"
+`
+			d, _ := ioutil.TempDir("", "xxxx")
+			defer os.RemoveAll(d)
+
+			err := ioutil.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = ioutil.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			c, err := Scan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c.Options["foo"]).To(Equal("bar"))
+			Expect(c.C3OS.NetworkToken).To(Equal("foo"))
+			_, exists := c.Data()["zz"]
+			Expect(exists).To(BeFalse())
 		})
 	})
 })

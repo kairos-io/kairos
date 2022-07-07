@@ -46,6 +46,31 @@ jobs:
             *.iso
             *.sha256
           if-no-files-found: error
+      - uses: actions/upload-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.initrd.zip
+          path: |
+            *-initrd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.squashfs.zip
+          path: |
+            *.squashfs
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.kernel.zip
+          path: |
+            *-kernel
+            *-initrd
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v2
+        with:
+          name: c3os-${{ matrix.flavor }}.ipxe.zip
+          path: |
+            *.ipxe
+          if-no-files-found: error
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:

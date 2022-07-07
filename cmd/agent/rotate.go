@@ -11,7 +11,7 @@ func rotate(configDir []string, newToken, apiAddress, rootDir string, restart bo
 		return err
 	}
 
-	c, err := config.Scan(configDir...)
+	c, err := config.Scan(config.Directories(configDir...))
 	if err != nil {
 		return err
 	}

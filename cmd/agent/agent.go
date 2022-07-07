@@ -20,11 +20,12 @@ func agent(apiAddress string, dir []string, force bool) error {
 	os.MkdirAll("/usr/local/.c3os", 0600)
 
 	// Reads config
-	c, err := config.Scan(dir...)
+	c, err := config.Scan(config.Directories(dir...))
 	if err != nil {
 		return err
 	}
 
+	// TODO: Proper cleanup the log file
 	f, err := ioutil.TempFile(os.TempDir(), "c3os")
 	if err != nil {
 		return err

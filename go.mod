@@ -3,13 +3,17 @@ module github.com/c3os-io/c3os
 go 1.17
 
 require (
+	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/bramvdbogaerde/go-scp v1.2.0
 	github.com/creack/pty v1.1.19-0.20220421211855-0d412c9fbeb1
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/erikgeiser/promptkit v0.6.0
 	github.com/gliderlabs/ssh v0.2.2
 	github.com/google/go-github/v40 v40.0.0
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/ipfs/go-log v1.0.5
+	github.com/itchyny/gojq v0.12.2
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.15.2
@@ -71,12 +75,10 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gopacket v1.1.19 // indirect
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gookit/color v1.5.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/go-cid v0.2.0 // indirect
@@ -85,7 +87,6 @@ require (
 	github.com/ipfs/go-ipns v0.1.2 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/ipld/go-ipld-prime v0.16.0 // indirect
-	github.com/itchyny/gojq v0.12.2 // indirect
 	github.com/itchyny/timefmt-go v0.1.2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jaypipes/pcidb v1.0.0 // indirect

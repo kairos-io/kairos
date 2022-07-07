@@ -166,7 +166,7 @@ $ c3os rotate --network-token XXX
 			if len(args) > 0 {
 				dirs = args
 			}
-			cc, err := config.Scan(dirs...)
+			cc, err := config.Scan(config.Directories(dirs...))
 			if err != nil {
 				return err
 			}
