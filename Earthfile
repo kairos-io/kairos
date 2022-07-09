@@ -233,12 +233,32 @@ arm-image:
   END
   RUN xz -v /build/build/$IMAGE_NAME
   SAVE ARTIFACT /build/build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME
-  SAVE ARTIFACT /build/build/$IMAGE_NAME.sha256 img AS LOCAL build/$IMAGE_NAME.sha256
+  SAVE ARTIFACT /build/build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
+
+ipxe-iso:
+    FROM ubuntu
+    ARG ipxe_script
+    RUN apt update
+    RUN apt install -y -o Acquire::Retries=50 \
+                           mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
+                           # jq docker
+    WORKDIR /build
+    ARG ISO_NAME=${OS_ID}
+    RUN git clone https://github.com/ipxe/ipxe
+    IF [ "$ipxe_script" = "" ]
+        COPY +netboot/ipxe /build/ipxe/script.ipxe
+    ELSE
+        COPY $ipxe_script /build/ipxe/script.ipxe
+    END
+    RUN cd ipxe/src && make EMBED=/build/ipxe/script.ipxe
+    SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso.ipxe
+    SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img.ipxe
 
 all:
   BUILD +docker
   BUILD +iso
   BUILD +netboot
+  BUILD +ipxe-iso
 
 all-arm:
   BUILD --platform=linux/arm64 +docker
