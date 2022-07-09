@@ -26,19 +26,34 @@ go-deps:
     SAVE ARTIFACT go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum AS LOCAL go.sum
 
-build:
-    FROM +go-deps
+BUILD_GOLANG:
+    COMMAND
     WORKDIR /build
     COPY . ./
     ARG CGO_ENABLED
+    ARG BIN
+    ARG SRC
     ENV CGO_ENABLED=${CGO_ENABLED}
 
-    RUN go build -ldflags "-s -w" -o c3os ./cmd/cli && upx c3os
-    RUN go build -ldflags "-s -w" -o c3os-agent ./cmd/agent && upx c3os-agent
-    RUN go build -ldflags "-s -w" -o agent-provider-c3os ./cmd/provider && upx agent-provider-c3os
-    SAVE ARTIFACT c3os c3os AS LOCAL build/c3os
-    SAVE ARTIFACT c3os-agent c3os-agent AS LOCAL build/c3os-agent
-    SAVE ARTIFACT agent-provider-c3os agent-provider-c3os AS LOCAL build/agent-provider-c3os
+    RUN go build -ldflags "-s -w" -o ${BIN} ./cmd/${SRC} && upx ${BIN}
+    SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
+
+build-c3os-cli:
+    FROM +go-deps
+    DO +BUILD_GOLANG --BIN=c3os --SRC=cli --CGO_ENABLED=$CGO_ENABLED
+
+build-c3os-agent:
+    FROM +go-deps
+    DO +BUILD_GOLANG --BIN=c3os-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
+
+build-c3os-agent-provider:
+    FROM +go-deps
+    DO +BUILD_GOLANG --BIN=agent-provider-c3os --SRC=provider --CGO_ENABLED=$CGO_ENABLED
+
+build:
+    BUILD +build-c3os-cli
+    BUILD +build-c3os-agent
+    BUILD +build-c3os-agent-provider
 
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
@@ -99,6 +114,7 @@ framework:
     SAVE ARTIFACT /framework/ framework
 
 docker:
+    # Source the flavor-provided docker file
     FROM DOCKERFILE -f images/Dockerfile.$FLAVOR .
     ARG K3S_VERSION
     ARG C3OS_VERSION
@@ -114,8 +130,10 @@ docker:
     ENV OS_VERSION=$OS_VERSION
     ENV OS_REPO=$OS_REPO
 
+    # Includes overlay/files
     COPY +framework/framework /
 
+    # Copy flavor-specific overlay files
     IF [ "$FLAVOR" = "alpine" ]
         COPY overlay/files-alpine/ /
     ELSE IF [ "$FLAVOR" = "alpine-arm-rpi" ]
@@ -125,12 +143,16 @@ docker:
         COPY overlay/files-opensuse-arm-rpi/ /
     END
 
-    COPY +build/c3os /usr/bin/c3os
-    COPY +build/c3os-agent /usr/bin/c3os-agent
-    COPY +build/agent-provider-c3os /usr/bin/agent-provider-c3os
+    # Copy c3os binaries
+    COPY +build-c3os-cli/c3os /usr/bin/c3os
+    COPY +build-c3os-agent/c3os-agent /usr/bin/c3os-agent
+    COPY +build-c3os-agent-provider/agent-provider-c3os /usr/bin/agent-provider-c3os
+
+    # update OS-release file
     RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
         rm /usr/lib/os-release.tmpl
 
+    # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
      RUN mkinitrd
     ELSE IF [ "$FLAVOR" = "ubuntu" ]
@@ -142,6 +164,7 @@ docker:
      RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
     END
 
+    # If it's an ARM flavor, we want a symlink here
     IF [ "$FLAVOR" = "alpine-arm-rpi" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
      RUN ln -sf Image /boot/vmlinuz
     END
