@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -25,6 +26,18 @@ func Delete() {
 	utils.SH(fmt.Sprintf(`VBoxManage closemedium disk "%s"`, filepath.Join(TempDir, "disk.vdi")))
 	os.RemoveAll(TempDir)
 	utils.SH(fmt.Sprintf("rm -rf ~/VirtualBox\\ VMs/%s", ID))
+}
+
+func Screenshot() (string, error) {
+	f, err := ioutil.TempFile("", "fff")
+	if err != nil {
+		return "", err
+	}
+	_, err = utils.SH(fmt.Sprintf(`VBoxManage controlvm "%s" screenshotpng "%s"`, ID, f.Name()))
+	if err != nil {
+		return "", err
+	}
+	return f.Name(), nil
 }
 
 func Create(sshPort string) {

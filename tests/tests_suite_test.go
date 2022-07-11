@@ -38,10 +38,11 @@ var _ = BeforeSuite(func() {
 		machineID = "testvm"
 	}
 
-	if os.Getenv("ISO") == "" {
+	if os.Getenv("ISO") == "" && os.Getenv("CREATE_VM") == "true" {
 		fmt.Println("ISO missing")
 		os.Exit(1)
 	}
+
 	if os.Getenv("CREATE_VM") == "true" {
 		t, err := ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
