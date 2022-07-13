@@ -108,7 +108,12 @@ func Master(cc *config.Config) Role {
 			args = append(args, k3sConfig.Args...)
 		}
 
-		if err := svc.OverrideCmd(fmt.Sprintf("/usr/bin/k3s server %s", strings.Join(args, " "))); err != nil {
+		k3sbin := utils.K3sBin()
+		if k3sbin == "" {
+			return fmt.Errorf("no k3s binary found (?)")
+		}
+
+		if err := svc.OverrideCmd(fmt.Sprintf("%s server %s", k3sbin, strings.Join(args, " "))); err != nil {
 			return err
 		}
 

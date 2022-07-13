@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -27,7 +28,8 @@ func Version() string {
 	release, _ := godotenv.Read("/etc/os-release")
 	v := release["VERSION"]
 	v = strings.ReplaceAll(v, "+k3s1-c3OS", "-")
-	return strings.ReplaceAll(v, "+k3s-c3OS", "-")
+	v = strings.ReplaceAll(v, "+k3s-c3OS", "-")
+	return strings.ReplaceAll(v, "c3OS", "")
 }
 
 func OSRelease(key string) (string, error) {
@@ -78,5 +80,15 @@ func GetInterfaceIP(in string) string {
 			}
 		}
 	}
+	return ""
+}
+
+func K3sBin() string {
+	for _, p := range []string{"/usr/bin/k3s"} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+
 	return ""
 }

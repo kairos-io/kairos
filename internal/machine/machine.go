@@ -2,6 +2,7 @@ package machine
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/c3os-io/c3os/internal/machine/openrc"
@@ -100,4 +101,15 @@ func UUID() string {
 	id, _ := machineid.ID()
 	hostname, _ := os.Hostname()
 	return fmt.Sprintf("%s-%s", id, hostname)
+}
+
+func CreateSentinel(f string) error {
+	return ioutil.WriteFile(fmt.Sprintf("/usr/local/.c3os/sentinel_%s", f), []byte{}, os.ModePerm)
+}
+
+func SentinelExist(f string) bool {
+	if _, err := os.Stat(fmt.Sprintf("/usr/local/.c3os/sentinel_%s", f)); err == nil {
+		return true
+	}
+	return false
 }

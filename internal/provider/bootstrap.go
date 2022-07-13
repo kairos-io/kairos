@@ -37,6 +37,7 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 		return pluggable.EventResponse{Error: fmt.Sprintf("Failed reading JSON input: %s input '%s'", err.Error(), cfg.Config)}
 	}
 
+	// TODO: this belong to a systemd service that is started instead
 	utils.SH("sysctl -w net.core.rmem_max=2500000")
 
 	tokenNotDefined := (c.C3OS == nil || c.C3OS.NetworkToken == "")
@@ -188,7 +189,11 @@ func oneTimeBootstrap(l logging.StandardLogger, c *config.Config, vpnSetupFN fun
 		return err
 	}
 
-	if err := svc.OverrideCmd(fmt.Sprintf("/usr/bin/k3s %s %s", svcRole, strings.Join(k3sConfig.Args, " "))); err != nil {
+	k3sbin := utils.K3sBin()
+	if k3sbin == "" {
+		return fmt.Errorf("no k3s binary found (?)")
+	}
+	if err := svc.OverrideCmd(fmt.Sprintf("%s %s %s", k3sbin, svcRole, strings.Join(k3sConfig.Args, " "))); err != nil {
 		return err
 	}
 

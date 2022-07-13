@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/c3os-io/c3os/internal/bus"
+	machine "github.com/c3os-io/c3os/internal/machine"
 	"github.com/c3os-io/c3os/internal/utils"
 	events "github.com/c3os-io/c3os/pkg/bus"
 	config "github.com/c3os-io/c3os/pkg/config"
@@ -52,6 +53,16 @@ func agent(apiAddress string, dir []string, force bool) error {
 			fmt.Println(line.Text)
 		}
 	}()
+
+	if !machine.SentinelExist("bundles") {
+		opts := c.Bundles.Options()
+		err := machine.RunBundles(opts...)
+		if !c.IgnoreBundleErrors && err != nil {
+			return err
+		}
+
+		machine.CreateSentinel("bundles")
+	}
 
 	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: apiAddress, Config: c.String(), Logfile: f.Name()})
 	return err

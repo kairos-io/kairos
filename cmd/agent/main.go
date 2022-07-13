@@ -118,6 +118,33 @@ Starts the c3os agent which automatically bootstrap and advertize to the c3os ne
 		},
 	},
 	{
+		Name:  "install-bundle",
+		Usage: "Installs a c3os bundle",
+		Description: `
+
+Manually installs a c3os bundle.
+
+E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
+
+`,
+		Aliases: []string{"i"},
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:   "repository",
+				EnvVar: "REPOSITORY",
+			},
+		},
+		UsageText: "Install a bundle manually in the node",
+		Action: func(c *cli.Context) error {
+			args := c.Args()
+			if len(args) != 1 {
+				return fmt.Errorf("bundle name required")
+			}
+
+			return machine.RunBundles([]machine.BundleOption{machine.WithRepository(c.String("repository")), machine.WithTarget(args[0])})
+		},
+	},
+	{
 		Name:  "rotate",
 		Usage: "Rotate a c3os node network configuration via CLI",
 		Description: `

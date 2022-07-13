@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	retry "github.com/avast/retry-go"
 	"github.com/c3os-io/c3os/internal/machine"
@@ -41,10 +42,38 @@ type Config struct {
 	K3s      K3s               `yaml:"k3s,omitempty"`
 	VPN      map[string]string `yaml:"vpn,omitempty"`
 	//cloudFileContent string
-	originalData map[string]interface{}
-	location     string
-	ConfigURL    string            `yaml:"config_url,omitempty"`
-	Options      map[string]string `yaml:"options,omitempty"`
+	originalData       map[string]interface{}
+	location           string
+	ConfigURL          string            `yaml:"config_url,omitempty"`
+	Options            map[string]string `yaml:"options,omitempty"`
+	IgnoreBundleErrors bool              `yaml:"ignore_bundles_errors,omitempty"`
+	Bundles            Bundles           `yaml:"bundles,omitempty"`
+}
+
+type Bundles []Bundle
+
+type Bundle struct {
+	Repository string `yaml:"repository,omitempty"`
+	Rootfs     string `yaml:"rootfs_path,omitempty"`
+	DB         string `yaml:"db_path,omitempty"`
+
+	Targets []string `yaml:"targets,omitempty"`
+}
+
+func (b Bundles) Options() (res [][]machine.BundleOption) {
+	for _, bundle := range b {
+		for _, t := range bundle.Targets {
+			opts := []machine.BundleOption{machine.WithRepository(bundle.Repository), machine.WithTarget(t)}
+			if bundle.Rootfs != "" {
+				opts = append(opts, machine.WithRootFS(bundle.Rootfs))
+			}
+			if bundle.DB != "" {
+				opts = append(opts, machine.WithDBHPath(bundle.DB))
+			}
+			res = append(res, opts)
+		}
+	}
+	return
 }
 
 func (c Config) Data() map[string]interface{} {
@@ -61,6 +90,15 @@ func (c Config) String() string {
 
 	dat, _ := yaml.Marshal(c.originalData)
 	return string(dat)
+}
+
+func (c Config) IsValid() bool {
+	return c.C3OS != nil ||
+		c.K3s.Enabled ||
+		c.K3sAgent.Enabled ||
+		c.ConfigURL != "" ||
+		len(c.Bundles) != 0 ||
+		len(c.VPN) != 0
 }
 
 func Scan(opts ...Option) (c *Config, err error) {
@@ -81,6 +119,8 @@ func Scan(opts ...Option) (c *Config, err error) {
 		}
 	}
 
+	configFound := false
+	lastYamlFileFound := ""
 	for _, f := range files {
 		if fileSize(f) > 1.0 {
 			//fmt.Println("warning: Skipping file ", f, "as exceeds 1 MB in size")
@@ -89,12 +129,28 @@ func Scan(opts ...Option) (c *Config, err error) {
 		b, err := ioutil.ReadFile(f)
 		if err == nil {
 			yaml.Unmarshal(b, c)
-			if c.C3OS != nil || c.K3s.Enabled || c.K3sAgent.Enabled {
+			if c.IsValid() {
 				//	c.cloudFileContent = string(b)
 				c.location = f
 				yaml.Unmarshal(b, &c.originalData)
+				configFound = true
 				break
 			}
+
+			// record back the only yaml file found (if any)
+			if strings.HasSuffix(strings.ToLower(f), "yaml") || strings.HasSuffix(strings.ToLower(f), "yml") {
+				lastYamlFileFound = f
+			}
+		}
+	}
+
+	// use last recorded if no config is found valid
+	if !configFound && lastYamlFileFound != "" {
+		b, err := ioutil.ReadFile(lastYamlFileFound)
+		if err == nil {
+			yaml.Unmarshal(b, c)
+			c.location = lastYamlFileFound
+			yaml.Unmarshal(b, &c.originalData)
 		}
 	}
 

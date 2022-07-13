@@ -114,16 +114,26 @@ framework:
     SAVE ARTIFACT /framework/ framework
 
 docker:
-    # Source the flavor-provided docker file
-    FROM DOCKERFILE -f images/Dockerfile.$FLAVOR .
     ARG K3S_VERSION
+    IF [ "$BASE_IMAGE" = "" ]
+        # Source the flavor-provided docker file
+        FROM DOCKERFILE -f images/Dockerfile.$FLAVOR .
+    ELSE 
+        FROM $BASE_IMAGE
+    END
     ARG C3OS_VERSION
-    ARG OS_VERSION=${K3S_VERSION}+k3s1-c3OS${C3OS_VERSION}
+    IF [ "$K3S_VERSION" = "" ]
+        ARG OS_VERSION=c3OS${C3OS_VERSION}
+    ELSE
+        ARG OS_VERSION=${K3S_VERSION}+k3s1-c3OS${C3OS_VERSION}
+    END
     ARG OS_ID=c3os
     ARG FLAVOR
     ARG OS_NAME=${OS_ID}-${FLAVOR}
     ARG OS_REPO=quay.io/c3os/c3os
     ARG OS_LABEL=${FLAVOR}-latest
+    ARG WITH_PROVIDER=true
+    ARG WITH_CLI=true
     ENV OS_LABEL=$OS_LABEL
     ENV OS_NAME=$OS_NAME
     ENV OS_ID=$OS_ID
@@ -144,9 +154,13 @@ docker:
     END
 
     # Copy c3os binaries
-    COPY +build-c3os-cli/c3os /usr/bin/c3os
     COPY +build-c3os-agent/c3os-agent /usr/bin/c3os-agent
-    COPY +build-c3os-agent-provider/agent-provider-c3os /usr/bin/agent-provider-c3os
+    IF [ "$WITH_CLI" = "true" ]
+        COPY +build-c3os-cli/c3os /usr/bin/c3os
+    END
+    IF [ "$WITH_PROVIDER" = "true" ]
+        COPY +build-c3os-agent-provider/agent-provider-c3os /usr/bin/agent-provider-c3os
+    END
 
     # update OS-release file
     RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \

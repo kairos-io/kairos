@@ -60,7 +60,11 @@ func (s ServiceUnit) WriteUnit() error {
 
 // TODO: This is too much k3s specific
 func (s ServiceUnit) OverrideCmd(cmd string) error {
-	cmd = strings.ReplaceAll(cmd, "/usr/bin/k3s ", "")
+	k3sbin := utils.K3sBin()
+	if k3sbin == "" {
+		return fmt.Errorf("no k3s binary found (?)")
+	}
+	cmd = strings.ReplaceAll(cmd, k3sbin+" ", "")
 	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/rancher/k3s/%s.env", s.name))
 
 	return ioutil.WriteFile(svcDir, []byte(fmt.Sprintf(`command_args="%s >>/var/log/%s.log 2>&1"`, cmd, s.name)), 0600)
