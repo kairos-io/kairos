@@ -17,6 +17,17 @@ ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental:v0.0.15-8a78e6b
 
+
+all:
+  BUILD +docker
+  BUILD +iso
+  BUILD +netboot
+  BUILD +ipxe-iso
+
+all-arm:
+  BUILD --platform=linux/arm64 +docker
+  BUILD +arm-image
+
 go-deps:
     FROM golang
     WORKDIR /build
@@ -64,6 +75,7 @@ framework:
     ARG REPOSITORIES_FILE
     ARG COSIGN_EXPERIMENTAL
     ARG COSIGN_REPOSITORY
+    ARG WITH_KERNEL
 
     FROM alpine
     COPY +luet/luet /usr/bin/luet
@@ -80,7 +92,7 @@ framework:
 
     ENV USER=root
 
-    IF [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "alpine-arm-rpi" ] 
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN /usr/bin/luet install -y --system-target /framework \
             meta/cos-verify \
             meta/cos-core \
@@ -110,8 +122,23 @@ framework:
             container/kubectl \
             utils/nerdctl
     END
+
+    RUN /usr/bin/luet cleanup --system-target /framework
     COPY overlay/files /framework
+    RUN rm -rf /framework/var/luet
+    RUN rm -rf /framework/var/cache
     SAVE ARTIFACT /framework/ framework
+
+framework-image:
+    FROM scratch
+    ARG IMG
+    COPY +framework/framework /
+    SAVE IMAGE $IMG
+
+framework-images:
+    ARG IMG
+    BUILD +framework-image --WITH_KERNEL=true
+    BUILD +framework-image --WITH_KERNEL=false --IMG=$IMG-kernel
 
 docker:
     ARG K3S_VERSION
@@ -268,12 +295,30 @@ ipxe-iso:
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso.ipxe
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img.ipxe
 
-all:
-  BUILD +docker
-  BUILD +iso
-  BUILD +netboot
-  BUILD +ipxe-iso
 
-all-arm:
-  BUILD --platform=linux/arm64 +docker
-  BUILD +arm-image
+## Security targets
+trivy:
+    FROM aquasec/trivy
+    SAVE ARTIFACT /usr/local/bin/trivy /trivy
+
+trivy-scan:
+    ARG SEVERITY=CRITICAL
+    FROM +docker
+    COPY +trivy/trivy /trivy
+    RUN /trivy filesystem --severity $SEVERITY --exit-code 1 --no-progress /
+
+linux-bench:
+    FROM golang
+    GIT CLONE https://github.com/aquasecurity/linux-bench /linux-bench-src
+    RUN cd /linux-bench-src && CGO_ENABLED=0 go build -o linux-bench . && mv linux-bench /
+    SAVE ARTIFACT /linux-bench /linux-bench
+
+# The target below should run on a live host instead. 
+# However, some checks are relevant as well at container level.
+# It is good enough for a quick assessment.
+linux-bench-scan:
+    FROM +docker
+    GIT CLONE https://github.com/aquasecurity/linux-bench /build/linux-bench
+    WORKDIR /build/linux-bench
+    COPY +linux-bench/linux-bench /build/linux-bench/linux-bench
+    RUN /build/linux-bench/linux-bench
