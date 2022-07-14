@@ -25,7 +25,6 @@ func Delete() {
 	utils.SH(fmt.Sprintf(`VBoxManage closemedium disk "%s"`, filepath.Join(TempDir, "disk.vdi")))
 	os.RemoveAll(TempDir)
 	utils.SH(fmt.Sprintf("rm -rf ~/VirtualBox\\ VMs/%s", ID))
-
 }
 
 func Create(sshPort string) {
