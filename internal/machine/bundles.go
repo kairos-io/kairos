@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/c3os-io/c3os/internal/utils"
@@ -57,9 +58,12 @@ func WithTarget(p string) BundleOption {
 	}
 }
 
-func (bc *BundleConfig) extractRepo() (string, string) {
-	s := strings.Split(bc.Repository, ":")
-	return s[0], s[1]
+func (bc *BundleConfig) extractRepo() (string, string, error) {
+	s := strings.Split(bc.Repository, "://")
+	if len(s) != 2 {
+		return "", "", fmt.Errorf("invalid repo schema")
+	}
+	return s[0], s[1], nil
 }
 
 // XXX: directly to rootfs ? or maybe better to /usr/local/.c3os/rootfs and handle symlinks?
@@ -67,7 +71,7 @@ func defaultConfig() *BundleConfig {
 	return &BundleConfig{
 		DBPath:     "/usr/local/.c3os/db",
 		RootPath:   "/",
-		Repository: "quay.io/c3os/packages",
+		Repository: "docker://quay.io/c3os/packages",
 	}
 }
 
@@ -90,7 +94,7 @@ func RunBundles(bundles ...[]BundleOption) error {
 			resErr = multierror.Append(err)
 			continue
 		}
-		dat := strings.Split(config.Target, ":")
+		dat := strings.Split(config.Target, "://")
 		if len(dat) != 2 {
 			resErr = multierror.Append(fmt.Errorf("invalid target"))
 
@@ -110,7 +114,7 @@ func RunBundles(bundles ...[]BundleOption) error {
 
 func NewBundleInstaller(bc BundleConfig) (BundleInstaller, error) {
 
-	dat := strings.Split(bc.Target, ":")
+	dat := strings.Split(bc.Target, "://")
 	if len(dat) != 2 {
 		return nil, fmt.Errorf("could not decode scheme")
 	}
@@ -161,7 +165,7 @@ type ContainerInstaller struct{}
 func (l *ContainerInstaller) Install(config *BundleConfig) error {
 
 	//mkdir -p test/etc/luet/repos.conf.d
-	_, err := utils.SH(
+	out, err := utils.SH(
 		fmt.Sprintf(
 			`luet util unpack %s %s`,
 			config.Target,
@@ -169,7 +173,7 @@ func (l *ContainerInstaller) Install(config *BundleConfig) error {
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("could not add repository: %w", err)
+		return fmt.Errorf("could not unpack bundle: %w - %s", err, out)
 	}
 
 	return nil
@@ -179,9 +183,16 @@ type LuetInstaller struct{}
 
 func (l *LuetInstaller) Install(config *BundleConfig) error {
 
-	t, repo := config.extractRepo()
-	//mkdir -p test/etc/luet/repos.conf.d
-	_, err := utils.SH(
+	t, repo, err := config.extractRepo()
+	if err != nil {
+		return err
+	}
+
+	err = os.MkdirAll(filepath.Join(config.RootPath, "etc/luet/repos.conf.d/"), os.ModePerm)
+	if err != nil {
+		return err
+	}
+	out, err := utils.SH(
 		fmt.Sprintf(
 			`LUET_CONFIG_FROM_HOST=false luet repo add --system-dbpath %s --system-target %s c3os-system -y --description "Automatically generated c3os-system" --url "%s" --type "%s"`,
 			config.DBPath,
@@ -191,9 +202,10 @@ func (l *LuetInstaller) Install(config *BundleConfig) error {
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("could not add repository: %w", err)
+		return fmt.Errorf("could not add repository: %w - %s", err, out)
 	}
-	_, err = utils.SH(
+
+	out, err = utils.SH(
 		fmt.Sprintf(
 			`LUET_CONFIG_FROM_HOST=false luet repo update -f --system-dbpath %s --system-target %s`,
 			config.DBPath,
@@ -201,9 +213,9 @@ func (l *LuetInstaller) Install(config *BundleConfig) error {
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("could not sync repository: %w", err)
+		return fmt.Errorf("could not sync repository: %w - %s", err, out)
 	}
-	_, err = utils.SH(
+	out, err = utils.SH(
 		fmt.Sprintf(
 			`LUET_CONFIG_FROM_HOST=false luet install -y  --system-dbpath %s --system-target %s %s`,
 			config.DBPath,
@@ -212,7 +224,7 @@ func (l *LuetInstaller) Install(config *BundleConfig) error {
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("could not sync repository: %w", err)
+		return fmt.Errorf("could not install bundle: %w - %s", err, out)
 	}
 
 	// copy bins to /usr/local/bin

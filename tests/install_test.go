@@ -38,12 +38,12 @@ var _ = Describe("c3os install test", Label("install-test"), func() {
 
 		err = machine.SendFile(t.Name(), "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
-		
+
 		out, err := machine.Sudo("sudo mv /tmp/config.yaml /oem/")
-		Expect(err).ToNot(HaveOccurred(),out)
+		Expect(err).ToNot(HaveOccurred(), out)
 
 		out, err = machine.Sudo("c3os-agent install")
-		Expect(err).ToNot(HaveOccurred(),out)
+		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
 		fmt.Println(out)
 		machine.Sudo("sync")
