@@ -8,10 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	config "github.com/c3os-io/c3os/pkg/config"
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	"github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/edgevpn/pkg/node"
+
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
 )
@@ -110,7 +111,7 @@ Prints a vanilla YAML configuration on screen which can be used to bootstrap a c
 					l = i
 				}
 			}
-			cc := &config.Config{C3OS: &config.C3OS{NetworkToken: node.GenerateNewConnectionData(l).Base64()}}
+			cc := &providerConfig.Config{C3OS: &providerConfig.C3OS{NetworkToken: node.GenerateNewConnectionData(l).Base64()}}
 			y, _ := yaml.Marshal(cc)
 			fmt.Println(string(y))
 			return nil

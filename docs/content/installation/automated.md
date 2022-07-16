@@ -11,13 +11,15 @@ Automated installation is available as well aside of manual pairing.
 A cloud-init of the following form can be supplied as a datasource (CDROM, `cos.setup` bootarg):
 
 ```yaml
-#cloud-init
+#cloud-config
 
-c3os:
+install:
   device: "/dev/sda"
   reboot: true
   poweroff: true
-  offline: true # Required, for automated installations
+  auto: true # Required, for automated installations
+  
+c3os:
   network_token: ....
 
 # extra configuration

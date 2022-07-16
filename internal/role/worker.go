@@ -9,16 +9,17 @@ import (
 	"github.com/c3os-io/c3os/internal/utils"
 	"github.com/c3os-io/c3os/pkg/config"
 
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
-func Worker(cc *config.Config) Role {
+func Worker(cc *config.Config, pconfig *providerConfig.Config) Role {
 	return func(c *service.RoleConfig) error {
 
-		if cc.C3OS.Role != "" {
+		if pconfig.C3OS.Role != "" {
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
-			c.Client.Set("role", c.UUID, cc.C3OS.Role)
+			c.Client.Set("role", c.UUID, pconfig.C3OS.Role)
 		}
 
 		if SentinelExist() {
@@ -52,9 +53,9 @@ func Worker(cc *config.Config) Role {
 			return err
 		}
 
-		k3sConfig := config.K3s{}
-		if cc.K3sAgent.Enabled {
-			k3sConfig = cc.K3sAgent
+		k3sConfig := providerConfig.K3s{}
+		if pconfig.K3sAgent.Enabled {
+			k3sConfig = pconfig.K3sAgent
 		}
 
 		env := map[string]string{

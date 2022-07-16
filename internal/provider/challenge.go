@@ -2,10 +2,11 @@ package provider
 
 import (
 	"encoding/json"
-	"fmt"
 
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/c3os-io/c3os/pkg/config"
+
 	"github.com/mudler/go-nodepair"
 	"github.com/mudler/go-pluggable"
 )
@@ -14,13 +15,13 @@ func Challenge(e *pluggable.Event) pluggable.EventResponse {
 	p := &bus.EventPayload{}
 	err := json.Unmarshal([]byte(e.Data), p)
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed reading JSON input: %s input '%s'", err.Error(), e.Data)}
+		return ErrorEvent("Failed reading JSON input: %s input '%s'", err.Error(), e.Data)
 	}
 
-	cfg := &config.Config{}
+	cfg := &providerConfig.Config{}
 	err = config.FromString(p.Config, cfg)
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed reading JSON input: %s input '%s'", err.Error(), p.Config)}
+		return ErrorEvent("Failed reading JSON input: %s input '%s'", err.Error(), p.Config)
 	}
 
 	tk := ""

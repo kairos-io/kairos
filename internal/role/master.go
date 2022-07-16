@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/c3os-io/c3os/internal/machine"
-	"github.com/c3os-io/c3os/internal/utils"
 	"github.com/c3os-io/c3os/pkg/config"
+
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
+	"github.com/c3os-io/c3os/internal/utils"
 
 	service "github.com/mudler/edgevpn/api/client/service"
 )
@@ -53,7 +55,7 @@ func propagateMasterData(ip string, c *service.RoleConfig) error {
 	return nil
 }
 
-func Master(cc *config.Config) Role {
+func Master(cc *config.Config, pconfig *providerConfig.Config) Role {
 	return func(c *service.RoleConfig) error {
 
 		ip := utils.GetInterfaceIP("edgevpn0")
@@ -61,10 +63,10 @@ func Master(cc *config.Config) Role {
 			return errors.New("node doesn't have an ip yet")
 		}
 
-		if cc.C3OS.Role != "" {
+		if pconfig.C3OS.Role != "" {
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
-			c.Client.Set("role", c.UUID, cc.C3OS.Role)
+			c.Client.Set("role", c.UUID, pconfig.C3OS.Role)
 		}
 
 		if SentinelExist() {
@@ -80,9 +82,9 @@ func Master(cc *config.Config) Role {
 			return err
 		}
 
-		k3sConfig := config.K3s{}
-		if cc.K3s.Enabled {
-			k3sConfig = cc.K3s
+		k3sConfig := providerConfig.K3s{}
+		if pconfig.K3s.Enabled {
+			k3sConfig = pconfig.K3s
 		}
 
 		env := map[string]string{}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/c3os-io/c3os/internal/cmd"
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	"github.com/c3os-io/c3os/internal/utils"
 	config "github.com/c3os-io/c3os/pkg/config"
 	"github.com/erikgeiser/promptkit/textinput"
@@ -12,7 +13,6 @@ import (
 	"github.com/mudler/edgevpn/pkg/node"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pterm/pterm"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -140,12 +140,16 @@ func interactiveInstall(spawnShell bool) error {
 	}
 
 	c := &config.Config{
-		C3OS: &config.C3OS{
-			NetworkToken: networkToken,
-			Device:       device,
+		Install: &config.Install{
+			Device: device,
 		},
+	}
 
-		K3s: config.K3s{
+	providerCfg := providerConfig.Config{
+		C3OS: &providerConfig.C3OS{
+			NetworkToken: networkToken,
+		},
+		K3s: providerConfig.K3s{
 			Enabled: isYes(k3sStandalone),
 		},
 	}
@@ -178,28 +182,7 @@ func interactiveInstall(spawnShell bool) error {
 			},
 		}}}
 
-	dat, err := yaml.Marshal(cloudConfig)
-	if err != nil {
-		return err
-	}
-	dat2, err := yaml.Marshal(c)
-	if err != nil {
-		return err
-	}
-
-	content1 := make(map[string]interface{})
-
-	err = yaml.Unmarshal(dat, &content1)
-	if err != nil {
-		return err
-	}
-
-	err = yaml.Unmarshal(dat2, &content1)
-	if err != nil {
-		return err
-	}
-
-	dat, err = yaml.Marshal(content1)
+	dat, err := config.MergeYAML(cloudConfig, c, providerCfg)
 	if err != nil {
 		return err
 	}
@@ -208,7 +191,7 @@ func interactiveInstall(spawnShell bool) error {
 
 	err = runInstall(map[string]string{
 		"device": device,
-		"cc":     string(dat),
+		"cc":     config.AddHeader("#node-config", string(dat)),
 	})
 	if err != nil {
 		pterm.Error.Println(err.Error())

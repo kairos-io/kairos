@@ -69,9 +69,9 @@ func install(dir ...string) error {
 	// Reads config, and if present and offline is defined,
 	// runs the installation
 	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine)
-	if err == nil && cc.C3OS != nil && cc.C3OS.Offline {
+	if err == nil && cc.Install != nil && cc.Install.Auto {
 		r["cc"] = cc.String()
-		r["device"] = cc.C3OS.Device
+		r["device"] = cc.Install.Device
 		mergeOption(cc.String())
 
 		runInstall(r)
@@ -107,13 +107,28 @@ func install(dir ...string) error {
 		return errors.New("no configuration, stopping installation")
 	}
 
+	// we receive a cloud config at this point
 	cloudConfig, exists := r["cc"]
+
+	// merge any options defined in it
 	mergeOption(cloudConfig)
 
+	// now merge cloud config from system and the one received from the agent-provider
 	ccData := map[string]interface{}{}
+
+	// make sure the config we write has at least the #node-config header, if any other was defined beforeahead
+	header := "#node-config"
+	if hasHeader, head := config.HasHeader(cc.String(), ""); hasHeader {
+		header = head
+	}
+
+	// What we receive take precedence over the one in the system
 	yaml.Unmarshal([]byte(cc.String()), &ccData)
 	if exists {
 		yaml.Unmarshal([]byte(cloudConfig), &ccData)
+		if hasHeader, head := config.HasHeader(cloudConfig, ""); hasHeader {
+			header = head
+		}
 	}
 
 	out, err := yaml.Marshal(ccData)
@@ -121,7 +136,7 @@ func install(dir ...string) error {
 		return fmt.Errorf("failed marshalling cc: %w", err)
 	}
 
-	r["cc"] = string(out)
+	r["cc"] = config.AddHeader(header, string(out))
 
 	pterm.Info.Println("Starting installation")
 	utils.SH("elemental run-stage c3os-install.pre")
@@ -181,11 +196,11 @@ func runInstall(options map[string]string) error {
 	utils.SH("elemental run-stage c3os-install.after")
 	bus.RunHookScript("/usr/bin/c3os-agent.install.after.hook")
 
-	if reboot || c.C3OS != nil && c.C3OS.Reboot {
+	if reboot || c.Install != nil && c.Install.Reboot {
 		utils.Reboot()
 	}
 
-	if poweroff || c.C3OS != nil && c.C3OS.Poweroff {
+	if poweroff || c.Install != nil && c.Install.Poweroff {
 		utils.PowerOFF()
 	}
 	return nil

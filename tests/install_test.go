@@ -58,8 +58,8 @@ var _ = Describe("c3os install test", Label("install-test"), func() {
 
 		It("with bundles", func() {
 			testInstall(`
-c3os:
-  offline: true
+install:
+  auto: true
   device: /dev/sda
 stages:
   initramfs:
@@ -79,8 +79,8 @@ bundles:
 		})
 		It("with config_url", func() {
 			testInstall(`
-c3os:
-  offline: true
+install:
+  auto: true
   device: /dev/sda
 config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/ac4598da56c0cd912721d63457831424bb1d2f54/test.yaml"`, func() string {
 				var out string

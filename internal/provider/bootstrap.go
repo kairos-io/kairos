@@ -14,9 +14,9 @@ import (
 	"github.com/c3os-io/c3os/internal/machine"
 	"github.com/c3os-io/c3os/internal/machine/openrc"
 	"github.com/c3os-io/c3os/internal/machine/systemd"
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	"github.com/c3os-io/c3os/internal/role"
 	"github.com/c3os-io/c3os/internal/utils"
-	"github.com/c3os-io/c3os/internal/vpn"
 
 	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/c3os-io/c3os/pkg/config"
@@ -28,21 +28,26 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	cfg := &bus.BootstrapPayload{}
 	err := json.Unmarshal([]byte(e.Data), cfg)
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed reading JSON input: %s input '%s'", err.Error(), e.Data)}
+		return ErrorEvent("Failed reading JSON input: %s input '%s'", err.Error(), e.Data)
 	}
 
 	c := &config.Config{}
+	providerConfig := &providerConfig.Config{}
 	err = config.FromString(cfg.Config, c)
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed reading JSON input: %s input '%s'", err.Error(), cfg.Config)}
+		return ErrorEvent("Failed reading JSON input: %s input '%s'", err.Error(), cfg.Config)
 	}
 
+	err = config.FromString(cfg.Config, providerConfig)
+	if err != nil {
+		return ErrorEvent("Failed reading JSON input: %s input '%s'", err.Error(), cfg.Config)
+	}
 	// TODO: this belong to a systemd service that is started instead
 
-	tokenNotDefined := (c.C3OS == nil || c.C3OS.NetworkToken == "")
+	tokenNotDefined := (providerConfig.C3OS != nil && providerConfig.C3OS.NetworkToken == "")
 
-	if c.C3OS == nil && !c.K3s.Enabled && !c.K3sAgent.Enabled {
-		return pluggable.EventResponse{State: "No config file supplied"}
+	if providerConfig.C3OS == nil && !providerConfig.K3s.Enabled && !providerConfig.K3sAgent.Enabled {
+		return pluggable.EventResponse{State: "no c3os or k3s configuration. nothing to do"}
 	}
 
 	utils.SH("elemental run-stage c3os-agent.bootstrap")
@@ -50,13 +55,13 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 
 	logLevel := "debug"
 
-	if c.C3OS != nil && c.C3OS.LogLevel != "" {
-		logLevel = c.C3OS.LogLevel
+	if providerConfig.C3OS != nil && providerConfig.C3OS.LogLevel != "" {
+		logLevel = providerConfig.C3OS.LogLevel
 	}
 
 	lvl, err := logging.LevelFromString(logLevel)
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed setup VPN: %s", err.Error())}
+		return ErrorEvent("Failed setup VPN: %s", err.Error())
 	}
 
 	// TODO: Fixup Logging to file
@@ -66,7 +71,7 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	}
 	logger, err := loggerCfg.Build()
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed setup VPN: %s", err.Error())}
+		return ErrorEvent("Failed setup VPN: %s", err.Error())
 	}
 
 	logging.SetAllLoggers(lvl)
@@ -76,26 +81,28 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	// Do onetimebootstrap if K3s or K3s-agent are enabled.
 	// Those blocks are not required to be enabled in case of a c3os
 	// full automated setup. Otherwise, they must be explicitly enabled.
-	if c.K3s.Enabled || c.K3sAgent.Enabled {
-		err := oneTimeBootstrap(log, c, func() error { return vpn.Setup(machine.EdgeVPNDefaultInstance, cfg.APIAddress, "/", true, c) })
+	if providerConfig.K3s.Enabled || providerConfig.K3sAgent.Enabled {
+		err := oneTimeBootstrap(log, providerConfig, func() error {
+			return SetupVPN(machine.EdgeVPNDefaultInstance, cfg.APIAddress, "/", true, providerConfig)
+		})
 		if err != nil {
-			return pluggable.EventResponse{Error: fmt.Sprintf("Failed setup: %s", err.Error())}
+			return ErrorEvent("Failed setup: %s", err.Error())
 		}
 		return pluggable.EventResponse{}
 	} else if tokenNotDefined {
-		return pluggable.EventResponse{Error: "No network token provided, exiting"}
+		return ErrorEvent("No network token provided, exiting")
 	}
 
 	logger.Info("Configuring VPN")
 
-	if err := vpn.Setup(machine.EdgeVPNDefaultInstance, cfg.APIAddress, "/", true, c); err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed setup VPN: %s", err.Error())}
+	if err := SetupVPN(machine.EdgeVPNDefaultInstance, cfg.APIAddress, "/", true, providerConfig); err != nil {
+		return ErrorEvent("Failed setup VPN: %s", err.Error())
 	}
 
 	networkID := "c3os"
 
-	if c.C3OS != nil && c.C3OS.NetworkID != "" {
-		networkID = c.C3OS.NetworkID
+	if providerConfig.C3OS != nil && providerConfig.C3OS.NetworkID != "" {
+		networkID = providerConfig.C3OS.NetworkID
 	}
 
 	cc := service.NewClient(
@@ -107,36 +114,36 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 		service.WithClient(cc),
 		service.WithUUID(machine.UUID()),
 		service.WithStateDir("/usr/local/.c3os/state"),
-		service.WithNetworkToken(c.C3OS.NetworkToken),
+		service.WithNetworkToken(providerConfig.C3OS.NetworkToken),
 		service.WithPersistentRoles("auto"),
 		service.WithRoles(
 			service.RoleKey{
 				Role:        "master",
-				RoleHandler: role.Master(c),
+				RoleHandler: role.Master(c, providerConfig),
 			},
 			service.RoleKey{
 				Role:        "worker",
-				RoleHandler: role.Worker(c),
+				RoleHandler: role.Worker(c, providerConfig),
 			},
 			service.RoleKey{
 				Role:        "auto",
-				RoleHandler: role.Auto(c),
+				RoleHandler: role.Auto(c, providerConfig),
 			},
 		),
 	}
 
 	// Optionally set up a specific node role if the user has defined so
-	if c.C3OS.Role != "" {
-		nodeOpts = append(nodeOpts, service.WithDefaultRoles(c.C3OS.Role))
+	if providerConfig.C3OS.Role != "" {
+		nodeOpts = append(nodeOpts, service.WithDefaultRoles(providerConfig.C3OS.Role))
 	}
 
 	k, err := service.NewNode(nodeOpts...)
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed creating node: %s", err.Error())}
+		return ErrorEvent("Failed creating node: %s", err.Error())
 	}
 	err = k.Start(context.Background())
 	if err != nil {
-		return pluggable.EventResponse{Error: fmt.Sprintf("Failed start: %s", err.Error())}
+		return ErrorEvent("Failed start: %s", err.Error())
 	}
 
 	return pluggable.EventResponse{
@@ -146,7 +153,7 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	}
 }
 
-func oneTimeBootstrap(l logging.StandardLogger, c *config.Config, vpnSetupFN func() error) error {
+func oneTimeBootstrap(l logging.StandardLogger, c *providerConfig.Config, vpnSetupFN func() error) error {
 	if role.SentinelExist() {
 		l.Info("Sentinel exists, nothing to do. exiting.")
 		return nil
@@ -154,7 +161,7 @@ func oneTimeBootstrap(l logging.StandardLogger, c *config.Config, vpnSetupFN fun
 	l.Info("One time bootstrap starting")
 
 	var svc machine.Service
-	k3sConfig := config.K3s{}
+	k3sConfig := providerConfig.K3s{}
 	svcName := "k3s"
 	svcRole := "server"
 

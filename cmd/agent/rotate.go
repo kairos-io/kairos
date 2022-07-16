@@ -2,7 +2,8 @@ package main
 
 import (
 	machine "github.com/c3os-io/c3os/internal/machine"
-	"github.com/c3os-io/c3os/internal/vpn"
+	"github.com/c3os-io/c3os/internal/provider"
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	config "github.com/c3os-io/c3os/pkg/config"
 )
 
@@ -16,7 +17,13 @@ func rotate(configDir []string, newToken, apiAddress, rootDir string, restart bo
 		return err
 	}
 
-	err = vpn.Setup(machine.EdgeVPNDefaultInstance, apiAddress, rootDir, false, c)
+	providerCfg := &providerConfig.Config{}
+	err = c.Unmarshal(providerCfg)
+	if err != nil {
+		return err
+	}
+
+	err = provider.SetupVPN(machine.EdgeVPNDefaultInstance, apiAddress, rootDir, false, providerCfg)
 	if err != nil {
 		return err
 	}

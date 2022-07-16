@@ -1,4 +1,4 @@
-package vpn
+package provider
 
 import (
 	"fmt"
@@ -8,12 +8,14 @@ import (
 
 	"github.com/c3os-io/c3os/internal/machine"
 	"github.com/c3os-io/c3os/internal/machine/systemd"
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	"github.com/c3os-io/c3os/internal/utils"
 	"github.com/c3os-io/c3os/pkg/config"
+
 	yip "github.com/mudler/yip/pkg/schema"
 )
 
-func Setup(instance, apiAddress, rootDir string, start bool, c *config.Config) error {
+func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
 
 	if c.C3OS == nil || c.C3OS.NetworkToken == "" {
 		return fmt.Errorf("no network token defined")

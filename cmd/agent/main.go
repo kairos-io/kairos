@@ -12,6 +12,7 @@ import (
 	"github.com/c3os-io/c3os/internal/bus"
 	cmd "github.com/c3os-io/c3os/internal/cmd"
 	machine "github.com/c3os-io/c3os/internal/machine"
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 
 	"github.com/c3os-io/c3os/internal/github"
 	config "github.com/c3os-io/c3os/pkg/config"
@@ -198,7 +199,14 @@ $ c3os rotate --network-token XXX
 			if err != nil {
 				return err
 			}
-			fmt.Print(cc.C3OS.NetworkToken)
+
+			providerCfg := &providerConfig.Config{}
+			err = cc.Unmarshal(providerCfg)
+			if err != nil {
+				return err
+			}
+
+			fmt.Print(providerCfg.C3OS.NetworkToken)
 			return nil
 		},
 	},

@@ -5,12 +5,14 @@ import (
 	"io/ioutil"
 	"os"
 
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
+
 	. "github.com/c3os-io/c3os/internal/provider"
 	"github.com/c3os-io/c3os/pkg/bus"
-	"github.com/c3os-io/c3os/pkg/config"
 	"github.com/mudler/go-pluggable"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v2"
 )
 
 var _ = Describe("Challenge provider", func() {
@@ -26,12 +28,15 @@ var _ = Describe("Challenge provider", func() {
 			Expect(err).ToNot(HaveOccurred())
 			defer os.RemoveAll(f.Name())
 
-			cfg := &config.Config{
-				C3OS: &config.C3OS{
+			cfg := &providerConfig.Config{
+				C3OS: &providerConfig.C3OS{
 					NetworkToken: "foo",
 				},
 			}
-			c := &bus.EventPayload{Config: cfg.String()}
+			d, err := yaml.Marshal(cfg)
+			Expect(err).ToNot(HaveOccurred())
+
+			c := &bus.EventPayload{Config: string(d)}
 			dat, err := json.Marshal(c)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -46,12 +51,14 @@ var _ = Describe("Challenge provider", func() {
 			Expect(err).ToNot(HaveOccurred())
 			defer os.RemoveAll(f.Name())
 
-			cfg := &config.Config{
-				C3OS: &config.C3OS{
+			cfg := &providerConfig.Config{
+				C3OS: &providerConfig.C3OS{
 					NetworkToken: "",
 				},
 			}
-			c := &bus.EventPayload{Config: cfg.String()}
+			d, err := yaml.Marshal(cfg)
+			Expect(err).ToNot(HaveOccurred())
+			c := &bus.EventPayload{Config: string(d)}
 			dat, err := json.Marshal(c)
 			Expect(err).ToNot(HaveOccurred())
 

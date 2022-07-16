@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	retry "github.com/avast/retry-go"
 	"github.com/c3os-io/c3os/internal/machine"
@@ -16,34 +17,19 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type C3OS struct {
-	NetworkToken string `yaml:"network_token,omitempty"`
-	Offline      bool   `yaml:"offline,omitempty"`
-	Reboot       bool   `yaml:"reboot,omitempty"`
-	Device       string `yaml:"device,omitempty"`
-	Poweroff     bool   `yaml:"poweroff,omitempty"`
-	Role         string `yaml:"role,omitempty"`
-	NetworkID    string `yaml:"network_id,omitempty"`
-	DNS          bool   `yaml:"dns,omitempty"`
-	LogLevel     string `yaml:"loglevel,omitempty"`
-}
-
-type K3s struct {
-	Env         map[string]string `yaml:"env,omitempty"`
-	ReplaceEnv  bool              `yaml:"replace_env,omitempty"`
-	ReplaceArgs bool              `yaml:"replace_args,omitempty"`
-	Args        []string          `yaml:"args,omitempty"`
-	Enabled     bool              `yaml:"enabled,omitempty"`
+type Install struct {
+	Auto     bool   `yaml:"auto,omitempty"`
+	Reboot   bool   `yaml:"reboot,omitempty"`
+	Device   string `yaml:"device,omitempty"`
+	Poweroff bool   `yaml:"poweroff,omitempty"`
 }
 
 type Config struct {
-	C3OS     *C3OS             `yaml:"c3os,omitempty"`
-	K3sAgent K3s               `yaml:"k3s-agent,omitempty"`
-	K3s      K3s               `yaml:"k3s,omitempty"`
-	VPN      map[string]string `yaml:"vpn,omitempty"`
+	Install *Install `yaml:"install,omitempty"`
 	//cloudFileContent string
 	originalData       map[string]interface{}
 	location           string
+	header             string
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
 	IgnoreBundleErrors bool              `yaml:"ignore_bundles_errors,omitempty"`
@@ -58,6 +44,18 @@ type Bundle struct {
 	DB         string `yaml:"db_path,omitempty"`
 
 	Targets []string `yaml:"targets,omitempty"`
+}
+
+func HasHeader(userdata, head string) (bool, string) {
+	header := strings.SplitN(userdata, "\n", 2)[0]
+
+	// Trim trailing whitespaces
+	header = strings.TrimRightFunc(header, unicode.IsSpace)
+
+	if head != "" {
+		return head == header, header
+	}
+	return (header == "#cloud-config") || (header == "#c3os-config") || (header == "#node-config"), header
 }
 
 func (b Bundles) Options() (res [][]machine.BundleOption) {
@@ -76,6 +74,10 @@ func (b Bundles) Options() (res [][]machine.BundleOption) {
 	return
 }
 
+func (c Config) Unmarshal(o interface{}) error {
+	return yaml.Unmarshal([]byte(c.String()), o)
+}
+
 func (c Config) Data() map[string]interface{} {
 	return c.originalData
 }
@@ -89,16 +91,16 @@ func (c Config) String() string {
 	}
 
 	dat, _ := yaml.Marshal(c.originalData)
+	if c.header != "" {
+		return AddHeader(c.header, string(dat))
+	}
 	return string(dat)
 }
 
 func (c Config) IsValid() bool {
-	return c.C3OS != nil ||
-		c.K3s.Enabled ||
-		c.K3sAgent.Enabled ||
+	return c.Install != nil ||
 		c.ConfigURL != "" ||
-		len(c.Bundles) != 0 ||
-		len(c.VPN) != 0
+		len(c.Bundles) != 0
 }
 
 func Scan(opts ...Option) (c *Config, err error) {
@@ -129,11 +131,13 @@ func Scan(opts ...Option) (c *Config, err error) {
 		b, err := ioutil.ReadFile(f)
 		if err == nil {
 			yaml.Unmarshal(b, c)
-			if c.IsValid() {
-				//	c.cloudFileContent = string(b)
+			if exists, header := HasHeader(string(b), ""); c.IsValid() || exists {
 				c.location = f
 				yaml.Unmarshal(b, &c.originalData)
 				configFound = true
+				if exists {
+					c.header = header
+				}
 				break
 			}
 
@@ -240,11 +244,13 @@ func listFiles(dir string) ([]string, error) {
 func ReplaceToken(dir []string, token string) (err error) {
 	c, err := Scan(Directories(dir...))
 	if err != nil {
-		return err
+		return fmt.Errorf("no config file found: %w", err)
 	}
 
-	if c.C3OS == nil {
-		return errors.New("no config file found")
+	header := "#node-config"
+
+	if hasHeader, head := HasHeader(c.String(), ""); hasHeader {
+		header = head
 	}
 
 	content := map[interface{}]interface{}{}
@@ -282,7 +288,7 @@ func ReplaceToken(dir []string, token string) (err error) {
 		return err
 	}
 
-	return ioutil.WriteFile(c.location, d, fi.Mode().Perm())
+	return ioutil.WriteFile(c.location, []byte(AddHeader(header, string(d))), fi.Mode().Perm())
 }
 
 type Stage string
@@ -305,4 +311,29 @@ func SaveCloudConfig(name Stage, yc yip.YipConfig) error {
 
 func FromString(s string, o interface{}) error {
 	return yaml.Unmarshal([]byte(s), o)
+}
+
+func MergeYAML(objs ...interface{}) ([]byte, error) {
+	content := [][]byte{}
+	for _, o := range objs {
+		dat, err := yaml.Marshal(o)
+		if err != nil {
+			return []byte{}, err
+		}
+		content = append(content, dat)
+	}
+
+	finalData := make(map[string]interface{})
+
+	for _, c := range content {
+		if err := yaml.Unmarshal(c, &finalData); err != nil {
+			return []byte{}, err
+		}
+	}
+
+	return yaml.Marshal(finalData)
+}
+
+func AddHeader(header, data string) string {
+	return fmt.Sprintf("%s\n%s", header, data)
 }

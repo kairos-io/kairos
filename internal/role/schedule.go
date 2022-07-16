@@ -5,12 +5,14 @@ import (
 	"time"
 
 	"github.com/c3os-io/c3os/pkg/config"
+
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 
 // scheduleRoles assigns roles to nodes. Meant to be called only by leaders
 // TODO: HA-Auto
-func scheduleRoles(nodes []string, c *service.RoleConfig, cc *config.Config) error {
+func scheduleRoles(nodes []string, c *service.RoleConfig, cc *config.Config, pconfig *providerConfig.Config) error {
 	rand.Seed(time.Now().Unix())
 
 	// Assign roles to nodes
@@ -37,7 +39,7 @@ func scheduleRoles(nodes []string, c *service.RoleConfig, cc *config.Config) err
 		toSelect := unassignedNodes
 
 		// Avoid to schedule to ourselves if we have a static role
-		if cc.C3OS.Role != "" {
+		if pconfig.C3OS.Role != "" {
 			toSelect = []string{}
 			for _, u := range unassignedNodes {
 				if u != c.UUID {

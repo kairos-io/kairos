@@ -20,6 +20,8 @@ import (
 	"os"
 	"path/filepath"
 
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
+	"github.com/c3os-io/c3os/pkg/config"
 	. "github.com/c3os-io/c3os/pkg/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -30,7 +32,8 @@ var _ = Describe("Get config", func() {
 	Context("directory", func() {
 		It("reads config file greedly", func() {
 
-			var cc string = `baz: bar
+			var cc string = `#c3os-config
+baz: bar
 c3os:
   network_token: foo
 `
@@ -47,13 +50,17 @@ fooz:
 			c, err := Scan(Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
-			Expect(c.C3OS.NetworkToken).To(Equal("foo"))
+			providerCfg := &providerConfig.Config{}
+			err = c.Unmarshal(providerCfg)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(providerCfg.C3OS).ToNot(BeNil())
+			Expect(providerCfg.C3OS.NetworkToken).To(Equal("foo"))
 			Expect(c.String()).To(Equal(cc))
 		})
 
 		It("replace token in config files", func() {
 
-			var cc string = `
+			var cc string = `#node-config
 c3os:
   network_token: "foo"
 
@@ -80,6 +87,8 @@ fooz:
 
 			err = yaml.Unmarshal(content, &res)
 			Expect(err).ToNot(HaveOccurred())
+			hasHeader, _ := config.HasHeader(string(content), "#node-config")
+			Expect(hasHeader).To(BeTrue())
 
 			Expect(res).To(Equal(map[interface{}]interface{}{
 				"c3os": map[interface{}]interface{}{"network_token": "baz"},
@@ -89,7 +98,7 @@ fooz:
 
 		It("merges with bootargs", func() {
 
-			var cc string = `
+			var cc string = `#c3os-config
 c3os:
   network_token: "foo"
 
@@ -107,7 +116,12 @@ bb:
 			c, err := Scan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c.Options["foo"]).To(Equal("bar"))
-			Expect(c.C3OS.NetworkToken).To(Equal("foo"))
+
+			providerCfg := &providerConfig.Config{}
+			err = c.Unmarshal(providerCfg)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(providerCfg.C3OS).ToNot(BeNil())
+			Expect(providerCfg.C3OS.NetworkToken).To(Equal("foo"))
 			_, exists := c.Data()["zz"]
 			Expect(exists).To(BeFalse())
 		})

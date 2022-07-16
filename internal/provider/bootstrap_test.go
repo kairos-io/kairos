@@ -6,8 +6,8 @@ import (
 	"os"
 
 	. "github.com/c3os-io/c3os/internal/provider"
+	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	"github.com/c3os-io/c3os/pkg/bus"
-	"github.com/c3os-io/c3os/pkg/config"
 	"github.com/mudler/go-pluggable"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -27,8 +27,8 @@ var _ = Describe("Bootstrap provider", func() {
 			Expect(err).ToNot(HaveOccurred())
 			defer os.RemoveAll(f.Name())
 
-			cfg := &config.Config{
-				C3OS: &config.C3OS{
+			cfg := &providerConfig.Config{
+				C3OS: &providerConfig.C3OS{
 					NetworkToken: "foo",
 				},
 			}

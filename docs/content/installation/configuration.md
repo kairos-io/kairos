@@ -9,22 +9,26 @@ pre = "<b>- </b>"
 A c3os node during pairing or either automated install can be configured via a single configuration file.
 
 ```yaml
+#cloud-config
+
 c3os:
   network_token: "...."
-  # Device for offline installs
-  device: "/dev/sda"
-  # Reboot after installation
-  reboot: true
-  # Power off after installation
-  poweroff: true
-  # Set to true when installing without Pairing
-  offline: true
   # Manually set node role. Available: master, worker. Defaults auto (none)
   role: "master"
   # User defined network-id. Can be used to have multiple clusters in the same network
   network_id: "dev"  
   # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
   dns: true
+
+install:
+  # Device for automated installs
+  device: "/dev/sda"
+  # Reboot after installation
+  reboot: true
+  # Power off after installation
+  poweroff: true
+  # Set to true when installing without Pairing
+  auto: true
 
 vpn:
   # EdgeVPN environment options
@@ -112,6 +116,7 @@ You can check out the dns in the [DNS page in the API](http://localhost:8080/dns
 Furthermore, is possible to tweak DNS server which are used to forward requests for domain listed outside, and as well it's possible to lock down resolving only to nodes in the blockchain, by customizing the configuration file:
 
 ```yaml
+#cloud-config
 c3os:
   network_token: "...."
   # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
