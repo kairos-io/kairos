@@ -18,7 +18,7 @@ require (
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.15.2
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
-	github.com/mudler/go-pluggable v0.0.0-20211206135551-9263b05c562e
+	github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3
 	github.com/mudler/yip v0.0.0-20220321143540-2617d71ea02a
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.1.3

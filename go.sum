@@ -1078,8 +1078,8 @@ github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58 h1:bMXak5giXx
 github.com/mudler/go-isterminal v0.0.0-20211031135732-5e4e06fc5a58/go.mod h1:bZC4k76DbPOxOcMq6Z9oEKAZrOhsfh9jAZ9Hu3qVAQI=
 github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1 h1:CJZab2AadIHFmrLPXzU025RJDAtVbHaStVaUnfT1v2k=
 github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1/go.mod h1:KU8NqS1PhoJ8qVfPyXclR/XptuoxML8jQdb7eheJjqo=
-github.com/mudler/go-pluggable v0.0.0-20211206135551-9263b05c562e h1:CZI+kJW2+WjZXLWWnVzi6NDQ6SfwSfeNqq5d1iDiwyY=
-github.com/mudler/go-pluggable v0.0.0-20211206135551-9263b05c562e/go.mod h1:WmKcT8ONmhDQIqQ+HxU+tkGWjzBEyY/KFO8LTGCu4AI=
+github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3 h1:t4X6t8WisUy5mExfS58RBOkzaEGmuor5kOUMQS8lT2g=
+github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3/go.mod h1:WmKcT8ONmhDQIqQ+HxU+tkGWjzBEyY/KFO8LTGCu4AI=
 github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6 h1:LiWUDzDh/DkFYhUeIIdWPuMt/LsEVD3vc/QKDVXlWAY=
 github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6/go.mod h1:HGGAOJhipApckwNV8ZTliRJqxctUv3xRY+zbQEwuytc=
 github.com/mudler/gosigar v0.14.3-0.20220502202347-34be910bdaaf h1:hNa6C3a7+14a2qwMkYZbq94ddebYc8CloF2KOVytf+A=

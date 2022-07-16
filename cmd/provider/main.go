@@ -21,5 +21,5 @@ func main() {
 	// Expected output: string
 	factory.Add(bus.EventChallenge, provider.Challenge)
 
-	factory.Run(pluggable.EventType(os.Args[1]), os.Args[2], os.Stdout)
+	factory.Run(pluggable.EventType(os.Args[1]), os.Stdin, os.Stdout)
 }
