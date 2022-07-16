@@ -39,10 +39,6 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 
 	// TODO: this belong to a systemd service that is started instead
 
-	// TODO: Remove sysctl here and have a default config with
-	// specific sysctl/directories/things to start.
-	utils.SH("sysctl -w net.core.rmem_max=2500000")
-
 	tokenNotDefined := (c.C3OS == nil || c.C3OS.NetworkToken == "")
 
 	if c.C3OS == nil && !c.K3s.Enabled && !c.K3sAgent.Enabled {

@@ -1,5 +1,10 @@
 name: "Branding"
 stages:
+   boot:
+   - name: "Default sysctl settings"
+     sysctl:
+       net.core.rmem_max: 2500000
+       vm.max_map_count: 262144
    initramfs:
      - name: "Default systemd config"
        if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
