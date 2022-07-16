@@ -111,5 +111,24 @@ bb:
 			_, exists := c.Data()["zz"]
 			Expect(exists).To(BeFalse())
 		})
+
+		It("reads config file from url", func() {
+
+			var cc string = `
+config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/bafae390eae4e6382fb1b68293568696823b3103/test.yaml"
+`
+			d, _ := ioutil.TempDir("", "xxxx")
+			defer os.RemoveAll(d)
+
+			err := ioutil.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			c, err := Scan(Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c).ToNot(BeNil())
+			Expect(len(c.Bundles)).To(Equal(1))
+			Expect(c.Bundles[0].Targets[0]).To(Equal("package:utils/edgevpn"))
+			Expect(c.String()).ToNot(Equal(cc))
+		})
 	})
 })

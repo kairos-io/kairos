@@ -18,9 +18,10 @@ type BundleConfig struct {
 	RootPath   string
 }
 
-// bundles needs to ship only /config/... (etc) and /bin/... (will go to /usr/local/bin)
+// BundleOption defines a configuration option for a bundle
 type BundleOption func(bc *BundleConfig) error
 
+// Apply applies bundle options to the config
 func (bc *BundleConfig) Apply(opts ...BundleOption) error {
 	for _, o := range opts {
 		if err := o(bc); err != nil {
@@ -30,7 +31,9 @@ func (bc *BundleConfig) Apply(opts ...BundleOption) error {
 	return nil
 }
 
-func WithDBHPath(r string) BundleOption {
+// WithDBPath sets the DB path for package installs.
+// In case of luet packages will contain the db of the installed packages
+func WithDBPath(r string) BundleOption {
 	return func(bc *BundleConfig) error {
 		bc.DBPath = r
 		return nil
@@ -66,7 +69,6 @@ func (bc *BundleConfig) extractRepo() (string, string, error) {
 	return s[0], s[1], nil
 }
 
-// XXX: directly to rootfs ? or maybe better to /usr/local/.c3os/rootfs and handle symlinks?
 func defaultConfig() *BundleConfig {
 	return &BundleConfig{
 		DBPath:     "/usr/local/.c3os/db",
@@ -79,11 +81,14 @@ type BundleInstaller interface {
 	Install(*BundleConfig) error
 }
 
-// TODO:
-// - Make provider consume bundles when bins are not detected in the rootfs
-// - Default bundles preset in case of no binaries detected and version specified via config.
-
+// RunBundles runs bundles in a system.
+// Accept a list of bundles options, which gets applied based on the bundle configuration
 func RunBundles(bundles ...[]BundleOption) error {
+
+	// TODO:
+	// - Make provider consume bundles when bins are not detected in the rootfs
+	// - Default bundles preset in case of no binaries detected and version specified via config.
+
 	var resErr error
 	for _, b := range bundles {
 		config := defaultConfig()
@@ -205,16 +210,6 @@ func (l *LuetInstaller) Install(config *BundleConfig) error {
 		return fmt.Errorf("could not add repository: %w - %s", err, out)
 	}
 
-	out, err = utils.SH(
-		fmt.Sprintf(
-			`LUET_CONFIG_FROM_HOST=false luet repo update -f --system-dbpath %s --system-target %s`,
-			config.DBPath,
-			config.RootPath,
-		),
-	)
-	if err != nil {
-		return fmt.Errorf("could not sync repository: %w - %s", err, out)
-	}
 	out, err = utils.SH(
 		fmt.Sprintf(
 			`LUET_CONFIG_FROM_HOST=false luet install -y  --system-dbpath %s --system-target %s %s`,

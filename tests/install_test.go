@@ -56,7 +56,6 @@ var _ = Describe("c3os install test", Label("install-test"), func() {
 
 	Context("install", func() {
 
-
 		It("with bundles", func() {
 			testInstall(`
 c3os:
@@ -69,27 +68,25 @@ stages:
      c3os:
       passwd: "c3os"
 bundles:
-- repository: "quay.io/mocaccino/extra"
-  rootfs_path: "/usr/local/bin"
+- rootfs_path: "/usr/local/bin"
   targets:
-  - package:utils/edgevpn
+  - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
 `, func() string {
 				var out string
 				out, _ = machine.Sudo("/usr/local/bin/usr/bin/edgevpn --help")
 				return out
 			}, ContainSubstring("peerguard"))
 		})
-// 		It("with config_url", func() {
-// 			testInstall(`
-// c3os:
-//   offline: true
-//   device: /dev/sda
-// config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/fd362e001c186562847ec0745419fc6820403d25/test.yaml"
-// 			`, func() string {
-// 				var out string
-// 				out, _ = machine.Sudo("/usr/local/bin/usr/bin/edgevpn --help")
-// 				return out
-// 			}, ContainSubstring("peerguard"))
-// 		})
+		It("with config_url", func() {
+			testInstall(`
+c3os:
+  offline: true
+  device: /dev/sda
+config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/ac4598da56c0cd912721d63457831424bb1d2f54/test.yaml"`, func() string {
+				var out string
+				out, _ = machine.Sudo("/usr/local/bin/usr/bin/edgevpn --help")
+				return out
+			}, ContainSubstring("peerguard"))
+		})
 	})
 })

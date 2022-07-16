@@ -68,7 +68,7 @@ func (b Bundles) Options() (res [][]machine.BundleOption) {
 				opts = append(opts, machine.WithRootFS(bundle.Rootfs))
 			}
 			if bundle.DB != "" {
-				opts = append(opts, machine.WithDBHPath(bundle.DB))
+				opts = append(opts, machine.WithDBPath(bundle.DB))
 			}
 			res = append(res, opts)
 		}

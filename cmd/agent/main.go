@@ -132,6 +132,7 @@ E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
 			&cli.StringFlag{
 				Name:   "repository",
 				EnvVar: "REPOSITORY",
+				Value:  "docker://quay.io/c3os/packages",
 			},
 		},
 		UsageText: "Install a bundle manually in the node",
