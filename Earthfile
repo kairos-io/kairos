@@ -79,6 +79,23 @@ build:
     BUILD +build-c3os-agent
     BUILD +build-c3os-agent-provider
 
+dist:
+    FROM golang
+    RUN echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
+    RUN apt update
+    RUN apt install -y goreleaser
+    WORKDIR /build
+    COPY . .
+    RUN goreleaser build --rm-dist --skip-validate --snapshot
+    SAVE ARTIFACT /build/dist/* AS LOCAL dist/
+
+lint:
+    FROM golang:alpine
+    RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.46.2
+    WORKDIR /build
+    COPY . .
+    RUN golangci-lint run
+
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
     SAVE ARTIFACT /usr/bin/luet /luet
