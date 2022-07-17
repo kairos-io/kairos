@@ -396,7 +396,7 @@ jobs:
     needs: 
     - build
     - prepare-alpine-test
-    - build-vm-images
+    - upgrade-test
 
     runs-on: ubuntu-latest
     steps:
@@ -410,16 +410,13 @@ jobs:
       with:
           go-version: '^1.16'
     - run: |
-             curl https://luet.io/install.sh | sudo sh
-             sudo luet install -y repository/mocaccino-extra
-             sudo luet install -y utils/edgevpn
              go build -o c3os ./cmd/cli
              sudo cp -rfv c3os /usr/bin/c3os
              export CLOUD_INIT=$PWD/tests/assets/qrcode.yaml
              export FLAVOR=${{ matrix.flavor }} 
              ./.github/run_test.sh "qrcode-register"
       env:
-       EDGEVPNTOKEN: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MDAwCiAgICBrZXk6IDI0SUpPS1pGS0g1R0tYUTNSNkdaQkNaS0lPTTNSWU9OT0pNRjIyRFFTM0VNT1BUWEdTTFEKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTAwMAogICAga2V5OiBQNklPMllEMzZaVFZRTkdUNk5ZREJNS0s0V09aQjJJN0RQMkRUQzRLVVU1UEhaTjRYSzVBCiAgICBsZW5ndGg6IDMyCnJvb206IEdPMkNRVDVYN080VFM3VEpFUVEyTDRXSTJZNURHNzZHUlNGU05FUVVZN1FBSjZSRzVUUFEKcmVuZGV6dm91czoga0taUE1pQU9TZWN6R1lDRXdTSEV0V21XUGZUaGxOa3QKbWRuczogT0FWY25LZXlPT3ZJQlhtQ0ZBYmhNSkxlbndJTEFxY2sKbWF4X21lc3NhZ2Vfc2l6ZTogMjA5NzE1MjAK
+       SENDKEY: 4kgpo43kphopj
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
@@ -429,7 +426,7 @@ jobs:
   qrcode-test:
     needs: 
     - build
-    - build-vm-images
+    - upgrade-test
     - prepare-alpine-test
     runs-on: macos-10.15
     strategy:
@@ -467,11 +464,11 @@ jobs:
             export FLAVOR=${{ matrix.flavor }} 
             ./.github/run_test.sh "qrcode-install"
       env:
-        EDGEVPNTOKEN: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MDAwCiAgICBrZXk6IDI0SUpPS1pGS0g1R0tYUTNSNkdaQkNaS0lPTTNSWU9OT0pNRjIyRFFTM0VNT1BUWEdTTFEKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTAwMAogICAga2V5OiBQNklPMllEMzZaVFZRTkdUNk5ZREJNS0s0V09aQjJJN0RQMkRUQzRLVVU1UEhaTjRYSzVBCiAgICBsZW5ndGg6IDMyCnJvb206IEdPMkNRVDVYN080VFM3VEpFUVEyTDRXSTJZNURHNzZHUlNGU05FUVVZN1FBSjZSRzVUUFEKcmVuZGV6dm91czoga0taUE1pQU9TZWN6R1lDRXdTSEV0V21XUGZUaGxOa3QKbWRuczogT0FWY25LZXlPT3ZJQlhtQ0ZBYmhNSkxlbndJTEFxY2sKbWF4X21lc3NhZ2Vfc2l6ZTogMjA5NzE1MjAK
+       SENDKEY: 4kgpo43kphopj
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
-        name: ${{ matrix.flavor }}-upgrade-test.logs.zip
+        name: ${{ matrix.flavor }}-qrcode-test.logs.zip
         path: tests/**/logs/*
         if-no-files-found: warn
 

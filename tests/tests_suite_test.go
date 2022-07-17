@@ -2,11 +2,14 @@ package mos_test
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/c3os-io/c3os/internal/utils"
 	"github.com/c3os-io/c3os/tests/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -60,6 +63,23 @@ var _ = BeforeSuite(func() {
 		prepareVM()
 	}
 })
+
+func download(s string) {
+	f2, err := ioutil.TempFile("", "fff")
+	Expect(err).ToNot(HaveOccurred())
+	defer os.RemoveAll(f2.Name())
+
+	resp, err := http.Get(s)
+	Expect(err).ToNot(HaveOccurred())
+
+	defer resp.Body.Close()
+	_, err = io.Copy(f2, resp.Body)
+	Expect(err).ToNot(HaveOccurred())
+
+	out, err := utils.SH("tar xvf " + f2.Name())
+	fmt.Println(out)
+	Expect(err).ToNot(HaveOccurred(), out)
+}
 
 func prepareVM() {
 	if os.Getenv("CREATE_VM") == "true" {

@@ -91,7 +91,7 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 			Eventually(func() string {
 				out, _ := machine.Sudo("cat /var/log/c3os/agent-provider.log")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Sentinel exists"))
+			}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
 
 			Eventually(func() string {
 				out, _ := machine.Sudo("cat /etc/rancher/k3s/k3s.yaml")

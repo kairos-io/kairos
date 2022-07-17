@@ -2,9 +2,6 @@ package mos_test
 
 import (
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net/http"
 	"os"
 	"time"
 
@@ -50,38 +47,46 @@ var _ = Describe("c3os qr code install", Label("qrcode-install"), func() {
 
 			// sleep enough to give time to qr code to display.
 			// TODO: This can be enhanced
-			time.Sleep(2 * time.Minute)
+			time.Sleep(5 * time.Minute)
 
-			file, err := machine.Screenshot()
-			Expect(err).ToNot(HaveOccurred())
-
-			fmt.Println("Screenshot at ", file)
-
-			defer os.RemoveAll(file)
-
-			f2, err := ioutil.TempFile("", "fff")
-			Expect(err).ToNot(HaveOccurred())
-
-			resp, err := http.Get("https://github.com/mudler/edgevpn/releases/download/v0.15.3/edgevpn-v0.15.3-Darwin-x86_64.tar.gz")
-			Expect(err).ToNot(HaveOccurred())
-
-			defer resp.Body.Close()
-			_, err = io.Copy(f2, resp.Body)
-			Expect(err).ToNot(HaveOccurred())
-
-			out, err := utils.SH("tar xvf " + f2.Name())
-			fmt.Println(out)
-			Expect(err).ToNot(HaveOccurred(), out)
-
-			out, err = utils.SH(fmt.Sprintf("EDGEVPNTOKEN=%s ./edgevpn fs --name screenshot --path %s &", os.Getenv("EDGEVPNTOKEN"), file))
-			fmt.Println(out)
-			Expect(err).ToNot(HaveOccurred(), out)
+			download("https://github.com/schollz/croc/releases/download/v9.6.0/croc_9.6.0_macOS-64bit.tar.gz")
 
 			// Wait until we reboot into active, after the system is installed
-			Eventually(func() string {
-				v, _ = machine.SSHCommand("cat /proc/cmdline")
-				return v
-			}, 10*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("rd.cos.disable"))
+			By("sharing a screenshot", func() {
+				Eventually(func() error {
+					file, err := machine.Screenshot()
+					Expect(err).ToNot(HaveOccurred())
+
+					defer os.RemoveAll(file)
+					out, err := utils.SH(fmt.Sprintf("mv %s screenshot.png && ./croc send --code %s %s", file, os.Getenv("SENDKEY"), "screenshot.png"))
+					fmt.Println(out)
+					return err
+				}, 10*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
+			})
+			By("checking that the installer is running", func() {
+				Eventually(func() string {
+					v, _ = machine.SSHCommand("ps aux")
+					return v
+				}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("elemental install"))
+			})
+
+			By("checking that the installer has terminated", func() {
+				Eventually(func() string {
+					v, _ = machine.SSHCommand("ps aux")
+					return v
+				}, 10*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("elemental install"))
+			})
+
+			By("restarting on the installed system", func() {
+
+				machine.DetachCD()
+				machine.Restart()
+
+				Eventually(func() string {
+					v, _ = machine.SSHCommand("cat /proc/cmdline")
+					return v
+				}, 10*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("rd.cos.disable"))
+			})
 		})
 	})
 })
