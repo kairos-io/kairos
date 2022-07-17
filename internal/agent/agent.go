@@ -1,14 +1,13 @@
-package main
+package agent
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"syscall"
+	"path/filepath"
 
 	"github.com/c3os-io/c3os/internal/bus"
 	machine "github.com/c3os-io/c3os/internal/machine"
-	"github.com/c3os-io/c3os/internal/utils"
 	events "github.com/c3os-io/c3os/pkg/bus"
 	config "github.com/c3os-io/c3os/pkg/config"
 	"github.com/nxadm/tail"
@@ -16,7 +15,7 @@ import (
 
 // setup needs edgevpn and k3s installed locally
 // (both k3s and k3s-agent systemd services)
-func agent(apiAddress string, dir []string, force bool) error {
+func Run(apiAddress string, dir []string, force bool) error {
 
 	os.MkdirAll("/usr/local/.c3os", 0600)
 
@@ -26,27 +25,17 @@ func agent(apiAddress string, dir []string, force bool) error {
 		return err
 	}
 
-	// TODO: Proper cleanup the log file
-	f, err := ioutil.TempFile(os.TempDir(), "c3os")
+	os.MkdirAll("/var/log/c3os", 0600)
+	fileName := filepath.Join("/var/log/c3os", "agent-provider.log")
+	err = ioutil.WriteFile(fileName, []byte{}, os.ModePerm)
 	if err != nil {
 		return err
 	}
 
-	err = ioutil.WriteFile(f.Name(), []byte{}, os.ModePerm)
+	t, err := tail.TailFile(fileName, tail.Config{Follow: true})
 	if err != nil {
 		return err
 	}
-
-	t, err := tail.TailFile(f.Name(), tail.Config{Follow: true})
-	if err != nil {
-		return err
-	}
-
-	defer os.RemoveAll(f.Name())
-
-	utils.OnSignal(func() {
-		os.RemoveAll(f.Name())
-	}, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
 		for line := range t.Lines {
@@ -64,6 +53,6 @@ func agent(apiAddress string, dir []string, force bool) error {
 		machine.CreateSentinel("bundles")
 	}
 
-	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: apiAddress, Config: c.String(), Logfile: f.Name()})
+	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: apiAddress, Config: c.String(), Logfile: fileName})
 	return err
 }

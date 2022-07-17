@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"fmt"
@@ -48,8 +48,8 @@ const (
 	TiB
 )
 
-func interactiveInstall(spawnShell bool) error {
-	cmd.PrintBranding(banner)
+func InteractiveInstall(spawnShell bool) error {
+	cmd.PrintBranding(DefaultBanner)
 	pterm.DefaultBox.WithTitle("Installation").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
 		`Interactive installation. Documentation is available at https://docs.c3os.io.`)
 
@@ -136,7 +136,7 @@ func interactiveInstall(spawnShell bool) error {
 	}
 
 	if !isYes(allGood) {
-		return interactiveInstall(spawnShell)
+		return InteractiveInstall(spawnShell)
 	}
 
 	c := &config.Config{
@@ -189,7 +189,7 @@ func interactiveInstall(spawnShell bool) error {
 
 	pterm.Info.Println("Starting installation")
 
-	err = runInstall(map[string]string{
+	err = RunInstall(map[string]string{
 		"device": device,
 		"cc":     config.AddHeader("#node-config", string(dat)),
 	})

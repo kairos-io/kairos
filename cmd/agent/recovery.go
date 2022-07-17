@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	agent "github.com/c3os-io/c3os/internal/agent"
 	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/utils"
@@ -64,7 +65,7 @@ func startRecoveryService(ctx context.Context, token, name, address, loglevel st
 
 func recovery(c *cli.Context) error {
 
-	cmd.PrintBranding(banner)
+	cmd.PrintBranding(agent.DefaultBanner)
 	tk := nodepair.GenerateToken()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

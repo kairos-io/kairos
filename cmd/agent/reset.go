@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	agent "github.com/c3os-io/c3os/internal/agent"
 	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/machine"
@@ -17,7 +18,7 @@ import (
 
 func reset(c *cli.Context) error {
 
-	cmd.PrintBranding(banner)
+	cmd.PrintBranding(agent.DefaultBanner)
 
 	cmd.PrintTextFromFile(c3os.BrandingFile("reset_text"), "Reset")
 

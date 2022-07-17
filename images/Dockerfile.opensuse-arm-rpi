@@ -22,6 +22,7 @@ RUN zypper in -y \
     kernel-firmware-ath11k \
     kernel-firmware-ath10k \
     wireless-tools \
+    logrotate \
     wpa_supplicant \
     iw \
     systemd-sysvinit \

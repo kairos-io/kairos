@@ -9,7 +9,9 @@ import (
 	"os"
 	"strings"
 
+	agent "github.com/c3os-io/c3os/internal/agent"
 	"github.com/c3os-io/c3os/internal/bus"
+
 	cmd "github.com/c3os-io/c3os/internal/cmd"
 	machine "github.com/c3os-io/c3os/internal/machine"
 	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
@@ -115,7 +117,7 @@ Starts the c3os agent which automatically bootstrap and advertize to the c3os ne
 				dirs = args
 			}
 
-			return agent(c.String("api"), dirs, c.Bool("force"))
+			return agent.Run(c.String("api"), dirs, c.Bool("force"))
 		},
 	},
 	{
@@ -237,7 +239,7 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		},
 		Usage: "Starts interactive installation",
 		Action: func(c *cli.Context) error {
-			return interactiveInstall(c.Bool("shell"))
+			return agent.InteractiveInstall(c.Bool("shell"))
 		},
 	},
 	{
@@ -253,7 +255,7 @@ See also https://docs.c3os.io/installation/device_pairing/ for documentation.
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},
 		Action: func(c *cli.Context) error {
-			return install("/oem", "/usr/local/cloud-config", "/run/initramfs/live")
+			return agent.Install("/oem", "/usr/local/cloud-config", "/run/initramfs/live")
 		},
 	},
 	{

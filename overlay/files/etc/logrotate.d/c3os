@@ -1,0 +1,8 @@
+/var/log/c3os/*.log {
+    create
+    daily
+    compress
+    copytruncate
+    missingok
+    rotate 3
+}

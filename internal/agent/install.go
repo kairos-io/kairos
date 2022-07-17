@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"encoding/json"
@@ -35,7 +35,7 @@ func optsToArgs(options map[string]string) (res []string) {
 	return
 }
 
-func install(dir ...string) error {
+func Install(dir ...string) error {
 	utils.OnSignal(func() {
 		svc, err := machine.Getty(1)
 		if err == nil {
@@ -74,7 +74,7 @@ func install(dir ...string) error {
 		r["device"] = cc.Install.Device
 		mergeOption(cc.String())
 
-		runInstall(r)
+		RunInstall(r)
 
 		svc, err := machine.Getty(1)
 		if err == nil {
@@ -89,7 +89,7 @@ func install(dir ...string) error {
 		return err
 	}
 
-	cmd.PrintBranding(banner)
+	cmd.PrintBranding(DefaultBanner)
 
 	cmd.PrintTextFromFile(c3os.BrandingFile("install_text"), "Installation")
 
@@ -142,7 +142,7 @@ func install(dir ...string) error {
 	utils.SH("elemental run-stage c3os-install.pre")
 	bus.RunHookScript("/usr/bin/c3os-agent.install.pre.hook")
 
-	runInstall(r)
+	RunInstall(r)
 
 	pterm.Info.Println("Installation completed, press enter to go back to the shell.")
 
@@ -157,7 +157,7 @@ func install(dir ...string) error {
 	return nil
 }
 
-func runInstall(options map[string]string) error {
+func RunInstall(options map[string]string) error {
 	f, _ := ioutil.TempFile("", "xxxx")
 	defer os.RemoveAll(f.Name())
 
