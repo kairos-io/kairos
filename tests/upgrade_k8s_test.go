@@ -31,6 +31,7 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 				out, _ := machine.Sudo("rc-status")
 				Expect(out).Should(ContainSubstring("c3os"))
 				Expect(out).Should(ContainSubstring("c3os-agent"))
+				Expect(out).Should(ContainSubstring("crond"))
 			} else {
 				// Eventually(func() string {
 				// 	out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
@@ -39,6 +40,9 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 
 				out, _ := machine.Sudo("systemctl status c3os")
 				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
+
+				out, _ = machine.Sudo("systemctl status logrotate.timer")
+				Expect(out).Should(ContainSubstring("active (waiting)"))
 			}
 		})
 	})
@@ -90,12 +94,26 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("One time bootstrap starting"))
 
 			Eventually(func() string {
+				out, _ := machine.Sudo("cat /var/log/c3os/agent-provider.log")
+				return out
+			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("One time bootstrap starting"))
+
+			Eventually(func() string {
 				out, _ := machine.Sudo("cat /etc/rancher/k3s/k3s.yaml")
 				return out
 			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
+		})
 
+		It("rotates logs", func() {
+			out, err := machine.Sudo("logrotate -vf /etc/logrotate.d/c3os")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("log needs rotating"))
+			_, err = machine.Sudo("ls /var/log/c3os/agent-provider.log.1.gz")
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("upgrades", func() {
 			By("installing system-upgrade-controller", func() {
-
 				kubectl := func(s string) (string, error) {
 					return machine.Sudo("k3s kubectl " + s)
 				}
