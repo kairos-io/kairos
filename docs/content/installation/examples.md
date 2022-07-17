@@ -40,41 +40,32 @@ As always, IPs here are arbitrary as they are virtual ips in the VPN which is cr
 For example, to start `k3s` as a server with `c3os` it's sufficient to specify the `k3s` service in the config file:
 
 ```yaml
-name: "Default deployment"
-stages:     
-   network:
-     - if: '[ ! -f "/run/cos/recovery_mode" ]'
-       name: "Setup k3s"
-       environment_file: "/etc/sysconfig/k3s"
-       environment:
-         K3S_TOKEN: "..."
-       systemctl:
-         start: 
-         - k3s
+#node-config
+
+k3s:
+  enabled: true
 ```
 
 And similarly for an `agent`:
 
 ```yaml
-name: "Default deployment"
-stages:     
-   network:
-     - if: '[ ! -f "/run/cos/recovery_mode" ]'
-       name: "Setup k3s"
-       environment_file: "/etc/sysconfig/k3s-agent"
-       environment:
-         K3S_TOKEN: "..."
-       systemctl:
-         start: 
-         - k3s-agent
+#node-config
+k3s-agent:
+  enabled: true
+  env:
+    K3S_TOKEN: ...
+    K3S_URL: ...
 ```
 
 ## Single node cluster with default user/password
+
+This is will setup k3s single-node + VPN with a static ip (`10.1.0.2`).
 
 ```yaml
 c3os:
   network_token: "...."
   role: "master"
+
 vpn:
   # EdgeVPN environment options
   DHCP: "false"
@@ -86,4 +77,19 @@ stages:
        users:
         c3os:
           passwd: "c3os"
+```
+
+## Hostname
+
+Sometimes you might want to create a single cloud-init file for a set of machines, and also make sure each node has a different hostname.
+
+The cloud-config syntax supports templating, so one could automate hostname generation based on the machine id which is generated for each host:
+
+```yaml
+#node-config
+
+stages:
+   initramfs:
+     - name: "Setup hostname"
+       hostname: "node-{{ trunc 4 .MachineID }}"
 ```
