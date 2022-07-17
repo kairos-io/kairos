@@ -396,6 +396,7 @@ jobs:
     needs: 
     - build
     - prepare-alpine-test
+    - build-vm-images
 
     runs-on: ubuntu-latest
     steps:
@@ -428,6 +429,7 @@ jobs:
   qrcode-test:
     needs: 
     - build
+    - build-vm-images
     - prepare-alpine-test
     runs-on: macos-10.15
     strategy:
