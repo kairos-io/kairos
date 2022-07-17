@@ -84,7 +84,7 @@ func GetInterfaceIP(in string) string {
 }
 
 func K3sBin() string {
-	for _, p := range []string{"/usr/bin/k3s"} {
+	for _, p := range []string{"/usr/bin/k3s", "/usr/local/bin/k3s"} {
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
