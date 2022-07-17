@@ -69,11 +69,6 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 				Expect(out).Should(ContainSubstring("c3os"))
 				Expect(out).Should(ContainSubstring("c3os-agent"))
 			} else {
-				// Eventually(func() string {
-				// 	out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
-				// 	return out
-				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
-
 				out, _ := machine.Sudo("systemctl status c3os-agent")
 				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os-agent.service; enabled; vendor preset: disabled)"))
 
@@ -96,7 +91,7 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 			Eventually(func() string {
 				out, _ := machine.Sudo("cat /var/log/c3os/agent-provider.log")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("One time bootstrap starting"))
+			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Sentinel exists"))
 
 			Eventually(func() string {
 				out, _ := machine.Sudo("cat /etc/rancher/k3s/k3s.yaml")

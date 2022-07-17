@@ -15,7 +15,8 @@ var _ = Describe("c3os qr code register", Label("qrcode-register"), func() {
 	Context("register", func() {
 		It("sends config over", func() {
 			Eventually(func() error {
-				out, err := utils.SH(fmt.Sprintf("EDGEVPNTOKEN=%s edgevpn fr --name screenshot --path %s &", os.Getenv("EDGEVPNTOKEN"), "screenshot.png"))
+				os.RemoveAll("screenshot.png")
+				out, err := utils.SH(fmt.Sprintf("EDGEVPNTOKEN=%s edgevpn fr --name screenshot --path %s", os.Getenv("EDGEVPNTOKEN"), "screenshot.png"))
 				fmt.Println(out)
 				if err != nil {
 					return err

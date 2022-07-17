@@ -15,7 +15,9 @@ import (
 )
 
 var _ = Describe("c3os qr code install", Label("qrcode-install"), func() {
-
+	BeforeEach(func() {
+		machine.EventuallyConnects()
+	})
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
 			gatherLogs()
