@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -7,13 +7,10 @@ import (
 	"os/exec"
 	"time"
 
-	agent "github.com/c3os-io/c3os/internal/agent"
-	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/utils"
 	config "github.com/c3os-io/c3os/pkg/config"
 	"github.com/ipfs/go-log"
-	"github.com/urfave/cli"
 
 	machine "github.com/c3os-io/c3os/internal/machine"
 	"github.com/creack/pty"
@@ -63,9 +60,15 @@ func startRecoveryService(ctx context.Context, token, name, address, loglevel st
 	return e.Start(ctx)
 }
 
-func recovery(c *cli.Context) error {
+func Recovery() error {
 
-	cmd.PrintBranding(agent.DefaultBanner)
+	cmd.PrintBranding(DefaultBanner)
+
+	agentConfig, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
 	tk := nodepair.GenerateToken()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -75,7 +78,7 @@ func recovery(c *cli.Context) error {
 
 	startRecoveryService(ctx, tk, serviceUUID, recoveryAddr, "fatal")
 
-	cmd.PrintTextFromFile(c3os.BrandingFile("recovery_text"), "Recovery")
+	cmd.PrintText(agentConfig.Branding.Recovery, "Recovery")
 
 	time.Sleep(5 * time.Second)
 

@@ -1,4 +1,4 @@
-package main_test
+package agent_test
 
 import (
 	"testing"

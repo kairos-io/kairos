@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"fmt"
@@ -7,20 +7,22 @@ import (
 	"sync"
 	"time"
 
-	agent "github.com/c3os-io/c3os/internal/agent"
-	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/machine"
 	"github.com/c3os-io/c3os/internal/utils"
 	"github.com/pterm/pterm"
-	"github.com/urfave/cli"
 )
 
-func reset(c *cli.Context) error {
+func Reset() error {
 
-	cmd.PrintBranding(agent.DefaultBanner)
+	cmd.PrintBranding(DefaultBanner)
 
-	cmd.PrintTextFromFile(c3os.BrandingFile("reset_text"), "Reset")
+	agentConfig, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	cmd.PrintText(agentConfig.Branding.Reset, "Reset")
 
 	// We don't close the lock, as none of the following actions are expected to return
 	lock := sync.Mutex{}

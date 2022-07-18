@@ -89,7 +89,7 @@ See https://docs.c3os.io/after_install/upgrades/#manual for documentation.
 				v = args[0]
 			}
 
-			return upgrade(v, c.String("image"), c.Bool("force"))
+			return agent.Upgrade(v, c.String("image"), c.Bool("force"))
 		},
 	},
 
@@ -183,7 +183,7 @@ $ c3os rotate --network-token XXX
 				dirs = args
 			}
 
-			return rotate(dirs, c.String("network-token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
+			return agent.RotateToken(dirs, c.String("network-token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
 		},
 	},
 
@@ -261,8 +261,10 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 	{
 		Name:    "recovery",
 		Aliases: []string{"r"},
-		Action:  recovery,
-		Usage:   "Starts c3os recovery mode",
+		Action: func(c *cli.Context) error {
+			return agent.Recovery()
+		},
+		Usage: "Starts c3os recovery mode",
 		Description: `
 Starts c3os recovery mode.
 
@@ -275,9 +277,11 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 	},
 
 	{
-		Name:   "reset",
-		Action: reset,
-		Usage:  "Starts c3os reset mode",
+		Name: "reset",
+		Action: func(c *cli.Context) error {
+			return agent.Reset()
+		},
+		Usage: "Starts c3os reset mode",
 		Description: `
 Starts c3os reset mode, it will nuke completely the node data and restart fresh.
 Attention ! this will delete any persistent data on the node. It is equivalent to re-init the node right after the installation.

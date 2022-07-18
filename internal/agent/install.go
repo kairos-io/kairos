@@ -14,7 +14,6 @@ import (
 	config "github.com/c3os-io/c3os/pkg/config"
 
 	"github.com/c3os-io/c3os/internal/bus"
-	"github.com/c3os-io/c3os/internal/c3os"
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/internal/utils"
 
@@ -91,7 +90,12 @@ func Install(dir ...string) error {
 
 	cmd.PrintBranding(DefaultBanner)
 
-	cmd.PrintTextFromFile(c3os.BrandingFile("install_text"), "Installation")
+	agentConfig, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	cmd.PrintText(agentConfig.Branding.Install, "Installation")
 
 	time.Sleep(5 * time.Second)
 

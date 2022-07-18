@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	machine "github.com/c3os-io/c3os/internal/machine"
@@ -7,7 +7,7 @@ import (
 	config "github.com/c3os-io/c3os/pkg/config"
 )
 
-func rotate(configDir []string, newToken, apiAddress, rootDir string, restart bool) error {
+func RotateToken(configDir []string, newToken, apiAddress, rootDir string, restart bool) error {
 	if err := config.ReplaceToken(configDir, newToken); err != nil {
 		return err
 	}

@@ -50,6 +50,8 @@ func Run(apiAddress string, dir []string, force bool) error {
 			return err
 		}
 
+		// Re-load providers
+		bus.Manager.LoadProviders()
 		machine.CreateSentinel("bundles")
 	}
 

@@ -24,9 +24,12 @@ type Bus struct {
 	*pluggable.Manager
 }
 
-func (b *Bus) Initialize() {
+func (b *Bus) LoadProviders() {
 	b.Manager.Autoload("agent-provider", "/system/providers").Register()
+}
 
+func (b *Bus) Initialize() {
+	b.LoadProviders()
 	for i := range b.Manager.Events {
 		e := b.Manager.Events[i]
 		b.Manager.Response(e, func(p *pluggable.Plugin, r *pluggable.EventResponse) {

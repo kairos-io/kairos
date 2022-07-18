@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/c3os-io/c3os/internal/utils"
 )
 
-func upgrade(version, image string, force bool) error {
+func Upgrade(version, image string, force bool) error {
 	if version == "" && image == "" {
 		githubRepo, err := utils.OSRelease("GITHUB_REPO")
 		if err != nil {
