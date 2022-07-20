@@ -24,6 +24,12 @@ func Run(apiAddress string, dir []string, force bool) error {
 	if err != nil {
 		return err
 	}
+	bf := machine.BootFrom()
+	if c.Install != nil && c.Install.Auto && (bf == machine.NetBoot || bf == machine.LiveCDBoot) {
+		// Don't go ahead if we are asked to install from a booting live medium
+		fmt.Println("Agent run aborted. Installation being performed from live medium")
+		return nil
+	}
 
 	os.MkdirAll("/var/log/c3os", 0600)
 	fileName := filepath.Join("/var/log/c3os", "agent-provider.log")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/c3os-io/c3os/internal/machine/openrc"
 	"github.com/c3os-io/c3os/internal/machine/systemd"
@@ -18,6 +19,37 @@ type Service interface {
 	OverrideCmd(string) error
 	Enable() error
 	Restart() error
+}
+
+const (
+	PassiveBoot  = "passive"
+	ActiveBoot   = "active"
+	RecoveryBoot = "recovery"
+	LiveCDBoot   = "liveCD"
+	NetBoot      = "netboot"
+	UnknownBoot  = "unknown"
+)
+
+// BootFrom returns the booting partition of the SUT
+func BootFrom() string {
+	out, err := utils.SH("cat /proc/cmdline")
+	if err != nil {
+		return UnknownBoot
+	}
+	switch {
+	case strings.Contains(out, "COS_ACTIVE"):
+		return ActiveBoot
+	case strings.Contains(out, "COS_PASSIVE"):
+		return PassiveBoot
+	case strings.Contains(out, "COS_RECOVERY"), strings.Contains(out, "COS_SYSTEM"):
+		return RecoveryBoot
+	case strings.Contains(out, "live:CDLABEL"):
+		return LiveCDBoot
+	case strings.Contains(out, "netboot"):
+		return NetBoot
+	default:
+		return UnknownBoot
+	}
 }
 
 func EdgeVPN(instance, rootDir string) (Service, error) {
