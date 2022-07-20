@@ -28,6 +28,11 @@ var machineID string = os.Getenv("MACHINE_ID")
 var _ = AfterSuite(func() {
 	if os.Getenv("CREATE_VM") == "true" {
 		machine.Delete()
+		if machine.SUT != nil {
+			m := &machine.QEMU{}
+			m.Stop(machine.SUT)
+			m.Clean(machine.SUT)
+		}
 	}
 })
 

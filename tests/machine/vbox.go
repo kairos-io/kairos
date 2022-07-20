@@ -17,6 +17,8 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// TODO: This needs some love
+
 var ID string
 var TempDir string
 
@@ -40,7 +42,32 @@ func Screenshot() (string, error) {
 	return f.Name(), nil
 }
 
+var SUT *MachineConfig
+
+func qemuRun(sshPort string) {
+	q := QEMU{}
+
+	err := CreateDisk("disk.img", "40g")
+	Expect(err).ToNot(HaveOccurred())
+	t, err := ioutil.TempDir("", "test")
+	Expect(err).ToNot(HaveOccurred())
+	SUT = &MachineConfig{
+		StateDir:   t,
+		SSHPort:    sshPort,
+		ISO:        os.Getenv("ISO"),
+		DataSource: os.Getenv("DATASOURCE"),
+	}
+	err = q.Run(SUT)
+	Expect(err).ToNot(HaveOccurred())
+}
+
 func Create(sshPort string) {
+
+	if os.Getenv("USE_QEMU") == "true" {
+		qemuRun(sshPort)
+		return
+	}
+
 	out, err := utils.SH(fmt.Sprintf("VBoxManage createmedium disk --filename %s --size %d", filepath.Join(TempDir, "disk.vdi"), 30000))
 	fmt.Println(out)
 	Expect(err).ToNot(HaveOccurred())

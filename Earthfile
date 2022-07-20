@@ -352,3 +352,50 @@ linux-bench-scan:
     WORKDIR /build/linux-bench
     COPY +linux-bench/linux-bench /build/linux-bench/linux-bench
     RUN /build/linux-bench/linux-bench
+
+# Generic targets
+# usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
+datasource-iso:
+  ARG ELEMENTAL_IMAGE
+  ARG CLOUD_CONFIG
+  FROM $ELEMENTAL_IMAGE
+  RUN zypper in -y mkisofs
+  WORKDIR /build
+  RUN touch meta-data
+  COPY ./${CLOUD_CONFIG} user-data
+  RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
+  SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
+
+run-qemu-tests:
+    FROM opensuse/leap
+    WORKDIR /test
+    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
+    ARG FLAVOR
+    ARG TEST_SUITE=autoinstall-test
+    ARG FROM_ARTIFACTS
+    ENV FLAVOR=$FLAVOR
+    ENV SSH_PORT=60022
+    ENV CREATE_VM=true
+    ARG CLOUD_CONFIG="/tests/tests/assets/autoinstall.yaml"
+    ENV USE_QEMU=true
+
+    ENV GOPATH="/go"
+
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+    ENV CLOUD_CONFIG=$CLOUD_CONFIG
+
+    IF [ "$FROM_ARTIFACTS" = "true" ]
+        COPY . .
+        ENV ISO=/test/build/c3os.iso
+        ENV DATASOURCE=/test/build/datasource.iso
+    ELSE
+        COPY ./tests .
+        COPY +iso/c3os.iso c3os.iso
+        COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso
+        ENV ISO=/test/c3os.iso
+        ENV DATASOURCE=/test/datasource.iso
+    END
+
+    ENV CLOUD_INIT=$CLOUD_CONFIG
+
+    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
