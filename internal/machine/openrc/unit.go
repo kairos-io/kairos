@@ -66,12 +66,10 @@ func (s ServiceUnit) OverrideCmd(cmd string) error {
 	}
 	cmd = strings.ReplaceAll(cmd, k3sbin+" ", "")
 	envFile := filepath.Join(s.rootdir, fmt.Sprintf("/etc/rancher/k3s/%s.env", s.name))
-	env = make(map[string]string)
+	env := make(map[string]string)
 	env["command_args"] = fmt.Sprintf(`"%s >>/var/log/%s.log 2>&1"`, cmd, s.name)
 
-	if err := utils.WriteEnv(envFile, env); err != nil {
-		return err
-	}
+	return utils.WriteEnv(envFile, env)
 }
 
 func (s ServiceUnit) Start() error {
