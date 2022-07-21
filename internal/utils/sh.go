@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -30,4 +31,13 @@ func Shell() *exec.Cmd {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 	return cmd
+}
+
+func ShellSTDIN(s, c string) (string, error) {
+	cmd := exec.Command("/bin/sh", "-c", c)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = bytes.NewBuffer([]byte(s))
+	o, err := cmd.CombinedOutput()
+	return string(o), err
 }

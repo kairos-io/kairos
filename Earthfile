@@ -363,9 +363,11 @@ datasource-iso:
   WORKDIR /build
   RUN touch meta-data
   COPY ./${CLOUD_CONFIG} user-data
+  RUN cat user-data
   RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
   SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
 
+# usage e.g. ./earthly.sh +run-qemu-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
 run-qemu-tests:
     FROM opensuse/leap
     WORKDIR /test

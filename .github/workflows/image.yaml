@@ -392,6 +392,30 @@ jobs:
           path: last-release
           if-no-files-found: error
 
+  qemu-autoinstall-tests:
+    needs: 
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+         - flavor: "opensuse"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+          name: c3os-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/c3os.iso
+            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-tests --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
+
   qrcode-test-cli:
     needs: 
     - build

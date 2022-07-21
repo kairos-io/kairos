@@ -145,3 +145,13 @@ func SentinelExist(f string) bool {
 	}
 	return false
 }
+
+func ExecuteInlineCloudConfig(cloudConfig, stage string) error {
+	_, err := utils.ShellSTDIN(cloudConfig, fmt.Sprintf("elemental run-stage -s %s -", stage))
+	return err
+}
+
+func ExecuteCloudConfig(file, stage string) error {
+	_, err := utils.SH(fmt.Sprintf("elemental run-stage -s %s %s", stage, file))
+	return err
+}

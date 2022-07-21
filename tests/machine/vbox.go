@@ -47,13 +47,16 @@ var SUT *MachineConfig
 func qemuRun(sshPort string) {
 	q := QEMU{}
 
-	err := CreateDisk("disk.img", "40g")
-	Expect(err).ToNot(HaveOccurred())
 	t, err := ioutil.TempDir("", "test")
 	Expect(err).ToNot(HaveOccurred())
+
+	err = CreateDisk(filepath.Join(t, "disk.img"), "40g")
+	Expect(err).ToNot(HaveOccurred())
+
 	SUT = &MachineConfig{
 		StateDir:   t,
 		SSHPort:    sshPort,
+		Drive:      filepath.Join(t, "disk.img"),
 		ISO:        os.Getenv("ISO"),
 		DataSource: os.Getenv("DATASOURCE"),
 	}
