@@ -88,7 +88,7 @@ jobs:
   build-vm-images:
     needs: 
     - build
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -156,7 +156,7 @@ jobs:
   install-test:
     needs: 
     - build
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -201,7 +201,7 @@ jobs:
     - prepare-test
     - upgrade-test
     - upgrade-latest-with-cli-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -251,7 +251,7 @@ jobs:
     - upgrade-single-node-k8s-test
     - upgrade-test
     - upgrade-latest-with-cli-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -331,7 +331,7 @@ jobs:
     - decentralized-k8s-test-opensuse
     - upgrade-test
     - upgrade-latest-with-cli-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -428,7 +428,7 @@ jobs:
     - build
     - upgrade-test
     - prepare-alpine-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -476,7 +476,7 @@ jobs:
     needs: 
     - build
     - latest-release
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -523,7 +523,7 @@ jobs:
     needs: 
     - build
     - latest-release
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -567,7 +567,7 @@ jobs:
   #   needs: 
   #   - prepare-test
   #   - test
-  #   runs-on: macos-10.15
+  #   runs-on: macos-12
   #   strategy:
   #     fail-fast: true
   #     matrix:
