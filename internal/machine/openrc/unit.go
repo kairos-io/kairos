@@ -65,9 +65,13 @@ func (s ServiceUnit) OverrideCmd(cmd string) error {
 		return fmt.Errorf("no k3s binary found (?)")
 	}
 	cmd = strings.ReplaceAll(cmd, k3sbin+" ", "")
-	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/rancher/k3s/%s.env", s.name))
+	envFile := filepath.Join(s.rootdir, fmt.Sprintf("/etc/rancher/k3s/%s.env", s.name))
+	env = make(map[string]string)
+	env["command_args"] = fmt.Sprintf(`"%s >>/var/log/%s.log 2>&1"`, cmd, s.name)
 
-	return ioutil.WriteFile(svcDir, []byte(fmt.Sprintf(`command_args="%s >>/var/log/%s.log 2>&1"`, cmd, s.name)), 0600)
+	if err := utils.WriteEnv(envFile, env); err != nil {
+		return err
+	}
 }
 
 func (s ServiceUnit) Start() error {
