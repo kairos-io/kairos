@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=fedora:37
+ARG BASE_IMAGE=rockylinux:9
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
@@ -17,14 +17,12 @@ RUN dnf install -y \
     dracut \
     e2fsprogs \
     dosfstools \
-    coreutils \
     device-mapper \
     grub2 \
     which \
     curl \
     nano \
     gawk \
-    haveged \
     tar \
     openssh-server \
     shim-x64 \

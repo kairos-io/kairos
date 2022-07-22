@@ -3,10 +3,12 @@ FROM alpine
 ARG FLAVOR=opensuse
 ARG IMAGE=quay.io/c3os/c3os:${FLAVOR}-latest
 ARG LUET_VERSION=0.32.4
-ARG REPOSITORIES_FILE=repositories.yaml
+ARG OS_ID=c3os
 
-IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "tumbleweed" ] || [ "$FLAVOR" = "ubuntu" ]
+IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "tumbleweed" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "rockylinux" ] 
     ARG REPOSITORIES_FILE=repositories.yaml.${FLAVOR}
+ELSE
+    ARG REPOSITORIES_FILE=repositories.yaml
 END
 
 ARG COSIGN_SKIP=".*quay.io/c3os/.*"
@@ -122,7 +124,7 @@ framework:
 
     ENV USER=root
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]  || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN /usr/bin/luet install -y --system-target /framework \
             meta/cos-verify \
             meta/cos-core \
@@ -184,7 +186,7 @@ docker:
     ELSE
         ARG OS_VERSION=${K3S_VERSION}+k3s1-c3OS${C3OS_VERSION}
     END
-    ARG OS_ID=c3os
+    ARG OS_ID
     ARG FLAVOR
     ARG OS_NAME=${OS_ID}-${FLAVOR}
     ARG OS_REPO=quay.io/c3os/c3os
