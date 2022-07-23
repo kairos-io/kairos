@@ -3,6 +3,7 @@
 
 ISO=$1
 OUTPUT_NAME=$2
+VERSION=$3
 
 isoinfo -x /rootfs.squashfs -R -i $ISO > $OUTPUT_NAME.squashfs
 isoinfo -x /boot/kernel.xz -R -i $ISO > $OUTPUT_NAME-kernel
@@ -12,8 +13,7 @@ RELEASE_URL=${RELEASE_URL:-https://github.com/c3os-io/c3os/releases/download}
 
 cat > $OUTPUT_NAME.ipxe << EOF
 #!ipxe
-set arch ${ARCH}
-set version ${GIT_TAG}
+set version ${VERSION}
 set url ${RELEASE_URL}/\${version}
 set kernel $OUTPUT_NAME-kernel
 set initrd $OUTPUT_NAME-initrd

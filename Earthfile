@@ -273,12 +273,13 @@ iso:
 
 netboot:
    FROM opensuse/leap
+   ARG VERSION
    ARG ISO_NAME=${OS_ID}
    WORKDIR /build
    COPY +iso/c3os.iso c3os.iso
    COPY . .
    RUN zypper in -y cdrtools
-   RUN /build/scripts/netboot.sh c3os.iso $ISO_NAME
+   RUN /build/scripts/netboot.sh c3os.iso $ISO_NAME $VERSION
    SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
    SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
    SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
