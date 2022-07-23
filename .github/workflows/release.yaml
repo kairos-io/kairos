@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # OIDC support
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -107,6 +108,8 @@ jobs:
 
   release-images:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs: build-vm-images
     strategy:
       fail-fast: false
