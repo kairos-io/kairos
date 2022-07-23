@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/c3os-io/c3os/cli/github"
+	"github.com/c3os-io/c3os/internal/github"
 	"github.com/hashicorp/go-version"
 )
 
@@ -75,18 +75,30 @@ func main() {
 				continue
 			}
 
-			out, err = exec.Command("git", "push", "origin", expectedTag).CombinedOutput()
-			if err != nil {
+			if err := pushTag(expectedTag); err != nil {
 				panic(err)
 			}
-			fmt.Println(string(out))
 
 		} else {
 			fmt.Println(expectedTag, "present")
+			if os.Getenv("REPUSH") != "" {
+				if err := pushTag(expectedTag); err != nil {
+					panic(err)
+				}
+			}
 		}
 	}
 }
 
 func checkTag(v string) bool {
 	return exec.Command("git", "rev-list", v+"..").Run() == nil
+}
+
+func pushTag(expectedTag string) error {
+	out, err := exec.Command("git", "push", "origin", expectedTag).CombinedOutput()
+	fmt.Println(string(out))
+	if err != nil {
+		return err
+	}
+	return nil
 }
