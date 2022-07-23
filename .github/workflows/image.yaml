@@ -88,7 +88,7 @@ jobs:
   build-vm-images:
     needs: 
     - build
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -156,7 +156,7 @@ jobs:
   install-test:
     needs: 
     - build
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -201,7 +201,7 @@ jobs:
     - prepare-test
     - upgrade-test
     - upgrade-latest-with-cli-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -251,7 +251,7 @@ jobs:
     - upgrade-single-node-k8s-test
     - upgrade-test
     - upgrade-latest-with-cli-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -331,7 +331,7 @@ jobs:
     - decentralized-k8s-test-opensuse
     - upgrade-test
     - upgrade-latest-with-cli-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
@@ -392,6 +392,30 @@ jobs:
           path: last-release
           if-no-files-found: error
 
+  qemu-autoinstall-tests:
+    needs: 
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+         - flavor: "opensuse"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+          name: c3os-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/c3os.iso
+            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-tests --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
+
   qrcode-test-cli:
     needs: 
     - build
@@ -428,7 +452,7 @@ jobs:
     - build
     - upgrade-test
     - prepare-alpine-test
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -476,7 +500,7 @@ jobs:
     needs: 
     - build
     - latest-release
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -523,7 +547,7 @@ jobs:
     needs: 
     - build
     - latest-release
-    runs-on: macos-10.15
+    runs-on: macos-12
     strategy:
       fail-fast: false
       matrix:
@@ -567,7 +591,7 @@ jobs:
   #   needs: 
   #   - prepare-test
   #   - test
-  #   runs-on: macos-10.15
+  #   runs-on: macos-12
   #   strategy:
   #     fail-fast: true
   #     matrix:

@@ -65,6 +65,13 @@ func Install(dir ...string) error {
 		}
 	})
 
+	// Try to pull userdata once more. best-effort
+	if _, err := os.Stat("/oem/userdata"); err != nil {
+		if err := machine.ExecuteCloudConfig("/system/oem/00_datasource.yaml", "rootfs.before"); err != nil {
+			fmt.Println("Warning: Failed pulling from datasources")
+		}
+	}
+
 	// Reads config, and if present and offline is defined,
 	// runs the installation
 	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine)

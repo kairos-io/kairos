@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ubuntu:20.04
+ARG BASE_IMAGE=ubuntu:22.10
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
@@ -21,7 +21,7 @@ RUN apt install -y \
 	iproute2 \
 	squashfs-tools \
 	parted dracut \
-	dracut-network tar \
+	dracut-network dracut-live tar \
 	e2fsprogs \
 	dosfstools \
 	coreutils \

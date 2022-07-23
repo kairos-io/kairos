@@ -20,7 +20,7 @@ set initrd $OUTPUT_NAME-initrd
 set rootfs $OUTPUT_NAME.squashfs
 # set config https://example.com/machine-config
 # set cmdline extra.values=1
-kernel \${url}/\${kernel} initrd=\${initrd} ip=dhcp rd.cos.disable root=live:\${url}/\${rootfs} nodepair.enable config_url=\${config} console=tty1 console=ttyS0 \${cmdline}
+kernel \${url}/\${kernel} initrd=\${initrd} ip=dhcp rd.cos.disable root=live:\${url}/\${rootfs} netboot nodepair.enable config_url=\${config} console=tty1 console=ttyS0 \${cmdline}
 initrd \${url}/\${initrd}
 boot
 EOF

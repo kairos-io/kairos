@@ -9,3 +9,12 @@ stages:
     - if: '[ ! -f "/run/cos/recovery_mode" ]'
       commands:
        - systemctl enable c3os-agent
+    - name: "openRC setup"
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -e "/sbin/openrc" ]'
+      commands:
+      - |
+        mkdir -p /etc/runlevels/default
+        for SVC in c3os-agent
+        do
+            ln -sf /etc/init.d/$SVC /etc/runlevels/default/$SVC
+        done

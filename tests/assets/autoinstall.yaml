@@ -2,8 +2,7 @@
 
 install:
   auto: true
-  device: /dev/sda
-  poweroff: true
+  device: /dev/vda
 
 stages:
    initramfs:
