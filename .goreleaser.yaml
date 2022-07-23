@@ -26,6 +26,7 @@ builds:
     main: ./cmd/agent/
     id: "c3os-agent"
     binary: "c3os-agent"
+    skip: true
   - ldflags:
       - -w -s
     env:
@@ -38,6 +39,7 @@ builds:
     main: ./cmd/provider/
     id: "agent-provider-c3os"
     binary: "agent-provider-c3os"
+    skip: true
 source:
   enabled: true
   name_template: '{{ .ProjectName }}-{{ .Tag }}-source'
