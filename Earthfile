@@ -290,7 +290,7 @@ arm-image:
   FROM $ELEMENTAL_IMAGE
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
-  RUN zypper in -y jq docker git curl gptfdisk kpartx
+  RUN zypper in -y jq docker git curl gptfdisk kpartx sudo
   #COPY +luet/luet /usr/bin/luet
   WORKDIR /build
   RUN git clone https://github.com/rancher/elemental-toolkit && mkdir elemental-toolkit/build
