@@ -1,8 +1,6 @@
 package main
 
 import (
-	//"fmt"
-
 	"context"
 	"encoding/json"
 	"fmt"
@@ -268,7 +266,7 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		Description: `
 Starts c3os recovery mode.
 
-In recovery mode a QR code will be printed out on the screen which should be used in conjuction with "c3os bridge". Pass by the QR code as snapshot
+In recovery mode a QR code will be printed out on the screen which should be used in conjunction with "c3os bridge". Pass by the QR code as snapshot
 to the bridge to connect over the machine which runs the "c3os recovery" command.
 
 See also https://docs.c3os.io/after_install/recovery_mode/ for documentation.

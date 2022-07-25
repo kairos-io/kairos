@@ -58,7 +58,7 @@ func (s ServiceUnit) WriteUnit() error {
 	return nil
 }
 
-// TODO: This is too much k3s specific
+// TODO: This is too much k3s specific.
 func (s ServiceUnit) OverrideCmd(cmd string) error {
 	k3sbin := utils.K3sBin()
 	if k3sbin == "" {
@@ -73,13 +73,19 @@ func (s ServiceUnit) OverrideCmd(cmd string) error {
 }
 
 func (s ServiceUnit) Start() error {
-	_, err := utils.SH(fmt.Sprintf("/etc/init.d/%s start", s.name))
-	return err
+	out, err := utils.SH(fmt.Sprintf("/etc/init.d/%s start", s.name))
+	if err != nil {
+		return fmt.Errorf("failed starting service: %s. %s (%w)", s.name, out, err)
+	}
+	return nil
 }
 
 func (s ServiceUnit) Restart() error {
-	_, err := utils.SH(fmt.Sprintf("/etc/init.d/%s restart", s.name))
-	return err
+	out, err := utils.SH(fmt.Sprintf("/etc/init.d/%s restart", s.name))
+	if err != nil {
+		return fmt.Errorf("failed restarting service: %s. %s (%w)", s.name, out, err)
+	}
+	return nil
 }
 
 func (s ServiceUnit) Enable() error {

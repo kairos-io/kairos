@@ -18,10 +18,10 @@ type BundleConfig struct {
 	RootPath   string
 }
 
-// BundleOption defines a configuration option for a bundle
+// BundleOption defines a configuration option for a bundle.
 type BundleOption func(bc *BundleConfig) error
 
-// Apply applies bundle options to the config
+// Apply applies bundle options to the config.
 func (bc *BundleConfig) Apply(opts ...BundleOption) error {
 	for _, o := range opts {
 		if err := o(bc); err != nil {
@@ -32,7 +32,7 @@ func (bc *BundleConfig) Apply(opts ...BundleOption) error {
 }
 
 // WithDBPath sets the DB path for package installs.
-// In case of luet packages will contain the db of the installed packages
+// In case of luet packages will contain the db of the installed packages.
 func WithDBPath(r string) BundleOption {
 	return func(bc *BundleConfig) error {
 		bc.DBPath = r
@@ -82,7 +82,7 @@ type BundleInstaller interface {
 }
 
 // RunBundles runs bundles in a system.
-// Accept a list of bundles options, which gets applied based on the bundle configuration
+// Accept a list of bundles options, which gets applied based on the bundle configuration.
 func RunBundles(bundles ...[]BundleOption) error {
 
 	// TODO:
@@ -92,7 +92,10 @@ func RunBundles(bundles ...[]BundleOption) error {
 	var resErr error
 	for _, b := range bundles {
 		config := defaultConfig()
-		config.Apply(b...)
+		if err := config.Apply(b...); err != nil {
+			resErr = multierror.Append(err)
+			continue
+		}
 
 		installer, err := NewBundleInstaller(*config)
 		if err != nil {
@@ -102,7 +105,6 @@ func RunBundles(bundles ...[]BundleOption) error {
 		dat := strings.Split(config.Target, "://")
 		if len(dat) != 2 {
 			resErr = multierror.Append(fmt.Errorf("invalid target"))
-
 			continue
 		}
 		config.Target = dat[1]
@@ -136,7 +138,7 @@ func NewBundleInstaller(bc BundleConfig) (BundleInstaller, error) {
 	return &LuetInstaller{}, nil
 }
 
-// BundleInstall installs a bundle from a luet repo or a container image
+// BundleInstall installs a bundle from a luet repo or a container image.
 type ContainerRunner struct{}
 
 func (l *ContainerRunner) Install(config *BundleConfig) error {

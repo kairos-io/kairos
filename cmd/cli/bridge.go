@@ -112,7 +112,7 @@ func bridge(c *cli.Context) error {
 		return err
 	}
 
-	go api.API(ctx, c.String("api"), 5*time.Second, 20*time.Second, e, nil, false)
+	go api.API(ctx, c.String("api"), 5*time.Second, 20*time.Second, e, nil, false) //nolint:errcheck
 
 	return e.Start(ctx)
 }

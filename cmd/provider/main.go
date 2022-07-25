@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/c3os-io/c3os/internal/provider"
@@ -21,5 +22,9 @@ func main() {
 	// Expected output: string
 	factory.Add(bus.EventChallenge, provider.Challenge)
 
-	factory.Run(pluggable.EventType(os.Args[1]), os.Stdin, os.Stdout)
+	err := factory.Run(pluggable.EventType(os.Args[1]), os.Stdin, os.Stdout)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }

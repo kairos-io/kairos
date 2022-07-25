@@ -28,7 +28,10 @@ func propagateMasterData(ip string, c *service.RoleConfig) error {
 	}()
 
 	// If we are configured as master, always signal our role
-	c.Client.Set("role", c.UUID, "master")
+	if err := c.Client.Set("role", c.UUID, "master"); err != nil {
+		c.Logger.Error(err)
+		return err
+	}
 
 	tokenB, err := ioutil.ReadFile("/var/lib/rancher/k3s/server/node-token")
 	if err != nil {
@@ -39,7 +42,10 @@ func propagateMasterData(ip string, c *service.RoleConfig) error {
 	nodeToken := string(tokenB)
 	nodeToken = strings.TrimRight(nodeToken, "\n")
 	if nodeToken != "" {
-		c.Client.Set("nodetoken", "token", nodeToken)
+		err := c.Client.Set("nodetoken", "token", nodeToken)
+		if err != nil {
+			c.Logger.Error(err)
+		}
 	}
 
 	kubeB, err := ioutil.ReadFile("/etc/rancher/k3s/k3s.yaml")
@@ -49,9 +55,15 @@ func propagateMasterData(ip string, c *service.RoleConfig) error {
 	}
 	kubeconfig := string(kubeB)
 	if kubeconfig != "" {
-		c.Client.Set("kubeconfig", "master", base64.RawURLEncoding.EncodeToString(kubeB))
+		err := c.Client.Set("kubeconfig", "master", base64.RawURLEncoding.EncodeToString(kubeB))
+		if err != nil {
+			c.Logger.Error(err)
+		}
 	}
-	c.Client.Set("master", "ip", ip)
+	err = c.Client.Set("master", "ip", ip)
+	if err != nil {
+		c.Logger.Error(err)
+	}
 	return nil
 }
 
@@ -66,7 +78,9 @@ func Master(cc *config.Config, pconfig *providerConfig.Config) Role {
 		if pconfig.C3OS.Role != "" {
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
-			c.Client.Set("role", c.UUID, pconfig.C3OS.Role)
+			if err := c.Client.Set("role", c.UUID, pconfig.C3OS.Role); err != nil {
+				c.Logger.Error(err)
+			}
 		}
 
 		if SentinelExist() {
@@ -127,11 +141,11 @@ func Master(cc *config.Config, pconfig *providerConfig.Config) Role {
 			return err
 		}
 
-		propagateMasterData(ip, c)
+		if err := propagateMasterData(ip, c); err != nil {
+			return err
+		}
 
-		CreateSentinel()
-
-		return nil
+		return CreateSentinel()
 	}
 }
 

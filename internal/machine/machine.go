@@ -30,7 +30,7 @@ const (
 	UnknownBoot  = "unknown"
 )
 
-// BootFrom returns the booting partition of the SUT
+// BootFrom returns the booting partition of the SUT.
 func BootFrom() string {
 	out, err := utils.SH("cat /proc/cmdline")
 	if err != nil {
@@ -59,14 +59,14 @@ func EdgeVPN(instance, rootDir string) (Service, error) {
 			openrc.WithUnitContent(openrc.EdgevpnUnit),
 			openrc.WithRoot(rootDir),
 		)
-	} else {
-		return systemd.NewService(
-			systemd.WithName("edgevpn"),
-			systemd.WithInstance(instance),
-			systemd.WithUnitContent(systemd.EdgevpnUnit),
-			systemd.WithRoot(rootDir),
-		)
 	}
+
+	return systemd.NewService(
+		systemd.WithName("edgevpn"),
+		systemd.WithInstance(instance),
+		systemd.WithUnitContent(systemd.EdgevpnUnit),
+		systemd.WithRoot(rootDir),
+	)
 }
 
 const EdgeVPNDefaultInstance string = "c3os"
@@ -79,19 +79,19 @@ func (fakegetty) OverrideCmd(string) error { return nil }
 func (fakegetty) SetEnvFile(string) error  { return nil }
 func (fakegetty) WriteUnit() error         { return nil }
 func (fakegetty) Start() error {
-	utils.SH("chvt 2")
+	utils.SH("chvt 2") //nolint:errcheck
 	return nil
 }
 
 func Getty(i int) (Service, error) {
 	if utils.IsOpenRCBased() {
 		return &fakegetty{}, nil
-	} else {
-		return systemd.NewService(
-			systemd.WithName("getty"),
-			systemd.WithInstance(fmt.Sprintf("tty%d", i)),
-		)
 	}
+
+	return systemd.NewService(
+		systemd.WithName("getty"),
+		systemd.WithInstance(fmt.Sprintf("tty%d", i)),
+	)
 }
 
 func K3s() (Service, error) {
@@ -99,11 +99,11 @@ func K3s() (Service, error) {
 		return openrc.NewService(
 			openrc.WithName("k3s"),
 		)
-	} else {
-		return systemd.NewService(
-			systemd.WithName("k3s"),
-		)
 	}
+
+	return systemd.NewService(
+		systemd.WithName("k3s"),
+	)
 }
 
 func K3sAgent() (Service, error) {
@@ -111,19 +111,19 @@ func K3sAgent() (Service, error) {
 		return openrc.NewService(
 			openrc.WithName("k3s-agent"),
 		)
-	} else {
-		return systemd.NewService(
-			systemd.WithName("k3s-agent"),
-		)
 	}
+
+	return systemd.NewService(
+		systemd.WithName("k3s-agent"),
+	)
 }
 
 func K3sEnvUnit(unit string) string {
 	if utils.IsOpenRCBased() {
 		return fmt.Sprintf("/etc/rancher/k3s/%s.env", unit)
-	} else {
-		return fmt.Sprintf("/etc/sysconfig/%s", unit)
 	}
+
+	return fmt.Sprintf("/etc/sysconfig/%s", unit)
 }
 
 func UUID() string {

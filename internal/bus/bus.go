@@ -9,8 +9,8 @@ import (
 	"github.com/mudler/go-pluggable"
 )
 
-// Manager is the bus instance manager, which subscribes plugins to events emitted
-var Manager *Bus = &Bus{
+// Manager is the bus instance manager, which subscribes plugins to events emitted.
+var Manager = &Bus{
 	Manager: pluggable.NewManager(
 		[]pluggable.EventType{
 			bus.EventBootstrap,

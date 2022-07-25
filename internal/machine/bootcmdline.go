@@ -84,5 +84,5 @@ func dotToYAML(v map[string]interface{}) ([]byte, error) {
 	if err != nil {
 		errs = multierror.Append(errs, err)
 	}
-	return out, err
+	return out, errs
 }

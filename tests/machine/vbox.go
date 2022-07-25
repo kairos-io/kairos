@@ -12,8 +12,7 @@ import (
 	"github.com/bramvdbogaerde/go-scp"
 	"github.com/c3os-io/c3os/internal/utils"
 
-	//. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega" //nolint:revive
 	"golang.org/x/crypto/ssh"
 )
 
@@ -23,11 +22,11 @@ var ID string
 var TempDir string
 
 func Delete() {
-	utils.SH(fmt.Sprintf(`VBoxManage controlvm "%s" poweroff`, ID))
-	utils.SH(fmt.Sprintf(`VBoxManage unregistervm --delete "%s"`, ID))
-	utils.SH(fmt.Sprintf(`VBoxManage closemedium disk "%s"`, filepath.Join(TempDir, "disk.vdi")))
-	os.RemoveAll(TempDir)
-	utils.SH(fmt.Sprintf("rm -rf ~/VirtualBox\\ VMs/%s", ID))
+	utils.SH(fmt.Sprintf(`VBoxManage controlvm "%s" poweroff`, ID))                               //nolint:errcheck
+	utils.SH(fmt.Sprintf(`VBoxManage unregistervm --delete "%s"`, ID))                            //nolint:errcheck
+	utils.SH(fmt.Sprintf(`VBoxManage closemedium disk "%s"`, filepath.Join(TempDir, "disk.vdi"))) //nolint:errcheck
+	os.RemoveAll(TempDir)                                                                         //nolint:errcheck
+	utils.SH(fmt.Sprintf("rm -rf ~/VirtualBox\\ VMs/%s", ID))                                     //nolint:errcheck
 }
 
 func Screenshot() (string, error) {
@@ -42,7 +41,7 @@ func Screenshot() (string, error) {
 	return f.Name(), nil
 }
 
-var SUT *MachineConfig
+var SUT *Config
 
 func qemuRun(sshPort string) {
 	q := QEMU{}
@@ -53,7 +52,7 @@ func qemuRun(sshPort string) {
 	err = CreateDisk(filepath.Join(t, "disk.img"), "40g")
 	Expect(err).ToNot(HaveOccurred())
 
-	SUT = &MachineConfig{
+	SUT = &Config{
 		StateDir:   t,
 		SSHPort:    sshPort,
 		Drive:      filepath.Join(t, "disk.img"),
@@ -225,7 +224,7 @@ func Sudo(c string) (string, error) {
 	return SSHCommand(fmt.Sprintf(`sudo /bin/sh -c "%s"`, c))
 }
 
-// GatherAllLogs will try to gather as much info from the system as possible, including services, dmesg and os related info
+// GatherAllLogs will try to gather as much info from the system as possible, including services, dmesg and os related info.
 func GatherAllLogs(services []string, logFiles []string) {
 	// services
 	for _, ser := range services {
@@ -285,9 +284,9 @@ func GatherAllLogs(services []string, logFiles []string) {
 	GatherLog("/etc/os-release")
 }
 
-// GatherLog will try to scp the given log from the machine to a local file
+// GatherLog will try to scp the given log from the machine to a local file.
 func GatherLog(logPath string) {
-	Sudo("chmod 777 " + logPath)
+	Sudo("chmod 777 " + logPath) //nolint:errcheck
 	fmt.Printf("Trying to get file: %s\n", logPath)
 	sshConfig := &ssh.ClientConfig{
 		User:    user(),

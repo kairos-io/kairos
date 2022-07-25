@@ -123,6 +123,8 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 	configFound := false
 	lastYamlFileFound := ""
+
+	// Scanning happens as best-effort, therefore unmarshalling skips errors here.
 	for _, f := range files {
 		if fileSize(f) > 1.0 {
 			//fmt.Println("warning: Skipping file ", f, "as exceeds 1 MB in size")
@@ -130,10 +132,11 @@ func Scan(opts ...Option) (c *Config, err error) {
 		}
 		b, err := ioutil.ReadFile(f)
 		if err == nil {
-			yaml.Unmarshal(b, c)
+			// best effort. skip lint checks
+			yaml.Unmarshal(b, c) //nolint:errcheck
 			if exists, header := HasHeader(string(b), ""); c.IsValid() || exists {
 				c.location = f
-				yaml.Unmarshal(b, &c.originalData)
+				yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
 				configFound = true
 				if exists {
 					c.header = header
@@ -152,21 +155,21 @@ func Scan(opts ...Option) (c *Config, err error) {
 	if !configFound && lastYamlFileFound != "" {
 		b, err := ioutil.ReadFile(lastYamlFileFound)
 		if err == nil {
-			yaml.Unmarshal(b, c)
+			yaml.Unmarshal(b, c) //nolint:errcheck
 			c.location = lastYamlFileFound
-			yaml.Unmarshal(b, &c.originalData)
+			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
 		}
 	}
 
 	if o.MergeBootCMDLine {
 		d, err := machine.DotToYAML(o.BootCMDLineFile)
 		if err == nil { // best-effort
-			yaml.Unmarshal(d, c)
+			yaml.Unmarshal(d, c) //nolint:errcheck
 			// Merge back to originalData only config which are part of the config structure
 			// This avoid garbage as unrelated bootargs to be merged in.
 			dat, err := yaml.Marshal(c)
 			if err == nil {
-				yaml.Unmarshal(dat, &c.originalData)
+				yaml.Unmarshal(dat, &c.originalData) //nolint:errcheck
 			}
 		}
 	}
@@ -195,8 +198,8 @@ func Scan(opts ...Option) (c *Config, err error) {
 			return c, fmt.Errorf("could not merge configs: %w", err)
 		}
 
-		yaml.Unmarshal(body, c)
-		yaml.Unmarshal(body, &c.originalData)
+		yaml.Unmarshal(body, c)               //nolint:errcheck
+		yaml.Unmarshal(body, &c.originalData) //nolint:errcheck
 	}
 
 	return c, nil
@@ -214,14 +217,10 @@ func fileSize(f string) float64 {
 		return 0
 	}
 
-	var bytes int64
-	bytes = stat.Size()
+	bytes := stat.Size()
+	kilobytes := (bytes / 1024)
+	megabytes := (float64)(kilobytes / 1024) // cast to type float64
 
-	var kilobytes int64
-	kilobytes = (bytes / 1024)
-
-	var megabytes float64
-	megabytes = (float64)(kilobytes / 1024) // cast to type float64
 	return megabytes
 }
 

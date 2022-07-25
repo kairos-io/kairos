@@ -23,7 +23,7 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 
 	svc, err := machine.EdgeVPN(instance, rootDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create svc: %w", err)
 	}
 
 	apiAddress = strings.ReplaceAll(apiAddress, "https://", "")
@@ -47,14 +47,14 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 		vpnOpts["DNSFORWARD"] = "true"
 		if !utils.IsOpenRCBased() {
 			if _, err := os.Stat("/etc/sysconfig/network/config"); err == nil {
-				utils.WriteEnv("/etc/sysconfig/network/config", map[string]string{
+				utils.WriteEnv("/etc/sysconfig/network/config", map[string]string{ //nolint:errcheck
 					"NETCONFIG_DNS_STATIC_SERVERS": "127.0.0.1",
 				})
 				if utils.Flavor() == "opensuse" {
 					// TODO: This is dependant on wickedd, move this out in its own network detection block
 					svc, err := systemd.NewService(systemd.WithName("wickedd"))
 					if err == nil {
-						svc.Restart()
+						svc.Restart() //nolint:errcheck
 					}
 				}
 			}
@@ -64,26 +64,26 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 			Stages: map[string][]yip.Stage{
 				config.NetworkStage.String(): {{Dns: yip.DNS{Nameservers: []string{"127.0.0.1"}}}}},
 		}); err != nil {
-			fmt.Println("Failed installing DNS")
+			return fmt.Errorf("could not create dns config: %w", err)
 		}
 	}
 
-	os.MkdirAll("/etc/systemd/system.conf.d/", 0600)
+	os.MkdirAll("/etc/systemd/system.conf.d/", 0600) //nolint:errcheck
 	// Setup edgevpn instance
 	err = utils.WriteEnv(filepath.Join(rootDir, "/etc/systemd/system.conf.d/edgevpn-c3os.env"), vpnOpts)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create write env file: %w", err)
 	}
 
 	err = svc.WriteUnit()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not create write unit file: %w", err)
 	}
 
 	if start {
 		err = svc.Start()
 		if err != nil {
-			return err
+			return fmt.Errorf("could not start svc: %w", err)
 		}
 
 		return svc.Enable()

@@ -50,8 +50,8 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 		return pluggable.EventResponse{State: "no c3os or k3s configuration. nothing to do"}
 	}
 
-	utils.SH("elemental run-stage c3os-agent.bootstrap")
-	eventBus.RunHookScript("/usr/bin/c3os-agent.bootstrap.hook")
+	utils.SH("elemental run-stage c3os-agent.bootstrap")         //nolint:errcheck
+	eventBus.RunHookScript("/usr/bin/c3os-agent.bootstrap.hook") //nolint:errcheck
 
 	logLevel := "debug"
 
@@ -61,7 +61,7 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 
 	lvl, err := logging.LevelFromString(logLevel)
 	if err != nil {
-		return ErrorEvent("Failed setup VPN: %s", err.Error())
+		return ErrorEvent("Failed setup logger: %s", err.Error())
 	}
 
 	// TODO: Fixup Logging to file
@@ -71,7 +71,7 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	}
 	logger, err := loggerCfg.Build()
 	if err != nil {
-		return ErrorEvent("Failed setup VPN: %s", err.Error())
+		return ErrorEvent("Failed setup logger: %s", err.Error())
 	}
 
 	logging.SetAllLoggers(lvl)
@@ -94,7 +94,6 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	}
 
 	logger.Info("Configuring VPN")
-
 	if err := SetupVPN(machine.EdgeVPNDefaultInstance, cfg.APIAddress, "/", true, providerConfig); err != nil {
 		return ErrorEvent("Failed setup VPN: %s", err.Error())
 	}

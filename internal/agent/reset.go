@@ -28,11 +28,11 @@ func Reset() error {
 	lock := sync.Mutex{}
 	go func() {
 		// Wait for user input and go back to shell
-		utils.Prompt("")
+		utils.Prompt("") //nolint:errcheck
 		// give tty1 back
 		svc, err := machine.Getty(1)
 		if err == nil {
-			svc.Start()
+			svc.Start() //nolint:errcheck
 		}
 
 		lock.Lock()
@@ -61,11 +61,11 @@ func Reset() error {
 	lock2 := sync.Mutex{}
 	go func() {
 		// Wait for user input and go back to shell
-		utils.Prompt("")
+		utils.Prompt("") //nolint:errcheck
 		// give tty1 back
 		svc, err := machine.Getty(1)
 		if err == nil {
-			svc.Start()
+			svc.Start() //nolint:errcheck
 		}
 
 		lock2.Lock()

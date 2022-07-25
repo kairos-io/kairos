@@ -72,13 +72,13 @@ func (s ServiceUnit) WriteUnit() error {
 		return err
 	}
 
-	utils.SH("systemctl daemon-reload")
-	return nil
+	_, err := utils.SH("systemctl daemon-reload")
+	return err
 }
 
 func (s ServiceUnit) OverrideCmd(cmd string) error {
 	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/systemd/system/%s.service.d/", s.name))
-	os.MkdirAll(svcDir, 0600)
+	os.MkdirAll(svcDir, 0600) //nolint:errcheck
 
 	return ioutil.WriteFile(filepath.Join(svcDir, "override.conf"), []byte(fmt.Sprintf(overrideCmdTemplate, cmd)), 0600)
 }

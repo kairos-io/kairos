@@ -11,7 +11,7 @@ import (
 )
 
 // scheduleRoles assigns roles to nodes. Meant to be called only by leaders
-// TODO: HA-Auto
+// TODO: HA-Auto.
 func scheduleRoles(nodes []string, c *service.RoleConfig, cc *config.Config, pconfig *providerConfig.Config) error {
 	rand.Seed(time.Now().Unix())
 
@@ -55,7 +55,9 @@ func scheduleRoles(nodes []string, c *service.RoleConfig, cc *config.Config, pco
 			selected = toSelect[rand.Intn(len(toSelect)-1)]
 		}
 
-		c.Client.Set("role", selected, "master")
+		if err := c.Client.Set("role", selected, "master"); err != nil {
+			return err
+		}
 		c.Logger.Info("-> Set master to", selected)
 		currentRoles[selected] = "master"
 		// Return here, so next time we get called
@@ -65,7 +67,10 @@ func scheduleRoles(nodes []string, c *service.RoleConfig, cc *config.Config, pco
 
 	// cycle all empty roles and assign worker roles
 	for _, uuid := range unassignedNodes {
-		c.Client.Set("role", uuid, "worker")
+		if err := c.Client.Set("role", uuid, "worker"); err != nil {
+			c.Logger.Error(err)
+			return err
+		}
 		c.Logger.Info("-> Set worker to", uuid)
 	}
 

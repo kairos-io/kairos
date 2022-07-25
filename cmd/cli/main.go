@@ -1,8 +1,6 @@
 package main
 
 import (
-	//"fmt"
-
 	"fmt"
 	"os"
 

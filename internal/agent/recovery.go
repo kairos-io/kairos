@@ -76,7 +76,9 @@ func Recovery() error {
 	serviceUUID := utils.RandStringRunes(10)
 	generatedPassword := utils.RandStringRunes(7)
 
-	startRecoveryService(ctx, tk, serviceUUID, recoveryAddr, "fatal")
+	if err := startRecoveryService(ctx, tk, serviceUUID, recoveryAddr, "fatal"); err != nil {
+		return err
+	}
 
 	cmd.PrintText(agentConfig.Branding.Recovery, "Recovery")
 
@@ -90,12 +92,12 @@ func Recovery() error {
 	go sshServer(recoveryAddr, generatedPassword)
 
 	// Wait for user input and go back to shell
-	utils.Prompt("")
+	utils.Prompt("") //nolint:errcheck
 	cancel()
 	// give tty1 back
 	svc, err := machine.Getty(1)
 	if err == nil {
-		svc.Start()
+		svc.Start() //nolint:errcheck
 	}
 
 	return nil
@@ -117,13 +119,13 @@ func sshServer(listenAdddr, password string) {
 				}
 			}()
 			go func() {
-				io.Copy(f, s) // stdin
+				io.Copy(f, s) //nolint:errcheck
 			}()
-			io.Copy(s, f) // stdout
-			cmd.Wait()
+			io.Copy(s, f) //nolint:errcheck
+			cmd.Wait()    //nolint:errcheck
 		} else {
-			io.WriteString(s, "No PTY requested.\n")
-			s.Exit(1)
+			io.WriteString(s, "No PTY requested.\n") //nolint:errcheck
+			s.Exit(1)                                //nolint:errcheck
 		}
 	})
 

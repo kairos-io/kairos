@@ -11,15 +11,15 @@ import (
 type QEMU struct {
 }
 
-type MachineConfig struct {
+type Config struct {
 	StateDir        string
 	SSHPort         string
 	ISO, DataSource string
 	Drive           string
 }
 
-func (q *QEMU) Run(m *MachineConfig) error {
-	genDrives := func(m *MachineConfig) []string {
+func (q *QEMU) Run(m *Config) error {
+	genDrives := func(m *Config) []string {
 		drives := []string{}
 		if m.ISO != "" {
 			drives = append(drives, "-drive", fmt.Sprintf("if=ide,media=cdrom,file=%s", m.ISO))
@@ -48,15 +48,15 @@ func (q *QEMU) Run(m *MachineConfig) error {
 	return qemu.Run()
 }
 
-func (q *QEMU) Stop(m *MachineConfig) error {
+func (q *QEMU) Stop(m *Config) error {
 	return process.New(process.WithStateDir(m.StateDir)).Stop()
 }
 
-func (q *QEMU) Clean(m *MachineConfig) error {
+func (q *QEMU) Clean(m *Config) error {
 	return os.RemoveAll(m.StateDir)
 }
 
-func (q *QEMU) Alive(m *MachineConfig) bool {
+func (q *QEMU) Alive(m *Config) bool {
 	return process.New(process.WithStateDir(m.StateDir)).IsAlive()
 }
 

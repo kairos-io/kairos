@@ -10,3 +10,14 @@ linters:
     - goheader # Check license headers, only checks files in current year
     - goimports # check imports
     - gocyclo # check complexity
+    - govet
+    - gosimple
+    - deadcode
+    - ineffassign
+    - unused
+    - varcheck
+    - staticcheck
+    - typecheck
+    - structcheck
+    - godot
+    - misspell

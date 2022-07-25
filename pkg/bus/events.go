@@ -5,9 +5,9 @@ import (
 )
 
 var (
-	// Package events
+	// Package events.
 
-	// EventPackageInstall is the event fired when a new package is being installed
+	// EventPackageInstall is the event fired when a new package is being installed.
 	EventBootstrap pluggable.EventType = "agent.bootstrap"
 	EventInstall   pluggable.EventType = "agent.install"
 	EventChallenge pluggable.EventType = "agent.install.challenge"

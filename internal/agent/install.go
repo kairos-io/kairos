@@ -28,7 +28,7 @@ func optsToArgs(options map[string]string) (res []string) {
 	for k, v := range options {
 		if k != "device" && k != "cc" && k != "reboot" && k != "poweroff" {
 			res = append(res, fmt.Sprintf("--%s", k))
-			res = append(res, fmt.Sprintf("%s", v))
+			res = append(res, v)
 		}
 	}
 	return
@@ -38,7 +38,7 @@ func Install(dir ...string) error {
 	utils.OnSignal(func() {
 		svc, err := machine.Getty(1)
 		if err == nil {
-			svc.Start()
+			svc.Start() //nolint:errcheck
 		}
 	}, syscall.SIGINT, syscall.SIGTERM)
 
@@ -47,7 +47,7 @@ func Install(dir ...string) error {
 
 	mergeOption := func(cloudConfig string) {
 		c := &config.Config{}
-		yaml.Unmarshal([]byte(cloudConfig), c)
+		yaml.Unmarshal([]byte(cloudConfig), c) //nolint:errcheck
 		for k, v := range c.Options {
 			if k == "cc" {
 				continue
@@ -80,11 +80,14 @@ func Install(dir ...string) error {
 		r["device"] = cc.Install.Device
 		mergeOption(cc.String())
 
-		RunInstall(r)
+		err = RunInstall(r)
+		if err != nil {
+			return err
+		}
 
 		svc, err := machine.Getty(1)
 		if err == nil {
-			svc.Start()
+			svc.Start() //nolint:errcheck
 		}
 
 		return nil
@@ -133,10 +136,10 @@ func Install(dir ...string) error {
 		header = head
 	}
 
-	// What we receive take precedence over the one in the system
-	yaml.Unmarshal([]byte(cc.String()), &ccData)
+	// What we receive take precedence over the one in the system. best-effort
+	yaml.Unmarshal([]byte(cc.String()), &ccData) //nolint:errcheck
 	if exists {
-		yaml.Unmarshal([]byte(cloudConfig), &ccData)
+		yaml.Unmarshal([]byte(cloudConfig), &ccData) //nolint:errcheck
 		if hasHeader, head := config.HasHeader(cloudConfig, ""); hasHeader {
 			header = head
 		}
@@ -150,19 +153,21 @@ func Install(dir ...string) error {
 	r["cc"] = config.AddHeader(header, string(out))
 
 	pterm.Info.Println("Starting installation")
-	utils.SH("elemental run-stage c3os-install.pre")
-	bus.RunHookScript("/usr/bin/c3os-agent.install.pre.hook")
+	utils.SH("elemental run-stage c3os-install.pre")          //nolint:errcheck
+	bus.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
 
-	RunInstall(r)
+	if err := RunInstall(r); err != nil {
+		return err
+	}
 
 	pterm.Info.Println("Installation completed, press enter to go back to the shell.")
 
-	utils.Prompt("")
+	utils.Prompt("") //nolint:errcheck
 
 	// give tty1 back
 	svc, err := machine.Getty(1)
 	if err == nil {
-		svc.Start()
+		svc.Start() //nolint: errcheck
 	}
 
 	return nil
@@ -185,15 +190,19 @@ func RunInstall(options map[string]string) error {
 	}
 
 	c := &config.Config{}
-	yaml.Unmarshal([]byte(cloudInit), c)
+	yaml.Unmarshal([]byte(cloudInit), c) //nolint:errcheck
 
 	_, reboot := options["reboot"]
 	_, poweroff := options["poweroff"]
 
-	ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
+	err := ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
+	if err != nil {
+		fmt.Printf("could not write cloud init: %s\n", err.Error())
+		os.Exit(1)
+	}
 	args := []string{"install"}
 	args = append(args, optsToArgs(options)...)
-	args = append(args, "-c", f.Name(), fmt.Sprintf("%s", device))
+	args = append(args, "-c", f.Name(), device)
 
 	cmd := exec.Command("elemental", args...)
 	cmd.Env = os.Environ()
@@ -204,8 +213,8 @@ func RunInstall(options map[string]string) error {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	utils.SH("elemental run-stage c3os-install.after")
-	bus.RunHookScript("/usr/bin/c3os-agent.install.after.hook")
+	utils.SH("elemental run-stage c3os-install.after")          //nolint:errcheck
+	bus.RunHookScript("/usr/bin/c3os-agent.install.after.hook") //nolint:errcheck
 
 	if reboot || c.Install != nil && c.Install.Reboot {
 		utils.Reboot()

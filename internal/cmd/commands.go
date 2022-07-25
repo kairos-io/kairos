@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	//"fmt"
-
 	"encoding/base64"
 	"fmt"
 	"strconv"

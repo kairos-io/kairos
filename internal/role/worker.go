@@ -19,7 +19,9 @@ func Worker(cc *config.Config, pconfig *providerConfig.Config) Role {
 		if pconfig.C3OS.Role != "" {
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
-			c.Client.Set("role", c.UUID, pconfig.C3OS.Role)
+			if err := c.Client.Set("role", c.UUID, pconfig.C3OS.Role); err != nil {
+				return err
+			}
 		}
 
 		if SentinelExist() {
@@ -106,8 +108,6 @@ func Worker(cc *config.Config, pconfig *providerConfig.Config) Role {
 			return err
 		}
 
-		CreateSentinel()
-
-		return nil
+		return CreateSentinel()
 	}
 }

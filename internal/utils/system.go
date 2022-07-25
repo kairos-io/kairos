@@ -12,15 +12,15 @@ import (
 
 func Reboot() {
 	pterm.Info.Println("Rebooting node")
-	SH("reboot")
+	SH("reboot") //nolint:errcheck
 }
 
 func PowerOFF() {
 	pterm.Info.Println("Shutdown node")
 	if IsOpenRCBased() {
-		SH("poweroff")
+		SH("poweroff") //nolint:errcheck
 	} else {
-		SH("shutdown")
+		SH("shutdown") //nolint:errcheck
 	}
 }
 

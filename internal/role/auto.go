@@ -44,7 +44,10 @@ func Auto(cc *config.Config, pconfig *providerConfig.Config) Role {
 		}
 
 		if shouldBeLeader == c.UUID && (lead == "" || !contains(nodes, lead)) {
-			c.Client.Set("auto", "leader", c.UUID)
+			if err := c.Client.Set("auto", "leader", c.UUID); err != nil {
+				c.Logger.Error(err)
+				return err
+			}
 			c.Logger.Info("Announcing ourselves as leader, backing off")
 			return nil
 		}

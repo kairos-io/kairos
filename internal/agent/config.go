@@ -27,7 +27,7 @@ func LoadConfig(path ...string) (*Config, error) {
 	for _, p := range path {
 		f, err := ioutil.ReadFile(p)
 		if err == nil {
-			yaml.Unmarshal(f, cfg)
+			yaml.Unmarshal(f, cfg) //nolint:errcheck
 		}
 	}
 
