@@ -2,7 +2,7 @@
 
 # C3os
 
-C3OS is a lightweight Kubernetes-focused GNU/Linux derivative built with [Elemental-toolkit](https://github.com/rancher/elemental-toolkit) that optionally supports automatic node discovery, automatic role assignment and optionally VPN out of the box with no kubernetes networking configuration required. 
+C3OS is a lightweight Kubernetes-focused GNU/Linux derivative built with [Elemental-toolkit](https://github.com/rancher/elemental-toolkit) that optionally supports automatic node discovery, automatic role assignment and optionally VPN out of the box with no Kubernetes networking configuration required. 
 
 C3OS can also create multi-nodes Kubernetes cluster with [k3s](https://k3s.io) that connects autonomously in a hybrid P2P mesh VPN which bridges nodes without any central server, also behind nat, or it can be just used standalone as a k3s server.
 
@@ -10,7 +10,7 @@ C3OS is entirely backed up by community, It's Free and Open Source, under the Ap
 
 - No infrastructure is required. C3OS can be used to bootstrap a cluster entirely from the ground-up.
 - LAN, remote networks, multi-region/zones, NAT - No network configuration or opening port outside is required. Nodes will connect each other via holepunching and using hops wherever necessary.
-- Zero kubernetes configuration - Nodes autonomously discover and configure themselves to form a Kubernetes cluster. The same configuration/bootstrapping process applies wether creating new clusters or joining nodes to existing one.
+- Zero Kubernetes configuration - Nodes autonomously discover and configure themselves to form a Kubernetes cluster. The same configuration/bootstrapping process applies wether creating new clusters or joining nodes to existing one.
 - Secure P2P Remote recovery to restore failed nodes or lost credentials
 - Hybrid P2P mesh between nodes (optional)
 
@@ -22,7 +22,7 @@ c3OS have:
 - an Immutable layout
 - cloud-init support
 - P2P hybrid layer (optional, which can be disabled)
-- Strong enphasis on automation - the only configuration which is required is to generate a network token (optional)
+- Strong emphasis on automation - the only configuration which is required is to generate a network token (optional)
 - Embedded cluster DNS (optional)
 
 c3OS is composed of:
