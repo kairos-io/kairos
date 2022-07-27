@@ -6,26 +6,6 @@ stages:
        net.core.rmem_max: 2500000
        vm.max_map_count: 262144
    initramfs:
-     - name: "openRC setup"
-       if: '[ -e "/sbin/openrc" ]'
-       commands:
-       - |
-          rc-update add sshd boot
-          rc-update add connman boot
-          rc-update add acpid boot
-          rc-update add hwclock boot
-          rc-update add syslog boot
-          rc-update add udev sysinit
-          rc-update add udev-trigger sysinit
-          rc-update add openntpd boot
-          rc-update add crond
-          rc-update add fail2ban
-
-          mkdir -p /etc/runlevels/default
-          for SVC in cos-setup-boot cos-setup-network cos-setup-reconcile sshd connman acpid hwclock syslog udev udev-trigger openntpd crond fail2ban
-          do
-              ln -sf /etc/init.d/$SVC /etc/runlevels/default/$SVC
-          done
      - name: "Default systemd config"
        if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
        systemctl:
