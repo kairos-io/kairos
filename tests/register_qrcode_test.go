@@ -27,7 +27,7 @@ var _ = Describe("c3os qr code register", Label("qrcode-register"), func() {
 				fmt.Println(out)
 				return err
 
-			}, 10*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
+			}, 20*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 })
