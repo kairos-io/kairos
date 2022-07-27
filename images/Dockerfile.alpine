@@ -105,6 +105,7 @@ RUN mkdir -p /etc/runlevels/default && \
       ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
       ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
       ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
+      ln -sf /etc/init.d/crond /etc/runlevels/default/crond && \
       ln -sf /etc/init.d/c3os-agent /etc/runlevels/default/c3os-agent
 
 RUN rc-update add sshd boot && \
@@ -115,7 +116,6 @@ RUN rc-update add sshd boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
     rc-update add openntpd boot && \
-    rc-update add crond && \
     rc-update add fail2ban
 
 # Symlinks to make elemental installer work
