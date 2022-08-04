@@ -83,7 +83,7 @@ build:
     BUILD +build-c3os-agent-provider
 
 dist:
-    FROM golang
+    FROM golang:1.17
     RUN echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
     RUN apt update
     RUN apt install -y goreleaser
@@ -93,7 +93,7 @@ dist:
     SAVE ARTIFACT /build/dist/* AS LOCAL dist/
 
 lint:
-    FROM golang:alpine
+    FROM golang:1.17
     RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.46.2
     WORKDIR /build
     COPY . .
@@ -342,7 +342,7 @@ trivy-scan:
     RUN /trivy filesystem --severity $SEVERITY --exit-code 1 --no-progress /
 
 linux-bench:
-    FROM golang
+    FROM golang:1.17
     GIT CLONE https://github.com/aquasecurity/linux-bench /linux-bench-src
     RUN cd /linux-bench-src && CGO_ENABLED=0 go build -o linux-bench . && mv linux-bench /
     SAVE ARTIFACT /linux-bench /linux-bench

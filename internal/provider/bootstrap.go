@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/c3os-io/c3os/sdk/bus"
 	"strings"
+
+	"github.com/c3os-io/c3os/sdk/bus"
 
 	logging "github.com/ipfs/go-log"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"

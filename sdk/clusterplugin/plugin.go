@@ -3,11 +3,12 @@ package clusterplugin
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+
 	"github.com/c3os-io/c3os/sdk/bus"
 	"github.com/mudler/go-pluggable"
 	yip "github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v2"
-	"os"
 )
 
 const clusterProviderCloudConfigFile = "/usr/local/cloud-config/cluster.c3os.yaml"
