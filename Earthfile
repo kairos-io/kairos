@@ -34,6 +34,7 @@ go-deps:
     FROM golang:1.17
     WORKDIR /build
     COPY go.mod go.sum ./
+    COPY sdk sdk
     RUN go mod download
     RUN apt-get update && apt-get install -y upx
     SAVE ARTIFACT go.mod AS LOCAL go.mod

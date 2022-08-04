@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/c3os-io/c3os/sdk/bus"
 	"os"
 
 	"github.com/c3os-io/c3os/internal/provider"
-	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/mudler/go-pluggable"
 )
 
