@@ -6,6 +6,9 @@ stages:
        - systemctl start c3os-agent
        - systemctl enable c3os-agent
     initramfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -f "/run/cos/live_mode" ]'
+      commands:
+        - sudo c3os-agent notify agent.boot
     - if: '[ ! -f "/run/cos/recovery_mode" ]'
       commands:
        - systemctl enable c3os-agent

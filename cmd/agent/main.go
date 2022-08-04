@@ -92,6 +92,26 @@ See https://docs.c3os.io/after_install/upgrades/#manual for documentation.
 	},
 
 	{
+		Name:      "notify",
+		Usage:     "notify <event> <config dir>...",
+		UsageText: "emits the given event with a generic event payload",
+		Description: `
+Sends a generic event payload with the configuration found in the scanned directories.
+`,
+		Aliases: []string{},
+		Flags:   []cli.Flag{},
+		Action: func(c *cli.Context) error {
+			dirs := []string{"/oem", "/usr/local/cloud-config"}
+			args := c.Args()
+			if len(args) > 1 {
+				dirs = args[1:]
+			}
+
+			return agent.Notify(args[0], dirs)
+		},
+	},
+
+	{
 		Name:      "start",
 		Usage:     "Starts the c3os agent",
 		UsageText: "starts the agent",

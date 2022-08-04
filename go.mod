@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/bramvdbogaerde/go-scp v1.2.0
+	github.com/c3os-io/c3os/sdk v0.0.0-00010101000000-000000000000
 	github.com/creack/pty v1.1.19-0.20220421211855-0d412c9fbeb1
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/erikgeiser/promptkit v0.6.0
@@ -13,14 +14,14 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/ipfs/go-log v1.0.5
-	github.com/itchyny/gojq v0.12.2
+	github.com/itchyny/gojq v0.12.8
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/edgevpn v0.15.2
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
 	github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3
 	github.com/mudler/go-processmanager v0.0.0-20211226182900-899fbb0b97f6
-	github.com/mudler/yip v0.0.0-20220321143540-2617d71ea02a
+	github.com/mudler/yip v0.0.0-20220725150231-976737b2353c
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.1.3
 	github.com/onsi/gomega v1.19.0
@@ -28,7 +29,7 @@ require (
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/urfave/cli v1.22.9
 	go.uber.org/zap v1.21.0
-	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
+	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -55,7 +56,6 @@ require (
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
-	github.com/coreos/yaml v0.0.0-20141224210557-6b16a5714269 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
@@ -80,7 +80,6 @@ require (
 	github.com/gookit/color v1.5.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/go-cid v0.2.0 // indirect
@@ -89,7 +88,7 @@ require (
 	github.com/ipfs/go-ipns v0.1.2 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/ipld/go-ipld-prime v0.16.0 // indirect
-	github.com/itchyny/timefmt-go v0.1.2 // indirect
+	github.com/itchyny/timefmt-go v0.1.3 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jaypipes/pcidb v1.0.0 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
@@ -168,7 +167,6 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.34.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/rancher-sandbox/cloud-init v1.14.3-0.20210913085759-bf90bf5eb77e // indirect
 	github.com/raulk/clock v1.1.0 // indirect
 	github.com/raulk/go-watchdog v1.2.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
@@ -178,7 +176,7 @@ require (
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/twpayne/go-vfs v1.5.0 // indirect
+	github.com/twpayne/go-vfs v1.7.2 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.1 // indirect
 	github.com/vishvananda/netlink v1.1.0 // indirect
@@ -195,9 +193,9 @@ require (
 	go.uber.org/multierr v1.8.0 // indirect
 	golang.org/x/image v0.0.0-20191206065243-da761ea9ff43 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
-	golang.org/x/net v0.0.0-20220526153639-5463443f8c37 // indirect
+	golang.org/x/net v0.0.0-20220630215102-69896b714898 // indirect
 	golang.org/x/sync v0.0.0-20220513210516-0976fa681c29 // indirect
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
+	golang.org/x/sys v0.0.0-20220704084225-05e143d24a9e // indirect
 	golang.org/x/term v0.0.0-20220526004731-065cf7ba2467 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.10 // indirect
@@ -205,8 +203,11 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
+	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0 // indirect
 	howett.net/plist v1.0.0 // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
 replace github.com/elastic/gosigar => github.com/mudler/gosigar v0.14.3-0.20220502202347-34be910bdaaf
+
+replace github.com/c3os-io/c3os/sdk => ./sdk
