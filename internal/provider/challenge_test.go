@@ -2,9 +2,10 @@ package provider_test
 
 import (
 	"encoding/json"
-	"github.com/c3os-io/c3os/sdk/bus"
 	"io/ioutil"
 	"os"
+
+	"github.com/c3os-io/c3os/sdk/bus"
 
 	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 

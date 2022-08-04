@@ -2,12 +2,19 @@ package clusterplugin
 
 type Role string
 
-func (n Role) MarshalYAML() (interface{}, error) {
-	return string(n), nil
+func (n *Role) MarshalYAML() (interface{}, error) {
+	return string(*n), nil
 }
 
-func (n Role) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	return unmarshal(&n)
+func (n *Role) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val string
+	if err := unmarshal(&val); err != nil {
+		return err
+	}
+
+	*n = Role(val)
+
+	return nil
 }
 
 const (
@@ -33,4 +40,8 @@ type Cluster struct {
 
 	// Options are arbitrary values the sdk may be interested in.  These values are not validated by C3OS and are simply forwarded to the sdk
 	Options string `yaml:"config,omitempty"`
+}
+
+type Config struct {
+	Cluster *Cluster `yaml:"cluster,omitempty"`
 }

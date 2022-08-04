@@ -3,11 +3,12 @@ package clusterplugin
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+
 	"github.com/c3os-io/c3os/sdk/bus"
 	"github.com/mudler/go-pluggable"
 	yip "github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v2"
-	"os"
 )
 
 const clusterProviderCloudConfigFile = "/usr/local/cloud-config/cluster.c3os.yaml"
@@ -24,7 +25,7 @@ type ClusterPlugin struct {
 
 func (p ClusterPlugin) onBoot(event *pluggable.Event) pluggable.EventResponse {
 	var payload bus.EventPayload
-	var cluster Cluster
+	var config Config
 	var response pluggable.EventResponse
 
 	// parse the boot payload
@@ -34,13 +35,17 @@ func (p ClusterPlugin) onBoot(event *pluggable.Event) pluggable.EventResponse {
 	}
 
 	// parse config from boot payload
-	if err := yaml.Unmarshal([]byte(payload.Config), cluster); err != nil {
+	if err := yaml.Unmarshal([]byte(payload.Config), &config); err != nil {
 		response.Error = fmt.Sprintf("failed to parse config from boot event: %s", err.Error())
 		return response
 	}
 
+	if config.Cluster == nil {
+		return response
+	}
+
 	// request the cloud configuration of the provider
-	cc := p.Provider(cluster)
+	cc := p.Provider(*config.Cluster)
 
 	// open our cloud configuration file for writing
 	f, err := filesystem.OpenFile(clusterProviderCloudConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
