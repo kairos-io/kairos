@@ -2,13 +2,13 @@ package agent
 
 import (
 	"fmt"
+	events "github.com/c3os-io/c3os/sdk/bus"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/c3os-io/c3os/internal/bus"
 	machine "github.com/c3os-io/c3os/internal/machine"
-	events "github.com/c3os-io/c3os/pkg/bus"
 	config "github.com/c3os-io/c3os/pkg/config"
 	"github.com/nxadm/tail"
 )

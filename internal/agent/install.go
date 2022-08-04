@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	events "github.com/c3os-io/c3os/sdk/bus"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"syscall"
 	"time"
 
-	events "github.com/c3os-io/c3os/pkg/bus"
 	config "github.com/c3os-io/c3os/pkg/config"
 
 	"github.com/c3os-io/c3os/internal/bus"

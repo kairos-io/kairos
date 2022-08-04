@@ -2,12 +2,12 @@ package provider_test
 
 import (
 	"encoding/json"
+	"github.com/c3os-io/c3os/sdk/bus"
 	"io/ioutil"
 	"os"
 
 	. "github.com/c3os-io/c3os/internal/provider"
 	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
-	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/mudler/go-pluggable"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

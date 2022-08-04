@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/c3os-io/c3os/sdk/bus"
 	"strings"
 
 	logging "github.com/ipfs/go-log"
@@ -18,7 +19,6 @@ import (
 	"github.com/c3os-io/c3os/internal/role"
 	"github.com/c3os-io/c3os/internal/utils"
 
-	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/c3os-io/c3os/pkg/config"
 	"github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/go-pluggable"
