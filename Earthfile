@@ -17,7 +17,7 @@ ARG COSIGN_SKIP=".*quay.io/c3os/.*"
 ARG COSIGN_REPOSITORY=raccos/releases-teal
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
-ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental:v0.0.15-8a78e6b
+ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental-cli:v0.0.15-8a78e6b
 
 
 all:
@@ -31,7 +31,7 @@ all-arm:
   BUILD +arm-image
 
 go-deps:
-    FROM golang
+    FROM golang:1.17
     WORKDIR /build
     COPY go.mod go.sum ./
     RUN go mod download
