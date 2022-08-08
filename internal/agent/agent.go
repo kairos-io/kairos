@@ -35,12 +35,18 @@ func Run(opts ...Option) error {
 	}
 
 	os.MkdirAll("/var/log/c3os", 0600) //nolint:errcheck
+
 	fileName := filepath.Join("/var/log/c3os", "agent-provider.log")
-	err = ioutil.WriteFile(fileName, []byte{}, os.ModePerm)
-	if err != nil {
-		return err
+
+	// Create if not exist
+	if _, err := os.Stat(fileName); err != nil {
+		err = ioutil.WriteFile(fileName, []byte{}, os.ModePerm)
+		if err != nil {
+			return err
+		}
 	}
 
+	// Tail to the log
 	t, err := tail.TailFile(fileName, tail.Config{Follow: true})
 	if err != nil {
 		return err
