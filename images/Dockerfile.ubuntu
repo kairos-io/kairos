@@ -35,12 +35,6 @@ RUN apt install -y \
 	rsync \
         linux-image-generic && apt-get clean
 
-ENV INSTALL_K3S_VERSION=${K3S_VERSION}
-ENV INSTALL_K3S_BIN_DIR="/usr/bin"
-RUN curl -sfL https://get.k3s.io > installer.sh
-RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" bash installer.sh
-RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" bash installer.sh agent
-RUN rm -rf installer.sh
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN systemctl enable nohang-desktop.service
 RUN systemctl enable ssh

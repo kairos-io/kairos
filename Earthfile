@@ -54,6 +54,37 @@ test:
     RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
+OSRELEASE:
+    COMMAND
+    ARG OS_ID
+    ARG OS_NAME
+    ARG OS_REPO
+    ARG OS_VERSION
+    ARG OS_LABEL
+    ENV OS_ID=$OS_ID
+    ENV OS_NAME=$OS_NAME
+    ENV OS_REPO=$OS_REPO
+    ENV OS_VERSION=$OS_VERSION
+    ENV OS_LABEL=$OS_LABEL
+
+    # update OS-release file
+    RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
+        rm /usr/lib/os-release.tmpl
+
+INSTALL_K3S:
+    COMMAND
+    ARG VERSION
+    ARG FLAVOR
+    ENV INSTALL_K3S_VERSION=${VERSION}
+    ENV INSTALL_K3S_BIN_DIR="/usr/bin"
+    RUN curl -sfL https://get.k3s.io > installer.sh
+    RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
+    RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
+    RUN rm -rf installer.sh
+    IF [ "$FLAVOR" = "alpine-arm-rpi" ] || [ "$FLAVOR" = "alpine" ]
+        RUN rm -rf /etc/rancher/k3s/k3s.env /etc/rancher/k3s/k3s-agent.env && touch /etc/rancher/k3s/.keep
+    END
+
 BUILD_GOLANG:
     COMMAND
     WORKDIR /build
@@ -179,33 +210,39 @@ framework-images:
 
 docker:
     ARG K3S_VERSION
+    ARG FLAVOR
+    ARG WITH_K3S=true
+    ARG WITH_PROVIDER=true
+    ARG WITH_CLI=true
+
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
         FROM DOCKERFILE -f images/Dockerfile.$FLAVOR .
     ELSE 
         FROM $BASE_IMAGE
     END
+
     ARG C3OS_VERSION
     IF [ "$K3S_VERSION" = "" ]
         ARG OS_VERSION=c3OS${C3OS_VERSION}
     ELSE
         ARG OS_VERSION=${K3S_VERSION}+k3s1-c3OS${C3OS_VERSION}
     END
+
     ARG OS_ID
-    ARG FLAVOR
     ARG OS_NAME=${OS_ID}-${FLAVOR}
     ARG OS_REPO=quay.io/c3os/c3os
     ARG OS_LABEL=${FLAVOR}-latest
-    ARG WITH_PROVIDER=true
-    ARG WITH_CLI=true
-    ENV OS_LABEL=$OS_LABEL
-    ENV OS_NAME=$OS_NAME
-    ENV OS_ID=$OS_ID
-    ENV OS_VERSION=$OS_VERSION
-    ENV OS_REPO=$OS_REPO
+
+    # Install k3s if needed
+    IF [ "$WITH_K3S" = "true" ]
+        DO +INSTALL_K3S --VERSION=${K3S_VERSION} --FLAVOR=${FLAVOR}
+    END
 
     # Includes overlay/files
     COPY +framework/framework /
+
+    DO +OSRELEASE --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
     # Copy flavor-specific overlay files
     IF [ "$FLAVOR" = "alpine" ]
@@ -225,10 +262,6 @@ docker:
     IF [ "$WITH_PROVIDER" = "true" ]
         COPY +build-c3os-agent-provider/agent-provider-c3os /usr/bin/agent-provider-c3os
     END
-
-    # update OS-release file
-    RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
-        rm /usr/lib/os-release.tmpl
 
     # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
