@@ -18,6 +18,7 @@ ARG COSIGN_REPOSITORY=raccos/releases-teal
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental-cli:v0.0.15-8a78e6b
+ARG GOLINT_VERSION=1.47.3
 
 
 all:
@@ -93,7 +94,8 @@ dist:
 
 lint:
     FROM golang:alpine
-    RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v1.46.2
+    ARG GOLINT_VERSION
+    RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v$GOLINT_VERSION
     WORKDIR /build
     COPY . .
     RUN golangci-lint run
