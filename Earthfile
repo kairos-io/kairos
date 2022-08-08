@@ -68,8 +68,7 @@ OSRELEASE:
     ENV OS_LABEL=$OS_LABEL
 
     # update OS-release file
-    RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl && \
-        rm /usr/lib/os-release.tmpl
+    RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl
 
 INSTALL_K3S:
     COMMAND
