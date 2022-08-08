@@ -1,0 +1,49 @@
+name: Build Framework images
+
+on: 
+ push:
+ pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "opensuse"           
+         - flavor: "alpine"
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          git fetch --prune --unshallow
+      - name: setup-docker
+        uses: docker-practice/actions-setup-docker@master
+      - name: Release space from worker
+        run: |
+          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
+          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+      - name: Login to Quay Registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Build  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/c3os/framework:${{ matrix.flavor }}
+        run: |
+          ./earthly.sh +framework-images --IMG=${IMAGE}-latest --FLAVOR=${FLAVOR} --WITH_KERNEL=false
+          ./earthly.sh +framework-images --IMG=${IMAGE}-kernel-latest --FLAVOR=${FLAVOR} --WITH_KERNEL=true
+      - name: Push to quay
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        env:
+          COSIGN_EXPERIMENTAL: 1
+          IMAGE: quay.io/c3os/framework:${{ matrix.flavor }}
+        run: | 
+          docker push ${IMAGE}-latest
+          docker push ${IMAGE}-kernel-latest
+          cosign sign ${IMAGE}-latest
+          cosign sign ${IMAGE}-kernel-latest
