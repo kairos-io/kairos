@@ -19,7 +19,7 @@ ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental-cli:v0.0.15-8a78e6b
 ARG GOLINT_VERSION=1.47.3
-
+ARG GO_VERSION=1.18
 
 all:
   BUILD +docker
@@ -32,7 +32,8 @@ all-arm:
   BUILD +arm-image
 
 go-deps:
-    FROM golang
+    ARG GO_VERSION
+    FROM golang:$GO_VERSION
     WORKDIR /build
     COPY go.mod go.sum ./
     RUN go mod download
@@ -83,7 +84,8 @@ build:
     BUILD +build-c3os-agent-provider
 
 dist:
-    FROM golang
+    ARG GO_VERSION
+    FROM golang:$GO_VERSION
     RUN echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
     RUN apt update
     RUN apt install -y goreleaser
@@ -93,7 +95,8 @@ dist:
     SAVE ARTIFACT /build/dist/* AS LOCAL dist/
 
 lint:
-    FROM golang:alpine
+    ARG GO_VERSION
+    FROM golang:$GO_VERSION
     ARG GOLINT_VERSION
     RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v$GOLINT_VERSION
     WORKDIR /build
@@ -343,7 +346,8 @@ trivy-scan:
     RUN /trivy filesystem --severity $SEVERITY --exit-code 1 --no-progress /
 
 linux-bench:
-    FROM golang
+    ARG GO_VERSION
+    FROM golang:$GO_VERSION
     GIT CLONE https://github.com/aquasecurity/linux-bench /linux-bench-src
     RUN cd /linux-bench-src && CGO_ENABLED=0 go build -o linux-bench . && mv linux-bench /
     SAVE ARTIFACT /linux-bench /linux-bench
