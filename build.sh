@@ -21,7 +21,7 @@ $CMD $@ +${TARGET} \
              --ISO_NAME=${ISO:-c3os-$FLAVOR} \
              --LUET_VERSION=$LUET_VERSION \
              --C3OS_VERSION=$internal_version \
-             --K3S_VERSION=$k8s_version \
+             --K3S_VERSION=$K3S_VERSION \
              --OS_LABEL=$OS_LABEL \
              --OS_ID=$OS_ID \
              --OS_NAME=$OS_NAME
