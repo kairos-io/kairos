@@ -101,6 +101,9 @@ Starts the c3os agent which automatically bootstrap and advertize to the c3os ne
 		Aliases: []string{"s"},
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
+				Name: "restart",
+			},
+			&cli.BoolFlag{
 				Name: "force",
 			},
 			&cli.StringFlag{
@@ -115,7 +118,20 @@ Starts the c3os agent which automatically bootstrap and advertize to the c3os ne
 				dirs = args
 			}
 
-			return agent.Run(c.String("api"), dirs, c.Bool("force"))
+			opts := []agent.Option{
+				agent.WithAPI(c.String("api")),
+				agent.WithDirectory(dirs...),
+			}
+
+			if c.Bool("force") {
+				opts = append(opts, agent.ForceAgent)
+			}
+
+			if c.Bool("restart") {
+				opts = append(opts, agent.RestartAgent)
+			}
+
+			return agent.Run(opts...)
 		},
 	},
 	{

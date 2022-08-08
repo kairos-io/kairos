@@ -6,7 +6,7 @@ depend() {
 
 supervisor=supervise-daemon
 name="c3os-agent"
-command="c3os-agent start"
+command="c3os-agent start --restart"
 supervise_daemon_args="--stdout /var/log/c3os-agent.log --stderr /var/log/c3os-agent.log"
 pidfile="/run/c3os-agent.pid"
 respawn_delay=5

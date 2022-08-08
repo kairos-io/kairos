@@ -14,12 +14,16 @@ import (
 )
 
 // setup needs edgevpn and k3s installed locally (both k3s and k3s-agent systemd services).
-func Run(apiAddress string, dir []string, force bool) error {
+func Run(opts ...Option) error {
+	o := &Options{}
+	if err := o.Apply(opts...); err != nil {
+		return err
+	}
 
 	os.MkdirAll("/usr/local/.c3os", 0600) //nolint:errcheck
 
 	// Reads config
-	c, err := config.Scan(config.Directories(dir...))
+	c, err := config.Scan(config.Directories(o.Dir...))
 	if err != nil {
 		return err
 	}
@@ -63,6 +67,11 @@ func Run(apiAddress string, dir []string, force bool) error {
 		}
 	}
 
-	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: apiAddress, Config: c.String(), Logfile: fileName})
+	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: o.ApiAddress, Config: c.String(), Logfile: fileName})
+
+	if o.Restart && err != nil {
+		fmt.Println("Warning: Agent failed, restarting: ", err.Error())
+		return Run(opts...)
+	}
 	return err
 }
