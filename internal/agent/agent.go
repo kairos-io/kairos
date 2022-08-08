@@ -73,7 +73,7 @@ func Run(opts ...Option) error {
 		}
 	}
 
-	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: o.ApiAddress, Config: c.String(), Logfile: fileName})
+	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: o.APIAddress, Config: c.String(), Logfile: fileName})
 
 	if o.Restart && err != nil {
 		fmt.Println("Warning: Agent failed, restarting: ", err.Error())
