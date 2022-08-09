@@ -46,17 +46,18 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
         env:
+          VARIANT: ${{ matrix.variant }}
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/${{ matrix.variant }}:${{ matrix.flavor }}-latest
+          IMAGE: quay.io/c3os/${{ matrix.variant }}-${{ matrix.flavor }}:latest
           WITH_CLI: ${{ matrix.with_cli }}
           WITH_PROVIDER: ${{ matrix.with_provider }}
         run: |
-          ./earthly.sh +docker --WITH_K3S=false --IMAGE=${IMAGE} --FLAVOR=${FLAVOR} --C3OS_VERSION=latest --WITH_CLI=${WITH_CLI} --WITH_PROVIDER=${WITH_PROVIDER}
+          ./earthly.sh +docker --WITH_K3S=false --IMAGE=${IMAGE} --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --C3OS_VERSION=latest --WITH_CLI=${WITH_CLI} --WITH_PROVIDER=${WITH_PROVIDER}
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_EXPERIMENTAL: 1
-          IMAGE: quay.io/c3os/${{ matrix.variant }}:${{ matrix.flavor }}-latest
+          IMAGE: quay.io/c3os/${{ matrix.variant }}-${{ matrix.flavor }}:latest
         run: | 
           docker push ${IMAGE}
           cosign sign ${IMAGE}
