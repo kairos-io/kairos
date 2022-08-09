@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/c3os-io/c3os/sdk/bus"
+
 	"github.com/c3os-io/c3os/internal/provider"
-	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/mudler/go-pluggable"
 )
 

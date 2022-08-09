@@ -3,8 +3,9 @@ package provider
 import (
 	"encoding/json"
 
+	"github.com/c3os-io/c3os/sdk/bus"
+
 	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
-	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/c3os-io/c3os/pkg/config"
 
 	"github.com/mudler/go-nodepair"

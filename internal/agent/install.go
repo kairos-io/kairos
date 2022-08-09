@@ -10,7 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	events "github.com/c3os-io/c3os/pkg/bus"
+	events "github.com/c3os-io/c3os/sdk/bus"
+
 	config "github.com/c3os-io/c3os/pkg/config"
 
 	"github.com/c3os-io/c3os/internal/bus"

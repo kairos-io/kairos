@@ -5,7 +5,8 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/c3os-io/c3os/pkg/bus"
+	"github.com/c3os-io/c3os/sdk/bus"
+
 	"github.com/mudler/go-pluggable"
 )
 
@@ -15,6 +16,7 @@ var Manager = &Bus{
 		[]pluggable.EventType{
 			bus.EventBootstrap,
 			bus.EventChallenge,
+			bus.EventBoot,
 			bus.EventInstall,
 		},
 	),

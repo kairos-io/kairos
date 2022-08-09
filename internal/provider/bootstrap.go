@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/c3os-io/c3os/sdk/bus"
+
 	logging "github.com/ipfs/go-log"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	"go.uber.org/zap"
@@ -18,7 +20,6 @@ import (
 	"github.com/c3os-io/c3os/internal/role"
 	"github.com/c3os-io/c3os/internal/utils"
 
-	"github.com/c3os-io/c3os/pkg/bus"
 	"github.com/c3os-io/c3os/pkg/config"
 	"github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/go-pluggable"

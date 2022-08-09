@@ -1,0 +1,6 @@
+name: "Notify C3OS Plugins of Elemental Events"
+stages:
+    initramfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -f "/run/cos/live_mode" ]'
+      commands:
+        - c3os-agent notify agent.boot
