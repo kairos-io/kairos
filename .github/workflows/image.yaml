@@ -136,8 +136,8 @@ jobs:
             go-version: '^1.16'
       - name: Prepare config
         run: |
-              go build -o c3os ./cmd/cli
-              ./c3os create-config > config.yaml
+              ./earthly.sh +build-c3os-cli
+              ./build/c3os create-config > config.yaml
               cat tests/assets/config.yaml >> config.yaml
       - name: Enable dns
         uses: mikefarah/yq@master
@@ -308,8 +308,8 @@ jobs:
             go-version: '^1.16'
       - name: Prepare config
         run: |
-              go build -o c3os ./cmd/cli
-              ./c3os create-config > config.yaml
+              ./earthly.sh +build-c3os-cli
+              ./build/c3os create-config > config.yaml
               cat tests/assets/config.yaml >> config.yaml
       - name: Enable dns
         uses: mikefarah/yq@master
@@ -434,8 +434,8 @@ jobs:
       with:
           go-version: '^1.16'
     - run: |
-             go build -o c3os ./cmd/cli
-             sudo cp -rfv c3os /usr/bin/c3os
+             ./earthly.sh +build-c3os-cli
+             sudo cp -rfv build/c3os /usr/bin/c3os
              export CLOUD_INIT=$PWD/tests/assets/qrcode.yaml
              export FLAVOR=${{ matrix.flavor }} 
              ./.github/run_test.sh "qrcode-register"
