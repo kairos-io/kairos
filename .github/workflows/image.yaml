@@ -36,7 +36,7 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/c3os:${{ matrix.flavor }}-latest
+          IMAGE: quay.io/c3os/c3os-${{ matrix.flavor }}:latest
         run: |
           bash build.sh
           sudo mv build/* .
@@ -78,11 +78,11 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: 1
         run: | 
-          docker push quay.io/c3os/c3os:${{ matrix.flavor }}-latest
-          cosign sign quay.io/c3os/c3os:${{ matrix.flavor }}-latest
+          docker push quay.io/c3os/c3os-${{ matrix.flavor }}:latest
+          cosign sign quay.io/c3os/c3os-${{ matrix.flavor }}:latest
       - name: Push to testing
         run: | 
-          docker tag quay.io/c3os/c3os:${{ matrix.flavor }}-latest ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+          docker tag quay.io/c3os/c3os-${{ matrix.flavor }}:latest ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
 # Test start
   build-vm-images:

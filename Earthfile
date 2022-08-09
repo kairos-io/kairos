@@ -1,7 +1,8 @@
 VERSION 0.6
 FROM alpine
+ARG VARIANT=c3os # core, lite, framework
 ARG FLAVOR=opensuse
-ARG IMAGE=quay.io/c3os/c3os:${FLAVOR}-latest
+ARG IMAGE=quay.io/c3os/${VARIANT}-${FLAVOR}:latest
 ARG LUET_VERSION=0.32.4
 ARG OS_ID=c3os
 
