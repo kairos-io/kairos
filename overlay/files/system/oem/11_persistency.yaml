@@ -10,6 +10,7 @@ stages:
         RW_PATHS: "/var /etc /srv"
         PERSISTENT_STATE_PATHS: >-
           /etc/systemd
+          /etc/modprobe.d
           /etc/rancher
           /etc/sysconfig
           /etc/runlevels
