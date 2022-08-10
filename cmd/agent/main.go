@@ -11,8 +11,9 @@ import (
 	"github.com/c3os-io/c3os/internal/bus"
 
 	cmd "github.com/c3os-io/c3os/internal/cmd"
-	machine "github.com/c3os-io/c3os/internal/machine"
 	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
+	machine "github.com/c3os-io/c3os/pkg/machine"
+	bundles "github.com/c3os-io/c3os/sdk/bundles"
 
 	"github.com/c3os-io/c3os/internal/github"
 	config "github.com/c3os-io/c3os/pkg/config"
@@ -179,7 +180,7 @@ E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
 				return fmt.Errorf("bundle name required")
 			}
 
-			return machine.RunBundles([]machine.BundleOption{machine.WithRepository(c.String("repository")), machine.WithTarget(args[0])})
+			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRepository(c.String("repository")), bundles.WithTarget(args[0])})
 		},
 	},
 	{

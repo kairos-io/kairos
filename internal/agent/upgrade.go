@@ -8,7 +8,7 @@ import (
 	"os/exec"
 
 	"github.com/c3os-io/c3os/internal/github"
-	"github.com/c3os-io/c3os/internal/utils"
+	"github.com/c3os-io/c3os/pkg/utils"
 )
 
 func Upgrade(version, image string, force bool) error {

@@ -6,8 +6,8 @@ import (
 
 	"github.com/c3os-io/c3os/internal/cmd"
 	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
-	"github.com/c3os-io/c3os/internal/utils"
 	config "github.com/c3os-io/c3os/pkg/config"
+	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/erikgeiser/promptkit/textinput"
 	"github.com/jaypipes/ghw"
 	"github.com/mudler/edgevpn/pkg/node"
@@ -94,15 +94,12 @@ func InteractiveInstall(spawnShell bool) error {
 		userPassword = "!"
 	}
 
-	sshUsername, err := prompt("Username to grant SSH access to (github/gitlab supported)", "github:someuser", canBeEmpty, true, false)
+	users, err := prompt("SSH access (rsakey, github/gitlab supported, comma-separated)", "github:someuser,github:someuser2", canBeEmpty, true, false)
 	if err != nil {
 		return err
 	}
 
-	sshPubkey, err := prompt("SSH pubkey", "github:username", canBeEmpty, true, false)
-	if err != nil {
-		return err
-	}
+	sshUsers := strings.Split(users, ",")
 
 	k3sAuto, err := prompt("Do you want to enable k3s automated setup? (requires multiple nodes)", "n", yesNo, true, false)
 	if err != nil {
@@ -158,16 +155,10 @@ func InteractiveInstall(spawnShell bool) error {
 
 	if userName != "" {
 		user := schema.User{
-			Name:         userName,
-			PasswordHash: userPassword,
-			Groups:       []string{"admin"},
-		}
-		if sshUsername != "" {
-			user.SSHAuthorizedKeys = append(user.SSHAuthorizedKeys, sshUsername)
-		}
-
-		if sshPubkey != "" {
-			user.SSHAuthorizedKeys = append(user.SSHAuthorizedKeys, sshPubkey)
+			Name:              userName,
+			PasswordHash:      userPassword,
+			Groups:            []string{"admin"},
+			SSHAuthorizedKeys: sshUsers,
 		}
 
 		usersToSet = map[string]schema.User{

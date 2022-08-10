@@ -18,6 +18,9 @@ const (
 
 	// EventBootstrap is issued to run any initial cluster configuration.
 	EventBootstrap pluggable.EventType = "agent.bootstrap"
+
+	// EventInstallPrompt is issued to request which config are required to ask to the user
+	EventInstallPrompt pluggable.EventType = "agent.installprompt"
 )
 
 type InstallPayload struct {
@@ -33,4 +36,36 @@ type BootstrapPayload struct {
 
 type EventPayload struct {
 	Config string `json:"config"`
+}
+
+// AllEvents is a convenience list of all the events streamed from the bus.
+var AllEvents = []pluggable.EventType{
+	EventBootstrap,
+	EventChallenge,
+	EventBoot,
+	EventInstall,
+}
+
+// IsEventDefined checks wether an event is defined in the bus.
+// It accepts strings or EventType, returns a boolean indicating that
+// the event was defined among the events emitted by the bus.
+func IsEventDefined(i interface{}) bool {
+	checkEvent := func(e pluggable.EventType) bool {
+		for _, ee := range AllEvents {
+			if ee == e {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	switch f := i.(type) {
+	case string:
+		return checkEvent(pluggable.EventType(f))
+	case pluggable.EventType:
+		return checkEvent(f)
+	default:
+		return false
+	}
 }

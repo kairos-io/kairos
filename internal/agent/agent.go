@@ -9,8 +9,9 @@ import (
 	events "github.com/c3os-io/c3os/sdk/bus"
 
 	"github.com/c3os-io/c3os/internal/bus"
-	machine "github.com/c3os-io/c3os/internal/machine"
 	config "github.com/c3os-io/c3os/pkg/config"
+	machine "github.com/c3os-io/c3os/pkg/machine"
+	bundles "github.com/c3os-io/c3os/sdk/bundles"
 	"github.com/nxadm/tail"
 )
 
@@ -61,7 +62,7 @@ func Run(opts ...Option) error {
 
 	if !machine.SentinelExist("bundles") {
 		opts := c.Bundles.Options()
-		err := machine.RunBundles(opts...)
+		err := bundles.RunBundles(opts...)
 		if !c.IgnoreBundleErrors && err != nil {
 			return err
 		}

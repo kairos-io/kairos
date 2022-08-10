@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/c3os-io/c3os/internal/c3os"
-	"github.com/c3os-io/c3os/internal/utils"
+	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/pterm/pterm"
 )
 

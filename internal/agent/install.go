@@ -15,10 +15,12 @@ import (
 	config "github.com/c3os-io/c3os/pkg/config"
 
 	"github.com/c3os-io/c3os/internal/bus"
-	"github.com/c3os-io/c3os/internal/cmd"
-	"github.com/c3os-io/c3os/internal/utils"
+	sdkBus "github.com/c3os-io/c3os/sdk/bus"
 
-	machine "github.com/c3os-io/c3os/internal/machine"
+	"github.com/c3os-io/c3os/internal/cmd"
+	"github.com/c3os-io/c3os/pkg/utils"
+
+	machine "github.com/c3os-io/c3os/pkg/machine"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"
@@ -154,8 +156,8 @@ func Install(dir ...string) error {
 	r["cc"] = config.AddHeader(header, string(out))
 
 	pterm.Info.Println("Starting installation")
-	utils.SH("elemental run-stage c3os-install.pre")          //nolint:errcheck
-	bus.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
+	utils.SH("elemental run-stage c3os-install.pre")             //nolint:errcheck
+	sdkBus.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
 
 	if err := RunInstall(r); err != nil {
 		return err
@@ -214,8 +216,8 @@ func RunInstall(options map[string]string) error {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	utils.SH("elemental run-stage c3os-install.after")          //nolint:errcheck
-	bus.RunHookScript("/usr/bin/c3os-agent.install.after.hook") //nolint:errcheck
+	utils.SH("elemental run-stage c3os-install.after")             //nolint:errcheck
+	sdkBus.RunHookScript("/usr/bin/c3os-agent.install.after.hook") //nolint:errcheck
 
 	if reboot || c.Install != nil && c.Install.Reboot {
 		utils.Reboot()

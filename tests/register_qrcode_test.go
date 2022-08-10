@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/c3os-io/c3os/internal/utils"
+	"github.com/c3os-io/c3os/pkg/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

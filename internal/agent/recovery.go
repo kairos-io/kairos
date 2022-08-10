@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/c3os-io/c3os/internal/cmd"
-	"github.com/c3os-io/c3os/internal/utils"
 	config "github.com/c3os-io/c3os/pkg/config"
+	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/ipfs/go-log"
 
-	machine "github.com/c3os-io/c3os/internal/machine"
+	machine "github.com/c3os-io/c3os/pkg/machine"
 	"github.com/creack/pty"
 	"github.com/gliderlabs/ssh"
 	"github.com/mudler/edgevpn/pkg/logger"

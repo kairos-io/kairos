@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/c3os-io/c3os/internal/cmd"
-	"github.com/c3os-io/c3os/internal/machine"
-	"github.com/c3os-io/c3os/internal/utils"
+	"github.com/c3os-io/c3os/pkg/machine"
+	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/pterm/pterm"
 )
 

@@ -6,8 +6,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/c3os-io/c3os/internal/utils"
 	"github.com/c3os-io/c3os/pkg/config"
+	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/ipfs/go-log"
 	"github.com/mudler/edgevpn/api"
 	"github.com/mudler/edgevpn/pkg/logger"

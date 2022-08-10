@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
-	"github.com/c3os-io/c3os/internal/utils"
+	"github.com/c3os-io/c3os/pkg/utils"
 
 	. "github.com/onsi/gomega" //nolint:revive
 	"golang.org/x/crypto/ssh"

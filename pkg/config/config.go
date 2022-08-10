@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -11,7 +10,8 @@ import (
 	"unicode"
 
 	retry "github.com/avast/retry-go"
-	"github.com/c3os-io/c3os/internal/machine"
+	"github.com/c3os-io/c3os/pkg/machine"
+	"github.com/c3os-io/c3os/sdk/bundles"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v2"
@@ -58,15 +58,15 @@ func HasHeader(userdata, head string) (bool, string) {
 	return (header == "#cloud-config") || (header == "#c3os-config") || (header == "#node-config"), header
 }
 
-func (b Bundles) Options() (res [][]machine.BundleOption) {
+func (b Bundles) Options() (res [][]bundles.BundleOption) {
 	for _, bundle := range b {
 		for _, t := range bundle.Targets {
-			opts := []machine.BundleOption{machine.WithRepository(bundle.Repository), machine.WithTarget(t)}
+			opts := []bundles.BundleOption{bundles.WithRepository(bundle.Repository), bundles.WithTarget(t)}
 			if bundle.Rootfs != "" {
-				opts = append(opts, machine.WithRootFS(bundle.Rootfs))
+				opts = append(opts, bundles.WithRootFS(bundle.Rootfs))
 			}
 			if bundle.DB != "" {
-				opts = append(opts, machine.WithDBPath(bundle.DB))
+				opts = append(opts, bundles.WithDBPath(bundle.DB))
 			}
 			res = append(res, opts)
 		}
@@ -76,6 +76,10 @@ func (b Bundles) Options() (res [][]machine.BundleOption) {
 
 func (c Config) Unmarshal(o interface{}) error {
 	return yaml.Unmarshal([]byte(c.String()), o)
+}
+
+func (c Config) Location() string {
+	return c.location
 }
 
 func (c Config) Data() map[string]interface{} {
@@ -238,56 +242,6 @@ func listFiles(dir string) ([]string, error) {
 		})
 
 	return content, err
-}
-
-func ReplaceToken(dir []string, token string) (err error) {
-	c, err := Scan(Directories(dir...))
-	if err != nil {
-		return fmt.Errorf("no config file found: %w", err)
-	}
-
-	header := "#node-config"
-
-	if hasHeader, head := HasHeader(c.String(), ""); hasHeader {
-		header = head
-	}
-
-	content := map[interface{}]interface{}{}
-
-	if err := yaml.Unmarshal([]byte(c.String()), &content); err != nil {
-		return err
-	}
-
-	section, exists := content["c3os"]
-	if !exists {
-		return errors.New("no c3os section in config file")
-	}
-
-	dd, err := yaml.Marshal(section)
-	if err != nil {
-		return err
-	}
-
-	piece := map[string]interface{}{}
-
-	if err := yaml.Unmarshal(dd, &piece); err != nil {
-		return err
-	}
-
-	piece["network_token"] = token
-	content["c3os"] = piece
-
-	d, err := yaml.Marshal(content)
-	if err != nil {
-		return err
-	}
-
-	fi, err := os.Stat(c.location)
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(c.location, []byte(AddHeader(header, string(d))), fi.Mode().Perm())
 }
 
 type Stage string

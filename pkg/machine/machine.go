@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/c3os-io/c3os/internal/machine/openrc"
-	"github.com/c3os-io/c3os/internal/machine/systemd"
+	"github.com/c3os-io/c3os/pkg/machine/openrc"
+	"github.com/c3os-io/c3os/pkg/machine/systemd"
 	"github.com/denisbrodbeck/machineid"
 
-	"github.com/c3os-io/c3os/internal/utils"
+	"github.com/c3os-io/c3os/pkg/utils"
 )
 
 type Service interface {

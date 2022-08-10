@@ -3,7 +3,6 @@ package bus
 import (
 	"fmt"
 	"os"
-	"os/exec"
 
 	"github.com/c3os-io/c3os/sdk/bus"
 
@@ -13,12 +12,7 @@ import (
 // Manager is the bus instance manager, which subscribes plugins to events emitted.
 var Manager = &Bus{
 	Manager: pluggable.NewManager(
-		[]pluggable.EventType{
-			bus.EventBootstrap,
-			bus.EventChallenge,
-			bus.EventBoot,
-			bus.EventInstall,
-		},
+		bus.AllEvents,
 	),
 }
 
@@ -56,16 +50,4 @@ func (b *Bus) Initialize() {
 			}
 		})
 	}
-}
-
-func RunHookScript(s string) error {
-	_, err := os.Stat(s)
-	if err != nil {
-		return nil
-	}
-	cmd := exec.Command(s)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-	return cmd.Run()
 }

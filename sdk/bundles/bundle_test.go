@@ -1,11 +1,11 @@
-package machine_test
+package bundles_test
 
 import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	. "github.com/c3os-io/c3os/internal/machine"
+	. "github.com/c3os-io/c3os/sdk/bundles"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
