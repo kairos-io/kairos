@@ -53,10 +53,9 @@ jobs:
           ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-$TAG.img --IMAGE=quay.io/c3os/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
           docker push quay.io/c3os/core-$FLAVOR:$TAG
       - name: Push  🔧
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/c3os:${{ matrix.flavor }}-latest
+          IMAGE: quay.io/c3os/c3os-${{ matrix.flavor }}:latest
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
