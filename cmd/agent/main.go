@@ -10,13 +10,10 @@ import (
 	agent "github.com/c3os-io/c3os/internal/agent"
 	"github.com/c3os-io/c3os/internal/bus"
 
-	cmd "github.com/c3os-io/c3os/internal/cmd"
-	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	machine "github.com/c3os-io/c3os/pkg/machine"
 	bundles "github.com/c3os-io/c3os/sdk/bundles"
 
 	"github.com/c3os-io/c3os/internal/github"
-	config "github.com/c3os-io/c3os/pkg/config"
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
 )
@@ -184,70 +181,6 @@ E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
 		},
 	},
 	{
-		Name:  "rotate",
-		Usage: "Rotate a c3os node network configuration via CLI",
-		Description: `
-
-Updates a c3os node VPN configuration.
-
-For example, to update the network token in a node:
-$ c3os rotate --network-token XXX
-`,
-		Aliases: []string{"r"},
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name: "restart",
-			},
-			&cli.StringFlag{
-				Name:   "network-token",
-				EnvVar: "NETWORK_TOKEN",
-			},
-			&cli.StringFlag{
-				Name:  "api",
-				Value: "127.0.0.1:8080",
-			},
-			&cli.StringFlag{
-				Name: "root-dir",
-			},
-		},
-		UsageText: "Rotate network token manually in the node",
-		Action: func(c *cli.Context) error {
-			dirs := []string{"/oem", "/usr/local/cloud-config"}
-			args := c.Args()
-			if len(args) > 0 {
-				dirs = args
-			}
-
-			return agent.RotateToken(dirs, c.String("network-token"), c.String("api"), c.String("root-dir"), c.Bool("restart"))
-		},
-	},
-
-	{
-		Name:        "get-network-token",
-		Description: "Print network token from local configuration",
-		Usage:       "Print network token from local configuration",
-		Action: func(c *cli.Context) error {
-			dirs := []string{"/oem", "/usr/local/cloud-config"}
-			args := c.Args()
-			if len(args) > 0 {
-				dirs = args
-			}
-			cc, err := config.Scan(config.Directories(dirs...))
-			if err != nil {
-				return err
-			}
-
-			providerCfg := &providerConfig.Config{}
-			err = cc.Unmarshal(providerCfg)
-			if err != nil {
-				return err
-			}
-
-			fmt.Print(providerCfg.C3OS.NetworkToken)
-			return nil
-		},
-	},
-	{
 		Name:        "uuid",
 		Usage:       "Prints the local UUID",
 		Description: "Print node uuid",
@@ -352,7 +285,7 @@ For all the example cases, see: https://docs.c3os.io .
 		UsageText: ``,
 		Copyright: "Ettore Di Giacinto",
 
-		Commands: cmd.CommonCommand(cmds...),
+		Commands: cmds,
 	}
 
 	err := app.Run(os.Args)

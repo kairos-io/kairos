@@ -46,10 +46,6 @@ func startRecoveryService(ctx context.Context, token, name, address, loglevel st
 			time.Duration(10)*time.Second,
 			time.Duration(10)*time.Second)...)
 
-	// opts, err := vpn.Register(vpnOpts...)
-	// if err != nil {
-	// 	return err
-	// }
 	o = append(o, services.RegisterService(llger, time.Duration(5*time.Second), name, address)...)
 
 	e, err := node.New(o...)
@@ -69,6 +65,8 @@ func Recovery() error {
 		return err
 	}
 
+	cmd.PrintText(agentConfig.Branding.Recovery, "Recovery")
+
 	tk := nodepair.GenerateToken()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -79,8 +77,6 @@ func Recovery() error {
 	if err := startRecoveryService(ctx, tk, serviceUUID, recoveryAddr, "fatal"); err != nil {
 		return err
 	}
-
-	cmd.PrintText(agentConfig.Branding.Recovery, "Recovery")
 
 	time.Sleep(5 * time.Second)
 
