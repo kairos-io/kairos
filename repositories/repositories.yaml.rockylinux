@@ -1,0 +1,30 @@
+repositories:
+  - &cos
+    name: "cos"
+    description: "cOS official"
+    type: "docker"
+    arch: amd64
+    cached: true
+    priority: 1
+    reference: "v0.8.14-22-repository.yaml"
+    urls:
+      - "quay.io/costoolkit/releases-blue"
+  - !!merge <<: *cos
+    arch: "arm64"
+    urls:
+      - "quay.io/costoolkit/releases-blue-arm64"
+    reference: "v0.8.14-22-repository.yaml"
+  - &c3os
+    name: "c3os"
+    # https://github.com/c3os-io/packages
+    description: "c3os repository"
+    type: "docker"
+    arch: amd64
+    cached: true
+    priority: 2
+    urls:
+      - "quay.io/c3os/packages"
+  - !!merge <<: *c3os
+    arch: arm64
+    urls:
+      - "quay.io/c3os/packages-arm"
