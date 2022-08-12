@@ -64,12 +64,17 @@ OSRELEASE:
     ARG OS_REPO
     ARG OS_VERSION
     ARG OS_LABEL
+    ARG GITHUB_REPO=c3os-io/c3os
+    ARG BUG_REPORT_URL=https://github.com/c3os-io/c3os/issues
+    ARG HOME_URL=https://github.com/c3os-io/c3os
     ENV OS_ID=$OS_ID
     ENV OS_NAME=$OS_NAME
     ENV OS_REPO=$OS_REPO
     ENV OS_VERSION=$OS_VERSION
     ENV OS_LABEL=$OS_LABEL
-
+    ENV GITHUB_REPO=$GITHUB_REPO
+    ENV BUG_REPORT_URL=$BUG_REPORT_URL
+    ENV HOME_URL=$HOME_URL
     # update OS-release file
     RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl
 
