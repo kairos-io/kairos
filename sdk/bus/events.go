@@ -21,6 +21,10 @@ const (
 
 	// EventInstallPrompt is issued to request which config are required to ask to the user
 	EventInstallPrompt pluggable.EventType = "agent.installprompt"
+
+	// EventRecovery emitted while booting into recovery mode
+	EventRecovery     pluggable.EventType = "agent.recovery"
+	EventRecoveryStop pluggable.EventType = "agent.recovery.stop"
 )
 
 type InstallPayload struct {
@@ -44,6 +48,8 @@ var AllEvents = []pluggable.EventType{
 	EventChallenge,
 	EventBoot,
 	EventInstall,
+	EventRecovery,
+	EventRecoveryStop,
 }
 
 // IsEventDefined checks wether an event is defined in the bus.
