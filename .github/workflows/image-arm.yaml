@@ -40,8 +40,23 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
-          export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-$TAG.img --IMAGE=quay.io/c3os/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+          ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-$TAG.img --IMAGE=quay.io/c3os/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+      - name: Push  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/c3os/core-$FLAVOR:latest
+          MODEL: ${{ matrix.model }}
+        run: |
+          export TAG=latest
+          export IMAGE_NAME=c3os-$FLAVOR-$TAG.img
+          export IMAGE=quay.io/c3os/core-$FLAVOR:$TAG
+          docker push quay.io/c3os/core-$FLAVOR:$TAG
+      - name: Sign image
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: | 
+          TAG=latest
+          cosign sign quay.io/c3os/core-$FLAVOR:$TAG
       - name: Upload results
         uses: actions/upload-artifact@v2
         with:
