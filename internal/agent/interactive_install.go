@@ -1,16 +1,21 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
+	"github.com/c3os-io/c3os/internal/bus"
 	"github.com/c3os-io/c3os/internal/cmd"
-	providerConfig "github.com/c3os-io/c3os/internal/provider/config"
 	config "github.com/c3os-io/c3os/pkg/config"
+
+	events "github.com/c3os-io/c3os/sdk/bus"
+	"github.com/c3os-io/c3os/sdk/unstructured"
+
 	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/erikgeiser/promptkit/textinput"
 	"github.com/jaypipes/ghw"
-	"github.com/mudler/edgevpn/pkg/node"
+	"github.com/mudler/go-pluggable"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pterm/pterm"
 )
@@ -49,9 +54,16 @@ const (
 )
 
 func InteractiveInstall(spawnShell bool) error {
+	bus.Manager.Initialize()
+
 	cmd.PrintBranding(DefaultBanner)
-	pterm.DefaultBox.WithTitle("Installation").WithTitleBottomRight().WithRightPadding(0).WithBottomPadding(0).Println(
-		`Interactive installation. Documentation is available at https://docs.c3os.io.`)
+
+	agentConfig, err := LoadConfig()
+	if err != nil {
+		return err
+	}
+
+	cmd.PrintText(agentConfig.Branding.InteractiveInstall, "Installation")
 
 	disks := []string{}
 	maxSize := float64(0)
@@ -73,7 +85,6 @@ func InteractiveInstall(spawnShell bool) error {
 	for _, d := range disks {
 		pterm.Info.Println(" " + d)
 	}
-	var networkToken string
 
 	device, err := prompt("What's the target install device?", preferedDevice, "Cannot be empty", false, false)
 	if err != nil {
@@ -101,28 +112,66 @@ func InteractiveInstall(spawnShell bool) error {
 
 	sshUsers := strings.Split(users, ",")
 
-	k3sAuto, err := prompt("Do you want to enable k3s automated setup? (requires multiple nodes)", "n", yesNo, true, false)
+	// Prompt the user by prompts defined by the provider
+	r := []events.YAMLPrompt{}
+
+	bus.Manager.Response(events.EventInteractiveInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
+		err := json.Unmarshal([]byte(resp.Data), &r)
+		if err != nil {
+			fmt.Println(err)
+		}
+	})
+
+	_, err = bus.Manager.Publish(events.EventInteractiveInstall, events.EventPayload{})
 	if err != nil {
 		return err
 	}
 
-	if isYes(k3sAuto) {
-		hasNetworkToken, err := prompt("Do you have a network token already?", "n", yesNo, true, false)
-		if err != nil {
-			return err
+	unstructuredYAML := map[string]interface{}{}
+	for _, p := range r {
+		var res string
+		if p.AskFirst {
+			ask, err := prompt(p.AskPrompt, "n", yesNo, true, false)
+			if err == nil && !isYes(ask) {
+				continue
+			}
 		}
-
-		if isYes(hasNetworkToken) {
-			networkToken, err = prompt("Input network token", "", "", false, true)
+		if p.Bool {
+			def := "n"
+			if p.Default != "" {
+				def = p.Default
+			}
+			val, err := prompt(p.Prompt, def, yesNo, true, false)
 			if err != nil {
 				return err
 			}
+			if isYes(val) {
+				val = "true"
+			} else {
+				val = "false"
+			}
+			unstructuredYAML[p.YAMLSection] = val
+			res = val
 		} else {
-			networkToken = node.GenerateNewConnectionData().Base64()
+			def := ""
+			if p.Default != "" {
+				def = p.Default
+			}
+			val, err := prompt(p.Prompt, def, p.PlaceHolder, true, false)
+			if err != nil {
+				return err
+			}
+			unstructuredYAML[p.YAMLSection] = val
+			res = val
+		}
+
+		if res == "" && p.IfEmpty != "" {
+			res = p.IfEmpty
+			unstructuredYAML[p.YAMLSection] = res
 		}
 	}
 
-	k3sStandalone, err := prompt("Do you want to enable k3s standalone?", "n", yesNo, true, false)
+	result, err := unstructured.ToYAMLMap(unstructuredYAML)
 	if err != nil {
 		return err
 	}
@@ -139,15 +188,6 @@ func InteractiveInstall(spawnShell bool) error {
 	c := &config.Config{
 		Install: &config.Install{
 			Device: device,
-		},
-	}
-
-	providerCfg := providerConfig.Config{
-		C3OS: &providerConfig.C3OS{
-			NetworkToken: networkToken,
-		},
-		K3s: providerConfig.K3s{
-			Enabled: isYes(k3sStandalone),
 		},
 	}
 
@@ -173,16 +213,19 @@ func InteractiveInstall(spawnShell bool) error {
 			},
 		}}}
 
-	dat, err := config.MergeYAML(cloudConfig, c, providerCfg)
+	dat, err := config.MergeYAML(cloudConfig, c, result)
 	if err != nil {
 		return err
 	}
 
+	finalCloudConfig:=config.AddHeader("#node-config", string(dat))
+
 	pterm.Info.Println("Starting installation")
+	pterm.Info.Println(finalCloudConfig)
 
 	err = RunInstall(map[string]string{
 		"device": device,
-		"cc":     config.AddHeader("#node-config", string(dat)),
+		"cc":     finalCloudConfig,
 	})
 	if err != nil {
 		pterm.Error.Println(err.Error())

@@ -25,11 +25,24 @@ const (
 	// EventRecovery emitted while booting into recovery mode
 	EventRecovery     pluggable.EventType = "agent.recovery"
 	EventRecoveryStop pluggable.EventType = "agent.recovery.stop"
+
+	EventInteractiveInstall pluggable.EventType = "agent.interactive-install"
 )
 
 type InstallPayload struct {
 	Token  string `json:"token"`
 	Config string `json:"config"`
+}
+
+type YAMLPrompt struct {
+	YAMLSection string
+	Bool        bool
+	Prompt      string
+	Default     string
+	AskFirst    bool
+	AskPrompt   string
+	IfEmpty     string
+	PlaceHolder string
 }
 
 type BootstrapPayload struct {
@@ -49,6 +62,7 @@ var AllEvents = []pluggable.EventType{
 	EventBoot,
 	EventInstall,
 	EventRecovery,
+	EventInteractiveInstall,
 	EventRecoveryStop,
 }
 

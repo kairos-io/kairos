@@ -8,9 +8,10 @@ import (
 )
 
 type BrandingText struct {
-	Install  string `yaml:"install"`
-	Reset    string `yaml:"reset"`
-	Recovery string `yaml:"recovery"`
+	InteractiveInstall string `yaml:"install"`
+	Install            string `yaml:"install"`
+	Reset              string `yaml:"reset"`
+	Recovery           string `yaml:"recovery"`
 }
 
 type Config struct {
@@ -28,6 +29,13 @@ func LoadConfig(path ...string) (*Config, error) {
 		f, err := ioutil.ReadFile(p)
 		if err == nil {
 			yaml.Unmarshal(f, cfg) //nolint:errcheck
+		}
+	}
+
+	if cfg.Branding.InteractiveInstall == "" {
+		f, err := ioutil.ReadFile(c3os.BrandingFile("interactive_install_text"))
+		if err == nil {
+			cfg.Branding.InteractiveInstall = string(f)
 		}
 	}
 

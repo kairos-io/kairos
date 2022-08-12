@@ -15,7 +15,6 @@ import (
 	config "github.com/c3os-io/c3os/pkg/config"
 
 	"github.com/c3os-io/c3os/internal/bus"
-	sdkBus "github.com/c3os-io/c3os/sdk/bus"
 
 	"github.com/c3os-io/c3os/internal/cmd"
 	"github.com/c3os-io/c3os/pkg/utils"
@@ -157,7 +156,7 @@ func Install(dir ...string) error {
 
 	pterm.Info.Println("Starting installation")
 	utils.SH("elemental run-stage c3os-install.pre")             //nolint:errcheck
-	sdkBus.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
+	events.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
 
 	if err := RunInstall(r); err != nil {
 		return err
@@ -217,7 +216,7 @@ func RunInstall(options map[string]string) error {
 		os.Exit(1)
 	}
 	utils.SH("elemental run-stage c3os-install.after")             //nolint:errcheck
-	sdkBus.RunHookScript("/usr/bin/c3os-agent.install.after.hook") //nolint:errcheck
+	events.RunHookScript("/usr/bin/c3os-agent.install.after.hook") //nolint:errcheck
 
 	if reboot || c.Install != nil && c.Install.Reboot {
 		utils.Reboot()
