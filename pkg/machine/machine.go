@@ -52,25 +52,6 @@ func BootFrom() string {
 	}
 }
 
-func EdgeVPN(instance, rootDir string) (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("edgevpn"),
-			openrc.WithUnitContent(openrc.EdgevpnUnit),
-			openrc.WithRoot(rootDir),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("edgevpn"),
-		systemd.WithInstance(instance),
-		systemd.WithUnitContent(systemd.EdgevpnUnit),
-		systemd.WithRoot(rootDir),
-	)
-}
-
-const EdgeVPNDefaultInstance string = "c3os"
-
 type fakegetty struct{}
 
 func (fakegetty) Restart() error           { return nil }
