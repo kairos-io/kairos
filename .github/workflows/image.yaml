@@ -36,9 +36,9 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/c3os-${{ matrix.flavor }}:latest
+          IMAGE: quay.io/c3os/core-${{ matrix.flavor }}:latest
         run: |
-          bash build.sh
+          ./earthly.sh +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v2
@@ -78,11 +78,11 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: 1
         run: | 
-          docker push quay.io/c3os/c3os-${{ matrix.flavor }}:latest
-          cosign sign quay.io/c3os/c3os-${{ matrix.flavor }}:latest
+          docker push quay.io/c3os/core-${{ matrix.flavor }}:latest
+          cosign sign quay.io/c3os/core-${{ matrix.flavor }}:latest
       - name: Push to testing
         run: | 
-          docker tag quay.io/c3os/c3os-${{ matrix.flavor }}:latest ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+          docker tag quay.io/c3os/core-${{ matrix.flavor }}:latest ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
 # Test start
   build-vm-images:
@@ -123,35 +123,35 @@ jobs:
           path: |
             *.ova
           if-no-files-found: error
-  prepare-test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - run: |
-          git fetch --prune --unshallow
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-            go-version: '^1.16'
-      - name: Prepare config
-        run: |
-              ./earthly.sh +build-c3os-cli
-              ./build/c3os create-config > config.yaml
-              cat tests/assets/config.yaml >> config.yaml
-      - name: Enable dns
-        uses: mikefarah/yq@master
-        with:
-          cmd: yq -i '.c3os.dns = true' 'config.yaml'
-      - name: Show config
-        run: |
-              cat config.yaml
-      - uses: actions/upload-artifact@v2
-        with:
-          name: config.yaml
-          path: |
-             config.yaml
-          if-no-files-found: error
+  # prepare-test:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - run: |
+  #         git fetch --prune --unshallow
+  #     - name: Install Go
+  #       uses: actions/setup-go@v2
+  #       with:
+  #           go-version: '^1.16'
+  #     - name: Prepare config
+  #       run: |
+  #             ./earthly.sh +build-c3os-cli
+  #             ./build/c3os create-config > config.yaml
+  #             cat tests/assets/config.yaml >> config.yaml
+  #     - name: Enable dns
+  #       uses: mikefarah/yq@master
+  #       with:
+  #         cmd: yq -i '.c3os.dns = true' 'config.yaml'
+  #     - name: Show config
+  #       run: |
+  #             cat config.yaml
+  #     - uses: actions/upload-artifact@v2
+  #       with:
+  #         name: config.yaml
+  #         path: |
+  #            config.yaml
+  #         if-no-files-found: error
 
   install-test:
     needs: 
@@ -196,184 +196,184 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
 
-  upgrade-single-node-k8s-test:
-    needs: 
-    - prepare-test
-    - upgrade-test
-    - upgrade-latest-with-cli-test
-    runs-on: macos-12
-    strategy:
-      fail-fast: true
-      matrix:
-       include:
-         - flavor: "opensuse"
-           node: "A" # Arbitrary field
-         - flavor: "alpine"
-           node: "B" # Arbitrary field
-         #- flavor: "tumbleweed"
-         #  node: "C"
-    steps:
-      - uses: actions/checkout@v2
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: config.yaml
-      - name: Install deps
-        run: |
-          brew install cdrtools jq
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-            go-version: '^1.16'
-      - run: |
-              ls -liah
-              export ISO=$PWD/$(ls *.iso)
-              export GOPATH="/Users/runner/go"
-              export PATH=$PATH:$GOPATH/bin
-              export CLOUD_INIT=$PWD/config.yaml 
-              export CREATE_VM=true 
-              export FLAVOR=${{ matrix.flavor }}
-              ./.github/run_test.sh "upgrade-k8s"
-      - uses: actions/upload-artifact@v2
-        if: failure()
-        with:
-          name: ${{ matrix.flavor }}-vbox.logs.zip
-          path: tests/**/logs/*
-          if-no-files-found: warn
+#   upgrade-single-node-k8s-test:
+#     needs: 
+#     - prepare-test
+#     - upgrade-test
+#     - upgrade-latest-with-cli-test
+#     runs-on: macos-12
+#     strategy:
+#       fail-fast: true
+#       matrix:
+#        include:
+#          - flavor: "opensuse"
+#            node: "A" # Arbitrary field
+#          - flavor: "alpine"
+#            node: "B" # Arbitrary field
+#          #- flavor: "tumbleweed"
+#          #  node: "C"
+#     steps:
+#       - uses: actions/checkout@v2
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v2
+#         with:
+#           name: c3os-${{ matrix.flavor }}.iso.zip
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v2
+#         with:
+#           name: config.yaml
+#       - name: Install deps
+#         run: |
+#           brew install cdrtools jq
+#       - name: Install Go
+#         uses: actions/setup-go@v2
+#         with:
+#             go-version: '^1.16'
+#       - run: |
+#               ls -liah
+#               export ISO=$PWD/$(ls *.iso)
+#               export GOPATH="/Users/runner/go"
+#               export PATH=$PATH:$GOPATH/bin
+#               export CLOUD_INIT=$PWD/config.yaml 
+#               export CREATE_VM=true 
+#               export FLAVOR=${{ matrix.flavor }}
+#               ./.github/run_test.sh "upgrade-k8s"
+#       - uses: actions/upload-artifact@v2
+#         if: failure()
+#         with:
+#           name: ${{ matrix.flavor }}-vbox.logs.zip
+#           path: tests/**/logs/*
+#           if-no-files-found: warn
 
-  decentralized-k8s-test-opensuse:
-    needs: 
-    - prepare-test
-    - upgrade-single-node-k8s-test
-    - upgrade-test
-    - upgrade-latest-with-cli-test
-    runs-on: macos-12
-    strategy:
-      fail-fast: true
-      matrix:
-       include:
-         - flavor: "opensuse"
-           node: "A" # Arbitrary field
-         - flavor: "opensuse"
-           node: "B"
-#         - flavor: "alpine"
-#           node: "C"
-    steps:
-      - uses: actions/checkout@v2
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: config.yaml
-      - name: Install deps
-        run: |
-          brew install cdrtools jq
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-            go-version: '^1.16'
-      - run: |
-              ls -liah
-              export ISO=$PWD/$(ls *.iso)
-              export GOPATH="/Users/runner/go"
-              export PATH=$PATH:$GOPATH/bin
-              export CLOUD_INIT=$PWD/config.yaml
-              export CREATE_VM=true
-              export FLAVOR=${{ matrix.flavor }}
-              ./.github/run_test.sh "decentralized-k8s"
-      - uses: actions/upload-artifact@v2
-        if: failure()
-        with:
-          name: ${{ matrix.flavor }}-vbox.logs.zip
-          path: tests/**/logs/*
-          if-no-files-found: warn
+#   decentralized-k8s-test-opensuse:
+#     needs: 
+#     - prepare-test
+#     - upgrade-single-node-k8s-test
+#     - upgrade-test
+#     - upgrade-latest-with-cli-test
+#     runs-on: macos-12
+#     strategy:
+#       fail-fast: true
+#       matrix:
+#        include:
+#          - flavor: "opensuse"
+#            node: "A" # Arbitrary field
+#          - flavor: "opensuse"
+#            node: "B"
+# #         - flavor: "alpine"
+# #           node: "C"
+#     steps:
+#       - uses: actions/checkout@v2
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v2
+#         with:
+#           name: c3os-${{ matrix.flavor }}.iso.zip
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v2
+#         with:
+#           name: config.yaml
+#       - name: Install deps
+#         run: |
+#           brew install cdrtools jq
+#       - name: Install Go
+#         uses: actions/setup-go@v2
+#         with:
+#             go-version: '^1.16'
+#       - run: |
+#               ls -liah
+#               export ISO=$PWD/$(ls *.iso)
+#               export GOPATH="/Users/runner/go"
+#               export PATH=$PATH:$GOPATH/bin
+#               export CLOUD_INIT=$PWD/config.yaml
+#               export CREATE_VM=true
+#               export FLAVOR=${{ matrix.flavor }}
+#               ./.github/run_test.sh "decentralized-k8s"
+#       - uses: actions/upload-artifact@v2
+#         if: failure()
+#         with:
+#           name: ${{ matrix.flavor }}-vbox.logs.zip
+#           path: tests/**/logs/*
+#           if-no-files-found: warn
 
-  prepare-alpine-test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - run: |
-          git fetch --prune --unshallow
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-            go-version: '^1.16'
-      - name: Prepare config
-        run: |
-              ./earthly.sh +build-c3os-cli
-              ./build/c3os create-config > config.yaml
-              cat tests/assets/config.yaml >> config.yaml
-      - name: Enable dns
-        uses: mikefarah/yq@master
-        with:
-          cmd: yq -i '.c3os.dns = true' 'config.yaml'
-      - name: Show config
-        run: |
-              cat config.yaml
-      - uses: actions/upload-artifact@v2
-        with:
-          name: config.yaml
-          path: |
-             config.yaml
-          if-no-files-found: error
+#   prepare-alpine-test:
+#     needs: build
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v2
+#       - run: |
+#           git fetch --prune --unshallow
+#       - name: Install Go
+#         uses: actions/setup-go@v2
+#         with:
+#             go-version: '^1.16'
+#       - name: Prepare config
+#         run: |
+#               ./earthly.sh +build-c3os-cli
+#               ./build/c3os create-config > config.yaml
+#               cat tests/assets/config.yaml >> config.yaml
+#       - name: Enable dns
+#         uses: mikefarah/yq@master
+#         with:
+#           cmd: yq -i '.c3os.dns = true' 'config.yaml'
+#       - name: Show config
+#         run: |
+#               cat config.yaml
+#       - uses: actions/upload-artifact@v2
+#         with:
+#           name: config.yaml
+#           path: |
+#              config.yaml
+#           if-no-files-found: error
 
-  decentralized-k8s-test-alpine:
-    needs: 
-    - prepare-alpine-test
-    - decentralized-k8s-test-opensuse
-    - upgrade-test
-    - upgrade-latest-with-cli-test
-    runs-on: macos-12
-    strategy:
-      fail-fast: true
-      matrix:
-       include:
-         - flavor: "alpine"
-           node: "A" # Arbitrary field
-         - flavor: "alpine"
-           node: "B"
-#         - flavor: "alpine"
-#           node: "C"
-    steps:
-      - uses: actions/checkout@v2
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: config.yaml
-      - name: Install deps
-        run: |
-          brew install cdrtools jq
-      - name: Install Go
-        uses: actions/setup-go@v2
-        with:
-            go-version: '^1.16'
-      - run: |
-              ls -liah
-              export ISO=$PWD/$(ls *.iso)
-              export GOPATH="/Users/runner/go"
-              export PATH=$PATH:$GOPATH/bin
-              export CLOUD_INIT=$PWD/config.yaml
-              export CREATE_VM=true
-              export FLAVOR=${{ matrix.flavor }}
-              ./.github/run_test.sh "decentralized-k8s"
-      - uses: actions/upload-artifact@v2
-        if: failure()
-        with:
-          name: ${{ matrix.flavor }}-vbox.logs.zip
-          path: tests/**/logs/*
-          if-no-files-found: warn
+#   decentralized-k8s-test-alpine:
+#     needs: 
+#     - prepare-alpine-test
+#     - decentralized-k8s-test-opensuse
+#     - upgrade-test
+#     - upgrade-latest-with-cli-test
+#     runs-on: macos-12
+#     strategy:
+#       fail-fast: true
+#       matrix:
+#        include:
+#          - flavor: "alpine"
+#            node: "A" # Arbitrary field
+#          - flavor: "alpine"
+#            node: "B"
+# #         - flavor: "alpine"
+# #           node: "C"
+#     steps:
+#       - uses: actions/checkout@v2
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v2
+#         with:
+#           name: c3os-${{ matrix.flavor }}.iso.zip
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v2
+#         with:
+#           name: config.yaml
+#       - name: Install deps
+#         run: |
+#           brew install cdrtools jq
+#       - name: Install Go
+#         uses: actions/setup-go@v2
+#         with:
+#             go-version: '^1.16'
+#       - run: |
+#               ls -liah
+#               export ISO=$PWD/$(ls *.iso)
+#               export GOPATH="/Users/runner/go"
+#               export PATH=$PATH:$GOPATH/bin
+#               export CLOUD_INIT=$PWD/config.yaml
+#               export CREATE_VM=true
+#               export FLAVOR=${{ matrix.flavor }}
+#               ./.github/run_test.sh "decentralized-k8s"
+#       - uses: actions/upload-artifact@v2
+#         if: failure()
+#         with:
+#           name: ${{ matrix.flavor }}-vbox.logs.zip
+#           path: tests/**/logs/*
+#           if-no-files-found: warn
 
   latest-release:
     runs-on: ubuntu-latest
@@ -416,85 +416,85 @@ jobs:
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-tests --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
 
-  qrcode-test-cli:
-    needs: 
-    - build
-    - prepare-alpine-test
-    - upgrade-test
+#   qrcode-test-cli:
+#     needs: 
+#     - build
+#     - prepare-alpine-test
+#     - upgrade-test
 
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Download artifacts
-      uses: actions/download-artifact@v2
-      with:      
-          name: config.yaml
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-          go-version: '^1.16'
-    - run: |
-             ./earthly.sh +build-c3os-cli
-             sudo cp -rfv build/c3os /usr/bin/c3os
-             export CLOUD_INIT=$PWD/tests/assets/qrcode.yaml
-             export FLAVOR=${{ matrix.flavor }} 
-             ./.github/run_test.sh "qrcode-register"
-      env:
-       SENDKEY: 4kgpo43kphopj
-    - uses: actions/upload-artifact@v2
-      if: failure()
-      with:
-        name: screenshot.zip
-        path: |
-          tests/*.png
-  qrcode-test:
-    needs: 
-    - build
-    - upgrade-test
-    - prepare-alpine-test
-    runs-on: macos-12
-    strategy:
-      fail-fast: false
-      matrix:
-       include:
-         - flavor: "alpine"
-           node: "A" # Arbitrary field
-#         - flavor: "alpine"
-#           node: "C"
-    steps:
-    - uses: actions/checkout@v2
-    - name: Download artifacts
-      uses: actions/download-artifact@v2
-      with:      
-          name: config.yaml
-    - name: Download artifacts
-      uses: actions/download-artifact@v2
-      with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
-    - name: Install deps
-      run: |
-        brew install cdrtools jq
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-          go-version: '^1.16'
-    - run: |
-            ls -liah
-            export ISO=$PWD/$(ls *.iso)
-            export GOPATH="/Users/runner/go"
-            export PATH=$PATH:$GOPATH/bin
-            export CLOUD_INIT=$PWD/tests/assets/qrcode.yaml
-            export CREATE_VM=true
-            export FLAVOR=${{ matrix.flavor }} 
-            ./.github/run_test.sh "qrcode-install"
-      env:
-       SENDKEY: 4kgpo43kphopj
-    - uses: actions/upload-artifact@v2
-      if: failure()
-      with:
-        name: ${{ matrix.flavor }}-qrcode-test.logs.zip
-        path: tests/**/logs/*
-        if-no-files-found: warn
+#     runs-on: ubuntu-latest
+#     steps:
+#     - uses: actions/checkout@v2
+#     - name: Download artifacts
+#       uses: actions/download-artifact@v2
+#       with:      
+#           name: config.yaml
+#     - name: Install Go
+#       uses: actions/setup-go@v2
+#       with:
+#           go-version: '^1.16'
+#     - run: |
+#              ./earthly.sh +build-c3os-cli
+#              sudo cp -rfv build/c3os /usr/bin/c3os
+#              export CLOUD_INIT=$PWD/tests/assets/qrcode.yaml
+#              export FLAVOR=${{ matrix.flavor }} 
+#              ./.github/run_test.sh "qrcode-register"
+#       env:
+#        SENDKEY: 4kgpo43kphopj
+#     - uses: actions/upload-artifact@v2
+#       if: failure()
+#       with:
+#         name: screenshot.zip
+#         path: |
+#           tests/*.png
+#   qrcode-test:
+#     needs: 
+#     - build
+#     - upgrade-test
+#     - prepare-alpine-test
+#     runs-on: macos-12
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#        include:
+#          - flavor: "alpine"
+#            node: "A" # Arbitrary field
+# #         - flavor: "alpine"
+# #           node: "C"
+#     steps:
+#     - uses: actions/checkout@v2
+#     - name: Download artifacts
+#       uses: actions/download-artifact@v2
+#       with:      
+#           name: config.yaml
+#     - name: Download artifacts
+#       uses: actions/download-artifact@v2
+#       with:
+#           name: c3os-${{ matrix.flavor }}.iso.zip
+#     - name: Install deps
+#       run: |
+#         brew install cdrtools jq
+#     - name: Install Go
+#       uses: actions/setup-go@v2
+#       with:
+#           go-version: '^1.16'
+#     - run: |
+#             ls -liah
+#             export ISO=$PWD/$(ls *.iso)
+#             export GOPATH="/Users/runner/go"
+#             export PATH=$PATH:$GOPATH/bin
+#             export CLOUD_INIT=$PWD/tests/assets/qrcode.yaml
+#             export CREATE_VM=true
+#             export FLAVOR=${{ matrix.flavor }} 
+#             ./.github/run_test.sh "qrcode-install"
+#       env:
+#        SENDKEY: 4kgpo43kphopj
+#     - uses: actions/upload-artifact@v2
+#       if: failure()
+#       with:
+#         name: ${{ matrix.flavor }}-qrcode-test.logs.zip
+#         path: tests/**/logs/*
+#         if-no-files-found: warn
 
   upgrade-latest-with-cli-test:
     needs: 
@@ -543,50 +543,50 @@ jobs:
 
 
 
-  upgrade-test:
-    needs: 
-    - build
-    - latest-release
-    runs-on: macos-12
-    strategy:
-      fail-fast: false
-      matrix:
-       include:
-         - flavor: "alpine"
-           node: "A" # Arbitrary field
-         - flavor: "opensuse"
-           node: "B"
-#         - flavor: "alpine"
-#           node: "C"
-    steps:
-    - uses: actions/checkout@v2
-    - name: Download artifacts
-      uses: actions/download-artifact@v2
-      with:
-        name: latest-release.zip
-    - name: Install deps
-      run: |
-        brew install cdrtools jq
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-          go-version: '^1.16'
-    - run: |
-            ls -liah
-            export ISO=$PWD/$(ls c3os-${{ matrix.flavor }}-*.iso)
-            export GOPATH="/Users/runner/go"
-            export CONTAINER_IMAGE=ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
-            export PATH=$PATH:$GOPATH/bin
-            export CLOUD_INIT=$PWD/tests/assets/config.yaml
-            export CREATE_VM=true
-            export FLAVOR=${{ matrix.flavor }}
-            ./.github/run_test.sh "upgrade-latest-with-kubernetes"
-    - uses: actions/upload-artifact@v2
-      if: failure()
-      with:
-        name: ${{ matrix.flavor }}-upgrade-test.logs.zip
-        path: tests/**/logs/*
-        if-no-files-found: warn
+#   upgrade-test:
+#     needs: 
+#     - build
+#     - latest-release
+#     runs-on: macos-12
+#     strategy:
+#       fail-fast: false
+#       matrix:
+#        include:
+#          - flavor: "alpine"
+#            node: "A" # Arbitrary field
+#          - flavor: "opensuse"
+#            node: "B"
+# #         - flavor: "alpine"
+# #           node: "C"
+#     steps:
+#     - uses: actions/checkout@v2
+#     - name: Download artifacts
+#       uses: actions/download-artifact@v2
+#       with:
+#         name: latest-release.zip
+#     - name: Install deps
+#       run: |
+#         brew install cdrtools jq
+#     - name: Install Go
+#       uses: actions/setup-go@v2
+#       with:
+#           go-version: '^1.16'
+#     - run: |
+#             ls -liah
+#             export ISO=$PWD/$(ls c3os-${{ matrix.flavor }}-*.iso)
+#             export GOPATH="/Users/runner/go"
+#             export CONTAINER_IMAGE=ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+#             export PATH=$PATH:$GOPATH/bin
+#             export CLOUD_INIT=$PWD/tests/assets/config.yaml
+#             export CREATE_VM=true
+#             export FLAVOR=${{ matrix.flavor }}
+#             ./.github/run_test.sh "upgrade-latest-with-kubernetes"
+#     - uses: actions/upload-artifact@v2
+#       if: failure()
+#       with:
+#         name: ${{ matrix.flavor }}-upgrade-test.logs.zip
+#         path: tests/**/logs/*
+#         if-no-files-found: warn
   # test-tumbleweed:
   #   needs: 
   #   - prepare-test

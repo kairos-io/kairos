@@ -1,8 +1,9 @@
 VERSION 0.6
 FROM alpine
-ARG VARIANT=c3os # core, lite, framework
+ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse
 ARG IMAGE=quay.io/c3os/${VARIANT}-${FLAVOR}:latest
+ARG ISO_NAME=c3os-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.32.4
 ARG OS_ID=c3os
 
@@ -53,7 +54,7 @@ test:
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     RUN curl https://luet.io/install.sh | sh
     COPY . .
-    RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd
+    RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
 OSRELEASE:
@@ -72,20 +73,6 @@ OSRELEASE:
     # update OS-release file
     RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl
 
-INSTALL_K3S:
-    COMMAND
-    ARG VERSION
-    ARG FLAVOR
-    ENV INSTALL_K3S_VERSION=${VERSION}
-    ENV INSTALL_K3S_BIN_DIR="/usr/bin"
-    RUN curl -sfL https://get.k3s.io > installer.sh
-    RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh
-    RUN INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" sh installer.sh agent
-    RUN rm -rf installer.sh
-    IF [ "$FLAVOR" = "alpine-arm-rpi" ] || [ "$FLAVOR" = "alpine" ]
-        RUN rm -rf /etc/rancher/k3s/k3s.env /etc/rancher/k3s/k3s-agent.env && touch /etc/rancher/k3s/.keep
-    END
-
 BUILD_GOLANG:
     COMMAND
     WORKDIR /build
@@ -98,22 +85,22 @@ BUILD_GOLANG:
     RUN go build -ldflags "-s -w" -o ${BIN} ./cmd/${SRC} && upx ${BIN}
     SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
 
-build-c3os-cli:
-    FROM +go-deps
-    DO +BUILD_GOLANG --BIN=c3os --SRC=cli --CGO_ENABLED=$CGO_ENABLED
+version:
+    FROM alpine
+    RUN apk add git
+
+    COPY . ./
+
+    RUN echo $(git describe --exact-match --tags || echo "v0.0.0-$(git log --oneline -n 1 | cut -d" " -f1)") > VERSION
+
+    SAVE ARTIFACT VERSION VERSION
 
 build-c3os-agent:
     FROM +go-deps
     DO +BUILD_GOLANG --BIN=c3os-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
 
-build-c3os-agent-provider:
-    FROM +go-deps
-    DO +BUILD_GOLANG --BIN=agent-provider-c3os --SRC=provider --CGO_ENABLED=$CGO_ENABLED
-
 build:
-    BUILD +build-c3os-cli
     BUILD +build-c3os-agent
-    BUILD +build-c3os-agent-provider
 
 dist:
     ARG GO_VERSION
@@ -210,12 +197,8 @@ framework-images:
     BUILD +framework-image --WITH_KERNEL=false --IMG=$IMG-kernel
 
 docker:
-    ARG K3S_VERSION
     ARG FLAVOR
-    ARG WITH_K3S=true
-    ARG WITH_PROVIDER=true
-    ARG WITH_CLI=true
-
+    ARG VARIANT
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
         FROM DOCKERFILE -f images/Dockerfile.$FLAVOR .
@@ -224,21 +207,25 @@ docker:
     END
 
     ARG C3OS_VERSION
-    IF [ "$K3S_VERSION" = "" ]
-        ARG OS_VERSION=c3OS${C3OS_VERSION}
-    ELSE
-        ARG OS_VERSION=${K3S_VERSION}-c3OS${C3OS_VERSION}
+    IF [ "$C3OS_VERSION" = "" ]
+        COPY +version/VERSION ./
+        ARG VERSION=$(cat VERSION)
+        RUN echo "version ${VERSION}"
+        IF [ "$VARIANT" = "" ]
+            ARG OS_VERSION=c3OS-${VERSION}
+        ELSE
+            ARG OS_VERSION=c3OS-${VARIANT}-${VERSION}
+        END
+        
+        RUN rm VERSION
+    ELSE 
+        ARG OS_VERSION=c3OS-${VARIANT}-${C3OS_VERSION}
     END
-
+    
     ARG OS_ID
     ARG OS_NAME=${OS_ID}-${FLAVOR}
-    ARG OS_REPO=quay.io/c3os/c3os
+    ARG OS_REPO=quay.io/c3os/${VARIANT}-${FLAVOR}
     ARG OS_LABEL=${FLAVOR}-latest
-
-    # Install k3s if needed
-    IF [ "$WITH_K3S" = "true" ]
-        DO +INSTALL_K3S --VERSION=${K3S_VERSION} --FLAVOR=${FLAVOR}
-    END
 
     # Includes overlay/files
     COPY +framework/framework /
@@ -257,12 +244,6 @@ docker:
 
     # Copy c3os binaries
     COPY +build-c3os-agent/c3os-agent /usr/bin/c3os-agent
-    IF [ "$WITH_CLI" = "true" ]
-        COPY +build-c3os-cli/c3os /usr/bin/c3os
-    END
-    IF [ "$WITH_PROVIDER" = "true" ]
-        COPY +build-c3os-agent-provider/agent-provider-c3os /usr/bin/agent-provider-c3os
-    END
 
     # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]

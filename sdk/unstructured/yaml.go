@@ -59,7 +59,7 @@ func ToYAML(v map[string]interface{}) ([]byte, error) {
 	return out, errs
 }
 
-// ToYAMLMap turns a map string interface in dot.yaml format to a fully deep marshalled yaml
+// ToYAMLMap turns a map string interface which describes a yaml file in 'dot.yaml' format to a fully deep marshalled yaml.
 func ToYAMLMap(v map[string]interface{}) (map[string]interface{}, error) {
 	result := map[string]interface{}{}
 	tempData, err := ToYAML(v)

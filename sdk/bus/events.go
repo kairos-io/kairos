@@ -19,10 +19,10 @@ const (
 	// EventBootstrap is issued to run any initial cluster configuration.
 	EventBootstrap pluggable.EventType = "agent.bootstrap"
 
-	// EventInstallPrompt is issued to request which config are required to ask to the user
+	// EventInstallPrompt is issued to request which config are required to ask to the user.
 	EventInstallPrompt pluggable.EventType = "agent.installprompt"
 
-	// EventRecovery emitted while booting into recovery mode
+	// EventRecovery emitted while booting into recovery mode.
 	EventRecovery     pluggable.EventType = "agent.recovery"
 	EventRecoveryStop pluggable.EventType = "agent.recovery.stop"
 

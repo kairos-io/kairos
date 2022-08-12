@@ -23,7 +23,7 @@ var _ = Describe("BootCMDLine", func() {
 			b, err := DotToYAML(f.Name())
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(string(b)).To(Equal("baz:\n  bar: \"\"\nconfig_url: foo bar\n"))
+			Expect(string(b)).To(Equal("baz:\n    bar: \"\"\nconfig_url: foo bar\n"), string(b))
 		})
 	})
 })

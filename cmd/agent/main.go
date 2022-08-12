@@ -193,13 +193,13 @@ E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
 	{
 		Name: "interactive-install",
 		Description: `
-Starts c3os in interactive mode.
+Starts c3os in interactive mode install.
 
-It will ask prompt for several questions and perform an install
+It will ask prompt for several questions and perform an install depending on the providers available in the system.
 
 See also https://docs.c3os.io/installation/interactive_install/ for documentation.
 
-This command is meant to be used from the boot GRUB menu, but can be started manually`,
+This command is meant to be used from the boot GRUB menu, but can be also started manually`,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
 				Name: "shell",
@@ -266,24 +266,15 @@ func main() {
 	bus.Manager.Initialize()
 
 	app := &cli.App{
-		Name:    "c3os",
+		Name:    "c3os-agent",
 		Version: "0.1",
 		Author:  "Ettore Di Giacinto",
-		Usage:   "c3os CLI to bootstrap, upgrade, connect and manage a c3os network",
+		Usage:   "c3os agent start",
 		Description: `
-The c3os CLI can be used to manage a c3os box and perform all day-two tasks, like:
-- register a node
-- connect to a node in recovery mode
-- to establish a VPN connection
-- set, list roles
-- interact with the network API
-
-and much more.
-
-For all the example cases, see: https://docs.c3os.io .
+The c3os agent is a component to abstract away node ops, providing a common feature-set across c3os variants.
 `,
 		UsageText: ``,
-		Copyright: "Ettore Di Giacinto",
+		Copyright: "c3os authors",
 
 		Commands: cmds,
 	}

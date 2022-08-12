@@ -75,4 +75,4 @@ Upgrades can be triggered with Kubernetes or manually with `c3os upgrade`. See [
 
 Requirements: Needs only docker.
 
-Run `build.sh`, should produce a docker image along with a working ISO
+Run `./earthly.sh +all --FLAVOR=opensuse`, should produce a docker image along with a working ISO

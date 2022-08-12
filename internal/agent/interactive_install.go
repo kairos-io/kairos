@@ -53,6 +53,63 @@ const (
 	TiB
 )
 
+func promptBool(p events.YAMLPrompt) (string, error) {
+	def := "n"
+	if p.Default != "" {
+		def = p.Default
+	}
+	val, err := prompt(p.Prompt, def, yesNo, true, false)
+	if err != nil {
+		return "", err
+	}
+	if isYes(val) {
+		val = "true"
+	} else {
+		val = "false"
+	}
+
+	return val, nil
+}
+
+func promptText(p events.YAMLPrompt) (string, error) {
+	def := ""
+	if p.Default != "" {
+		def = p.Default
+	}
+	return prompt(p.Prompt, def, p.PlaceHolder, true, false)
+}
+
+func promptToUnstructured(p events.YAMLPrompt, unstructuredYAML map[string]interface{}) (map[string]interface{}, error) {
+	var res string
+	if p.AskFirst {
+		ask, err := prompt(p.AskPrompt, "n", yesNo, true, false)
+		if err == nil && !isYes(ask) {
+			return unstructuredYAML, nil
+		}
+	}
+	if p.Bool {
+		val, err := promptBool(p)
+		if err != nil {
+			return unstructuredYAML, err
+		}
+		unstructuredYAML[p.YAMLSection] = val
+		res = val
+	} else {
+		val, err := promptText(p)
+		if err != nil {
+			return unstructuredYAML, err
+		}
+		unstructuredYAML[p.YAMLSection] = val
+		res = val
+	}
+
+	if res == "" && p.IfEmpty != "" {
+		res = p.IfEmpty
+		unstructuredYAML[p.YAMLSection] = res
+	}
+	return unstructuredYAML, nil
+}
+
 func InteractiveInstall(spawnShell bool) error {
 	bus.Manager.Initialize()
 
@@ -129,45 +186,9 @@ func InteractiveInstall(spawnShell bool) error {
 
 	unstructuredYAML := map[string]interface{}{}
 	for _, p := range r {
-		var res string
-		if p.AskFirst {
-			ask, err := prompt(p.AskPrompt, "n", yesNo, true, false)
-			if err == nil && !isYes(ask) {
-				continue
-			}
-		}
-		if p.Bool {
-			def := "n"
-			if p.Default != "" {
-				def = p.Default
-			}
-			val, err := prompt(p.Prompt, def, yesNo, true, false)
-			if err != nil {
-				return err
-			}
-			if isYes(val) {
-				val = "true"
-			} else {
-				val = "false"
-			}
-			unstructuredYAML[p.YAMLSection] = val
-			res = val
-		} else {
-			def := ""
-			if p.Default != "" {
-				def = p.Default
-			}
-			val, err := prompt(p.Prompt, def, p.PlaceHolder, true, false)
-			if err != nil {
-				return err
-			}
-			unstructuredYAML[p.YAMLSection] = val
-			res = val
-		}
-
-		if res == "" && p.IfEmpty != "" {
-			res = p.IfEmpty
-			unstructuredYAML[p.YAMLSection] = res
+		unstructuredYAML, err = promptToUnstructured(p, unstructuredYAML)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -218,7 +239,7 @@ func InteractiveInstall(spawnShell bool) error {
 		return err
 	}
 
-	finalCloudConfig:=config.AddHeader("#node-config", string(dat))
+	finalCloudConfig := config.AddHeader("#node-config", string(dat))
 
 	pterm.Info.Println("Starting installation")
 	pterm.Info.Println(finalCloudConfig)

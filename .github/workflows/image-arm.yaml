@@ -38,11 +38,10 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/c3os-${{ matrix.flavor }}:latest
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          IMAGE_NAME=c3os-$FLAVOR-$TAG.img IMAGE=quay.io/c3os/c3os-$FLAVOR:$TAG bash build.sh all-arm
+          ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-$TAG.img --IMAGE=quay.io/c3os/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Upload results
         uses: actions/upload-artifact@v2
         with:
