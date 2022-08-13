@@ -59,6 +59,7 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_EXPERIMENTAL: 1
+          FLAVOR: ${{ matrix.flavor }}
         run: | 
           TAG=latest
           cosign sign quay.io/c3os/core-$FLAVOR:$TAG
