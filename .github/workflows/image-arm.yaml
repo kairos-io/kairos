@@ -1,5 +1,5 @@
 ---
-name: 'Test arm build'
+name: 'ARM build'
 
 on: 
  push:
@@ -30,6 +30,9 @@ jobs:
         uses: docker/setup-qemu-action@master
         with:
           platforms: all
+      - name: Login to Quay Registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Set up Docker Buildx
@@ -40,8 +43,9 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
-          ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-$TAG.img --IMAGE=quay.io/c3os/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+          ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-latest.img --IMAGE=quay.io/c3os/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/c3os/core-$FLAVOR:latest
@@ -52,6 +56,7 @@ jobs:
           export IMAGE=quay.io/c3os/core-$FLAVOR:$TAG
           docker push quay.io/c3os/core-$FLAVOR:$TAG
       - name: Sign image
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_EXPERIMENTAL: 1
         run: | 
