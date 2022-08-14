@@ -237,6 +237,8 @@ docker:
 
     DO +OSRELEASE --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
+    RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
+
     # Copy flavor-specific overlay files
     IF [ "$FLAVOR" = "alpine" ]
         COPY overlay/files-alpine/ /
