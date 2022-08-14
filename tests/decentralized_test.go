@@ -112,7 +112,7 @@ var _ = Describe("c3os decentralized k8s test", Label("decentralized-k8s"), func
 			Expect(err).To(HaveOccurred())
 			if os.Getenv("FLAVOR") == "alpine" {
 				Eventually(func() string {
-					out, _ := machine.SSHCommand("sudo cat /var/log/c3os-agent.log")
+					out, _ := machine.SSHCommand("sudo cat /var/log/c3os/agent.log")
 					fmt.Println(out)
 					return out
 				}, 20*time.Minute, 1*time.Second).Should(

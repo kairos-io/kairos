@@ -81,7 +81,7 @@ var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
 			Eventually(func() string {
 				var out string
 				if os.Getenv("FLAVOR") == "alpine" {
-					out, _ = machine.Sudo("cat /var/log/c3os-agent.log")
+					out, _ = machine.Sudo("cat /var/log/c3os/agent.log")
 				} else {
 					out, _ = machine.Sudo("systemctl status c3os-agent")
 				}

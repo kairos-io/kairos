@@ -114,7 +114,7 @@ var _ = Describe("k3s upgrade test from k8s", Label("upgrade-latest-with-kuberne
 			Eventually(func() string {
 				var out string
 				if os.Getenv("FLAVOR") == "alpine" {
-					out, _ = machine.Sudo("cat /var/log/c3os-agent.log")
+					out, _ = machine.Sudo("cat /var/log/c3os/agent.log")
 				} else {
 					out, _ = machine.Sudo("systemctl status c3os-agent")
 				}
