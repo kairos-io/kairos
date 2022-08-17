@@ -114,9 +114,9 @@ build:
 dist:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
-    RUN echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | tee /etc/apt/sources.list.d/goreleaser.list
-    RUN apt update
-    RUN apt install -y goreleaser
+    RUN curl https://luet.io/install.sh | sh
+    RUN luet install -y repository/mocaccino-extra
+    RUN luet install -y utils/goreleaser
     WORKDIR /build
     COPY . .
     RUN goreleaser build --rm-dist --skip-validate --snapshot

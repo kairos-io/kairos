@@ -6,9 +6,9 @@ builds:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
     goarch:
       - amd64
+      - arm64
       - 386
     main: ./cmd/agent/
     id: "c3os-agent"
