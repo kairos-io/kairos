@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/c3os-io/c3os/internal/github"
 	"github.com/c3os-io/c3os/pkg/utils"
 )
 
-func Upgrade(version, image string, force bool) error {
+func Upgrade(version, image string, force, debug bool) error {
 	if version == "" && image == "" {
 		githubRepo, err := utils.OSRelease("GITHUB_REPO")
 		if err != nil {
@@ -35,7 +36,16 @@ func Upgrade(version, image string, force bool) error {
 		img = image
 	}
 
+	if debug {
+		fmt.Printf("Upgrading to image: '%s'\n", img)
+	}
+
 	args := []string{"upgrade", "--system.uri", fmt.Sprintf("docker:%s", img)}
+
+	if debug {
+		fmt.Printf("Running command: 'elemental %s'", strings.Join(args, " "))
+	}
+
 	cmd := exec.Command("elemental", args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout

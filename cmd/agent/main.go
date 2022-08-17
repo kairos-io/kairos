@@ -26,6 +26,10 @@ var cmds = []cli.Command{
 				Name:  "force",
 				Usage: "Force an upgrade",
 			},
+			&cli.BoolFlag{
+				Name:  "debug",
+				Usage: "Show debug output",
+			},
 			&cli.StringFlag{
 				Name:  "image",
 				Usage: "Specify an full image reference, e.g.: quay.io/some/image:tag",
@@ -78,6 +82,7 @@ See https://docs.c3os.io/after_install/upgrades/#manual for documentation.
 				},
 			},
 		},
+
 		Action: func(c *cli.Context) error {
 			args := c.Args()
 			var v string
@@ -85,7 +90,7 @@ See https://docs.c3os.io/after_install/upgrades/#manual for documentation.
 				v = args[0]
 			}
 
-			return agent.Upgrade(v, c.String("image"), c.Bool("force"))
+			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"))
 		},
 	},
 
