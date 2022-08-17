@@ -64,6 +64,8 @@ OSRELEASE:
     ARG OS_REPO
     ARG OS_VERSION
     ARG OS_LABEL
+    ARG VARIANT
+    ARG FLAVOR
     ARG GITHUB_REPO=c3os-io/c3os
     ARG BUG_REPORT_URL=https://github.com/c3os-io/c3os/issues
     ARG HOME_URL=https://github.com/c3os-io/c3os
@@ -75,6 +77,8 @@ OSRELEASE:
     ENV GITHUB_REPO=$GITHUB_REPO
     ENV BUG_REPORT_URL=$BUG_REPORT_URL
     ENV HOME_URL=$HOME_URL
+    ENV VARIANT=$VARIANT
+    ENV FLAVOR=$FLAVOR
     # update OS-release file
     RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl
 
@@ -216,26 +220,21 @@ docker:
         COPY +version/VERSION ./
         ARG VERSION=$(cat VERSION)
         RUN echo "version ${VERSION}"
-        IF [ "$VARIANT" = "" ]
-            ARG OS_VERSION=c3OS-${VERSION}
-        ELSE
-            ARG OS_VERSION=c3OS-${VARIANT}-${VERSION}
-        END
-        
+        ARG OS_VERSION=${VERSION}
         RUN rm VERSION
     ELSE 
-        ARG OS_VERSION=c3OS-${VARIANT}-${C3OS_VERSION}
+        ARG OS_VERSION=${C3OS_VERSION}
     END
     
     ARG OS_ID
-    ARG OS_NAME=${OS_ID}-${FLAVOR}
+    ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
     ARG OS_REPO=quay.io/c3os/${VARIANT}-${FLAVOR}
     ARG OS_LABEL=${FLAVOR}-latest
 
     # Includes overlay/files
     COPY +framework/framework /
 
-    DO +OSRELEASE --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
+    DO +OSRELEASE --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 

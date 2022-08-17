@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,16 +26,11 @@ func Upgrade(version, image string, force bool) error {
 		return nil
 	}
 
-	flavor := utils.Flavor()
-	if flavor == "" {
-		return errors.New("no flavor detected")
-	}
-
 	registry, err := utils.OSRelease("IMAGE_REPO")
 	if err != nil {
 		return err
 	}
-	img := fmt.Sprintf("%s:%s-%s", registry, flavor, version)
+	img := fmt.Sprintf("%s:%s", registry, version)
 	if image != "" {
 		img = image
 	}
