@@ -20,10 +20,14 @@ func ListReleases() []string {
 	releases := []string{}
 
 	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
-		json.Unmarshal([]byte(r.Data), &releases)
+		if err := json.Unmarshal([]byte(r.Data), &releases); err != nil {
+			fmt.Printf("warn: failed unmarshalling data: '%s'\n", err.Error())
+		}
 	})
 
-	bus.Manager.Publish(events.EventAvailableReleases, events.EventPayload{})
+	if _, err := bus.Manager.Publish(events.EventAvailableReleases, events.EventPayload{}); err != nil {
+		fmt.Printf("warn: failed publishing event: '%s'\n", err.Error())
+	}
 
 	if len(releases) == 0 {
 		githubRepo, err := utils.OSRelease("GITHUB_REPO")

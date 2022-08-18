@@ -1,4 +1,4 @@
-package agent_test
+package bundles_test
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-func TestInstaller(t *testing.T) {
+func TestBundles(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Installer Suite")
+	RunSpecs(t, "Bundles Suite")
 }
