@@ -98,3 +98,7 @@ func IsEventDefined(i interface{}) bool {
 		return false
 	}
 }
+
+func EventError(err error) pluggable.EventResponse {
+	return pluggable.EventResponse{Error: err.Error()}
+}
