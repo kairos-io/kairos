@@ -66,9 +66,9 @@ OSRELEASE:
     ARG OS_LABEL
     ARG VARIANT
     ARG FLAVOR
-    ARG GITHUB_REPO=c3os-io/c3os
-    ARG BUG_REPORT_URL=https://github.com/c3os-io/c3os/issues
-    ARG HOME_URL=https://github.com/c3os-io/c3os
+    ARG GITHUB_REPO
+    ARG BUG_REPORT_URL
+    ARG HOME_URL
     ENV OS_ID=$OS_ID
     ENV OS_NAME=$OS_NAME
     ENV OS_REPO=$OS_REPO
@@ -229,12 +229,12 @@ docker:
     ARG OS_ID
     ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
     ARG OS_REPO=quay.io/c3os/${VARIANT}-${FLAVOR}
-    ARG OS_LABEL=${FLAVOR}-latest
+    ARG OS_LABEL=latest
 
     # Includes overlay/files
     COPY +framework/framework /
 
-    DO +OSRELEASE --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
+    DO +OSRELEASE --HOME_URL=https://github.com/c3os-io/c3os --BUG_REPORT_URL=https://github.com/c3os-io/c3os/issues --GITHUB_REPO=c3os-io/c3os --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
