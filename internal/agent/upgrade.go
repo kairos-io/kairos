@@ -23,7 +23,7 @@ func ListReleases() []string {
 		json.Unmarshal([]byte(r.Data), &releases)
 	})
 
-	bus.Manager.Publish(events.EventAvailableReleases, nil)
+	bus.Manager.Publish(events.EventAvailableReleases, events.EventPayload{})
 
 	if len(releases) == 0 {
 		githubRepo, err := utils.OSRelease("GITHUB_REPO")
