@@ -26,6 +26,9 @@ const (
 	EventRecovery     pluggable.EventType = "agent.recovery"
 	EventRecoveryStop pluggable.EventType = "agent.recovery.stop"
 
+	EventAvailableReleases pluggable.EventType = "agent.available_releases"
+	EventVersionImage      pluggable.EventType = "agent.version_image"
+
 	EventInteractiveInstall pluggable.EventType = "agent.interactive-install"
 )
 
@@ -55,6 +58,10 @@ type EventPayload struct {
 	Config string `json:"config"`
 }
 
+type VersionImagePayload struct {
+	Version string `json:"version"`
+}
+
 // AllEvents is a convenience list of all the events streamed from the bus.
 var AllEvents = []pluggable.EventType{
 	EventBootstrap,
@@ -64,6 +71,8 @@ var AllEvents = []pluggable.EventType{
 	EventRecovery,
 	EventInteractiveInstall,
 	EventRecoveryStop,
+	EventAvailableReleases,
+	EventVersionImage,
 }
 
 // IsEventDefined checks wether an event is defined in the bus.

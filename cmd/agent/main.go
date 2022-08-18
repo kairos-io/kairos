@@ -1,11 +1,8 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	agent "github.com/c3os-io/c3os/internal/agent"
 	"github.com/c3os-io/c3os/internal/bus"
@@ -13,9 +10,7 @@ import (
 	machine "github.com/c3os-io/c3os/pkg/machine"
 	bundles "github.com/c3os-io/c3os/sdk/bundles"
 
-	"github.com/c3os-io/c3os/internal/github"
 	"github.com/urfave/cli"
-	"gopkg.in/yaml.v2"
 )
 
 var cmds = []cli.Command{
@@ -60,22 +55,9 @@ See https://docs.c3os.io/after_install/upgrades/#manual for documentation.
 				Name:        "list-releases",
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
-					rels, err := github.FindReleases(context.Background(), "", "c3os-io/c3os")
-					if err != nil {
-						return err
-					}
-
-					switch strings.ToLower(c.String("output")) {
-					case "yaml":
-						d, _ := yaml.Marshal(rels)
-						fmt.Println(string(d))
-					case "json":
-						d, _ := json.Marshal(rels)
-						fmt.Println(string(d))
-					default:
-						for _, r := range rels {
-							fmt.Println(r)
-						}
+					releases := agent.ListReleases()
+					for _, r := range releases {
+						fmt.Println(r)
 					}
 
 					return nil

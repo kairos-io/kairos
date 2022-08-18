@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/google/go-github/v40/github"
 	"golang.org/x/oauth2"
+	"gopkg.in/yaml.v1"
 )
 
 func newHTTPClient(ctx context.Context, token string) *http.Client {
@@ -46,4 +48,20 @@ func FindReleases(ctx context.Context, token, slug string) ([]string, error) {
 		}
 	}
 	return versions, nil
+}
+
+func ListOutput(rels []string, output string) []string {
+	switch strings.ToLower(output) {
+	case "yaml":
+		d, _ := yaml.Marshal(rels)
+		return []string{string(d)}
+	case "json":
+		d, _ := json.Marshal(rels)
+		return []string{string(d)}
+	default:
+		for _, r := range rels {
+			fmt.Println(r)
+		}
+		return rels
+	}
 }
