@@ -8,6 +8,7 @@ import (
 	"github.com/c3os-io/c3os/internal/bus"
 
 	machine "github.com/c3os-io/c3os/pkg/machine"
+	"github.com/c3os-io/c3os/pkg/utils"
 	bundles "github.com/c3os-io/c3os/sdk/bundles"
 
 	"github.com/urfave/cli"
@@ -56,6 +57,7 @@ See https://docs.c3os.io/after_install/upgrades/#manual for documentation.
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
 					releases := agent.ListReleases()
+					releases = utils.ListOutput(releases, c.String("output"))
 					for _, r := range releases {
 						fmt.Println(r)
 					}
