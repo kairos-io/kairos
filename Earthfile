@@ -69,16 +69,7 @@ OSRELEASE:
     ARG GITHUB_REPO
     ARG BUG_REPORT_URL
     ARG HOME_URL
-    ENV OS_ID=$OS_ID
-    ENV OS_NAME=$OS_NAME
-    ENV OS_REPO=$OS_REPO
-    ENV OS_VERSION=$OS_VERSION
-    ENV OS_LABEL=$OS_LABEL
-    ENV GITHUB_REPO=$GITHUB_REPO
-    ENV BUG_REPORT_URL=$BUG_REPORT_URL
-    ENV HOME_URL=$HOME_URL
-    ENV VARIANT=$VARIANT
-    ENV FLAVOR=$FLAVOR
+
     # update OS-release file
     RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl
 
