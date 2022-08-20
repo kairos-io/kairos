@@ -8,7 +8,7 @@ import (
 )
 
 type BrandingText struct {
-	InteractiveInstall string `yaml:"install"`
+	InteractiveInstall string `yaml:"interactive-install"`
 	Install            string `yaml:"install"`
 	Reset              string `yaml:"reset"`
 	Recovery           string `yaml:"recovery"`
@@ -56,7 +56,7 @@ func LoadConfig(path ...string) (*Config, error) {
 	if cfg.Branding.Reset == "" {
 		f, err := ioutil.ReadFile(c3os.BrandingFile("reset_text"))
 		if err == nil {
-			cfg.Branding.Recovery = string(f)
+			cfg.Branding.Reset = string(f)
 		}
 	}
 
