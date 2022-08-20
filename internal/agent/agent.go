@@ -68,7 +68,7 @@ func Run(opts ...Option) error {
 		}
 
 		// Re-load providers
-		bus.Manager.LoadProviders()
+		bus.Reload()
 		err = machine.CreateSentinel("bundles")
 		if !c.IgnoreBundleErrors && err != nil {
 			return err
