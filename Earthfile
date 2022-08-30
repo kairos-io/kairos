@@ -193,11 +193,6 @@ framework-image:
     COPY (+framework/framework --FLAVOR=$FLAVOR --WITH_KERNEL=$WITH_KERNEL) /
     SAVE IMAGE $IMG
 
-framework-images:
-    ARG IMG
-    BUILD +framework-image --WITH_KERNEL=true
-    BUILD +framework-image --WITH_KERNEL=false --IMG=$IMG-kernel
-
 docker:
     ARG FLAVOR
     ARG VARIANT

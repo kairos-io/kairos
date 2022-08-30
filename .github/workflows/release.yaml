@@ -36,8 +36,8 @@ jobs:
           IMAGE: quay.io/c3os/framework
         run: |
           export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +framework-images --IMG=${IMAGE}:$TAG --FLAVOR=${FLAVOR} --WITH_KERNEL=false
-          ./earthly.sh +framework-images --IMG=${IMAGE}-generic:$TAG --FLAVOR=${FLAVOR} --WITH_KERNEL=true
+          ./earthly.sh +framework-image --IMG=${IMAGE}:$TAG --FLAVOR=${FLAVOR} --WITH_KERNEL=false
+          ./earthly.sh +framework-image --IMG=${IMAGE}-generic:$TAG --FLAVOR=${FLAVOR} --WITH_KERNEL=true
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
