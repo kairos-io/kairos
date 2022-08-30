@@ -188,7 +188,9 @@ framework:
 framework-image:
     FROM scratch
     ARG IMG
-    COPY +framework/framework /
+    ARG WITH_KERNEL
+    ARG FLAVOR
+    COPY (+framework/framework --FLAVOR=$FLAVOR --WITH_KERNEL=$WITH_KERNEL) /
     SAVE IMAGE $IMG
 
 framework-images:
