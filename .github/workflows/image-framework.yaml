@@ -34,18 +34,17 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
         env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/framework:${{ matrix.flavor }}
+          IMAGE: quay.io/c3os/framework
         run: |
-          ./earthly.sh +framework-images --IMG=${IMAGE}-latest --FLAVOR=${FLAVOR} --WITH_KERNEL=false
-          ./earthly.sh +framework-images --IMG=${IMAGE}-kernel-latest --FLAVOR=${FLAVOR} --WITH_KERNEL=true
+          ./earthly.sh +framework-images --IMG=${IMAGE}:latest --FLAVOR=${FLAVOR} --WITH_KERNEL=false
+          ./earthly.sh +framework-images --IMG=${IMAGE}-generic:latest --FLAVOR=${FLAVOR} --WITH_KERNEL=true
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_EXPERIMENTAL: 1
-          IMAGE: quay.io/c3os/framework:${{ matrix.flavor }}
+          IMAGE: quay.io/c3os/framework
         run: | 
-          docker push ${IMAGE}-latest
-          docker push ${IMAGE}-kernel-latest
-          cosign sign ${IMAGE}-latest
-          cosign sign ${IMAGE}-kernel-latest
+          docker push ${IMAGE}:latest
+          docker push ${IMAGE}-generic:latest
+          cosign sign ${IMAGE}:latest
+          cosign sign ${IMAGE}-generic:latest
