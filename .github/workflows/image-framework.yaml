@@ -33,6 +33,7 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
         env:
+          FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/c3os/framework
         run: |
           ./earthly.sh +framework-image --IMG=${IMAGE}:latest --FLAVOR=${FLAVOR} --WITH_KERNEL=false
