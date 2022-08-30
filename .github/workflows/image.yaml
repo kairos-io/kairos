@@ -6,6 +6,10 @@ on:
      - master
  pull_request:
 
+concurrency:
+  group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
