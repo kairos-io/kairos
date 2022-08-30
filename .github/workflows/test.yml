@@ -2,6 +2,7 @@ name: Unit tests
 on:
   pull_request:
   push:
+
 jobs:
   unit-tests:
     runs-on: ubuntu-latest

@@ -2,6 +2,8 @@ name: Build image
 
 on: 
  push:
+   branches:
+     - master
  pull_request:
 
 jobs:

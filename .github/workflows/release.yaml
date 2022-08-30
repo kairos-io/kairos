@@ -5,6 +5,51 @@ on:
    tags:
      - v*
 jobs:
+
+  build-framework:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "opensuse"
+#        - flavor: "ubuntu"
+#         - flavor: "fedora"
+#         - flavor: "alpine"
+       #  - flavor: "tumbleweed"
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          git fetch --prune --unshallow
+      - name: setup-docker
+        uses: docker-practice/actions-setup-docker@master
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+      - name: Login to Quay Registry
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Build  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/c3os/framework
+        run: |
+          export TAG=${GITHUB_REF##*/}
+          ./earthly.sh +framework-images --IMG=${IMAGE}:$TAG --FLAVOR=${FLAVOR} --WITH_KERNEL=false
+          ./earthly.sh +framework-images --IMG=${IMAGE}-generic:$TAG --FLAVOR=${FLAVOR} --WITH_KERNEL=true
+      - name: Push to quay
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        env:
+          COSIGN_EXPERIMENTAL: 1
+          IMAGE: quay.io/c3os/framework
+        run: | 
+          export TAG=${GITHUB_REF##*/}
+          docker push ${IMAGE}:$TAG
+          docker push ${IMAGE}:$TAG
+          cosign sign ${IMAGE}-generic:$TAG
+          cosign sign ${IMAGE}-generic:$TAG
+
   build:
     runs-on: ubuntu-latest
     permissions:
