@@ -47,6 +47,7 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
+          MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
           ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-$TAG.img --IMAGE=quay.io/c3os/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
