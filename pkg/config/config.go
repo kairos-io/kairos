@@ -18,10 +18,11 @@ import (
 )
 
 type Install struct {
-	Auto     bool   `yaml:"auto,omitempty"`
-	Reboot   bool   `yaml:"reboot,omitempty"`
-	Device   string `yaml:"device,omitempty"`
-	Poweroff bool   `yaml:"poweroff,omitempty"`
+	Auto        bool              `yaml:"auto,omitempty"`
+	Reboot      bool              `yaml:"reboot,omitempty"`
+	Device      string            `yaml:"device,omitempty"`
+	Poweroff    bool              `yaml:"poweroff,omitempty"`
+	GrubOptions map[string]string `yaml:"grub_options,omitempty"`
 }
 
 type Config struct {

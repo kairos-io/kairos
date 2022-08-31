@@ -65,4 +65,24 @@ var _ = Describe("c3os autoinstall test", Label("autoinstall-test"), func() {
 		})
 	})
 
+	Context("reboots", func() {
+		It("has grubenv file", func() {
+			Eventually(func() string {
+				out, _ := machine.SSHCommand("sudo cat /oem/grubenv")
+				return out
+			}, 30*time.Minute, 1*time.Second).Should(
+				Or(
+					ContainSubstring("foobarzz"),
+				))
+		})
+		It("has custom cmdline", func() {
+			Eventually(func() string {
+				out, _ := machine.SSHCommand("sudo cat /proc/cmdline")
+				return out
+			}, 30*time.Minute, 1*time.Second).Should(
+				Or(
+					ContainSubstring("foobarzz"),
+				))
+		})
+	})
 })
