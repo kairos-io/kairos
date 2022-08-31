@@ -46,8 +46,8 @@ jobs:
         run: | 
           export TAG=${GITHUB_REF##*/}
           docker push ${IMAGE}:$TAG
-          docker push ${IMAGE}:$TAG
-          cosign sign ${IMAGE}-generic:$TAG
+          docker push ${IMAGE}-generic:$TAG
+          cosign sign ${IMAGE}:$TAG
           cosign sign ${IMAGE}-generic:$TAG
 
   build:
