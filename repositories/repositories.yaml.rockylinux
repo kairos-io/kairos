@@ -27,4 +27,4 @@ repositories:
   - !!merge <<: *c3os
     arch: arm64
     urls:
-      - "quay.io/c3os/packages-arm"
+      - "quay.io/c3os/packages-arm64"
