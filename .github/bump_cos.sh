@@ -43,7 +43,7 @@ latest_tag_arm64=$(last_commit_snapshot quay.io/c3os/packages-arm64)
 
 for REPOFILE in repositories.yaml.tumbleweed repositories.yaml.ubuntu repositories.yaml.fedora repositories.yaml
 do
-    $YQ eval '.repositories[3].reference = "'$latest_tag'-repository.yaml"' -i repositories/$REPOFILE
-    $YQ eval '.repositories[4].reference = "'$latest_tag_arm64'-repository.yaml"' -i repositories/$REPOFILE
+    $YQ eval '.repositories[2].reference = "'$latest_tag'-repository.yaml"' -i repositories/$REPOFILE
+    $YQ eval '.repositories[3].reference = "'$latest_tag_arm64'-repository.yaml"' -i repositories/$REPOFILE
 done
 
