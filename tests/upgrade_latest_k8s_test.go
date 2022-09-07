@@ -185,7 +185,7 @@ var _ = Describe("k3s upgrade test from k8s", Label("upgrade-latest-with-kuberne
 					out, _ := kubectl("get pods -A")
 					fmt.Println(out)
 					version, err := machine.SSHCommand("source /etc/os-release; echo $VERSION")
-					if err != nil || !strings.Contains(version, "v0.0.0") {
+					if err != nil || !strings.Contains(version, "v0") {
 						// If we met error, keep going with the Eventually
 						return currentVersion
 					}
