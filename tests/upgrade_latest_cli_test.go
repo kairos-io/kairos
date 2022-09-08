@@ -66,7 +66,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 
 			currentVersion, err := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(currentVersion).To(ContainSubstring("c3OS"))
+			Expect(currentVersion).To(ContainSubstring("v0"))
 			_, err = machine.Sudo("c3os-agent")
 			if err == nil {
 				out, err := machine.Sudo("c3os-agent upgrade --force --image " + containerImage)
@@ -91,7 +91,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			Eventually(func() string {
 				v, _ = machine.SSHCommand("source /etc/os-release; echo $VERSION")
 				return v
-			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v0.0.0"))
+			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v0"))
 			Expect(v).ToNot(Equal(currentVersion))
 		})
 	})

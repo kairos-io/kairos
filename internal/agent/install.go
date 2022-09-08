@@ -14,6 +14,7 @@ import (
 
 	config "github.com/c3os-io/c3os/pkg/config"
 
+	hook "github.com/c3os-io/c3os/internal/agent/hooks"
 	"github.com/c3os-io/c3os/internal/bus"
 
 	"github.com/c3os-io/c3os/internal/cmd"
@@ -196,6 +197,15 @@ func RunInstall(options map[string]string) error {
 
 	_, reboot := options["reboot"]
 	_, poweroff := options["poweroff"]
+	if c.Install == nil {
+		c.Install = &config.Install{}
+	}
+	if poweroff {
+		c.Install.Poweroff = true
+	}
+	if reboot {
+		c.Install.Reboot = true
+	}
 
 	err := ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
 	if err != nil {
@@ -215,15 +225,10 @@ func RunInstall(options map[string]string) error {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	utils.SH("elemental run-stage c3os-install.after")             //nolint:errcheck
-	events.RunHookScript("/usr/bin/c3os-agent.install.after.hook") //nolint:errcheck
 
-	if reboot || c.Install != nil && c.Install.Reboot {
-		utils.Reboot()
+	if err := hook.Run(*c, hook.All...); err != nil {
+		return err
 	}
 
-	if poweroff || c.Install != nil && c.Install.Poweroff {
-		utils.PowerOFF()
-	}
 	return nil
 }
