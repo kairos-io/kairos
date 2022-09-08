@@ -28,4 +28,3 @@ repositories:
     arch: arm64
     urls:
       - "quay.io/c3os/packages-arm64"
-  - reference: 20220831093941-repository.yaml
