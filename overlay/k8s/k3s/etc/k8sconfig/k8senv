@@ -1,0 +1,3 @@
+K8S_DISTRO=k3s
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/opt/bin/:/opt/spectrocloud/bin
+KUBECONFIG=/etc/rancher/k3s/k3s.yaml

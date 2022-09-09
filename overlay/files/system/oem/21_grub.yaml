@@ -1,0 +1,13 @@
+name: "Additional grub menu entries"
+stages:
+    after-install:
+    - name: "Mount state"
+      if: '[ -e "/etc/c3os/branding/grubmenu.cfg" ]'
+      commands:
+      - |
+          STATEDIR=/tmp/mnt/STATE
+          STATE=$(blkid -L COS_STATE || true)
+          mkdir -p $STATEDIR || true
+          mount ${STATE} $STATEDIR
+          cp -rfv /etc/c3os/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
+          umount /tmp/mnt/STATE

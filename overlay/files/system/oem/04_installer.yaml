@@ -1,0 +1,25 @@
+name: "Start installer on tty1"
+stages:
+    initramfs:
+     - if: |
+            cat /proc/cmdline | grep -q "nodepair.enable"
+       commands:
+       - systemctl disable getty@tty1
+       - systemctl enable c3os
+    # Starts installer on boot in Alpine and openRC based
+     - if: |
+            cat /proc/cmdline | grep -q "nodepair.enable"
+       commands:
+       - sed -i -e 's/tty1.*//g' /etc/inittab
+       - echo "tty1::respawn:/usr/bin/c3os-agent install" >> /etc/inittab
+     - if: |
+            cat /proc/cmdline | grep -q "interactive-install"
+       commands:
+       - systemctl disable getty@tty1
+       - systemctl enable c3os-interactive
+    # Starts installer on boot in Alpine and openRC based
+     - if: |
+            cat /proc/cmdline | grep -q "interactive-install"
+       commands:
+       - sed -i -e 's/tty1.*//g' /etc/inittab
+       - echo "tty1::respawn:/usr/bin/c3os-agent interactive-install --shell" >> /etc/inittab

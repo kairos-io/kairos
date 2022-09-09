@@ -1,0 +1,6 @@
+name: "Set CNCF distro"
+stages:
+    initramfs:
+     - name: "Setup CNCF distro"
+       commands :
+          - echo "K8S_DISTRO=kubeadm" >> /etc/environment

@@ -1,0 +1,5 @@
+if [ -z "$KUBECONFIG" ]; then
+    if [ -e /etc/rancher/k3s/k3s.yaml ]; then
+        export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
+    fi
+fi

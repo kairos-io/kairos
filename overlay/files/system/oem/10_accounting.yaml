@@ -1,0 +1,40 @@
+name: "Default user"
+stages:
+   initramfs:
+     - name: "Setup groups"
+       ensure_entities:
+       - entity: |
+            kind: "group"
+            group_name: "admin"
+            password: "x"
+            gid: 900
+     - name: "Setup users"
+       users:
+        c3os:
+          passwd: "!"
+          shell: /bin/bash
+          homedir: "/home/c3os"
+          groups:
+          - "admin"
+     - name: "Set user password if running in live"
+       if: "[ -e /run/cos/live_mode ]"
+       users:
+        c3os:
+          passwd: "c3os"
+     - name: "Setup sudo"
+       files:
+       - path: "/etc/sudoers"
+         owner: 0
+         group: 0
+         permsisions: 0600
+         content: |
+            Defaults always_set_home
+            Defaults secure_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin:/usr/local/sbin"
+            Defaults env_reset
+            Defaults env_keep = "LANG LC_ADDRESS LC_CTYPE LC_COLLATE LC_IDENTIFICATION LC_MEASUREMENT LC_MESSAGES LC_MONETARY LC_NAME LC_NUMERIC LC_PAPER LC_TELEPHONE LC_ATIME LC_ALL LANGUAGE LINGUAS XDG_SESSION_COOKIE"
+            Defaults !insults
+            root ALL=(ALL) ALL
+            %admin ALL=(ALL) NOPASSWD: ALL
+            @includedir /etc/sudoers.d
+       commands:
+       - passwd -l root
