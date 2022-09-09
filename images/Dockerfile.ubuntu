@@ -33,9 +33,6 @@ RUN apt install -y \
     haveged \
     rsync \
     neovim \
-    open-vm-tools \
-    netplan.io \
-    wireguard \
     linux-image-generic-hwe-20.04 && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
