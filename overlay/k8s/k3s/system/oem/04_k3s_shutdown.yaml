@@ -1,0 +1,6 @@
+name: "Enable k3s shutdown service"
+stages:
+  initramfs:
+  - if: '[ ! -f "/run/cos/recovery_mode" ]'
+    commands:
+    - systemctl enable k3s-shutdown.service

@@ -1,0 +1,59 @@
+name: "Configure persistent dirs bind-mounts"
+stages:
+  rootfs.after:
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+      name: "Layout configuration"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
+        OVERLAY: "tmpfs:25%"
+        RW_PATHS: "/var /etc /srv /tmp"
+        PERSISTENT_STATE_PATHS: >-
+          /etc/systemd
+          /etc/rancher
+          /etc/sysconfig
+          /etc/runlevels
+          /etc/ssh
+          /etc/iscsi
+          /etc/cni
+          /home
+          /opt
+          /root
+          /usr/libexec
+          /var/log
+          /var/lib/rancher
+          /var/lib/kubelet
+          /var/lib/wicked
+          /var/lib/longhorn
+          /var/lib/cni
+          /etc/kubernetes
+          /etc/containerd
+          /etc/kubelet
+          /var/lib/containerd
+          /var/lib/etcd
+          /opt/rke2
+          /etc/netplan
+        PERSISTENT_STATE_BIND: "true"
+    - if: '[ ! -f /run/cos/recovery_mode ] && [ ! -f /run/cos/live_mode ]'
+      name: "Grow persistent"
+      layout:
+        device:
+          label: COS_PERSISTENT
+        expand_partition:
+          # Size 0 is required to specify all remaining space
+          size: 0
+  boot:
+    - if: '[ ! -f /run/cos/recovery_mode ] && [ ! -f /run/cos/live_mode ]'
+      name: "Enable persistent journald logging"
+      commands:
+        - mkdir /var/log/journal
+        - sed -i 's/#Storage.*/Storage=persistent/' /etc/systemd/journald.conf
+        - sed -i 's/#SystemMaxUse.*/SystemMaxUse=1G/' /etc/systemd/journald.conf
+        - journalctl --flush
+        - systemctl daemon-reload
+        - systemctl restart systemd-journald.service
+    - if: '[ ! -d /usr/local/cloud-config ]'
+      name: "Ensure /usr/local/cloud-config exists"
+      commands:
+        - mkdir /usr/local/cloud-config
+        - chmod 600 /usr/local/cloud-config

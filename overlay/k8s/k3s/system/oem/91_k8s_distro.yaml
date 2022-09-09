@@ -1,0 +1,6 @@
+name: "Set K3S distro"
+stages:
+    initramfs:
+     - name: "Setup K3S distro"
+       commands :
+          - echo "K8S_DISTRO=k3s" >> /etc/environment

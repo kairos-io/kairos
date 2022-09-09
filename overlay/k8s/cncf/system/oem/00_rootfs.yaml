@@ -1,0 +1,65 @@
+name: "Configure persistent dirs bind-mounts"
+stages:
+  rootfs.before:
+    - name: "Pull data from provider"
+      datasource:
+        providers: ["aws", "gcp", "openstack", "cdrom"]
+        path: "/oem"
+  rootfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+      name: "Layout configuration"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
+        OVERLAY: "tmpfs:25%"
+        RW_PATHS: "/var /etc /srv /tmp"
+        PERSISTENT_STATE_PATHS: >-
+          /etc/systemd
+          /etc/sysconfig
+          /etc/runlevels
+          /etc/ssh
+          /etc/iscsi 
+          /etc/cni
+          /etc/kubernetes
+          /etc/containerd
+          /etc/kubelet
+          /home
+          /opt
+          /root
+          /usr/libexec
+          /var/log
+          /var/lib/containerd
+          /var/lib/kubelet
+          /var/lib/etcd
+          /var/lib/cni
+        PERSISTENT_STATE_BIND: "true"
+    - if: '[ ! -f /run/cos/recovery_mode ] && [ ! -f /run/cos/live_mode ]'
+      name: "Grow persistent"
+      layout:
+        device:
+          label: COS_PERSISTENT
+        expand_partition:
+          # Size 0 is required to specify all remaining space
+          size: 0
+  initramfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+      name: "Persist /etc/machine-id"
+      commands:
+      - |
+        # persist machine-id
+        if [ -s /usr/local/etc/machine-id ]; then
+          cat /usr/local/etc/machine-id > /etc/machine-id
+        else
+          mkdir -p /usr/local/etc
+          cp /etc/machine-id /usr/local/etc
+        fi
+  boot:
+     - name: "Ensure /usr/local/cloud-config exists"
+       if: "[ ! -d /usr/local/cloud-config ]"
+       commands:
+         - mkdir /usr/local/cloud-config
+         - chmod 600 /usr/local/cloud-config
+     - name: "Ensure /usr/local/tmp gexists"
+       if: "[ ! -d /usr/local/tmp ]"
+       commands:
+         - mkdir /usr/local/tmp

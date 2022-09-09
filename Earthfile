@@ -6,6 +6,7 @@ ARG IMAGE=quay.io/c3os/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=c3os-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.32.4
 ARG OS_ID=c3os
+ARG K8S_FLAVOR=k3s
 
 IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "tumbleweed" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "rockylinux" ] 
     ARG REPOSITORIES_FILE=repositories.yaml.${FLAVOR}
@@ -234,6 +235,9 @@ docker:
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
+    ELSE IF [ "$FLAVOR" = "ubuntu" ]
+        COPY overlay/files-ubuntu/ /
+        COPY overlay/k8s/$K8S_FLAVOR/ /
     END
 
     # Copy c3os binaries
