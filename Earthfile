@@ -226,6 +226,8 @@ docker:
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
+    ELSE IF [ "$FLAVOR" = "ubuntu" ]
+        COPY overlay/files-ubuntu/ /
     END
 
     # Copy c3os binaries
