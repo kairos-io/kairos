@@ -6,20 +6,25 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-A c3os node during pairing or either automated install can be configured via a single configuration file.
+Here you can find a full reference of the fields available to configure a c3os node
 
 ```yaml
-#cloud-config
+#node-config
 
+# The c3os block enables the p2p full-mesh functionalities.
+# To disable, don't specify one.
 c3os:
+  # This is a network token used to establish the p2p full meshed network.
+  # Don't specify one to disable full-mesh functionalities.
   network_token: "...."
-  # Manually set node role. Available: master, worker. Defaults auto (none)
+  # Manually set node role. Available: master, worker. Defaults auto (none). This is available 
   role: "master"
   # User defined network-id. Can be used to have multiple clusters in the same network
   network_id: "dev"  
   # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
   dns: true
 
+# The install block is to drive automatic installations without user interaction.
 install:
   # Device for automated installs
   device: "/dev/sda"
@@ -29,6 +34,12 @@ install:
   poweroff: true
   # Set to true when installing without Pairing
   auto: true
+  # Add bundles in runtime
+  bundles:
+  - ...
+  # Set grub options
+  grub_options:
+    key: value
 
 vpn:
   # EdgeVPN environment options
@@ -64,8 +75,8 @@ k3s-agent:
   # replace_env: true
   # replace_args: true
 
-# Cloud init syntax to setup users. 
-# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/
+# Additional cloud init syntax can be used here.
+# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/ for a complete reference
 stages:
    network:
      - name: "Setup users"
@@ -77,29 +88,72 @@ stages:
 
 ## Syntax
 
-`c3os` supports the standard cloud-init syntax and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/).
+`c3os` supports the standard cloud-init syntax and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/) which is based on [yip](https://github.com/mudler/yip).
 
 Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/c3os-io/c3os/tree/master/examples). 
 
-## Datasource
+### `k3s`
 
-The configuration file can also be used to drive automated installation and deployments by mounting an ISO in the node with the `cidata` label. The ISO must contain a `user-data` (which contain your configuration) and `meta-data` file.
+The `k3s` and the `k3s-agent` block are used to customize the environment and arg settings of k3s, consider:
 
-### ISO as datasource
-
-Optionally it's possible to pass by the configuration by mounting an additional iso to the VM with the cloud config.
-
-To create an ISO as datasource, generate an ISO with the configuration file, for example:
-
-```bash
-$ mkdir -p build
-$ cd build
-$ touch meta-data
-$ cp -rfv cloud_init.yaml user-data
-$ mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
+```yaml
+k3s:
+  enabled: true
+  # Additional env/args for k3s server instances
+  env:
+    K3S_RESOLV_CONF: ""
+    K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
+  args:
+  - --cluster-init
 ```
 
-## Embedded DNS
+for agent:
+
+
+```yaml
+k3s-agent:
+  enabled: true
+  # Additional env/args for k3s server instances
+  env:
+    K3S_RESOLV_CONF: ""
+    K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
+  args:
+  - --cluster-init
+```
+
+See also the [examples](https://github.com/c3os-io/c3os/tree/master/examples) folder in the repository to configure k3s manually.
+
+## `install.grub_options`
+
+Is a map of key/value grub options to be set in the grub environment after installation.
+
+It can be used to set additional boot arguments on boot, consider to set `panic=0` as bootarg:
+
+```yaml
+#node-config
+
+install:
+  # See also: https://rancher.github.io/elemental-toolkit/docs/customizing/configure_grub/#grub-environment-variables
+  grub_options:
+    extra_cmdline: "panic=0"
+```
+
+Below a full list of all the available options:
+
+
+| Variable               |  Description                                            |
+|------------------------|---------------------------------------------------------|
+| next_entry             | Set the next reboot entry                               |
+| saved_entry            | Set the default boot entry                              |
+| default_menu_entry     | Set the name entries on the GRUB menu                   |
+| extra_active_cmdline   | Set additional boot commands when booting into active   |
+| extra_passive_cmdline  | Set additional boot commands when booting into passive  |
+| extra_recovery_cmdline | Set additional boot commands when booting into recovery |
+| extra_cmdline          | Set additional boot commands for all entries            |
+| default_fallback       | Sets default fallback logic                             |
+
+
+### `c3os.dns`
 
 When `c3os.dns` is set to `true` embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server, for example, assuming `c3os bridge` is running in a separate terminal:
 
