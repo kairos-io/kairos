@@ -1,5 +1,0 @@
-name: "FS Layout setup"
-stages:
-  boot.before:
-    - commands:
-      - mount -o mode=1777,nosuid,nodev -t tmpfs tmpfs /tmp
