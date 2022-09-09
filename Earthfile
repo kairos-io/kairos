@@ -157,9 +157,7 @@ framework:
             cloud-config/network \
             cloud-config/boot-assessment \
             cloud-config/rootfs \
-            utils/k9s \
             system-openrc/cos-setup \
-            utils/nerdctl \
             system/kernel \
             system/dracut-initrd
     ELSE
@@ -170,10 +168,7 @@ framework:
             cloud-config/live \
             cloud-config/boot-assessment \
             cloud-config/network \
-            cloud-config/rootfs \
-            utils/k9s \
-            container/kubectl \
-            utils/nerdctl
+            cloud-config/rootfs
     END
 
     RUN /usr/bin/luet cleanup --system-target /framework
