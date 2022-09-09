@@ -157,7 +157,6 @@ framework:
             cloud-config/network \
             cloud-config/boot-assessment \
             cloud-config/rootfs \
-            utils/edgevpn \
             utils/k9s \
             system-openrc/cos-setup \
             utils/nerdctl \
@@ -167,13 +166,11 @@ framework:
         RUN /usr/bin/luet install -y --system-target /framework \ 
             meta/cos-verify \
             meta/cos-core \ 
-            utils/edgevpn \
             cloud-config/recovery \
             cloud-config/live \
             cloud-config/boot-assessment \
             cloud-config/network \
             cloud-config/rootfs \
-            systemd-service/edgevpn \
             utils/k9s \
             container/kubectl \
             utils/nerdctl
