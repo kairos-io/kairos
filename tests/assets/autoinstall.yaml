@@ -2,7 +2,12 @@
 
 install:
   auto: true
+  reboot: true
   device: /dev/vda
+  # https://rancher.github.io/elemental-toolkit/docs/customizing/configure_grub/#grub-environment-variables
+  grub_options:
+    extra_cmdline: "foobarzz"
+
 
 stages:
    initramfs:

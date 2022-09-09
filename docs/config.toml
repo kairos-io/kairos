@@ -14,25 +14,40 @@ theme = "hugo-theme-learn"
 # For search functionality
 
 [[Languages.en.menu.shortcuts]]
-name = "<i class='fas fa-fw fa-download'></i> Download"
+name = "<i class='fas fa-solid fa-download'></i> Download"
 identifier = "download"
+url = "https://github.com/c3os-io/provider-c3os/releases"
+weight = 1
+
+[[Languages.en.menu.shortcuts]]
+name = "<i class='fas fa-solid fa-download'></i> Download core (without k3s)"
+identifier = "download-core"
 url = "https://github.com/c3os-io/c3os/releases"
 weight = 1
+
 [[Languages.en.menu.shortcuts]]
-name = "<i class='fas fa-fw fa-github'></i> Github"
+name = "<i class='fab fa-fw fa-github'></i> Github"
 identifier = "github"
 url = "https://github.com/c3os-io/c3os"
 weight = 1
+
+[[Languages.en.menu.shortcuts]]
+name = "<i class='fas fa-fw fa-comments'></i> Github discussions"
+identifier = "discussions"
+url = "https://github.com/c3os-io/c3os/discussions"
+weight = 1
+
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-comments'></i> Matrix chat"
 identifier = "matrix"
 url = "https://matrix.to/#/#c3os:matrix.org"
 weight = 1
+
 [[Languages.en.menu.shortcuts]]
-name = "<i class='fas fa-fw fa-bookmark'></i> Elemental-toolkit Documentation"
-identifier = "hugodoc"
-url = "https://rancher.github.io/elemental-toolkit/docs"
-weight = 20
+name = "<i class='fas fa-fw fa-comments'></i> Libera chat"
+identifier = "libera"
+url = "https://web.libera.chat/#c3os"
+weight = 1
 
 [outputs]
 home = [ "HTML", "RSS", "JSON"]

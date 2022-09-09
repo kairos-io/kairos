@@ -1,11 +1,11 @@
 +++
-title = "Installation"
+title = "Installation reference"
 date = 2022-02-09T17:56:26+01:00
 weight = 2
 chapter = true
-pre = "<b>2. </b>"
 +++
 
-# Installing c3os on baremetal, VMs, ...
+# Installation
 
-## Automated, Paired and take over install
+Provisioning of c3os into nodes can be performed in different ways. 
+This section guides you into provisioning c3os into your nodes by use-case.
