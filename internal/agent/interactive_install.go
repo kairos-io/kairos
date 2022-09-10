@@ -110,6 +110,23 @@ func promptToUnstructured(p events.YAMLPrompt, unstructuredYAML map[string]inter
 	return unstructuredYAML, nil
 }
 
+func detectDevice() string {
+	preferedDevice := "/dev/sda"
+	maxSize := float64(0)
+
+	block, err := ghw.Block()
+	if err == nil {
+		for _, disk := range block.Disks {
+			size := float64(disk.SizeBytes) / float64(GiB)
+			if size > maxSize {
+				maxSize = size
+				preferedDevice = "/dev/" + disk.Name
+			}
+		}
+	}
+	return preferedDevice
+}
+
 func InteractiveInstall(spawnShell bool) error {
 	bus.Manager.Initialize()
 

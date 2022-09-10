@@ -197,6 +197,10 @@ func RunInstall(options map[string]string) error {
 		os.Exit(1)
 	}
 
+	if device == "auto" {
+		device = detectDevice()
+	}
+
 	cloudInit, ok := options["cc"]
 	if !ok {
 		fmt.Println("cloudInit must be specified among options")
