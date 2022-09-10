@@ -50,6 +50,7 @@ Why/when should I use it?
   c3OS can create private virtual network segments to enhance your cluster perimeter without any SPOF.
 - Upgrades can be done manually via CLI or with Kubernetes. Distribution of upgrades are done via container registries.
 - An Immutable distribution which you can configure to your needs, while keep staying immutable
+- Node configuration via a single cloud-init config file.
 - Extend the image in runtime or build time via Kubernetes Native API
 - Plans to support CAPI, with full device lifecycle management
 - Plans to support up to rke2, kubeadm, and much more!
@@ -65,6 +66,7 @@ Any input OS will inherit:
 - Booting mechanism Fallback
 - Boot assessment
 - Single image, container based atomic upgrades
+- Cloud init support
 - All the c3OS feature-set
 
 C3os treats all the OSes homogeneously in a distro-agnostic fashion. 
