@@ -200,6 +200,42 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 		},
 	},
 	{
+		Name:  "manual-install",
+		Usage: "Starts the manual installation",
+		Description: `
+`,
+		Aliases: []string{"m"},
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name: "device",
+			},
+			&cli.BoolFlag{
+				Name: "poweroff",
+			},
+			&cli.BoolFlag{
+				Name: "reboot",
+			},
+		},
+		Action: func(c *cli.Context) error {
+			if c.NArg() == 0 {
+				return fmt.Errorf("expect one argument. the config file - if you don't have it, use the interactive-install")
+			}
+			config := c.Args().First()
+
+			options := map[string]string{"device": c.String("device")}
+
+			if c.Bool("poweroff") {
+				options["poweroff"] = "true"
+			}
+
+			if c.Bool("reboot") {
+				options["reboot"] = "true"
+			}
+			return agent.ManualInstall(config, options)
+		},
+	},
+
+	{
 		Name:  "install",
 		Usage: "Starts the c3os pairing installation",
 		Description: `

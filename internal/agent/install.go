@@ -37,6 +37,16 @@ func optsToArgs(options map[string]string) (res []string) {
 	return
 }
 
+func ManualInstall(config string, options map[string]string) error {
+	dat, err := ioutil.ReadFile(config)
+	if err != nil {
+		return err
+	}
+	options["cc"] = string(dat)
+
+	return RunInstall(options)
+}
+
 func Install(dir ...string) error {
 	utils.OnSignal(func() {
 		svc, err := machine.Getty(1)
@@ -156,8 +166,6 @@ func Install(dir ...string) error {
 	r["cc"] = config.AddHeader(header, string(out))
 
 	pterm.Info.Println("Starting installation")
-	utils.SH("elemental run-stage c3os-install.pre")             //nolint:errcheck
-	events.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
 
 	if err := RunInstall(r); err != nil {
 		return err
@@ -177,6 +185,9 @@ func Install(dir ...string) error {
 }
 
 func RunInstall(options map[string]string) error {
+	utils.SH("elemental run-stage c3os-install.pre")             //nolint:errcheck
+	events.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
+
 	f, _ := ioutil.TempFile("", "xxxx")
 	defer os.RemoveAll(f.Name())
 
