@@ -52,7 +52,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			err := machine.SendFile("assets/config.yaml", "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
-			out, _ := machine.Sudo("c3os-agent manual-install --device auto /tmp/config.yaml")
+			out, _ := machine.Sudo("elemental install --cloud-init /tmp/config.yaml /dev/sda")
 			Expect(out).Should(ContainSubstring("Running after-install hook"))
 			fmt.Println(out)
 			machine.Sudo("sync")
