@@ -29,10 +29,15 @@ In a glance:
 - Container based
 - Distro agnostic
 
+c3OS can be used to:
 
-[Documentation available here](https://docs.c3os.io).
+- Easily spin up a Kubernetes cluster, with the Linux distribution of your choice
+- Manage the cluster lifecycle with Kubernetes - from building, to provisioning and upgrading
+- Create a multiple-node single cluster which spans up across regions
 
-## What is c3OS? Why should I use it ?
+For comprehensive docs, tutorials and examples see our [documentation](https://docs.c3os.io).
+
+## What is it ?
 
 c3OS is a Kubernetes native, meta-Linux distribution that can be built, managed, and run with Kubernetes.
 
@@ -46,14 +51,15 @@ Why/when should I use it?
 ## Features
 
 - At the current state c3OS can create multiple-node Kubernetes cluster with [k3s](https://k3s.io) - all k3s features are supported
-- Nodes can optionally connect autonomously via full-mesh p2p hybrid VPN network. It allows to stretch a cluster up to 10000 km!
-  c3OS can create private virtual network segments to enhance your cluster perimeter without any SPOF.
 - Upgrades can be done manually via CLI or with Kubernetes. Distribution of upgrades are done via container registries.
 - An Immutable distribution which you can configure to your needs, while keep staying immutable
 - Node configuration via a single cloud-init config file.
+- Handle airgap upgrades with in-cluster container registries
 - Extend the image in runtime or build time via Kubernetes Native API
 - Plans to support CAPI, with full device lifecycle management
 - Plans to support up to rke2, kubeadm, and much more!
+- Nodes can optionally connect autonomously via full-mesh p2p hybrid VPN network. It allows to stretch a cluster up to 10000 km!
+  c3OS can create private virtual network segments to enhance your cluster perimeter without any SPOF.
 
 ## More than a Linux distribution
 
@@ -75,21 +81,7 @@ The OS is a container image. That means that upgrades to nodes are distributed v
 
 Installations medium and other assets required to boot baremetal or Edge devices are built dynamically by the Kubernetes Native API components provided by c3os. 
 
-## What is an Immutable system?
-
-An immutable OS is a carefully engineered system which boots in a restricted, permissionless mode, where certain paths of the system are not writeable. For instance, after installation it's not possible to install additional packages in the system, and any configuration change is discarded after reboot.
-
-A running Linux based OS system will look like with the following paths:
-
-```
-/usr/local - persistent ( partition label COS_PERSISTENT)
-/oem - persistent ( partition label COS_OEM)
-/etc - ephemeral
-/usr - read only
-/ immutable
-```
-
-`/usr/local` will contain all the persistent data which will be carried over in-between upgrades, instead, any change to `/etc` will be discarded.
+![livecd](https://user-images.githubusercontent.com/2420543/189219806-29b4deed-b4a1-4704-b558-7a60ae31caf2.gif)
 
 ## Goals
 
@@ -104,6 +96,10 @@ c3OS is distro-agnostic, and embraces openness: the user can provide their own u
 c3OS is an open source project, and any contribution is more than welcome! The project is big and narrows to various degree of complexity and problem space. Feel free to join our chat, discuss in our forums and join us in the Office hours
 
 We have an open roadmap, so you can always have a look on what's going on, and actively contribute to it. 
+
+Useful links:
+
+- [Upcoming releases](https://github.com/c3os-io/c3os/issues?q=is%3Aissue+is%3Aopen+label%3Arelease)
 
 ## Community
 
@@ -131,11 +127,4 @@ Requirements: Needs only docker.
 
 Run `./earthly.sh +all --FLAVOR=opensuse`, should produce a docker image along with a working ISO
 
-### Internal components
 
-C3OS encompassess several components, most notably:
-
-- [k3s](https://k3s.io) as a Kubernetes distribution
-- [edgevpn](https://mudler.github.io/edgevpn) (optional) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster.
-- [elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/) as a fundament to build the Linux derivative. Indeed, any `Elemental` docs applies to `c3os` as well.
-- [nohang](https://github.com/hakavlad/nohang) A sophisticated low memory handler for Linux 

@@ -7,7 +7,9 @@ pre = "<b>- </b>"
 
 We like to define c3os as a meta Linux Distribution as its goal is to convert any other distro to an immutable layout with Kubernetes Native components.
 
-## Components
+
+
+## c3OS
 
 The c3OS stack is composed of the following:
 
@@ -19,4 +21,11 @@ The c3OS stack is composed of the following:
 
 Every component is extensible and modular such as it can be customized and replaced in the stack, and built off either locally or with Kubernetes
 
-## 
+### Internal components
+
+C3OS encompassess several components, some externally, most notably:
+
+- [k3s](https://k3s.io) as a Kubernetes distribution
+- [edgevpn](https://mudler.github.io/edgevpn) (optional) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster.
+- [elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/) as a fundament to build the Linux derivative. Indeed, any `Elemental` docs applies to `c3os` as well.
+- [nohang](https://github.com/hakavlad/nohang) A sophisticated low memory handler for Linux 

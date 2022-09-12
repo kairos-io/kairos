@@ -16,9 +16,15 @@ In a glance:
 - [Container based](/architecture/container)
 - [P2P Mesh](/architecture/network)
 
+c3OS can be used to:
+
+- Easily spin up a Kubernetes cluster, with the Linux distribution of your choice
+- Manage the cluster lifecycle with Kubernetes - from building, to provisioning and upgrading
+- Create a multiple-node single cluster which spans up across regions
+
 To get familiar with c3os, check out the [quickstart](/quickstart/installation).
 
-## What is c3OS? Why should I use it ?
+## What is it ?
 
 c3OS is a Kubernetes native, meta-Linux distribution that can be built, managed, and run with Kubernetes.
 
@@ -32,17 +38,19 @@ Why/when should I use it?
 ## Features
 
 - At the current state c3OS can create multiple-node Kubernetes cluster with [k3s](https://k3s.io) - all k3s features are supported
-- Nodes can optionally connect autonomously via full-mesh p2p hybrid VPN network. It allows to stretch a cluster up to 10000 km!
-  c3OS can create private virtual network segments to enhance your cluster perimeter without any SPOF.
 - Upgrades can be done manually via CLI or with Kubernetes. Distribution of upgrades are done via container registries.
 - An Immutable distribution which you can configure to your needs, while keep staying immutable
+- Node configuration via a single cloud-init config file.
+- Handle airgap upgrades with in-cluster container registries
 - Extend the image in runtime or build time via Kubernetes Native API
 - Plans to support CAPI, with full device lifecycle management
 - Plans to support up to rke2, kubeadm, and much more!
+- Nodes can optionally connect autonomously via full-mesh p2p hybrid VPN network. It allows to stretch a cluster up to 10000 km!
+  c3OS can create private virtual network segments to enhance your cluster perimeter without any SPOF.
 
-## More than a standard Linux distribution
+## More than a Linux distribution
 
-c3OS is available as ISO, qcow2 and netboot artifact derived from Alpine and openSUSE for user convenience, but it is actually more than that. It allows to turn any Linux distribution into a uniform, comformant Linux distribution with an immutable design. As such, any "converted" distro will share the same, common feature set between all of them, and they are managed in the same way by Kubernetes Native API components.
+c3OS is available as ISO, qcow2 and netboot artifact for user convenience based from Alpine and openSUSE, but it is actually more than that. It allows to turn any Linux distribution into a uniform, comformant distro with immutable design. As such, any distro which is "converted" will share the same, common feature set between all of them, and they are managed in the same way by Kubernetes Native API components.
 
 Any input OS will inherit:
 
@@ -51,11 +59,16 @@ Any input OS will inherit:
 - Booting mechanism Fallback
 - Boot assessment
 - Single image, container based atomic upgrades
+- Cloud init support
 - All the c3OS feature-set
 
-C3os treats all the OSes homogeneously in a distro-agnostic fashion.  The OS is a container image and upgrades to nodes are distributed via container registries.
+C3os treats all the OSes homogeneously in a distro-agnostic fashion. 
+
+The OS is a container image. That means that upgrades to nodes are distributed via container registries.
 
 Installations medium and other assets required to boot baremetal or Edge devices are built dynamically by the Kubernetes Native API components provided by c3os. 
+
+![livecd](https://user-images.githubusercontent.com/2420543/189219806-29b4deed-b4a1-4704-b558-7a60ae31caf2.gif)
 
 ## Goals
 
@@ -71,32 +84,38 @@ c3OS is an open source project, and any contribution is more than welcome! The p
 
 We have an open roadmap, so you can always have a look on what's going on, and actively contribute to it. 
 
+Useful links:
+
+- [Upcoming releases](https://github.com/c3os-io/c3os/issues?q=is%3Aissue+is%3Aopen+label%3Arelease)
+
 ## Community
 
 You can find us at:
 
 - [#c3os at matrix.org](https://matrix.to/#/#c3os:matrix.org) 
 - [IRC #c3os in libera.chat](https://web.libera.chat/#c3os)
-- [Discussions](https://github.com/c3os-io/c3os/discussions)
+- [Github Discussions](https://github.com/c3os-io/c3os/discussions)
 
 ## Alternatives
 
 There are other projects that are similar to c3os which are great and worth to mention, and actually c3os took to some degree inspiration from. 
 However, c3os have different goals and takes completely unique approaches to the underlying system, upgrade and node lifecycle management.
 
+- [k3os](https://github.com/rancher/k3os)
 - [Talos](https://github.com/siderolabs/talos)
 - [FlatCar](https://flatcar-linux.org/)
 - [CoreOS](https://getfedora.org/it/coreos?stream=stable)
-- [k3os](https://github.com/rancher/k3os)
 
-## Internal components
+## Development
 
-C3OS encompassess several components, most notably:
+### Building c3os
 
-- [k3s](https://k3s.io) as a Kubernetes distribution
-- [edgevpn](https://mudler.github.io/edgevpn) (optional) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster.
-- [elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/) as a fundament to build the Linux derivative. Indeed, any `Elemental` docs applies to `c3os` as well.
-- [nohang](https://github.com/hakavlad/nohang) A sophisticated low memory handler for Linux 
+Requirements: Needs only docker.
+
+Run `./earthly.sh +all --FLAVOR=opensuse`, should produce a docker image along with a working ISO
+
+
+
 
 ## What's next?
 
