@@ -34,9 +34,9 @@ c3OS can be used to turn any distro in an immutable system, however, for user co
 You can find the latest releases in the [release page over Github](https://github.com/c3os-io/provider-c3os/releases). For instance, if we would like to pick the alpine based version, we would download the `c3os-alpine-v0.57.0-k3sv1.21.14+k3s1.iso` ISO file, where `v1.21.14+k3s1` in the name is the `k3s` version and `v0.57.0` is the c3os one.
 
 {{% notice note %}}
-The releases in the [c3os-io/c3os](https://github.com/c3os-io/c3os/releases) are the `c3os` core images that ship without `k3s` and `p2p` full-mesh functionalities, however further extensions can be installed dynamically in runtime by using the [c3os bundles]() mechanism.
+The releases in the [c3os-io/c3os](https://github.com/c3os-io/c3os/releases) repository are the `c3os` core images that ship without `k3s` and `p2p` full-mesh functionalities, however further extensions can be installed dynamically in runtime by using the [c3os bundles]() mechanism.
 
-The releases in [c3os-io/provider-c3os](https://github.com/c3os-io/provider-c3os/releases) instead ship `k3s` and optionally `p2p` full-mesh support that needs to be explictly enabled. In follow-up releases there will be also _k3s-only_ artifacts.
+The releases in [c3os-io/provider-c3os](https://github.com/c3os-io/provider-c3os/releases) instead ships `k3s` and `p2p` full-mesh support that needs to be explictly enabled. In follow-up releases there will be available also _k3s-only_ artifacts.
 
 {{% /notice %}}
 
@@ -58,11 +58,9 @@ The machine will boot, and eventually a QR code will be printed out of the scree
 
 ### Configuration
 
-Now we need to prepare a config file for the node that we are configuring. 
+At this stage the machine is waiting for the configuration to continue futher with the installation process. Configuration can be either served via QR code, or manually via logging into the box and starting the installation process with a config file. The config file is a YAML file mixed with `cloud-init` syntax and the config of `c3os` itself.
 
-At this stage the machine is waiting for the configuration to kick-start and go futher with the installation process. Configuration can be either served via QR code, or manually via logging into the box and starting the installation process manually with a config file.
-
-We will configure the node as a single-node kubernetes cluster, so we enable `k3s`, and we set a default password for the `c3os` user to later access to the box:
+In this example we will configure the node as a single-node kubernetes cluster, so we enable `k3s`, and we set a default password for the `c3os` user to later access to the box, alongside with some ssh keys:
 
 ```yaml
 #node-config
