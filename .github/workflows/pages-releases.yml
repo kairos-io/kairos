@@ -1,8 +1,8 @@
 name: Github Pages Updates
 on:
   push:
-    tags:
-      - '*'
+#    tags:
+#      - '*'
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,6 +15,7 @@ jobs:
            cd docs && make build
            mv public ../
     - name: Deploy 🚀
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
       uses: JamesIves/github-pages-deploy-action@releases/v3
       with:
         ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
