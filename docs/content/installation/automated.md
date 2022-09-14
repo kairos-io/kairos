@@ -94,7 +94,11 @@ $ docker run -v $PWD:/cOS \
 
 ### Kubernetes
 
-It is possible to create ISOs and derivatives using Kubernetes Native API resources, which allows to tweak the container image by overlaying others on top - without breaking the concept of immutability, and single image OS, consider the following:
+It is possible to create ISOs and derivatives using extended Kubernetes API resources with an embedded config file to drive automated installations.
+
+This method also allows to tweak the container image by overlaying others on top - without breaking the concept of immutability and single image OS.
+
+Consider the following example, which requires a Kubernetes cluster to run the components, but works also on `kind`:
 
 ```bash
 
@@ -176,7 +180,14 @@ spec:
             install:
               device: "/dev/sda"
               reboot: true
-              poweroff: true
+              poweroff: false
               auto: true # Required, for automated installations
 EOF
+
+# Note on running with kind:
+$ IP=$(docker inspect kind-control-plane | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
+$ PORT=$(kubectl get svc hello-c3os -o json | jq '.spec.ports[0].nodePort')
+$ curl http://$IP:$PORT/hello-c3os.iso -o test.iso
+
+
 ```
