@@ -79,6 +79,7 @@ To remaster an ISO locally you just need docker.
 As c3os is based on elemental, the elemental-cli can be used to create a new ISO, with an additional config, consider the following steps:
 
 ```bash
+$ IMAGE=<source/image>
 $ mkdir -p files-iso/boot/grub2
 # You can replace this step with your own grub config. This GRUB configuration is the boot menu of the ISO
 $ wget https://raw.githubusercontent.com/c3os-io/c3os/master/overlay/files-iso/boot/grub2/grub.cfg -O files-iso/boot/grub2/grub.cfg
@@ -86,10 +87,11 @@ $ wget https://raw.githubusercontent.com/c3os-io/c3os/master/overlay/files-iso/b
 $ cp -rfv cloud_init.yaml files-iso/config.yaml
 # Pull the image locally
 $ docker pull $IMAGE
-# Optionally, modify the image, and build a new one.
-$ docker run -v $PWD:/cOS \
-       -v /var/run/docker.sock:/var/run/docker.sock \
-       -i --rm quay.io/costoolkit/elemental-cli:v0.0.15-8a78e6b --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/overlay/files-iso $IMAGE --output /cOS/
+# Optionally, modify the image here!
+# docker run --entrypoint /bin/bash --name changes -ti $IMAGE
+# docker commit changes $IMAGE
+# Build an ISO with $IMAGE
+$ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/c3os/osbuilder-tools:v0.1.0 --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/files-iso $IMAGE --output /cOS/
 ```
 
 ### Kubernetes
