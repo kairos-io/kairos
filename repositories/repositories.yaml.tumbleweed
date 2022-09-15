@@ -24,9 +24,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/c3os/packages"
-    reference: 20220909205421-repository.yaml
+    reference: 20220914195120-repository.yaml
   - !!merge <<: *c3os
     arch: arm64
     urls:
       - "quay.io/c3os/packages-arm64"
-    reference: 20220909211246-repository.yaml
+    reference: 20220914195223-repository.yaml
