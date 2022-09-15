@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-BASE_URL="${BASE_URL:-https://docs.c3os.io}"
+BASE_URL="${BASE_URL:-https://docs.kairos.io}"
 
 binpath="${ROOT_DIR}/bin"
 publicpath="${ROOT_DIR}/public"

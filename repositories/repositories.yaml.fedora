@@ -14,19 +14,19 @@ repositories:
     urls:
       - "quay.io/costoolkit/releases-blue-arm64"
     reference: "v0.8.14-22-repository.yaml"
-  - &c3os
-    name: "c3os"
-    # https://github.com/c3os-io/packages
-    description: "c3os repository"
+  - &kairosos
+    name: "kairos"
+    # https://github.com/kairos-io/packages
+    description: "kairos repository"
     type: "docker"
     arch: amd64
     cached: true
     priority: 2
     urls:
-      - "quay.io/c3os/packages"
+      - "quay.io/kairos/packages"
     reference: 20220909205421-repository.yaml
-  - !!merge <<: *c3os
+  - !!merge <<: *kairos
     arch: arm64
     urls:
-      - "quay.io/c3os/packages-arm64"
+      - "quay.io/kairos/packages-arm64"
     reference: 20220909211246-repository.yaml

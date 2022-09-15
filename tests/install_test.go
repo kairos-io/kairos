@@ -6,13 +6,13 @@ import (
 	"os"
 	"time"
 
-	"github.com/c3os-io/c3os/tests/machine"
+	"github.com/kairos-io/kairos/tests/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 )
 
-var _ = Describe("c3os install test", Label("install-test"), func() {
+var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	BeforeEach(func() {
 		machine.EventuallyConnects()
@@ -42,7 +42,7 @@ var _ = Describe("c3os install test", Label("install-test"), func() {
 		out, err := machine.Sudo("sudo mv /tmp/config.yaml /oem/")
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		out, err = machine.Sudo("c3os-agent install")
+		out, err = machine.Sudo("kairos-agent install")
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
 		fmt.Println(out)
@@ -65,8 +65,8 @@ stages:
   initramfs:
   - name: "Set user and password"
     users:
-     c3os:
-      passwd: "c3os"
+     kairos:
+      passwd: "kairos"
 bundles:
 - rootfs_path: "/usr/local/bin"
   targets:

@@ -1,4 +1,4 @@
-/var/log/c3os/*.log {
+/var/log/kairos/*.log {
     create
     daily
     compress

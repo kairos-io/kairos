@@ -5,12 +5,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/c3os-io/c3os/pkg/utils"
+	"github.com/kairos-io/kairos/pkg/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("c3os qr code register", Label("qrcode-register"), func() {
+var _ = Describe("kairos qr code register", Label("qrcode-register"), func() {
 
 	Context("register", func() {
 		It("sends config over", func() {
@@ -23,7 +23,7 @@ var _ = Describe("c3os qr code register", Label("qrcode-register"), func() {
 					return err
 				}
 
-				out, err = utils.SH(fmt.Sprintf("c3os register --device /dev/sda --config %s %s", os.Getenv("CLOUD_INIT"), "screenshot.png"))
+				out, err = utils.SH(fmt.Sprintf("kairos register --device /dev/sda --config %s %s", os.Getenv("CLOUD_INIT"), "screenshot.png"))
 				fmt.Println(out)
 				return err
 

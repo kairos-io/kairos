@@ -11,8 +11,8 @@ builds:
       - arm64
       - 386
     main: ./cmd/agent/
-    id: "c3os-agent"
-    binary: "c3os-agent"
+    id: "kairos-agent"
+    binary: "kairos-agent"
 source:
   enabled: true
   name_template: '{{ .ProjectName }}-{{ .Tag }}-source'

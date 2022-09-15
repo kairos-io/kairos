@@ -6,16 +6,16 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-In the following section you can find example configuration files to achieve specific `c3os` setups.
+In the following section you can find example configuration files to achieve specific `kairos` setups.
 
 # Single node cluster
 
-By default `c3os` requires multiple nodes. As for the `c3os` decentralized nature, it requires co-ordination between at least 2 nodes to achieve consensus on IPs, network setting, etc.
+By default `kairos` requires multiple nodes. As for the `kairos` decentralized nature, it requires co-ordination between at least 2 nodes to achieve consensus on IPs, network setting, etc.
 
 In order to create single-node cluster, we need to force both the `role` and the `ip` by disabling `DHCP`:
 
 ```yaml
-c3os:
+kairos:
   network_token: "...."
   role: "master"
 vpn:
@@ -27,7 +27,7 @@ vpn:
 Note, the same setup can be used to specify master nodes in a set, as to join nodes it is still possible without specifying any extra setting:
 
 ```yaml
-c3os:
+kairos:
   network_token: "...."
 ```
 
@@ -35,9 +35,9 @@ As always, IPs here are arbitrary as they are virtual ips in the VPN which is cr
 
 # Run only k3s without VPNs
 
-`c3os` can be also used without any VPN and P2P network. Infact, `k3s` is already pre-installed, and it is sufficient to not specify any `c3os` block in the cloud init configuration.
+`kairos` can be also used without any VPN and P2P network. Infact, `k3s` is already pre-installed, and it is sufficient to not specify any `kairos` block in the cloud init configuration.
 
-For example, to start `k3s` as a server with `c3os` it's sufficient to specify the `k3s` service in the config file:
+For example, to start `k3s` as a server with `kairos` it's sufficient to specify the `k3s` service in the config file:
 
 ```yaml
 #node-config
@@ -62,7 +62,7 @@ k3s-agent:
 This is will setup k3s single-node + VPN with a static ip (`10.1.0.2`).
 
 ```yaml
-c3os:
+kairos:
   network_token: "...."
   role: "master"
 
@@ -75,8 +75,8 @@ stages:
    initramfs:
      - name: "Set user and password"
        users:
-        c3os:
-          passwd: "c3os"
+        kairos:
+          passwd: "kairos"
 ```
 
 ## Hostname

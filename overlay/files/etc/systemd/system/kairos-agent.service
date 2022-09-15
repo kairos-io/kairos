@@ -1,10 +1,10 @@
 [Unit]
-Description=c3os agent
+Description=kairos agent
 After=cos-setup-network.service
 Wants=network.target
 [Service]
 Restart=on-failure
 RestartSec=5s
-ExecStart=/usr/bin/c3os-agent start
+ExecStart=/usr/bin/kairos-agent start
 [Install]
 WantedBy=multi-user.target

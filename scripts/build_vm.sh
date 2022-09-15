@@ -1,13 +1,13 @@
 #!/bin/bash
 # Author: Ettore Di Giacinto <mudler@c3os.io>
-# Simple c3os builder of ova and qcow images from ISOs on VBox
+# Simple kairos builder of ova and qcow images from ISOs on VBox
 # mainly purpose is to run it on github actions in macOS runners.
 
 set -e
 
 ISO=$1
-SSH_USER="${SSH_USER:-c3os}"
-SSHPASS="${SSH_PASS:-c3os}"
+SSH_USER="${SSH_USER:-kairos}"
+SSHPASS="${SSH_PASS:-kairos}"
 export SSHPASS
 HD_SIZE="${HD_SIZE:-30000}"
 INSTALL_COMMAND="${INSTALL_COMMAND:-sudo /bin/sh -c 'elemental install /dev/sda && sync'}"

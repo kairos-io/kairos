@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	events "github.com/c3os-io/c3os/sdk/bus"
+	events "github.com/kairos-io/kairos/sdk/bus"
 
-	config "github.com/c3os-io/c3os/pkg/config"
+	config "github.com/kairos-io/kairos/pkg/config"
 
-	hook "github.com/c3os-io/c3os/internal/agent/hooks"
-	"github.com/c3os-io/c3os/internal/bus"
+	hook "github.com/kairos-io/kairos/internal/agent/hooks"
+	"github.com/kairos-io/kairos/internal/bus"
 
-	"github.com/c3os-io/c3os/internal/cmd"
-	"github.com/c3os-io/c3os/pkg/utils"
+	"github.com/kairos-io/kairos/internal/cmd"
+	"github.com/kairos-io/kairos/pkg/utils"
 
-	machine "github.com/c3os-io/c3os/pkg/machine"
+	machine "github.com/kairos-io/kairos/pkg/machine"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"
@@ -185,8 +185,8 @@ func Install(dir ...string) error {
 }
 
 func RunInstall(options map[string]string) error {
-	utils.SH("elemental run-stage c3os-install.pre")             //nolint:errcheck
-	events.RunHookScript("/usr/bin/c3os-agent.install.pre.hook") //nolint:errcheck
+	utils.SH("elemental run-stage kairos-install.pre")             //nolint:errcheck
+	events.RunHookScript("/usr/bin/kairos-agent.install.pre.hook") //nolint:errcheck
 
 	f, _ := ioutil.TempFile("", "xxxx")
 	defer os.RemoveAll(f.Name())

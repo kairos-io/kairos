@@ -38,7 +38,7 @@ The upstream source is the project under the Box organization on GitHub.
 To add an upstream source for this project, type:
 
 ```
-git remote add upstream git@github.com:c3os-io/c3os.git
+git remote add upstream git@github.com:kairos-io/kairos.git
 ```
 
 This will come in useful later.

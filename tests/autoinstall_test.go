@@ -5,12 +5,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/c3os-io/c3os/tests/machine"
+	"github.com/kairos-io/kairos/tests/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("c3os autoinstall test", Label("autoinstall-test"), func() {
+var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 	BeforeEach(func() {
 		machine.EventuallyConnects()
 	})
@@ -25,17 +25,17 @@ var _ = Describe("c3os autoinstall test", Label("autoinstall-test"), func() {
 		It("has default service active", func() {
 			if os.Getenv("FLAVOR") == "alpine" {
 				out, _ := machine.SSHCommand("sudo rc-status")
-				Expect(out).Should(ContainSubstring("c3os"))
-				Expect(out).Should(ContainSubstring("c3os-agent"))
+				Expect(out).Should(ContainSubstring("kairos"))
+				Expect(out).Should(ContainSubstring("kairos-agent"))
 				fmt.Println(out)
 			} else {
 				// Eventually(func() string {
-				// 	out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
+				// 	out, _ := machine.SSHCommand("sudo systemctl status kairosososososos-agent")
 				// 	return out
 				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
-				out, _ := machine.SSHCommand("sudo systemctl status c3os")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
+				out, _ := machine.SSHCommand("sudo systemctl status kairos")
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; vendor preset: disabled)"))
 				fmt.Println(out)
 			}
 

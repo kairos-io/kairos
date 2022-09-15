@@ -8,11 +8,11 @@ import (
 	"os/exec"
 	"strings"
 
-	events "github.com/c3os-io/c3os/sdk/bus"
+	events "github.com/kairos-io/kairos/sdk/bus"
 
-	"github.com/c3os-io/c3os/internal/bus"
-	"github.com/c3os-io/c3os/pkg/github"
-	"github.com/c3os-io/c3os/pkg/utils"
+	"github.com/kairos-io/kairos/internal/bus"
+	"github.com/kairos-io/kairos/pkg/github"
+	"github.com/kairos-io/kairos/pkg/utils"
 	"github.com/mudler/go-pluggable"
 )
 

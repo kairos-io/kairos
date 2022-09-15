@@ -42,40 +42,40 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/core-${{ matrix.flavor }}:latest
+          IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
         run: |
           ./earthly.sh +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
+          name: kairos-${{ matrix.flavor }}.iso.zip
           path: |
             *.iso
             *.sha256
           if-no-files-found: error
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.initrd.zip
+          name: kairos-${{ matrix.flavor }}.initrd.zip
           path: |
             *-initrd
           if-no-files-found: error
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.squashfs.zip
+          name: kairos-${{ matrix.flavor }}.squashfs.zip
           path: |
             *.squashfs
           if-no-files-found: error
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.kernel.zip
+          name: kairos-${{ matrix.flavor }}.kernel.zip
           path: |
             *-kernel
             *-initrd
           if-no-files-found: error
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.ipxe.zip
+          name: kairos-${{ matrix.flavor }}.ipxe.zip
           path: |
             *.ipxe
           if-no-files-found: error
@@ -84,12 +84,12 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: 1
         run: | 
-          docker push quay.io/c3os/core-${{ matrix.flavor }}:latest
-          cosign sign quay.io/c3os/core-${{ matrix.flavor }}:latest
+          docker push quay.io/kairos/core-${{ matrix.flavor }}:latest
+          cosign sign quay.io/kairos/core-${{ matrix.flavor }}:latest
       - name: Push to testing
         run: | 
-          docker tag quay.io/c3os/core-${{ matrix.flavor }}:latest ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
-          docker push ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+          docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
+          docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
 # Test start
   build-vm-images:
     needs: 
@@ -113,19 +113,19 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
+          name: kairos-${{ matrix.flavor }}.iso.zip
       - run: |
               ls -liah
               iso=$(ls *.iso)
               bash scripts/build_vm.sh $iso
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.qcow2.tar.xz
+          name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
           path: |
             *.qcow2.tar.xz
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.ova
+          name: kairos-${{ matrix.flavor }}.ova
           path: |
             *.ova
           if-no-files-found: error
@@ -142,13 +142,13 @@ jobs:
   #           go-version: '^1.16'
   #     - name: Prepare config
   #       run: |
-  #             ./earthly.sh +build-c3os-cli
-  #             ./build/c3os create-config > config.yaml
+  #             ./earthly.sh +build-kairososososos-cli
+  #             ./build/kairos create-config > config.yaml
   #             cat tests/assets/config.yaml >> config.yaml
   #     - name: Enable dns
   #       uses: mikefarah/yq@master
   #       with:
-  #         cmd: yq -i '.c3os.dns = true' 'config.yaml'
+  #         cmd: yq -i '.kairos.dns = true' 'config.yaml'
   #     - name: Show config
   #       run: |
   #             cat config.yaml
@@ -178,7 +178,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
+          name: kairos-${{ matrix.flavor }}.iso.zip
       - name: Install deps
         run: |
           brew install cdrtools jq
@@ -212,7 +212,7 @@ jobs:
       # A flag to set the download target as latest release
       # The default value is 'false'
         latest: true
-        repository: "c3os-io/c3os"
+        repository: "kairos-io/kairos"
         fileName: "*"
         out-file-path: "last-release"
     - uses: actions/upload-artifact@v2
@@ -236,12 +236,12 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v2
       with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
+          name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
             export ISO=$PWD/$(ls *.iso)
             mkdir build
-            mv $ISO build/c3os.iso
+            mv $ISO build/kairos.iso
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-tests --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
 
@@ -275,9 +275,9 @@ jobs:
           go-version: '^1.16'
     - run: |
             ls -liah
-            export ISO=$PWD/$(ls c3os-${{ matrix.flavor }}-*.iso)
+            export ISO=$PWD/$(ls kairos-${{ matrix.flavor }}-*.iso)
             export GOPATH="/Users/runner/go"
-            export CONTAINER_IMAGE=ttl.sh/c3os-${{ matrix.flavor }}-${{ github.sha }}:8h
+            export CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
             export PATH=$PATH:$GOPATH/bin
             export CLOUD_INIT=$PWD/tests/assets/config.yaml
             export CREATE_VM=true
@@ -307,7 +307,7 @@ jobs:
   #     - name: Download artifacts
   #       uses: actions/download-artifact@v2
   #       with:
-  #         name: c3os-${{ matrix.flavor }}.iso.zip
+  #         name: kairos-${{ matrix.flavor }}.iso.zip
   #     - name: Download artifacts
   #       uses: actions/download-artifact@v2
   #       with:

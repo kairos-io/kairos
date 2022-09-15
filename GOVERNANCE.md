@@ -1,7 +1,7 @@
 
 ## Project Governance
 
-This document highlights the roles and responsibilities for the c3OS community members. It also outlines the requirements for anyone who is looking to take on leadership roles in the c3OS project. This document is loosely based on the [Kyverno Governance](https://main.kyverno.io/community/#project-governance).
+This document highlights the roles and responsibilities for the Kairos community members. It also outlines the requirements for anyone who is looking to take on leadership roles in the Kairos project. This document is loosely based on the [Kyverno Governance](https://main.kyverno.io/community/#project-governance).
 
 **Note:** Please make sure to read the CNCF [Code of Conduct](/CODE_OF_CONDUCT.md).
 
@@ -27,7 +27,7 @@ These are persons who have full access to the project, including sensitive and d
 | ------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Contributors | Active contributor in the community. Reviewer of PRs                  | Made at least five contributions to the project and appointed by 2 approvers or maintainers.    | [CODEOWNERS](https://help.github.com/en/articles/about-code-owners), Github Org members.                                     |
 | Approver     | Assist maintainers. Review and approve contributions.                     | Highly experienced and active reviewer + contributor to a subproject.                         | Maintainers & [CODEOWNERS](https://help.github.com/en/articles/about-code-owners).                                           |
-| Maintainer   | Monitor project growth, set direction and priorities for a subproject. | Highly experienced and active reviewer + Voted in by c3OS maintainers. | Voted in by the c3OS maintainers, [CODEOWNERS](https://help.github.com/en/articles/about-code-owners) and repository owner. |
+| Maintainer   | Monitor project growth, set direction and priorities for a subproject. | Highly experienced and active reviewer + Voted in by Kairos maintainers. | Voted in by the Kairos maintainers, [CODEOWNERS](https://help.github.com/en/articles/about-code-owners) and repository owner. |
 
 #### Contributors
 
@@ -82,12 +82,12 @@ Approvers are contributors who provide active review and feedback on the issues 
 - Exhibits strong attention to detail when reviewing commits and provides generous guidance and feedback
 - Helps others achieve their goals with open-source and community contributions
 - Understands the workflow of the Issues and Pull Requests
-- Makes consistent contributions to the c3OS project
-- Consistently initiates and participates in [c3OS discussions](https://matrix.to/#/#c3os:matrix.org)
-- Has knowledge and interest that aligns with the overall project goals, specifications, and design principles of the c3OS project
+- Makes consistent contributions to the Kairos project
+- Consistently initiates and participates in [Kairos discussions](https://matrix.to/#/#kairos-io:matrix.org)
+- Has knowledge and interest that aligns with the overall project goals, specifications, and design principles of the Kairos project
 - Makes contributions that are considered notable
 - Demonstrates ability to help troubleshoot and resolve user issues
-- Demonstrated an equivalent mastery of c3OS
+- Demonstrated an equivalent mastery of Kairos
 
 **Responsibilities & Privileges**
 

@@ -2,8 +2,8 @@ stages:
  initramfs:
  - name: "Set user and password"
    users:
-    c3os:
-     passwd: "c3os"
-   hostname: c3os-{{ trunc 4 .Random }}
-c3os:
+    kairos:
+     passwd: "kairos"
+   hostname: kairos-{{ trunc 4 .Random }}
+kairos:
  network_token: "b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MDAwCiAgICBrZXk6IDI0SUpPS1pGS0g1R0tYUTNSNkdaQkNaS0lPTTNSWU9OT0pNRjIyRFFTM0VNT1BUWEdTTFEKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTAwMAogICAga2V5OiBQNklPMllEMzZaVFZRTkdUNk5ZREJNS0s0V09aQjJJN0RQMkRUQzRLVVU1UEhaTjRYSzVBCiAgICBsZW5ndGg6IDMyCnJvb206IEdPMkNRVDVYN080VFM3VEpFUVEyTDRXSTJZNURHNzZHUlNGU05FUVVZN1FBSjZSRzVUUFEKcmVuZGV6dm91czoga0taUE1pQU9TZWN6R1lDRXdTSEV0V21XUGZUaGxOa3QKbWRuczogT0FWY25LZXlPT3ZJQlhtQ0ZBYmhNSkxlbndJTEFxY2sKbWF4X21lc3NhZ2Vfc2l6ZTogMjA5NzE1MjAK"

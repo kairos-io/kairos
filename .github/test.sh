@@ -3,7 +3,7 @@
 ((count = 100))                        
 while [[ $count -ne 0 ]] ; do
     echo "Checking if kubeconfig is present"
-    ./c3os get-kubeconfig > kube
+    ./kairos get-kubeconfig > kube
     cat kube | grep "http"
     rc=$?
     if [[ $rc -eq 0 ]] ; then

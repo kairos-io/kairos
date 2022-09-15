@@ -18,18 +18,18 @@ stages:
        - ulimit -n 900000
    initramfs:
    # Disable password, enable only ssh access
-     - if: '[ ! -d "/home/c3os" ]'
+     - if: '[ ! -d "/home/kairos" ]'
        name: "Ensure home directory is present"
        commands:
-       - mkdir /home/c3os
-       - chmod 755 /home/c3os
-       - chown -R c3os /home/c3os
+       - mkdir /home/kairos
+       - chmod 755 /home/kairos
+       - chown -R kairos /home/kairos
      - name: "Setup users"
       #  users:
       #   root:
-      #     password: "c3os"
+      #     password: "kairos"
        authorized_keys:
-        c3os: 
+        kairos: 
         - github:mudler
        commands:
-       - passwd -l c3os
+       - passwd -l kairos

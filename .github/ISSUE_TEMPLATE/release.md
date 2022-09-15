@@ -1,6 +1,6 @@
 ---
-name: 'c3os Release'
-about: 'Start a new c3os release.'
+name: 'kairos Release'
+about: 'Start a new kairos release.'
 labels: release
 assignees: mudler
 ---
@@ -16,12 +16,12 @@ assignees: mudler
 ## ✅ Release Checklist
 
 - [ ] **Stage 0 - Finishing Touches**
-    - [ ] Check c3os/packages, and for any needed update
+    - [ ] Check kairos/packages, and for any needed update
     - [ ] Make sure CI tests are passing.
 - [ ] **Stage 1 - Infrastructure Testing**
   - How: Using the testing version, make sure that manual and k8s upgrades are working from the latest release, and that docs are still aligned
   - Where:
-    - [ ] Two c3os nodes
+    - [ ] Two kairos nodes
       - [ ] Deploy latest release with automatic node setup
       - [ ] Upgrade to testing release
       - [ ] Analyze

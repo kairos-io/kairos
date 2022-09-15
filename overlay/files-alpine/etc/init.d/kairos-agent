@@ -1,0 +1,16 @@
+#!/sbin/openrc-run
+
+depend() {
+  provide kairos-agent
+}
+
+supervisor=supervise-daemon
+name="kairos-agent"
+command="kairos-agent start"
+command_args="--restart"
+supervise_daemon_args="--stdout /var/log/kairos/agent.log --stderr /var/log/kairos/agent.log"
+pidfile="/run/kairos-agent.pid"
+respawn_delay=5
+set -o allexport
+if [ -f /etc/environment ]; then source /etc/environment; fi
+set +o allexport

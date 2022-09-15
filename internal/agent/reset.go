@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/c3os-io/c3os/internal/cmd"
-	"github.com/c3os-io/c3os/pkg/machine"
-	"github.com/c3os-io/c3os/pkg/utils"
+	"github.com/kairos-io/kairos/internal/cmd"
+	"github.com/kairos-io/kairos/pkg/machine"
+	"github.com/kairos-io/kairos/pkg/utils"
 	"github.com/pterm/pterm"
 )
 

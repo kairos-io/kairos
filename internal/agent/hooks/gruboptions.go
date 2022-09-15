@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	config "github.com/c3os-io/c3os/pkg/config"
-	"github.com/c3os-io/c3os/pkg/utils"
+	config "github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/pkg/utils"
 )
 
 type GrubOptions struct{}

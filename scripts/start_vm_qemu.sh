@@ -14,4 +14,4 @@ qemu-system-x86_64 \
     -device virtio-serial \
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
     -drive if=virtio,media=disk,file=disk.img \
-    -drive if=ide,media=cdrom,file=${1:-c3os.iso}
+    -drive if=ide,media=cdrom,file=${1:-kairos.iso}

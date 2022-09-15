@@ -7,4 +7,4 @@ Maintainers are approvers who have shown good technical judgement in guiding fea
 | Ettore Di Giacinto       | [@mudler](https://github.com/mudler )                  | Original Author, SpectroCloud|
 
 
-**Note**: Please refer to the [Project Governance](/GOVERNANCE.md) for more information on the responsibilities and privileges of a maintainer in c3OS.
+**Note**: Please refer to the [Project Governance](/GOVERNANCE.md) for more information on the responsibilities and privileges of a maintainer in Kairos.

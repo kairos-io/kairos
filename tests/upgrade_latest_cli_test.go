@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/c3os-io/c3os/tests/machine"
+	"github.com/kairos-io/kairos/tests/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -33,16 +33,16 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 
 			if os.Getenv("FLAVOR") == "alpine" {
 				out, _ := machine.Sudo("rc-status")
-				Expect(out).Should(ContainSubstring("c3os"))
-				Expect(out).Should(ContainSubstring("c3os-agent"))
+				Expect(out).Should(ContainSubstring("kairos"))
+				Expect(out).Should(ContainSubstring("kairos-agent"))
 			} else {
 				// Eventually(func() string {
-				// 	out, _ := machine.SSHCommand("sudo systemctl status c3os-agent")
+				// 	out, _ := machine.SSHCommand("sudo systemctl status kairos-agent")
 				// 	return out
 				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
-				out, _ := machine.Sudo("systemctl status c3os")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/c3os.service; enabled; vendor preset: disabled)"))
+				out, _ := machine.Sudo("systemctl status kairos")
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; vendor preset: disabled)"))
 			}
 		})
 	})
@@ -67,14 +67,14 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			currentVersion, err := machine.SSHCommand("source /etc/os-release; echo $VERSION")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(currentVersion).To(ContainSubstring("v0"))
-			_, err = machine.Sudo("c3os-agent")
+			_, err = machine.Sudo("kairos-agent")
 			if err == nil {
-				out, err := machine.Sudo("c3os-agent upgrade --force --image " + containerImage)
+				out, err := machine.Sudo("kairos-agent upgrade --force --image " + containerImage)
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
 				Expect(out).To(ContainSubstring(containerImage))
 			} else {
-				out, err := machine.Sudo("c3os upgrade --force --image " + containerImage)
+				out, err := machine.Sudo("kairos upgrade --force --image " + containerImage)
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
 				Expect(out).To(ContainSubstring(containerImage))

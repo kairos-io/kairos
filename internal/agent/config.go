@@ -3,7 +3,8 @@ package agent
 import (
 	"io/ioutil"
 
-	"github.com/c3os-io/c3os/internal/c3os"
+	"github.com/kairos-io/kairos/internal/kairos"
+
 	"gopkg.in/yaml.v2"
 )
 
@@ -20,7 +21,7 @@ type Config struct {
 
 func LoadConfig(path ...string) (*Config, error) {
 	if len(path) == 0 {
-		path = append(path, "/etc/c3os/agent.yaml", "/etc/elemental/config.yaml")
+		path = append(path, "/etc/kairos/agent.yaml", "/etc/elemental/config.yaml")
 	}
 
 	cfg := &Config{}
@@ -33,28 +34,28 @@ func LoadConfig(path ...string) (*Config, error) {
 	}
 
 	if cfg.Branding.InteractiveInstall == "" {
-		f, err := ioutil.ReadFile(c3os.BrandingFile("interactive_install_text"))
+		f, err := ioutil.ReadFile(kairos.BrandingFile("interactive_install_text"))
 		if err == nil {
 			cfg.Branding.InteractiveInstall = string(f)
 		}
 	}
 
 	if cfg.Branding.Install == "" {
-		f, err := ioutil.ReadFile(c3os.BrandingFile("install_text"))
+		f, err := ioutil.ReadFile(kairos.BrandingFile("install_text"))
 		if err == nil {
 			cfg.Branding.Install = string(f)
 		}
 	}
 
 	if cfg.Branding.Recovery == "" {
-		f, err := ioutil.ReadFile(c3os.BrandingFile("recovery_text"))
+		f, err := ioutil.ReadFile(kairos.BrandingFile("recovery_text"))
 		if err == nil {
 			cfg.Branding.Recovery = string(f)
 		}
 	}
 
 	if cfg.Branding.Reset == "" {
-		f, err := ioutil.ReadFile(c3os.BrandingFile("reset_text"))
+		f, err := ioutil.ReadFile(kairos.BrandingFile("reset_text"))
 		if err == nil {
 			cfg.Branding.Reset = string(f)
 		}

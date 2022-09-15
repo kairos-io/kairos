@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/c3os-io/c3os/pkg/utils"
+	"github.com/kairos-io/kairos/pkg/utils"
 	process "github.com/mudler/go-processmanager"
 )
 

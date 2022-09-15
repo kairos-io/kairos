@@ -3,9 +3,9 @@ stages:
     boot:
     - if: '[ ! -f "/run/cos/recovery_mode" ]'
       commands:
-       - systemctl start c3os-agent
-       - systemctl enable c3os-agent
+       - systemctl start kairos-agent
+       - systemctl enable kairos-agent
     initramfs:
     - if: '[ ! -f "/run/cos/recovery_mode" ]'
       commands:
-       - systemctl enable c3os-agent
+       - systemctl enable kairos-agent

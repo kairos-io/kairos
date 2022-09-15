@@ -3,9 +3,9 @@ package agent
 import (
 	"fmt"
 
-	"github.com/c3os-io/c3os/internal/bus"
-	"github.com/c3os-io/c3os/pkg/config"
-	events "github.com/c3os-io/c3os/sdk/bus"
+	"github.com/kairos-io/kairos/internal/bus"
+	"github.com/kairos-io/kairos/pkg/config"
+	events "github.com/kairos-io/kairos/sdk/bus"
 	"github.com/mudler/go-pluggable"
 )
 

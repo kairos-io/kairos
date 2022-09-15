@@ -6,12 +6,12 @@ import (
 	"os"
 	"path/filepath"
 
-	events "github.com/c3os-io/c3os/sdk/bus"
+	events "github.com/kairos-io/kairos/sdk/bus"
 
-	"github.com/c3os-io/c3os/internal/bus"
-	config "github.com/c3os-io/c3os/pkg/config"
-	machine "github.com/c3os-io/c3os/pkg/machine"
-	bundles "github.com/c3os-io/c3os/sdk/bundles"
+	"github.com/kairos-io/kairos/internal/bus"
+	config "github.com/kairos-io/kairos/pkg/config"
+	machine "github.com/kairos-io/kairos/pkg/machine"
+	bundles "github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/nxadm/tail"
 )
 
@@ -22,7 +22,7 @@ func Run(opts ...Option) error {
 		return err
 	}
 
-	os.MkdirAll("/usr/local/.c3os", 0600) //nolint:errcheck
+	os.MkdirAll("/usr/local/.kairos", 0600) //nolint:errcheck
 
 	// Reads config
 	c, err := config.Scan(config.Directories(o.Dir...))
@@ -36,9 +36,9 @@ func Run(opts ...Option) error {
 		return nil
 	}
 
-	os.MkdirAll("/var/log/c3os", 0600) //nolint:errcheck
+	os.MkdirAll("/var/log/kairos", 0600) //nolint:errcheck
 
-	fileName := filepath.Join("/var/log/c3os", "agent-provider.log")
+	fileName := filepath.Join("/var/log/kairos", "agent-provider.log")
 
 	// Create if not exist
 	if _, err := os.Stat(fileName); err != nil {

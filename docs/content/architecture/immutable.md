@@ -5,7 +5,7 @@ weight = 1
 pre = "<b>- </b>"
 +++
 
-c3os adopts an Immutable layout, and derivatives created with its toolkit inherits the same immutability aspects.
+kairos adopts an Immutable layout, and derivatives created with its toolkit inherits the same immutability aspects.
 
 An immutable OS is a carefully engineered system which boots in a restricted, permissionless mode, where certain paths of the system are not writeable. For instance, after installation it's not possible to install additional packages in the system, and any configuration change is discarded after reboot.
 
@@ -35,4 +35,4 @@ The benefit of rolling out the same system over a set of machines are obvious:
 
 Tools like Chef, Puppet and Ansible share the same underlying issues when it comes to configuration management: nodes can have different versions matrix of software and OS, which makes your set of nodes dishomogeneous and difficult to maintain and orchestrate from day 1 to day 2. 
 
-c3os tackles the issue from another angle, as can turn _any_ distribution to an “immutable” system, distributed as a standard container image, which gets provisioned to the devices as declared. This allows to treat OSes with the same repeatable portability as containers for apps, removing snowflakes in your cluster. Container registries can be used either internally or externally to the cluster to propagate upgrades with customized versions of the OS (kernel, packages, etc).
+kairos tackles the issue from another angle, as can turn _any_ distribution to an “immutable” system, distributed as a standard container image, which gets provisioned to the devices as declared. This allows to treat OSes with the same repeatable portability as containers for apps, removing snowflakes in your cluster. Container registries can be used either internally or externally to the cluster to propagate upgrades with customized versions of the OS (kernel, packages, etc).

@@ -8,14 +8,14 @@ pre = "<b>- </b>"
 
 Upgrades can be run manually from the terminal. 
 
-c3os images are released on [quay.io](https://quay.io/repository/c3os/c3os).
+kairos images are released on [quay.io](https://quay.io/repository/kairos/kairos).
 
 ## List available versions
 
 To see all the available versions:
 
 ```bash
-$ sudo c3os-agent upgrade list-releases
+$ sudo kairos-agent upgrade list-releases
 v0.57.0
 v0.57.0-rc2
 v0.57.0-rc1
@@ -28,13 +28,13 @@ v0.57.0-alpha1
 To upgrade to latest available version, run from a shell of a cluster node:
 
 ```bash
-sudo c3os-agent upgrade
+sudo kairos-agent upgrade
 ```
 
 To specify a version, just run 
 
 ```bash
-sudo c3os-agent upgrade <version>
+sudo kairos-agent upgrade <version>
 ```
 
 Use `--force` to force upgrading to avoid checking versions. 
@@ -42,7 +42,7 @@ Use `--force` to force upgrading to avoid checking versions.
 It is possible altough to use the same commandset from `Elemental-toolkit`. So for example, the following works too:
 
 ```bash
-sudo elemental upgrade --no-verify --docker-image quay.io/c3os/c3os:opensuse-v1.21.4-22
+sudo elemental upgrade --no-verify --docker-image quay.io/kairos/kairos:opensuse-v1.21.4-22
 ```
 
-[See also the general Elemental-toolkit documentation](https://rancher.github.io/elemental-toolkit/docs/getting-started/upgrading/#upgrade-to-a-specific-container-image) which applies for `c3os` as well.
+[See also the general Elemental-toolkit documentation](https://rancher.github.io/elemental-toolkit/docs/getting-started/upgrading/#upgrade-to-a-specific-container-image) which applies for `kairos` as well.

@@ -48,7 +48,7 @@ type Cluster struct {
 	// Role informs the sdk what kind of installation to manage on this device.
 	Role Role `yaml:"role,omitempty" json:"role,omitempty"`
 
-	// Options are arbitrary values the sdk may be interested in.  These values are not validated by C3OS and are simply forwarded to the sdk.
+	// Options are arbitrary values the sdk may be interested in.  These values are not validated by Kairos and are simply forwarded to the sdk.
 	Options string `yaml:"config,omitempty" json:"config,omitempty"`
 }
 

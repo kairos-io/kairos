@@ -5,14 +5,14 @@ weight = 3
 pre = "<b>- </b>"
 +++
 
-A CLI is provided as part of releases associated to each `c3os` version. 
+A CLI is provided as part of releases associated to each `kairos` version. 
 
 The CLI can be used from an external machine to generate network tokens and pair nodes on first-boot.
 
 ```
-./c3os --help                                                         
+./kairos --help                                                         
 NAME:
-   c3os - c3os (register|install)
+   kairos - kairos (register|install)
 
 USAGE:
     [global options] command [command options] [arguments...]
@@ -21,7 +21,7 @@ VERSION:
    0.1
 
 DESCRIPTION:
-   c3os registers and installs c3os boxes
+   kairosos registers and installs kairos boxes
 
 AUTHOR:
    Ettore Di Giacinto
@@ -38,11 +38,11 @@ COMMANDS:
 
 ## `create-config`
 
-Generates a new `c3os` configuration file which can be used as cloud-init, with a new unique network token:
+Generates a new `kairos` configuration file which can be used as cloud-init, with a new unique network token:
 
 ```
-$ ./c3os create-config  
-c3os:
+$ ./kairos create-config  
+kairos:
   network_token: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MjIzMzcyMDM2ODU0Nzc1ODA3CiAgICBrZXk6IEVCMzJJMlNXTjJCNFBHNEtCWTNBUVBBS0FWRTY0Q0VLVUlDTktTUFVWVU5BWTM0QklEQ0EKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTIyMzM3MjAzNjg1NDc3NTgwNwogICAga2V5OiBDMk1RRk5DWEFVRElPWjVHM1pZUUIzVEVHTzVXVEdQR1pZSEVQQkY3SFEyVUROUlZCTkxRCiAgICBsZW5ndGg6IDMyCnJvb206IGp6Q29kQVVOWUZSUklQU3JISmx4d1BVUnVxTGJQQnh4CnJlbmRlenZvdXM6IG5NckRCbllyVVBMdnFPV0Z2dWZvTktXek1adEJIRmpzCm1kbnM6IGpQUUhIbVZza2x6V29xbWNkeVlnbVhMSVFjTE1HUFN6Cm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
   offline: false
   reboot: false
@@ -50,10 +50,10 @@ c3os:
   poweroff: false
 ```
 
-Now you can use this in your configuration file to create new c3os nodes:
+Now you can use this in your configuration file to create new kairos nodes:
 
 ```yaml
-c3os:
+kairos:
   network_token: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MjIzMzcyMDM2ODU0Nzc1ODA3CiAgICBrZXk6IEVCMzJJMlNXTjJCNFBHNEtCWTNBUVBBS0FWRTY0Q0VLVUlDTktTUFVWVU5BWTM0QklEQ0EKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTIyMzM3MjAzNjg1NDc3NTgwNwogICAga2V5OiBDMk1RRk5DWEFVRElPWjVHM1pZUUIzVEVHTzVXVEdQR1pZSEVQQkY3SFEyVUROUlZCTkxRCiAgICBsZW5ndGg6IDMyCnJvb206IGp6Q29kQVVOWUZSUklQU3JISmx4d1BVUnVxTGJQQnh4CnJlbmRlenZvdXM6IG5NckRCbllyVVBMdnFPV0Z2dWZvTktXek1adEJIRmpzCm1kbnM6IGpQUUhIbVZza2x6V29xbWNkeVlnbVhMSVFjTE1HUFN6Cm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
   offline: false
   reboot: false
@@ -66,7 +66,7 @@ stages:
    network:
      - name: "Setup users"
        authorized_keys:
-        c3os: 
+        kairos: 
         - github:yourhandle!
 ```
 
@@ -76,14 +76,14 @@ stages:
 Generates a new network token which can be used in a configuration file:
 
 ```
-$ ./c3os generate-token
+$ ./kairos generate-token
 b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MjIzMzcyMDM2ODU0Nzc1ODA3CiAgICBrZXk6IFhMMjRYUk1MTlFOQ1pJQTU0SVFLQ1laMk83SENQWEFBU1ZKN0tZSTQ3MzVaUkpKSktRSEEKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTIyMzM3MjAzNjg1NDc3NTgwNwogICAga2V5OiBMR1dMWFBTUllaU0ZERDdOT0pBNzdKV0ZWQjRHVkZBMjJIWlZPWU1VT0lNSFVYNFZXUURRCiAgICBsZW5ndGg6IDMyCnJvb206IFRtcUt5VnFHQ1ZZam9TRm9CTEVNRGVEdmJzelBkVEdoCnJlbmRlenZvdXM6IGttb3J4Q21sY2NjVVppWmdkSW5xTERvTGJtS3ZGdm9mCm1kbnM6IEZkWVdQc2R4aHdvWHZlb0VzSXNnVHRXbEJUbE9IVHJmCm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
 ```
 
 And now:
 
 ```yaml
-c3os:
+kairos:
   network_token: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MjIzMzcyMDM2ODU0Nzc1ODA3CiAgICBrZXk6IFhMMjRYUk1MTlFOQ1pJQTU0SVFLQ1laMk83SENQWEFBU1ZKN0tZSTQ3MzVaUkpKSktRSEEKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTIyMzM3MjAzNjg1NDc3NTgwNwogICAga2V5OiBMR1dMWFBTUllaU0ZERDdOT0pBNzdKV0ZWQjRHVkZBMjJIWlZPWU1VT0lNSFVYNFZXUURRCiAgICBsZW5ndGg6IDMyCnJvb206IFRtcUt5VnFHQ1ZZam9TRm9CTEVNRGVEdmJzelBkVEdoCnJlbmRlenZvdXM6IGttb3J4Q21sY2NjVVppWmdkSW5xTERvTGJtS3ZGdm9mCm1kbnM6IEZkWVdQc2R4aHdvWHZlb0VzSXNnVHRXbEJUbE9IVHJmCm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
   offline: false
   reboot: false
@@ -96,7 +96,7 @@ stages:
    network:
      - name: "Setup users"
        authorized_keys:
-        c3os: 
+        kairos: 
         - github:yourhandle!
 ```
 
@@ -118,14 +118,14 @@ OPTIONS:
    --poweroff
 ```
 
-When booting `c3os` via ISO, the boot process ends up in displaying a QR code which can be parsed by `c3os register` from another machine.
+When booting `kairos` via ISO, the boot process ends up in displaying a QR code which can be parsed by `kairos register` from another machine.
 
 ### Taking a screenshot
 
 `register` by default takes a screenshot and tries to find a QR code in it:
 
 ```
-c3os register
+kairos register
 ```
 
 ### Providing a qrcode image/screenshot manually
@@ -133,7 +133,7 @@ c3os register
 It can be also be specified an image:
 
 ```
-c3os register <file.png>
+kairos register <file.png>
 ```
 
 After the pairing is done, the node will start installation with the provided options. 
@@ -148,8 +148,8 @@ It needs a `--network-token`(`$NETWORK_TOKEN`) argument and exposes an API endpo
 
 ## `install` 
 
-Called by c3os nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
+Called by kairos nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
 
 ## `setup` 
 
-Called by c3os nodes on boot and not meant to be used manually. It prepares `edgevpn` and `k3s` bootstrapping the node and the VPN.
+Called by kairos nodes on boot and not meant to be used manually. It prepares `edgevpn` and `k3s` bootstrapping the node and the VPN.

@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/hashicorp/go-multierror"
+	"github.com/kairos-io/kairos/pkg/utils"
 )
 
 type BundleConfig struct {
@@ -71,9 +71,9 @@ func (bc *BundleConfig) extractRepo() (string, string, error) {
 
 func defaultConfig() *BundleConfig {
 	return &BundleConfig{
-		DBPath:     "/usr/local/.c3os/db",
+		DBPath:     "/usr/local/.kairos/db",
 		RootPath:   "/",
-		Repository: "docker://quay.io/c3os/packages",
+		Repository: "docker://quay.io/kairos/packages",
 	}
 }
 
@@ -201,7 +201,7 @@ func (l *LuetInstaller) Install(config *BundleConfig) error {
 	}
 	out, err := utils.SH(
 		fmt.Sprintf(
-			`LUET_CONFIG_FROM_HOST=false luet repo add --system-dbpath %s --system-target %s c3os-system -y --description "Automatically generated c3os-system" --url "%s" --type "%s"`,
+			`LUET_CONFIG_FROM_HOST=false luet repo add --system-dbpath %s --system-target %s kairos-system -y --description "Automatically generated kairos-system" --url "%s" --type "%s"`,
 			config.DBPath,
 			config.RootPath,
 			repo,

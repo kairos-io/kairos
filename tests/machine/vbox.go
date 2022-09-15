@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/bramvdbogaerde/go-scp"
-	"github.com/c3os-io/c3os/pkg/utils"
+	"github.com/kairos-io/kairos/pkg/utils"
 
 	. "github.com/onsi/gomega" //nolint:revive
 	"golang.org/x/crypto/ssh"
@@ -183,7 +183,7 @@ func host() string {
 func user() string {
 	user := os.Getenv("SSH_USER")
 	if user == "" {
-		user = "c3os"
+		user = "kairos"
 	}
 	return user
 }
@@ -191,7 +191,7 @@ func user() string {
 func pass() string {
 	pass := os.Getenv("SSH_PASS")
 	if pass == "" {
-		pass = "c3os"
+		pass = "kairos"
 	}
 
 	return pass
