@@ -6,22 +6,22 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-The c3os recovery mode can be used to recover a damaged system, or to regain access remotely (with assistance) to a machine which has been lost access to. The recovery mode is accessible only from the GRUB menu, from both the LiveCD and an installed system.
+The kairos recovery mode can be used to recover a damaged system, or to regain access remotely (with assistance) to a machine which has been lost access to. The recovery mode is accessible only from the GRUB menu, from both the LiveCD and an installed system.
 
 {{% notice note %}}
-On installed system there are two recovery modes available during boot. Below it is described only how the c3os remote recovery works. The manual recovery entry has nothing special from the standard Elemental-toolkit recovery mode. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote access.
+On installed system there are two recovery modes available during boot. Below it is described only how the kairos remote recovery works. The manual recovery entry has nothing special from the standard Elemental-toolkit recovery mode. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote access.
 {{% /notice %}}
 
 ## Boot into recovery mode
 
-c3os recovery mode can be accessed either via ISO or from an installed system.
+kairos recovery mode can be accessed either via ISO or from an installed system.
 
 A GRUB menu will be displayed:
 ![Screenshot from 2022-04-28 17-48-06](https://user-images.githubusercontent.com/2420543/165800177-3e4cccd8-f67c-43a2-bd88-329478539400.png)
 
-Select the last entry `c3os (remote recovery mode)` and press enter.
+Select the last entry `kairos (remote recovery mode)` and press enter.
 
-At this point the boot process starts and you should be welcomed by the `c3os` screen: 
+At this point the boot process starts and you should be welcomed by the `kairos` screen: 
 
 ![Screenshot from 2022-04-28 17-48-32](https://user-images.githubusercontent.com/2420543/165800182-9aa29c90-09e9-4c53-b3c7-c8ced262e3ac.png)
 
@@ -33,10 +33,10 @@ At this stage, take a screenshot or a photo, just save the image with the QR cod
 
 ## Connect to the machine
 
-In another machine you are using to connect to your server (your workstation, a jumpbox, or ..) use the `c3os` CLI to connect over the remote machine:
+In another machine you are using to connect to your server (your workstation, a jumpbox, or ..) use the `kairos` CLI to connect over the remote machine:
 
 ```
-$ ./c3os bridge --qr-code-image /path/to/image.png
+$ ./kairos bridge --qr-code-image /path/to/image.png
  INFO   Connecting to service kAIsuqiwKR
  INFO   SSH access password is yTXlkak
  INFO   SSH server reachable at 127.0.0.1:2200

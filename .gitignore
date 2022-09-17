@@ -1,8 +1,8 @@
 *.iso
 *.iso.sha256
-/cli/c3os
+/cli/kairos
 /cli/cli
-/c3os
+/kairos
 /dist
 /docs/bin
 /docs/.hugo_build.lock

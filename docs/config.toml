@@ -1,14 +1,14 @@
-baseURL = 'https://docs.c3os.io/'
+baseURL = 'https://docs.kairos.io/'
 languageCode = 'en-us'
-title = 'c3os documentation'
+title = 'kairos documentation'
 # Change the default theme to be use when building the site with Hugo
 theme = "hugo-theme-learn"
 
 [params]
-  editURL = "https://github.com/c3os-io/c3os/edit/master/docs/content/"
-  description = "Documentation for c3os"
+  editURL = "https://github.com/kairos-io/kairos/edit/master/docs/content/"
+  description = "Documentation for kairos"
   author = "Ettore Di Giacinto"
-  #themeVariant = "c3os"
+  #themeVariant = "kairos"
   disableLandingPageButton = true
   themeVariant = "blue"
 # For search functionality
@@ -16,37 +16,37 @@ theme = "hugo-theme-learn"
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-solid fa-download'></i> Download"
 identifier = "download"
-url = "https://github.com/c3os-io/provider-c3os/releases"
+url = "https://github.com/kairos-io/provider-kairos/releases"
 weight = 1
 
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-solid fa-download'></i> Download core (without k3s)"
 identifier = "download-core"
-url = "https://github.com/c3os-io/c3os/releases"
+url = "https://github.com/kairos-io/kairos/releases"
 weight = 1
 
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fab fa-fw fa-github'></i> Github"
 identifier = "github"
-url = "https://github.com/c3os-io/c3os"
+url = "https://github.com/kairos-io/kairos"
 weight = 1
 
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-comments'></i> Github discussions"
 identifier = "discussions"
-url = "https://github.com/c3os-io/c3os/discussions"
+url = "https://github.com/kairos-io/kairos/discussions"
 weight = 1
 
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-comments'></i> Matrix chat"
 identifier = "matrix"
-url = "https://matrix.to/#/#c3os:matrix.org"
+url = "https://matrix.to/#/#kairos-io:matrix.org"
 weight = 1
 
 [[Languages.en.menu.shortcuts]]
 name = "<i class='fas fa-fw fa-comments'></i> Libera chat"
 identifier = "libera"
-url = "https://web.libera.chat/#c3os"
+url = "https://web.libera.chat/#kairos"
 weight = 1
 
 [outputs]

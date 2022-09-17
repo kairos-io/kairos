@@ -49,18 +49,18 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
-          ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-latest.img --IMAGE=quay.io/c3os/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/core-$FLAVOR:latest
+          IMAGE: quay.io/kairos/core-$FLAVOR:latest
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=latest
-          export IMAGE_NAME=c3os-$FLAVOR-$TAG.img
-          export IMAGE=quay.io/c3os/core-$FLAVOR:$TAG
-          docker push quay.io/c3os/core-$FLAVOR:$TAG
+          export IMAGE_NAME=kairos-$FLAVOR-$TAG.img
+          export IMAGE=quay.io/kairos/core-$FLAVOR:$TAG
+          docker push quay.io/kairos/core-$FLAVOR:$TAG
       - name: Sign image
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
@@ -68,7 +68,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
         run: | 
           TAG=latest
-          cosign sign quay.io/c3os/core-$FLAVOR:$TAG
+          cosign sign quay.io/kairos/core-$FLAVOR:$TAG
       - name: Upload results
         uses: actions/upload-artifact@v2
         with:

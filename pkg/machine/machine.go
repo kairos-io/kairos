@@ -6,11 +6,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/c3os-io/c3os/pkg/machine/openrc"
-	"github.com/c3os-io/c3os/pkg/machine/systemd"
 	"github.com/denisbrodbeck/machineid"
+	"github.com/kairos-io/kairos/pkg/machine/openrc"
+	"github.com/kairos-io/kairos/pkg/machine/systemd"
 
-	"github.com/c3os-io/c3os/pkg/utils"
+	"github.com/kairos-io/kairos/pkg/utils"
 )
 
 type Service interface {
@@ -117,11 +117,11 @@ func UUID() string {
 }
 
 func CreateSentinel(f string) error {
-	return ioutil.WriteFile(fmt.Sprintf("/usr/local/.c3os/sentinel_%s", f), []byte{}, os.ModePerm)
+	return ioutil.WriteFile(fmt.Sprintf("/usr/local/.kairos/sentinel_%s", f), []byte{}, os.ModePerm)
 }
 
 func SentinelExist(f string) bool {
-	if _, err := os.Stat(fmt.Sprintf("/usr/local/.c3os/sentinel_%s", f)); err == nil {
+	if _, err := os.Stat(fmt.Sprintf("/usr/local/.kairos/sentinel_%s", f)); err == nil {
 		return true
 	}
 	return false

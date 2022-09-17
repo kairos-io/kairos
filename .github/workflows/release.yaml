@@ -33,7 +33,7 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/framework
+          IMAGE: quay.io/kairos/framework
         run: |
           export TAG=${GITHUB_REF##*/}
           ./earthly.sh +framework-image --IMG=${IMAGE}:$TAG --FLAVOR=${FLAVOR} --WITH_KERNEL=false
@@ -42,7 +42,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           COSIGN_EXPERIMENTAL: 1
-          IMAGE: quay.io/c3os/framework
+          IMAGE: quay.io/kairos/framework
         run: | 
           export TAG=${GITHUB_REF##*/}
           docker push ${IMAGE}:$TAG
@@ -84,7 +84,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +all --IMAGE=quay.io/c3os/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=c3os-$FLAVOR-$TAG
+          ./earthly.sh +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
           sudo mv build release
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')
@@ -92,8 +92,8 @@ jobs:
           COSIGN_EXPERIMENTAL: 1
         run: | 
           TAG=${GITHUB_REF##*/}
-          docker push quay.io/c3os/core-${{ matrix.flavor }}:$TAG
-          cosign sign quay.io/c3os/core-${{ matrix.flavor }}:$TAG
+          docker push quay.io/kairos/core-${{ matrix.flavor }}:$TAG
+          cosign sign quay.io/kairos/core-${{ matrix.flavor }}:$TAG
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -105,7 +105,7 @@ jobs:
           sudo mv release/*.sha256 ./
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
+          name: kairos-${{ matrix.flavor }}.iso.zip
           path: |
             *.iso
             *.sha256
@@ -133,19 +133,19 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.iso.zip
+          name: kairos-${{ matrix.flavor }}.iso.zip
       - run: |
               ls -liah
               iso=$(ls *.iso)
               bash scripts/build_vm.sh $iso
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.qcow2.tar.xz
+          name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
           path: |
             *.qcow2.tar.xz
       - uses: actions/upload-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.ova
+          name: kairos-${{ matrix.flavor }}.ova
           path: |
             *.ova
           if-no-files-found: error
@@ -166,11 +166,11 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.qcow2.tar.xz
+          name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
       - name: Download artifacts
         uses: actions/download-artifact@v2
         with:
-          name: c3os-${{ matrix.flavor }}.ova
+          name: kairos-${{ matrix.flavor }}.ova
       - run: |
               mkdir release
               mv *.qcow2.tar.xz release/
@@ -182,7 +182,7 @@ jobs:
           path_to_add: 'release'
       - run: |
           mkdir dist
-          echo ${{ steps.web3.outputs.url }} > dist/c3os-${{ matrix.flavor }}.qcow2.url.txt
+          echo ${{ steps.web3.outputs.url }} > dist/kairos-${{ matrix.flavor }}.qcow2.url.txt
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')

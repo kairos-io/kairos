@@ -12,10 +12,10 @@ It generates a configuration file, which is later accessible after installation 
 
 ## From the boot menu
 
-When loading any c3os ISOs, a GRUB menu like the following will be displayed. To access the interactive installation, select the third entry (`c3os (interactive install)`).
+When loading any kairos ISOs, a GRUB menu like the following will be displayed. To access the interactive installation, select the third entry (`kairos (interactive install)`).
 
 ![interactive](https://user-images.githubusercontent.com/2420543/189219819-6b16d13d-c409-4b9b-889b-12792f800a08.gif)
 
 ## Manually
 
-The interactive installer can be also started manually with `c3os-agent interactive-install` from the LiveCD.
+The interactive installer can be also started manually with `kairos-agent interactive-install` from the LiveCD.

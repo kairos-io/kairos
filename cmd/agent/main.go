@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	agent "github.com/c3os-io/c3os/internal/agent"
-	"github.com/c3os-io/c3os/internal/bus"
+	agent "github.com/kairos-io/kairos/internal/agent"
+	"github.com/kairos-io/kairos/internal/bus"
 
-	machine "github.com/c3os-io/c3os/pkg/machine"
-	"github.com/c3os-io/c3os/pkg/utils"
-	bundles "github.com/c3os-io/c3os/sdk/bundles"
+	machine "github.com/kairos-io/kairos/pkg/machine"
+	"github.com/kairos-io/kairos/pkg/utils"
+	bundles "github.com/kairos-io/kairos/sdk/bundles"
 
 	"github.com/urfave/cli"
 )
@@ -32,17 +32,17 @@ var cmds = []cli.Command{
 			},
 		},
 		Description: `
-Manually upgrade a c3os node.
+Manually upgrade a kairos node.
 
 By default takes no arguments, defaulting to latest available release, to specify a version, pass it as argument:
 
-$ c3os upgrade v1.20....
+$ kairos upgrade v1.20....
 
-To retrieve all the available versions, use "c3os upgrade list-releases"
+To retrieve all the available versions, use "kairos upgrade list-releases"
 
-$ c3os upgrade list-releases
+$ kairos upgrade list-releases
 
-See https://docs.c3os.io/after_install/upgrades/#manual for documentation.
+See https://docs.kairos.io/after_install/upgrades/#manual for documentation.
 
 `,
 		Subcommands: []cli.Command{
@@ -100,10 +100,10 @@ Sends a generic event payload with the configuration found in the scanned direct
 
 	{
 		Name:      "start",
-		Usage:     "Starts the c3os agent",
+		Usage:     "Starts the kairos agent",
 		UsageText: "starts the agent",
 		Description: `
-Starts the c3os agent which automatically bootstrap and advertize to the c3os network.
+Starts the kairos agent which automatically bootstrap and advertize to the kairos network.
 `,
 		Aliases: []string{"s"},
 		Flags: []cli.Flag{
@@ -143,12 +143,12 @@ Starts the c3os agent which automatically bootstrap and advertize to the c3os ne
 	},
 	{
 		Name:  "install-bundle",
-		Usage: "Installs a c3os bundle",
+		Usage: "Installs a kairos bundle",
 		Description: `
 
-Manually installs a c3os bundle.
+Manually installs a kairos bundle.
 
-E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
+E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 
 `,
 		Aliases: []string{"i"},
@@ -156,7 +156,7 @@ E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
 			&cli.StringFlag{
 				Name:   "repository",
 				EnvVar: "REPOSITORY",
-				Value:  "docker://quay.io/c3os/packages",
+				Value:  "docker://quay.io/kairos/packages",
 			},
 		},
 		UsageText: "Install a bundle manually in the node",
@@ -182,11 +182,11 @@ E.g. c3os-agent install-bundle container:quay.io/c3os/c3os...
 	{
 		Name: "interactive-install",
 		Description: `
-Starts c3os in interactive mode install.
+Starts kairos in interactive mode install.
 
 It will ask prompt for several questions and perform an install depending on the providers available in the system.
 
-See also https://docs.c3os.io/installation/interactive_install/ for documentation.
+See also https://docs.kairos.io/installation/interactive_install/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can be also started manually`,
 		Flags: []cli.Flag{
@@ -237,13 +237,13 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 
 	{
 		Name:  "install",
-		Usage: "Starts the c3os pairing installation",
+		Usage: "Starts the kairos pairing installation",
 		Description: `
-Starts c3os in pairing mode.
+Starts kairos in pairing mode.
 
-It will print out a QR code which can be used with "c3os register" to send over a configuration and bootstraping a c3os node.
+It will print out a QR code which can be used with "kairos register" to send over a configuration and bootstraping a kairos node.
 
-See also https://docs.c3os.io/installation/device_pairing/ for documentation.
+See also https://docs.kairos.io/installation/device_pairing/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},
@@ -257,14 +257,14 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		Action: func(c *cli.Context) error {
 			return agent.Recovery()
 		},
-		Usage: "Starts c3os recovery mode",
+		Usage: "Starts kairos recovery mode",
 		Description: `
-Starts c3os recovery mode.
+Starts kairos recovery mode.
 
-In recovery mode a QR code will be printed out on the screen which should be used in conjunction with "c3os bridge". Pass by the QR code as snapshot
-to the bridge to connect over the machine which runs the "c3os recovery" command.
+In recovery mode a QR code will be printed out on the screen which should be used in conjunction with "kairos bridge". Pass by the QR code as snapshot
+to the bridge to connect over the machine which runs the "kairos recovery" command.
 
-See also https://docs.c3os.io/after_install/recovery_mode/ for documentation.
+See also https://docs.kairos.io/after_install/recovery_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
 	},
@@ -274,14 +274,14 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 		Action: func(c *cli.Context) error {
 			return agent.Reset()
 		},
-		Usage: "Starts c3os reset mode",
+		Usage: "Starts kairos reset mode",
 		Description: `
-Starts c3os reset mode, it will nuke completely the node data and restart fresh.
+Starts kairos reset mode, it will nuke completely the node data and restart fresh.
 Attention ! this will delete any persistent data on the node. It is equivalent to re-init the node right after the installation.
 
 In reset mode a the node will automatically reset
 
-See also https://docs.c3os.io/after_install/reset_mode/ for documentation.
+See also https://docs.kairos.io/after_install/reset_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
 	},
@@ -291,15 +291,15 @@ func main() {
 	bus.Manager.Initialize()
 
 	app := &cli.App{
-		Name:    "c3os-agent",
+		Name:    "kairos-agent",
 		Version: "0.1",
 		Author:  "Ettore Di Giacinto",
-		Usage:   "c3os agent start",
+		Usage:   "kairos agent start",
 		Description: `
-The c3os agent is a component to abstract away node ops, providing a common feature-set across c3os variants.
+The kairos agent is a component to abstract away node ops, providing a common feature-set across kairos variants.
 `,
 		UsageText: ``,
-		Copyright: "c3os authors",
+		Copyright: "kairos authors",
 
 		Commands: cmds,
 	}

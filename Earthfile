@@ -2,10 +2,10 @@ VERSION 0.6
 FROM alpine
 ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse
-ARG IMAGE=quay.io/c3os/${VARIANT}-${FLAVOR}:latest
-ARG ISO_NAME=c3os-${VARIANT}-${FLAVOR}
+ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
+ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.32.4
-ARG OS_ID=c3os
+ARG OS_ID=kairos
 
 IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "tumbleweed" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "rockylinux" ] 
     ARG REPOSITORIES_FILE=repositories.yaml.${FLAVOR}
@@ -13,7 +13,7 @@ ELSE
     ARG REPOSITORIES_FILE=repositories.yaml
 END
 
-ARG COSIGN_SKIP=".*quay.io/c3os/.*"
+ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
 # TODO: This should match for each flavor
 ARG COSIGN_REPOSITORY=raccos/releases-teal
@@ -95,12 +95,12 @@ version:
 
     SAVE ARTIFACT VERSION VERSION
 
-build-c3os-agent:
+build-kairos-agent:
     FROM +go-deps
-    DO +BUILD_GOLANG --BIN=c3os-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
+    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
 
 build:
-    BUILD +build-c3os-agent
+    BUILD +build-kairos-agent
 
 dist:
     ARG GO_VERSION
@@ -195,26 +195,26 @@ docker:
         FROM $BASE_IMAGE
     END
 
-    ARG C3OS_VERSION
-    IF [ "$C3OS_VERSION" = "" ]
+    ARG KAIROS_VERSION
+    IF [ "$KAIROS_VERSION" = "" ]
         COPY +version/VERSION ./
         ARG VERSION=$(cat VERSION)
         RUN echo "version ${VERSION}"
         ARG OS_VERSION=${VERSION}
         RUN rm VERSION
     ELSE 
-        ARG OS_VERSION=${C3OS_VERSION}
+        ARG OS_VERSION=${KAIROS_VERSION}
     END
     
     ARG OS_ID
     ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
-    ARG OS_REPO=quay.io/c3os/${VARIANT}-${FLAVOR}
+    ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
     ARG OS_LABEL=latest
 
     # Includes overlay/files
     COPY +framework/framework /
 
-    DO +OSRELEASE --HOME_URL=https://github.com/c3os-io/c3os --BUG_REPORT_URL=https://github.com/c3os-io/c3os/issues --GITHUB_REPO=c3os-io/c3os --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
+    DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
@@ -230,8 +230,8 @@ docker:
         COPY overlay/files-ubuntu/ /
     END
 
-    # Copy c3os binaries
-    COPY +build-c3os-agent/c3os-agent /usr/bin/c3os-agent
+    # Copy kairos binaries
+    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
 
     # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
@@ -276,18 +276,18 @@ iso:
     END
     # See: https://github.com/rancher/elemental-cli/issues/228
     RUN sha256sum $ISO_NAME.iso > $ISO_NAME.iso.sha256
-    SAVE ARTIFACT /build/$ISO_NAME.iso c3os.iso AS LOCAL build/$ISO_NAME.iso
-    SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 c3os.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
+    SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
+    SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
 netboot:
    FROM opensuse/leap
    ARG VERSION
    ARG ISO_NAME=${OS_ID}
    WORKDIR /build
-   COPY +iso/c3os.iso c3os.iso
+   COPY +iso/kairos.iso kairos.iso
    COPY . .
    RUN zypper in -y cdrtools
-   RUN /build/scripts/netboot.sh c3os.iso $ISO_NAME $VERSION
+   RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
    SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
    SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
    SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
@@ -400,13 +400,13 @@ run-qemu-tests:
 
     IF [ "$FROM_ARTIFACTS" = "true" ]
         COPY . .
-        ENV ISO=/test/build/c3os.iso
+        ENV ISO=/test/build/kairos.iso
         ENV DATASOURCE=/test/build/datasource.iso
     ELSE
         COPY ./tests .
-        COPY +iso/c3os.iso c3os.iso
+        COPY +iso/kairos.iso kairos.iso
         COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso
-        ENV ISO=/test/c3os.iso
+        ENV ISO=/test/kairos.iso
         ENV DATASOURCE=/test/datasource.iso
     END
 

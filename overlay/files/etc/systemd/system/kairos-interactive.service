@@ -1,5 +1,5 @@
 [Unit]
-Description=c3os interactive-installer
+Description=kairos interactive-installer
 After=sysinit.target
 [Service]
 Type=oneshot
@@ -9,6 +9,6 @@ LimitNOFILE=49152
 ExecStartPre=-/bin/sh -c "dmesg -D"
 TTYPath=/dev/tty1
 RemainAfterExit=yes
-ExecStart=/usr/bin/c3os-agent interactive-install --shell
+ExecStart=/usr/bin/kairos-agent interactive-install --shell
 [Install]
 WantedBy=multi-user.target

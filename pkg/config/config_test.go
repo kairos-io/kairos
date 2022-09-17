@@ -20,24 +20,24 @@ import (
 	"os"
 	"path/filepath"
 
-	. "github.com/c3os-io/c3os/pkg/config"
+	. "github.com/kairos-io/kairos/pkg/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 type TConfig struct {
-	C3OS struct {
+	Kairos struct {
 		NetworkToken string `yaml:"network_token"`
-	} `yaml:"c3os"`
+	} `yaml:"kairos"`
 }
 
 var _ = Describe("Get config", func() {
 	Context("directory", func() {
 		It("reads config file greedly", func() {
 
-			var cc string = `#c3os-config
+			var cc string = `#kairos-config
 baz: bar
-c3os:
+kairos:
   network_token: foo
 `
 			d, _ := ioutil.TempDir("", "xxxx")
@@ -56,15 +56,15 @@ fooz:
 			providerCfg := &TConfig{}
 			err = c.Unmarshal(providerCfg)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(providerCfg.C3OS).ToNot(BeNil())
-			Expect(providerCfg.C3OS.NetworkToken).To(Equal("foo"))
+			Expect(providerCfg.Kairos).ToNot(BeNil())
+			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
 			Expect(c.String()).To(Equal(cc))
 		})
 
 		It("merges with bootargs", func() {
 
-			var cc string = `#c3os-config
-c3os:
+			var cc string = `#kairos-config
+kairos:
   network_token: "foo"
 
 bb: 
@@ -85,8 +85,8 @@ bb:
 			providerCfg := &TConfig{}
 			err = c.Unmarshal(providerCfg)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(providerCfg.C3OS).ToNot(BeNil())
-			Expect(providerCfg.C3OS.NetworkToken).To(Equal("foo"))
+			Expect(providerCfg.Kairos).ToNot(BeNil())
+			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
 			_, exists := c.Data()["zz"]
 			Expect(exists).To(BeFalse())
 		})

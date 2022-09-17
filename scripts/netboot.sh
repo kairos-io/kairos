@@ -9,7 +9,7 @@ isoinfo -x /rootfs.squashfs -R -i $ISO > $OUTPUT_NAME.squashfs
 isoinfo -x /boot/kernel.xz -R -i $ISO > $OUTPUT_NAME-kernel
 isoinfo -x /boot/rootfs.xz -R -i $ISO > $OUTPUT_NAME-initrd
 
-RELEASE_URL=${RELEASE_URL:-https://github.com/c3os-io/c3os/releases/download}
+RELEASE_URL=${RELEASE_URL:-https://github.com/kairos-io/kairos/releases/download}
 
 cat > $OUTPUT_NAME.ipxe << EOF
 #!ipxe

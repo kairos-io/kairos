@@ -5,6 +5,6 @@ weight = 4
 chapter = true
 +++
 
-# Installing c3os on baremetal, VMs, ...
+# Installing kairos on baremetal, VMs, ...
 
 ## Automated, Paired and take over install

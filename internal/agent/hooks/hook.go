@@ -1,7 +1,7 @@
 package hook
 
 import (
-	config "github.com/c3os-io/c3os/pkg/config"
+	config "github.com/kairos-io/kairos/pkg/config"
 )
 
 type Interface interface {

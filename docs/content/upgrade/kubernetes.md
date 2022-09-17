@@ -6,7 +6,7 @@ weight = 1
 pre = "<b>- </b>"
 +++
 
-c3OS upgrades can be driven either manually or via Kubernetes. In order to trigger upgrades it is required to apply a CRD to the target cluster for the upgrade.
+Kairos upgrades can be driven either manually or via Kubernetes. In order to trigger upgrades it is required to apply a CRD to the target cluster for the upgrade.
 
 ### Upgrading from version X to version Y with Kubernetes
 
@@ -33,7 +33,7 @@ metadata:
 spec:
   concurrency: 1
   # This is the version (tag) of the image. 
-  # The version is refered to the c3os version plus the k3s version.
+  # The version is refered to the kairos version plus the k3s version.
   version: "v0.57.0-k3sv1.23.9-k3s1"
   nodeSelector:
     matchExpressions:
@@ -46,13 +46,13 @@ spec:
   upgrade:
     # Here goes the image which is tied to the flavor being used.
     # Currently can pick between opensuse and alpine
-    image: quay.io/c3os/c3os-opensuse
+    image: quay.io/kairos/kairos-opensuse
     command:
     - "/usr/sbin/suc-upgrade"
 EOF
 ```
 
-To check all the available versions, see the [images](https://quay.io/repository/c3os/c3os-opensuse?tab=tags) available on the container registry, corresponding to the flavor/version selected.
+To check all the available versions, see the [images](https://quay.io/repository/kairos/kairos-opensuse?tab=tags) available on the container registry, corresponding to the flavor/version selected.
 
 {{% notice note %}}
 
@@ -65,7 +65,7 @@ A pod should appear right after which carries on the upgrade and automatically r
 ```
 $ kubectl get pods -A
 ...
-system-upgrade   apply-os-upgrade-on-c3os-with-1a1a24bcf897bd275730bdd8548-h7ffd   0/1     Creating   0          40s
+system-upgrade   apply-os-upgrade-on-kairos-with-1a1a24bcf897bd275730bdd8548-h7ffd   0/1     Creating   0          40s
 ```
 
 Done! we should have all the basic to get our first cluster rolling, but there is much more we can do. 

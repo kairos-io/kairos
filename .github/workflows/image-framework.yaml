@@ -38,7 +38,7 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/c3os/framework
+          IMAGE: quay.io/kairos/framework
         run: |
           ./earthly.sh +framework-image --IMG=${IMAGE}:latest --FLAVOR=${FLAVOR} --WITH_KERNEL=false
           ./earthly.sh +framework-image --IMG=${IMAGE}-generic:latest --FLAVOR=${FLAVOR} --WITH_KERNEL=true
@@ -46,7 +46,7 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_EXPERIMENTAL: 1
-          IMAGE: quay.io/c3os/framework
+          IMAGE: quay.io/kairos/framework
         run: | 
           docker push ${IMAGE}:latest
           docker push ${IMAGE}-generic:latest

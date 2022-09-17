@@ -7,4 +7,4 @@ chapter = true
 
 # Quickstart
 
-Provisioning of c3OS into baremetal, edge, embedded devices, and cloud.
+Provisioning of Kairos into baremetal, edge, embedded devices, and cloud.

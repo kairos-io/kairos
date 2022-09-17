@@ -7,9 +7,9 @@ assignees: mudler
 
 ---
 
-<!-- Thanks for helping us to improve c3os! We welcome all bug reports. Please fill out each area of the template so we can better help you. Comments like this will be hidden when you post but you can delete them if you wish. -->
+<!-- Thanks for helping us to improve kairos! We welcome all bug reports. Please fill out each area of the template so we can better help you. Comments like this will be hidden when you post but you can delete them if you wish. -->
 
-**C3OS version:**
+**Kairos version:**
 <!-- Provide the output from "cat /etc/os-release" -->
 
 **CPU architecture, OS, and Version:**
@@ -19,7 +19,7 @@ assignees: mudler
 <!-- A clear and concise description of what the bug is. -->
 
 **To Reproduce**
-<!-- Steps to reproduce the behavior, including the c3os command used, if any -->
+<!-- Steps to reproduce the behavior, including the kairos command used, if any -->
 
 **Expected behavior**
 <!-- A clear and concise description of what you expected to happen. -->

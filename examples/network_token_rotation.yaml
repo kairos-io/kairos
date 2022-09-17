@@ -13,7 +13,7 @@ stringData:
       set -x -e
       HOST_DIR="${HOST_DIR:-/host}"
 
-      c3os get-network-token $HOST_DIR/oem $HOST_DIR/usr/local/cloud-config > current_token
+      kairos get-network-token $HOST_DIR/oem $HOST_DIR/usr/local/cloud-config > current_token
 
       if [ "$FORCE" != "true" ]; then
           if diff current_token $secrets/network_token >/dev/null; then
@@ -22,7 +22,7 @@ stringData:
           fi
       fi
 
-      NETWORK_TOKEN=$(cat $secrets/network_token) c3os rotate $HOST_DIR/oem $HOST_DIR/usr/local/cloud-config
+      NETWORK_TOKEN=$(cat $secrets/network_token) kairos rotate $HOST_DIR/oem $HOST_DIR/usr/local/cloud-config
       nsenter -i -m -t 1 -- reboot
       exit 1
 ---
@@ -44,6 +44,6 @@ spec:
   drain:
     force: false
   upgrade:
-    image: quay.io/c3os/c3os
+    image: quay.io/kairos/kairos
     command: ["sh"]
     args: [ "/rotate-token/rotate.sh"]

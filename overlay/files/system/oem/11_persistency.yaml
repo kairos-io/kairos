@@ -29,7 +29,7 @@ stages:
           /var/lib/cni
         PERSISTENT_STATE_BIND: "true"
     - if: |
-        cat /proc/cmdline | grep -q "c3os.boot_live_mode"
+        cat /proc/cmdline | grep -q "kairos.boot_live_mode"
       name: "Layout configuration"
       environment_file: /run/cos/cos-layout.env
       environment:

@@ -23,12 +23,12 @@ install:
   auto: true
   # A list of bundles
   bundles: 
-  - quay.io/c3os/packages/...
+  - quay.io/kairos/packages/...
 ```
 
 ## Datasource
 
-The configuration file can be provided to c3os by mounting an ISO in the node with the `cidata` label. The ISO must contain a `user-data` (which contain your configuration) and `meta-data` file.
+The configuration file can be provided to kairos by mounting an ISO in the node with the `cidata` label. The ISO must contain a `user-data` (which contain your configuration) and `meta-data` file.
 
 Consider a cloud-init of the following content, which is configured to automatically install onto `/dev/sda` and reboot:
 
@@ -41,7 +41,7 @@ install:
   poweroff: false
   auto: true # Required, for automated installations
   
-c3os:
+kairos:
   network_token: ....
 
 # extra configuration
@@ -59,7 +59,7 @@ $ cp -rfv cloud_init.yaml user-data
 $ mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
 ```
 
-Now the iso is ready to be attached as the CDROM to the machine, boot it up as usual along with the c3os iso.
+Now the iso is ready to be attached as the CDROM to the machine, boot it up as usual along with the kairos iso.
 
 ## Via config URL
 
@@ -76,13 +76,13 @@ It is possible to create custom ISOs with an embedded cloud-config. This will le
 
 To remaster an ISO locally you just need docker. 
 
-As c3os is based on elemental, the elemental-cli can be used to create a new ISO, with an additional config, consider the following steps:
+As kairos is based on elemental, the elemental-cli can be used to create a new ISO, with an additional config, consider the following steps:
 
 ```bash
 $ IMAGE=<source/image>
 $ mkdir -p files-iso/boot/grub2
 # You can replace this step with your own grub config. This GRUB configuration is the boot menu of the ISO
-$ wget https://raw.githubusercontent.com/c3os-io/c3os/master/overlay/files-iso/boot/grub2/grub.cfg -O files-iso/boot/grub2/grub.cfg
+$ wget https://raw.githubusercontent.com/kairos-io/kairos/master/overlay/files-iso/boot/grub2/grub.cfg -O files-iso/boot/grub2/grub.cfg
 # Copy the config file
 $ cp -rfv cloud_init.yaml files-iso/config.yaml
 # Pull the image locally
@@ -91,7 +91,7 @@ $ docker pull $IMAGE
 # docker run --entrypoint /bin/bash --name changes -ti $IMAGE
 # docker commit changes $IMAGE
 # Build an ISO with $IMAGE
-$ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/c3os/osbuilder-tools:v0.1.0 --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/files-iso $IMAGE --output /cOS/
+$ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/kairos/osbuilder-tools:v0.1.0 --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/files-iso $IMAGE --output /cOS/
 ```
 
 ### Kubernetes
@@ -104,17 +104,17 @@ Consider the following example, which requires a Kubernetes cluster to run the c
 
 ```bash
 
-# Adds the c3os repo to helm
-$ helm repo add c3os https://c3os-io.github.io/helm-charts
-"c3os" has been added to your repositories
+# Adds the kairos repo to helm
+$ helm repo add kairos https://kairos-io.github.io/helm-charts
+"kairos" has been added to your repositories
 $ helm repo update                                        
 Hang tight while we grab the latest from your chart repositories...
-...Successfully got an update from the "c3os" chart repository
+...Successfully got an update from the "kairos" chart repository
 Update Complete. ⎈Happy Helming!⎈
 
 # Install the CRD chart
-$ helm install c3os-crd c3os/c3os-crds
-NAME: c3os-crd
+$ helm install kairos-crd kairos/kairos-crds
+NAME: kairos-crd
 LAST DEPLOYED: Tue Sep  6 20:35:34 2022
 NAMESPACE: default
 STATUS: deployed
@@ -122,8 +122,8 @@ REVISION: 1
 TEST SUITE: None
 
 # Installs osbuilder
-$ helm install c3os-osbuilder c3os/osbuilder
-NAME: c3os-osbuilder
+$ helm install kairos-osbuilder kairos/osbuilder
+NAME: kairos-osbuilder
 LAST DEPLOYED: Tue Sep  6 20:35:53 2022
 NAMESPACE: default
 STATUS: deployed
@@ -132,15 +132,15 @@ TEST SUITE: None
 
 # Applies an OSArtifact spec
 cat <<'EOF' | kubectl apply -f -
-apiVersion: build.c3os-x.io/v1alpha1
+apiVersion: build.kairos-x.io/v1alpha1
 kind: OSArtifact
 metadata:
-  name: hello-c3os
+  name: hello-kairos
 spec:
-  imageName: "quay.io/c3os/c3os:opensuse-latest"
+  imageName: "quay.io/kairos/kairos:opensuse-latest"
   iso: true
   bundles:
-  - quay.io/c3os/packages:goreleaser-utils-1.11.1
+  - quay.io/kairos/packages:goreleaser-utils-1.11.1
   grubConfig: |
           search --file --set=root /boot/kernel.xz
           set default=0
@@ -188,8 +188,8 @@ EOF
 
 # Note on running with kind:
 $ IP=$(docker inspect kind-control-plane | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
-$ PORT=$(kubectl get svc hello-c3os -o json | jq '.spec.ports[0].nodePort')
-$ curl http://$IP:$PORT/hello-c3os.iso -o test.iso
+$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ curl http://$IP:$PORT/hello-kairos.iso -o test.iso
 
 
 ```

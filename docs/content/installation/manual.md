@@ -6,7 +6,7 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-To install manually, follow the [quickstart](/quickstart/installation). When the QR code is prompted at the screen, you should be able to login via SSH to the box with the password `c3os` as `c3os` user.
+To install manually, follow the [quickstart](/quickstart/installation). When the QR code is prompted at the screen, you should be able to login via SSH to the box with the password `kairos` as `kairos` user.
 
 {{% notice note %}}
 
@@ -27,7 +27,7 @@ Where the config can be a cloud-init file or a URL to it:
 ```yaml
 #cloud-init
 
-c3os:
+kairosos:
   network_token: ....
 
 # extra configuration

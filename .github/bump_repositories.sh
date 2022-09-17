@@ -47,8 +47,8 @@ last_commit_snapshot() {
     echo $(docker run --rm quay.io/skopeo/stable list-tags docker://$1 | jq -rc '.Tags | map(select( (. | contains("-repository.yaml")) )) | sort_by(. | sub("v";"") | sub("-repository.yaml";"") | sub("-";"") | split(".") | map(tonumber) ) | .[-1]' | sed "s/-repository.yaml//g")
 }
 
-latest_tag=$(last_commit_snapshot quay.io/c3os/packages)
-latest_tag_arm64=$(last_commit_snapshot quay.io/c3os/packages-arm64)
+latest_tag=$(last_commit_snapshot quay.io/kairos/packages)
+latest_tag_arm64=$(last_commit_snapshot quay.io/kairos/packages-arm64)
 
 for REPOFILE in repositories.yaml.tumbleweed repositories.yaml.rockylinux repositories.yaml.ubuntu repositories.yaml.fedora repositories.yaml
 do

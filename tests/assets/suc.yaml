@@ -16,6 +16,6 @@ spec:
   serviceAccountName: system-upgrade
   cordon: false
   upgrade:
-    image: quay.io/c3os/c3os
+    image: quay.io/kairos/kairos
     command:
     - "/usr/sbin/suc-upgrade"

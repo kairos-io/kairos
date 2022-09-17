@@ -10,8 +10,8 @@ import (
 	"unicode"
 
 	retry "github.com/avast/retry-go"
-	"github.com/c3os-io/c3os/pkg/machine"
-	"github.com/c3os-io/c3os/sdk/bundles"
+	"github.com/kairos-io/kairos/pkg/machine"
+	"github.com/kairos-io/kairos/sdk/bundles"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v2"
@@ -56,7 +56,7 @@ func HasHeader(userdata, head string) (bool, string) {
 	if head != "" {
 		return head == header, header
 	}
-	return (header == "#cloud-config") || (header == "#c3os-config") || (header == "#node-config"), header
+	return (header == "#cloud-config") || (header == "#kairos-config") || (header == "#node-config"), header
 }
 
 func (b Bundles) Options() (res [][]bundles.BundleOption) {

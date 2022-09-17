@@ -4,8 +4,8 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/c3os-io/c3os/sdk/unstructured"
 	"github.com/google/shlex"
+	"github.com/kairos-io/kairos/sdk/unstructured"
 )
 
 func DotToYAML(file string) ([]byte, error) {

@@ -9,15 +9,15 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/c3os-io/c3os/pkg/utils"
-	"github.com/c3os-io/c3os/tests/machine"
+	"github.com/kairos-io/kairos/pkg/utils"
+	"github.com/kairos-io/kairos/tests/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 func TestSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "c3os Test Suite")
+	RunSpecs(t, "kairos Test Suite")
 }
 
 var tempDir string
@@ -105,16 +105,16 @@ func gatherLogs() {
 
 	machine.GatherAllLogs(
 		[]string{
-			"edgevpn@c3os",
-			"c3os-agent",
+			"edgevpn@kairos",
+			"kairos-agent",
 			"cos-setup-boot",
 			"cos-setup-network",
-			"c3os",
+			"kairos",
 			"k3s",
 		},
 		[]string{
 			"/var/log/edgevpn.log",
-			"/var/log/c3os/agent.log",
+			"/var/log/kairosos/agent.log",
 			"/run/pods.json",
 			"/run/disk",
 			"/run/mounts",

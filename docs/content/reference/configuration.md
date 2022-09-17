@@ -6,14 +6,14 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-Here you can find a full reference of the fields available to configure a c3os node
+Here you can find a full reference of the fields available to configure a kairos node
 
 ```yaml
 #node-config
 
-# The c3os block enables the p2p full-mesh functionalities.
+# The kairos block enables the p2p full-mesh functionalities.
 # To disable, don't specify one.
-c3os:
+kairos:
   # This is a network token used to establish the p2p full meshed network.
   # Don't specify one to disable full-mesh functionalities.
   network_token: "...."
@@ -81,16 +81,16 @@ stages:
    network:
      - name: "Setup users"
        authorized_keys:
-        c3os: 
+        kairos: 
         - github:mudler
 ```
 
 
 ## Syntax
 
-`c3os` supports the standard cloud-init syntax and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/) which is based on [yip](https://github.com/mudler/yip).
+`kairos` supports the standard cloud-init syntax and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/) which is based on [yip](https://github.com/mudler/yip).
 
-Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/c3os-io/c3os/tree/master/examples). 
+Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples). 
 
 ### `k3s`
 
@@ -121,7 +121,7 @@ k3s-agent:
   - --cluster-init
 ```
 
-See also the [examples](https://github.com/c3os-io/c3os/tree/master/examples) folder in the repository to configure k3s manually.
+See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure k3s manually.
 
 ## `install.grub_options`
 
@@ -153,9 +153,9 @@ Below a full list of all the available options:
 | default_fallback       | Sets default fallback logic                             |
 
 
-### `c3os.dns`
+### `kairos.dns`
 
-When `c3os.dns` is set to `true` embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server, for example, assuming `c3os bridge` is running in a separate terminal:
+When `kairos.dns` is set to `true` embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server, for example, assuming `kairos bridge` is running in a separate terminal:
 
 ```bash
 curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'
@@ -171,7 +171,7 @@ Furthermore, is possible to tweak DNS server which are used to forward requests 
 
 ```yaml
 #cloud-config
-c3os:
+kairos:
   network_token: "...."
   # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
   dns: true

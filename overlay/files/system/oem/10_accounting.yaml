@@ -10,17 +10,17 @@ stages:
             gid: 900
      - name: "Setup users"
        users:
-        c3os:
+        kairos:
           passwd: "!"
           shell: /bin/bash
-          homedir: "/home/c3os"
+          homedir: "/home/kairos"
           groups:
           - "admin"
      - name: "Set user password if running in live"
        if: "[ -e /run/cos/live_mode ]"
        users:
-        c3os:
-          passwd: "c3os"
+        kairos:
+          passwd: "kairos"
      - name: "Setup sudo"
        files:
        - path: "/etc/sudoers"

@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/c3os-io/c3os/sdk/bus"
+	"github.com/kairos-io/kairos/sdk/bus"
 	"github.com/mudler/go-pluggable"
 	yip "github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v2"
 )
 
-const clusterProviderCloudConfigFile = "/usr/local/cloud-config/cluster.c3os.yaml"
+const clusterProviderCloudConfigFile = "/usr/local/cloud-config/cluster.kairos.yaml"
 
 // ClusterProvider returns a yip configuration that configures a Kubernetes engine.  The yip config may use any elemental
 // stages after initramfs.

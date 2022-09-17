@@ -1,4 +1,4 @@
-module github.com/c3os-io/c3os
+module github.com/kairos-io/kairos
 
 go 1.17
 

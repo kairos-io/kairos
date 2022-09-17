@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/c3os-io/c3os/internal/bus"
-	"github.com/c3os-io/c3os/internal/cmd"
-	config "github.com/c3os-io/c3os/pkg/config"
+	"github.com/kairos-io/kairos/internal/bus"
+	"github.com/kairos-io/kairos/internal/cmd"
+	config "github.com/kairos-io/kairos/pkg/config"
 
-	events "github.com/c3os-io/c3os/sdk/bus"
-	"github.com/c3os-io/c3os/sdk/unstructured"
+	events "github.com/kairos-io/kairos/sdk/bus"
+	"github.com/kairos-io/kairos/sdk/unstructured"
 
-	"github.com/c3os-io/c3os/pkg/utils"
 	"github.com/erikgeiser/promptkit/textinput"
 	"github.com/jaypipes/ghw"
+	"github.com/kairos-io/kairos/pkg/utils"
 	"github.com/mudler/go-pluggable"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pterm/pterm"
@@ -165,7 +165,7 @@ func InteractiveInstall(spawnShell bool) error {
 		return err
 	}
 
-	userName, err := prompt("User to setup", "c3os", canBeEmpty, true, false)
+	userName, err := prompt("User to setup", "kairos", canBeEmpty, true, false)
 	if err != nil {
 		return err
 	}

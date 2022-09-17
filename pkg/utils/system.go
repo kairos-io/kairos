@@ -27,9 +27,9 @@ func PowerOFF() {
 func Version() string {
 	release, _ := godotenv.Read("/etc/os-release")
 	v := release["VERSION"]
-	v = strings.ReplaceAll(v, "+k3s1-c3OS", "-")
-	v = strings.ReplaceAll(v, "+k3s-c3OS", "-")
-	return strings.ReplaceAll(v, "c3OS", "")
+	v = strings.ReplaceAll(v, "+k3s1-Kairos", "-")
+	v = strings.ReplaceAll(v, "+k3s-Kairos", "-")
+	return strings.ReplaceAll(v, "Kairos", "")
 }
 
 func OSRelease(key string) (string, error) {
@@ -47,7 +47,7 @@ func OSRelease(key string) (string, error) {
 func Flavor() string {
 	release, _ := godotenv.Read("/etc/os-release")
 	v := release["NAME"]
-	return strings.ReplaceAll(v, "c3os-", "")
+	return strings.ReplaceAll(v, "kairos-", "")
 }
 
 func IsOpenRCBased() bool {

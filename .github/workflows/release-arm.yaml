@@ -50,20 +50,20 @@ jobs:
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +all-arm --IMAGE_NAME=c3os-$FLAVOR-$TAG.img --IMAGE=quay.io/c3os/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          docker push quay.io/c3os/core-$FLAVOR:$TAG
+          docker push quay.io/kairos/core-$FLAVOR:$TAG
       - name: Sign image
         if: startsWith(github.ref, 'refs/tags/')
         env:
           COSIGN_EXPERIMENTAL: 1
         run: | 
           TAG=${GITHUB_REF##*/}
-          cosign sign quay.io/c3os/core-${{ matrix.flavor }}:$TAG
+          cosign sign quay.io/kairos/core-${{ matrix.flavor }}:$TAG
       - name: Export version
         run: |
              TAG=${GITHUB_REF##*/}
@@ -73,9 +73,9 @@ jobs:
         run: |
           curl https://luet.io/install.sh | sudo sh
           sudo tar cvf build.tar build
-          sudo luet util pack quay.io/c3os/core-${{ matrix.flavor }}:$VERSION.img build.tar image.tar
+          sudo luet util pack quay.io/kairos/core-${{ matrix.flavor }}:$VERSION.img build.tar image.tar
           sudo -E docker load -i image.tar
-          sudo -E docker push quay.io/c3os/core-${{ matrix.flavor }}:$VERSION.img
+          sudo -E docker push quay.io/kairos/core-${{ matrix.flavor }}:$VERSION.img
       - name: Upload results
         uses: actions/upload-artifact@v2
         with:
