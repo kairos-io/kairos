@@ -91,7 +91,8 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			Eventually(func() string {
 				v, _ = machine.SSHCommand("source /etc/os-release; echo $VERSION")
 				return v
-			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v0"))
+				// TODO: Add regex semver check here
+			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v"))
 			Expect(v).ToNot(Equal(currentVersion))
 		})
 	})
