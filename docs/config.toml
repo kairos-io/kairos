@@ -1,4 +1,4 @@
-baseURL = 'https://kairos-io.github.io/kairos'
+baseURL = 'https://kairos.io'
 languageCode = 'en-us'
 title = 'kairos documentation'
 # Change the default theme to be use when building the site with Hugo

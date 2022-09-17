@@ -42,7 +42,7 @@ To retrieve all the available versions, use "kairos upgrade list-releases"
 
 $ kairos upgrade list-releases
 
-See https://docs.kairos.io/after_install/upgrades/#manual for documentation.
+See https://kairos.io/after_install/upgrades/#manual for documentation.
 
 `,
 		Subcommands: []cli.Command{
@@ -186,7 +186,7 @@ Starts kairos in interactive mode install.
 
 It will ask prompt for several questions and perform an install depending on the providers available in the system.
 
-See also https://docs.kairos.io/installation/interactive_install/ for documentation.
+See also https://kairos.io/installation/interactive_install/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can be also started manually`,
 		Flags: []cli.Flag{
@@ -243,7 +243,7 @@ Starts kairos in pairing mode.
 
 It will print out a QR code which can be used with "kairos register" to send over a configuration and bootstraping a kairos node.
 
-See also https://docs.kairos.io/installation/device_pairing/ for documentation.
+See also https://kairos.io/installation/device_pairing/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},
@@ -264,7 +264,7 @@ Starts kairos recovery mode.
 In recovery mode a QR code will be printed out on the screen which should be used in conjunction with "kairos bridge". Pass by the QR code as snapshot
 to the bridge to connect over the machine which runs the "kairos recovery" command.
 
-See also https://docs.kairos.io/after_install/recovery_mode/ for documentation.
+See also https://kairos.io/after_install/recovery_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
 	},
@@ -281,7 +281,7 @@ Attention ! this will delete any persistent data on the node. It is equivalent t
 
 In reset mode a the node will automatically reset
 
-See also https://docs.kairos.io/after_install/reset_mode/ for documentation.
+See also https://kairos.io/after_install/reset_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
 	},

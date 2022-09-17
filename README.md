@@ -35,7 +35,7 @@ Kairos can be used to:
 - Manage the cluster lifecycle with Kubernetes - from building, to provisioning and upgrading
 - Create a multiple-node single cluster which spans up across regions
 
-For comprehensive docs, tutorials and examples see our [documentation](https://docs.kairos.io).
+For comprehensive docs, tutorials and examples see our [documentation](https://kairos.io).
 
 ## Project status
 

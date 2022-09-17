@@ -148,7 +148,7 @@ You should be greeted with a welcome message:
 ```
 Welcome to kairos!
 
-Refer to https://docs.kairos.io for documentation.
+Refer to https://kairos.io for documentation.
 kairos@kairos:~> 
 ```
 
