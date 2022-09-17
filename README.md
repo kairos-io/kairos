@@ -18,7 +18,7 @@
 
 <hr>
 
-Kairos is an open-source project which brings Edge, cloud and bare metal lifecycle OS management into the same design principles with a unified Cloud Native API.
+Kairos (formerly `c3os`) is an open-source project which brings Edge, cloud and bare metal lifecycle OS management into the same design principles with a unified Cloud Native API.
 
 In a glance:
 
