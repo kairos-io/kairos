@@ -1,0 +1,17 @@
+name: "sysext"
+stages:
+   fs.after:
+     - name: "Default sysext extensions dirs"
+       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+       directories:
+       - path: /etc/extensions
+       - path: /run/extensions
+       - path: /var/lib/extensions
+       - path: /usr/lib/extensions
+       - path: /usr/local/lib/extensions
+   initramfs:
+     - name: "systemd-sysext initramfs settings"
+       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+       systemctl:
+        enable:
+        - systemd-sysext
