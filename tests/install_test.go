@@ -82,7 +82,7 @@ bundles:
 install:
   auto: true
   device: /dev/sda
-config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/ac4598da56c0cd912721d63457831424bb1d2f54/test.yaml"`, func() string {
+config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae331e5c0/raw/01137c458ad62cfcdfb201cae2f8814db702c6f9/testgist.yaml"`, func() string {
 				var out string
 				out, _ = machine.Sudo("/usr/local/bin/usr/bin/edgevpn --help")
 				return out
