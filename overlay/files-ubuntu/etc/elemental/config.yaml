@@ -7,7 +7,7 @@ install:
   recovery-system:
     size: 5000
 upgrade:
-  grub-entry-name: "c3os"
+  grub-entry-name: "Kairos"
   recovery-system:
     size: 5000
   system:
