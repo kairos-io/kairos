@@ -35,6 +35,6 @@ stages:
             Defaults !insults
             root ALL=(ALL) ALL
             %admin ALL=(ALL) NOPASSWD: ALL
-            includedir /etc/sudoers.d
+            #includedir /etc/sudoers.d
        commands:
        - passwd -l root
