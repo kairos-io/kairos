@@ -13,6 +13,6 @@ upgrade:
   system:
     size: 5000
 reset:
-  grub-entry-name: "c3os"
+  grub-entry-name: "Kairos"
   system:
     size: 5000
