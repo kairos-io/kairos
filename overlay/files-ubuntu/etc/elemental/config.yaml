@@ -1,7 +1,7 @@
 cosign: false
 verify: false
 install:
-  grub-entry-name: "c3os"
+  grub-entry-name: "Kairos"
   system:
     size: 5000
   recovery-system:
