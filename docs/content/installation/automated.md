@@ -91,7 +91,7 @@ $ docker pull $IMAGE
 # docker run --entrypoint /bin/bash --name changes -ti $IMAGE
 # docker commit changes $IMAGE
 # Build an ISO with $IMAGE
-$ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/kairos/osbuilder-tools:v0.1.0 --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/files-iso $IMAGE --output /cOS/
+$ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/kairos/osbuilder-tools:v0.1.1 --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/files-iso $IMAGE --output /cOS/
 ```
 
 ### Kubernetes
@@ -132,15 +132,15 @@ TEST SUITE: None
 
 # Applies an OSArtifact spec
 cat <<'EOF' | kubectl apply -f -
-apiVersion: build.kairos-x.io/v1alpha1
+apiVersion: build.kairos.io/v1alpha1
 kind: OSArtifact
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/kairos/kairos:opensuse-latest"
+  imageName: "quay.io/kairos/core-opensuse:latest"
   iso: true
   bundles:
-  - quay.io/kairos/packages:goreleaser-utils-1.11.1
+  - quay.io/kairos/packages:goreleaser-utils-1.11.2
   grubConfig: |
           search --file --set=root /boot/kernel.xz
           set default=0
