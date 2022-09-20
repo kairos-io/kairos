@@ -1,0 +1,10 @@
+name: "Fix sudo"
+stages:
+   initramfs:
+     - name: "Fix sudo" 
+       commands:
+       - mount -o remount,suid /
+   fs.after:
+     - name: "Fix sudo" 
+       commands:
+       - mount -o remount,suid /
