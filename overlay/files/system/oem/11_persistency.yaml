@@ -7,7 +7,7 @@ stages:
       environment:
         VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
         OVERLAY: "tmpfs:25%"
-        RW_PATHS: "/var /etc /srv /tmp"
+        RW_PATHS: "/var /etc /srv"
         PERSISTENT_STATE_PATHS: >-
           /etc/systemd
           /etc/modprobe.d
