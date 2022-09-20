@@ -9,7 +9,7 @@ ISO=$1
 SSH_USER="${SSH_USER:-kairos}"
 SSHPASS="${SSH_PASS:-kairos}"
 export SSHPASS
-HD_SIZE="${HD_SIZE:-40000}"
+HD_SIZE="${HD_SIZE:-50000}"
 INSTALL_COMMAND="${INSTALL_COMMAND:-sudo /bin/sh -c 'elemental install /dev/sda && sync'}"
 
 HAS_SSHPASS="$(type "sshpass" &> /dev/null && echo true || echo false)"
