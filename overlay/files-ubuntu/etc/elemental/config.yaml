@@ -1,6 +1,14 @@
 cosign: false
 verify: false
 install:
+# Ubuntu rootfs is bigger.
+  partitions:
+    state:
+      size: 20000
+    recovery:
+      size: 15000
+    oem:
+      size: 64
   grub-entry-name: "Kairos"
   system:
     size: 5000

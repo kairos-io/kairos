@@ -3,16 +3,16 @@ verify: false
 install:
   grub-entry-name: "kairos"
   system:
-    size: 5000
+    size: 2000
   recovery-system:
-    size: 5000
+    size: 2000
 upgrade:
   grub-entry-name: "kairos"
   recovery-system:
-    size: 5000
+    size: 2000
   system:
-    size: 5000
+    size: 2000
 reset:
   grub-entry-name: "kairos"
   system:
-    size: 5000
+    size: 2000
