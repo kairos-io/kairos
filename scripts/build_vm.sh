@@ -48,7 +48,11 @@ trap cleanup EXIT
 echo "Creating VM"
 VBoxManage createmedium disk --filename $tmpdir/sda.vdi --size ${HD_SIZE}
 
-VBoxManage createvm --name "${machine_id}" --register
+if [[ "${machine_id}" == *"ubuntu"* ]]; then
+    VBoxManage createvm --name "${machine_id}" --register --ostype Ubuntu_64
+else
+    VBoxManage createvm --name "${machine_id}" --register
+fi
 VBoxManage modifyvm "${machine_id}" --memory 10240 --cpus 3
 VBoxManage modifyvm "${machine_id}" --nic1 nat --boot1 disk --boot2 dvd --natpf1 "guestssh,tcp,,2222,,22"
 VBoxManage storagectl "${machine_id}" --name "sata controller" --add sata --portcount 2 --hostiocache off
