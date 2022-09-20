@@ -151,7 +151,7 @@ framework:
 
     ENV USER=root
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]  || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN /usr/bin/luet install -y --system-target /framework \
             meta/cos-verify \
             meta/cos-core \
