@@ -1,0 +1,18 @@
+cosign: false
+verify: false
+install:
+  grub-entry-name: "kairos"
+  system:
+    size: 2000
+  recovery-system:
+    size: 2000
+upgrade:
+  grub-entry-name: "kairos"
+  recovery-system:
+    size: 2000
+  system:
+    size: 2000
+reset:
+  grub-entry-name: "kairos"
+  system:
+    size: 2000
