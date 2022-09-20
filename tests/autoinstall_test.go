@@ -35,7 +35,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
 				out, _ := machine.SSHCommand("sudo systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; vendor preset: disabled)"))
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"))
 				fmt.Println(out)
 			}
 
