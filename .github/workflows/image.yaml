@@ -246,6 +246,50 @@ jobs:
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-tests --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
 
+  upgrade-with-cli-test:
+    needs: 
+    - build
+    runs-on: macos-12
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+           node: "A" # Arbitrary field
+         - flavor: "opensuse"
+           node: "B"
+#         - flavor: "alpine"
+#           node: "C"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: kairos-${{ matrix.flavor }}.iso.zip
+    - name: Install deps
+      run: |
+        brew install cdrtools jq
+    - name: Install Go
+      uses: actions/setup-go@v2
+      with:
+          go-version: '^1.16'
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls kairos-core-*.iso)
+            export GOPATH="/Users/runner/go"
+            export CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
+            export PATH=$PATH:$GOPATH/bin
+            export CLOUD_INIT=$PWD/tests/assets/config.yaml
+            export CREATE_VM=true
+            export FLAVOR=${{ matrix.flavor }} 
+            ./.github/run_test.sh "upgrade-with-cli"
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: ${{ matrix.flavor }}-upgrade-test.logs.zip
+        path: tests/**/logs/*
+        if-no-files-found: warn
+
   upgrade-latest-with-cli-test:
     needs: 
     - build

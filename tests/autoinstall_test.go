@@ -65,16 +65,17 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 		})
 	})
 
-	Context("reboots", func() {
+	Context("reboots and passes functional tests", func() {
 		It("has grubenv file", func() {
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("sudo cat /oem/grubenv")
 				return out
-			}, 30*time.Minute, 1*time.Second).Should(
+			}, 40*time.Minute, 1*time.Second).Should(
 				Or(
 					ContainSubstring("foobarzz"),
 				))
 		})
+
 		It("has custom cmdline", func() {
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("sudo cat /proc/cmdline")
@@ -83,6 +84,16 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				Or(
 					ContainSubstring("foobarzz"),
 				))
+		})
+
+		It("has writeable tmp", func() {
+			_, err := machine.SSHCommand("sudo echo 'foo' > /tmp/bar")
+			Expect(err).ToNot(HaveOccurred())
+
+			out, err := machine.SSHCommand("sudo cat /tmp/bar")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(out).To(ContainSubstring("foo"))
 		})
 	})
 })
