@@ -23,6 +23,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental-cli:v0.0.15-8a78e6b
+ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools
 ARG GOLINT_VERSION=1.47.3
 ARG GO_VERSION=1.18
 
@@ -174,6 +175,12 @@ framework:
             cloud-config/rootfs
     END
 
+    RUN /usr/bin/luet install -y --system-target /framework system/shim system/grub2-efi
+
+    # Replace elemental from kairos repo
+    # TODO: consume toolkit from kairos and drop this workaround
+    RUN /usr/bin/luet install --force --system-target /framework -y system/elemental-cli
+
     RUN /usr/bin/luet cleanup --system-target /framework
     COPY overlay/files /framework
     RUN rm -rf /framework/var/luet
@@ -259,23 +266,17 @@ docker-rootfs:
     FROM +docker
     SAVE ARTIFACT /. rootfs
 
-elemental:
-    ARG ELEMENTAL_IMAGE
-    FROM ${ELEMENTAL_IMAGE}
-    SAVE ARTIFACT /usr/bin/elemental elemental
-
 iso:
-    ARG ELEMENTAL_IMAGE
+    ARG OSBUILDER_IMAGE
     ARG ISO_NAME=${OS_ID}
     ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
-    ARG TOOLKIT_REPOSITORY=quay.io/costoolkit/releases-teal
-    FROM $ELEMENTAL_IMAGE
+    FROM $OSBUILDER_IMAGE
     RUN zypper in -y jq docker
     WORKDIR /build
     COPY . ./
     WITH DOCKER --allow-privileged --load $IMAGE=(+docker)
-        RUN elemental --repo $TOOLKIT_REPOSITORY --name $ISO_NAME --debug build-iso --date=false --local --overlay-iso /build/${overlay} $IMAGE --output /build/
+        RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false --local --overlay-iso /build/${overlay} $IMAGE --output /build/
     END
     # See: https://github.com/rancher/elemental-cli/issues/228
     RUN sha256sum $ISO_NAME.iso > $ISO_NAME.iso.sha256
