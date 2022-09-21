@@ -45,6 +45,10 @@ RUN systemctl enable ssh
 RUN echo "auto lo" > /etc/network/interfaces
 RUN echo "iface lo inet loopback" >> /etc/network/interfaces
 
+# Enable tmp
+RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 
+RUN systemctl enable tmp.mount
+
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
