@@ -152,7 +152,6 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "alpine"
-         - flavor: "ubuntu"
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v2
