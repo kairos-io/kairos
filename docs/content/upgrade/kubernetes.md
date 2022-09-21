@@ -70,4 +70,114 @@ system-upgrade   apply-os-upgrade-on-kairos-with-1a1a24bcf897bd275730bdd8548-h7f
 
 Done! we should have all the basic to get our first cluster rolling, but there is much more we can do. 
 
-Don't miss out how to create multi-machine clusters, or clusters using the p2p fully-meshed network.
+## Customize the upgrade plan
+
+It is possible to run additional commands before the upgrade takes place into the node, consider the following example
+
+```yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: custom-script
+  namespace: system-upgrade
+type: Opaque
+stringData:
+  upgrade.sh: |
+    #!/bin/sh
+    set -e
+
+    # custom command, for example, that injects or modifies a configuration option
+    sed -i 's/something/to/g' /host/oem/99_custom.yaml
+    # run the upgrade script
+    /usr/sbin/suc-upgrade
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: custom-os-upgrade
+  namespace: system-upgrade
+spec:
+  concurrency: 1
+  # This is the version (tag) of the image. 
+  # The version is refered to the kairos version plus the k3s version.
+  version: "v1.0.0-rc2-k3sv1.23.9-k3s1"
+  nodeSelector:
+    matchExpressions:
+      - {key: kubernetes.io/hostname, operator: Exists}
+  serviceAccountName: system-upgrade
+  cordon: false
+  drain:
+    force: false
+    disableEviction: true
+  upgrade:
+    # Here goes the image which is tied to the flavor being used.
+    # Currently can pick between opensuse and alpine
+    image: quay.io/kairos/kairos-opensuse
+    command:
+    - "/bin/bash"
+    - "-c"
+    args:
+    - bash /host/run/system-upgrade/secrets/custom-script/upgrade.sh
+  secrets:
+    - name: custom-script
+      path: /host/run/system-upgrade/secrets/custom-script
+```
+
+## Upgrade from c3os to Kairos
+
+If you have already a `c3os` deployment, upgrading to Kairos requires changing every instance of `c3os` to `kairos` in the config file. This can be either done manually or with Kubernetes before rolling the upgrade, consider customize the upgrade plan, for instance:
+
+```yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: custom-script
+  namespace: system-upgrade
+type: Opaque
+stringData:
+  upgrade.sh: |
+    #!/bin/sh
+    set -e
+    sed -i 's/c3os/kairos/g' /host/oem/99_custom.yaml
+    /usr/sbin/suc-upgrade
+---
+apiVersion: upgrade.cattle.io/v1
+kind: Plan
+metadata:
+  name: custom-os-upgrade
+  namespace: system-upgrade
+spec:
+  concurrency: 1
+  # This is the version (tag) of the image. 
+  # The version is refered to the kairos version plus the k3s version.
+  version: "v1.0.0-rc2-k3sv1.23.9-k3s1"
+  nodeSelector:
+    matchExpressions:
+      - {key: kubernetes.io/hostname, operator: Exists}
+  serviceAccountName: system-upgrade
+  cordon: false
+  drain:
+    force: false
+    disableEviction: true
+  upgrade:
+    # Here goes the image which is tied to the flavor being used.
+    # Currently can pick between opensuse and alpine
+    image: quay.io/kairos/kairos-opensuse
+    command:
+    - "/bin/bash"
+    - "-c"
+    args:
+    - bash /host/run/system-upgrade/secrets/custom-script/upgrade.sh
+  secrets:
+    - name: custom-script
+      path: /host/run/system-upgrade/secrets/custom-script
+```
+
+## What's next?
+
+- [Upgrade nodes manually](/upgrade/manual)
+- [Immutable architeture](/architecture/immutable)
+- [Create decentralized clusters](/installation/p2p)
+

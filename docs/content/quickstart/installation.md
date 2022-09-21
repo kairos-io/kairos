@@ -172,9 +172,9 @@ The `k3s` kubeconfig file is available at `/etc/rancher/k3s/k3s.yaml`. Please re
 
 There are other ways to install kairos:
 
-- [Automate installation via cloud-config](/installation/automated)
-- [Manual installation](/installation/manual)
-- [Enable P2P mesh](/installation/p2p)
+- [Automated installation](/installation/automated)
+- [Manual login and installation](/installation/manual)
+- [Create decentralized clusters](/installation/p2p)
 - [Take over installation](/installation/takeover)
 - [Raspberry PI](/installation/raspberry)
 - [Netboot (TODO)]()
