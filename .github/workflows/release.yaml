@@ -16,10 +16,6 @@ jobs:
       matrix:
        include:
          - flavor: "opensuse"
-#        - flavor: "ubuntu"
-#         - flavor: "fedora"
-#         - flavor: "alpine"
-       #  - flavor: "tumbleweed"
     steps:
       - uses: actions/checkout@v2
       - run: |
@@ -60,10 +56,8 @@ jobs:
       matrix:
        include:
          - flavor: "opensuse"
-#        - flavor: "ubuntu"
-#         - flavor: "fedora"
          - flavor: "alpine"
-       #  - flavor: "tumbleweed"
+         - flavor: "ubuntu"
     steps:
       - uses: actions/checkout@v2
       - run: |
@@ -121,9 +115,6 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "alpine"
-        # - flavor: "tumbleweed"
-#         - flavor: "ubuntu"
-#         - flavor: "fedora"
     steps:
       - uses: actions/checkout@v2
       - name: Install deps
@@ -161,7 +152,7 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "alpine"
-      #   - flavor: "tumbleweed"
+         - flavor: "ubuntu"
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v2
