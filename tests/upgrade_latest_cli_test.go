@@ -42,7 +42,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
 				out, _ := machine.Sudo("systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; vendor preset: disabled)"))
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled"))
 			}
 		})
 	})

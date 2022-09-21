@@ -15,8 +15,11 @@ END
 
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
-# TODO: This should match for each flavor
-ARG COSIGN_REPOSITORY=raccos/releases-teal
+IF [ "$FLAVOR" = "ubuntu" ]
+    ARG COSIGN_REPOSITORY=raccos/releases-orange
+ELSE
+    ARG COSIGN_REPOSITORY=raccos/releases-teal
+END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental-cli:v0.0.15-8a78e6b
@@ -148,7 +151,7 @@ framework:
 
     ENV USER=root
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]  || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN /usr/bin/luet install -y --system-target /framework \
             meta/cos-verify \
             meta/cos-core \

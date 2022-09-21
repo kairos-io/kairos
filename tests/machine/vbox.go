@@ -49,7 +49,7 @@ func qemuRun(sshPort string) {
 	t, err := ioutil.TempDir("", "test")
 	Expect(err).ToNot(HaveOccurred())
 
-	err = CreateDisk(filepath.Join(t, "disk.img"), "40g")
+	err = CreateDisk(filepath.Join(t, "disk.img"), "50g")
 	Expect(err).ToNot(HaveOccurred())
 
 	SUT = &Config{

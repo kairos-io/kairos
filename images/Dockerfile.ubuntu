@@ -32,7 +32,9 @@ RUN apt install -y \
     gawk \
     haveged \
     rsync \
+    jq \
     neovim \
+    open-vm-tools \
     linux-image-generic-hwe-20.04 && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
