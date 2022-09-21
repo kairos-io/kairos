@@ -70,7 +70,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Eventually(func() string {
 				out, _ := machine.SSHCommand("sudo cat /oem/grubenv")
 				return out
-			}, 30*time.Minute, 1*time.Second).Should(
+			}, 40*time.Minute, 1*time.Second).Should(
 				Or(
 					ContainSubstring("foobarzz"),
 				))
