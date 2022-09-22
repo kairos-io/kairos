@@ -22,18 +22,18 @@ Kairos (formerly `c3os`) is an open-source project which brings Edge, cloud and 
 
 In a glance:
 
-- Community Driven
-- Open Source
-- Linux immutable meta-Distro
-- Secure
-- Container based
-- Distro agnostic
+- :bowtie: Community Driven
+- :octocat: Open Source
+- :lock: Linux immutable meta-Distro
+- :key: Secure
+- :whale: Container based
+- :penguin: Distro agnostic
 
 Kairos can be used to:
 
-- Easily spin up a Kubernetes cluster, with the Linux distribution of your choice
-- Manage the cluster lifecycle with Kubernetes - from building, to provisioning and upgrading
-- Create a multiple-node single cluster which spans up across regions
+- Easily spin up a Kubernetes cluster, with the Linux distribution of your choice :penguin:
+- Manage the cluster lifecycle with Kubernetes - from building, to provisioning and upgrading :rocket:
+- Create a multiple-node single cluster which spans up across regions :earth_africa:
 
 For comprehensive docs, tutorials and examples see our [documentation](https://kairos.io).
 
