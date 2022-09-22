@@ -108,6 +108,12 @@ func HasDir(s string) {
 	Expect(out).Should(Equal("ok\n"))
 }
 
+func Reboot() {
+	Sudo("reboot") //nolint:errcheck
+	time.Sleep(1 * time.Minute)
+	EventuallyConnects(750)
+}
+
 func EventuallyConnects(t ...int) {
 	dur := 360
 	if len(t) > 0 {

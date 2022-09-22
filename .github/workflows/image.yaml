@@ -210,7 +210,7 @@ jobs:
   upgrade-with-cli-test:
     needs: 
     - build
-    runs-on: macos-12
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -224,23 +224,44 @@ jobs:
       uses: actions/download-artifact@v2
       with:
         name: kairos-${{ matrix.flavor }}.iso.zip
-    - name: Install deps
+    - name: Release space from worker
       run: |
-        brew install cdrtools jq
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-          go-version: '^1.16'
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        df -h
+        echo
+        sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+        sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+        sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+        sudo rm -rf /usr/local/lib/android
+        sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+        sudo rm -rf /usr/share/dotnet
+        sudo apt-get remove -y '^mono-.*' || true
+        sudo apt-get remove -y '^ghc-.*' || true
+        sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+        sudo apt-get remove -y 'php.*' || true
+        sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+        sudo apt-get remove -y '^google-.*' || true
+        sudo apt-get remove -y azure-cli || true
+        sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+        sudo apt-get remove -y '^gfortran-.*' || true
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        echo
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        sudo rm -rfv build || true
+        df -h
     - run: |
             ls -liah
-            export ISO=$PWD/$(ls kairos-core-*.iso)
-            export GOPATH="/Users/runner/go"
-            export CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
-            export PATH=$PATH:$GOPATH/bin
-            export CLOUD_INIT=$PWD/tests/assets/config.yaml
-            export CREATE_VM=true
-            export FLAVOR=${{ matrix.flavor }} 
-            ./.github/run_test.sh "upgrade-with-cli"
+            export ISO=$PWD/$(ls *.iso)
+            sudo mkdir build
+            sudo mv $ISO build/
+            ./earthly.sh +run-qemu-upgrade-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-with-cli
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
@@ -252,7 +273,7 @@ jobs:
     needs: 
     - build
     - latest-release
-    runs-on: macos-12
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -266,23 +287,44 @@ jobs:
       uses: actions/download-artifact@v2
       with:
         name: latest-release.zip
-    - name: Install deps
+    - name: Release space from worker
       run: |
-        brew install cdrtools jq
-    - name: Install Go
-      uses: actions/setup-go@v2
-      with:
-          go-version: '^1.16'
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        df -h
+        echo
+        sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+        sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+        sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+        sudo rm -rf /usr/local/lib/android
+        sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+        sudo rm -rf /usr/share/dotnet
+        sudo apt-get remove -y '^mono-.*' || true
+        sudo apt-get remove -y '^ghc-.*' || true
+        sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+        sudo apt-get remove -y 'php.*' || true
+        sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+        sudo apt-get remove -y '^google-.*' || true
+        sudo apt-get remove -y azure-cli || true
+        sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+        sudo apt-get remove -y '^gfortran-.*' || true
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        echo
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        sudo rm -rfv build || true
+        df -h
     - run: |
             ls -liah
-            export ISO=$PWD/$(ls kairos-${{ matrix.flavor }}-*.iso)
-            export GOPATH="/Users/runner/go"
-            export CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
-            export PATH=$PATH:$GOPATH/bin
-            export CLOUD_INIT=$PWD/tests/assets/config.yaml
-            export CREATE_VM=true
-            export FLAVOR=${{ matrix.flavor }} 
-            ./.github/run_test.sh "upgrade-latest-with-cli"
+            export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
+            sudo mkdir build
+            sudo mv $ISO build/
+            ./earthly.sh +run-qemu-upgrade-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-latest-with-cli
     - uses: actions/upload-artifact@v2
       if: failure()
       with:

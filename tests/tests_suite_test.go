@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/kairos-io/kairos/pkg/utils"
@@ -37,10 +36,6 @@ var _ = AfterSuite(func() {
 })
 
 var _ = BeforeSuite(func() {
-
-	if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
-		Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
-	}
 
 	if machineID == "" {
 		machineID = "testvm"

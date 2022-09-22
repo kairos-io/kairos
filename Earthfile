@@ -417,3 +417,27 @@ run-qemu-tests:
     ENV CLOUD_INIT=$CLOUD_CONFIG
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+
+run-qemu-upgrade-test:
+    FROM opensuse/leap
+    WORKDIR /test
+    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
+    ARG FLAVOR
+    ARG TEST_SUITE=upgrade-with-cli
+    ARG FROM_ARTIFACTS
+    ARG CONTAINER_IMAGE
+    ENV CONTAINER_IMAGE=$CONTAINER_IMAGE
+    ENV FLAVOR=$FLAVOR
+    ENV SSH_PORT=60022
+    ENV CREATE_VM=true
+    ENV USE_QEMU=true
+
+    ENV GOPATH="/go"
+
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
+    COPY . .
+    ARG ISO=$(ls /test/build/*.iso)
+    ENV ISO=$ISO
+
+    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
