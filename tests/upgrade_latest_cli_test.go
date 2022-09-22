@@ -52,7 +52,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			err := machine.SendFile("assets/config.yaml", "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
-			out, _ := machine.Sudo("elemental install --cloud-init /tmp/config.yaml /dev/sda")
+			out, _ := machine.Sudo("kairos-agent manual-install --device auto /tmp/config.yaml")
 			Expect(out).Should(ContainSubstring("Running after-install hook"))
 			fmt.Println(out)
 			machine.Sudo("sync")
@@ -73,14 +73,16 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
 				Expect(out).To(ContainSubstring(containerImage))
+				fmt.Println(out)
 			} else {
 				out, err := machine.Sudo("kairos upgrade --force --image " + containerImage)
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
 				Expect(out).To(ContainSubstring(containerImage))
+				fmt.Println(out)
 			}
-			machine.Sudo("reboot")
-			machine.EventuallyConnects(750)
+
+			machine.Reboot()
 
 			Eventually(func() error {
 				_, err := machine.SSHCommand("source /etc/os-release; echo $VERSION")
@@ -92,8 +94,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 				v, _ = machine.SSHCommand("source /etc/os-release; echo $VERSION")
 				return v
 				// TODO: Add regex semver check here
-			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v"))
-			Expect(v).ToNot(Equal(currentVersion))
+			}, 10*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
 		})
 	})
 })
