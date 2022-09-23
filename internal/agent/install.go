@@ -31,7 +31,9 @@ func optsToArgs(options map[string]string) (res []string) {
 	for k, v := range options {
 		if k != "device" && k != "cc" && k != "reboot" && k != "poweroff" {
 			res = append(res, fmt.Sprintf("--%s", k))
-			res = append(res, v)
+			if v != "" {
+				res = append(res, v)
+			}
 		}
 	}
 	return
