@@ -88,43 +88,7 @@ jobs:
         run: | 
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
-# Test start
-  build-vm-images:
-    needs: 
-    - build
-    runs-on: macos-12
-    strategy:
-      fail-fast: false
-      matrix:
-       include:
-         - flavor: "opensuse"
-         - flavor: "alpine"
-    steps:
-      - uses: actions/checkout@v2
-      - name: Install deps
-        run: |
-          brew install hudochenkov/sshpass/sshpass
-          brew install qemu
-      - name: Download artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-      - run: |
-              ls -liah
-              iso=$(ls *.iso)
-              bash scripts/build_vm.sh $iso
-      - uses: actions/upload-artifact@v2
-        with:
-          name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
-          path: |
-            *.qcow2.tar.xz
-      - uses: actions/upload-artifact@v2
-        with:
-          name: kairos-${{ matrix.flavor }}.ova
-          path: |
-            *.ova
-          if-no-files-found: error
-
+  
   install-test:
     needs: 
     - build
