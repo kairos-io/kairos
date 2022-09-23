@@ -7,7 +7,7 @@ VERSION=$3
 
 isoinfo -x /rootfs.squashfs -R -i $ISO > $OUTPUT_NAME.squashfs
 isoinfo -x /boot/kernel -R -i $ISO > $OUTPUT_NAME-kernel
-isoinfo -x /boot/rootfs -R -i $ISO > $OUTPUT_NAME-initrd
+isoinfo -x /boot/initrd -R -i $ISO > $OUTPUT_NAME-initrd
 
 RELEASE_URL=${RELEASE_URL:-https://github.com/kairos-io/kairos/releases/download}
 
