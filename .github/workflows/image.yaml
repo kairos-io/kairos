@@ -207,6 +207,31 @@ jobs:
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-tests --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
 
+  qemu-reset-tests:
+    needs: 
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+         - flavor: "opensuse"
+         - flavor: "ubuntu"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+          name: kairos-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/kairos.iso
+            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
+
   upgrade-with-cli-test:
     needs: 
     - build
