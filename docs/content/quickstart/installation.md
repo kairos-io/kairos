@@ -24,7 +24,7 @@ To simplify, we will install kairos inside a VM, however, your mileage and confi
 ### Prerequisites
 
 - A VM hypervisor that boots ISOs
-- A machine where to run the kairos-cli (optional, we will see)
+- A Linux machine where to run the kairos-cli (optional, we will see)
 - A configuration file (cloud-init)
 
 ### Download
@@ -104,7 +104,9 @@ Several configuration can be added at this stage. [See the configuration referen
 
 {{% notice note %}}
 
-Below there are instruction using the `kairos-cli`.  To install by logging over SSH into the box see [Manual install](/installation/manual) or [Interactive install](/installation/interactive) for driving the installation manually from the console.
+Below there are instruction using the `kairos-cli` which works only on Linux. 
+
+To install by logging over SSH into the box see [Manual install](/installation/manual) or [Interactive install](/installation/interactive) for driving the installation manually from the console.
 
 {{% /notice %}}
 
