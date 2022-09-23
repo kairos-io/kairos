@@ -104,6 +104,12 @@ func Create(sshPort string) {
 }
 func HasDir(s string) {
 	out, err := SSHCommand("if [ -d " + s + " ]; then echo ok; else echo wrong; fi")
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	ExpectWithOffset(1, out).Should(Equal("ok\n"))
+}
+
+func HasFile(s string) {
+	out, err := SSHCommand("if [ -f " + s + " ]; then echo ok; else echo wrong; fi")
 	Expect(err).ToNot(HaveOccurred())
 	Expect(out).Should(Equal("ok\n"))
 }
