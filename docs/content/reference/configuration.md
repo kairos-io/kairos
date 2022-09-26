@@ -39,7 +39,14 @@ install:
   - ...
   # Set grub options
   grub_options:
-    key: value
+    # additional Kernel option cmdline to apply 
+    extra_cmdline: "config_url=http://"
+    # Same, just for active
+    extra_active_cmdline: ""
+    # Same, just for passive
+    extra_passive_cmdline: ""
+    # Change GRUB menu entry
+    default_menu_entry: ""
 
 vpn:
   # EdgeVPN environment options
@@ -83,6 +90,17 @@ stages:
        authorized_keys:
         kairos: 
         - github:mudler
+
+# Various options.
+# Those could apply to install, or other phases as well
+options:
+  # Specify an alternative image to use during installation
+  system.uri: ""
+  # Specify an alternative recovery image to use during installation
+  recovery-system.uri: ""
+  # Just set it to eject the cd after install
+  eject-cd: ""
+
 ```
 
 
@@ -92,34 +110,38 @@ stages:
 
 Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples). 
 
+The extended syntax can be also used to pass-by commands via Kernel boot parameters
+
 ### `k3s`
 
 The `k3s` and the `k3s-agent` block are used to customize the environment and arg settings of k3s, consider:
 
+{{< tabs groupId="k3s">}}
+{{% tab name="server" %}}
 ```yaml
 k3s:
   enabled: true
   # Additional env/args for k3s server instances
   env:
     K3S_RESOLV_CONF: ""
-    K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
+    K3S_DATASTORE_ENDPOINT: ""
   args:
-  - --cluster-init
+  - ...
 ```
-
-for agent:
-
-
+{{% /tab %}}
+{{% tab name="agent" %}}
 ```yaml
 k3s-agent:
   enabled: true
   # Additional env/args for k3s server instances
   env:
     K3S_RESOLV_CONF: ""
-    K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
+    K3S_DATASTORE_ENDPOINT: ""
   args:
-  - --cluster-init
+  - 
 ```
+{{% /tab %}}
+{{< /tabs >}}
 
 See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure k3s manually.
 
@@ -184,3 +206,49 @@ vpn:
   # Set DNS forward server
   DNSFORWARDSERVER: "8.8.8.8:53"
 ```
+
+## Automatic kubernetes deployments
+
+When using the `k3s` as Kubernetes distribution, it's possible to automatically deploy helm charts or Kubernetes resources automatically after deployment, for instance to deploy fleet automatically:
+
+```yaml
+name: "Deploy fleet out of the box"
+stages:
+    boot:
+     - name: "Copy fleet deployment files"
+       files:
+       - path: /var/lib/rancher/k3s/server/manifests/fleet-config.yaml
+         content: |
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: cattle-system
+              ---
+              apiVersion: helm.cattle.io/v1
+              kind: HelmChart
+              metadata:
+                name: fleet-crd
+                namespace: cattle-system
+              spec:
+                chart: https://github.com/rancher/fleet/releases/download/v0.3.8/fleet-crd-0.3.8.tgz
+              ---
+              apiVersion: helm.cattle.io/v1
+              kind: HelmChart
+              metadata:
+                name: fleet
+                namespace: cattle-system
+              spec:
+                chart: https://github.com/rancher/fleet/releases/download/v0.3.8/fleet-0.3.8.tgz              
+```
+
+## Kernel boot parameters
+
+All the configurations can be issued via Kernel boot parameters, for instance, consider to add an user from the boot menu:
+
+`stages.boot[0].authorized_keys.root[0]=github:mudler`
+
+Or to either load a config url from network:
+
+`config_url=http://...`
+
+Usually secret gists are used to share such config files.

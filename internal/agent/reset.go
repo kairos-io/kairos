@@ -1,19 +1,34 @@
 package agent
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"sync"
 	"time"
 
+	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
+	sdk "github.com/kairos-io/kairos/sdk/bus"
+
+	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"
 )
 
 func Reset() error {
+	bus.Manager.Initialize()
+
+	options := map[string]string{}
+
+	bus.Manager.Response(sdk.EventBeforeReset, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
+		err := json.Unmarshal([]byte(r.Data), &options)
+		if err != nil {
+			fmt.Println(err)
+		}
+	})
 
 	cmd.PrintBranding(DefaultBanner)
 
@@ -43,7 +58,15 @@ func Reset() error {
 	time.Sleep(60 * time.Second)
 	lock.Lock()
 	args := []string{"reset"}
-	args = append(args, "--reset-persistent")
+
+	bus.Manager.Publish(sdk.EventBeforeReset, sdk.EventPayload{}) //nolint:errcheck
+
+	optsArgs := optsToArgs(options)
+	if len(optsArgs) > 0 {
+		args = append(args, optsArgs...)
+	} else {
+		args = append(args, "--reset-persistent")
+	}
 
 	cmd := exec.Command("elemental", args...)
 	cmd.Env = os.Environ()
@@ -54,6 +77,8 @@ func Reset() error {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	bus.Manager.Publish(sdk.EventAfterReset, sdk.EventPayload{}) //nolint:errcheck
 
 	pterm.Info.Println("Rebooting in 60 seconds, press Enter to abort...")
 

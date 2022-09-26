@@ -30,6 +30,9 @@ const (
 	EventVersionImage      pluggable.EventType = "agent.version_image"
 
 	EventInteractiveInstall pluggable.EventType = "agent.interactive-install"
+
+	EventAfterReset  pluggable.EventType = "agent.reset.after"
+	EventBeforeReset pluggable.EventType = "agent.reset.before"
 )
 
 type InstallPayload struct {
@@ -66,6 +69,8 @@ type VersionImagePayload struct {
 var AllEvents = []pluggable.EventType{
 	EventBootstrap,
 	EventChallenge,
+	EventAfterReset,
+	EventBeforeReset,
 	EventBoot,
 	EventInstall,
 	EventRecovery,
