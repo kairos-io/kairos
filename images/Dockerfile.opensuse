@@ -52,6 +52,7 @@ RUN zypper in -y \
     squashfs \
     strace \
     systemd \
+    systemd-network \
     systemd-sysvinit \
     tar \
     timezone \
