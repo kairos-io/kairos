@@ -1,0 +1,33 @@
+.toc {
+  margin-left: 2rem;
+  position: fixed;
+}
+
+.toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0.5rem;
+  position: relative;
+  border-left: 2px solid #e06948;
+}
+
+.toc li {
+  font-size: 1rem;
+  padding: 0.1rem 0 0.1rem 1rem;
+}
+
+.toc li > a {
+  display: inline-flex;
+  gap: 0.5em;
+  width: 100%;
+  padding: 0.4em 0;
+  text-underline-offset: 0.08em;
+  align-items: center;
+  text-decoration: none;
+  color: #000;
+  opacity: 0.9;
+}
+
+.toc li > a:hover {
+  color: #e06948;
+}

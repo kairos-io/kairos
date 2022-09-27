@@ -1,0 +1,248 @@
+---
+import hero from "../../assets/landing-page-hero.png";
+import heroImage from "../../assets/logos/kairos-white-column.png";
+import footerLogo from "../../assets/index/footer.png";
+import Sections from "./Sections";
+---
+
+<html lang="en">
+  <head>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .wrapper {
+        margin-top: 2em;
+        margin-bottom: 2em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      * {
+        font-family: "Noto Sans";
+        box-sizing: border-box;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+      }
+
+      @media (min-width: 750px) {
+        .hero {
+          height: 45vw;
+        }
+      }
+
+      .hero {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .hero-logo {
+        margin: 0 160px;
+      }
+
+      .overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        padding: 0 24px;
+      }
+
+      .constraint {
+        width: 100%;
+        max-width: 1300px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .title {
+        font-weight: 600;
+        font-size: 48px;
+        line-height: 100%;
+        letter-spacing: 0.02em;
+        color: #ffffff;
+      }
+
+      .title > span {
+        color: #e06948;
+      }
+
+      .grid {
+        display: grid;
+        grid-gap: 2rem;
+      }
+
+      .sectionTitle {
+        font-weight: 700;
+        font-size: var(--f-u8);
+        margin-top: 4rem;
+        margin-bottom: 2rem;
+      }
+
+      .roles {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5em;
+        font-size: var(--f-d1);
+      }
+
+      .role {
+        position: relative;
+        display: inline-block;
+        white-space: nowrap;
+        font-weight: 900;
+        color: var(--t-bg);
+        background-color: var(--t-fg);
+        padding: 0.25em 0.5em;
+        z-index: 2;
+      }
+
+      .invert {
+        position: absolute;
+        color: var(--t-fg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        clip-path: polygon(0% 100%, 100% 100%, 100% 200%, 0% 200%);
+        transition: clip-path cubic-bezier(0.4, 0, 0.5, 1) 150ms;
+      }
+
+      .desc {
+        font-weight: 400;
+        font-size: 24px;
+        line-height: 44px;
+        letter-spacing: -0.02em;
+        color: #ffffff;
+        max-width: 748px;
+        margin: 50px 0;
+      }
+
+      .subtitle {
+        display: block;
+        font-weight: 400;
+        font-size: var(--f-d6);
+        letter-spacing: -0.0625em;
+      }
+
+      .bio {
+        line-height: 2;
+        margin-bottom: 2rem;
+      }
+
+      .bio > span:first-of-type {
+        line-height: 1;
+        margin-bottom: 0.5em;
+        display: block;
+        font-weight: 700;
+        font-size: var(--f-u4);
+      }
+
+      .buttons {
+        display: flex;
+      }
+
+      .buttons > a {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        padding: 8px 16px;
+        width: 210px;
+        height: 50px;
+        font-weight: 600;
+        font-size: 22px;
+        line-height: 22px;
+        text-decoration: none;
+        text-transform: uppercase;
+        border-radius: 4px;
+        margin-right: 40px;
+      }
+
+      #quickstart {
+        background: #ffb39e;
+        box-shadow: 0px 0px 2px rgba(0, 0, 0, 0.2),
+          0px 1px 2px rgba(0, 0, 0, 0.1), inset 0px -1px 0px rgba(0, 0, 0, 0.2);
+        color: #000000;
+      }
+
+      #download {
+        border: 1px solid #8facd4;
+        box-shadow: inset 0px -1px 0px rgba(0, 0, 0, 0.2);
+        filter: drop-shadow(0px 0px 2px rgba(0, 0, 0, 0.2))
+          drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.1));
+        color: #8facd4;
+      }
+
+      footer {
+        background: #e06948;
+        height: 250px;
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <img
+        width="1600"
+        height="658"
+        class="hero"
+        src={hero}
+        sizes="(max-width: 800px) 800px, (max-width: 1200px) 1200px, (max-width: 1600px) 1600px, (max-width: 2400px) 2400px, 1200px"
+      />
+      <div class="overlay">
+        <div class="constraint">
+          <div class="hero-logo">
+            <img src={heroImage} alt="main logo" width="200" />
+          </div>
+          <div>
+            <h1 class="title">
+              Edge, but <span>better</span>
+            </h1>
+            <p class="desc">
+              Open-source project which blends Edge, cloud and bare metal nodes
+              lifecycle management by extending the Kubernetes native API.
+            </p>
+            <div class="buttons">
+              <a id="quickstart" href="/content/quickstart/quickstart/"
+                >Quickstart</a
+              >
+              <a id="download" href="/">Download</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main class="wrapper">
+      <div class="constraint"><Sections /></div>
+    </main>
+    <footer>
+      <img src={footerLogo} height="122px" alt="footer logo" />
+    </footer>
+  </body>
+</html>

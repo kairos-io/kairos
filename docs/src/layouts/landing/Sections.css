@@ -1,0 +1,133 @@
+.sections {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 1200px;
+  padding: 64px 0;
+  justify-content: center;
+}
+
+.sections[aria-current="horizontal"] {
+  flex-direction: row;
+  width: 100%;
+}
+
+.main-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  width: 100%;
+}
+
+.main-section:last-child {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.main-section > .sections {
+  padding-bottom: 0;
+}
+
+.main-section > .title {
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 22px;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.secondary-section {
+  display: flex;
+  flex-direction: row;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 32px 0;
+}
+
+.secondary-section:first-child {
+  padding-top: 0;
+}
+
+.secondary-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.secondary-section > .title {
+  max-width: 320px;
+  margin-right: 32px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 22px;
+  color: #000000;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sections[aria-current="horizontal"] p {
+  text-align: center;
+}
+
+.sections[aria-current="horizontal"] p {
+  text-align: center;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section {
+  flex-direction: column;
+  align-items: center;
+  border-bottom: 0;
+  padding: 0;
+  width: 100%;
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  margin: 0 16px;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section:first-child {
+  margin-left: 0;
+}
+.sections[aria-current="horizontal"] > .secondary-section:last-child {
+  margin-right: 0;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section > .title {
+  padding: 32px 12px;
+  flex-grow: 1;
+  width: 100%;
+  border-right: 0px;
+  border-left: 0px;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section > .title > div {
+  margin: 32px 0;
+}
+
+.tertiary-section {
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.tertiary-section:last-child {
+  border-bottom: 0px;
+}
+
+.tertiary-section > .title {
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 42px;
+  color: #000000;
+}
+
+.sections p {
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 21px;
+  color: #111111;
+  margin: 12px 0;
+}
