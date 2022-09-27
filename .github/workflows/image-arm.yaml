@@ -1,11 +1,10 @@
 ---
-name: 'ARM build'
+name: 'Push latest ARM images'
 
 on: 
  push:
    branches:
      - master
- pull_request:
 
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
