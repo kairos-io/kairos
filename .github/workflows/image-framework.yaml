@@ -1,10 +1,9 @@
-name: Build Framework images
+name: Build latest Framework images
 
 on: 
  push:
    branches:
      - master
- pull_request:
 
 concurrency:
   group: ci-fw-${{ github.head_ref || github.ref }}-${{ github.repository }}

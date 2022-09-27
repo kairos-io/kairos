@@ -146,9 +146,27 @@ jobs:
             fi
 
 workflows:
+
   build:
     jobs:
+    - build-arm:
+        matrix:
+          parameters:
+            image: ["quay.io/kairos/core"]
+            flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
+            model: ["rpi64"]
+            release: ["no"]
+    - build-framework:
+        matrix:
+          parameters:
+            image: ["quay.io/kairos/framework"]
+            flavor: ["opensuse"]
+            release: ["no"]
+  lint:
+    jobs:
       - lint
+  test:
+    jobs:
       - unit-test
       - build-bin
       # - build-iso:
