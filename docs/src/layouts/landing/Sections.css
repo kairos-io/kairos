@@ -99,6 +99,11 @@
   display: flex;
   justify-content: flex-end;
 }
+
+.sections[aria-current="horizontal"] > .secondary-section .image-container-removeHeight {
+  display: flex;
+    justify-content: flex-end;
+}
 .sections[aria-current="horizontal"]>.secondary-section img {
   margin: 0;
 }

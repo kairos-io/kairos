@@ -132,11 +132,13 @@ const MAIN_SECTIONS = [
       {
         title: "Contribute on Github",
         icon: github,
+        noHeight: true,
         iconWidth: "64",
       },
       {
         title: "Documentation",
         icon: book,
+        noHeight: true,
         iconWidth: "64",
       },
     ],
@@ -156,7 +158,7 @@ export default function Sections() {
     return (
       <div className="secondary-section" key={index}>
         <div className="title">
-          <div className="image-container"><img src={section.icon} alt="section logo" width={section.iconWidth || "112"} /></div>
+          <div className={`${section.noHeight ? "image-container-removeHeight" : "image-container"}`}><img src={section.icon} alt="section logo" width={section.iconWidth || "112"} /></div>
           <div>{section.title}</div>
           <p>{section.description}</p>
         </div>
