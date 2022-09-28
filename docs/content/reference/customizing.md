@@ -3,7 +3,7 @@ title = "Customizing the system image"
 date = 2022-02-09T17:56:26+01:00
 weight = 5
 chapter = false
-pre = "<b>- </b>"
+pre = ""
 +++
 
 `kairos` is a container-based OS, if you want to change `kairos` and add a package it is required to build only a docker image.

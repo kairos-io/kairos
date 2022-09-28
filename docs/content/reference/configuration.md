@@ -3,7 +3,7 @@ title = "Configuration reference"
 date = 2022-02-09T17:56:26+01:00
 weight = 4
 chapter = false
-pre = "<b>- </b>"
+pre = ""
 +++
 
 Here you can find a full reference of the fields available to configure a kairos node

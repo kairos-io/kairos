@@ -3,7 +3,7 @@ title = "Troubleshooting"
 date = 2022-02-09T17:56:26+01:00
 weight = 3
 chapter = false
-pre = "<b>- </b>"
+pre = ""
 +++
 
 Things can go wrong, this section tries to give guidelines in helping out identify potential issues.
