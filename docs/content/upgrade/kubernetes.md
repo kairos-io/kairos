@@ -6,12 +6,12 @@ weight = 1
 pre = "<b>- </b>"
 +++
 
-Kairos upgrades can be driven either manually or via Kubernetes. In order to trigger upgrades it is required to apply a CRD to the target cluster for the upgrade.
+Kairos upgrades can be driven either manually or via Kubernetes. In order to trigger upgrades, it is required to apply a Central Registration Depository (CRD®) to the target cluster for the upgrade.
 
 ### Upgrading from version X to version Y with Kubernetes
 
 
-To upgrade a node it is necessary [system-upgrade-controller](https://github.com/rancher/system-upgrade-controller) to be deployed in the target cluster.
+To upgrade a node, it is necessary [system-upgrade-controller](https://github.com/rancher/system-upgrade-controller) to be deployed in the target cluster.
 
 To install it, use kubectl:
 ```bash
@@ -32,7 +32,7 @@ metadata:
     k3s-upgrade: server
 spec:
   concurrency: 1
-  # This is the version (tag) of the image. 
+  # This is the version (tag) of the image.
   # The version is refered to the kairos version plus the k3s version.
   version: "v0.57.0-k3sv1.23.9-k3s1"
   nodeSelector:
@@ -56,7 +56,7 @@ To check all the available versions, see the [images](https://quay.io/repository
 
 {{% notice note %}}
 
-Several upgrade strategies can be used with `system-upgrade-controller` which are not illustrated here in this example. For instance it can be specified the number of hosts which are running the upgrades, filtering by labels, and more. [Refer to the project documentation](https://github.com/rancher/system-upgrade-controller) on how to create efficient strategies to roll upgrades on the nodes. In the example above the upgrades are applied to every host of the cluster, one-by-one in sequence.
+Several upgrade strategies can be used with `system-upgrade-controller` which are not illustrated here in this example. For instance, it can be specified in the number of hosts which are running the upgrades, filtering by labels, and more. [Refer to the project documentation](https://github.com/rancher/system-upgrade-controller) on how to create efficient strategies to roll upgrades on the nodes. In the example above, the upgrades are applied to every host of the cluster, one-by-one in sequence.
 
 {{% /notice %}}
 
@@ -68,6 +68,6 @@ $ kubectl get pods -A
 system-upgrade   apply-os-upgrade-on-kairos-with-1a1a24bcf897bd275730bdd8548-h7ffd   0/1     Creating   0          40s
 ```
 
-Done! we should have all the basic to get our first cluster rolling, but there is much more we can do. 
+Done! We should have all the basic to get our first cluster rolling, but there is much more we can do.
 
 Don't miss out how to create multi-machine clusters, or clusters using the p2p fully-meshed network.

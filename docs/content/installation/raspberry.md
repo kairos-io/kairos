@@ -6,9 +6,9 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-`kairos` supports Rasperry Pi model 3 and 4 with 64bit architecture.
+Kairos supports Raspberry Pi model 3 and 4 with 64bit architecture.
 
-You can find arm64 raspberry images in the releases page. For example `https://github.com/kairos-io/kairos/releases/download/v1.21.4-35/kairos-opensuse-arm-rpi-v1.21.4-35.img.tar.xz`. 
+You can find arm64 raspberry images in the releases page. For example https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0-rc3/kairos-opensuse-v1.0.0-rc3-k3sv1.21.14+k3s1.iso.
 
-Flash the image into a SD card with dd or Etcher and place your cloud-init configuration file inside the `cloud-config` directory ( create it if not present ) into the `COS_PERSISTENT` partition, for example `cloud-config/cloud-init.yaml`.
+Flash the image into a SD card with DD or Etcher and place your `cloud-init` configuration file inside the `cloud-config` directory (create it if not present) into the `COS_PERSISTENT` partition, for example `cloud-config/cloud-init.yaml`.
 
