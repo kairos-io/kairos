@@ -8,7 +8,7 @@ import "../../styles/index.css";
 
 const currentPage = Astro.url.pathname;
 const { frontmatter, headings } = Astro.props;
-const content = await Astro.glob("../../pages/content/**/*.md");
+const content = await Astro.glob("../../pages/**/*.(md|mdx)");
 ---
 
 <html lang="en">
@@ -69,7 +69,7 @@ const content = await Astro.glob("../../pages/content/**/*.md");
       window.addEventListener("DOMContentLoaded", () => {
         var target = document.querySelector('[aria-current="page"]');
         if (target && target.offsetTop > window.innerHeight - 100) {
-          document.querySelector(".nav-list").scrollTop = target.offsetTop;
+          document.querySelector(".nav").scrollTop = target.offsetTop;
         }
       });
     </script>

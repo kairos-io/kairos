@@ -1,8 +1,15 @@
-import {  useMemo } from "react";
-import heroImage from '../../../assets/logos/kairos-dark-column-docs.png';
+import { useMemo } from "react";
+import heroImage from "../../../assets/logos/kairos-black.svg";
 import "./LeftSidebar.css";
 
-const folderOrder = ["quickstart", "installation", "upgrade", "architecture", "examples", "reference"]
+const folderOrder = [
+  "quickstart",
+  "installation",
+  "upgrade",
+  "architecture",
+  "examples",
+  "reference",
+];
 
 export default function Sidebar({ content, currentPage }) {
   const currentPageMatch = useMemo(
@@ -12,12 +19,11 @@ export default function Sidebar({ content, currentPage }) {
 
   const menu = useMemo(() => {
     const navGroups = content.reduce((acc, { frontmatter, url }) => {
-      const relativePath = url.split("content/")[1];
-      const partitions = relativePath.split("/");
-      if (partitions[0] === partitions[1]) {
+      const partitions = url.split("/");
+      if (partitions[1] === partitions[2]) {
         return {
           ...acc,
-          [partitions[0]]: {
+          [partitions[1]]: {
             url,
             title: frontmatter.title,
             children: [],
@@ -28,11 +34,12 @@ export default function Sidebar({ content, currentPage }) {
     }, {});
 
     return content.reduce((acc, { frontmatter, url }) => {
-      const relativePath = url.split("content/")[1];
-      const partitions = relativePath?.split("/");
-      const folder = partitions[0];
-
-      if (partitions[0] === partitions[1]) {
+      const partitions = url.split("/");
+      if (partitions.length <= 1) {
+        return acc;
+      }
+      const folder = partitions[1];
+      if (partitions[1] === partitions[2]) {
         return acc;
       }
 
@@ -41,7 +48,7 @@ export default function Sidebar({ content, currentPage }) {
         [folder]: {
           ...acc[folder],
           children: [
-            ...acc[folder]?.children,
+            ...(acc?.[folder]?.children || []),
             {
               url,
               title: frontmatter.title,
@@ -56,24 +63,26 @@ export default function Sidebar({ content, currentPage }) {
   return (
     <nav aria-labelledby="grid-left" className="nav">
       <div className="hero-logo">
-      <a href="/"><img src={heroImage} alt="main logo" width="135" /></a>
+        <a href="/">
+          <img src={heroImage} alt="main logo" width="135" />
+        </a>
       </div>
       <ul className="nav-list">
         {folderOrder.map((header, index) => {
           const item = menu[header];
 
           return (
-            <li id="nav-group" className="nav-link" key={index}>
+            <li className="nav-group nav-link" key={index}>
               <a
-                href={item.url}
-                {...(currentPageMatch === item.url && {
+                href={item?.url}
+                {...(currentPageMatch === item?.url && {
                   "aria-current": "page",
                 })}
               >
                 {item.title}
               </a>
               <ul className="nav-list">
-                {item.children
+                {(item.children || [])
                   .sort((a, b) => a.index - b.index)
                   .map((child, index) => (
                     <li className="nav-link" key={index}>
