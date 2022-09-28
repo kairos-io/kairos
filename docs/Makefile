@@ -8,6 +8,7 @@ export ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
 .PHONY: build
 build:
 	scripts/build.sh
+	mv dist public
 ifneq (,$(wildcard ./CNAME))
 	cp -rf CNAME public/
 endif
