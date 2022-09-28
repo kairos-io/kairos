@@ -56,7 +56,7 @@ export default function Sidebar({ content, currentPage }) {
   return (
     <nav aria-labelledby="grid-left" className="nav">
       <div className="hero-logo">
-      <img src={heroImage} alt="main logo" width="135" />
+      <a href="/"><img src={heroImage} alt="main logo" width="135" /></a>
       </div>
       <ul className="nav-list">
         {folderOrder.map((header, index) => {

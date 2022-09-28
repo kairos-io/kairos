@@ -4,13 +4,13 @@
   height: 100vh;
   position: fixed;
   border-right: 1px solid #ddd;
+  overflow-y: auto;
 }
 
 .nav-list {
   height: 100%;
   padding: 0;
   overflow-x: visible;
-  overflow-y: auto;
   max-height: 100vh;
   margin: 0;
 }
