@@ -3,7 +3,7 @@ title = "Reset"
 date = 2022-02-09T17:56:26+01:00
 weight = 6
 chapter = false
-pre = "<b>- </b>"
+pre = ""
 +++
 
 Kairos have a recovery mechanism built-in which can be leveraged to restore the system to a known point. At installation time, the recovery partition is created from the installation medium and can be used to restore the system from scratch, leaving configuration and persistent data intact.

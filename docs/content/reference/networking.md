@@ -3,7 +3,7 @@ title = "Networking"
 date = 2022-02-09T17:56:26+01:00
 weight = 5
 chapter = false
-pre = "<b>- </b>"
+pre = ""
 +++
 
 By default Kairos ISOs are configured to automatically get an ip from the network interface. However, depending on the base system you have chosen, there are different way to configure networking. This section collects information on setting network configuration depending on the base that is being chosen (openSUSE, Alpine, Ubuntu).

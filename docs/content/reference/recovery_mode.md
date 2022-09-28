@@ -3,7 +3,7 @@ title = "Remote Recovery mode"
 date = 2022-02-09T17:56:26+01:00
 weight = 4
 chapter = false
-pre = "<b>- </b>"
+pre = ""
 +++
 
 The kairos recovery mode can be used to recover a damaged system, or to regain access remotely (with assistance) to a machine which has been lost access to. The recovery mode is accessible only from the GRUB menu, from both the LiveCD and an installed system.
