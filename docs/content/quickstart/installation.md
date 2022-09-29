@@ -48,7 +48,7 @@ Download the ISO, and boot it up on a VM running on the hypervisor of your choic
 dd if=/path/to/iso of=/path/to/dev bs=4MB
 ```
 
-Or, just use [Etcher](https://www.balena.io/etcher/).
+Another alternative is to use [Etcher](https://www.balena.io/etcher/).
 
 You should be greeted with a GRUB boot menu:
 There are several entries, depending on how you plan to install Kairos. Let's pick the first entry, or wait the default timeout.
