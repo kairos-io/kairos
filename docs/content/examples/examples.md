@@ -27,7 +27,7 @@ vpn:
 **Note**: The same setup can be used to specify master nodes in a set, as to join nodes it is still possible without specifying any extra setting:
 
 ```yaml
-Kairos:
+kairos:
   network_token: "...."
 ```
 
