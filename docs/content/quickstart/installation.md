@@ -88,7 +88,7 @@ k3s:
 Save the config file as `config.yaml` as we will use it later in the process.
 
 **Note**:
-- The `stages.initramfs` block will configure the Kairos user (default) with the Kairos password. Note, the Kairos user is already configured with `sudo`.
+- The `stages.initramfs` block will configure the Kairos user (default) with the Kairos password. Note, the Kairos user is already configured with `sudo` permissions.
 - `authorized_keys` can be used to add additional keys to the user in order to SSH into
 - `hostname` sets the machine hostname
 - `dns` sets the DNS for the machine
