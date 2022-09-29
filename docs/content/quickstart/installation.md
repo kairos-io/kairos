@@ -152,7 +152,7 @@ Refer to https://kairos.io for documentation.
 kairos@kairos:~>
 ```
 
-At this point, it can take few moments to get the K3s server running, but eventually we should be able to inspect the service and see K3s running. For example with systemd-based flavors:
+At this point, it can take a few moments to get the K3s server running. However, you should be able to inspect the service and see K3s running. For example, with systemd-based flavors:
 
 ```
 $ sudo systemctl status k3s
