@@ -141,7 +141,7 @@ const MAIN_SECTIONS = [
         icon: book,
         noHeight: true,
         iconWidth: "64",
-        link: "/quickstart/installation/"
+        link: "/quickstart/"
       },
     ],
   },
