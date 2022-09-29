@@ -73,14 +73,13 @@ export default function Sidebar({ content, currentPage }) {
 
           return (
             <li className="nav-group nav-link" key={index}>
-              <a
-                href={item?.url}
+              <strong
                 {...(currentPageMatch === item?.url && {
                   "aria-current": "page",
                 })}
               >
                 {item.title}
-              </a>
+              </strong>
               <ul className="nav-list">
                 {(item.children || [])
                   .sort((a, b) => a.index - b.index)
