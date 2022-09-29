@@ -33,7 +33,7 @@ It is possible to disable immutability by adding `rd.cos.debugrw` to the kernel 
 
 ## Root permission
 
-By default there is no root user set. A default user (`kairos`) is created and can use `sudo` without password authentication during LiveCD bootup.
+By default, there is no root user set. A default user (`kairos`) is created and can use `sudo` without password authentication during LiveCD bootup.
 
 ## Get back the kubeconfig
 

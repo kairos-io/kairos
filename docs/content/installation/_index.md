@@ -7,5 +7,5 @@ chapter = true
 
 # Installation
 
-Provisioning of kairos into nodes can be performed in different ways. 
-This section guides you into provisioning kairos into your nodes by use-case.
+Provisioning of Kairos into nodes can be performed in different ways.
+This section guides you into provisioning Kairos into your nodes by use-case.

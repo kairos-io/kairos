@@ -5,6 +5,6 @@ weight = 1
 chapter = true
 +++
 
-# Quickstart
+# Quick Start
 
-Provisioning of Kairos into baremetal, edge, embedded devices, and cloud.
+Provisioning of Kairos into bare metal, edge, embedded devices, and cloud.

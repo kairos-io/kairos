@@ -6,7 +6,7 @@ chapter = false
 pre = ""
 +++
 
-Here you can find a full reference of the fields available to configure a kairos node
+Here you can find a full reference of the fields available to configure a Kairos node.
 
 ```yaml
 #node-config
@@ -106,15 +106,15 @@ options:
 
 ## Syntax
 
-`kairos` supports the standard cloud-init syntax and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/) which is based on [yip](https://github.com/mudler/yip).
+Kairos supports the standard `cloud-init` syntax, and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/) which is based on [yip](https://github.com/mudler/yip).
 
-Examples using the extended notation for running k3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples). 
+Examples using the extended notation for running K3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples).
 
 The extended syntax can be also used to pass-by commands via Kernel boot parameters
 
 ### `k3s`
 
-The `k3s` and the `k3s-agent` block are used to customize the environment and arg settings of k3s, consider:
+The `k3s` and the `k3s-agent` block are used to customize the environment and argument settings of K3s, consider:
 
 {{< tabs groupId="k3s">}}
 {{% tab name="server" %}}
@@ -143,7 +143,7 @@ k3s-agent:
 {{% /tab %}}
 {{< /tabs >}}
 
-See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure k3s manually.
+See also the [examples'](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure K3s manually.
 
 ## `install.grub_options`
 
@@ -177,19 +177,19 @@ Below a full list of all the available options:
 
 ### `kairos.dns`
 
-When `kairos.dns` is set to `true` embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server, for example, assuming `kairos bridge` is running in a separate terminal:
+When the `kairos.dns` is set to `true` the embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server. For example, this is assuming `kairos bridge` is running in a separate terminal:
 
 ```bash
 curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'
 ```
 
-Will add the `foo.bar` domain with `2.2.2.2` as `A` response. 
+It will add the `foo.bar` domain with `2.2.2.2` as `A` response. 
 
-Every node with `dns` enabled will be able to resolve the domain after the domain is correctly announced.
+Every node with DNS enabled will be able to resolve the domain after the domain is correctly announced.
 
-You can check out the dns in the [DNS page in the API](http://localhost:8080/dns.html), see also [the EdgeVPN docs](https://mudler.github.io/edgevpn/docs/concepts/overview/dns/).
+You can check out the DNS in the [DNS page in the API](http://localhost:8080/dns.html), see also the [EdgeVPN docs](https://mudler.github.io/edgevpn/docs/concepts/overview/dns/).
 
-Furthermore, is possible to tweak DNS server which are used to forward requests for domain listed outside, and as well it's possible to lock down resolving only to nodes in the blockchain, by customizing the configuration file:
+Furthermore, it is possible to tweak the DNS server which are used to forward requests for domain listed outside, and as well, it's possible to lock down resolving only to nodes in the blockchain, by customizing the configuration file:
 
 ```yaml
 #cloud-config

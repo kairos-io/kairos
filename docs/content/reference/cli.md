@@ -5,12 +5,12 @@ weight = 3
 pre = ""
 +++
 
-A CLI is provided as part of releases associated to each `kairos` version. 
+A CLI is provided as part of releases associated to each Kairos version.
 
 The CLI can be used from an external machine to generate network tokens and pair nodes on first-boot.
 
 ```
-./kairos --help                                                         
+./kairos --help
 NAME:
    kairos - kairos (register|install)
 
@@ -27,21 +27,21 @@ AUTHOR:
    Ettore Di Giacinto
 
 COMMANDS:
-   register           
-   create-config, c   
-   generate-token, g  
-   setup, s           
-   get-kubeconfig     
-   install, i         
+   register
+   create-config, c
+   generate-token, g
+   setup, s
+   get-kubeconfig
+   install, i
    help, h            Shows a list of commands or help for one command
 ```
 
 ## `create-config`
 
-Generates a new `kairos` configuration file which can be used as cloud-init, with a new unique network token:
+Generates a new Kairos configuration file which can be used as `cloud-init`, with a new unique network token:
 
 ```
-$ ./kairos create-config  
+$ ./kairos create-config
 kairos:
   network_token: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MjIzMzcyMDM2ODU0Nzc1ODA3CiAgICBrZXk6IEVCMzJJMlNXTjJCNFBHNEtCWTNBUVBBS0FWRTY0Q0VLVUlDTktTUFVWVU5BWTM0QklEQ0EKICAgIGxlbmd0aDogMzIKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTIyMzM3MjAzNjg1NDc3NTgwNwogICAga2V5OiBDMk1RRk5DWEFVRElPWjVHM1pZUUIzVEVHTzVXVEdQR1pZSEVQQkY3SFEyVUROUlZCTkxRCiAgICBsZW5ndGg6IDMyCnJvb206IGp6Q29kQVVOWUZSUklQU3JISmx4d1BVUnVxTGJQQnh4CnJlbmRlenZvdXM6IG5NckRCbllyVVBMdnFPV0Z2dWZvTktXek1adEJIRmpzCm1kbnM6IGpQUUhIbVZza2x6V29xbWNkeVlnbVhMSVFjTE1HUFN6Cm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
   offline: false
@@ -50,7 +50,7 @@ kairos:
   poweroff: false
 ```
 
-Now you can use this in your configuration file to create new kairos nodes:
+Now you can use this in your configuration file to create new Kairos nodes:
 
 ```yaml
 kairos:
@@ -90,35 +90,35 @@ kairos:
   device: ""
   poweroff: false
 
-# Cloud init syntax to setup users. 
+# Cloud init syntax to setup users.
 # See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/
 stages:
    network:
      - name: "Setup users"
        authorized_keys:
-        kairos: 
+        kairos:
         - github:yourhandle!
 ```
 
-## `register` 
+## `register`
 
-The **register** command can be used to register and drive installation of nodes via QR code with a cloud-init config file ( with `--config`).
+The **register** command can be used to register and drive installation of nodes via QR code with a `cloud-init` config file (with `--config`).
 
 ```
 NAME:
-    register - 
+    register -
 
 USAGE:
     register [command options] [arguments...]
 
 OPTIONS:
-   --config value  
-   --device value  
-   --reboot        
+   --config value
+   --device value
+   --reboot
    --poweroff
 ```
 
-When booting `kairos` via ISO, the boot process ends up in displaying a QR code which can be parsed by `kairos register` from another machine.
+When booting Kairos via ISO, the boot process ends up in displaying a QR code which can be parsed by `kairos register` from another machine.
 
 ### Taking a screenshot
 
@@ -128,7 +128,7 @@ When booting `kairos` via ISO, the boot process ends up in displaying a QR code 
 kairos register
 ```
 
-### Providing a qrcode image/screenshot manually
+### Providing a QR code image/screenshot manually
 
 It can be also be specified an image:
 
@@ -136,7 +136,7 @@ It can be also be specified an image:
 kairos register <file.png>
 ```
 
-After the pairing is done, the node will start installation with the provided options. 
+After the pairing is done, the node will start installation with the provided options.
 
 A `--device` and a `--config` file are required in order to have a functional installation.
 
@@ -146,10 +146,10 @@ Connect to the nodes in the VPN p2p network by creating a tun device on the host
 
 It needs a `--network-token`(`$NETWORK_TOKEN`) argument and exposes an API endpoint available at [localhost:8080](http://localhost:8080) to monitor the network status.
 
-## `install` 
+## `install`
 
-Called by kairos nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
+Called by Kairos nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
 
 ## `setup` 
 
-Called by kairos nodes on boot and not meant to be used manually. It prepares `edgevpn` and `k3s` bootstrapping the node and the VPN.
+Called by Kairos nodes on boot and not meant to be used manually. It prepares `edgevpn` and K3s bootstrapping the node and the VPN.
