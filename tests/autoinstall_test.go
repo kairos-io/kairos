@@ -35,7 +35,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				fmt.Println(out)
 			} else {
 				// Eventually(func() string {
-				// 	out, _ := machine.Command("sudo systemctl status kairosososososos-agent")
+				// 	out, _ := machine.Command("sudo systemctl status kairososososos-agent")
 				// 	return out
 				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 

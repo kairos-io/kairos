@@ -29,7 +29,7 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 				fmt.Println(out)
 			} else {
 				// Eventually(func() string {
-				// 	out, _ := Machine.Command("sudo systemctl status kairosososososos-agent")
+				// 	out, _ := Machine.Command("sudo systemctl status kairososososos-agent")
 				// 	return out
 				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 

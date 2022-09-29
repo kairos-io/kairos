@@ -132,7 +132,7 @@ func gatherLogs() {
 		},
 		[]string{
 			"/var/log/edgevpn.log",
-			"/var/log/kairosos/agent.log",
+			"/var/log/kairos/agent.log",
 			"/run/pods.json",
 			"/run/disk",
 			"/run/mounts",
