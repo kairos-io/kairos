@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-     <img src="https://user-images.githubusercontent.com/2420543/153506895-fb978c1e-8197-42e2-9ce2-3be6e0907acc.jpg?classes=shadow&width=50pc" width=500>
+     <img width="184" alt="kairos-white-column 5bc2fe34" src="https://user-images.githubusercontent.com/2420543/193010398-72d4ba6e-7efe-4c2e-b7ba-d3a826a55b7d.png">
     <br>
 <br>
 </h1>
@@ -13,10 +13,13 @@
 
 <p align="center">
      <br>
-    Kubernetes-focused, Linux distribution - K3s - Automatic Node discovery/VPN
+    The immutable Linux meta-distribution for edge Kubernetes.
 </p>
 
 <hr>
+
+
+With Kairos you can build immutable, bootable Kubernetes and OS images for your edge devices as easily as writing a Dockerfile. Optional P2P mesh with distributed ledger automates node bootstrapping and coordination. Updating nodes is as easy as CI/CD: push a new image to your container registry and let secure, risk-free A/B atomic upgrades do the rest. 
 
 Kairos (formerly `c3os`) is an open-source project which brings Edge, cloud, and bare metal lifecycle OS management into the same design principles with a unified Cloud Native API.
 
@@ -39,7 +42,8 @@ For comprehensive docs, tutorials, and examples see our [documentation](https://
 
 ## Project status
 
-- Sep 15 2022: The project is undergoing a name rebranding from C3OS to Kairos. See [rationale, and community poll here](https://github.com/c3os-io/c3os/discussions/84) and the [tracking issue](https://github.com/c3os-io/c3os/issues/88). There could be disservices during the DNS transition, and we apologize. The documentation meanwhile, can be browsed in GitHub, inside the [docs/content](https://github.com/c3os-io/c3os/tree/master/docs/content) folder.
+- (Sep 29 2022) announcing Kairos 1.0 GA availability. Kairos is now backed by Spectro Cloud, which contributes to the project. Kairos will remain fully community-driven and has its own governance. See the [announcement](https://github.com/kairos-io/kairos/discussions/159)
+- (Sep 15 2022) the c3OS project has a new name: Kairos! For full details, see https://github.com/c3os-io/c3os/issues/88 and https://github.com/c3os-io/c3os/discussions/84. 
 
 ## What is it ?
 
