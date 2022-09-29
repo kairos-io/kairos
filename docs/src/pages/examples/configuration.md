@@ -4,7 +4,7 @@ title: "Configuring a node after install"
 index: 3
 ---
 
-kairos configuration mechanism is all based on cloud-config file.
+Kairos configuration mechanism is all based on cloud-config file.
 
 By default, `kairos` reads in lexicographic order YAML cloud-config files in the `/usr/local/cloud-config` and `/oem` directories.
 
@@ -33,4 +33,4 @@ stages:
 name: "zfs setup"
 ```
 
-This YAML will run the commands on boot enabling zram as swap.
+This YAML file will run the commands on boot enabling ZRAM as swap.

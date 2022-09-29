@@ -4,9 +4,9 @@ title: "P2P Network"
 index: 5
 ---
 
-Kairos can automatically setup a VPN between the nodes using [edgevpn](https://github.com/mudler/edgevpn). This also allows the nodes to automatically coordinate, discover/configure and establish a network overlay spanning across multiple regions.
+Kairos can automatically set up a VPN between the nodes using [edgevpn](https://github.com/mudler/edgevpn). This also allows the nodes to automatically coordinate, discover/configure and establish a network overlay spanning across multiple regions.
 
-The connection happens in 3 stages, where the discovery is driven by DHT and mDNS (which can be selectively disabled/enabled)
+The connection happens in three stages, where the discovery is driven by DHT (distributed hash table) and (multicast DNS) mDNS (which can be selectively disabled/enabled):
 
 - Discovery
 - Gossip network

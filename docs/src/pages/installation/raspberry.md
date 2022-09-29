@@ -4,7 +4,7 @@ title: "Raspberry"
 index: 6
 ---
 
-`kairos` supports Rasperry Pi model 3 and 4 with 64bit architecture.
+Kairos supports Raspberry Pi model 3 and 4 with 64bit architecture.
 
 If you are not familiar with the process, it is suggested to follow the [quickstart](/quickstart/installation) first to see how Kairos works.
 

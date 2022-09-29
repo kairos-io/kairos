@@ -6,7 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/kairos-io/kairos/tests/machine"
+	. "github.com/spectrocloud/peg/matcher"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
@@ -15,16 +16,13 @@ import (
 var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	BeforeEach(func() {
-		machine.EventuallyConnects()
+		EventuallyConnects()
 	})
 
 	AfterEach(func() {
-		if CurrentGinkgoTestDescription().Failed {
-			gatherLogs()
-		}
-		machine.Delete()
-		machine.Create(sshPort)
-		machine.EventuallyConnects()
+		Machine.Clean()
+		Machine.Create()
+		EventuallyConnects()
 	})
 
 	testInstall := func(cloudConfig string, actual interface{}, m types.GomegaMatcher) {
@@ -36,21 +34,21 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 		err = ioutil.WriteFile(t.Name(), []byte(cloudConfig), os.ModePerm)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = machine.SendFile(t.Name(), "/tmp/config.yaml", "0770")
+		err = Machine.SendFile(t.Name(), "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
-		out, err := machine.Sudo("sudo mv /tmp/config.yaml /oem/")
+		out, err := Sudo("sudo mv /tmp/config.yaml /oem/")
 		Expect(err).ToNot(HaveOccurred(), out)
 
-		out, err = machine.Sudo("kairos-agent install")
+		out, err = Sudo("kairos-agent install")
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
 		fmt.Println(out)
-		machine.Sudo("sync")
-		machine.DetachCD()
-		machine.Restart()
+		Sudo("sync")
 
-		machine.EventuallyConnects()
+		detachAndReboot()
+
+		EventuallyConnects()
 		Eventually(actual, 5*time.Minute, 10*time.Second).Should(m)
 	}
 
@@ -73,7 +71,7 @@ bundles:
   - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
 `, func() string {
 				var out string
-				out, _ = machine.Sudo("/usr/local/bin/usr/bin/edgevpn --help")
+				out, _ = Sudo("/usr/local/bin/usr/bin/edgevpn --help")
 				return out
 			}, ContainSubstring("peerguard"))
 		})
@@ -84,7 +82,7 @@ install:
   device: /dev/sda
 config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae331e5c0/raw/01137c458ad62cfcdfb201cae2f8814db702c6f9/testgist.yaml"`, func() string {
 				var out string
-				out, _ = machine.Sudo("/usr/local/bin/usr/bin/edgevpn --help")
+				out, _ = Sudo("/usr/local/bin/usr/bin/edgevpn --help")
 				return out
 			}, ContainSubstring("peerguard"))
 		})
