@@ -36,7 +36,7 @@ You can find the latest releases in the [release page over GitHub](https://githu
 {{% notice note %}}
 The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship without K3s and P2P full-mesh functionalities; however further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
 
-The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) instead ships `k3s` and `p2p` full-mesh support that needs to be explicitly enabled. In follow-up releases there will be available also _k3s-only_ artifacts.
+The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) ships `k3s` and `p2p` full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
 
 {{% /notice %}}
 
