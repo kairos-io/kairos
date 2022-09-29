@@ -132,7 +132,7 @@ After a few minutes, the configuration is distributed to the node and the instal
 
 ### Accessing the Node
 
-After a boot, the node will start and load into the system. When the console is available, we should be already able to SSH.
+After the boot process, the node starts and is loaded into the system. You should already have SSH connectivity when the console is available.
 
 To access to the host, log in as `kairos`:
 
