@@ -136,7 +136,7 @@ kind: OSArtifact
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/Kairos/core-opensuse:latest"
+  imageName: "quay.io/kairos/core-opensuse:latest"
   iso: true
   bundles:
   - quay.io/Kairos/packages:goreleaser-utils-1.11.2
