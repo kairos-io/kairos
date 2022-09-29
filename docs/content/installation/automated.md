@@ -108,7 +108,7 @@ $ helm repo add kairos https://Kairos-io.github.io/helm-charts
 "kairos" has been added to your repositories
 $ helm repo update
 Hang tight while we grab the latest from your chart repositories...
-...Successfully got an update from the "Kairos" chart repository
+...Successfully got an update from the "kairos" chart repository
 Update Complete. ⎈Happy Helming!⎈
 
 # Install the CRD chart
