@@ -141,7 +141,7 @@ ssh kairos@IP
 ```
 
 **Note**:
-- `sudo` is configured for the Kairos user.
+- `sudo` permissions are configured for the Kairos user.
 
 You will be greeted with a welcome message:
 
