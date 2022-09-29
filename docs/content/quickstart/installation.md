@@ -31,7 +31,7 @@ To simplify, we will install Kairos inside a virtual machine (VM); however, your
 
 Kairos can be used to turn any distro in an immutable system; however, for user convenience, there are several artifacts published as part of the releases to get started.
 
-You can find the latest releases in the [release page over GitHub](https://github.com/kairos-io/provider-kairos/releases). For instance, if we would like to pick the alpine based version, we would download the `kairos-alpine-v0.57.0-k3sv1.21.14+k3s1.iso` ISO file, where `v1.21.14+k3s1` in the name is the `k3s` version and `v0.57.0` is the Kairos one.
+You can find the latest releases in the [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases). For instance, download the `kairos-alpine-v0.57.0-k3sv1.21.14+k3s1.iso` ISO file to pick the alpine based version, where `v1.21.14+k3s1` in the name is the `k3s` version and `v0.57.0` is the Kairos one.
 
 {{% notice note %}}
 The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship without K3s and P2P full-mesh functionalities; however further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
