@@ -134,12 +134,14 @@ const MAIN_SECTIONS = [
         icon: github,
         noHeight: true,
         iconWidth: "64",
+        link: "https://github.com/kairos-io/kairos"
       },
       {
         title: "Documentation",
         icon: book,
         noHeight: true,
         iconWidth: "64",
+        link: "/quickstart/installation/"
       },
     ],
   },
@@ -155,13 +157,15 @@ export default function Sections() {
     );
   }
   function renderSecondarySections(section, index) {
+    const SectionTitle = section.link ? "a" : "div";
+
     return (
       <div className="secondary-section" key={index}>
-        <div className="title">
+        <SectionTitle className="title" {...(section.link ? {href: section.link} : {})}>
           <div className={`${section.noHeight ? "image-container-removeHeight" : "image-container"}`}><img src={section.icon} alt="section logo" width={section.iconWidth || "112"} /></div>
           <div>{section.title}</div>
           <p>{section.description}</p>
-        </div>
+        </SectionTitle>
         {section.sections?.length && (
           <div>{section.sections.map(renderTertiarySections)}</div>
         )}
