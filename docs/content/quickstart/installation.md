@@ -128,7 +128,7 @@ kairos register --reboot --device /dev/sda --config config.yaml
 - The `--device` flag will instruct to install Kairos in the specified drive, replace `/dev/sda` with your drive. It will take over and overwrite any content, please be cautious.
 - The `--config` flag is used to specify the config file used by the installation process.
 
-Wait now for few minutes for the config to propagate to the node, the installation should start then and automatically reboot afterward.
+After a few minutes, the configuration is distributed to the node and the installation starts. At the end of the installation, the system is automatically rebooted.
 
 ### Accessing the Node
 
