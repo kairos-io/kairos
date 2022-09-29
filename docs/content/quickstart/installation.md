@@ -42,7 +42,7 @@ The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provide
 
 ### Booting up
 
-Download the ISO, and boot it up in to the hypervisor of your choice. If it's a bare metal, you can flash the image directly into a USB stick with DD:
+Download the ISO, and boot it up on a VM running on the hypervisor of your choice. When deploying on a bare metal server, directly flash the image into a USB stick with DD:
 
 ```bash
 dd if=/path/to/iso of=/path/to/dev bs=4MB
