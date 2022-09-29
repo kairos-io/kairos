@@ -188,7 +188,7 @@ EOF
 # Note on running with kind:
 $ IP=$(docker inspect kind-control-plane | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
 $ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
-$ curl http://$IP:$PORT/hello-Kairos.iso -o test.iso
+$ curl http://$IP:$PORT/hello-kairos.iso -o test.iso
 
 
 ```
