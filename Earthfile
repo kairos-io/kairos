@@ -56,7 +56,7 @@ test:
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-    RUN curl https://luet.io/install.sh | sh
+    COPY +luet/luet /usr/bin/luet
     COPY . .
     RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
@@ -109,8 +109,9 @@ build:
 dist:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
-    RUN curl https://luet.io/install.sh | sh
-    RUN luet install -y repository/mocaccino-extra
+    COPY +luet/luet /usr/bin/luet
+    RUN mkdir -p /etc/luet/repos.conf.d/
+    RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
     RUN luet install -y utils/goreleaser
     WORKDIR /build
     COPY . .
@@ -303,10 +304,9 @@ arm-image:
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
   RUN zypper in -y jq docker git curl gptfdisk kpartx sudo
-  #COPY +luet/luet /usr/bin/luet
+  COPY +luet/luet /usr/bin/luet
   WORKDIR /build
   RUN git clone https://github.com/rancher/elemental-toolkit && mkdir elemental-toolkit/build
-  RUN curl https://luet.io/install.sh | sh
   ENV STATE_SIZE="6200"
   ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
