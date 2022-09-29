@@ -113,7 +113,7 @@ Update Complete. ⎈Happy Helming!⎈
 
 # Install the CRD chart
 $ helm install kairos-crd kairos/kairos-crds
-NAME: Kairos-crd
+NAME: kairos-crd
 LAST DEPLOYED: Tue Sep  6 20:35:34 2022
 NAMESPACE: default
 STATUS: deployed
