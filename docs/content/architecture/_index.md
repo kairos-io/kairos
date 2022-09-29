@@ -5,6 +5,6 @@ weight = 4
 chapter = true
 +++
 
-# Installing kairos on baremetal, VMs, ...
+# Installing Kairos on bare metal, VMs, ...
 
-## Automated, Paired and take over install
+## Automated, Paired, and Take Over Install

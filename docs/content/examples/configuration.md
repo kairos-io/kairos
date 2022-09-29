@@ -6,7 +6,7 @@ chapter = false
 pre = "<b>- </b>"
 +++
 
-kairos configuration mechanism is all based on cloud-config file. 
+Kairos configuration mechanism is all based on cloud-config file.
 
 By default, `kairos` reads in lexicographic order YAML cloud-config files in the `/usr/local/cloud-config` and `/oem` directories.
 
@@ -26,7 +26,7 @@ Copy the following file in `/oem/100_zram.yaml` or `/usr/local/cloud-config/100_
 stages:
   boot:
        -  name: "zram setup"
-          commands: 
+          commands:
           - modprobe zram
           - echo lzo > /sys/block/zram0/comp_algorithm
           - echo 1G > /sys/block/zram0/disksize
@@ -35,4 +35,4 @@ stages:
 name: "zfs setup"
 ```
 
-This YAML will run the commands on boot enabling zram as swap.
+This YAML file will run the commands on boot enabling ZRAM as swap.
