@@ -60,7 +60,7 @@ The machine will boot, and eventually a QR code will be printed out of the scree
 
 At this stage the machine is waiting for the configuration to continue further with the installation process. Configuration can be either served via QR code, or manually via logging into the box and starting the installation process with a config file. The config file is a YAML file mixed with `cloud-init` syntax and the config of Kairos itself.
 
-In this example, we will configure the node as a single-node Kubernetes cluster, so we enable K3s, and we set a default password for the Kairos user to later access to the box, alongside with some SSH keys:
+In this example, we will configure the node as a single-node Kubernetes cluster. So, we enable K3s, and we set a default password for the Kairos user to later access the box. We also need to define SSH keys:
 
 ```yaml
 #node-config
