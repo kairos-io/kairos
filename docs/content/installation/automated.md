@@ -121,7 +121,7 @@ REVISION: 1
 TEST SUITE: None
 
 # Installs osbuilder
-$ helm install Kairos-osbuilder Kairos/osbuilder
+$ helm install kairos-osbuilder kairos/osbuilder
 NAME: Kairos-osbuilder
 LAST DEPLOYED: Tue Sep  6 20:35:53 2022
 NAMESPACE: default
