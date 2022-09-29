@@ -104,7 +104,7 @@ Several configurations can be added at this stage. [See the configuration refere
 
 {{% notice note %}}
 
-Below there are instruction using the Kairos CLI.  To install by logging over SSH into the box, see the [Manual installation](/installation/manual) section or the [Interactive installation](/installation/interactive) section for driving the installation manually from the console.
+You can find instructions showing how to use the Kairos CLI below. In case you prefer to install via SSH and login into the box, see the [Manual installation](/installation/manual) section or the [Interactive installation](/installation/interactive) section to perform the installation manually from the console.
 
 {{% /notice %}}
 
