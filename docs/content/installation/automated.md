@@ -139,7 +139,7 @@ spec:
   imageName: "quay.io/kairos/core-opensuse:latest"
   iso: true
   bundles:
-  - quay.io/Kairos/packages:goreleaser-utils-1.11.2
+  - quay.io/kairos/packages:goreleaser-utils-1.11.2
   grubConfig: |
           search --file --set=root /boot/kernel.xz
           set default=0
