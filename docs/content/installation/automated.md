@@ -122,7 +122,7 @@ TEST SUITE: None
 
 # Installs osbuilder
 $ helm install kairos-osbuilder kairos/osbuilder
-NAME: Kairos-osbuilder
+NAME: kairos-osbuilder
 LAST DEPLOYED: Tue Sep  6 20:35:53 2022
 NAMESPACE: default
 STATUS: deployed
