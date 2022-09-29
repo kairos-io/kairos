@@ -112,7 +112,7 @@ Hang tight while we grab the latest from your chart repositories...
 Update Complete. ⎈Happy Helming!⎈
 
 # Install the CRD chart
-$ helm install Kairos-crd Kairos/Kairos-crds
+$ helm install kairos-crd kairos/kairos-crds
 NAME: Kairos-crd
 LAST DEPLOYED: Tue Sep  6 20:35:34 2022
 NAMESPACE: default
