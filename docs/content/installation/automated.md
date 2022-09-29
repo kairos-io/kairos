@@ -41,7 +41,7 @@ install:
   poweroff: false
   auto: true # Required, for automated installations
   
-Kairos:
+kairos:
   network_token: ....
 
 # extra configuration
