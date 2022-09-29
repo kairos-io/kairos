@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# dunno if this is used in netlify
+# not used in netlify
 
 "${ROOT_DIR}"/scripts/build.sh
 

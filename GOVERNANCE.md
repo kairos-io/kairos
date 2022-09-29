@@ -97,7 +97,7 @@ The following responsibilities apply to the subproject for which one would be an
 - Ensures adequate test coverage to confidently release new features and fixes
 - Ensures that tests are passing reliably (i.e. not flaky) and are fixed when they fail
 - Mentors and guides approvers, reviewers, and contributors
-- Actively participates in the processes for discussion and decision making in the project
+- Actively participates in the processes for discussion and decision-making in the project
 - Merges Pull Requests and helps prepare releases
 - Makes and approves technical design decisions for the subproject
 - Helps define milestones and releases

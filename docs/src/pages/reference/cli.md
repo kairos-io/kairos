@@ -4,7 +4,7 @@ title: "CLI"
 index: 3
 ---
 
-A CLI is provided as part of releases associated to each `kairos` version.
+A CLI is provided as part of releases associated to each Kairos version.
 
 The CLI can be used from an external machine to generate network tokens and pair nodes on first-boot.
 
@@ -37,7 +37,7 @@ COMMANDS:
 
 ## `create-config`
 
-Generates a new `kairos` configuration file which can be used as cloud-init, with a new unique network token:
+Generates a new Kairos configuration file which can be used as `cloud-init`, with a new unique network token:
 
 ```
 $ ./kairos create-config
@@ -49,7 +49,7 @@ kairos:
   poweroff: false
 ```
 
-Now you can use this in your configuration file to create new kairos nodes:
+Now you can use this in your configuration file to create new Kairos nodes:
 
 ```yaml
 kairos:
@@ -100,7 +100,7 @@ stages:
 
 ## `register`
 
-The **register** command can be used to register and drive installation of nodes via QR code with a cloud-init config file ( with `--config`).
+The **register** command can be used to register and drive installation of nodes via QR code with a `cloud-init` config file (with `--config`).
 
 ```
 NAME:
@@ -116,7 +116,7 @@ OPTIONS:
    --poweroff
 ```
 
-When booting `kairos` via ISO, the boot process ends up in displaying a QR code which can be parsed by `kairos register` from another machine.
+When booting Kairos via ISO, the boot process ends up in displaying a QR code which can be parsed by `kairos register` from another machine.
 
 ### Taking a screenshot
 
@@ -126,7 +126,7 @@ When booting `kairos` via ISO, the boot process ends up in displaying a QR code 
 kairos register
 ```
 
-### Providing a qrcode image/screenshot manually
+### Providing a QR code image/screenshot manually
 
 It can be also be specified an image:
 
@@ -146,8 +146,8 @@ It needs a `--network-token`(`$NETWORK_TOKEN`) argument and exposes an API endpo
 
 ## `install`
 
-Called by kairos nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
+Called by Kairos nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
 
 ## `setup`
 
-Called by kairos nodes on boot and not meant to be used manually. It prepares `edgevpn` and `k3s` bootstrapping the node and the VPN.
+Called by Kairos nodes on boot and not meant to be used manually. It prepares `edgevpn` and K3s bootstrapping the node and the VPN.
