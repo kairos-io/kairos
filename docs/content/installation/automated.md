@@ -104,7 +104,7 @@ Consider the following example, which requires a Kubernetes cluster to run the c
 ```bash
 
 # Adds the Kairos repo to helm
-$ helm repo add Kairos https://Kairos-io.github.io/helm-charts
+$ helm repo add kairos https://Kairos-io.github.io/helm-charts
 "Kairos" has been added to your repositories
 $ helm repo update
 Hang tight while we grab the latest from your chart repositories...
