@@ -134,7 +134,7 @@ cat <<'EOF' | kubectl apply -f -
 apiVersion: build.kairos.io/v1alpha1
 kind: OSArtifact
 metadata:
-  name: hello-Kairos
+  name: hello-kairos
 spec:
   imageName: "quay.io/Kairos/core-opensuse:latest"
   iso: true
