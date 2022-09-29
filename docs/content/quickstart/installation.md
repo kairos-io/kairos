@@ -51,7 +51,7 @@ dd if=/path/to/iso of=/path/to/dev bs=4MB
 Another alternative is to use [Etcher](https://www.balena.io/etcher/).
 
 You should be greeted with a GRUB boot menu:
-There are several entries, depending on how you plan to install Kairos. Let's pick the first entry, or wait the default timeout.
+Multiple entries are available. Choosing the appropriate entry depends on how you plan to install Kairos. For a standard installation, pick the first entry, or wait until the default timeout expires.
 The machine will boot, and eventually a QR code will be printed out of the screen:
 
 ![livecd](https://user-images.githubusercontent.com/2420543/189219806-29b4deed-b4a1-4704-b558-7a60ae31caf2.gif)
