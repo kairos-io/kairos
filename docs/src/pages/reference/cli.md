@@ -20,7 +20,7 @@ VERSION:
    0.1
 
 DESCRIPTION:
-   kairosos registers and installs kairos boxes
+   kairos registers and installs kairos boxes
 
 AUTHOR:
    Ettore Di Giacinto
