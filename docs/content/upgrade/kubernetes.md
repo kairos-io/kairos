@@ -34,7 +34,7 @@ spec:
   concurrency: 1
   # This is the version (tag) of the image.
   # The version is refered to the kairos version plus the k3s version.
-  version: "v0.57.0-k3sv1.23.9-k3s1"
+  version: "v1.0.0-k3sv1.24.3-k3s1"
   nodeSelector:
     matchExpressions:
       - {key: kubernetes.io/hostname, operator: Exists}
