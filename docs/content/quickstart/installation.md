@@ -125,7 +125,7 @@ kairos register --reboot --device /dev/sda --config config.yaml
 **Note**:
 - By default, the CLI will automatically take a screenshot to get the QR code. Make sure it fits into the screen. Alternatively, an image path or a token can be supplied via arguments (e.g. `kairos register /img/path` or `kairos register <token>`).
 - The `--reboot` flag will make the node reboot automatically after the installation is completed.
-- The `--device` flag will instruct to install Kairos in the specified drive, replace `/dev/sda` with your drive. It will take over and overwrite any content, please be cautious.
+- The `--device` flag determines the specific drive where Kairos will be installed. Replace `/dev/sda` with your drive. Any existing data will be overwritten, so please be cautious.
 - The `--config` flag is used to specify the config file used by the installation process.
 
 After a few minutes, the configuration is distributed to the node and the installation starts. At the end of the installation, the system is automatically rebooted.
