@@ -131,7 +131,7 @@ TEST SUITE: None
 
 # Applies an OSArtifact spec
 cat <<'EOF' | kubectl apply -f -
-apiVersion: build.Kairos.io/v1alpha1
+apiVersion: build.kairos.io/v1alpha1
 kind: OSArtifact
 metadata:
   name: hello-Kairos
