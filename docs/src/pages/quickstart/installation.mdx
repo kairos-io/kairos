@@ -31,7 +31,7 @@ To simplify, we will install kairos inside a VM, however, your mileage and confi
 
 Kairos can be used to turn any distro in an immutable system; however, for user convenience, there are several artifacts published as part of the releases to get started.
 
-You can find the latest releases in the [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases). For instance, download the `kairos-alpine-v0.57.0-k3sv1.21.14+k3s1.iso` ISO file to pick the alpine based version, where `v1.21.14+k3s1` in the name is the `k3s` version and `v0.57.0` is the Kairos one.
+You can find the latest releases in the [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases). For instance, download the [kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso)  ISO file to pick the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v1.0.0` is the Kairos one.
 
 <Info>
 The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship without K3s and P2P full-mesh functionalities; however further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
@@ -111,7 +111,7 @@ You can find instructions showing how to use the Kairos CLI below. In case you p
 To trigger the installation process via QR code, you need to use the Kairos CLI. The CLI is currently available only for Linux and Windows. It can be downloaded from the release artifact:
 
 ```bash
-curl -L https://github.com/kairos-io/provider-kairos/releases/download/v0.57.0/kairos-cli-v0.57.0-Linux-x86_64.tar.gz -o - | tar -xvzf - -C .
+curl -L https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-cli-v1.0.0-Linux-x86_64.tar.gz -o - | tar -xvzf - -C .
 ```
 
 The CLI allows to register a node with a screenshot, an image, or a token. During pairing, the configuration is sent over, and the node will continue the installation process.
