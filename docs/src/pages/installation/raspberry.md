@@ -24,10 +24,10 @@ wget https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0-rc2/k
 
 ## Flash the image
 
-Plug the SD card to your system - to flash the image, you can either use Etcher or `dd`:
+Plug the SD card to your system - to flash the image, you can either use Etcher or `dd`, note it's compressed with "XZ" so we need to decompress it first:
 
 ```bash
-dd if=kairos-opensuse-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img of=<device> oflag=sync status=progress
+xzcat kairos-opensuse-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img | sudo dd of=<device> oflag=sync status=progress
 ```
 
 ## Configure your node
