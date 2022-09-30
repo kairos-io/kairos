@@ -29,13 +29,6 @@ const content = await Astro.glob("../../pages/**/*.(md|mdx)");
         overflow-x: hidden;
       }
 
-      #grid-left {
-        background-color: #fff;
-        max-width: 300px;
-        min-width: 300px;
-        width: 100%;
-      }
-
       #grid-main {
         padding: 40px;
         display: flex;
@@ -75,11 +68,8 @@ const content = await Astro.glob("../../pages/**/*.(md|mdx)");
     </script>
   </head>
   <body>
-    <aside id="grid-left" title="Site Navigation">
-      <LeftSidebar currentPage={currentPage} content={content} />
-    </aside>
+    <LeftSidebar currentPage={currentPage} content={content} />
     <main class="layout">
-      <!-- <Header /> -->
       <div id="grid-main">
         <PageContent frontmatter={frontmatter} headings={headings}>
           <slot />

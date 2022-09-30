@@ -61,45 +61,47 @@ export default function Sidebar({ content, currentPage }) {
   }, [content]);
 
   return (
-    <nav aria-labelledby="grid-left" className="nav">
-      <div className="hero-logo">
-        <a href="/">
-          <img src={heroImage} alt="main logo" width="135" />
-        </a>
-      </div>
-      <ul className="nav-list">
-        {folderOrder.map((header, index) => {
-          const item = menu[header];
+     <aside id="grid-left" title="Site Navigation">
+      <nav aria-labelledby="grid-left" className="nav">
+        <div className="hero-logo">
+          <a href="/">
+            <img src={heroImage} alt="main logo" width="135" />
+          </a>
+        </div>
+        <ul className="nav-list">
+          {folderOrder.map((header, index) => {
+            const item = menu[header];
 
-          return (
-            <li className="nav-group nav-link" key={index}>
-              <strong
-                {...(currentPageMatch === item?.url && {
-                  "aria-current": "page",
-                })}
-              >
-                {item.title}
-              </strong>
-              <ul className="nav-list">
-                {(item.children || [])
-                  .sort((a, b) => a.index - b.index)
-                  .map((child, index) => (
-                    <li className="nav-link" key={index}>
-                      <a
-                        href={child.url}
-                        {...(currentPageMatch === child.url && {
-                          "aria-current": "page",
-                        })}
-                      >
-                        {child.title}
-                      </a>
-                    </li>
-                  ))}
-              </ul>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+            return (
+              <li className="nav-group nav-link" key={index}>
+                <strong
+                  {...(currentPageMatch === item?.url && {
+                    "aria-current": "page",
+                  })}
+                >
+                  {item.title}
+                </strong>
+                <ul className="nav-list">
+                  {(item.children || [])
+                    .sort((a, b) => a.index - b.index)
+                    .map((child, index) => (
+                      <li className="nav-link" key={index}>
+                        <a
+                          href={child.url}
+                          {...(currentPageMatch === child.url && {
+                            "aria-current": "page",
+                          })}
+                        >
+                          {child.title}
+                        </a>
+                      </li>
+                    ))}
+                </ul>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+    </aside>
   );
 }
