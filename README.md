@@ -121,6 +121,8 @@ You can find us at:
 
 Project Office Hours is an opportunity for attendees to meet the maintainers of the project, learn more about the project, ask questions, and learn about new features and upcoming updates.
 
+[Add to Google Calendar](https://calendar.google.com/calendar/embed?src=c_6d65f26502a5a67c9570bb4c16b622e38d609430bce6ce7fc1d8064f2df09c11%40group.calendar.google.com&ctz=Europe%2FRome)
+
 Office hours are happening weekly on Wednesday, 5:30 – 6:00 pm CEST (Central European Summer Time). [Meeting link](https://meet.google.com/aus-mhta-azb)
 
 Besides, we have monthly meetups to participate actively in the roadmap planning and presentation:
@@ -135,7 +137,7 @@ Occurring: Monthly on the first Wednesday, 5:30 – 6:30 pm CEST. [Meeting link]
 
 We will discuss the items of the roadmaps and the expected features in the next releases.
 
-Occurring: Monthly on the second Wednesday, 5:30 pm CEST [[Meeting link](https://meet.google.com/cjs-ngcd-ngt)
+Occurring: Monthly on the second Wednesday, 5:30 pm CEST [Meeting link](https://meet.google.com/cjs-ngcd-ngt)
 
 ## Alternatives
 
