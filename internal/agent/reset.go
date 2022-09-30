@@ -55,7 +55,9 @@ func Reset() error {
 		panic(utils.Shell().Run())
 	}()
 
-	time.Sleep(60 * time.Second)
+	if !agentConfig.Fast {
+		time.Sleep(60 * time.Second)
+	}
 	lock.Lock()
 	args := []string{"reset"}
 
@@ -98,7 +100,9 @@ func Reset() error {
 		panic(utils.Shell().Run())
 	}()
 
-	time.Sleep(60 * time.Second)
+	if !agentConfig.Fast {
+		time.Sleep(60 * time.Second)
+	}
 	lock2.Lock()
 	utils.Reboot()
 

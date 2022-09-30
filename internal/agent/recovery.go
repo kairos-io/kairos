@@ -46,7 +46,9 @@ func Recovery() error {
 		return fmt.Errorf(busErr)
 	}
 
-	time.Sleep(5 * time.Second)
+	if !agentConfig.Fast {
+		time.Sleep(5 * time.Second)
+	}
 
 	pterm.Info.Println(msg)
 
