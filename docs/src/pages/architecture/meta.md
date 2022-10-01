@@ -23,6 +23,6 @@ Every component is extensible and modular such as it can be customized and repla
 Kairos encompasses several components, some externally, most notably:
 
 - [K3s](https://k3s.io) as a Kubernetes distribution
-- [edgevpn](https://mudler.github.io/edgevpn) (optional) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster.
+- [edgevpn](https://mudler.github.io/edgevpn) (optional) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster. Internally uses [libp2p](https://github.com/libp2p/go-libp2p) for the p2p mesh capabilities.
 - [elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/) as a fundament to build the Linux derivative. Indeed, any `Elemental` docs applies to `Kairos` as well.
 - [nohang](https://github.com/hakavlad/nohang) A sophisticated low memory handler for Linux.
