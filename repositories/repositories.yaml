@@ -1,19 +1,4 @@
 repositories:
-  - &cos
-    name: "cos"
-    description: "cOS official"
-    type: "docker"
-    arch: amd64
-    cached: true
-    priority: 1
-    reference: "v0.8.14-22-repository.yaml"
-    urls:
-      - "quay.io/costoolkit/releases-teal"
-  - !!merge <<: *cos
-    arch: "arm64"
-    urls:
-      - "quay.io/costoolkit/releases-teal-arm64"
-    reference: "v0.8.14-22-repository.yaml"
   - &kairos
     name: "kairos"
     # https://github.com/kairos-io/packages
