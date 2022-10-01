@@ -16,6 +16,8 @@ type BrandingText struct {
 }
 
 type Config struct {
+	Fast bool `yaml:"fast,omitempty"`
+
 	Branding BrandingText `yaml:"branding"`
 }
 
