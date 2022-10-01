@@ -7,3 +7,9 @@
 /docs/bin
 /docs/.hugo_build.lock
 /build
+docs/node_modules
+docs/dist
+docs/public
+docs/.vscode
+
+.DS_Store

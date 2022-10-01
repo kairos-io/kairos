@@ -6,12 +6,7 @@ ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.32.4
 ARG OS_ID=kairos
-
-IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "tumbleweed" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "rockylinux" ] 
-    ARG REPOSITORIES_FILE=repositories.yaml.${FLAVOR}
-ELSE
-    ARG REPOSITORIES_FILE=repositories.yaml
-END
+ARG REPOSITORIES_FILE=repositories.yaml
 
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
@@ -56,7 +51,7 @@ test:
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-    RUN curl https://luet.io/install.sh | sh
+    COPY +luet/luet /usr/bin/luet
     COPY . .
     RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
@@ -109,8 +104,9 @@ build:
 dist:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
-    RUN curl https://luet.io/install.sh | sh
-    RUN luet install -y repository/mocaccino-extra
+    COPY +luet/luet /usr/bin/luet
+    RUN mkdir -p /etc/luet/repos.conf.d/
+    RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
     RUN luet install -y utils/goreleaser
     WORKDIR /build
     COPY . .
@@ -152,36 +148,28 @@ framework:
 
     ENV USER=root
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-        RUN /usr/bin/luet install -y --system-target /framework \
-            meta/cos-verify \
-            meta/cos-core \
-            cloud-config/recovery \
-            cloud-config/live \
-            cloud-config/network \
-            cloud-config/boot-assessment \
-            cloud-config/rootfs \
-            system-openrc/cos-setup \
-            system/kernel \
-            system/dracut-initrd
+    IF [ "$FLAVOR" != "ubuntu" ] && [ "$FLAVOR" != "opensuse" ] && [ "$FLAVOR" != "fedora" ]
+        ARG TOOLKIT_IMG="opensuse"
     ELSE
-        RUN /usr/bin/luet install -y --system-target /framework \ 
-            meta/cos-verify \
-            meta/cos-core \ 
-            cloud-config/recovery \
-            cloud-config/live \
-            cloud-config/boot-assessment \
-            cloud-config/network \
-            cloud-config/rootfs
+        ARG TOOLKIT_IMG="$FLAVOR"
     END
 
-    RUN /usr/bin/luet install -y --system-target /framework system/shim system/grub2-efi
+    RUN luet install -y --system-target /framework \
+            system/elemental-toolkit-$TOOLKIT_IMG
 
-    # Replace elemental from kairos repo
-    # TODO: consume toolkit from kairos and drop this workaround
-    RUN /usr/bin/luet install --force --system-target /framework -y system/elemental-cli
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+        RUN luet install -y --system-target /framework \
+            distro-kernels/opensuse distro-initrd/opensuse
+    END
 
-    RUN /usr/bin/luet cleanup --system-target /framework
+    # Required for Secure boot
+    RUN luet install -y --system-target /framework system/shim system/grub2-efi
+    # Elemental CLI
+    RUN luet install -y --system-target /framework system/elemental-cli
+
+    COPY +luet/luet /framework/usr/bin/luet
+
+    RUN luet cleanup --system-target /framework
     COPY overlay/files /framework
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
@@ -303,10 +291,9 @@ arm-image:
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
   RUN zypper in -y jq docker git curl gptfdisk kpartx sudo
-  #COPY +luet/luet /usr/bin/luet
+  COPY +luet/luet /usr/bin/luet
   WORKDIR /build
   RUN git clone https://github.com/rancher/elemental-toolkit && mkdir elemental-toolkit/build
-  RUN curl https://luet.io/install.sh | sh
   ENV STATE_SIZE="6200"
   ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
@@ -318,7 +305,7 @@ arm-image:
           ./images/arm-img-builder.sh --model $MODEL --directory "/build/image" build/$IMAGE_NAME && mv build ../
   END
   RUN xz -v /build/build/$IMAGE_NAME
-  SAVE ARTIFACT /build/build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME
+  SAVE ARTIFACT /build/build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
   SAVE ARTIFACT /build/build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
 ipxe-iso:

@@ -1,5 +1,5 @@
 [Unit]
-Description=kairosos recovery
+Description=kairos recovery
 After=sysinit.target
 [Service]
 Type=oneshot

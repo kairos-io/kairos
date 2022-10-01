@@ -31,7 +31,9 @@ func optsToArgs(options map[string]string) (res []string) {
 	for k, v := range options {
 		if k != "device" && k != "cc" && k != "reboot" && k != "poweroff" {
 			res = append(res, fmt.Sprintf("--%s", k))
-			res = append(res, v)
+			if v != "" {
+				res = append(res, v)
+			}
 		}
 	}
 	return
@@ -120,7 +122,9 @@ func Install(dir ...string) error {
 
 	cmd.PrintText(agentConfig.Branding.Install, "Installation")
 
-	time.Sleep(5 * time.Second)
+	if !agentConfig.Fast {
+		time.Sleep(5 * time.Second)
+	}
 
 	if tk != "" {
 		qr.Print(tk)

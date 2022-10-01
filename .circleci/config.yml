@@ -1,0 +1,245 @@
+version: 2.1
+
+jobs:
+
+  release:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Release binary assets
+          command: |
+              curl https://luet.io/install.sh | sudo sh
+              sudo luet repo add --type docker --yes --url quay.io/kairos/packages
+              sudo luet install -y utils/goreleaser
+
+  build-arm:
+    parameters:
+      flavor:
+        type: string
+      model:
+        type: string
+      image:
+        type: string
+      release:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build ARM images
+          command: |
+              mkdir -vp ~/.docker/cli-plugins/
+              curl --silent -L "https://github.com/docker/buildx/releases/download/v0.5.1/buildx-v0.5.1.linux-amd64" > ~/.docker/cli-plugins/docker-buildx
+              chmod a+x ~/.docker/cli-plugins/docker-buildx
+              docker buildx version
+              sudo apt-get update && sudo apt-get install -y binfmt-support qemu-user-static
+              docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+              docker run --privileged --rm tonistiigi/binfmt --install arm64
+              docker context create buildcontext
+              docker buildx create buildcontext --use
+              if [ "<< parameters.release >>" == "yes" ]; then
+                go get github.com/tcnksm/ghr
+                echo $REGISTRY_PASSWORD | docker login -u $REGISTRY_USERNAME --password-stdin quay.io
+                export TAG=${CIRCLE_TAG}
+              else
+                export TAG=latest
+              fi
+              
+              ./earthly.sh +all-arm --IMAGE_NAME=kairos-<< parameters.flavor >>-$TAG.img --IMAGE=<< parameters.image >>-<< parameters.flavor >>:${TAG} --MODEL=<< parameters.model >> --FLAVOR=<< parameters.flavor >>
+              if [ "<< parameters.release >>" == "yes" ]; then
+               docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
+               ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
+              fi
+
+  build-iso:
+    parameters:
+      flavor:
+        type: string
+      image:
+        type: string
+      release:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             if [ "<< parameters.release >>" == "yes" ]; then
+              go get github.com/tcnksm/ghr
+              echo $REGISTRY_PASSWORD | docker login -u $REGISTRY_USERNAME --password-stdin quay.io
+              export TAG=${CIRCLE_TAG}
+             else
+              export TAG=latest
+             fi
+             ./earthly.sh +all --IMAGE=<< parameters.image >>-<< parameters.flavor >>:${TAG} --FLAVOR=<< parameters.flavor >> --ISO_NAME=kairos-<< parameters.flavor >>-${TAG}
+             if [ "<< parameters.release >>" == "yes" ]; then
+              docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
+              ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
+             fi
+
+  lint:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+            ./earthly.sh +lint
+
+  build-bin:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+            ./earthly.sh +dist
+  unit-test:
+    machine:
+      image: ubuntu-2004:current
+    resource_class: medium
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+            ./earthly.sh +test
+
+  build-framework:
+    parameters:
+      flavor:
+        type: string
+      image:
+        type: string
+      release:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+            if [ "<< parameters.release >>" == "yes" ]; then
+              echo $REGISTRY_PASSWORD | docker login -u $REGISTRY_USERNAME --password-stdin quay.io
+              export TAG=${CIRCLE_TAG}
+             else
+              export TAG=latest
+            fi
+            ./earthly.sh +framework-image --IMG=<< parameters.image >>:${TAG} --FLAVOR=<< parameters.flavor >> --WITH_KERNEL=false
+            ./earthly.sh +framework-image --IMG=<< parameters.image >>-generic:${TAG} --FLAVOR=<< parameters.flavor >> --WITH_KERNEL=true
+            if [ "<< parameters.release >>" == "yes" ]; then
+              docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
+            fi
+
+workflows:
+
+  build:
+    jobs:
+    - build-arm:
+        matrix:
+          parameters:
+            image: ["quay.io/kairos/core"]
+            flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
+            model: ["rpi64"]
+            release: ["no"]
+    - build-framework:
+        matrix:
+          parameters:
+            image: ["quay.io/kairos/framework"]
+            flavor: ["opensuse"]
+            release: ["no"]
+  lint:
+    jobs:
+      - lint
+  test:
+    jobs:
+      - unit-test
+      - build-bin
+      # - build-iso:
+      #     matrix:
+      #       parameters:
+      #         image: [quay.io/kairos/core]
+      #         flavor: ["alpine","opensuse","ubuntu"]
+      #         release: ["no"]
+      # - build-framework:
+      #     matrix:
+      #       parameters:
+      #         image: [quay.io/kairos/framework]
+      #         flavor: ["opensuse"]
+      #         release: ["no"]
+      # - build-arm:
+      #     matrix:
+      #       parameters:
+      #         image: [quay.io/kairos/core]
+      #         flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
+      #         model: ["rpi64"]
+      #         release: ["no"]
+
+  # release:
+  #   jobs:
+  #     - lint:
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #           tags:
+  #             only: /^v.*/
+  #     - unit-test:
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #           tags:
+  #             only: /^v.*/
+  #     - build-bin:
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #           tags:
+  #             only: /^v.*/
+  #     - build-iso:
+  #         matrix:
+  #           parameters:
+  #             image: [quay.io/kairos/core]
+  #             flavor: ["alpine","opensuse","ubuntu"]
+  #             release: ["yes"]
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #           tags:
+  #             only: /^v.*/
+  #     - build-framework:
+  #         matrix:
+  #           parameters:
+  #             image: [quay.io/kairos/framework]
+  #             flavor: ["opensuse"]
+  #             release: ["yes"]
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #           tags:
+  #             only: /^v.*/
+  #     - build-arm:
+  #         matrix:
+  #           parameters:
+  #             image: [quay.io/kairos/core]
+  #             flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
+  #             model: ["rpi64"]
+  #             release: ["yes"]
+  #         filters:
+  #           branches:
+  #             ignore: /.*/
+  #           tags:
+  #             only: /^v.*/

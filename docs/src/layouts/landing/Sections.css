@@ -1,0 +1,161 @@
+.section-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 1200px;
+  justify-content: center;
+}
+
+.sections[aria-current="horizontal"] {
+  flex-direction: row;
+  width: 100%;
+}
+
+.main-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 0;
+  width: 100%;
+}
+
+
+.main-section > .sections {
+  padding-bottom: 0;
+}
+
+.main-section > .title {
+  font-weight: 600;
+  font-size: 42px;
+  line-height: 22px;
+  color: #161B33;
+  margin: 43px 0;
+}
+
+.secondary-section {
+  display: flex;
+  flex-direction: row;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 32px 0;
+}
+
+.secondary-section img {
+  margin-top: 80px;
+  margin-bottom: 40px;
+}
+
+.secondary-section:first-child {
+  padding-top: 0;
+}
+
+.secondary-section:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+
+}
+
+.secondary-section > .title {
+  min-width: 480px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  font-family: 'Noto Sans Mono';
+    font-weight: 700;
+    font-size: 24px;
+    line-height: 38px;
+    color: #161B33;
+    text-align: center;
+}
+
+.sections[aria-current="horizontal"] p {
+  text-align: center;
+}
+
+.sections[aria-current="horizontal"] p {
+  text-align: center;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section {
+  flex-direction: column;
+  align-items: center;
+  border-bottom: 0;
+  padding: 0;
+  width: 100%;
+  margin: 0 24px;
+}
+
+.sections[aria-current="horizontal"]> .secondary-section .image-container {
+  height: 100px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section .image-container-removeHeight {
+  display: flex;
+    justify-content: flex-end;
+}
+.sections[aria-current="horizontal"]>.secondary-section img {
+  margin: 0;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section:first-child {
+  margin-left: 0;
+}
+.sections[aria-current="horizontal"] > .secondary-section:last-child {
+  margin-right: 0;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section > .title {
+  padding: 32px 12px;
+  flex-grow: 1;
+  width: 100%;
+  min-width: auto;
+  max-width: 340px;
+}
+
+.sections[aria-current="horizontal"] > .secondary-section > .title > div {
+  margin: 32px 0;
+}
+
+.tertiary-section {
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  width: 100%;
+}
+
+.tertiary-section:last-child {
+  border-bottom: 0px;
+  margin-bottom: 0px;
+}
+
+.tertiary-section > .title {
+  font-family: 'Noto Sans Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 33px;
+  color: #161B33;
+  margin-bottom: 16px;
+}
+
+.sections p {
+  font-family: Noto Sans;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 160%;
+  letter-spacing: 0.01em;
+  color: #344079;
+  margin-top: 0;
+  margin-bottom: 24px;
+}
+

@@ -1,0 +1,29 @@
+name: "Default network configuration"
+stages:
+   initramfs:
+     - name: "Setup network"
+       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+       systemctl:
+         enable: 
+         - systemd-networkd
+         - systemd-resolved
+         disable: 
+         - NetworkManager
+         - wicked
+       files:
+       - path: /etc/systemd/network/20-dhcp.network
+         content: |
+                  [Match]
+                  Name=en*
+                  [Network]
+                  DHCP=yes
+         permissions: 0644
+         owner: 0
+         group: 0
+       commands:
+       - rm /etc/resolv.conf
+       - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+#      dns: 
+#       path: /etc/resolv.conf
+#       nameservers:
+#       - 8.8.8.8

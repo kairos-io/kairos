@@ -68,6 +68,7 @@ RUN zypper in -y \
     sysconfig \
     sysconfig-netconfig \
     sysvinit-tools \
+    systemd-network \
     wicked \
     wicked-service \
     rng-tools \
