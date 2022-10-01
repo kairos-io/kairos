@@ -6,12 +6,7 @@ ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.32.4
 ARG OS_ID=kairos
-
-IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "tumbleweed" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "rockylinux" ] 
-    ARG REPOSITORIES_FILE=repositories.yaml.${FLAVOR}
-ELSE
-    ARG REPOSITORIES_FILE=repositories.yaml
-END
+ARG REPOSITORIES_FILE=repositories.yaml
 
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
@@ -153,36 +148,28 @@ framework:
 
     ENV USER=root
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-        RUN /usr/bin/luet install -y --system-target /framework \
-            meta/cos-verify \
-            meta/cos-core \
-            cloud-config/recovery \
-            cloud-config/live \
-            cloud-config/network \
-            cloud-config/boot-assessment \
-            cloud-config/rootfs \
-            system-openrc/cos-setup \
-            system/kernel \
-            system/dracut-initrd
+    IF [ "$FLAVOR" != "ubuntu" ] && [ "$FLAVOR" != "opensuse" ] && [ "$FLAVOR" != "fedora" ]
+        ARG TOOLKIT_IMG="opensuse"
     ELSE
-        RUN /usr/bin/luet install -y --system-target /framework \ 
-            meta/cos-verify \
-            meta/cos-core \ 
-            cloud-config/recovery \
-            cloud-config/live \
-            cloud-config/boot-assessment \
-            cloud-config/network \
-            cloud-config/rootfs
+        ARG TOOLKIT_IMG="$FLAVOR"
     END
 
-    RUN /usr/bin/luet install -y --system-target /framework system/shim system/grub2-efi
+    RUN luet install -y --system-target /framework \
+            system/elemental-toolkit-$TOOLKIT_IMG
 
-    # Replace elemental from kairos repo
-    # TODO: consume toolkit from kairos and drop this workaround
-    RUN /usr/bin/luet install --force --system-target /framework -y system/elemental-cli
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+        RUN luet install -y --system-target /framework \
+            distro-kernels/opensuse distro-initrd/opensuse
+    END
 
-    RUN /usr/bin/luet cleanup --system-target /framework
+    # Required for Secure boot
+    RUN luet install -y --system-target /framework system/shim system/grub2-efi
+    # Elemental CLI
+    RUN luet install -y --system-target /framework system/elemental-cli
+
+    COPY +luet/luet /framework/usr/bin/luet
+
+    RUN luet cleanup --system-target /framework
     COPY overlay/files /framework
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
