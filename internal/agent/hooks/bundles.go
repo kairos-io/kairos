@@ -10,12 +10,12 @@ type BundleOption struct{}
 
 func (b BundleOption) Run(c config.Config) error {
 
-	machine.Mount("COS_PERSISTENT", "/usr/local")
+	machine.Mount("COS_PERSISTENT", "/usr/local") //nolint:errcheck
 	defer func() {
 		machine.Umount("/usr/local")
 	}()
 
-	machine.Mount("COS_OEM", "/oem")
+	machine.Mount("COS_OEM", "/oem") //nolint:errcheck
 	defer func() {
 		machine.Umount("/oem")
 	}()

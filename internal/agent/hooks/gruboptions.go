@@ -12,7 +12,7 @@ type GrubOptions struct{}
 
 func (b GrubOptions) Run(c config.Config) error {
 
-	machine.Mount("COS_OEM", "/tmp/oem")
+	machine.Mount("COS_OEM", "/tmp/oem") //nolint:errcheck
 	defer func() {
 		machine.Umount("/tmp/oem")
 	}()
