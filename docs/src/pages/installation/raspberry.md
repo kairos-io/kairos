@@ -40,7 +40,7 @@ $ mkdir /tmp/persistent
 $ sudo mount $PERSISTENT /tmp/persistent
 $ sudo mkdir /tmp/persistent/cloud-config
 $ sudo cp cloud-config.yaml /tmp/persistent/cloud-config
-$ sudp umount /tmp/persistent
+$ sudo umount /tmp/persistent
 ```
 
 You can, additionally push more cloud config files into such folder following the [yip](https://github.com/mudler/yip) syntax.
