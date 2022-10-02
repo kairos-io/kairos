@@ -104,6 +104,8 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 			// 		ContainSubstring("kubo"),
 			// 	))
 			syset, err := Sudo("systemd-sysext")
+			ls, _ := Sudo("ls -liah /usr/local/lib/extensions")
+			fmt.Println("LS:", ls)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(syset).To(ContainSubstring("kubo"))
 
