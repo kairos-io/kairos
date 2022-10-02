@@ -72,6 +72,8 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 	})
 
 	Context("reboots and passes functional tests", func() {
+		By("checking after-install hook triggered")
+
 		It("has grubenv file", func() {
 			Eventually(func() string {
 				out, _ := Sudo("sudo cat /oem/grubenv")
@@ -83,6 +85,7 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 		})
 
 		It("has custom cmdline", func() {
+			By("waiting reboot and checking cmdline is present")
 			Eventually(func() string {
 				out, _ := Sudo("sudo cat /proc/cmdline")
 				return out
