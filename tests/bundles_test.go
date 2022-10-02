@@ -93,10 +93,16 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 		})
 
 		It("has kubo extension", func() {
-			out, err := Sudo("systemd-sysext")
+			// Eventually(func() string {
+			// 	out, _ := Sudo("systemd-sysext")
+			// 	return out
+			// }, 40*time.Minute, 1*time.Second).Should(
+			// 	Or(
+			// 		ContainSubstring("kubo"),
+			// 	))
+			syset, err := Sudo("systemd-sysext")
 			Expect(err).ToNot(HaveOccurred())
-
-			Expect(out).To(ContainSubstring("kubo"))
+			Expect(syset).To(ContainSubstring("kubo"))
 
 			ipfsV, err := Sudo("ipfs version")
 			Expect(err).ToNot(HaveOccurred())

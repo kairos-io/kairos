@@ -492,8 +492,15 @@ examples-bundle-config:
     FROM alpine
     COPY . .
     RUN echo "" >> tests/assets/live-overlay.yaml
-    RUN echo "bundles:" >> tests/assets/live-overlay.yaml
-    RUN echo '- rootfs_path: "/usr/local/lib/extensions/kubo"' >> tests/assets/live-overlay.yaml
-    RUN echo "  targets:" >> tests/assets/live-overlay.yaml
-    RUN echo "  - container://${BUNDLE_IMAGE}" >> tests/assets/live-overlay.yaml
+    RUN echo "install:" >> tests/assets/live-overlay.yaml
+    RUN echo "  auto: true" >> tests/assets/live-overlay.yaml
+    RUN echo "  reboot: true" >> tests/assets/live-overlay.yaml
+    RUN echo "  device: auto" >> tests/assets/live-overlay.yaml
+    RUN echo "  grub_options:" >> tests/assets/live-overlay.yaml
+    RUN echo '    extra_cmdline: "foobarzz"' >> tests/assets/live-overlay.yaml
+    RUN echo '    extra_cmdline: "foobarzz"' >> tests/assets/live-overlay.yaml
+    RUN echo "  bundles:" >> tests/assets/live-overlay.yaml
+    RUN echo '  - rootfs_path: "/usr/local/lib/extensions/kubo"' >> tests/assets/live-overlay.yaml
+    RUN echo "    targets:" >> tests/assets/live-overlay.yaml
+    RUN echo "    - container://${BUNDLE_IMAGE}" >> tests/assets/live-overlay.yaml
     SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml
