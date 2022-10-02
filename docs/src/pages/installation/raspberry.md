@@ -37,10 +37,10 @@ To configure the device, be sure to have the SD plugged in your host. We need to
 ```
 $ PERSISTENT=$(blkid -L COS_PERSISTENT)
 $ mkdir /tmp/persistent
-$ mount $PERSISTENT /tmp/persistent
-$ mkdir /tmp/persistent/cloud-config
-$ cp cloud-config.yaml /tmp/persistent/cloud-config
-$ umount /tmp/persistent
+$ sudo mount $PERSISTENT /tmp/persistent
+$ sudo mkdir /tmp/persistent/cloud-config
+$ sudo cp cloud-config.yaml /tmp/persistent/cloud-config
+$ sudo umount /tmp/persistent
 ```
 
 You can, additionally push more cloud config files into such folder following the [yip](https://github.com/mudler/yip) syntax.
