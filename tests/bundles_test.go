@@ -72,9 +72,10 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 	})
 
 	Context("reboots and passes functional tests", func() {
-		By("checking after-install hook triggered")
 
 		It("has grubenv file", func() {
+			By("checking after-install hook triggered")
+
 			Eventually(func() string {
 				out, _ := Sudo("sudo cat /oem/grubenv")
 				return out
