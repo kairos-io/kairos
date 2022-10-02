@@ -23,6 +23,7 @@ type Install struct {
 	Device      string            `yaml:"device,omitempty"`
 	Poweroff    bool              `yaml:"poweroff,omitempty"`
 	GrubOptions map[string]string `yaml:"grub_options,omitempty"`
+	Bundles     Bundles           `yaml:"bundles,omitempty"`
 }
 
 type Config struct {
@@ -33,7 +34,7 @@ type Config struct {
 	header             string
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
-	IgnoreBundleErrors bool              `yaml:"ignore_bundles_errors,omitempty"`
+	FailOnBundleErrors bool              `yaml:"fail_on_bundles_errors,omitempty"`
 	Bundles            Bundles           `yaml:"bundles,omitempty"`
 }
 

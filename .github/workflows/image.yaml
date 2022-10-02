@@ -169,7 +169,30 @@ jobs:
             mkdir build
             mv $ISO build/kairos.iso
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            ./earthly.sh +run-qemu-tests --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
+            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }}
+
+  qemu-bundles-tests:
+    needs: 
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "opensuse"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+          name: kairos-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/kairos.iso
+            ./earthly.sh +prepare-bundles-tests
+            ./earthly.sh +run-qemu-bundles-tests --FLAVOR=${{ matrix.flavor }}
 
   qemu-reset-tests:
     needs: 
@@ -194,7 +217,7 @@ jobs:
             mkdir build
             mv $ISO build/kairos.iso
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            ./earthly.sh +run-qemu-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }} --FROM_ARTIFACTS=true
+            ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
 
   upgrade-with-cli-test:
     needs: 
@@ -250,7 +273,7 @@ jobs:
             export ISO=$PWD/$(ls *.iso)
             sudo mkdir build
             sudo mv $ISO build/
-            ./earthly.sh +run-qemu-upgrade-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-with-cli
+            ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-with-cli
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
@@ -313,7 +336,7 @@ jobs:
             export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
             sudo mkdir build
             sudo mv $ISO build/
-            ./earthly.sh +run-qemu-upgrade-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-latest-with-cli
+            ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-latest-with-cli
     - uses: actions/upload-artifact@v2
       if: failure()
       with:
