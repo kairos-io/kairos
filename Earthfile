@@ -84,6 +84,16 @@ BUILD_GOLANG:
     RUN go build -ldflags "-s -w" -o ${BIN} ./cmd/${SRC} && upx ${BIN}
     SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
 
+uuidgen:
+    FROM alpine
+    RUN apk add uuidgen
+
+    COPY . ./
+
+    RUN echo $(uuidgen) > UUIDGEN
+
+    SAVE ARTIFACT UUIDGEN UUIDGEN
+
 version:
     FROM alpine
     RUN apk add git
@@ -125,6 +135,10 @@ lint:
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
     SAVE ARTIFACT /usr/bin/luet /luet
+
+###
+### Image Build targets
+###
 
 framework:
     ARG COSIGN_SKIP
@@ -254,6 +268,10 @@ docker-rootfs:
     FROM +docker
     SAVE ARTIFACT /. rootfs
 
+###
+### Artifacts targets (ISO, netboot, ARM)
+###
+
 iso:
     ARG OSBUILDER_IMAGE
     ARG ISO_NAME=${OS_ID}
@@ -327,8 +345,23 @@ ipxe-iso:
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso.ipxe
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img.ipxe
 
+# Generic targets
+# usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
+datasource-iso:
+  ARG ELEMENTAL_IMAGE
+  ARG CLOUD_CONFIG
+  FROM $ELEMENTAL_IMAGE
+  RUN zypper in -y mkisofs
+  WORKDIR /build
+  RUN touch meta-data
+  COPY ${CLOUD_CONFIG} user-data
+  RUN cat user-data
+  RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
+  SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
 
-## Security targets
+###
+### Security target scan
+###
 trivy:
     FROM aquasec/trivy
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
@@ -356,62 +389,53 @@ linux-bench-scan:
     COPY +linux-bench/linux-bench /build/linux-bench/linux-bench
     RUN /build/linux-bench/linux-bench
 
-# Generic targets
-# usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
-datasource-iso:
-  ARG ELEMENTAL_IMAGE
-  ARG CLOUD_CONFIG
-  FROM $ELEMENTAL_IMAGE
-  RUN zypper in -y mkisofs
-  WORKDIR /build
-  RUN touch meta-data
-  COPY ./${CLOUD_CONFIG} user-data
-  RUN cat user-data
-  RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
-  SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
 
-# usage e.g. ./earthly.sh +run-qemu-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
-run-qemu-tests:
+###
+### Test targets
+###
+# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
+run-qemu-datasource-tests:
     FROM opensuse/leap
     WORKDIR /test
     RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
     ARG FLAVOR
     ARG TEST_SUITE=autoinstall-test
-    ARG FROM_ARTIFACTS
     ENV FLAVOR=$FLAVOR
     ENV SSH_PORT=60022
     ENV CREATE_VM=true
-    ARG CLOUD_CONFIG="/tests/tests/assets/autoinstall.yaml"
+    ARG CLOUD_CONFIG="assets/autoinstall.yaml"
     ENV USE_QEMU=true
 
     ENV GOPATH="/go"
 
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
-
-    IF [ "$FROM_ARTIFACTS" = "true" ]
-        COPY . .
+    COPY . .
+    RUN ls -liah
+    IF [ -e /test/build/kairos.iso ]
         ENV ISO=/test/build/kairos.iso
-        ENV DATASOURCE=/test/build/datasource.iso
     ELSE
-        COPY ./tests .
         COPY +iso/kairos.iso kairos.iso
-        COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso
         ENV ISO=/test/kairos.iso
-        ENV DATASOURCE=/test/datasource.iso
     END
 
-    ENV CLOUD_INIT=$CLOUD_CONFIG
+    IF [ ! -e /test/build/datasource.iso ]
+        COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso
+        ENV DATASOURCE=/test/datasource.iso
+    ELSE 
+        ENV DATASOURCE=/test/build/datasource.iso
+    END
+
+    ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
-run-qemu-upgrade-test:
+run-qemu-test:
     FROM opensuse/leap
     WORKDIR /test
     RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
-    ARG FROM_ARTIFACTS
     ARG CONTAINER_IMAGE
     ENV CONTAINER_IMAGE=$CONTAINER_IMAGE
     ENV FLAVOR=$FLAVOR
@@ -428,3 +452,48 @@ run-qemu-upgrade-test:
     ENV ISO=$ISO
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+
+# bundles tests needs to run in sequence:
+# +prepare-bundles-tests
+# +run-bundles-tests
+prepare-bundles-tests:
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    RUN zypper in -y jq docker
+    COPY +uuidgen/UUIDGEN ./
+    ARG UUIDGEN=$(cat UUIDGEN)
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+   # BUILD +examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE
+    WITH DOCKER --load $IMG=(+examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE)
+        RUN docker push $BUNDLE_IMAGE 
+    END
+    BUILD +examples-bundle-config --BUNDLE_IMAGE=$BUNDLE_IMAGE
+
+run-bundles-tests:
+    ARG FLAVOR
+    BUILD +run-qemu-datasource-tests --CLOUD_CONFIG=./bundles-config.yaml --TEST_SUITE="bundles-test" --FLAVOR=$FLAVOR
+
+###
+### Examples
+###
+### ./earthly.sh +examples-bundle --BUNDLE_IMAGE=ttl.sh/testfoobar:8h
+examples-bundle:
+    ARG BUNDLE_IMAGE
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    RUN echo "version ${VERSION}"
+    FROM DOCKERFILE -f examples/bundle/Dockerfile .
+    SAVE IMAGE $BUNDLE_IMAGE
+
+## ./earthly.sh +examples-bundle-config --BUNDLE_IMAGE=ttl.sh/testfoobar:8h 
+## cat bundles-config.yaml
+examples-bundle-config:
+    ARG BUNDLE_IMAGE
+    FROM alpine
+    COPY . .
+    RUN echo "" >> tests/assets/live-overlay.yaml
+    RUN echo "bundles:" >> tests/assets/live-overlay.yaml
+    RUN echo '- rootfs_path: "/usr/local/lib/extensions/kubo"' >> tests/assets/live-overlay.yaml
+    RUN echo "  targets:" >> tests/assets/live-overlay.yaml
+    RUN echo "  - container://${BUNDLE_IMAGE}" >> tests/assets/live-overlay.yaml
+    SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml
