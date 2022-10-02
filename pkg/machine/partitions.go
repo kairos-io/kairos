@@ -2,6 +2,7 @@ package machine
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/kairos-io/kairos/pkg/utils"
@@ -19,7 +20,10 @@ func Mount(label, mountpoint string) {
 
 	part = strings.TrimSuffix(part, "\n")
 
-	mount, err := utils.SH(fmt.Sprintf("mkdir %s && mount %s %s", mountpoint, part, mountpoint))
+	if !Exists(mountpoint) {
+		os.MkdirAll(mountpoint, 0755)
+	}
+	mount, err := utils.SH(fmt.Sprintf("mount %s %s", part, mountpoint))
 	if err != nil {
 		fmt.Printf("could not mount: %s\n", mount+err.Error())
 	}
