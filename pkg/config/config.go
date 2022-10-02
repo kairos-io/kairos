@@ -34,7 +34,7 @@ type Config struct {
 	header             string
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
-	IgnoreBundleErrors bool              `yaml:"ignore_bundles_errors,omitempty"`
+	FailOnBundleErrors bool              `yaml:"fail_on_bundles_errors,omitempty"`
 	Bundles            Bundles           `yaml:"bundles,omitempty"`
 }
 

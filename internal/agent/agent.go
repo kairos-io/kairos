@@ -63,14 +63,14 @@ func Run(opts ...Option) error {
 	if !machine.SentinelExist("bundles") {
 		opts := c.Bundles.Options()
 		err := bundles.RunBundles(opts...)
-		if !c.IgnoreBundleErrors && err != nil {
+		if c.FailOnBundleErrors && err != nil {
 			return err
 		}
 
 		// Re-load providers
 		bus.Reload()
 		err = machine.CreateSentinel("bundles")
-		if !c.IgnoreBundleErrors && err != nil {
+		if c.FailOnBundleErrors && err != nil {
 			return err
 		}
 	}

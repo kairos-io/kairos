@@ -22,7 +22,7 @@ func (b BundleOption) Run(c config.Config) error {
 
 	opts := c.Install.Bundles.Options()
 	err := bundles.RunBundles(opts...)
-	if !c.IgnoreBundleErrors && err != nil {
+	if c.FailOnBundleErrors && err != nil {
 		return err
 	}
 
