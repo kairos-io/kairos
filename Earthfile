@@ -461,10 +461,13 @@ prepare-bundles-tests:
     FROM $OSBUILDER_IMAGE
     RUN zypper in -y jq docker
     COPY +uuidgen/UUIDGEN ./
+    COPY +version/VERSION ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
    # BUILD +examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE
-    WITH DOCKER --load $IMG=(+examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE)
+    ARG VERSION=$(cat VERSION)
+    RUN echo "version ${VERSION}"
+    WITH DOCKER --load $IMG=(+examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE --VERSION=$VERSION)
         RUN docker push $BUNDLE_IMAGE 
     END
     BUILD +examples-bundle-config --BUNDLE_IMAGE=$BUNDLE_IMAGE
@@ -479,10 +482,8 @@ run-bundles-tests:
 ### ./earthly.sh +examples-bundle --BUNDLE_IMAGE=ttl.sh/testfoobar:8h
 examples-bundle:
     ARG BUNDLE_IMAGE
-    COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
-    RUN echo "version ${VERSION}"
-    FROM DOCKERFILE -f examples/bundle/Dockerfile .
+    ARG VERSION
+    FROM DOCKERFILE --build-arg VERSION=$VERSION -f examples/bundle/Dockerfile .
     SAVE IMAGE $BUNDLE_IMAGE
 
 ## ./earthly.sh +examples-bundle-config --BUNDLE_IMAGE=ttl.sh/testfoobar:8h 
@@ -497,9 +498,9 @@ examples-bundle-config:
     RUN echo "  reboot: true" >> tests/assets/live-overlay.yaml
     RUN echo "  device: auto" >> tests/assets/live-overlay.yaml
     RUN echo "  grub_options:" >> tests/assets/live-overlay.yaml
-    RUN echo '    extra_cmdline: "foobarzz"' >> tests/assets/live-overlay.yaml
+    RUN echo "    extra_cmdline: foobarzz" >> tests/assets/live-overlay.yaml
     RUN echo "  bundles:" >> tests/assets/live-overlay.yaml
-    RUN echo '   - rootfs_path: "/usr/local/lib/extensions/kubo"' >> tests/assets/live-overlay.yaml
+    RUN echo "  - rootfs_path: /usr/local/lib/extensions/kubo" >> tests/assets/live-overlay.yaml
     RUN echo "    targets:" >> tests/assets/live-overlay.yaml
     RUN echo "    - container://${BUNDLE_IMAGE}" >> tests/assets/live-overlay.yaml
     SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml
