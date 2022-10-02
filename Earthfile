@@ -403,7 +403,7 @@ run-qemu-datasource-tests:
     ENV FLAVOR=$FLAVOR
     ENV SSH_PORT=60022
     ENV CREATE_VM=true
-    ARG CLOUD_CONFIG="assets/autoinstall.yaml"
+    ARG CLOUD_CONFIG="./tests/assets/autoinstall.yaml"
     ENV USE_QEMU=true
 
     ENV GOPATH="/go"
@@ -472,7 +472,7 @@ prepare-bundles-tests:
     END
     BUILD +examples-bundle-config --BUNDLE_IMAGE=$BUNDLE_IMAGE
 
-run-bundles-tests:
+run-qemu-bundles-tests:
     ARG FLAVOR
     BUILD +run-qemu-datasource-tests --CLOUD_CONFIG=./bundles-config.yaml --TEST_SUITE="bundles-test" --FLAVOR=$FLAVOR
 

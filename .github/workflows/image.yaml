@@ -193,7 +193,7 @@ jobs:
             mkdir build
             mv $ISO build/kairos.iso
             ./earthly.sh +prepare-bundles-tests
-            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }}
+            ./earthly.sh +run-qemu-bundles-tests --FLAVOR=${{ matrix.flavor }}
 
   qemu-reset-tests:
     needs: 
