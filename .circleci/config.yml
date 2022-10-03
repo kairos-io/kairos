@@ -206,7 +206,7 @@ workflows:
     - run-datasource-test:
         matrix:
           parameters:
-            cloud_config: ["tests/assets/autoinstall.yaml"]
+            cloud_config: ["autoinstall"]
             flavor: ["alpine","opensuse","ubuntu"]
             test_suite: ["reset-test", "autoinstall-test"]
         requires:
