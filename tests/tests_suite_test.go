@@ -88,6 +88,8 @@ var _ = BeforeSuite(func() {
 			types.WithID(machineID),
 			types.WithSSHUser(user()),
 			types.WithSSHPass(pass()),
+			types.WithCPU("3"),
+			types.WithMemory("6000"),
 			types.WithStateDir(t),
 			types.WithDataSource(os.Getenv("DATASOURCE")),
 		}
