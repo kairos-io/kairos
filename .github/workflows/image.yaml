@@ -180,6 +180,7 @@ jobs:
       matrix:
        include:
          - flavor: "opensuse"
+         - flavor: "alpine"
     steps:
     - uses: actions/checkout@v2
     - name: Download artifacts
