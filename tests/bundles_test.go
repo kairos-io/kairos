@@ -17,7 +17,7 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
 		}
 
-		EventuallyConnects()
+		EventuallyConnects(720)
 	})
 
 	AfterEach(func() {
