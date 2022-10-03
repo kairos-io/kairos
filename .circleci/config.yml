@@ -55,7 +55,44 @@ jobs:
                docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
                ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
               fi
-
+  run-test:
+    parameters:
+      flavor:
+        type: string
+      test_suite:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-release --FLAVOR=<< parameters.flavor >>
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+              ./earthly.sh +run-qemu-test --FLAVOR=<< parameters.flavor >> --CONTAINER_IMAGE=ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h --TEST_SUITE=<< parameters.test_suite >>
+  run-latest-test:
+    parameters:
+      flavor:
+        type: string
+      test_suite:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-release --FLAVOR=<< parameters.flavor >>
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+              ./earthly.sh +run-qemu-test --FLAVOR=<< parameters.flavor >> --CONTAINER_IMAGE=ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h --TEST_SUITE=<< parameters.test_suite >>
   run-datasource-test:
     parameters:
       flavor:
@@ -125,6 +162,8 @@ jobs:
               docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
               ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
              fi
+             docker tag << parameters.image >>-<< parameters.flavor >>:${TAG} ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h
+             docker push ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h
 
   lint:
     machine:
@@ -209,6 +248,20 @@ workflows:
             cloud_config: ["autoinstall"]
             flavor: ["alpine","opensuse","ubuntu"]
             test_suite: ["reset-test", "autoinstall-test"]
+        requires:
+        - build-iso
+    - run-latest-test:
+        matrix:
+          parameters:
+            flavor: ["alpine","opensuse","ubuntu"]
+            test_suite: ["upgrade-latest-with-cli"]
+        requires:
+        - build-iso
+    - run-test:
+        matrix:
+          parameters:
+            flavor: ["alpine","opensuse","ubuntu"]
+            test_suite: ["upgrade-with-cli"]
         requires:
         - build-iso
     - run-bundles-test:
