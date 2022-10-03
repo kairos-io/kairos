@@ -78,7 +78,24 @@ jobs:
              sudo mv $ISO build/kairos.iso
              ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/<< parameters.cloud_config >>.yaml
              ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=<< parameters.test_suite >> --FLAVOR=<< parameters.flavor >>
-
+  run-bundles-test:
+    parameters:
+      flavor:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-build-artifacts --BUNDLE_IMAGE=ttl.sh/<< parameters.flavor >>-$CIRCLE_SHA1:8h
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+             ./earthly.sh +prepare-bundles-tests
+             ./earthly.sh +run-qemu-bundles-tests --FLAVOR=<< parameters.flavor >>
   build-iso:
     parameters:
       flavor:
@@ -192,6 +209,12 @@ workflows:
             cloud_config: ["tests/assets/autoinstall.yaml"]
             flavor: ["alpine","opensuse","ubuntu"]
             test_suite: ["reset-test", "autoinstall-test"]
+        requires:
+        - build-iso
+    - run-bundles-test:
+        matrix:
+          parameters:
+            flavor: ["opensuse"]
         requires:
         - build-iso
     - build-iso:
