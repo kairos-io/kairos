@@ -56,6 +56,29 @@ jobs:
                ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
               fi
 
+  run-datasource-test:
+    parameters:
+      flavor:
+        type: string
+      cloud_config:
+        type: string
+      test_suite:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-build-artifacts --BUNDLE_IMAGE=ttl.sh/<< parameters.flavor >>-$CIRCLE_SHA1:8h
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/<< parameters.cloud_config >>.yaml
+             ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=<< parameters.test_suite >> --FLAVOR=<< parameters.flavor >>
+
   build-iso:
     parameters:
       flavor:
@@ -80,6 +103,7 @@ jobs:
               export TAG=latest
              fi
              ./earthly.sh +all --IMAGE=<< parameters.image >>-<< parameters.flavor >>:${TAG} --FLAVOR=<< parameters.flavor >> --ISO_NAME=kairos-<< parameters.flavor >>-${TAG}
+             ./earthly.sh +push-build-artifacts --BUNDLE_IMAGE=ttl.sh/<< parameters.flavor >>-$CIRCLE_SHA1:8h
              if [ "<< parameters.release >>" == "yes" ]; then
               docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
               ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
@@ -161,6 +185,20 @@ workflows:
           parameters:
             image: ["quay.io/kairos/framework"]
             flavor: ["opensuse"]
+            release: ["no"]
+    - run-datasource-test:
+        matrix:
+          parameters:
+            cloud_config: ["tests/assets/autoinstall.yaml"]
+            flavor: ["alpine","opensuse","ubuntu"]
+            test_suite: ["reset-test", "autoinstall-test"]
+        requires:
+        - build-iso
+    - build-iso:
+        matrix:
+          parameters:
+            image: [quay.io/kairos/core]
+            flavor: ["alpine","opensuse","ubuntu"]
             release: ["no"]
   lint:
     jobs:

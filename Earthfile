@@ -453,6 +453,37 @@ run-qemu-test:
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
+pull-build-artifacts:
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    RUN zypper in -y jq docker
+    COPY +uuidgen/UUIDGEN ./
+    COPY +version/VERSION ./
+    ARG UUIDGEN=$(cat UUIDGEN)
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+
+    COPY +luet/luet /usr/bin/luet
+    RUN luet util unpack $BUNDLE_IMAGE build
+    SAVE ARTIFACT build AS LOCAL build
+
+push-build-artifacts:
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    RUN zypper in -y jq docker
+    COPY +uuidgen/UUIDGEN ./
+    COPY +version/VERSION ./
+    ARG UUIDGEN=$(cat UUIDGEN)
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+
+    COPY . .
+    COPY +luet/luet /usr/bin/luet
+
+    RUN cd build && tar cvf ../build.tar ./
+    RUN luet util pack $BUNDLE_IMAGE build.tar image.tar
+    WITH DOCKER
+        RUN docker load -i image.tar && docker push $BUNDLE_IMAGE 
+    END
+
 # bundles tests needs to run in sequence:
 # +prepare-bundles-tests
 # +run-bundles-tests
