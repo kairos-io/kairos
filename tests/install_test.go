@@ -16,13 +16,13 @@ import (
 var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	BeforeEach(func() {
-		EventuallyConnects()
+		EventuallyConnects(720)
 	})
 
 	AfterEach(func() {
 		Machine.Clean()
 		Machine.Create()
-		EventuallyConnects()
+		EventuallyConnects(720)
 	})
 
 	testInstall := func(cloudConfig string, actual interface{}, m types.GomegaMatcher) {
@@ -48,7 +48,7 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 
 		detachAndReboot()
 
-		EventuallyConnects()
+		EventuallyConnects(720)
 		Eventually(actual, 5*time.Minute, 10*time.Second).Should(m)
 	}
 
