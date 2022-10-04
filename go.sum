@@ -479,8 +479,8 @@ github.com/smartystreets/goconvey v1.6.4/go.mod h1:syvi0/a8iFYH4r/RixwvyeAJjdLS9
 github.com/smartystreets/gunit v1.0.0/go.mod h1:qwPWnhz6pn0NnRBP++URONOVyNkPyr4SauJk4cUOwJs=
 github.com/soheilhy/cmux v0.1.4/go.mod h1:IM3LyeVVIOuxMH7sFAkER9+bJ4dT7Ms6E4xg4kGIyLM=
 github.com/spaolacci/murmur3 v0.0.0-20180118202830-f09979ecbc72/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
-github.com/spectrocloud/peg v0.0.0-20220928170937-6323fd1d63c4 h1:HTGwJxg40ELjvAlK86tkAh+kY7PTpPa3iFtN/0ZTjKI=
-github.com/spectrocloud/peg v0.0.0-20220928170937-6323fd1d63c4/go.mod h1:H0Vd1P9FdZfrv1QIiQetY4ckDpiD9R71OcUyuvJadno=
+github.com/spectrocloud/peg v0.0.0-20221004124828-dc401eb8ddad h1:vb+7fDjQ8GF5QpvL4JUcoN6B7KuyW8V0HjNKBkYOMk8=
+github.com/spectrocloud/peg v0.0.0-20221004124828-dc401eb8ddad/go.mod h1:H0Vd1P9FdZfrv1QIiQetY4ckDpiD9R71OcUyuvJadno=
 github.com/spf13/afero v1.1.2/go.mod h1:j4pytiNVoe2o6bmDsKpLACNPDBIoEAkihy7loJ1B0CQ=
 github.com/spf13/cast v1.3.0/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=
 github.com/spf13/cast v1.3.1/go.mod h1:Qx5cxh0v+4UWYiBimWS+eyWzqEqokIECu5etghLkUJE=

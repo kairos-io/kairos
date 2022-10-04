@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -21,7 +22,7 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	AfterEach(func() {
 		Machine.Clean()
-		Machine.Create()
+		Machine.Create(context.Background())
 		EventuallyConnects(720)
 	})
 
