@@ -15,7 +15,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 	containerImage := os.Getenv("CONTAINER_IMAGE")
 
 	BeforeEach(func() {
-		EventuallyConnects(720)
+		EventuallyConnects(1200)
 	})
 
 	Context("live cd", func() {

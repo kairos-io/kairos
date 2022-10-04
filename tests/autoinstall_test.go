@@ -17,7 +17,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
 		}
 
-		EventuallyConnects(720)
+		EventuallyConnects(1200)
 	})
 
 	AfterEach(func() {

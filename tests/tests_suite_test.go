@@ -96,8 +96,8 @@ var _ = BeforeSuite(func() {
 				status, _ := p.ExitCode()
 				Fail(fmt.Sprintf("VM Aborted: %s %s Exit status: %s", out, err, status))
 			}),
-			types.WithCPU("3"),
-			types.WithMemory("6000"),
+			types.WithCPU("4"),
+			types.WithMemory("6000M"),
 			types.WithStateDir(t),
 			types.WithDataSource(os.Getenv("DATASOURCE")),
 		}
