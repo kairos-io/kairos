@@ -242,28 +242,28 @@ workflows:
             image: ["quay.io/kairos/framework"]
             flavor: ["opensuse"]
             release: ["no"]
-    - run-datasource-test:
-        matrix:
-          parameters:
-            cloud_config: ["autoinstall"]
-            flavor: ["alpine","opensuse","ubuntu"]
-            test_suite: ["reset-test", "autoinstall-test"]
-        requires:
-        - build-iso
-    - run-latest-test:
-        matrix:
-          parameters:
-            flavor: ["alpine","opensuse","ubuntu"]
-            test_suite: ["upgrade-latest-with-cli"]
-        requires:
-        - build-iso
-    - run-test:
-        matrix:
-          parameters:
-            flavor: ["alpine","opensuse","ubuntu"]
-            test_suite: ["upgrade-with-cli"]
-        requires:
-        - build-iso
+    # - run-datasource-test:
+    #     matrix:
+    #       parameters:
+    #         cloud_config: ["autoinstall"]
+    #         flavor: ["alpine","opensuse","ubuntu"]
+    #         test_suite: ["reset-test", "autoinstall-test"]
+    #     requires:
+    #     - build-iso
+    # - run-latest-test:
+    #     matrix:
+    #       parameters:
+    #         flavor: ["alpine","opensuse","ubuntu"]
+    #         test_suite: ["upgrade-latest-with-cli"]
+    #     requires:
+    #     - build-iso
+    # - run-test:
+    #     matrix:
+    #       parameters:
+    #         flavor: ["alpine","opensuse","ubuntu"]
+    #         test_suite: ["upgrade-with-cli"]
+    #     requires:
+    #     - build-iso
     - run-bundles-test:
         matrix:
           parameters:
@@ -283,77 +283,4 @@ workflows:
     jobs:
       - unit-test
       - build-bin
-      # - build-iso:
-      #     matrix:
-      #       parameters:
-      #         image: [quay.io/kairos/core]
-      #         flavor: ["alpine","opensuse","ubuntu"]
-      #         release: ["no"]
-      # - build-framework:
-      #     matrix:
-      #       parameters:
-      #         image: [quay.io/kairos/framework]
-      #         flavor: ["opensuse"]
-      #         release: ["no"]
-      # - build-arm:
-      #     matrix:
-      #       parameters:
-      #         image: [quay.io/kairos/core]
-      #         flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
-      #         model: ["rpi64"]
-      #         release: ["no"]
 
-  # release:
-  #   jobs:
-  #     - lint:
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - unit-test:
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-bin:
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-iso:
-  #         matrix:
-  #           parameters:
-  #             image: [quay.io/kairos/core]
-  #             flavor: ["alpine","opensuse","ubuntu"]
-  #             release: ["yes"]
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-framework:
-  #         matrix:
-  #           parameters:
-  #             image: [quay.io/kairos/framework]
-  #             flavor: ["opensuse"]
-  #             release: ["yes"]
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-arm:
-  #         matrix:
-  #           parameters:
-  #             image: [quay.io/kairos/core]
-  #             flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
-  #             model: ["rpi64"]
-  #             release: ["yes"]
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/

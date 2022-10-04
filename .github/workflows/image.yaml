@@ -127,8 +127,6 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
 
-
-
   latest-release:
     runs-on: ubuntu-latest
     steps:
@@ -146,30 +144,30 @@ jobs:
           path: last-release
           if-no-files-found: error
 
-  # qemu-autoinstall-tests:
-  #   needs: 
-  #   - build
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #      include:
-  #        - flavor: "alpine"
-  #        - flavor: "opensuse"
-  #        - flavor: "ubuntu"
-  #   steps:
-  #   - uses: actions/checkout@v2
-  #   - name: Download artifacts
-  #     uses: actions/download-artifact@v2
-  #     with:
-  #         name: kairos-${{ matrix.flavor }}.iso.zip
-  #   - run: |
-  #           ls -liah
-  #           export ISO=$PWD/$(ls *.iso)
-  #           mkdir build
-  #           mv $ISO build/kairos.iso
-  #           ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-  #           ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }}
+  qemu-autoinstall-tests:
+    needs: 
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+         - flavor: "opensuse"
+         - flavor: "ubuntu"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+          name: kairos-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/kairos.iso
+            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }}
 
   # qemu-bundles-tests:
   #   needs: 
@@ -194,153 +192,153 @@ jobs:
   #           ./earthly.sh +prepare-bundles-tests
   #           ./earthly.sh +run-qemu-bundles-tests --FLAVOR=${{ matrix.flavor }}
 
-  # qemu-reset-tests:
-  #   needs: 
-  #   - build
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #      include:
-  #        - flavor: "alpine"
-  #        - flavor: "opensuse"
-  #        - flavor: "ubuntu"
-  #   steps:
-  #   - uses: actions/checkout@v2
-  #   - name: Download artifacts
-  #     uses: actions/download-artifact@v2
-  #     with:
-  #         name: kairos-${{ matrix.flavor }}.iso.zip
-  #   - run: |
-  #           ls -liah
-  #           export ISO=$PWD/$(ls *.iso)
-  #           mkdir build
-  #           mv $ISO build/kairos.iso
-  #           ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-  #           ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
+  qemu-reset-tests:
+    needs: 
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+         - flavor: "opensuse"
+         - flavor: "ubuntu"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+          name: kairos-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/kairos.iso
+            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
 
-  # upgrade-with-cli-test:
-  #   needs: 
-  #   - build
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #      include:
-  #        - flavor: "alpine"
-  #        - flavor: "opensuse"
-  #        - flavor: "ubuntu"
-  #   steps:
-  #   - uses: actions/checkout@v2
-  #   - name: Download artifacts
-  #     uses: actions/download-artifact@v2
-  #     with:
-  #       name: kairos-${{ matrix.flavor }}.iso.zip
-  #   - name: Release space from worker
-  #     run: |
-  #       echo "Listing top largest packages"
-  #       pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-  #       head -n 30 <<< "${pkgs}"
-  #       echo
-  #       df -h
-  #       echo
-  #       sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-  #       sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-  #       sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-  #       sudo rm -rf /usr/local/lib/android
-  #       sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-  #       sudo rm -rf /usr/share/dotnet
-  #       sudo apt-get remove -y '^mono-.*' || true
-  #       sudo apt-get remove -y '^ghc-.*' || true
-  #       sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-  #       sudo apt-get remove -y 'php.*' || true
-  #       sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
-  #       sudo apt-get remove -y '^google-.*' || true
-  #       sudo apt-get remove -y azure-cli || true
-  #       sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-  #       sudo apt-get remove -y '^gfortran-.*' || true
-  #       sudo apt-get autoremove -y
-  #       sudo apt-get clean
-  #       echo
-  #       echo "Listing top largest packages"
-  #       pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-  #       head -n 30 <<< "${pkgs}"
-  #       echo
-  #       sudo rm -rfv build || true
-  #       df -h
-  #   - run: |
-  #           ls -liah
-  #           export ISO=$PWD/$(ls *.iso)
-  #           sudo mkdir build
-  #           sudo mv $ISO build/
-  #           ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-with-cli
-  #   - uses: actions/upload-artifact@v2
-  #     if: failure()
-  #     with:
-  #       name: ${{ matrix.flavor }}-upgrade-test.logs.zip
-  #       path: tests/**/logs/*
-  #       if-no-files-found: warn
+  upgrade-with-cli-test:
+    needs: 
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+         - flavor: "opensuse"
+         - flavor: "ubuntu"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: kairos-${{ matrix.flavor }}.iso.zip
+    - name: Release space from worker
+      run: |
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        df -h
+        echo
+        sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+        sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+        sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+        sudo rm -rf /usr/local/lib/android
+        sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+        sudo rm -rf /usr/share/dotnet
+        sudo apt-get remove -y '^mono-.*' || true
+        sudo apt-get remove -y '^ghc-.*' || true
+        sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+        sudo apt-get remove -y 'php.*' || true
+        sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+        sudo apt-get remove -y '^google-.*' || true
+        sudo apt-get remove -y azure-cli || true
+        sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+        sudo apt-get remove -y '^gfortran-.*' || true
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        echo
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        sudo rm -rfv build || true
+        df -h
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls *.iso)
+            sudo mkdir build
+            sudo mv $ISO build/
+            ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-with-cli
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: ${{ matrix.flavor }}-upgrade-test.logs.zip
+        path: tests/**/logs/*
+        if-no-files-found: warn
 
-  # upgrade-latest-with-cli-test:
-  #   needs: 
-  #   - build
-  #   - latest-release
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #      include:
-  #        - flavor: "alpine"
-  #        - flavor: "opensuse"
-  #        - flavor: "ubuntu"
-  #   steps:
-  #   - uses: actions/checkout@v2
-  #   - name: Download artifacts
-  #     uses: actions/download-artifact@v2
-  #     with:
-  #       name: latest-release.zip
-  #   - name: Release space from worker
-  #     run: |
-  #       echo "Listing top largest packages"
-  #       pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-  #       head -n 30 <<< "${pkgs}"
-  #       echo
-  #       df -h
-  #       echo
-  #       sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-  #       sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-  #       sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-  #       sudo rm -rf /usr/local/lib/android
-  #       sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-  #       sudo rm -rf /usr/share/dotnet
-  #       sudo apt-get remove -y '^mono-.*' || true
-  #       sudo apt-get remove -y '^ghc-.*' || true
-  #       sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-  #       sudo apt-get remove -y 'php.*' || true
-  #       sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
-  #       sudo apt-get remove -y '^google-.*' || true
-  #       sudo apt-get remove -y azure-cli || true
-  #       sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-  #       sudo apt-get remove -y '^gfortran-.*' || true
-  #       sudo apt-get autoremove -y
-  #       sudo apt-get clean
-  #       echo
-  #       echo "Listing top largest packages"
-  #       pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-  #       head -n 30 <<< "${pkgs}"
-  #       echo
-  #       sudo rm -rfv build || true
-  #       df -h
-  #   - run: |
-  #           ls -liah
-  #           export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
-  #           sudo mkdir build
-  #           sudo mv $ISO build/
-  #           ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-latest-with-cli
-  #   - uses: actions/upload-artifact@v2
-  #     if: failure()
-  #     with:
-  #       name: ${{ matrix.flavor }}-upgrade-test.logs.zip
-  #       path: tests/**/logs/*
-  #       if-no-files-found: warn
+  upgrade-latest-with-cli-test:
+    needs: 
+    - build
+    - latest-release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine"
+         - flavor: "opensuse"
+         - flavor: "ubuntu"
+    steps:
+    - uses: actions/checkout@v2
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: latest-release.zip
+    - name: Release space from worker
+      run: |
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        df -h
+        echo
+        sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+        sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+        sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+        sudo rm -rf /usr/local/lib/android
+        sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+        sudo rm -rf /usr/share/dotnet
+        sudo apt-get remove -y '^mono-.*' || true
+        sudo apt-get remove -y '^ghc-.*' || true
+        sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+        sudo apt-get remove -y 'php.*' || true
+        sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+        sudo apt-get remove -y '^google-.*' || true
+        sudo apt-get remove -y azure-cli || true
+        sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+        sudo apt-get remove -y '^gfortran-.*' || true
+        sudo apt-get autoremove -y
+        sudo apt-get clean
+        echo
+        echo "Listing top largest packages"
+        pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+        head -n 30 <<< "${pkgs}"
+        echo
+        sudo rm -rfv build || true
+        df -h
+    - run: |
+            ls -liah
+            export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
+            sudo mkdir build
+            sudo mv $ISO build/
+            ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-latest-with-cli
+    - uses: actions/upload-artifact@v2
+      if: failure()
+      with:
+        name: ${{ matrix.flavor }}-upgrade-test.logs.zip
+        path: tests/**/logs/*
+        if-no-files-found: warn
 
