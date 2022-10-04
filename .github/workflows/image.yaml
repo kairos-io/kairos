@@ -23,6 +23,8 @@ jobs:
          - flavor: "ubuntu"
          - flavor: "ubuntu-rolling"
          - flavor: "alpine"
+         - flavor: "fedora"
+         - flavor: "rockylinux"
     steps:
       - uses: actions/checkout@v2
       - run: |
@@ -157,6 +159,8 @@ jobs:
          - flavor: "opensuse"
          - flavor: "ubuntu"
          - flavor: "ubuntu-rolling"
+         - flavor: "rockylinux"
+         - flavor: "fedora"
     steps:
     - uses: actions/checkout@v2
     - name: Download artifacts

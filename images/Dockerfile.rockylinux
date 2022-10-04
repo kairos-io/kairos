@@ -4,6 +4,10 @@ FROM $BASE_IMAGE
 ARG K3S_VERSION
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
+
+RUN dnf install -y epel-release
+RUN dnf update -y
+RUN dnf makecache
 RUN dnf install -y \
     NetworkManager \
     squashfs-tools \ 
@@ -29,4 +33,13 @@ RUN dnf install -y \
     grub2-pc \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
+    kernel kernel-modules kernel-modules-extra \
+    systemd-networkd \
     rsync && dnf clean all
+
+RUN mkdir -p /run/lock
+RUN touch /usr/libexec/.keep
+RUN systemctl enable getty@tty1.service
+RUN systemctl enable systemd-networkd
+RUN systemctl disable NetworkManager
+RUN systemctl enable sshd

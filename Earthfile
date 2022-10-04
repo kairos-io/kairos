@@ -164,6 +164,8 @@ framework:
 
     IF [ "$FLAVOR" == "ubuntu-rolling" ]
         ARG TOOLKIT_IMG="ubuntu"
+    ELSE IF [ "$FLAVOR" == "rockylinux" ]
+        ARG TOOLKIT_IMG="fedora"
     ELSE IF [ "$FLAVOR" != "ubuntu" ] && [ "$FLAVOR" != "opensuse" ] && [ "$FLAVOR" != "fedora" ]
         ARG TOOLKIT_IMG="opensuse"
     ELSE
@@ -173,7 +175,7 @@ framework:
     RUN luet install -y --system-target /framework \
             system/elemental-toolkit-$TOOLKIT_IMG
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN luet install -y --system-target /framework \
             distro-kernels/opensuse distro-initrd/opensuse
     END
@@ -250,7 +252,7 @@ docker:
     # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
      RUN mkinitrd
-    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-rolling" ]
+    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-rolling" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
      RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
             ln -sf "${kernel#/boot/}" /boot/vmlinuz
      RUN kernel=$(ls /lib/modules | head -n1) && \
