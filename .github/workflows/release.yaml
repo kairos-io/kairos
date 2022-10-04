@@ -57,6 +57,7 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "alpine"
+         - flavor: "ubuntu-rolling"
          - flavor: "ubuntu"
     steps:
       - uses: actions/checkout@v2
