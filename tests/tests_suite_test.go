@@ -1,11 +1,13 @@
 package mos_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 
+	process "github.com/mudler/go-processmanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
@@ -88,8 +90,12 @@ var _ = BeforeSuite(func() {
 			types.WithID(machineID),
 			types.WithSSHUser(user()),
 			types.WithSSHPass(pass()),
-			types.WithCPU("3"),
-			types.WithMemory("6000"),
+			types.OnFailure(func(p *process.Process) {
+				out, _ := ioutil.ReadFile(p.StdoutPath())
+				err, _ := ioutil.ReadFile(p.StderrPath())
+				status, _ := p.ExitCode()
+				Fail(fmt.Sprintf("VM Aborted: %s %s Exit status: %s", out, err, status))
+			}),
 			types.WithStateDir(t),
 			types.WithDataSource(os.Getenv("DATASOURCE")),
 		}
@@ -107,7 +113,7 @@ var _ = BeforeSuite(func() {
 
 		Machine = m
 
-		if err := Machine.Create(); err != nil {
+		if err := Machine.Create(context.Background()); err != nil {
 			Fail(err.Error())
 		}
 	}

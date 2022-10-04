@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -16,13 +17,13 @@ import (
 var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	BeforeEach(func() {
-		EventuallyConnects(720)
+		EventuallyConnects(1200)
 	})
 
 	AfterEach(func() {
 		Machine.Clean()
-		Machine.Create()
-		EventuallyConnects(720)
+		Machine.Create(context.Background())
+		EventuallyConnects(1200)
 	})
 
 	testInstall := func(cloudConfig string, actual interface{}, m types.GomegaMatcher) {
@@ -48,7 +49,7 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 
 		detachAndReboot()
 
-		EventuallyConnects(720)
+		EventuallyConnects(1200)
 		Eventually(actual, 5*time.Minute, 10*time.Second).Should(m)
 	}
 

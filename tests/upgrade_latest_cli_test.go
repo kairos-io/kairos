@@ -15,7 +15,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 	containerImage := os.Getenv("CONTAINER_IMAGE")
 
 	BeforeEach(func() {
-		EventuallyConnects(720)
+		EventuallyConnects(1200)
 	})
 
 	Context("live cd", func() {
@@ -87,7 +87,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 				v, _ = Machine.Command("source /etc/os-release; echo $VERSION")
 				return v
 				// TODO: Add regex semver check here
-			}, 10*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
+			}, 30*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
 		})
 	})
 })
