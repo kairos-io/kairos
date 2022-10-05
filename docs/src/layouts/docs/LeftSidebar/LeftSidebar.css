@@ -3,8 +3,10 @@
   max-width: 300px;
   height: 100vh;
   position: fixed;
-  border-right: 1px solid #ddd;
   overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid #ddd;
+  z-index: 10;
 }
 
 .nav-list {
@@ -90,12 +92,4 @@
   content: "DOCS";
   display: block;
   font-weight: 500;
-}
-
-#grid-left {
-  background-color: #fff;
-  position: relative;
-    max-width: 300px;
-    min-width: 300px;
-    width: 100%;
 }

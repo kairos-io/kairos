@@ -7,6 +7,7 @@ export default function RightSidebar({ headings }) {
   }
 
   return (
+    <aside id="grid-right" title="Table of Contents">
     <nav className="toc">
       <h4>Table of contents</h4>
       <ul>
@@ -17,5 +18,6 @@ export default function RightSidebar({ headings }) {
         ))}
       </ul>
     </nav>
+    </aside>
   );
 }

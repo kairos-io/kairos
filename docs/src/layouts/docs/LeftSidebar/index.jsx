@@ -1,3 +1,5 @@
+import { faTimes } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMemo } from "react";
 import heroImage from "../../../assets/logos/kairos-black.svg";
 import "./LeftSidebar.css";
@@ -11,7 +13,7 @@ const folderOrder = [
   "reference",
 ];
 
-export default function Sidebar({ content, currentPage }) {
+export default function Sidebar({ content, currentPage, cb }) {
   const currentPageMatch = useMemo(
     () => "/" + currentPage.slice(1),
     [currentPage]
@@ -61,47 +63,46 @@ export default function Sidebar({ content, currentPage }) {
   }, [content]);
 
   return (
-     <aside id="grid-left" title="Site Navigation">
-      <nav aria-labelledby="grid-left" className="nav">
-        <div className="hero-logo">
-          <a href="/">
-            <img src={heroImage} alt="main logo" width="135" />
-          </a>
-        </div>
-        <ul className="nav-list">
-          {folderOrder.map((header, index) => {
-            const item = menu[header];
+    <nav className="nav">
+      <FontAwesomeIcon id="esc-button" icon={faTimes} onClick={cb} />
+      <div className="hero-logo">
+        <a href="/">
+          <img src={heroImage} alt="main logo" width="135" />
+        </a>
+      </div>
+      <ul className="nav-list">
+        {folderOrder.map((header, index) => {
+          const item = menu[header];
 
-            return (
-              <li className="nav-group nav-link" key={index}>
-                <strong
-                  {...(currentPageMatch === item?.url && {
-                    "aria-current": "page",
-                  })}
-                >
-                  {item.title}
-                </strong>
-                <ul className="nav-list">
-                  {(item.children || [])
-                    .sort((a, b) => a.index - b.index)
-                    .map((child, index) => (
-                      <li className="nav-link" key={index}>
-                        <a
-                          href={child.url}
-                          {...(currentPageMatch === child.url && {
-                            "aria-current": "page",
-                          })}
-                        >
-                          {child.title}
-                        </a>
-                      </li>
-                    ))}
-                </ul>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-    </aside>
+          return (
+            <li className="nav-group nav-link" key={index}>
+              <strong
+                {...(currentPageMatch === item?.url && {
+                  "aria-current": "page",
+                })}
+              >
+                {item.title}
+              </strong>
+              <ul className="nav-list">
+                {(item.children || [])
+                  .sort((a, b) => a.index - b.index)
+                  .map((child, index) => (
+                    <li className="nav-link" key={index}>
+                      <a
+                        href={child.url}
+                        {...(currentPageMatch === child.url && {
+                          "aria-current": "page",
+                        })}
+                      >
+                        {child.title}
+                      </a>
+                    </li>
+                  ))}
+              </ul>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
