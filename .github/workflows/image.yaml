@@ -23,6 +23,8 @@ jobs:
          - flavor: "ubuntu"
          - flavor: "ubuntu-rolling"
          - flavor: "alpine"
+         - flavor: "fedora"
+         - flavor: "rockylinux"
     steps:
       - uses: actions/checkout@v2
       - run: |
