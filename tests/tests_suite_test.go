@@ -90,6 +90,7 @@ var _ = BeforeSuite(func() {
 			types.WithID(machineID),
 			types.WithSSHUser(user()),
 			types.WithSSHPass(pass()),
+			types.WithCPUType("Westmere"),
 			types.OnFailure(func(p *process.Process) {
 				out, _ := ioutil.ReadFile(p.StdoutPath())
 				err, _ := ioutil.ReadFile(p.StderrPath())

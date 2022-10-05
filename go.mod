@@ -21,7 +21,7 @@ require (
 	github.com/onsi/gomega v1.20.0
 	github.com/pterm/pterm v0.12.41
 	github.com/qeesung/image2ascii v1.0.1
-	github.com/spectrocloud/peg v0.0.0-20221004124828-dc401eb8ddad
+	github.com/spectrocloud/peg v0.0.0-20221005172954-aa887438fafc
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/urfave/cli v1.22.9
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
