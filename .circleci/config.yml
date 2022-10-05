@@ -276,14 +276,14 @@ workflows:
             image: [quay.io/kairos/core]
             flavor: ["alpine","opensuse","ubuntu", "rockylinux", "fedora"]
             release: ["no"]
-    - run-datasource-test:
-        matrix:
-          parameters:
-            cloud_config: ["autoinstall"]
-            flavor: ["fedora", "rockylinux"]
-            test_suite: ["reset-test", "autoinstall-test"]
-        requires:
-        - build-iso
+    # - run-datasource-test:
+    #     matrix:
+    #       parameters:
+    #         cloud_config: ["autoinstall"]
+    #         flavor: ["fedora", "rockylinux"]
+    #         test_suite: ["reset-test", "autoinstall-test"]
+    #     requires:
+    #     - build-iso
   lint:
     jobs:
       - lint
