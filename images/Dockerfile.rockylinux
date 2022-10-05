@@ -42,6 +42,8 @@ RUN dnf install -y \
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
 RUN systemctl enable getty@tty1.service
+RUN systemctl enable getty@tty2.service
+RUN systemctl enable getty@tty3.service
 RUN systemctl enable systemd-networkd
 RUN systemctl disable NetworkManager
 RUN systemctl enable sshd
