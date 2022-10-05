@@ -59,8 +59,8 @@ jobs:
          - flavor: "alpine"
          - flavor: "ubuntu-rolling"
          - flavor: "ubuntu"
-         - flavor: "fedora"
-         - flavor: "rockylinux"
+   #      - flavor: "fedora"
+   #      - flavor: "rockylinux"
     steps:
       - uses: actions/checkout@v2
       - run: |
