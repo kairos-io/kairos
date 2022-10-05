@@ -14,6 +14,7 @@ RUN zypper in -y \
     dosfstools \
     dracut \
     e2fsprogs \
+    cryptsetup \
     findutils \
     gawk \
     gptfdisk \
