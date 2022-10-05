@@ -11,7 +11,8 @@ type Interface interface {
 var All = []Interface{
 	&RunStage{},    // Shells out to stages defined from the container image
 	&GrubOptions{}, // Set custom GRUB options
-	&Lifecycle{},   // Handles poweroff/reboot by config options
+	&BundleOption{},
+	&Lifecycle{}, // Handles poweroff/reboot by config options
 }
 
 func Run(c config.Config, hooks ...Interface) error {

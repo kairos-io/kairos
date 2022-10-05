@@ -6,8 +6,6 @@ index: 2
 
 import Info from "../../components/Info.astro";
 
-## Introduction
-
 For user convenience, Kairos releases ship a set of artifacts that can be used to install Kairos on a node.
 However, Kairos Kubernetes Native components allow the creation of these artifacts inside Kubernetes from a set of input images.
 
@@ -21,25 +19,26 @@ The goal of this quickstart is to install Kairos on a node and create a single-n
 
 To simplify, we will install kairos inside a VM, however, your mileage and configuration may vary based on your setup, see the documentation for a more exhaustive list of examples.
 
-### Prerequisites
+## Prerequisites
 
 - A VM hypervisor that boots ISOs
 - A Linux or a Windows machine where to run the `kairos` CLI (optional, we will see)
 - A configuration file `cloud-init`
 
-### Download
+## Download
 
 Kairos can be used to turn any distro in an immutable system; however, for user convenience, there are several artifacts published as part of the releases to get started.
 
-You can find the latest releases in the [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases). For instance, download the [kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso)  ISO file to pick the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v1.0.0` is the Kairos one.
+You can find the latest releases in the [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases). For instance, download the [kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso) ISO file to pick the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v1.0.0` is the Kairos one.
 
 <Info>
 The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship without K3s and P2P full-mesh functionalities; however further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
 
 The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) ships `k3s` and `p2p` full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
+
 </Info>
 
-### Booting up
+## Booting
 
 Download the ISO, and boot it up on a VM running on the hypervisor of your choice. When deploying on a bare metal server, directly flash the image into a USB stick with DD:
 
@@ -55,7 +54,7 @@ The machine will boot, and eventually a QR code will be printed out of the scree
 
 ![livecd](https://user-images.githubusercontent.com/2420543/189219806-29b4deed-b4a1-4704-b558-7a60ae31caf2.gif)
 
-### Configuration
+## Configuration
 
 At this stage the machine is waiting for the configuration to continue further with the installation process. Configuration can be either served via QR code, or manually via logging into the box and starting the installation process with a config file. The config file is a YAML file mixed with `cloud-init` syntax and the config of Kairos itself.
 
@@ -100,7 +99,7 @@ Several configurations can be added at this stage. [See the configuration refere
 
 </Info>
 
-### Deployment
+## Provisioning
 
 <Info>
 
@@ -131,7 +130,7 @@ kairos register --reboot --device /dev/sda --config config.yaml
 
 After a few minutes, the configuration is distributed to the node and the installation starts. At the end of the installation, the system is automatically rebooted.
 
-### Accessing the Node
+## Accessing the Node
 
 After the boot process, the node starts and is loaded into the system. You should already have SSH connectivity when the console is available.
 
@@ -154,7 +153,7 @@ Refer to https://kairos.io for documentation.
 kairos@kairos:~>
 ```
 
-At this point, it can take a few moments to get the K3s server running. However, you should be able to inspect the service and see K3s running. For example, with systemd-based flavors:
+It can take a few moments to get the K3s server running. However, you should be able to inspect the service and see K3s running. For example, with systemd-based flavors:
 
 ```
 $ sudo systemctl status k3s

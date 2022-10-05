@@ -14,13 +14,14 @@ require (
 	github.com/joho/godotenv v1.4.0
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
 	github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3
+	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
 	github.com/mudler/yip v0.0.0-20220725150231-976737b2353c
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.1.4
 	github.com/onsi/gomega v1.20.0
 	github.com/pterm/pterm v0.12.41
 	github.com/qeesung/image2ascii v1.0.1
-	github.com/spectrocloud/peg v0.0.0-20220928170937-6323fd1d63c4
+	github.com/spectrocloud/peg v0.0.0-20221004124828-dc401eb8ddad
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/urfave/cli v1.22.9
 	golang.org/x/oauth2 v0.0.0-20220223155221-ee480838109b
@@ -67,7 +68,6 @@ require (
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d // indirect
 	github.com/muesli/ansi v0.0.0-20211018074035-2e021307bc4b // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.11.1-0.20220212125758-44cd13922739 // indirect

@@ -122,7 +122,9 @@ func Install(dir ...string) error {
 
 	cmd.PrintText(agentConfig.Branding.Install, "Installation")
 
-	time.Sleep(5 * time.Second)
+	if !agentConfig.Fast {
+		time.Sleep(5 * time.Second)
+	}
 
 	if tk != "" {
 		qr.Print(tk)

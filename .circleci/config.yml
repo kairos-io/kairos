@@ -55,7 +55,84 @@ jobs:
                docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
                ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
               fi
-
+  run-test:
+    parameters:
+      flavor:
+        type: string
+      test_suite:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-release --FLAVOR=<< parameters.flavor >>
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+              ./earthly.sh +run-qemu-test --FLAVOR=<< parameters.flavor >> --CONTAINER_IMAGE=ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h --TEST_SUITE=<< parameters.test_suite >>
+  run-latest-test:
+    parameters:
+      flavor:
+        type: string
+      test_suite:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-release --FLAVOR=<< parameters.flavor >>
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+              ./earthly.sh +run-qemu-test --FLAVOR=<< parameters.flavor >> --CONTAINER_IMAGE=ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h --TEST_SUITE=<< parameters.test_suite >>
+  run-datasource-test:
+    parameters:
+      flavor:
+        type: string
+      cloud_config:
+        type: string
+      test_suite:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-build-artifacts --BUNDLE_IMAGE=ttl.sh/<< parameters.flavor >>-$CIRCLE_SHA1:8h
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/<< parameters.cloud_config >>.yaml
+             ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=<< parameters.test_suite >> --FLAVOR=<< parameters.flavor >>
+  run-bundles-test:
+    parameters:
+      flavor:
+        type: string
+    machine:
+      image: ubuntu-2004:current
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Build
+          command: |
+             ./earthly.sh +pull-build-artifacts --BUNDLE_IMAGE=ttl.sh/<< parameters.flavor >>-$CIRCLE_SHA1:8h
+             ls -liah
+             export ISO=$(ls build/*.iso)
+             sudo mv $ISO build/kairos.iso
+             ./earthly.sh +prepare-bundles-tests
+             ./earthly.sh +run-qemu-bundles-tests --FLAVOR=<< parameters.flavor >>
   build-iso:
     parameters:
       flavor:
@@ -80,10 +157,13 @@ jobs:
               export TAG=latest
              fi
              ./earthly.sh +all --IMAGE=<< parameters.image >>-<< parameters.flavor >>:${TAG} --FLAVOR=<< parameters.flavor >> --ISO_NAME=kairos-<< parameters.flavor >>-${TAG}
+             ./earthly.sh +push-build-artifacts --BUNDLE_IMAGE=ttl.sh/<< parameters.flavor >>-$CIRCLE_SHA1:8h
              if [ "<< parameters.release >>" == "yes" ]; then
               docker push << parameters.image >>-<< parameters.flavor >>:${TAG}
               ghr -t ${GITHUB_TOKEN} -u ${CIRCLE_PROJECT_USERNAME} -r ${CIRCLE_PROJECT_REPONAME} -c ${CIRCLE_SHA1} ${TAG} ./build/
              fi
+             docker tag << parameters.image >>-<< parameters.flavor >>:${TAG} ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h
+             docker push ttl.sh/tests-<< parameters.flavor >>-$CIRCLE_SHA1:8h
 
   lint:
     machine:
@@ -162,6 +242,40 @@ workflows:
             image: ["quay.io/kairos/framework"]
             flavor: ["opensuse"]
             release: ["no"]
+    # - run-datasource-test:
+    #     matrix:
+    #       parameters:
+    #         cloud_config: ["autoinstall"]
+    #         flavor: ["alpine","opensuse","ubuntu"]
+    #         test_suite: ["reset-test", "autoinstall-test"]
+    #     requires:
+    #     - build-iso
+    # - run-latest-test:
+    #     matrix:
+    #       parameters:
+    #         flavor: ["alpine","opensuse","ubuntu"]
+    #         test_suite: ["upgrade-latest-with-cli"]
+    #     requires:
+    #     - build-iso
+    # - run-test:
+    #     matrix:
+    #       parameters:
+    #         flavor: ["alpine","opensuse","ubuntu"]
+    #         test_suite: ["upgrade-with-cli"]
+    #     requires:
+    #     - build-iso
+    - run-bundles-test:
+        matrix:
+          parameters:
+            flavor: ["opensuse"]
+        requires:
+        - build-iso
+    - build-iso:
+        matrix:
+          parameters:
+            image: [quay.io/kairos/core]
+            flavor: ["alpine","opensuse","ubuntu"]
+            release: ["no"]
   lint:
     jobs:
       - lint
@@ -169,77 +283,4 @@ workflows:
     jobs:
       - unit-test
       - build-bin
-      # - build-iso:
-      #     matrix:
-      #       parameters:
-      #         image: [quay.io/kairos/core]
-      #         flavor: ["alpine","opensuse","ubuntu"]
-      #         release: ["no"]
-      # - build-framework:
-      #     matrix:
-      #       parameters:
-      #         image: [quay.io/kairos/framework]
-      #         flavor: ["opensuse"]
-      #         release: ["no"]
-      # - build-arm:
-      #     matrix:
-      #       parameters:
-      #         image: [quay.io/kairos/core]
-      #         flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
-      #         model: ["rpi64"]
-      #         release: ["no"]
 
-  # release:
-  #   jobs:
-  #     - lint:
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - unit-test:
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-bin:
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-iso:
-  #         matrix:
-  #           parameters:
-  #             image: [quay.io/kairos/core]
-  #             flavor: ["alpine","opensuse","ubuntu"]
-  #             release: ["yes"]
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-framework:
-  #         matrix:
-  #           parameters:
-  #             image: [quay.io/kairos/framework]
-  #             flavor: ["opensuse"]
-  #             release: ["yes"]
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/
-  #     - build-arm:
-  #         matrix:
-  #           parameters:
-  #             image: [quay.io/kairos/core]
-  #             flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
-  #             model: ["rpi64"]
-  #             release: ["yes"]
-  #         filters:
-  #           branches:
-  #             ignore: /.*/
-  #           tags:
-  #             only: /^v.*/

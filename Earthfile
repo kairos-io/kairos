@@ -6,12 +6,7 @@ ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.32.4
 ARG OS_ID=kairos
-
-IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "tumbleweed" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "rockylinux" ] 
-    ARG REPOSITORIES_FILE=repositories.yaml.${FLAVOR}
-ELSE
-    ARG REPOSITORIES_FILE=repositories.yaml
-END
+ARG REPOSITORIES_FILE=repositories.yaml
 
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
@@ -56,7 +51,7 @@ test:
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-    RUN curl https://luet.io/install.sh | sh
+    COPY +luet/luet /usr/bin/luet
     COPY . .
     RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
@@ -89,6 +84,16 @@ BUILD_GOLANG:
     RUN go build -ldflags "-s -w" -o ${BIN} ./cmd/${SRC} && upx ${BIN}
     SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
 
+uuidgen:
+    FROM alpine
+    RUN apk add uuidgen
+
+    COPY . ./
+
+    RUN echo $(uuidgen) > UUIDGEN
+
+    SAVE ARTIFACT UUIDGEN UUIDGEN
+
 version:
     FROM alpine
     RUN apk add git
@@ -109,8 +114,9 @@ build:
 dist:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
-    RUN curl https://luet.io/install.sh | sh
-    RUN luet install -y repository/mocaccino-extra
+    COPY +luet/luet /usr/bin/luet
+    RUN mkdir -p /etc/luet/repos.conf.d/
+    RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
     RUN luet install -y utils/goreleaser
     WORKDIR /build
     COPY . .
@@ -129,6 +135,10 @@ lint:
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
     SAVE ARTIFACT /usr/bin/luet /luet
+
+###
+### Image Build targets
+###
 
 framework:
     ARG COSIGN_SKIP
@@ -152,36 +162,30 @@ framework:
 
     ENV USER=root
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-        RUN /usr/bin/luet install -y --system-target /framework \
-            meta/cos-verify \
-            meta/cos-core \
-            cloud-config/recovery \
-            cloud-config/live \
-            cloud-config/network \
-            cloud-config/boot-assessment \
-            cloud-config/rootfs \
-            system-openrc/cos-setup \
-            system/kernel \
-            system/dracut-initrd
+    IF [ "$FLAVOR" == "ubuntu-rolling" ]
+        ARG TOOLKIT_IMG="ubuntu"
+    ELSE IF [ "$FLAVOR" != "ubuntu" ] && [ "$FLAVOR" != "opensuse" ] && [ "$FLAVOR" != "fedora" ]
+        ARG TOOLKIT_IMG="opensuse"
     ELSE
-        RUN /usr/bin/luet install -y --system-target /framework \ 
-            meta/cos-verify \
-            meta/cos-core \ 
-            cloud-config/recovery \
-            cloud-config/live \
-            cloud-config/boot-assessment \
-            cloud-config/network \
-            cloud-config/rootfs
+        ARG TOOLKIT_IMG="$FLAVOR"
     END
 
-    RUN /usr/bin/luet install -y --system-target /framework system/shim system/grub2-efi
+    RUN luet install -y --system-target /framework \
+            system/elemental-toolkit-$TOOLKIT_IMG
 
-    # Replace elemental from kairos repo
-    # TODO: consume toolkit from kairos and drop this workaround
-    RUN /usr/bin/luet install --force --system-target /framework -y system/elemental-cli
+    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+        RUN luet install -y --system-target /framework \
+            distro-kernels/opensuse distro-initrd/opensuse
+    END
 
-    RUN /usr/bin/luet cleanup --system-target /framework
+    # Required for Secure boot
+    RUN luet install -y --system-target /framework system/shim system/grub2-efi
+    # Elemental CLI
+    RUN luet install -y --system-target /framework system/elemental-cli
+
+    COPY +luet/luet /framework/usr/bin/luet
+
+    RUN luet cleanup --system-target /framework
     COPY overlay/files /framework
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
@@ -236,7 +240,7 @@ docker:
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "ubuntu" ]
+    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-rolling" ]
         COPY overlay/files-ubuntu/ /
     END
 
@@ -246,7 +250,7 @@ docker:
     # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
      RUN mkinitrd
-    ELSE IF [ "$FLAVOR" = "ubuntu" ]
+    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-rolling" ]
      RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
             ln -sf "${kernel#/boot/}" /boot/vmlinuz
      RUN kernel=$(ls /lib/modules | head -n1) && \
@@ -265,6 +269,10 @@ docker:
 docker-rootfs:
     FROM +docker
     SAVE ARTIFACT /. rootfs
+
+###
+### Artifacts targets (ISO, netboot, ARM)
+###
 
 iso:
     ARG OSBUILDER_IMAGE
@@ -303,10 +311,9 @@ arm-image:
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
   RUN zypper in -y jq docker git curl gptfdisk kpartx sudo
-  #COPY +luet/luet /usr/bin/luet
+  COPY +luet/luet /usr/bin/luet
   WORKDIR /build
   RUN git clone https://github.com/rancher/elemental-toolkit && mkdir elemental-toolkit/build
-  RUN curl https://luet.io/install.sh | sh
   ENV STATE_SIZE="6200"
   ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
@@ -318,7 +325,7 @@ arm-image:
           ./images/arm-img-builder.sh --model $MODEL --directory "/build/image" build/$IMAGE_NAME && mv build ../
   END
   RUN xz -v /build/build/$IMAGE_NAME
-  SAVE ARTIFACT /build/build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME
+  SAVE ARTIFACT /build/build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
   SAVE ARTIFACT /build/build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
 ipxe-iso:
@@ -340,8 +347,23 @@ ipxe-iso:
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso.ipxe
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img.ipxe
 
+# Generic targets
+# usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
+datasource-iso:
+  ARG ELEMENTAL_IMAGE
+  ARG CLOUD_CONFIG
+  FROM $ELEMENTAL_IMAGE
+  RUN zypper in -y mkisofs
+  WORKDIR /build
+  RUN touch meta-data
+  COPY ${CLOUD_CONFIG} user-data
+  RUN cat user-data
+  RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
+  SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
 
-## Security targets
+###
+### Security target scan
+###
 trivy:
     FROM aquasec/trivy
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
@@ -369,62 +391,53 @@ linux-bench-scan:
     COPY +linux-bench/linux-bench /build/linux-bench/linux-bench
     RUN /build/linux-bench/linux-bench
 
-# Generic targets
-# usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
-datasource-iso:
-  ARG ELEMENTAL_IMAGE
-  ARG CLOUD_CONFIG
-  FROM $ELEMENTAL_IMAGE
-  RUN zypper in -y mkisofs
-  WORKDIR /build
-  RUN touch meta-data
-  COPY ./${CLOUD_CONFIG} user-data
-  RUN cat user-data
-  RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
-  SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
 
-# usage e.g. ./earthly.sh +run-qemu-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
-run-qemu-tests:
+###
+### Test targets
+###
+# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
+run-qemu-datasource-tests:
     FROM opensuse/leap
     WORKDIR /test
     RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
     ARG FLAVOR
     ARG TEST_SUITE=autoinstall-test
-    ARG FROM_ARTIFACTS
     ENV FLAVOR=$FLAVOR
     ENV SSH_PORT=60022
     ENV CREATE_VM=true
-    ARG CLOUD_CONFIG="/tests/tests/assets/autoinstall.yaml"
+    ARG CLOUD_CONFIG="./tests/assets/autoinstall.yaml"
     ENV USE_QEMU=true
 
     ENV GOPATH="/go"
 
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
-
-    IF [ "$FROM_ARTIFACTS" = "true" ]
-        COPY . .
+    COPY . .
+    RUN ls -liah
+    IF [ -e /test/build/kairos.iso ]
         ENV ISO=/test/build/kairos.iso
-        ENV DATASOURCE=/test/build/datasource.iso
     ELSE
-        COPY ./tests .
         COPY +iso/kairos.iso kairos.iso
-        COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso
         ENV ISO=/test/kairos.iso
-        ENV DATASOURCE=/test/datasource.iso
     END
 
-    ENV CLOUD_INIT=$CLOUD_CONFIG
+    IF [ ! -e /test/build/datasource.iso ]
+        COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso
+        ENV DATASOURCE=/test/datasource.iso
+    ELSE 
+        ENV DATASOURCE=/test/build/datasource.iso
+    END
+
+    ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
-run-qemu-upgrade-test:
+run-qemu-test:
     FROM opensuse/leap
     WORKDIR /test
     RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
-    ARG FROM_ARTIFACTS
     ARG CONTAINER_IMAGE
     ENV CONTAINER_IMAGE=$CONTAINER_IMAGE
     ENV FLAVOR=$FLAVOR
@@ -441,3 +454,101 @@ run-qemu-upgrade-test:
     ENV ISO=$ISO
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+
+###
+### Artifacts targets
+###
+
+## Gets the latest release artifacts for a given release
+pull-release:
+    FROM alpine
+    RUN apk add curl wget
+    RUN curl -s https://api.github.com/repos/kairos-io/kairos/releases/latest | grep "browser_download_url.*${FLAVOR}.*iso" | cut -d : -f 2,3 | tr -d \" | wget -i -
+    RUN mkdir build
+    RUN mv *.iso build/
+    SAVE ARTIFACT build AS LOCAL build
+
+## Pull build artifacts from BUNDLE_IMAGE (expected arg)
+pull-build-artifacts:
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    RUN zypper in -y jq docker
+    COPY +uuidgen/UUIDGEN ./
+    COPY +version/VERSION ./
+    ARG UUIDGEN=$(cat UUIDGEN)
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+
+    COPY +luet/luet /usr/bin/luet
+    RUN luet util unpack $BUNDLE_IMAGE build
+    SAVE ARTIFACT build AS LOCAL build
+
+## Push build artifacts as BUNDLE_IMAGE (expected arg, common is to use ttl.sh/$(uuidgen):8h)
+push-build-artifacts:
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    RUN zypper in -y jq docker
+    COPY +uuidgen/UUIDGEN ./
+    COPY +version/VERSION ./
+    ARG UUIDGEN=$(cat UUIDGEN)
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+
+    COPY . .
+    COPY +luet/luet /usr/bin/luet
+
+    RUN cd build && tar cvf ../build.tar ./
+    RUN luet util pack $BUNDLE_IMAGE build.tar image.tar
+    WITH DOCKER
+        RUN docker load -i image.tar && docker push $BUNDLE_IMAGE 
+    END
+
+# bundles tests needs to run in sequence:
+# +prepare-bundles-tests
+# +run-bundles-tests
+prepare-bundles-tests:
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    RUN zypper in -y jq docker
+    COPY +uuidgen/UUIDGEN ./
+    COPY +version/VERSION ./
+    ARG UUIDGEN=$(cat UUIDGEN)
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+   # BUILD +examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE
+    ARG VERSION=$(cat VERSION)
+    RUN echo "version ${VERSION}"
+    WITH DOCKER --load $IMG=(+examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE --VERSION=$VERSION)
+        RUN docker push $BUNDLE_IMAGE 
+    END
+    BUILD +examples-bundle-config --BUNDLE_IMAGE=$BUNDLE_IMAGE
+
+run-qemu-bundles-tests:
+    ARG FLAVOR
+    BUILD +run-qemu-datasource-tests --CLOUD_CONFIG=./bundles-config.yaml --TEST_SUITE="bundles-test" --FLAVOR=$FLAVOR
+
+###
+### Examples
+###
+### ./earthly.sh +examples-bundle --BUNDLE_IMAGE=ttl.sh/testfoobar:8h
+examples-bundle:
+    ARG BUNDLE_IMAGE
+    ARG VERSION
+    FROM DOCKERFILE --build-arg VERSION=$VERSION -f examples/bundle/Dockerfile .
+    SAVE IMAGE $BUNDLE_IMAGE
+
+## ./earthly.sh +examples-bundle-config --BUNDLE_IMAGE=ttl.sh/testfoobar:8h 
+## cat bundles-config.yaml
+examples-bundle-config:
+    ARG BUNDLE_IMAGE
+    FROM alpine
+    COPY . .
+    RUN echo "" >> tests/assets/live-overlay.yaml
+    RUN echo "install:" >> tests/assets/live-overlay.yaml
+    RUN echo "  auto: true" >> tests/assets/live-overlay.yaml
+    RUN echo "  reboot: true" >> tests/assets/live-overlay.yaml
+    RUN echo "  device: auto" >> tests/assets/live-overlay.yaml
+    RUN echo "  grub_options:" >> tests/assets/live-overlay.yaml
+    RUN echo "    extra_cmdline: foobarzz" >> tests/assets/live-overlay.yaml
+    RUN echo "  bundles:" >> tests/assets/live-overlay.yaml
+    RUN echo "  - rootfs_path: /usr/local/lib/extensions/kubo" >> tests/assets/live-overlay.yaml
+    RUN echo "    targets:" >> tests/assets/live-overlay.yaml
+    RUN echo "    - container://${BUNDLE_IMAGE}" >> tests/assets/live-overlay.yaml
+    SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml

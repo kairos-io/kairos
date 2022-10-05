@@ -24,10 +24,10 @@ wget https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0-rc2/k
 
 ## Flash the image
 
-Plug the SD card to your system - to flash the image, you can either use Etcher or `dd`:
+Plug the SD card to your system - to flash the image, you can either use Etcher or `dd`, note it's compressed with "XZ" so we need to decompress it first:
 
 ```bash
-dd if=kairos-opensuse-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img of=<device> oflag=sync status=progress
+xzcat kairos-opensuse-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img | sudo dd of=<device> oflag=sync status=progress
 ```
 
 ## Configure your node
@@ -37,10 +37,10 @@ To configure the device, be sure to have the SD plugged in your host. We need to
 ```
 $ PERSISTENT=$(blkid -L COS_PERSISTENT)
 $ mkdir /tmp/persistent
-$ mount $PERSISTENT /tmp/persistent
-$ mkdir /tmp/persistent/cloud-config
-$ cp cloud-config.yaml /tmp/persistent/cloud-config
-$ umount /tmp/persistent
+$ sudo mount $PERSISTENT /tmp/persistent
+$ sudo mkdir /tmp/persistent/cloud-config
+$ sudo cp cloud-config.yaml /tmp/persistent/cloud-config
+$ sudo umount /tmp/persistent
 ```
 
 You can, additionally push more cloud config files into such folder following the [yip](https://github.com/mudler/yip) syntax.

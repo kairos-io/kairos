@@ -11,7 +11,7 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
+var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 	BeforeEach(func() {
 		if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
 			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
@@ -72,7 +72,10 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 	})
 
 	Context("reboots and passes functional tests", func() {
+
 		It("has grubenv file", func() {
+			By("checking after-install hook triggered")
+
 			Eventually(func() string {
 				out, _ := Sudo("sudo cat /oem/grubenv")
 				return out
@@ -83,6 +86,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 		})
 
 		It("has custom cmdline", func() {
+			By("waiting reboot and checking cmdline is present")
 			Eventually(func() string {
 				out, _ := Sudo("sudo cat /proc/cmdline")
 				return out
@@ -92,14 +96,24 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				))
 		})
 
-		It("has writeable tmp", func() {
-			_, err := Machine.Command("sudo echo 'foo' > /tmp/bar")
+		It("has kubo extension", func() {
+			// Eventually(func() string {
+			// 	out, _ := Sudo("systemd-sysext")
+			// 	return out
+			// }, 40*time.Minute, 1*time.Second).Should(
+			// 	Or(
+			// 		ContainSubstring("kubo"),
+			// 	))
+			syset, err := Sudo("systemd-sysext")
+			ls, _ := Sudo("ls -liah /usr/local/lib/extensions")
+			fmt.Println("LS:", ls)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(syset).To(ContainSubstring("kubo"))
+
+			ipfsV, err := Sudo("ipfs version")
 			Expect(err).ToNot(HaveOccurred())
 
-			out, err := Machine.Command("sudo cat /tmp/bar")
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(out).To(ContainSubstring("foo"))
+			Expect(ipfsV).To(ContainSubstring("0.15.0"))
 		})
 	})
 })
