@@ -13,6 +13,7 @@ RUN dnf install -y \
     squashfs-tools \ 
     dracut-live \
     dracut-squash \
+    dracut-network \
     efibootmgr \
     audit \
     sudo \
@@ -21,6 +22,7 @@ RUN dnf install -y \
     dracut \
     e2fsprogs \
     dosfstools \
+    livecd-tools \
     device-mapper \
     grub2 \
     which \
@@ -34,7 +36,7 @@ RUN dnf install -y \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
     kernel kernel-modules kernel-modules-extra \
-    systemd-networkd \
+    systemd-networkd systemd-timesyncd \
     rsync && dnf clean all
 
 RUN mkdir -p /run/lock

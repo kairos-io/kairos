@@ -4,11 +4,14 @@ FROM $BASE_IMAGE
 ARG K3S_VERSION
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
+
 RUN dnf install -y \
     NetworkManager \
     squashfs-tools \ 
     dracut-live \
+    livecd-tools \
     dracut-squash \
+    dracut-network \
     efibootmgr \
     audit \
     sudo \
