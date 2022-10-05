@@ -1,7 +1,8 @@
 ---
-name: 'kairos Release'
+name: 'Kairos Release'
 about: 'Start a new kairos release.'
 labels: release
+title: 'Kairos release v'
 assignees: mudler
 ---
 
