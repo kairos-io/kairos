@@ -7,15 +7,17 @@ export default function RightSidebar({ headings }) {
   }
 
   return (
-    <nav className="toc">
-      <h4>Table of contents</h4>
-      <ul>
-        {secondDepthHeadings.map((heading) => (
-          <li className="toc-item">
-            <a href={`#${heading.slug}`}>{heading.text}</a>
-          </li>
-        ))}
-      </ul>
-    </nav>
+    <aside id="grid-right" title="Table of Contents">
+      <nav className="toc">
+        <h4>Table of contents</h4>
+        <ul>
+          {secondDepthHeadings.map((heading) => (
+            <li className="toc-item">
+              <a href={`#${heading.slug}`}>{heading.text}</a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </aside>
   );
 }

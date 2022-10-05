@@ -94,7 +94,7 @@ p {
 }
 
 .content ul {
-  line-height: 1.1em;
+  line-height: 1.4em;
 }
 
 p,
@@ -218,14 +218,22 @@ pre {
   --padding-inline: 2rem;
   padding: var(--padding-block) var(--padding-inline);
   padding-right: calc(var(--padding-inline) * 2);
-  margin-left: calc(var(--padding-inline) * -1);
-  margin-right: calc(var(--padding-inline) * -1);
+  margin-left: 0;
+  margin-right: 0;
   font-family: var(--font-mono);
 
   line-height: 1.5;
   font-size: 0.85em;
   overflow-y: hidden;
   overflow-x: auto;
+}
+
+@media (min-width: 1024px) {
+  table,
+    pre {
+      margin-left: calc(var(--padding-inline) * -1);
+        margin-right: calc(var(--padding-inline) * -1);
+    }
 }
 
 table {

@@ -2,6 +2,7 @@
 import Header from "./Header.astro";
 import LeftSidebar from "./LeftSidebar/index";
 import RightSidebar from "./RightSidebar/index";
+import Navbar from "./Navbar/index";
 import PageContent from "./PageContent.astro";
 import "../../styles/theme.css";
 import "../../styles/index.css";
@@ -29,25 +30,42 @@ const content = await Astro.glob("../../pages/**/*.(md|mdx)");
         overflow-x: hidden;
       }
 
-      #grid-left {
-        background-color: #fff;
-        max-width: 300px;
-        min-width: 300px;
-        width: 100%;
-      }
-
       #grid-main {
-        padding: 40px;
+        padding: 24px;
         display: flex;
         flex-direction: row;
         height: 100%;
+        margin-top: 70px;
         flex-grow: 1;
       }
 
-      #grid-right {
-        display: flex;
-        width: auto;
-        flex-grow: 1;
+      @media (min-width: 1024px) {
+        #grid-main {
+          margin-top: 0;
+          padding: 40px;
+        }
+      }
+
+      #grid-left {
+        background-color: #fff;
+        position: relative;
+        max-width: 300px;
+        min-width: 300px;
+        width: 100%;
+        display: none;
+      }
+
+      #grid-left .navbar {
+        display: none;
+      }
+
+      @media (min-width: 1024px) {
+        #grid-left {
+          display: block;
+        }
+        #grid-left .navbar {
+          display: block;
+        }
       }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -76,17 +94,16 @@ const content = await Astro.glob("../../pages/**/*.(md|mdx)");
   </head>
   <body>
     <aside id="grid-left" title="Site Navigation">
-      <LeftSidebar currentPage={currentPage} content={content} />
+      <LeftSidebar currentPage={currentPage} content={content} cb={() => {}} />
     </aside>
     <main class="layout">
-      <!-- <Header /> -->
+      <Navbar currentPage={currentPage} content={content} client:visible />
       <div id="grid-main">
         <PageContent frontmatter={frontmatter} headings={headings}>
           <slot />
         </PageContent>
-        <aside id="grid-right" title="Table of Contents">
-          <RightSidebar headings={headings} />
-        </aside>
+
+        <RightSidebar headings={headings} />
       </div>
     </main>
   </body>

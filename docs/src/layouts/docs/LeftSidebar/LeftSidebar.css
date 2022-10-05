@@ -3,8 +3,10 @@
   max-width: 300px;
   height: 100vh;
   position: fixed;
-  border-right: 1px solid #ddd;
   overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid #ddd;
+  z-index: 10;
 }
 
 .nav-list {
@@ -16,6 +18,7 @@
 
 .nav > .nav-list {
   padding: 1px 1rem 1rem 1rem;
+  margin-top: -1px;
   background-color: #fafafa;
 }
 
@@ -76,8 +79,10 @@
 
 
 .nav > .hero-logo {
-  margin: 36px auto;
+  padding: 36px;
+  margin: 0px auto;
   display: flex;
+  background-color: #fff;
   flex-direction: column;
   align-items: center;
   justify-content: center;

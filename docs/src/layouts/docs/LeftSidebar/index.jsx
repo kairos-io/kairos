@@ -1,3 +1,5 @@
+import { faTimes } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMemo } from "react";
 import heroImage from "../../../assets/logos/kairos-black.svg";
 import "./LeftSidebar.css";
@@ -11,7 +13,7 @@ const folderOrder = [
   "reference",
 ];
 
-export default function Sidebar({ content, currentPage }) {
+export default function Sidebar({ content, currentPage, cb }) {
   const currentPageMatch = useMemo(
     () => "/" + currentPage.slice(1),
     [currentPage]
@@ -61,7 +63,8 @@ export default function Sidebar({ content, currentPage }) {
   }, [content]);
 
   return (
-    <nav aria-labelledby="grid-left" className="nav">
+    <nav className="nav">
+      <FontAwesomeIcon id="esc-button" icon={faTimes} onClick={cb} />
       <div className="hero-logo">
         <a href="/">
           <img src={heroImage} alt="main logo" width="135" />

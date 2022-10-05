@@ -1,3 +1,9 @@
+#grid-right {
+  display: none;
+  width: auto;
+  flex-grow: 1;
+}
+
 .toc {
   margin-left: 2rem;
   position: fixed;
@@ -30,4 +36,10 @@
 
 .toc li > a:hover {
   color: #e06948;
+}
+
+@media (min-width: 1024px) {
+  #grid-right {
+    display: flex;
+  }
 }
