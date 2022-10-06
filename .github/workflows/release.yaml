@@ -59,6 +59,7 @@ jobs:
          - flavor: "alpine"
          - flavor: "ubuntu-rolling"
          - flavor: "ubuntu"
+         - flavor: "fedora"
    #      - flavor: "fedora"
    #      - flavor: "rockylinux"
     steps:
