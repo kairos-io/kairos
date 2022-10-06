@@ -4,6 +4,8 @@ title: "Take over installation"
 index: 7
 ---
 
+# Takeover installations
+
 Kairos supports takeover installations. See [the Elemental-toolkit docs](https://rancher.github.io/elemental-toolkit/docs/getting-started/install/#installation-from-3rd-party-livecd-or-rescue-mediums). Here are a few summarized steps:
 
 - From the dedicated control panel (OVH, Hetzner, etc.), boot in *rescue* mode

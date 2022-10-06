@@ -4,6 +4,8 @@ title: "Configuration reference"
 index: 5
 ---
 
+# Configuration reference
+
 Here you can find a full reference of the fields available to configure a Kairos node.
 
 ```yaml

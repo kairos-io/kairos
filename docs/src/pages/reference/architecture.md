@@ -4,6 +4,8 @@ title: "Architecture"
 index: 2
 ---
 
+# Architecture
+
 This section contains refrences to how Kairos works internally.
 
 ## Setup process

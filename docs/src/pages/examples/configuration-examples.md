@@ -4,9 +4,11 @@ title: "Common setup"
 index: 2
 ---
 
+# Configuration examples
+
 In the following section, you can find example configuration files to achieve specific `Kairos` setups.
 
-# Single node cluster
+## Single node cluster
 
 By default `kairos` requires multiple nodes. As for the `kairos` decentralized nature, it requires co-ordination between at least 2 nodes to achieve consensus on IPs, network setting, etc.
 
@@ -31,7 +33,7 @@ kairos:
 
 As always, IPs here are arbitrary as they are virtual IPs in the VPN which is created between the cluster nodes.
 
-# Run Only K3s without VPNs
+## Run Only K3s without VPNs
 
 `Kairos` can be also used without any VPN and P2P network. In fact, `k3s` is already pre-installed, and it is sufficient to not specify any `Kairos` block in the cloud-init configuration.
 

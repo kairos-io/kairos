@@ -24,13 +24,13 @@ In order to install extensions, you can just place them into `/usr/local/lib/ext
 
 For example, on a running Kairos node to install an extension from a container image:
 
-```
+```bash
 luet util unpack <image> /usr/local/lib/extensions/<extension_name>
 ```
 
 To load an extension during installation of a Kairos node, it can be supplied as a bundle in the `install` block in the node configuration:
 
-```
+```yaml
 #node-config
 
 # Set username and password
@@ -69,7 +69,7 @@ For example, a bundle can be defined as a naked container image containing only 
 
 Consider the following Dockerfile to create an extension which adds `/usr/bin/ipfs` to the system:
 
-```
+```Dockerfile
 FROM alpine as build
 # Install a binary
 ARG VERSION
@@ -91,7 +91,7 @@ COPY --from=build /usr/lib/extension-release.d /usr/lib/extension-release.d
 
 We can build that image with:
 
-```
+```bash
 docker build --build-arg VERSION=v1.0.0 -t image .
 ```
 
