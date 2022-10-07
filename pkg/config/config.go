@@ -24,6 +24,7 @@ type Install struct {
 	Poweroff    bool              `yaml:"poweroff,omitempty"`
 	GrubOptions map[string]string `yaml:"grub_options,omitempty"`
 	Bundles     Bundles           `yaml:"bundles,omitempty"`
+	Encrypt     []string          `yaml:"encrypted_partitions,omitempty"`
 }
 
 type Config struct {
