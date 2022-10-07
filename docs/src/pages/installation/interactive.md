@@ -4,6 +4,8 @@ title: "Interactive installation"
 index: 3
 ---
 
+# Interactive installation
+
 The interactive installation can be accessed from the LiveCD ISO and guides the user into the installation process.
 
 It generates a configuration file, which is later accessible after installation at `/oem/99_custom.yaml`.

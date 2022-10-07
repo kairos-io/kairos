@@ -4,6 +4,8 @@ title: "Customizing the system image"
 index: 7
 ---
 
+# Customizing
+
 Kairos is a container-based OS, if you want to change Kairos and add a package, it is required to build only a Docker image.
 
 For example:

@@ -4,6 +4,8 @@ title: "Networking"
 index: 8
 ---
 
+# Networking settings
+
 By default Kairos ISOs are configured to automatically get an ip from the network interface. However, depending on the base system you have chosen, there are different way to configure networking. This section collects information on setting network configuration depending on the base that is being chosen (openSUSE, Alpine, Ubuntu).
 
 There are different network manager depending on the distro:

@@ -4,6 +4,8 @@ title: "Image support matrix"
 index: 7
 ---
 
+# Image support matrix
+
 Kairos builds several artifacts for user convenience which are based on openSUSE, Alpine Linux and Ubuntu.
 
 The images are pushed over quay.io, and are available for installation and upgrading.

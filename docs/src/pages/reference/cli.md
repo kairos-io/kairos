@@ -4,6 +4,8 @@ title: "CLI"
 index: 3
 ---
 
+# CLI reference
+
 A CLI is provided as part of releases associated to each Kairos version.
 
 The CLI can be used from an external machine to generate network tokens and pair nodes on first-boot.

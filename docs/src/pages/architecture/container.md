@@ -4,6 +4,8 @@ title: "Container based OS"
 index: 2
 ---
 
+# Container based OS
+
 Kairos is a container-based OS.
 
 A container based OS is an OS which is shipped via containers. Indeed, if it happens to be based on Linux (most probably) you can run the container image as well on your docker daemon. The image being being booted is the container, which contains all the required pieces in order to boot (Kernel, Initrd, Init system).

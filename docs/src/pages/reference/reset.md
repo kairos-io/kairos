@@ -4,6 +4,8 @@ title: "Reset"
 index: 9
 ---
 
+# Reset node state
+
 Kairos have a recovery mechanism built-in which can be leveraged to restore the system to a known point. At installation time, the recovery partition is created from the installation medium and can be used to restore the system from scratch, leaving configuration and persistent data intact.
 
 The reset will regenerate the bootloader and the images in the COS_STATE partition by using the recovery image.
