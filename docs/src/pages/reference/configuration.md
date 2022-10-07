@@ -145,7 +145,7 @@ k3s-agent:
 {{% /tab %}}
 {{< /tabs >}}
 
-See also the [examples'](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure K3s manually.
+See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure K3s manually.
 
 ## `install.grub_options`
 
