@@ -1,7 +1,7 @@
 ---
 layout: "../../layouts/docs/Layout.astro"
 title: "Development"
-index: 10
+index: 1
 ---
 
 Here you can find development notes intended for maintainers and guidance for new contributors.
@@ -28,6 +28,15 @@ Every source image used as a flavor is inside the `images` folder in the top-lev
 
 To add a flavor is enough to create a Dockerfile corresponding to the flavor, and check if any specific setting is required for it in the `+framework` target.
 
+Generally to add a flavor the image needs to have installed:
+
+- An init system (systemd or openRC are supported)
+- Kernel
+- GRUB
+- rsync
+
+If you are building a flavor without Earthly, be sure to consume the packages from our repository to convert it to a Kairos-based version
+
 ## New controllers
 
 Kairos-io adopts [operator-sdk](https://github.com/operator-framework/operator-sdk). 
@@ -43,7 +52,7 @@ To install `operator-sdk` locally you can use the `kairos` repositories:
 
 ### Create the controller
 
-Create a directory and let's init it with the operator-sdk:
+Create a directory and let's init our new project it with the operator-sdk:
 
 ```bash
 
@@ -58,12 +67,18 @@ $ operator-sdk init --domain kairos.io --repo github.com/kairos-io/kairos-contro
 To create a resource boilerplate:
 
 ```
-$ operator-sdk create api --group cache --version v1alpha1 --kind <resource> --resource --controller
+$ operator-sdk create api --group <groupname> --version v1alpha1 --kind <resource> --resource --controller
 ```
 
 ### Convert to a helm chart
 
-operator-sdk as does not have direct support to render helm charts (see [issue](https://github.com/operator-framework/operator-sdk/issues/4930)), we use [kubesplit](https://github.com/spectrocloud/kubesplit) to render kustomize manifest and pipe to it. `kubesplit` will split every resource and add a minimal `helm` templating logic, that will help into creating the helm chart.
+operator-sdk does not have direct support to render helm charts (see [issue](https://github.com/operator-framework/operator-sdk/issues/4930)), we use [kubesplit](https://github.com/spectrocloud/kubesplit) to render helm templates by piping kustomize manifests to it. `kubesplit` will split every resource and add a minimal `helm` templating logic, that will guide you into creating the helm chart.
+
+If you have already enabled the `kairos` repository locally, you can install `kubesplit` with:
+
+```
+$ luet install -y utils/kubesplit
+```
 
 ### Test with Kind
 
