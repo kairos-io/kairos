@@ -1,0 +1,18 @@
+{
+    //"forwardPorts": [1, 2, 3],
+
+    // Install needed extensions
+    "extensions": [
+      "ms-azuretools.vscode-docker",
+      "golang.Go",
+      "MS-vsliveshare.vsliveshare",
+      "earthly.earthfile-syntax-highlighting"
+    ],
+
+    // Adds VS Code settings.json values into the environment.
+    "settings": {
+      "peacock.remoteColor": "#0078D7"
+    },
+    // Run Bash script in .devcontainer directory
+    "postCreateCommand": "/bin/bash ./.devcontainer/post-create.sh > ~/post-create.log",
+  }
