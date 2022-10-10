@@ -162,7 +162,7 @@ framework:
 
     ENV USER=root
 
-    IF [ "$FLAVOR" == "ubuntu-rolling" ]
+    IF [ "$FLAVOR" == "ubuntu-20-lts" ] || [ "$FLAVOR" == "ubuntu-22-lts" ]
         ARG TOOLKIT_IMG="ubuntu"
     ELSE IF [ "$FLAVOR" == "rockylinux" ]
         ARG TOOLKIT_IMG="fedora"
@@ -245,7 +245,7 @@ docker:
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
         COPY overlay/files-fedora/ /
-    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-rolling" ]
+    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /
     END
 
@@ -264,7 +264,7 @@ docker:
      RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
      # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
      RUN rm -rf /boot/initramfs-*
-    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-rolling" ]
+    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
      RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
             ln -sf "${kernel#/boot/}" /boot/vmlinuz
      RUN kernel=$(ls /lib/modules | head -n1) && \
