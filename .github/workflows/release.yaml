@@ -58,6 +58,7 @@ jobs:
          - flavor: "opensuse"
          - flavor: "alpine"
          - flavor: "ubuntu-20-lts"
+         - flavor: "ubuntu-22-lts"
          - flavor: "ubuntu"
          - flavor: "fedora"
    #      - flavor: "fedora"

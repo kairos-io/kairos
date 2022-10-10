@@ -1,0 +1,56 @@
+ARG BASE_IMAGE=ubuntu:22.04
+
+FROM $BASE_IMAGE
+ARG K3S_VERSION
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update
+RUN apt install -y software-properties-common
+RUN add-apt-repository ppa:oibaf/test
+RUN apt update
+RUN apt install -y \
+    systemd \
+    grub-pc-bin \
+    grub-efi-amd64-bin \
+    grub2 \
+    grub2-common \
+    nohang \
+    sudo \
+    iproute2 \
+    squashfs-tools \
+    parted dracut \
+    dracut-network dracut-live tar \
+    e2fsprogs \
+    dosfstools \
+    coreutils \
+    debianutils \
+    curl \
+    openssh-server \
+    nano \
+    gawk \
+    haveged \
+    rsync \
+    jq \
+    neovim \
+    open-vm-tools \
+    linux-image-generic-hwe-22.04 && apt-get clean
+
+RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
+RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
+RUN systemctl enable nohang-desktop.service
+RUN systemctl enable systemd-networkd
+RUN systemctl enable ssh
+RUN echo "auto lo" > /etc/network/interfaces
+RUN echo "iface lo inet loopback" >> /etc/network/interfaces
+
+# Enable tmp
+RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 
+RUN systemctl enable tmp.mount
+
+# Fixup sudo perms
+RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
+
+
+# Clear cache
+RUN apt-get clean && rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id
