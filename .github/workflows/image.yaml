@@ -21,7 +21,7 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "ubuntu"
-         - flavor: "ubuntu-rolling"
+         - flavor: "ubuntu-20-lts"
          - flavor: "alpine"
          - flavor: "fedora"
          - flavor: "rockylinux"
@@ -158,7 +158,7 @@ jobs:
          - flavor: "alpine"
          - flavor: "opensuse"
          - flavor: "ubuntu"
-         - flavor: "ubuntu-rolling"
+         - flavor: "ubuntu-20-lts"
     steps:
     - uses: actions/checkout@v2
     - name: Download artifacts

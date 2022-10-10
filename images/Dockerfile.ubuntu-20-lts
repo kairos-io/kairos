@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ubuntu:22.10
+ARG BASE_IMAGE=ubuntu:20.04
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
@@ -20,7 +20,7 @@ RUN apt install -y \
     iproute2 \
     squashfs-tools \
     parted dracut \
-    dracut-network dracut-live tar \
+    dracut-network tar \
     e2fsprogs \
     dosfstools \
     coreutils \
@@ -34,7 +34,7 @@ RUN apt install -y \
     jq \
     neovim \
     open-vm-tools \
-    linux-image-generic-hwe-22.04 && apt-get clean
+    linux-image-generic-hwe-20.04 && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv

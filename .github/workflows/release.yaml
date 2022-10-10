@@ -57,7 +57,7 @@ jobs:
        include:
          - flavor: "opensuse"
          - flavor: "alpine"
-         - flavor: "ubuntu-rolling"
+         - flavor: "ubuntu-20-lts"
          - flavor: "ubuntu"
          - flavor: "fedora"
    #      - flavor: "fedora"
