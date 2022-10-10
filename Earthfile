@@ -273,9 +273,16 @@ docker:
      RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
     END
 
-    # If it's an ARM flavor, we want a symlink here
-    IF [ "$FLAVOR" = "alpine-arm-rpi" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
-     RUN ln -sf Image /boot/vmlinuz
+    IF [ ! -e "/boot/vmlinuz" ]
+        # If it's an ARM flavor, we want a symlink here from zImage/Image
+        IF [ -e "/boot/Image" ]
+            RUN ln -sf Image /boot/vmlinuz
+        ELSE IF [ -e "/boot/zImage" ]
+            RUN ln -sf zImage /boot/vmlinuz
+        ELSE
+            RUN kernel=$(ls /lib/modules | head -n1) && \
+             ln -sf "${kernel#/boot/}" /boot/vmlinuz
+        END
     END
 
     SAVE IMAGE $IMAGE
