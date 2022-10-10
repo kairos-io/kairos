@@ -4,6 +4,8 @@ title: "Configuration reference"
 index: 5
 ---
 
+# Configuration reference
+
 Here you can find a full reference of the fields available to configure a Kairos node.
 
 ```yaml
@@ -143,7 +145,7 @@ k3s-agent:
 {{% /tab %}}
 {{< /tabs >}}
 
-See also the [examples'](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure K3s manually.
+See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure K3s manually.
 
 ## `install.grub_options`
 

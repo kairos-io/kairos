@@ -4,6 +4,8 @@ title: "Meta-Distribution"
 index: 4
 ---
 
+# Meta distribution
+
 We like to define Kairos as a meta Linux Distribution, as its goal is to convert any other distro to an immutable layout with Kubernetes Native components.
 
 ## Kairos

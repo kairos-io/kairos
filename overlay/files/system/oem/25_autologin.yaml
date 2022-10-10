@@ -2,7 +2,7 @@ name: "Root autologin"
 stages:
   initramfs:
   - if: |
-      [ -f /run/cos/live_mode ] && ( [ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] )
+      [ ! $(cat /proc/cmdline | grep -q "interactive-install") ] && [ -f /run/cos/live_mode ] && ( [ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] )
     files:
     - path: /etc/systemd/system/serial-getty@ttyS0.service.d/override.conf
       content: |

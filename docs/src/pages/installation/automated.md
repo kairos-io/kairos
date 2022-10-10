@@ -4,6 +4,8 @@ title: "Automated installation"
 index: 4
 ---
 
+# Automated installation
+
 It is possible to drive the installation automatically by configuring a specific portion of the configuration file `install`.
 The configuration file then can be supplied in various way, by either creating an additional ISO to mount (if a VM burn to USB stick or if bare metal), specifying a config via URL or even create a ISO from a container image with an embedded config file, which we are going to explore here.
 

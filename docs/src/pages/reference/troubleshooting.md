@@ -4,6 +4,8 @@ title: "Troubleshooting"
 index: 4
 ---
 
+# Troubleshooting
+
 Things can go wrong, this section tries to give guidelines in helping out identify potential issues.
 
 It is important first to check out if your issue was already submitted [in the issue tracker](https://github.com/kairos-io/kairos/issues)

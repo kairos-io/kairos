@@ -172,8 +172,9 @@ framework:
         ARG TOOLKIT_IMG="$FLAVOR"
     END
 
+    # Framework files
     RUN luet install -y --system-target /framework \
-            system/elemental-toolkit-$TOOLKIT_IMG
+            system/elemental-toolkit-$TOOLKIT_IMG dracut/kcrypt system/kcrypt
 
     IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN luet install -y --system-target /framework \
@@ -242,6 +243,8 @@ docker:
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
+    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+        COPY overlay/files-fedora/ /
     ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-rolling" ]
         COPY overlay/files-ubuntu/ /
     END
