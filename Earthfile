@@ -174,7 +174,7 @@ framework:
 
     # Framework files
     RUN luet install -y --system-target /framework \
-            system/elemental-toolkit-$TOOLKIT_IMG dracut/kcrypt system/kcrypt
+            system/elemental-toolkit-$TOOLKIT_IMG dracut/kcrypt system/kcrypt system/suc-upgrade
 
     IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN luet install -y --system-target /framework \
