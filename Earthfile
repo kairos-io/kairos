@@ -420,7 +420,7 @@ linux-bench-scan:
 run-qemu-datasource-tests:
     FROM opensuse/leap
     WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
+    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
     ARG FLAVOR
     ARG TEST_SUITE=autoinstall-test
     ENV FLAVOR=$FLAVOR
@@ -431,7 +431,6 @@ run-qemu-datasource-tests:
 
     ENV GOPATH="/go"
 
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
     COPY . .
     RUN ls -liah
@@ -449,6 +448,8 @@ run-qemu-datasource-tests:
         ENV DATASOURCE=/test/build/datasource.iso
     END
 
+    RUN go install github.com/onsi/ginkgo/v2/ginkgo
+
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
@@ -456,7 +457,7 @@ run-qemu-datasource-tests:
 run-qemu-test:
     FROM opensuse/leap
     WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go
+    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG CONTAINER_IMAGE
@@ -468,9 +469,11 @@ run-qemu-test:
 
     ENV GOPATH="/go"
 
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
 
     COPY . .
+
+    RUN go install github.com/onsi/ginkgo/v2/ginkgo
+
     ARG ISO=$(ls /test/build/*.iso)
     ENV ISO=$ISO
 
