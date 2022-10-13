@@ -4,6 +4,6 @@ title: "Upgrade"
 index: 1
 ---
 
-# Installing kairos on baremetal, VMs, ...
+# Installing Kairos on bare metal, VMs, ...
 
-## Automated, Paired and take over install
+## Automates, Pairs, and takes over install

@@ -12,13 +12,13 @@ Kairos uses [earthly](https://earthly.dev/) as a build system instead of Makefil
 
 To build Kairos you need only Docker installed locally, and there is a convenience script in the root of the repository (`earthly.sh`) which wraps `earthly` inside Docker to avoid to install locally which can be used instead of `earthly` (e.g. `./earthly.sh +iso ...`).
 
-To build a Kairos ISO, you need to specify the flavor, for example to build Kairos Alpine:
+To build a Kairos ISO, you need to specify the flavor. For example, to build Kairos Alpine:
 
 ```
 earthly -P +iso --FLAVOR=alpine
 ```
 
-This will build a container image from scratch, and create an ISO which is ready to be booted.
+This will build a container image from scratch and create an ISO which is ready to be booted.
 
 Note earthly targets are prefixed with `+` while variables are passed as flags.
 
@@ -26,7 +26,7 @@ Note earthly targets are prefixed with `+` while variables are passed as flags.
 
 Every source image used as a flavor is inside the `images` folder in the top-level directory. Any Dockerfile have the extension corresponding to the flavor which can be used as an argument for earthly builds (you will find a `Dockerfile.alpine` that will be used by our `earthly -P +iso --FLAVOR=alpine` above).
 
-To add a flavor is enough to create a Dockerfile corresponding to the flavor, and check if any specific setting is required for it in the `+framework` target.
+To add a flavor is enough to create a Dockerfile corresponding to the flavor and check if any specific setting is required for it in the `+framework` target.
 
 Generally to add a flavor the image needs to have installed:
 
@@ -35,7 +35,7 @@ Generally to add a flavor the image needs to have installed:
 - GRUB
 - rsync
 
-If you are building a flavor without Earthly, be sure to consume the packages from our repository to convert it to a Kairos-based version
+If you are building a flavor without Earthly, be sure to consume the packages from our repository to convert it to a Kairos-based version.
 
 ## New controllers
 
@@ -43,7 +43,7 @@ Kairos-io adopts [operator-sdk](https://github.com/operator-framework/operator-s
 
 To install `operator-sdk` locally you can use the `kairos` repositories:
 
-1. Install luet
+1. Install Luet:
    `curl https://luet.io/install.sh | sudo sh`
 2. Enable the Kairos repository locally:
    `luet repo add kairos --url quay.io/kairos/packages --type docker`
@@ -70,9 +70,9 @@ To create a resource boilerplate:
 $ operator-sdk create api --group <groupname> --version v1alpha1 --kind <resource> --resource --controller
 ```
 
-### Convert to a helm chart
+### Convert to a Helm chart
 
-operator-sdk does not have direct support to render helm charts (see [issue](https://github.com/operator-framework/operator-sdk/issues/4930)), we use [kubesplit](https://github.com/spectrocloud/kubesplit) to render helm templates by piping kustomize manifests to it. `kubesplit` will split every resource and add a minimal `helm` templating logic, that will guide you into creating the helm chart.
+operator-sdk does not have direct support to render Helm charts (see [issue](https://github.com/operator-framework/operator-sdk/issues/4930)), we use [kubesplit](https://github.com/spectrocloud/kubesplit) to render Helm templates by piping kustomize manifests to it. `kubesplit` will split every resource and add a minimal `helm` templating logic, that will guide you into creating the Helm chart.
 
 If you have already enabled the `kairos` repository locally, you can install `kubesplit` with:
 
@@ -82,7 +82,7 @@ $ luet install -y utils/kubesplit
 
 ### Test with Kind
 
-operator-sdk will generate a Makefile for the project, you can add the following and edit as needed to add kind targets:
+Operator-sdk will generate a Makefile for the project. You can add the following and edit as needed to add kind targets:
 
 ```
 CLUSTER_NAME?="kairos-controller-e2e"

@@ -1,5 +1,5 @@
 Welcome to kairos recovery mode!
-p2p device recovery mode is starting.
+P2P device recovery mode is starting.
 A QR code with a generated network token will be displayed below that can be used to connect 
 over with "kairos bridge --qr-code-image /path/to/image.jpg" from another machine, 
 further instruction will appear on the bridge CLI to connect over via SSH.

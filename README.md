@@ -29,40 +29,40 @@ At-a-glance:
 - :octocat: Open Source
 - :lock: Linux immutable, meta-distribution
 - :key: Secure
-- :whale: Container based
+- :whale: Container-based
 - :penguin: Distribution agnostic
 
 Kairos can be used to:
 
 - Easily spin-up a Kubernetes cluster, with the Linux distribution of your choice :penguin:
-- Manage the cluster lifecycle with Kubernetes—from building, to provisioning, and upgrading :rocket:
-- Create a multiple—node, single cluster that spans up across regions :earth_africa:
+- Manage the cluster lifecycle with Kubernetes—from building to provisioning, and upgrading :rocket:
+- Create a multiple—node, a single cluster that spans up across regions :earth_africa:
 
 For comprehensive docs, tutorials, and examples see our [documentation](https://kairos.io).
 
 ## Project status
 
-- (Sep 29 2022) announcing Kairos 1.0 GA availability. Kairos is now backed by Spectro Cloud, which contributes to the project. Kairos will remain fully community-driven and has its own governance. See the [announcement](https://github.com/kairos-io/kairos/discussions/159)
-- (Sep 15 2022) the c3OS project has a new name: Kairos! For full details, see https://github.com/c3os-io/c3os/issues/88 and https://github.com/c3os-io/c3os/discussions/84. 
+- (Sep 29, 2022) announcing Kairos 1.0 GA availability. Kairos is now backed by Spectro Cloud, which contributes to the project. Kairos will remain fully community-driven and has its own governance. See the [announcement](https://github.com/kairos-io/kairos/discussions/159)
+- (Sep 15, 2022) the c3OS project has a new name: Kairos! For full details, see https://github.com/c3os-io/c3os/issues/88 and https://github.com/c3os-io/c3os/discussions/84.
 
-## What is it ?
+## What is it?
 
 Kairos is a Cloud Native, meta-Linux distribution that can be built, managed, and ran with Kubernetes.
 
 Why/when should I use it?
 
-- Build your Cloud on-premise, no vendor-lock in—completely Open Source
-- Brings the same convenience as a public cloud on—premises
+- Build your Cloud on-premise, no vendor lock-in—completely Open Source.
+- Brings the same convenience as a public cloud on-premise.
 - Node provisioning, by bringing your image or using the Kairos releases.
-- For appliances that don't have to be Kubernetes application, specific-its design fits multiple use case scenarios
+- For appliances that don't have to be Kubernetes application specific-its design fits multiple use case scenarios.
 
 ## Features
 
-- At the current state, Kairos can create a multiple-node Kubernetes cluster with [k3s](https://k3s.io)—all k3s features are supported.
+- At the current state, Kairos can create a multiple-node Kubernetes cluster with [k3s](https://k3s.io)—all K3s features are supported.
 - Upgrades can be done manually via CLI or with Kubernetes. Distribution of upgrades are done via container registries.
 - An immutable distribution that you can configure to your needs while maintaining its immutability.
 - Node configuration via a single, cloud-init config file.
-- Handle airgap upgrades with in—cluster, container registries.
+- Handle airgap upgrades within cluster and container registries.
 - Extend the image in runtime or build time via Kubernetes Native API.
 - Plans to support CAPI, with full device lifecycle management.
 - Plans to support up to RKE2, kubeadm, and much more!

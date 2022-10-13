@@ -8,48 +8,48 @@ index: 2
 
 Welcome to the Kairos documentation!
 
-Kairos is an open-source project which brings Edge, cloud, and bare metal lifecycle OS management into the same design principles with a unified Cloud Native API.
+Kairos is an open-source project which brings Edge, cloud, and bare metal OS lifecycle management into the same design principles with a unified Cloud Native API.
 
 At a glance:
 
 - Community Driven
 - Open Source
-- [Meta-Distribution](/architecture/meta), Distro agnostic
+- [Meta-Distribution](/architecture/meta), distro agnostic
 - [Immutable](/architecture/immutable)
 - Secure
-- [Container based](/architecture/container)
+- [Container-based](/architecture/container)
 - [P2P Mesh](/architecture/network)
 
 Kairos can be used to:
 
-- Easily spin-up a Kubernetes cluster, with the Linux distribution of your choice.
-- Manage the cluster lifecycle with Kubernetes—from building, to provisioning and upgrading.
-- Create a multiple-node single cluster which spans up across regions.
+- Easily spin up a Kubernetes cluster with the Linux distribution of your choice.
+- Manage the cluster lifecycle with Kubernetes—from building to provisioning and upgrading.
+- Create a multiple-node, single cluster which spans across regions.
 
-To get familiar with Kairos, check out the [quickstart](/quickstart/installation).
+To become familiar with Kairos, check out the [quickstart](/quickstart/installation).
 
 ## What is it ?
 
-Kairos is a Cloud Native, meta-Linux distribution that can be built, managed, and run with Kubernetes.
+Kairos is a cloud native, meta-Linux distribution that can be built, managed, and runs on Kubernetes.
 
-Why/when should I use it?
+Why or when should I use it?
 
-- Build your cloud on-premise, no vendor-lock in, completely Open Source.
-- Brings same convenience of public cloud on-premise.
-- Node provisioning, by bringing your own image or use the Kairos releases.
+- Build your cloud on-premise, no vendor lock-in, completely open source.
+- Brings the same convenience of public cloud on-premise.
+- Node provisioning—bring your own image or use the Kairos releases.
 - For appliances that doesn't have to be Kubernetes application specific, its design fits multiple use case scenarios.
 
 ## Features
 
-- At the current state, Kairos can create multiple-node Kubernetes cluster with [k3s](https://k3s.io) - all K3s features are supported.
-- Upgrades can be done manually via CLI or with Kubernetes. Distribution of upgrades are done via container registries.
-- An immutable distribution which you can configure to your needs, while keep staying immutable.
+- At the current state, Kairos can create multiple-node Kubernetes clusters with [K3s](https://k3s.io)—all K3s features are supported.
+- Upgrade manually via CLI or with Kubernetes. Upgrade distributions are done via container registries.
+- As an immutable distribution, configured to your needs, stays immutable.
 - Node configuration via a single cloud-init config file.
-- Handle airgap upgrades with in-cluster container registries.
-- Extend the image in runtime or build time via Kubernetes Native API.
-- Plans to support CAPI, with full device lifecycle management.
-- Plans to support up to rke2, kubeadm, and much more!
-- Nodes can optionally connect autonomously via full-mesh p2p hybrid VPN network. It allows to stretch a cluster up to 10000 km!
+- Handles airgap upgrades with in-cluster, container registries.
+- Extends the image in runtime or builds time via Kubernetes Native APIs.
+- Plans to support CAPI with full device lifecycle management.
+- Plans to support up to RKE2, kubeadm, and much more!
+- Nodes can optionally connect autonomously via a full-mesh P2P hybrid VPN network. It allows to stretch a cluster up to 10000 km!
   Kairos can create private virtual network segments to enhance your cluster perimeter without any SPOF.
 
 ## More than a Linux distribution
@@ -62,7 +62,7 @@ Any input OS will inherit:
 - A/B upgrades
 - Booting mechanism Fallback
 - Boot assessment
-- Single image, container based atomic upgrades
+- Single image, container-based atomic upgrades
 - Cloud init support
 - All the Kairos feature-set
 
