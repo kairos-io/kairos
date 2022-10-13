@@ -4,13 +4,9 @@ title: "Immutable layout"
 index: 3
 ---
 
-<<<<<<< Updated upstream
 # Immutable layout
 
 Kairos adopts an immutable layout and derivatives created with its toolkit inherits the same immutability aspects.
-=======
-Kairos adopts an immutable layout and derivatives, created with its toolkit, which inherits the same immutability aspects.
->>>>>>> Stashed changes
 
 An immutable OS is a carefully engineered system which boots in a restricted, permissionless mode, where certain paths of the system are not writable. For instance, after installation it's not possible to install additional packages in the system, and any configuration change is discarded after reboot.
 
