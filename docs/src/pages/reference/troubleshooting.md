@@ -6,9 +6,9 @@ index: 4
 
 # Troubleshooting
 
-Things can go wrong, this section tries to give guidelines in helping out identify potential issues.
+Things can go wrong. This section tries to give guidelines in helping out identify potential issues.
 
-It is important first to check out if your issue was already submitted [in the issue tracker](https://github.com/kairos-io/kairos/issues)
+It is important first to check out if your issue was already submitted [in the issue tracker](https://github.com/kairos-io/kairos/issues).
 
 ## Gathering logs
 
@@ -22,14 +22,14 @@ In case logs can't be acquired, taking screenshot or videos while opening up iss
 
 ## Initramfs breakpoints
 
-Initramfs can be instructed to drop a shell in various phases of the boot process, for instance:
+Initramfs can be instructed to drop a shell in various phases of the boot process. For instance:
 
-- `rd.break=pre-mount rd.shell`: Drop a shell before setting up mount points
-- `rd.break=pre-pivot rd.shell`: Drop a shell before switch-root
+- `rd.break=pre-mount rd.shell`: Drops a shell before setting up mount points.
+- `rd.break=pre-pivot rd.shell`: Drops a shell before switch-root
 
 ## Disable immutability
 
-It is possible to disable immutability by adding `rd.cos.debugrw` to the kernel boot commands
+It is possible to disable immutability by adding `rd.cos.debugrw` to the kernel boot commands.
 
 ## Root permission
 
@@ -37,7 +37,7 @@ By default, there is no root user set. A default user (`kairos`) is created and 
 
 ## Get back the kubeconfig
 
-On all nodes which are deployed with the p2p full-mesh feature of the cluster it's possible to invoke `kairos get-kubeconfig` to recover the kubeconfig file.
+On all nodes, which are deployed with the P2P full-mesh feature of the cluster, it's possible to invoke `kairos get-kubeconfig` to recover the kubeconfig file.
 
 ## See also
 

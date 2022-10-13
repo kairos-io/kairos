@@ -22,17 +22,17 @@ const MAIN_SECTIONS = [
           {
             title: "Let's get meta:",
             description:
-              "We call Kairos a meta Linux Distribution. Why meta? Because it sits as a container layer turning any Linux distro into an immutable system distributed via container registries. With Kairos, the OS is the container image, which is used for new installations and upgrades.",
+              "We call Kairos a meta-Linux Distribution. Why meta? Because it sits as a container layer, turning any Linux distro into an immutable system distributed via container registries. With Kairos, the OS is the container image, which is used for new installations and upgrades.",
           },
           {
             title: "Bring your own OS:",
             description:
-              "The Kairos 'factory' enables you to build custom bootable OS images for your edge devices, from your choice of OS (including openSUSE, Alpine and Ubuntu) and your choice of edge Kubernetes distribution - Kairos is totally agnostic.",
+              "The Kairos 'factory' enables you to build custom bootable-OS images for your edge devices, from your choice of OS (including openSUSE, Alpine and Ubuntu), and your choice of edge Kubernetes distribution—Kairos is totally agnostic.",
           },
           {
           title: "Repeatable, immutable:",
           description:
-              "Each node boots from the same image, so no more snowflakes in your clusters, and each system is immutable - it boots in a restricted, permissionless mode, where certain paths of it are not writeable. For instance, after installation it's not possible to install additional packages in the system, and any configuration change is discarded after reboot. This dramatically reduces the attack surface and the impact of malicious actors gaining access to the device. ",
+              "Each node boots from the same image, so no more snowflakes in your clusters, and each system is immutable—it boots in a restricted, permissionless mode, where certain paths are not writeable. For instance, after an installation it's not possible to install additional packages in the system, and any configuration change is discarded after a reboot. This dramatically reduces the attack surface and the impact of malicious actors gaining access to the device.",
           },
         ],
       },
@@ -48,7 +48,7 @@ const MAIN_SECTIONS = [
           {
             title: "Secure peer to peer mesh with VPN:",
             description:
-              "Kairos optionally supports P2P full-mesh out of the box. New devices wake up with a shared secret and distributed ledger of other nodes and clusters to look for — they form a unified overlay network that’s E2E encrypted to discover other devices, even spanning multiple networks, to bootstrap the cluster.",
+              "Kairos optionally supports P2P full-mesh out of the box. New devices wake up with a shared secret and distributed ledger of other nodes and clusters to look for—they form a unified overlay network that’s E2E encrypted to discover other devices, even spanning multiple networks, to bootstrap the cluster.",
           },
         ],
       },
@@ -59,17 +59,17 @@ const MAIN_SECTIONS = [
           {
             title: "Treat your OS just like any app:",
             description:
-              "Each Kairos OS is created as easily as writing a Dockerfile — no custom recipes or arcane languages here. You can run and customize the container images locally with docker, podman, or your container engine of choice exactly how you do for apps already.",
+              "Each Kairos OS is created as easily as writing a Dockerfile—no custom recipes or arcane languages here. You can run and customize the container images locally with Docker, Podman, or your container engine of choice exactly how you do for apps already.",
           },
           {
             title: "Run your pipeline to the edge: ",
             description:
-              "Your built OS is a container-based single image that is distributed via container registries, so it plugs neatly into your existing CI/CD pipelines. It makes edge scale as repeatable and portable as driving containers. Customizing, mirroring of images, scanning vulnerabilities, gating upgrades, patching CVEs are some of the endless possibilities.  Updating nodes is just as easy as selecting a new version via Kubernetes. Each node will pull the update from your repo, installing on A/B partitions for zero-risk upgrades with failover.",
+              "Your built OS is a container-based, single image that is distributed via container registries, so it plugs neatly into your existing CI/CD pipelines. It makes edge scale as repeatable and portable as driving containers. Customizing, mirroring of images, scanning vulnerabilities, gating upgrades, patching CVEs are some of the endless possibilities.  Updating nodes is just as easy as selecting a new version via Kubernetes. Each node will pull the update from your repo, installing on A/B partitions for zero-risk upgrades with failover.",
           },
           {
             title: "Run K8s with K8s:",
             description:
-              "Use Kubernetes management principles to manage and provision your clusters. Kairos supports automatic node provisioning, via CRDs, upgrade management via Kubernetes, node repurposing and machine auto scaling capabilities, and complete configuration management via cloud-init.",
+              "Use Kubernetes management principles to manage and provision your clusters. Kairos supports automatic node provisioning via CRDs; upgrade management via Kubernetes; node repurposing and machine auto scaling capabilities; and complete configuration management via cloud-init.",
           },
         ],
       },
@@ -85,12 +85,12 @@ const MAIN_SECTIONS = [
           {
             title: "Extensively tested:",
             description:
-              "We move fast, but we try not to break stuff — particularly your nodes. Every change in the Kairos codebase runs through highly engineered automated testing before release to catch bugs earlier.",
+              "We move fast, but we try not to break stuff—particularly your nodes. Every change in the Kairos codebase runs through highly engineered automated testing before release to catch bugs earlier.",
           },
           {
             title: "Designed for everyone:",
             description:
-              "While Kairos has been engineered for large-scale use by devops and IT engineering teams working in cloud, bare metal, edge and embedded systems environments, we welcome makers, hobbyists and anyone in the community to participate in driving forward our vision of the immutable, decentralized, containerized edge.",
+              "While Kairos has been engineered for large-scale use by DevOps and IT Engineering teams working in cloud, bare metal, edge and embedded systems environments, we welcome makers, hobbyists, and anyone in the community to participate in driving forward our vision of the immutable, decentralized, and containerized edge.",
           },
           {
             title: "Backed by Spectro Cloud:",

@@ -4,6 +4,6 @@ title: "Architecture"
 index: 1
 ---
 
-# Installing kairos on baremetal, VMs, ...
+# Installing Kairos on bare metal, VMs...
 
-## Automated, Paired and take over install
+## Automates, pairs, and takes over installs

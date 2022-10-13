@@ -25,13 +25,13 @@ v0.57.0-alpha1
 
 ## Upgrade
 
-To upgrade to the latest available version, run from a shell of a cluster node:
+To upgrade to the latest available version, run from a shell of a cluster node the following:
 
 ```bash
 sudo kairos-agent upgrade
 ```
 
-To specify a version, run
+To specify a version, run:
 
 ```bash
 sudo kairos-agent upgrade <version>

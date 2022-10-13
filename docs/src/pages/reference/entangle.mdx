@@ -12,21 +12,21 @@ import Info from "../../components/Info.astro";
 
 </Info>
 
-Kairos have two Kubernetes Native extensions that allows to interconnect services between different clusters via P2P with a shared secret.
+Kairos has two Kubernetes Native extensions that allows to interconnect services between different clusters via P2P with a shared secret.
 
-None of the clusters needs to do any specific setting in order to establish a connection as uses internally [libp2p](https://github.com/libp2p/go-libp2p) to connect between the nodes.
+The clusters won't need to do any specific setting in order to establish a connection, as it uses internally [libp2p](https://github.com/libp2p/go-libp2p) to connect between the nodes.
 
-Entangle can be used to connect services running on different clusters, or can be used with `entangle-proxy` to control another cluster remotely via P2P.
+Entangle can be used to connect services running on different clusters or can be used with `entangle-proxy` to control another cluster remotely via P2P.
 
 ## Prerequisites
 
-To `entangle` two or more clusters you need one or more Kubernetes cluster, there is no extra requirement.
+To `entangle` two or more clusters you need one or more Kubernetes cluster; there is no extra requirement.
 
 ## Install the CRD
 
-First install the Kubernetes CRD: 
+First, install the Kubernetes CRD: 
 ```bash
-# Adds the Kairos repo to helm
+# Adds the Kairos repo to Helm
 $ helm repo add kairos https://Kairos-io.github.io/helm-charts
 "kairos" has been added to your repositories
 $ helm repo update
@@ -44,7 +44,7 @@ REVISION: 1
 TEST SUITE: None
 ```
 
-Then install entangle and entangle-proxy:
+Then, install entangle and entangle-proxy:
 
 ```bash
 # Installs kairos-entangle

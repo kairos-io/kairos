@@ -1,6 +1,6 @@
-Welcome to kairos!
-p2p device installation enrollment is starting.
-A QR code will be displayed below. 
+Welcome to Kairos!
+P2P device installation enrollment is starting.
+A QR code will be displayed below.
 In another machine, run "kairos register" with the QR code visible on screen,
 or "kairos register <file>" to register the machine from a photo.
 IF the qrcode is not displaying correctly,
