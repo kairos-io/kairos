@@ -12,7 +12,7 @@ If you are not familiar with the process, it is suggested to follow the [quickst
 
 ## Prerequisites
 
-- An SD card with 16 GB
+- An SD card which size is at least 16 GB
 - Etcher or `dd`
 - A Linux host where to flash the device
 
