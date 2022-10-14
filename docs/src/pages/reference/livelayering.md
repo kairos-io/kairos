@@ -96,5 +96,5 @@ docker build --build-arg VERSION=v1.0.0 -t image .
 ```
 
 Note that systemd extensions requires an extension-release file which matches the `ID` and the `VERSION_ID` of the OS iqn the `/etc/os-release` file.
-This has the consequence that bundles can be created for specific OS versions and are loaded only if `ID` and `VERSION_ID` are matching.  In the example above this can be controlled by the `VERSION` build arg while building the container image.
+This has the consequence that bundles can be created for specific OS versions and are loaded only if `ID` and `VERSION_ID` are matching. In the example above this can be controlled by the `VERSION` build arg while building the container image.
 

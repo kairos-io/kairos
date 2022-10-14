@@ -142,14 +142,14 @@ A `--device` and a `--config` file are required in order to have a functional in
 
 ## `bridge`
 
-Connect to the nodes in the VPN p2p network by creating a tun device on the host.
+Connect to the nodes in the VPN P2P network by creating a tun device on the host.
 
 It needs a `--network-token`(`$NETWORK_TOKEN`) argument and exposes an API endpoint available at [localhost:8080](http://localhost:8080) to monitor the network status.
 
 ## `install`
 
-Called by Kairos nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
+Is called by Kairos nodes on boot and not meant to be used manually. It kicks in the installation and the QR pairing process.
 
 ## `setup`
 
-Called by Kairos nodes on boot and not meant to be used manually. It prepares `edgevpn` and K3s bootstrapping the node and the VPN.
+Is called by Kairos nodes on boot and not meant to be used manually. It prepares `edgevpn` and K3s bootstrapping the node and the VPN.

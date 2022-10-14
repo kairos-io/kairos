@@ -12,15 +12,16 @@ import Info from "../../components/Info.astro";
 This feature is crazy and experimental!
 </Info>
 
-This section will guide on how to leverage the peer-to-peer (P2P) full-mesh capabilities of Kairos.
+This section will guide you on how to leverage the peer-to-peer (P2P), full-mesh capabilities of Kairos.
 
-Kairos supports P2P full-mesh out of the box. That allows to seamlessly interconnect clusters and nodes from different regions into a unified overlay network, additionally, the same network is used for coordinating nodes automatically allowing self-automated, node bootstrap.
+Kairos supports P2P full-mesh out of the box. That allows to seamlessly interconnect clusters and nodes from different regions into a unified overlay network. Additionally, the same network is used for coordinating nodes automatically allowing self-automated, node bootstrap.
 
-A hybrid network is automatically set up between all the nodes, as such there is no need to expose them over the Internet or expose the Kubernetes management API outside, reducing attacker's exploiting surface.
+A hybrid network is automatically set up between all the nodes, so there is no need to expose them over the Internet or expose the Kubernetes management API outside, reducing the attacker's exploiting surface.
 
-Kairos can be configured to automatically bootstrap a Kubernetes cluster with the full-mesh functionalities or include an additional interface to the machines to let them communicate within a new network segment.
+Kairos can be configured to automatically bootstrap a Kubernetes cluster with the full-mesh functionalities, or it can include an additional interface to the machines to let them communicate within a new network segment.
 
-If you are not familiar with the process, it is suggested to follow the [quickstart](/quickstart/installation) first and the steps below in sequence.
+If you are not familiar with the process, it is suggested to follow the [quickstart](/quickstart/installation) first and the steps below, in sequence.
+
 The section below explains the difference in the configuration options to enable P2P full-mesh during the installation phase.
 
 ## Prerequisites
@@ -75,10 +76,10 @@ The `kairos-cli` can be used to establish a tunnel with the nodes network given 
 sudo kairos bridge --network-token <TOKEN>
 ```
 
-This command will create a tun device in your machine and will make possible to contact each node in the cluster.
+This command will create a TUN device in your machine and will make possible to contact each node in the cluster.
 
 <Info>
-The command requires root permissions in order to create a tun/tap device on the host
+The command requires root permissions in order to create a TUN/TAP device on the host.
 </Info>
 
 An API will be also available at [localhost:8080](http://localhost:8080) for inspecting the network status.
@@ -87,7 +88,7 @@ An API will be also available at [localhost:8080](http://localhost:8080) for ins
 
 To retrieve `kubeconfig`, it is sufficient to either log in to the master node and get it from the engine (e.g., K3s places it `/etc/rancher/k3s/k3s.yaml`) or use the Kairos CLI.
 
-By using the CLI, you need to be connected to the bridge or be logged in from one of the nodes and perform the commands in the console.
+By using the CLI, you need to be connected to the bridge or logged in from one of the nodes and perform the commands in the console.
 
 If you are using the CLI, you need to run the bridge in a separate window.
 

@@ -8,7 +8,7 @@ import Info from "../../components/Info.astro";
 
 # Manual installation
 
-To install manually, follow the [quickstart](/quickstart/installation). When the QR code is prompted at the screen, you should be able to log in via SSH to the box with the password `kairos` as `kairos` user.
+To install manually, follow the [quickstart](/quickstart/installation). When the QR code is prompted at the screen, you will be able to log in via SSH to the box with the password `kairos` as `kairos` user.
 
 <Info>
 
@@ -18,13 +18,13 @@ To install manually, follow the [quickstart](/quickstart/installation). When the
 
 ## Installation
 
-To start the installation, run from the console:
+To start the installation, run from the console the following command:
 
 ```bash
 sudo kairos-agent manual-install --device "auto" $CONFIG
 ```
 
-Where the configuration can be a cloud-init file or a URL to it:
+Where the configuration can be a `cloud-init` file or a URL to it:
 
 ```yaml
 #cloud-init
@@ -34,6 +34,6 @@ kairos:
 # extra configuration
 ```
 
-Note: 
-- the command is disruptive and will erase any content on the drive
-- "auto" selects the biggest drive available in the machine
+**Note**: 
+- The command is disruptive and will erase any content on the drive.
+- The parameter **"auto"** selects the biggest drive available in the machine.

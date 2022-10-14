@@ -1,10 +1,10 @@
 ---
 layout: "../../layouts/docs/Layout.astro"
-title: "Raspberry"
+title: "Raspberry Pi"
 index: 6
 ---
 
-# Raspberry PI support
+# Raspberry Pi support
 
 Kairos supports Raspberry Pi model 3 and 4 with 64bit architecture.
 
@@ -12,7 +12,7 @@ If you are not familiar with the process, it is suggested to follow the [quickst
 
 ## Prerequisites
 
-- an SD card with 16gb
+- An SD card which size is at least 16 GB
 - Etcher or `dd`
 - A Linux host where to flash the device
 
@@ -26,7 +26,7 @@ wget https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0-rc2/k
 
 ## Flash the image
 
-Plug the SD card to your system - to flash the image, you can either use Etcher or `dd`, note it's compressed with "XZ" so we need to decompress it first:
+Plug the SD card to your system. To flash the image, you can either use Etcher or `dd`. Note it's compressed with "XZ", so we need to decompress it first:
 
 ```bash
 xzcat kairos-opensuse-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img | sudo dd of=<device> oflag=sync status=progress
@@ -45,4 +45,4 @@ $ sudo cp cloud-config.yaml /tmp/persistent/cloud-config
 $ sudo umount /tmp/persistent
 ```
 
-You can, additionally push more cloud config files into such folder following the [yip](https://github.com/mudler/yip) syntax.
+You can, additionally push more `cloud config` files into such folder following the [yip](https://github.com/mudler/yip) syntax.

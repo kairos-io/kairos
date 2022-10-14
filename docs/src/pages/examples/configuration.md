@@ -6,7 +6,7 @@ index: 3
 
 # Configuration after installation
 
-Kairos configuration mechanism is all based on cloud-config file.
+Kairos configuration mechanism is all based on the `cloud-config `file.
 
 By default, `kairos` reads in lexicographic order YAML cloud-config files in the `/usr/local/cloud-config` and `/oem` directories.
 

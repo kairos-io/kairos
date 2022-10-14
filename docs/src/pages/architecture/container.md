@@ -1,33 +1,32 @@
 ---
 layout: "../../layouts/docs/Layout.astro"
-title: "Container based OS"
+title: "Container-based OS"
 index: 2
 ---
 
-# Container based OS
+# Container-based OS
 
-Kairos is a container-based OS.
+Kairos is a container-based operating system (OS).
 
-A container based OS is an OS which is shipped via containers. Indeed, if it happens to be based on Linux (most probably) you can run the container image as well on your docker daemon. The image being being booted is the container, which contains all the required pieces in order to boot (Kernel, Initrd, Init system).
+A container-based operating system is an OS that is shipped via containers. Indeed, if it happens to be based on Linux (most probably), you can run the container image as well on your Docker daemon. The image being booted is the container, which contains all the required pieces in order to boot (Kernel, Initrd, Init system).
 
 ## Benefits of using containers to distribute upgrades
 
 Container registries are already widely supported and used by anyone.
 
-If you are operating a Kubernetes cluster and deploying apps on top, chances are that you already have a container registry deployed somewhere and configured to store them or manage your infrastructure stack. By using container images lets you re-use the same infrastructure to propagate upgrades to the nodes and handle customizations.
+If you are operating a Kubernetes cluster and deploying applications on top, chances are that you already have a container registry deployed somewhere and configured to store them or manage your infrastructure stack. By using container images, you can reuse the same infrastructure to propagate upgrades to the nodes and handle customizations.
 
-Container images can be extended after build by using standard container building practices and seamlessly plug into your existing pipelines. Kairos allows to seamlessly upgrade to container images that are derived from other versions.
+Container images can be extended after a build by using standard container building practices and seamlessly plug into your existing pipelines. Kairos allows to seamlessly upgrade to container images that are derived from other versions.
 
-This means that customizing a Kairos version, is required just to build a standard container image with a plain `Dockerfile`, plus the bits that are actually needed.
+This means that to customize a Kairos version, all that is required is to build a standard container image with a plain Dockerfile—plus, the bits that are actually needed.
 
-If you are familiar with Dockerfiles, then you are good to go to roll your own custom OS version to provision in the nodes. That removes any friction to questions like "How do I add this package to my nodes?", or more complex ones as "How can I replace with my own Kernel?".
-
+If you are familiar with Dockerfiles, then you are good to go to roll your own custom OS version to provision in the nodes. That removes any friction to questions like, "How do I add this package to my nodes?", or more complex ones as, "How can I replace with my own Kernel?".
 
 ## Container Image based OS
 
 The Image support matrix in [here](/reference/image_matrix) lists all the container images built from our CI on every release of Kairos.
 
-To inspect an image and run it locally, you can use a container engine like docker or podman:
+To inspect an image and run it locally, you can use a container engine like Docker or Podman:
 
 ```
 $ docker pull quay.io/kairos/core-alpine:v1.1.0
@@ -74,7 +73,7 @@ total 102M
 6692029 -rw-r--r-- 1 root root  11M Apr 16  2020 vmlinuz-5.14.21-150400.24.21-default
 ```
 
-The CI process generates bootable medium by the container images, and similarly we can modify this image to introduce our changes and re-master an ISO as described in [Automated installation](installation/automated), but that can be resumed in the following steps:
+The CI process generates bootable medium by the container images, and similarly, we can modify this image to introduce our changes and remaster an ISO as described in [Automated installation](installation/automated), but that can be resumed in the following steps:
 
 ```bash
 $ docker run -ti --name custom-container quay.io/kairos/core-alpine:v1.1.0
@@ -96,7 +95,7 @@ $ ls
 custom-iso.iso custom-iso.iso.sha256
 ```
 
-In order to go further and upgrade nodes using this image, now the only requirement is to push it in a container registry and upgrades the nodes using that container image.
+In order to go further and upgrade nodes using this image, now the only requirement is to push it in a container registry and upgrade the nodes using that container image.
 
 For upgrading to a container image see [manual upgrades](/upgrade/manual) and [kubernetes upgrades](/upgrade/kubernetes).
 

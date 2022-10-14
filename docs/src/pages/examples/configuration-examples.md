@@ -6,13 +6,13 @@ index: 2
 
 # Configuration examples
 
-In the following section, you can find example configuration files to achieve specific `Kairos` setups.
+In the following section, you can find example configuration files to achieve specific Kairos setups.
 
 ## Single node cluster
 
-By default `kairos` requires multiple nodes. As for the `kairos` decentralized nature, it requires co-ordination between at least 2 nodes to achieve consensus on IPs, network setting, etc.
+By default `kairos` requires multiple nodes. As for the `kairos` decentralized nature, it requires coordination between at least two nodes to achieve consensus on IPs, network setting, and so on.
 
-To create single-node cluster, we need to force both the `role` and the `ip` by disabling `DHCP`:
+To create a single-node cluster, we need to force both the `role` and the `ip` by disabling `DHCP`:
 
 ```yaml
 kairos:
@@ -24,18 +24,18 @@ vpn:
   ADDRESS: "10.1.0.2/24"
 ```
 
-**Note**: The same setup can be used to specify master nodes in a set, as to join nodes it is still possible without specifying any extra setting:
+**Note**: The same setup can be used to specify master nodes in a set; as to join nodes, it is still possible without specifying any extra setting:
 
 ```yaml
 kairos:
   network_token: "...."
 ```
 
-As always, IPs here are arbitrary as they are virtual IPs in the VPN which is created between the cluster nodes.
+As always, IPs here are arbitrary, as they are virtual IPs in the VPN which is created between the cluster nodes.
 
 ## Run Only K3s without VPNs
 
-`Kairos` can be also used without any VPN and P2P network. In fact, `k3s` is already pre-installed, and it is sufficient to not specify any `Kairos` block in the cloud-init configuration.
+Kairos can be also used without any VPN and P2P network. In fact, `k3s` is already preinstalled, and it is sufficient to not specify any `kairos` block in the cloud-init configuration.
 
 For example, to start `k3s` as a server with `kairos` it's sufficient to specify the `k3s` service in the config file:
 
@@ -57,7 +57,7 @@ k3s-agent:
     K3S_URL: ...
 ```
 
-## Single node cluster with default user/password
+## Single-node cluster with default user/password
 
 This is will set up K3s single-node + VPN with a static IP (`10.1.0.2`).
 
@@ -81,9 +81,9 @@ stages:
 
 ## Hostname
 
-Sometimes you might want to create a single cloud-init file for a set of machines and also make sure each node has a different hostname.
+Sometimes you may want to create a single `cloud-init` file for a set of machines and also make sure each node has a different hostname.
 
-The cloud-config syntax supports templating, so you could automate hostname generation based on the machine ID which is generated for each host:
+The cloud-config syntax supports templating, so you can automate hostname generation based on the `machine ID` which is generated for each host:
 
 ```yaml
 #node-config

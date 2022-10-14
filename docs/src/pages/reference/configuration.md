@@ -149,7 +149,7 @@ See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples
 
 ## `install.grub_options`
 
-Is a map of key/value grub options to be set in the grub environment after installation.
+This is a map of key/value GRUB options to be set in the GRUB environment after installation.
 
 It can be used to set additional boot arguments on boot, consider to set `panic=0` as bootarg:
 
@@ -209,7 +209,7 @@ vpn:
 
 ## Automatic kubernetes deployments
 
-When using the `k3s` as Kubernetes distribution, it's possible to automatically deploy helm charts or Kubernetes resources automatically after deployment, for instance to deploy fleet automatically:
+When using the `k3s` as Kubernetes distribution, it's possible to automatically deploy Helm charts or Kubernetes resources automatically after deployment, for instance to deploy fleet automatically:
 
 ```yaml
 name: "Deploy fleet out of the box"

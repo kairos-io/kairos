@@ -70,11 +70,11 @@ $ kubectl get pods -A
 system-upgrade   apply-os-upgrade-on-kairos-with-1a1a24bcf897bd275730bdd8548-h7ffd   0/1     Creating   0          40s
 ```
 
-Done! We should have all the basic to get our first cluster rolling, but there is much more we can do.
+Done! We should have all the basics to get our first cluster rolling, but there is much more we can do.
 
 ## Customize the upgrade plan
 
-It is possible to run additional commands before the upgrade takes place into the node, consider the following example
+It is possible to run additional commands before the upgrade takes place into the node, consider the following example:
 
 ```yaml
 ---
@@ -128,7 +128,7 @@ spec:
 
 ## Upgrade from c3os to Kairos
 
-If you have already a `c3os` deployment, upgrading to Kairos requires changing every instance of `c3os` to `kairos` in the config file. This can be either done manually or with Kubernetes before rolling the upgrade, consider customize the upgrade plan, for instance:
+If you have already a `c3os` deployment, upgrading to Kairos requires changing every instance of `c3os` to `kairos` in the configuration file. This can be either done manually or with Kubernetes before rolling the upgrade.  Consider customize the upgrade plan, for instance:
 
 ```yaml
 ---
