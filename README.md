@@ -101,7 +101,7 @@ Kairos is distribution-agnostic and embraces openness: the user can provide thei
 
 ## Contribute
 
-Kairos is an open-source project, and any contribution is more than welcome! The project is big and narrows to various degrees of complexity and problem space. Feel free to join our chat, discuss in our forums and join us during Office hours.
+Kairos is an open-source project, and any contribution is more than welcome! The project is big and narrows to various degrees of complexity and problem space. Feel free to join our chat, discuss in our forums and join us during Office hours. Check out the [contribution guidelines](https://github.com/kairos-io/kairos/contribute) to see how to get started and our [governance](https://github.com/kairos-io/kairos/blob/master/GOVERNANCE.md).
 
 We have an open roadmap, so you can always have a look at what's going on and actively contribute to it.
 
