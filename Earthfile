@@ -17,7 +17,6 @@ ELSE
 END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
-ARG ELEMENTAL_IMAGE=quay.io/costoolkit/elemental-cli:v0.0.15-8a78e6b
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools
 ARG GOLINT_VERSION=1.47.3
 ARG GO_VERSION=1.18
@@ -327,14 +326,11 @@ netboot:
    SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
 arm-image:
-  ARG ELEMENTAL_IMAGE
-  FROM $ELEMENTAL_IMAGE
+  ARG OSBUILDER_IMAGE
+  FROM $OSBUILDER_IMAGE
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
-  RUN zypper in -y jq docker git curl gptfdisk kpartx sudo
-  COPY +luet/luet /usr/bin/luet
   WORKDIR /build
-  RUN git clone https://github.com/rancher/elemental-toolkit && mkdir elemental-toolkit/build
   ENV STATE_SIZE="6200"
   ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
@@ -342,12 +338,11 @@ arm-image:
   COPY --platform=linux/arm64 +docker-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
-    RUN cd elemental-toolkit && \
-          ./images/arm-img-builder.sh --model $MODEL --directory "/build/image" build/$IMAGE_NAME && mv build ../
+    RUN /build-arm-image.sh --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
   END
-  RUN xz -v /build/build/$IMAGE_NAME
-  SAVE ARTIFACT /build/build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
-  SAVE ARTIFACT /build/build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
+  RUN xz -v /build/$IMAGE_NAME
+  SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
+  SAVE ARTIFACT /build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
 ipxe-iso:
     FROM ubuntu
@@ -371,9 +366,9 @@ ipxe-iso:
 # Generic targets
 # usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
 datasource-iso:
-  ARG ELEMENTAL_IMAGE
+  ARG OSBUILDER_IMAGE
   ARG CLOUD_CONFIG
-  FROM $ELEMENTAL_IMAGE
+  FROM $OSBUILDER_IMAGE
   RUN zypper in -y mkisofs
   WORKDIR /build
   RUN touch meta-data
