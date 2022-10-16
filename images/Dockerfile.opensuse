@@ -55,6 +55,7 @@ RUN zypper in -y \
     systemd \
     systemd-network \
     systemd-sysvinit \
+    sudo \
     tar \
     timezone \
     tmux \
