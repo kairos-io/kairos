@@ -42,6 +42,7 @@ RUN zypper in -y \
     nfs-utils \
     open-iscsi \
     open-vm-tools \
+    openssh \
     parted \
     pigz \
     policycoreutils \
