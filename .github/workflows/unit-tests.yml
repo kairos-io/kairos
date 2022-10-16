@@ -1,0 +1,34 @@
+name: Unit tests
+on:
+ push:
+   branches:
+     - master
+ pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1.18'
+      - name: Run Build
+        run: |
+          ./earthly.sh +dist
+      - name: Run tests
+        run: |
+          ./earthly.sh +test
+      - name: Codecov
+        uses: codecov/codecov-action@v2
+        with:
+          file: ./coverage.out
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build.zip
+          path: |
+            dist/*

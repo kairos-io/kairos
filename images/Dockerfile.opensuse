@@ -42,11 +42,11 @@ RUN zypper in -y \
     nfs-utils \
     open-iscsi \
     open-vm-tools \
+    openssh \
     parted \
     pigz \
     policycoreutils \
     procps \
-    python-azure-agent \
     qemu-guest-agent \
     rng-tools \
     rsync \
@@ -55,6 +55,7 @@ RUN zypper in -y \
     systemd \
     systemd-network \
     systemd-sysvinit \
+    sudo \
     tar \
     timezone \
     tmux \

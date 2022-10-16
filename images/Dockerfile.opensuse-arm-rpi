@@ -69,8 +69,6 @@ RUN zypper in -y \
     sysconfig-netconfig \
     sysvinit-tools \
     systemd-network \
-    wicked \
-    wicked-service \
     rng-tools \
     rsync \
     squashfs \
