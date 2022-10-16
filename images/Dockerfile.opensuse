@@ -46,6 +46,7 @@ RUN zypper in -y \
     pigz \
     policycoreutils \
     procps \
+    python-azure-agent \
     qemu-guest-agent \
     rng-tools \
     rsync \
