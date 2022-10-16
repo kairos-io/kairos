@@ -312,13 +312,13 @@ iso:
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
 netboot:
-   FROM opensuse/leap
+   ARG OSBUILDER_IMAGE
+   FROM $OSBUILDER_IMAGE
    ARG VERSION
    ARG ISO_NAME=${OS_ID}
    WORKDIR /build
    COPY +iso/kairos.iso kairos.iso
    COPY . .
-   RUN zypper in -y cdrtools
    RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
    SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
    SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
