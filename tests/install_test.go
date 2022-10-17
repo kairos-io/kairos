@@ -76,6 +76,25 @@ bundles:
 				return out
 			}, ContainSubstring("peerguard"))
 		})
+		It("cloud-config syntax mixed with extended syntax", func() {
+			testInstall(`#cloud-config
+install:
+  auto: true
+  device: /dev/sda
+users:
+- name: "kairos"
+  passwd: "kairos"
+stages:
+  initramfs:
+  - name: "Set user and password"
+    commands:
+    - echo "bar" > /etc/foo
+`, func() string {
+				var out string
+				out, _ = Sudo("cat /etc/foo")
+				return out
+			}, ContainSubstring("bar"))
+		})
 		It("with config_url", func() {
 			testInstall(`
 install:

@@ -9,7 +9,7 @@ index: 5
 Here you can find a full reference of the fields available to configure a Kairos node.
 
 ```yaml
-#node-config
+#cloud-config
 
 # The kairos block enables the p2p full-mesh functionalities.
 # To disable, don't specify one.
@@ -100,11 +100,33 @@ options:
   recovery-system.uri: ""
   # Just set it to eject the cd after install
   eject-cd: ""
+
+# Standard cloud-init syntax, see: https://github.com/mudler/yip/tree/e688612df3b6f24dba8102f63a76e48db49606b2#compatibility-with-cloud-init-format
+growpart:
+ devices: ['/']
+
+users:
+- name: "kairos"
+  passwd: "kairos"
+  lock_passwd: true
+  groups: "admins"
+  ssh_authorized_keys:
+  - github:mudler
+
+runcmd:
+- foo
+hostname: "bar"
+write_files:
+- encoding: b64
+  content: CiMgVGhpcyBmaWxlIGNvbnRyb2xzIHRoZSBzdGF0ZSBvZiBTRUxpbnV4
+  path: /foo/bar
+  permissions: "0644"
+  owner: "bar"
 ```
 
 ## Syntax
 
-Kairos supports the standard `cloud-init` syntax, and the extended one from the [Elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/) which is based on [yip](https://github.com/mudler/yip).
+Kairos supports the standard `cloud-init` syntax, and the extended syntax which is based on [yip](https://github.com/mudler/yip).
 
 Examples using the extended notation for running K3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples).
 
