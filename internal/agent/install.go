@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -226,8 +227,14 @@ func RunInstall(options map[string]string) error {
 		c.Install.Reboot = true
 	}
 
+	for _, e := range c.Install.Env {
+		pair := strings.SplitN(e, "=", 2)
+		if len(pair) >= 2 {
+			os.Setenv(pair[0], pair[1])
+		}
+	}
+
 	envs := os.Environ()
-	envs = append(envs, c.Install.Env...)
 
 	err := ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
 	if err != nil {
