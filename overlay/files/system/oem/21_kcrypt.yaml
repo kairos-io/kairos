@@ -1,0 +1,14 @@
+name: "Update discovery plugins"
+stages:
+    after-upgrade:
+    - name: "Update plugins"
+      commands:
+      - |
+          STATEDIR=/tmp/mnt/OEM
+          OEM=$(blkid -L COS_OEM || true)
+          mkdir -p $STATEDIR || true
+          mount ${OEM} $STATEDIR
+          if [ -d "$STATEDIR/system/discovery" ]; then
+            cp -rfv /system/discovery/* $STATEDIR/system/discovery
+          fi
+          umount $STATEDIR
