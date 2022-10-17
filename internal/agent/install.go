@@ -226,6 +226,9 @@ func RunInstall(options map[string]string) error {
 		c.Install.Reboot = true
 	}
 
+	envs := os.Environ()
+	envs = append(envs, c.Install.Env...)
+
 	err := ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
 	if err != nil {
 		fmt.Printf("could not write cloud init: %s\n", err.Error())
@@ -236,7 +239,7 @@ func RunInstall(options map[string]string) error {
 	args = append(args, "-c", f.Name(), device)
 
 	cmd := exec.Command("elemental", args...)
-	cmd.Env = os.Environ()
+	cmd.Env = envs
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr

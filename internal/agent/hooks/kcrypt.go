@@ -32,6 +32,11 @@ func (k Kcrypt) Run(c config.Config) error {
 		}
 	}
 
+	if c.Install.SkipEncryptCopyPlugins {
+		fmt.Println("Skip discovery plugin copy")
+		return nil
+	}
+
 	machine.Mount("COS_OEM", "/tmp/oem") //nolint:errcheck
 	defer func() {
 		machine.Umount("/tmp/oem")
