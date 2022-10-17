@@ -19,6 +19,13 @@ func (k Kcrypt) Run(c config.Config) error {
 		return nil
 	}
 
+	machine.Mount("COS_OEM", "/oem") //nolint:errcheck
+	defer func() {
+		machine.Umount("/oem")
+	}()
+
+	_ = os.MkdirAll("/oem/system/discovery", 0650)
+
 	for _, p := range c.Install.Encrypt {
 		out, err := utils.SH(fmt.Sprintf("kcrypt encrypt %s", p))
 		if err != nil {
@@ -36,13 +43,6 @@ func (k Kcrypt) Run(c config.Config) error {
 		fmt.Println("Skip discovery plugin copy")
 		return nil
 	}
-
-	machine.Mount("COS_OEM", "/tmp/oem") //nolint:errcheck
-	defer func() {
-		machine.Umount("/tmp/oem")
-	}()
-
-	_ = os.MkdirAll("/oem/system/discovery", 0650)
 
 	err := cp.Copy("/system/discovery", "/oem/system/discovery")
 	if err != nil {
