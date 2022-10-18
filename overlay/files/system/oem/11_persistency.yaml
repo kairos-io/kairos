@@ -17,6 +17,7 @@ stages:
           /etc/ssh
           /etc/iscsi 
           /etc/cni
+          /etc/kubernetes
           /home
           /opt
           /root
@@ -44,6 +45,7 @@ stages:
           /etc/ssh
           /etc/iscsi 
           /etc/cni
+          /etc/kubernetes
           /home
           /opt
           /root
