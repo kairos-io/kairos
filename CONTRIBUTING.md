@@ -47,12 +47,32 @@ Create a branch with a descriptive name, such as ``fix/dns``.
 
 ## Step 5: Push your feature branch to your fork
 
+1. If working on an issue, signal other contributors that you are actively working on by commenting on the issue.
+1. Submit a pull request.
+    1. All code PR must be labeled with one of
+        - ⚠️ (`:warning:`, major or breaking changes)
+        - ✨ (`:sparkles:`, feature additions)
+        - 🐛 (`:bug:`, patch and bugfixes)
+        - 📖 (`:book:`,`:memo:`, documentation or proposals)
+        - :art: ( `:art`, for refactoring )
+        - 🌱 (`:seedling:`,`:gear:`, minor or other)
+1. If your PR has multiple commits, you must [squash them into a single commit](https://kubernetes.io/docs/contribute/new-content/open-a-pr/#squashing-commits) before merging your PR.
+
+Individual commits should not be tagged separately, but will generally be
+assumed to match the PR. For instance, if you have a bugfix in with
+a breaking change, it's generally encouraged to submit the bugfix
+separately, but if you must put them in one PR, mark the commit
+separately.
+
+All changes must be code reviewed. Expect reviewers to request that you
+avoid common [go style mistakes](https://github.com/golang/go/wiki/CodeReviewComments) in your PRs.
+
 As you develop code, continue to push code to your remote feature
-branch. Please make sure to include the issue number you're addressing
+branch. Please make sure to include the issue number and the label you're addressing
 in your commit message, such as:
 
 ```bash
-git commit -am "Drop foo flag (fixes #123)"
+git commit -am ":seedling: Drop foo flag (fixes #123)"
 ```
 
 This helps us out by allowing us to track which issue your commit
