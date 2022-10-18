@@ -133,7 +133,19 @@ Kairos supports the standard `cloud-init` syntax, and the extended syntax which 
 
 Examples using the extended notation for running K3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples).
 
-The extended syntax can be also used to pass-by commands via Kernel boot parameters
+For instance, to set up the DNS at the boot stage:
+
+```yaml
+stages:
+  boot:
+    - name: "DNS settings"
+      dns:
+        path: /etc/resolv.conf
+        nameservers:
+          - 8.8.8.8
+```
+
+The extended syntax can be also used to pass-by commands via Kernel boot parameters, see examples below. 
 
 ### `k3s`
 
