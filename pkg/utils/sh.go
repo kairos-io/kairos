@@ -10,7 +10,9 @@ import (
 )
 
 func SH(c string) (string, error) {
-	o, err := exec.Command("/bin/sh", "-c", c).CombinedOutput()
+	cmd := exec.Command("/bin/sh", "-c", c)
+	cmd.Env = os.Environ()
+	o, err := cmd.CombinedOutput()
 	return string(o), err
 }
 

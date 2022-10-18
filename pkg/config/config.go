@@ -18,13 +18,15 @@ import (
 )
 
 type Install struct {
-	Auto        bool              `yaml:"auto,omitempty"`
-	Reboot      bool              `yaml:"reboot,omitempty"`
-	Device      string            `yaml:"device,omitempty"`
-	Poweroff    bool              `yaml:"poweroff,omitempty"`
-	GrubOptions map[string]string `yaml:"grub_options,omitempty"`
-	Bundles     Bundles           `yaml:"bundles,omitempty"`
-	Encrypt     []string          `yaml:"encrypted_partitions,omitempty"`
+	Auto                   bool              `yaml:"auto,omitempty"`
+	Reboot                 bool              `yaml:"reboot,omitempty"`
+	Device                 string            `yaml:"device,omitempty"`
+	Poweroff               bool              `yaml:"poweroff,omitempty"`
+	GrubOptions            map[string]string `yaml:"grub_options,omitempty"`
+	Bundles                Bundles           `yaml:"bundles,omitempty"`
+	Encrypt                []string          `yaml:"encrypted_partitions,omitempty"`
+	SkipEncryptCopyPlugins bool              `yaml:"skip_copy_kcrypt_plugin,omitempty"`
+	Env                    []string          `yaml:"env,omitempty"`
 }
 
 type Config struct {

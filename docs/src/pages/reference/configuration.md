@@ -47,6 +47,9 @@ install:
     extra_passive_cmdline: ""
     # Change GRUB menu entry
     default_menu_entry: ""
+  # Environmental variable to set to the installer calls
+  env:
+    foo: "bar"
 
 vpn:
   # EdgeVPN environment options
