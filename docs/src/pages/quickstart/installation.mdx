@@ -50,10 +50,15 @@ dd if=/path/to/iso of=/path/to/dev bs=4MB
 
 Another alternative is to use [balenaEtcher](https://www.balena.io/etcher/).
 
-You should be greeted with a GRUB boot menu:
+You should be greeted with a GRUB boot menu, where multiple entries are available. 
 
-Multiple entries are available. Choosing the appropriate entry depends on how you plan to install Kairos. For a standard installation, pick the first entry or wait until the default timeout expires.
-The machine will boot, and eventually a QR code will be printed out of the screen:
+Choosing the appropriate entry depends on how you plan to install Kairos. 
+
+- The first entry will boot into installation with the QR code ( we are going to cover below ).
+- The second entry will boot into [Manual installation](/installation/manual) - a console will be started, see the documentation for more details on how to install manually.
+- The third boot option boots the [Interactive installation](/installation/interactive). You can use the interactive installer to drive the installation from the terminal host and skip the Configuration and Provisioning step below.
+
+Select the first entry or let the machine boot, and eventually a QR code will be printed out of the screen:
 
 ![livecd](https://user-images.githubusercontent.com/2420543/189219806-29b4deed-b4a1-4704-b558-7a60ae31caf2.gif)
 
