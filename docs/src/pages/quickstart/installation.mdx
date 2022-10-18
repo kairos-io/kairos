@@ -71,29 +71,21 @@ In this example, we configure the node as a single-node, Kubernetes cluster. So,
 **Example of a single-node, Kubernetes clusters**
 
 ```yaml
-#node-config
+#cloud-config
 
-stages:
-  initramfs:
-    - name: "User settings"
-      hostname: "hostname.domain.tld"
-      authorized_keys:
-        kairos:
-          - "ssh-rsa AAA..."
-          - "github:mudler"
-      users:
-        kairos:
-          passwd: "kairos"
-      dns:
-        path: /etc/resolv.conf
-        nameservers:
-          - 8.8.8.8
+hostname: "hostname.domain.tld"
+users:
+- name: "kairos"
+  passwd: "kairos"
+  ssh_authorized_keys:
+  - github:mudler
+  - "ssh-rsa AAA..."
 
 k3s:
   enabled: true
 ```
 
-Save the configuration file as `config.yaml`, as we will use it later in the process.
+Save the configuration file as `config.yaml`, as we will use it later in the process. [Check out the full onfiguration reference](/reference/configuration).
 
 **Note**:
 
