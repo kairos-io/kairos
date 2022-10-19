@@ -73,7 +73,7 @@ total 102M
 6692029 -rw-r--r-- 1 root root  11M Apr 16  2020 vmlinuz-5.14.21-150400.24.21-default
 ```
 
-The CI process generates bootable medium by the container images, and similarly, we can modify this image to introduce our changes and remaster an ISO as described in [Automated installation](installation/automated), but that can be resumed in the following steps:
+The CI process generates bootable medium by the container images, and similarly, we can modify this image to introduce our changes and remaster an ISO as described in [Automated installation](/installation/automated), but that can be resumed in the following steps:
 
 ```bash
 $ docker run -ti --name custom-container quay.io/kairos/core-alpine:v1.1.0
