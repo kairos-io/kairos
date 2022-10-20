@@ -92,8 +92,14 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				))
 		})
 
+		It("uses the dracut immutable module", func() {
+			out, err := Sudo("cat /proc/cmdline")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("cos-img/filename="))
+		})
+
 		It("has writeable tmp", func() {
-			_, err := Machine.Command("sudo echo 'foo' > /tmp/bar")
+			_, err := Sudo("echo 'foo' > /tmp/bar")
 			Expect(err).ToNot(HaveOccurred())
 
 			out, err := Machine.Command("sudo cat /tmp/bar")
