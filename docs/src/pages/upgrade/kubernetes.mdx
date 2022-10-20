@@ -17,7 +17,7 @@ To upgrade a node, it is necessary [system-upgrade-controller](https://github.co
 To install it, use kubectl:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/rancher/system-upgrade-controller/master/manifests/system-upgrade-controller.yaml
+kubectl apply -f https://github.com/rancher/system-upgrade-controller/releases/download/v0.9.1/system-upgrade-controller.yaml
 ```
 
 To trigger an upgrade, create a plan for the `system-upgrade-controller` which refers to the image version that we want to upgrade.
