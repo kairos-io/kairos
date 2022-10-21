@@ -10,6 +10,7 @@ import (
 	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
 	bundles "github.com/kairos-io/kairos/sdk/bundles"
+	"github.com/kairos-io/kairos/sdk/state"
 
 	"github.com/urfave/cli"
 )
@@ -179,6 +180,51 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 			return nil
 		},
 	},
+
+	{
+		Name:        "apply",
+		Usage:       "Set a machine state",
+		Description: "Print machine state information",
+		Aliases:     []string{"set"},
+		Action: func(c *cli.Context) error {
+			fmt.Print(machine.UUID())
+			return nil
+		},
+	},
+	{
+		Name:        "state",
+		Usage:       "get machine state",
+		Description: "Print machine state information, e.g. `state get .uuid` returns the machine uuid",
+		Aliases:     []string{"s"},
+		Action: func(c *cli.Context) error {
+			runtime, err := state.NewRuntime()
+			if err != nil {
+				return err
+			}
+
+			fmt.Print(runtime)
+			return err
+		},
+		Subcommands: []cli.Command{
+			{
+				Name:        "get",
+				Usage:       "get specific ",
+				Description: "query state data",
+				Aliases:     []string{"g"},
+				Action: func(c *cli.Context) error {
+					runtime, err := state.NewRuntime()
+					if err != nil {
+						return err
+					}
+
+					res, err := runtime.Query(c.Args().First())
+					fmt.Print(res)
+					return err
+				},
+			},
+		},
+	},
+
 	{
 		Name: "interactive-install",
 		Description: `
