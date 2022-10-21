@@ -80,4 +80,5 @@ RUN zypper in -y \
     timezone \
     tmux \
     vim \
+    wpa_supplicant \
     which && zypper cc
