@@ -92,8 +92,26 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				))
 		})
 
+		It("uses the dracut immutable module", func() {
+			out, err := Sudo("cat /proc/cmdline")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("cos-img/filename="))
+		})
+
+		It("installs Auto assessment", func() {
+			// Auto assessment was installed
+			out, _ := Sudo("cat /run/initramfs/cos-state/grubcustom")
+			Expect(out).To(ContainSubstring("bootfile_loc"))
+
+			out, _ = Sudo("cat /run/initramfs/cos-state/grub_boot_assessment")
+			Expect(out).To(ContainSubstring("boot_assessment_blk"))
+
+			cmdline, _ := Sudo("cat /proc/cmdline")
+			Expect(cmdline).To(ContainSubstring("rd.emergency=reboot rd.shell=0 panic=5"))
+		})
+
 		It("has writeable tmp", func() {
-			_, err := Machine.Command("sudo echo 'foo' > /tmp/bar")
+			_, err := Sudo("echo 'foo' > /tmp/bar")
 			Expect(err).ToNot(HaveOccurred())
 
 			out, err := Machine.Command("sudo cat /tmp/bar")
