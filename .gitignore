@@ -13,3 +13,6 @@ docs/public
 docs/.vscode
 
 .DS_Store
+
+# editor and IDE paraphernalia
+.idea
