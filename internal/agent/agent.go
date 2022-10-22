@@ -8,10 +8,10 @@ import (
 
 	events "github.com/kairos-io/kairos/sdk/bus"
 
+	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
 	config "github.com/kairos-io/kairos/pkg/config"
 	machine "github.com/kairos-io/kairos/pkg/machine"
-	bundles "github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/nxadm/tail"
 )
 
@@ -60,16 +60,15 @@ func Run(opts ...Option) error {
 		}
 	}()
 
-	if !machine.SentinelExist("bundles") {
-		opts := c.Bundles.Options()
-		err := bundles.RunBundles(opts...)
-		if c.FailOnBundleErrors && err != nil {
+	if !machine.SentinelExist("firstboot") {
+
+		if err := hook.Run(*c, hook.FirstBoot...); err != nil {
 			return err
 		}
 
 		// Re-load providers
 		bus.Reload()
-		err = machine.CreateSentinel("bundles")
+		err = machine.CreateSentinel("firstboot")
 		if c.FailOnBundleErrors && err != nil {
 			return err
 		}

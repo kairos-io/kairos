@@ -10,9 +10,12 @@ import (
 	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
 	bundles "github.com/kairos-io/kairos/sdk/bundles"
+	"github.com/kairos-io/kairos/sdk/state"
 
 	"github.com/urfave/cli"
 )
+
+var configScanDir = []string{"/oem", "/usr/local/cloud-config", "/run/initramfs/live"}
 
 var cmds = []cli.Command{
 	{
@@ -73,8 +76,7 @@ See https://kairos.io/after_install/upgrades/#manual for documentation.
 			if len(args) == 1 {
 				v = args[0]
 			}
-
-			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"))
+			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"), configScanDir)
 		},
 	},
 
@@ -179,6 +181,51 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 			return nil
 		},
 	},
+
+	{
+		Name:        "state",
+		Usage:       "get machine state",
+		Description: "Print machine state information, e.g. `state get uuid` returns the machine uuid",
+		Aliases:     []string{"s"},
+		Action: func(c *cli.Context) error {
+			runtime, err := state.NewRuntime()
+			if err != nil {
+				return err
+			}
+
+			fmt.Print(runtime)
+			return err
+		},
+		Subcommands: []cli.Command{
+			{
+				Name:        "apply",
+				Usage:       "Applies a machine state",
+				Description: "Applies machine configuration in runtimes",
+				Aliases:     []string{"a"},
+				Action: func(c *cli.Context) error {
+					// TODO
+					return nil
+				},
+			},
+			{
+				Name:        "get",
+				Usage:       "get specific ",
+				Description: "query state data",
+				Aliases:     []string{"g"},
+				Action: func(c *cli.Context) error {
+					runtime, err := state.NewRuntime()
+					if err != nil {
+						return err
+					}
+
+					res, err := runtime.Query(c.Args().First())
+					fmt.Print(res)
+					return err
+				},
+			},
+		},
+	},
+
 	{
 		Name: "interactive-install",
 		Description: `
@@ -248,7 +295,7 @@ See also https://kairos.io/installation/device_pairing/ for documentation.
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},
 		Action: func(c *cli.Context) error {
-			return agent.Install("/oem", "/usr/local/cloud-config", "/run/initramfs/live")
+			return agent.Install(configScanDir...)
 		},
 	},
 	{
@@ -272,7 +319,7 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 	{
 		Name: "reset",
 		Action: func(c *cli.Context) error {
-			return agent.Reset()
+			return agent.Reset(configScanDir...)
 		},
 		Usage: "Starts kairos reset mode",
 		Description: `

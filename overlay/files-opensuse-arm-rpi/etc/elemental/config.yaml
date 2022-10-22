@@ -16,3 +16,7 @@ reset:
   grub-entry-name: "kairos"
   system:
     size: 2000
+
+cloud-init-paths:
+- /run/initramfs/cos-state
+# - /run/initramfs/live

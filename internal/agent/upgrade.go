@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/kairos-io/kairos/pkg/config"
 	events "github.com/kairos-io/kairos/sdk/bus"
 
 	"github.com/kairos-io/kairos/internal/bus"
@@ -40,7 +41,7 @@ func ListReleases() []string {
 	return releases
 }
 
-func Upgrade(version, image string, force, debug bool) error {
+func Upgrade(version, image string, force, debug bool, dirs []string) error {
 	bus.Manager.Initialize()
 
 	if version == "" && image == "" {
@@ -87,6 +88,13 @@ func Upgrade(version, image string, force, debug bool) error {
 	if debug {
 		fmt.Printf("Upgrading to image: '%s'\n", img)
 	}
+
+	c, err := config.Scan(config.Directories(dirs...))
+	if err != nil {
+		return err
+	}
+
+	utils.SetEnv(c.Env)
 
 	args := []string{"upgrade", "--system.uri", fmt.Sprintf("docker:%s", img)}
 

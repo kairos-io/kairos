@@ -21,7 +21,7 @@ func (k Kcrypt) Run(c config.Config) error {
 
 	machine.Mount("COS_OEM", "/oem") //nolint:errcheck
 	defer func() {
-		machine.Umount("/oem")
+		machine.Umount("/oem") //nolint:errcheck
 	}()
 
 	_ = os.MkdirAll("/oem/system/discovery", 0650)

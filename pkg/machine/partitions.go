@@ -8,8 +8,20 @@ import (
 	"github.com/kairos-io/kairos/pkg/utils"
 )
 
-func Umount(path string) {
-	utils.SH(fmt.Sprintf("umount %s", path)) //nolint:errcheck
+func Umount(path string) error {
+	out, err := utils.SH(fmt.Sprintf("umount %s", path))
+	if err != nil {
+		return fmt.Errorf("failed umounting: %s: %w", out, err)
+	}
+	return nil
+}
+
+func Remount(opt, path string) error {
+	out, err := utils.SH(fmt.Sprintf("mount -o %s,remount %s", opt, path))
+	if err != nil {
+		return fmt.Errorf("failed umounting: %s: %w", out, err)
+	}
+	return nil
 }
 
 func Mount(label, mountpoint string) error {
