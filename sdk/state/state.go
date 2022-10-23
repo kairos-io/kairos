@@ -24,8 +24,14 @@ const (
 type Boot string
 
 type PartitionState struct {
-	Partition block.Partition `yaml:"partition" json:"partition"`
-	Mounted   bool            `yaml:"mounted" json:"mounted"`
+	Mounted    bool   `yaml:"mounted" json:"mounted"`
+	Name       string `yaml:"name" json:"name"`
+	Label      string `yaml:"label" json:"label"`
+	MountPoint string `yaml:"mount_point" json:"mount_point"`
+	SizeBytes  uint64 `yaml:"size_bytes" json:"size_bytes"`
+	Type       string `yaml:"type" json:"type"`
+	IsReadOnly bool   `yaml:"read_only" json:"read_only"`
+	UUID       string `yaml:"uuid" json:"uuid"` // This would be volume UUID on macOS, PartUUID on linux, empty on Windows
 }
 
 type Runtime struct {
@@ -38,8 +44,14 @@ type Runtime struct {
 
 func detectPartition(b *block.Partition) PartitionState {
 	return PartitionState{
-		Partition: *b,
-		Mounted:   b.MountPoint != "",
+		Type:       b.Type,
+		IsReadOnly: b.IsReadOnly,
+		UUID:       b.UUID,
+		Name:       b.Name,
+		SizeBytes:  b.SizeBytes,
+		Label:      b.Label,
+		MountPoint: b.MountPoint,
+		Mounted:    b.MountPoint != "",
 	}
 }
 
@@ -70,7 +82,7 @@ func detectRuntimeState(r *Runtime) error {
 	}
 	for _, d := range blockDevices.Disks {
 		for _, part := range d.Partitions {
-			switch part.Name {
+			switch part.Label {
 			case "COS_PERSISTENT":
 				r.Persistent = detectPartition(part)
 			case "COS_OEM":
