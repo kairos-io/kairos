@@ -37,6 +37,7 @@ type PartitionState struct {
 type Runtime struct {
 	UUID       string         `yaml:"uuid" json:"uuid"`
 	Persistent PartitionState `yaml:"persistent" json:"persistent"`
+	Recovery   PartitionState `yaml:"recovery" json:"recovery"`
 	OEM        PartitionState `yaml:"oem" json:"oem"`
 	State      PartitionState `yaml:"state" json:"state"`
 	BootState  Boot           `yaml:"boot" json:"boot"`
@@ -85,6 +86,8 @@ func detectRuntimeState(r *Runtime) error {
 			switch part.Label {
 			case "COS_PERSISTENT":
 				r.Persistent = detectPartition(part)
+			case "COS_RECOVERY":
+				r.Recovery = detectPartition(part)
 			case "COS_OEM":
 				r.OEM = detectPartition(part)
 			case "COS_STATE":
