@@ -9,8 +9,16 @@ import (
 	"github.com/kairos-io/kairos/sdk/state"
 )
 
-func SetGRUBOptions(opts map[string]string) error {
+func SetGRUBOptions(opts map[string]string) Option {
+	return func(c *Changeset) error {
+		if len(opts) > 0 {
+			c.Add(func() error { return setGRUBOptions(opts) })
+		}
+		return nil
+	}
+}
 
+func setGRUBOptions(opts map[string]string) error {
 	runtime, err := state.NewRuntime()
 	if err != nil {
 		return err
@@ -21,15 +29,17 @@ func SetGRUBOptions(opts map[string]string) error {
 		oem = runtime.Persistent
 	}
 
-	mounts.PrepareWrite(oem, "/tmp/oem")
+	if err := mounts.PrepareWrite(oem, "/tmp/oem"); err != nil {
+		return err
+	}
 	defer func() {
-		machine.Umount("/tmp/oem")
+		machine.Umount("/tmp/oem") //nolint:errcheck
 	}()
+
 	for k, v := range opts {
 		out, err := utils.SH(fmt.Sprintf(`grub2-editenv /tmp/oem/grubenv set "%s=%s"`, k, v))
 		if err != nil {
 			fmt.Printf("could not set boot option: %s\n", out+err.Error())
-			return nil // do not error out
 		}
 	}
 

@@ -182,16 +182,6 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 	},
 
 	{
-		Name:        "apply",
-		Usage:       "Set a machine state",
-		Description: "Print machine state information",
-		Aliases:     []string{"set"},
-		Action: func(c *cli.Context) error {
-			fmt.Print(machine.UUID())
-			return nil
-		},
-	},
-	{
 		Name:        "state",
 		Usage:       "get machine state",
 		Description: "Print machine state information, e.g. `state get .uuid` returns the machine uuid",
@@ -206,6 +196,16 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 			return err
 		},
 		Subcommands: []cli.Command{
+			{
+				Name:        "apply",
+				Usage:       "Applies a machine state",
+				Description: "Set runtime machine configuration",
+				Aliases:     []string{"a"},
+				Action: func(c *cli.Context) error {
+					// TODO
+					return nil
+				},
+			},
 			{
 				Name:        "get",
 				Usage:       "get specific ",
