@@ -11,7 +11,7 @@ import (
 	"github.com/kairos-io/kairos/sdk/state"
 )
 
-// WriteCloudConfigData adds cloud config data in runtime
+// WriteCloudConfigData adds cloud config data in runtime.
 func WriteCloudConfigData(cloudConfig, filename string) Option {
 	return func(c *Changeset) error {
 		if len(cloudConfig) > 0 {
@@ -44,11 +44,11 @@ func writeCloudConfig(oem state.PartitionState, cloudConfig, subpath, filename s
 	defer func() {
 		machine.Umount(mountPath) //nolint:errcheck
 	}()
-	os.MkdirAll(filepath.Join(mountPath, subpath), 0650)
+	_ = os.MkdirAll(filepath.Join(mountPath, subpath), 0650)
 	return ioutil.WriteFile(filepath.Join(mountPath, subpath, fmt.Sprintf("%s.yaml", filename)), []byte(cloudConfig), 0650)
 }
 
-// WriteCloudConfigData adds cloud config data to oem (/oem or /usr/local/cloud-config, depending if OEM partition exists)
+// WriteCloudConfigData adds cloud config data to oem (/oem or /usr/local/cloud-config, depending if OEM partition exists).
 func WritePersistentCloudData(cloudConfig, filename string) Option {
 	return func(c *Changeset) error {
 		if len(cloudConfig) > 0 {
@@ -58,7 +58,7 @@ func WritePersistentCloudData(cloudConfig, filename string) Option {
 	}
 }
 
-// WriteLocalCloudConfigData adds cloud config data to /usr/local/cloud-config
+// WriteLocalCloudConfigData adds cloud config data to /usr/local/cloud-config.
 func WriteLocalPersistentCloudData(cloudConfig, filename string) Option {
 	return func(c *Changeset) error {
 		if len(cloudConfig) > 0 {

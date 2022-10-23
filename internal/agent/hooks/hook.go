@@ -16,6 +16,11 @@ var All = []Interface{
 	&Lifecycle{}, // Handles poweroff/reboot by config options
 }
 
+var FirstBoot = []Interface{
+	&BundlePostInstall{},
+	&GrubPostInstallOptions{},
+}
+
 func Run(c config.Config, hooks ...Interface) error {
 	for _, h := range hooks {
 		if err := h.Run(c); err != nil {
