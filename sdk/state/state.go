@@ -47,7 +47,7 @@ func detectPartition(b *block.Partition) PartitionState {
 		Type:       b.Type,
 		IsReadOnly: b.IsReadOnly,
 		UUID:       b.UUID,
-		Name:       b.Name,
+		Name:       fmt.Sprintf("/dev/%s", b.Name),
 		SizeBytes:  b.SizeBytes,
 		Label:      b.Label,
 		MountPoint: b.MountPoint,
