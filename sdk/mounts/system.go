@@ -32,7 +32,3 @@ func Umount(partition state.PartitionState) error {
 	}
 	return machine.Umount(partition.MountPoint)
 }
-
-//func LocatePersistentOEM(state.Runtime) (string,error) {
-
-//}
