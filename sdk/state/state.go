@@ -113,6 +113,7 @@ func (r Runtime) String() string {
 }
 
 func (r Runtime) Query(s string) (res string, err error) {
+	s = fmt.Sprintf(".%s", s)
 	jsondata := map[string]interface{}{}
 	var dat []byte
 	dat, err = json.Marshal(r)
