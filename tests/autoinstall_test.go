@@ -64,12 +64,6 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			fmt.Println(out)
 
 		})
-
-		It("passes basic state checks", func() {
-			stateAssert("oem.mounted", "false")
-			stateAssert("persistent.mounted", "false")
-			stateAssert("state.mounted", "false")
-		})
 	})
 
 	Context("auto installs", func() {
