@@ -12,6 +12,13 @@ import (
 )
 
 var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
+
+	stateAssert := func(query, expected string) {
+		out, err := Sudo(fmt.Sprintf("kairos-agent state get .%s", query))
+		ExpectWithOffset(1, err).ToNot(HaveOccurred())
+		ExpectWithOffset(1, out).To(ContainSubstring(expected))
+	}
+
 	BeforeEach(func() {
 		if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
 			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
@@ -56,6 +63,12 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			out, _ = Sudo("sudo lsblk")
 			fmt.Println(out)
 
+		})
+
+		It("passes basic state checks", func() {
+			stateAssert("oem.mounted", "false")
+			stateAssert("persistent.mounted", "false")
+			stateAssert("state.mounted", "false")
 		})
 	})
 
@@ -124,8 +137,20 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			out, err := Sudo("kairos-agent state")
 			Expect(err).ToNot(HaveOccurred())
 			fmt.Println(out)
-
 			Expect(out).To(ContainSubstring("boot: active_boot"))
+
+			stateAssert("oem.mounted", "true")
+			stateAssert("persistent.mounted", "true")
+			stateAssert("state.mounted", "true")
+			stateAssert("oem.type", "ext4")
+			stateAssert("persistent.type", "ext4")
+			stateAssert("state.type", "ext4")
+			stateAssert("oem.mount_point", "/oem")
+			stateAssert("persistent.mount_point", "/usr/local")
+			stateAssert("state.mount_point", "/run/initramfs/cos-state")
+			stateAssert("oem.read_only", "false")
+			stateAssert("persistent.read_only", "false")
+			stateAssert("state.read_only", "true")
 		})
 	})
 })
