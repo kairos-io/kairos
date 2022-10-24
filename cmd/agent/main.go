@@ -15,6 +15,8 @@ import (
 	"github.com/urfave/cli"
 )
 
+var configScanDir = []string{"/oem", "/usr/local/cloud-config", "/run/initramfs/live"}
+
 var cmds = []cli.Command{
 	{
 		Name: "upgrade",
@@ -74,8 +76,7 @@ See https://kairos.io/after_install/upgrades/#manual for documentation.
 			if len(args) == 1 {
 				v = args[0]
 			}
-
-			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"))
+			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"), configScanDir)
 		},
 	},
 
@@ -294,7 +295,7 @@ See also https://kairos.io/installation/device_pairing/ for documentation.
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},
 		Action: func(c *cli.Context) error {
-			return agent.Install("/oem", "/usr/local/cloud-config", "/run/initramfs/live")
+			return agent.Install(configScanDir...)
 		},
 	},
 	{
@@ -318,7 +319,7 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 	{
 		Name: "reset",
 		Action: func(c *cli.Context) error {
-			return agent.Reset()
+			return agent.Reset(configScanDir...)
 		},
 		Usage: "Starts kairos reset mode",
 		Description: `

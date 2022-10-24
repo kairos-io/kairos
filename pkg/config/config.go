@@ -40,6 +40,7 @@ type Config struct {
 	FailOnBundleErrors bool              `yaml:"fail_on_bundles_errors,omitempty"`
 	Bundles            Bundles           `yaml:"bundles,omitempty"`
 	GrubOptions        map[string]string `yaml:"grub_options,omitempty"`
+	Env                []string          `yaml:"env,omitempty"`
 }
 
 type Bundles []Bundle
