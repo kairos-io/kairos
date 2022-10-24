@@ -1,7 +1,6 @@
 package state
 
 type Machine struct {
-	UUID        string
 	BootArgs    []string
 	CloudConfig string
 }

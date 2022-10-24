@@ -16,3 +16,13 @@ func (b GrubOptions) Run(c config.Config) error {
 	}
 	return nil
 }
+
+type GrubPostInstallOptions struct{}
+
+func (b GrubPostInstallOptions) Run(c config.Config) error {
+	err := system.Apply(system.SetGRUBOptions(c.GrubOptions))
+	if err != nil {
+		fmt.Println(err)
+	}
+	return nil
+}

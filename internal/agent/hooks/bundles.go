@@ -28,3 +28,14 @@ func (b BundleOption) Run(c config.Config) error {
 
 	return nil
 }
+
+type BundlePostInstall struct{}
+
+func (b BundlePostInstall) Run(c config.Config) error {
+	opts := c.Bundles.Options()
+	err := bundles.RunBundles(opts...)
+	if c.FailOnBundleErrors && err != nil {
+		return err
+	}
+	return nil
+}

@@ -184,7 +184,7 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 	{
 		Name:        "state",
 		Usage:       "get machine state",
-		Description: "Print machine state information, e.g. `state get .uuid` returns the machine uuid",
+		Description: "Print machine state information, e.g. `state get uuid` returns the machine uuid",
 		Aliases:     []string{"s"},
 		Action: func(c *cli.Context) error {
 			runtime, err := state.NewRuntime()
@@ -199,7 +199,7 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 			{
 				Name:        "apply",
 				Usage:       "Applies a machine state",
-				Description: "Set runtime machine configuration",
+				Description: "Applies machine configuration in runtimes",
 				Aliases:     []string{"a"},
 				Action: func(c *cli.Context) error {
 					// TODO

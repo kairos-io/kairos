@@ -14,7 +14,7 @@ import (
 var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 	stateAssert := func(query, expected string) {
-		out, err := Sudo(fmt.Sprintf("kairos-agent state get .%s", query))
+		out, err := Sudo(fmt.Sprintf("kairos-agent state get %s", query))
 		ExpectWithOffset(1, err).ToNot(HaveOccurred())
 		ExpectWithOffset(1, out).To(ContainSubstring(expected))
 	}
@@ -76,27 +76,29 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 					ContainSubstring("elemental install"),
 				))
 		})
+		It("reboots to active", func() {
+			Eventually(func() string {
+				out, _ := Sudo("kairos-agent state boot")
+				return out
+			}, 40*time.Minute, 10*time.Second).Should(
+				Or(
+					ContainSubstring("active_boot"),
+				))
+		})
 	})
 
 	Context("reboots and passes functional tests", func() {
 		It("has grubenv file", func() {
-			Eventually(func() string {
-				out, _ := Sudo("sudo cat /oem/grubenv")
-				return out
-			}, 40*time.Minute, 1*time.Second).Should(
-				Or(
-					ContainSubstring("foobarzz"),
-				))
+			out, err := Sudo("cat /oem/grubenv")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("foobarzz"))
+
 		})
 
 		It("has custom cmdline", func() {
-			Eventually(func() string {
-				out, _ := Sudo("sudo cat /proc/cmdline")
-				return out
-			}, 30*time.Minute, 1*time.Second).Should(
-				Or(
-					ContainSubstring("foobarzz"),
-				))
+			out, err := Sudo("cat /proc/cmdline")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("foobarzz"))
 		})
 
 		It("uses the dracut immutable module", func() {
