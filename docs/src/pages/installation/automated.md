@@ -138,47 +138,15 @@ spec:
   imageName: "quay.io/kairos/core-opensuse:latest"
   iso: true
   bundles:
-  - quay.io/kairos/packages:goreleaser-utils-1.11.2
-  grubConfig: |
-          search --file --set=root /boot/kernel.xz
-          set default=0
-          set timeout=10
-          set timeout_style=menu
-          set linux=linux
-          set initrd=initrd
-          if [ "${grub_cpu}" = "x86_64" -o "${grub_cpu}" = "i386" -o "${grub_cpu}" = "arm64" ];then
-              if [ "${grub_platform}" = "efi" ]; then
-                  if [ "${grub_cpu}" != "arm64" ]; then
-                      set linux=linuxefi
-                      set initrd=initrdefi
-                  fi
-              fi
-          fi
-          if [ "${grub_platform}" = "efi" ]; then
-              echo "Please press 't' to show the boot menu on this console"
-          fi
-          set font=($root)/boot/${grub_cpu}/loader/grub2/fonts/unicode.pf2
-          if [ -f ${font} ];then
-              loadfont ${font}
-          fi
-          menuentry "install" --class os --unrestricted {
-              echo Loading kernel...
-              $linux ($root)/boot/kernel.xz cdroot root=live:CDLABEL=COS_LIVE rd.live.dir=/ rd.live.squashimg=rootfs.squashfs console=tty1 console=ttyS0 rd.cos.disable vga=795 nomodeset nodepair.enable
-              echo Loading initrd...
-              $initrd ($root)/boot/rootfs.xz
-          }
-
-          if [ "${grub_platform}" = "efi" ]; then
-              hiddenentry "Text mode" --hotkey "t" {
-                  set textmode=true
-                  terminal_output console
-              }
-          fi
-
+  # Bundles available at: https://packages.kairos.io/Kairos/
+  - quay.io/kairos/packages:helm-utils-3.10.1
   cloudConfig: |
-            #node-config
+            #cloud-config
+            users:
+            - name: "kairos"
+              passwd: "kairos"
             install:
-              device: "/dev/sda"
+              device: "auto"
               reboot: true
               poweroff: false
               auto: true # Required, for automated installations
