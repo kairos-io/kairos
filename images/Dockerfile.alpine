@@ -7,6 +7,8 @@ RUN apk --no-cache add  \
       grub-efi \
       grub-bios \
       bash \
+      bonding \
+      bridge \
       connman \
       gettext \
       squashfs-tools \
