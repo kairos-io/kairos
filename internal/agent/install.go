@@ -107,6 +107,9 @@ func Install(dir ...string) error {
 
 		return nil
 	}
+	if err != nil {
+		fmt.Printf("- config not found in the system: %s", err.Error())
+	}
 
 	_, err = bus.Manager.Publish(events.EventChallenge, events.EventPayload{Config: cc.String()})
 	if err != nil {
