@@ -177,7 +177,7 @@ framework:
 
     IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN luet install -y --system-target /framework \
-            distro-kernels/opensuse distro-initrd/opensuse
+            distro-kernels/ubuntu distro-initrd/ubuntu
     END
 
     # Required for Secure boot
