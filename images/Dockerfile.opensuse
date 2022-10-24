@@ -44,6 +44,7 @@ RUN zypper in -y \
     open-vm-tools \
     openssh \
     parted \
+    polkit \
     pigz \
     policycoreutils \
     procps \

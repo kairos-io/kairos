@@ -66,6 +66,7 @@ RUN zypper in -y \
     procps \
     sudo \
     sysconfig \
+    polkit \
     sysconfig-netconfig \
     sysvinit-tools \
     systemd-network \
