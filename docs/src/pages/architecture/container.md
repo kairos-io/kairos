@@ -27,6 +27,8 @@ Container registries are already widely supported and used by anyone.
 
 If you are operating a Kubernetes cluster and deploying applications on top, chances are that you already have a container registry deployed somewhere and configured to store them or manage your infrastructure stack. By using container images, you can reuse the same infrastructure to propagate upgrades to the nodes and handle customizations.
 
+![kairos-factory](https://user-images.githubusercontent.com/2420543/197808767-e213709d-af21-4e32-9a78-818f34170077.png)
+
 Container images can be extended after a build by using standard container building practices and seamlessly plug into your existing pipelines. Kairos allows to seamlessly upgrade to container images that are derived from other versions.
 
 This means that to customize a Kairos version, all that is required is to build a standard container image with a plain Dockerfile—plus, the bits that are actually needed.
