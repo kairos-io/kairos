@@ -9,8 +9,9 @@ const folderOrder = [
   "installation",
   "upgrade",
   "architecture",
-  "examples",
+  "advanced",
   "reference",
+  "sdk",
 ];
 
 export default function Sidebar({ content, currentPage, cb }) {
