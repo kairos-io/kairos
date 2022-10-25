@@ -81,7 +81,7 @@ export default function Sidebar({ content, currentPage, cb }) {
                   "aria-current": "page",
                 })}
               >
-                {item.title}
+                {item?.title}
               </strong>
               <ul className="nav-list">
                 {(item.children || [])
@@ -94,7 +94,7 @@ export default function Sidebar({ content, currentPage, cb }) {
                           "aria-current": "page",
                         })}
                       >
-                        {child.title}
+                        {child?.title}
                       </a>
                     </li>
                   ))}
