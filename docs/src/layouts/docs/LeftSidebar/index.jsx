@@ -9,8 +9,9 @@ const folderOrder = [
   "installation",
   "upgrade",
   "architecture",
-  "examples",
+  "advanced",
   "reference",
+  "sdk",
 ];
 
 export default function Sidebar({ content, currentPage, cb }) {
@@ -81,10 +82,10 @@ export default function Sidebar({ content, currentPage, cb }) {
                   "aria-current": "page",
                 })}
               >
-                {item.title}
+                {item?.title}
               </strong>
               <ul className="nav-list">
-                {(item.children || [])
+                {(item?.children || [])
                   .sort((a, b) => a.index - b.index)
                   .map((child, index) => (
                     <li className="nav-link" key={index}>
@@ -94,7 +95,7 @@ export default function Sidebar({ content, currentPage, cb }) {
                           "aria-current": "page",
                         })}
                       >
-                        {child.title}
+                        {child?.title}
                       </a>
                     </li>
                   ))}

@@ -10,11 +10,24 @@ Kairos is a container-based operating system (OS).
 
 A container-based operating system is an OS that is shipped via containers. Indeed, if it happens to be based on Linux (most probably), you can run the container image as well on your Docker daemon. The image being booted is the container, which contains all the required pieces in order to boot (Kernel, Initrd, Init system).
 
+**Single-image** The OS is a single container image which contains all the OS components, including Kernel and Initrd.
+**Tamper-proof upgrades** Upgrades are atomic, A/B swaps with fallback mechanisms and automatic boot assessment.
+**Distributed via container registries** Bootable images are standard OCI artifacts that can be hosted in any container regist
+**Platform Engineer-friendly** Adapt the infrastructure to your needs by plugging images into your already-existing workflow pipeline. Customizing an immutable OS becomes as easy as writing a Dockerfile.
+
+## A/B Upgrades
+
+![upgrade](https://user-images.githubusercontent.com/2420543/197806999-587632a1-0292-44df-bb8f-176ff702f62d.png)
+
+Upgrades are atomic operations that can be triggered manually or via Kubernetes. The node will create a transition image that will be swapped for the Active system, and the Active system becomes Passive. This ensures tamper-proof upgrades and automated fallback and boot assessment strategies are in place to automatically boot from the fallback system. The recovery image can be furthermore exploited to completely automatize node recovery.
+
 ## Benefits of using containers to distribute upgrades
 
 Container registries are already widely supported and used by anyone.
 
 If you are operating a Kubernetes cluster and deploying applications on top, chances are that you already have a container registry deployed somewhere and configured to store them or manage your infrastructure stack. By using container images, you can reuse the same infrastructure to propagate upgrades to the nodes and handle customizations.
+
+![kairos-factory](https://user-images.githubusercontent.com/2420543/197808767-e213709d-af21-4e32-9a78-818f34170077.png)
 
 Container images can be extended after a build by using standard container building practices and seamlessly plug into your existing pipelines. Kairos allows to seamlessly upgrade to container images that are derived from other versions.
 

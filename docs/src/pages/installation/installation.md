@@ -1,6 +1,6 @@
 ---
 layout: "../../layouts/docs/Layout.astro"
-title: "Installation reference"
+title: "Installation"
 index: 1
 ---
 
