@@ -84,7 +84,7 @@ export default function Sidebar({ content, currentPage, cb }) {
                 {item?.title}
               </strong>
               <ul className="nav-list">
-                {(item.children || [])
+                {(item?.children || [])
                   .sort((a, b) => a.index - b.index)
                   .map((child, index) => (
                     <li className="nav-link" key={index}>
