@@ -147,6 +147,20 @@ stages:
 
 The extended syntax can be also used to pass-by commands via Kernel boot parameters, see examples below. 
 
+## Automatic Hostname at scale
+
+Sometimes you may want to create a single `cloud-init` file for a set of machines and also make sure each node has a different hostname.
+
+The cloud-config syntax supports templating, so you can automate hostname generation based on the `machine ID` which is generated for each host:
+
+```yaml
+#node-config
+stages:
+  initramfs:
+    - name: "Setup hostname"
+      hostname: "node-{{ trunc 4 .MachineID }}"
+```
+
 ### `k3s`
 
 The `k3s` and the `k3s-agent` block are used to customize the environment and argument settings of K3s, consider:
