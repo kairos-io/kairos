@@ -129,6 +129,12 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(out).To(ContainSubstring("foo"))
 		})
 
+		It("has bpf mount", func() {
+			out, err := Sudo("mount")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("bpf"))
+		})
+
 		It("has corresponding state", func() {
 			out, err := Sudo("kairos-agent state")
 			Expect(err).ToNot(HaveOccurred())
