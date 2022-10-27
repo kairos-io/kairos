@@ -1,0 +1,6 @@
+name: "default-paths"
+stages:
+   fs.before:
+     - name: "Default system dirs"
+       directories:
+       - path: /var/lib/longhorn
