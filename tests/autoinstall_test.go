@@ -135,6 +135,12 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(out).To(ContainSubstring("bpf"))
 		})
 
+		It("has additional mount specified, with no dir in rootfs", func() {
+			out, err := Sudo("mount")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("/var/lib/longhorn"))
+		})
+
 		It("has corresponding state", func() {
 			out, err := Sudo("kairos-agent state")
 			Expect(err).ToNot(HaveOccurred())
