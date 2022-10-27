@@ -6,9 +6,16 @@ index: 1
 
 Here you can find development notes intended for maintainers and guidance for new contributors.
 
+## Repository structure
+
+Kairos uses [earthly](https://earthly.dev/) as a build system instead of Makefiles. This ensures that despite the environment you should be able to build `Kairos` seamlessly. To track external packages (like kernels, additional binaries, and so on) which follow their own versioning [luet](https://luet.io) is used and there is a separate [repository](https://github.com/kairos-io/packages) with package building specifications.
+
+- [The Kairos repository](https://github.com/kairos-io/kairos) contains the `kairos-agent` code, the OS definitions (`Dockerfile`s) and configuration. The releases generate core ISOs without any Kubernetes engine. 
+- [The packages repository](https://github.com/kairos-io/packages) contains package specifications used by `kairos` while building OS images.
+- [The provider-kairos repository](https://github.com/kairos-io/provider-kairos) contains the kairos provider component which uses the SDK to bring up a Kubernetes cluster with `k3s`. It uses images from `kairos` core to remaster images with `k3s` and the `provider` embedded. This allows to automatically bootstrap Kubernetes cluster. Note, Kairos core in runtime can be extended to add providers or deploy automatically images with the embedded provider.
+
 ## Build Kairos
 
-Kairos uses [earthly](https://earthly.dev/) as a build system instead of Makefiles.
 
 To build Kairos you need only Docker installed locally, and there is a convenience script in the root of the repository (`earthly.sh`) which wraps `earthly` inside Docker to avoid to install locally which can be used instead of `earthly` (e.g. `./earthly.sh +iso ...`).
 
