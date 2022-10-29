@@ -49,33 +49,33 @@ jobs:
           ./earthly.sh +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
           path: |
             *.iso
             *.sha256
           if-no-files-found: error
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.initrd.zip
           path: |
             *-initrd
           if-no-files-found: error
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.squashfs.zip
           path: |
             *.squashfs
           if-no-files-found: error
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.kernel.zip
           path: |
             *-kernel
             *-initrd
           if-no-files-found: error
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.ipxe.zip
           path: |
@@ -124,7 +124,7 @@ jobs:
               export CREATE_VM=true 
               export FLAVOR=${{ matrix.flavor }}
               ./.github/run_test.sh "install-test"
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: ${{ matrix.flavor }}-vbox.logs.zip
@@ -142,7 +142,7 @@ jobs:
         repository: "kairos-io/kairos"
         fileName: "*"
         out-file-path: "last-release"
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       with:
           name: latest-release.zip
           path: last-release
@@ -278,7 +278,7 @@ jobs:
             sudo mkdir build
             sudo mv $ISO build/
             ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-with-cli
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: failure()
       with:
         name: ${{ matrix.flavor }}-upgrade-test.logs.zip
@@ -341,7 +341,7 @@ jobs:
             sudo mkdir build
             sudo mv $ISO build/
             ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h --TEST_SUITE=upgrade-latest-with-cli
-    - uses: actions/upload-artifact@v2
+    - uses: actions/upload-artifact@v3
       if: failure()
       with:
         name: ${{ matrix.flavor }}-upgrade-test.logs.zip
