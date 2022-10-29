@@ -17,7 +17,7 @@ jobs:
        include:
          - flavor: "opensuse"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
       - name: setup-docker
@@ -64,7 +64,7 @@ jobs:
    #      - flavor: "fedora"
    #      - flavor: "rockylinux"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
       - name: setup-docker
