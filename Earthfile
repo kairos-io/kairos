@@ -442,8 +442,11 @@ run-qemu-datasource-tests:
     ELSE 
         ENV DATASOURCE=/test/build/datasource.iso
     END
-
-    RUN go install github.com/onsi/ginkgo/v2/ginkgo
+    RUN go get github.com/onsi/gomega/...
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
 
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
@@ -466,8 +469,11 @@ run-qemu-test:
 
 
     COPY . .
-
-    RUN go install github.com/onsi/ginkgo/v2/ginkgo
+    RUN go get github.com/onsi/gomega/...
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
 
     ARG ISO=$(ls /test/build/*.iso)
     ENV ISO=$ISO
