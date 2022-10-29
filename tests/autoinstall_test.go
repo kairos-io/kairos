@@ -135,6 +135,12 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(out).To(ContainSubstring("bpf"))
 		})
 
+		It("has grubmenu", func() {
+			out, err := Sudo("cat /run/initramfs/cos-state/grubmenu")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("state reset"))
+		})
+
 		It("has additional mount specified, with no dir in rootfs", func() {
 			out, err := Sudo("mount")
 			Expect(err).ToNot(HaveOccurred())
