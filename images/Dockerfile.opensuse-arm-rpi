@@ -1,5 +1,5 @@
 
-ARG BASE_IMAGE=opensuse/leap:15.4
+ARG BASE_IMAGE=opensuse/leap:42.3
 
 FROM $BASE_IMAGE
 ARG K3S_VERSION
