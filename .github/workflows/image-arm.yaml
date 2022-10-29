@@ -69,7 +69,7 @@ jobs:
           TAG=latest
           cosign sign quay.io/kairos/core-$FLAVOR:$TAG
       - name: Upload results
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.flavor }}-image
           path: build
