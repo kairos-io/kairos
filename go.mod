@@ -18,7 +18,7 @@ require (
 	github.com/mudler/yip v0.11.3
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.4.0
-	github.com/onsi/gomega v1.22.1
+	github.com/onsi/gomega v1.23.0
 	github.com/otiai10/copy v1.7.0
 	github.com/pterm/pterm v0.12.49
 	github.com/qeesung/image2ascii v1.0.1
@@ -57,7 +57,7 @@ require (
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/google/go-cmp v0.5.8 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gookit/color v1.5.2 // indirect
