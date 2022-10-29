@@ -34,6 +34,8 @@ RUN apt install -y \
     jq \
     neovim \
     open-vm-tools \
+    conntrack \
+    iptables \
     linux-image-generic-hwe-20.04 && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
