@@ -24,7 +24,7 @@ jobs:
         run: |
           ./earthly.sh +test
       - name: Codecov
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           file: ./coverage.out
       - uses: actions/upload-artifact@v2
