@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/kairos-io/kairos/pkg/utils"
+
 	events "github.com/kairos-io/kairos/sdk/bus"
 
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
@@ -29,6 +31,8 @@ func Run(opts ...Option) error {
 	if err != nil {
 		return err
 	}
+
+	utils.SetEnv(c.Env)
 	bf := machine.BootFrom()
 	if c.Install != nil && c.Install.Auto && (bf == machine.NetBoot || bf == machine.LiveCDBoot) {
 		// Don't go ahead if we are asked to install from a booting live medium
