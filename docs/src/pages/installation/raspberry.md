@@ -18,7 +18,7 @@ If you are not familiar with the process, it is suggested to follow the [quickst
 
 ## Download
 
-Download the Kairos images from the [Releases](https://github.com/kairos-io/provider-kairos/releases) you are interested into. For example, for RPI and `k3sv1.21.14+k3s1`:
+Download the Kairos images from the [Releases](https://github.com/kairos-io/provider-kairos/releases) you are interested in. For example, for RPI and `k3sv1.21.14+k3s1`:
 
 ```bash
 wget https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0-rc2/kairos-opensuse-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img
@@ -39,7 +39,7 @@ To configure your access or disable password change the `/usr/local/cloud-config
 
 ## Configure your node
 
-To configure the device beforeahead, be sure to have the SD plugged in your host. We need to copy a configuration file into `cloud-config` in the `COS_PERSISTENT` partition:
+To configure the device beforehand, be sure to have the SD plugged in your host. We need to copy a configuration file into `cloud-config` in the `COS_PERSISTENT` partition:
 
 ```
 $ PERSISTENT=$(blkid -L COS_PERSISTENT)
@@ -50,4 +50,4 @@ $ sudo cp cloud-config.yaml /tmp/persistent/cloud-config
 $ sudo umount /tmp/persistent
 ```
 
-You can, additionally push more `cloud config` files. For a full reference check out the [docs](/reference/configuration) and also [configuration after-installation](/advanced/after-install)
+You can push additional `cloud config` files. For a full reference check out the [docs](/reference/configuration) and also [configuration after-installation](/advanced/after-install)
