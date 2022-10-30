@@ -1,7 +1,8 @@
 name: "Additional grub menu entries"
 stages:
     after-install:
-    - name: "Mount state"
+    - &grubinstall
+      name: "Mount state"
       if: '[ -e "/etc/kairos/branding/grubmenu.cfg" ]'
       commands:
       - |
@@ -11,3 +12,7 @@ stages:
           mount ${STATE} $STATEDIR
           cp -rfv /etc/kairos/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
           umount /tmp/mnt/STATE
+    after-upgrade:
+    - <<: *grubinstall
+    after-reset:
+    - <<: *grubinstall
