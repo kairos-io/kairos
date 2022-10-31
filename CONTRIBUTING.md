@@ -53,9 +53,12 @@ Create a branch with a descriptive name, such as ``fix/dns``.
         - ⚠️ (`:warning:`, major or breaking changes)
         - ✨ (`:sparkles:`, feature additions)
         - 🐛 (`:bug:`, patch and bugfixes)
-        - 📖 (`:book:`,`:memo:`, documentation or proposals)
+        - 📖 (`:book:`, documentation or proposals)
         - :art: ( `:art`, for refactoring )
-        - 🌱 (`:seedling:`,`:gear:`, minor or other)
+        - 🌱 (`:seedling:`, minor or other)
+        - :penguin: (`:penguin:`, for Distribution or Dockerfile changes)
+        - :arrow_up: (`:arrow_up:`, for dependencies bumps)
+        - :robot: (`:robot:`, for CI/tests changes )
 1. If your PR has multiple commits, you must [squash them into a single commit](https://kubernetes.io/docs/contribute/new-content/open-a-pr/#squashing-commits) before merging your PR.
 
 Individual commits should not be tagged separately, but will generally be
