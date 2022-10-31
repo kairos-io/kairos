@@ -1,30 +1,12 @@
 {
-  "name": "@kairos/docs",
-  "version": "0.0.1",
-  "private": true,
-  "scripts": {
-    "dev": "astro dev",
-    "start": "astro dev",
-    "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro"
-  },
-  "dependencies": {
-    "@astrojs/mdx": "^0.11.1",
-    "@astrojs/react": "^1.1.2",
-    "@fortawesome/fontawesome-svg-core": "^6.2.0",
-    "@fortawesome/free-regular-svg-icons": "^6.2.0",
-    "@fortawesome/free-solid-svg-icons": "^6.2.0",
-    "@fortawesome/react-fontawesome": "^0.2.0",
-    "astro": "^1.2.2",
-    "install": "^0.13.0",
-    "npm": "^9.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  },
   "devDependencies": {
-    "@types/react": "^18.0.20",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "prettier-plugin-astro": "^0.7.0"
+    "autoprefixer": "^10.4.13",
+    "postcss": "^8.4.19",
+    "postcss-cli": "^10.0.0"
+  },
+  "scripts": {
+    "get:submodule": "git submodule update --init --depth 1",
+    "_prepare:docsy": "cd themes/docsy && npm install",
+    "prepare": "npm run get:submodule && npm run _prepare:docsy"
   }
 }

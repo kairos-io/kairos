@@ -1,3 +1,7 @@
-[submodule "docs/themes/hugo-theme-learn"]
-	path = docs/themes/hugo-theme-learn
-	url = https://github.com/matcornic/hugo-theme-learn.git
+
+[submodule "themes/docsy"]
+	path = themes/docsy
+	url = https://github.com/google/docsy
+[submodule "docs/themes/docsy"]
+	path = docs/themes/docsy
+	url = https://github.com/google/docsy.git

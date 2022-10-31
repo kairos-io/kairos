@@ -1,0 +1,29 @@
+/*
+
+Add styles or override variables from the theme here.
+
+*/
+
+$primary: #ee5007;
+$secondary: #e1e5ee;
+$enable-gradients: true;
+$enable-rounded: false;
+$enable-shadows: true;
+$google_font_name: "Noto Sans";
+$google_font_family: "Noto+Sans:0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700";
+$td-enable-google-fonts: false;
+
+
+a {
+    color: #009ffd
+}
+
+a:hover {
+    color: #03153a
+}
+
+// Disables text "Kairos" in the menu. Logo contains it already
+.td-navbar .navbar-brand__name {
+    display: none;
+}
+  
