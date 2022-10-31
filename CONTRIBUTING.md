@@ -98,9 +98,16 @@ Make sure that all tests and lint checks are passing before submitting a pull re
 
 You can run the lint and test checks locally with:
 
+### Linux
 ```bash
 ./earthly.sh +lint
 ./earthly.sh +test
+```
+
+### Windows
+```bash
+./earthly.ps1 +lint
+./earthly.ps1 +test
 ```
 
 ## Step 8: Send the pull request

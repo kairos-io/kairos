@@ -11,7 +11,7 @@ docs/node_modules
 docs/dist
 docs/public
 docs/.vscode
-
+coverage.out
 .DS_Store
 
 # editor and IDE paraphernalia
