@@ -65,7 +65,7 @@ stages:
         expand_partition:
           # Size 0 is required to specify all remaining space
           size: 0
-  boot:
+  fs.after:
   - if: "[ ! -d /usr/local/cloud-config ]"
     commands:
     - mkdir /usr/local/cloud-config
