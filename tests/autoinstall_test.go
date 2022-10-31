@@ -11,13 +11,13 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
+var stateAssert = func(query, expected string) {
+	out, err := Sudo(fmt.Sprintf("kairos-agent state get %s", query))
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	ExpectWithOffset(1, out).To(ContainSubstring(expected))
+}
 
-	stateAssert := func(query, expected string) {
-		out, err := Sudo(fmt.Sprintf("kairos-agent state get %s", query))
-		ExpectWithOffset(1, err).ToNot(HaveOccurred())
-		ExpectWithOffset(1, out).To(ContainSubstring(expected))
-	}
+var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 	BeforeEach(func() {
 		if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
@@ -62,7 +62,6 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 			out, _ = Sudo("sudo lsblk")
 			fmt.Println(out)
-
 		})
 	})
 
@@ -154,6 +153,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(out).To(ContainSubstring("boot: active_boot"))
 
 			stateAssert("oem.mounted", "true")
+			stateAssert("oem.found", "true")
 			stateAssert("persistent.mounted", "true")
 			stateAssert("state.mounted", "true")
 			stateAssert("oem.type", "ext4")

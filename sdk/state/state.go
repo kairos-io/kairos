@@ -31,6 +31,7 @@ type PartitionState struct {
 	SizeBytes  uint64 `yaml:"size_bytes" json:"size_bytes"`
 	Type       string `yaml:"type" json:"type"`
 	IsReadOnly bool   `yaml:"read_only" json:"read_only"`
+	Found      bool   `yaml:"found" json:"found"`
 	UUID       string `yaml:"uuid" json:"uuid"` // This would be volume UUID on macOS, PartUUID on linux, empty on Windows
 }
 
@@ -53,6 +54,7 @@ func detectPartition(b *block.Partition) PartitionState {
 		Label:      b.Label,
 		MountPoint: b.MountPoint,
 		Mounted:    b.MountPoint != "",
+		Found:      true,
 	}
 }
 

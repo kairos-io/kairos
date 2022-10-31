@@ -27,6 +27,7 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 	})
 
 	testInstall := func(cloudConfig string, actual interface{}, m types.GomegaMatcher) {
+		stateAssert("persistent.found", "false")
 
 		t, err := ioutil.TempFile("", "test")
 		ExpectWithOffset(1, err).ToNot(HaveOccurred())
@@ -94,6 +95,8 @@ stages:
 				out, _ = Sudo("cat /etc/foo")
 				return out
 			}, ContainSubstring("bar"))
+
+			stateAssert("persistent.found", "true")
 		})
 		It("with config_url", func() {
 			testInstall(`
