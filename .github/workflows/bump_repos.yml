@@ -21,5 +21,6 @@ jobs:
         token: ${{ secrets.PAT_TOKEN }}
         push-to-fork: ci-robbot/c3os
         commit-message: ":arrow_up: Update repositories"
-        title: "Repositories bump"
-        body: "Bump of luet repositories"
+        title: ":arrow_up: Update repositories"
+        body: "Bump of Kairos repositories"
+        signoff: true
