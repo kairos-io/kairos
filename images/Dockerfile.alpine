@@ -111,8 +111,7 @@ RUN rc-update add sshd boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
     rc-update add openntpd boot && \
-    rc-update add fail2ban \
-    rc-update add open-vm-tools boot
+    rc-update add fail2ban
 
 # Symlinks to make elemental installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
