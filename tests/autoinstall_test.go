@@ -134,6 +134,16 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(out).To(ContainSubstring("bpf"))
 		})
 
+		It("has correct permissions", func() {
+			out, err := Sudo(`stat -c "%a" /oem`)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("770"))
+
+			out, err = Sudo(`stat -c "%a" /usr/local/cloud-config`)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("770"))
+		})
+
 		It("has grubmenu", func() {
 			out, err := Sudo("cat /run/initramfs/cos-state/grubmenu")
 			Expect(err).ToNot(HaveOccurred())

@@ -76,10 +76,10 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 		})
 
 		It("resets", func() {
-			_, err := Sudo("echo 'test' > /usr/local/test")
+			_, err := Sudo("touch /usr/local/test")
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = Sudo("echo 'testoem' > /oem/test")
+			_, err = Sudo("touch /oem/test")
 			Expect(err).ToNot(HaveOccurred())
 
 			HasFile("/oem/test")
