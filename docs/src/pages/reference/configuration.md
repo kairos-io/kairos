@@ -49,7 +49,7 @@ install:
     default_menu_entry: ""
   # Environmental variable to set to the installer calls
   env:
-    foo: "bar"
+  - foo=bar
 
 vpn:
   # EdgeVPN environment options
@@ -226,39 +226,7 @@ Below a full list of all the available options:
 | extra_cmdline          | Set additional boot commands for all entries            |
 | default_fallback       | Sets default fallback logic                             |
 
-### `kairos.dns`
-
-When the `kairos.dns` is set to `true` the embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server. For example, this is assuming `kairos bridge` is running in a separate terminal:
-
-```bash
-curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'
-```
-
-It will add the `foo.bar` domain with `2.2.2.2` as `A` response.
-
-Every node with DNS enabled will be able to resolve the domain after the domain is correctly announced.
-
-You can check out the DNS in the [DNS page in the API](http://localhost:8080/dns.html), see also the [EdgeVPN docs](https://mudler.github.io/edgevpn/docs/concepts/overview/dns/).
-
-Furthermore, it is possible to tweak the DNS server which are used to forward requests for domain listed outside, and as well, it's possible to lock down resolving only to nodes in the blockchain, by customizing the configuration file:
-
-```yaml
-#cloud-config
-kairos:
-  network_token: "...."
-  # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
-  dns: true
-
-vpn:
-  # Disable DNS forwarding
-  DNSFORWARD: "false"
-  # Set cache size
-  DNSCACHESIZE: "200"
-  # Set DNS forward server
-  DNSFORWARDSERVER: "8.8.8.8:53"
-```
-
-## Automatic kubernetes deployments
+## Kubernetes manifests
 
 When using the `k3s` as Kubernetes distribution, it's possible to automatically deploy Helm charts or Kubernetes resources automatically after deployment, for instance to deploy fleet automatically:
 
@@ -303,3 +271,112 @@ Or to either load a config url from network:
 `config_url=http://...`
 
 Usually secret gists are used to share such config files.
+
+## Additional users
+
+Kairos comes with the `kairos` user pre-configured, however, it is possible to configure additional users to the system via the cloud-init config mechanism
+
+### Add a user during first-install
+
+Consider the following example cloud-config, which adds the `testuser` user to the system with admin access:
+
+```yaml
+#cloud-config
+install:
+  device: /dev/sda
+k3s:
+  enabled: true
+
+users:
+- name: "kairos"
+  passwd: "kairos"
+  ssh_authorized_keys:
+  - github:mudler
+- name: "testuser"
+  passwd: "testuser"
+  ssh_authorized_keys:
+  - github:mudler
+  groups:
+  - "admin"
+```
+
+### Add a user to an existing install
+
+To add an user to an existing installation you can simply add a `/oem` file for the new user. For instance, consider the following:
+```yaml
+stages:
+   initramfs:
+     - name: "Set user and password"
+       users:
+        testuser:
+          groups:
+          - "admin"
+          passwd: "mypassword"
+          shell: /bin/bash
+          homedir: "/home/testuser"
+```
+
+This configuration can be either manually copied over, or can be propagated also via Kubernetes using the system upgrade controller. See [the after-install](/advanced/after-install) section for an example.
+
+```bash
+❯ ssh testuser@192.168.1.238
+testuser@192.168.1.238's password:
+Welcome to kairos!
+
+Refer to https://kairos.io for documentation.
+localhost:~$ sudo su -
+localhost:~# whoami
+root
+localhost:~# exit
+localhost:~$ whoami
+testuser
+localhost:~$
+```
+
+## P2P configuration
+
+P2P functionalities are experimental Kairos features and disabled by default. In order to enable them, just use the `kairos` configuration block.
+
+### `kairos.network_token`
+
+This defines the network token used by peers to join the p2p virtual private network. You can generate it with the Kairos CLI with `kairos generate-token`. Check out [the P2P section](/installation/p2p) for more instructions.
+
+### `kairos.role`
+
+Define a role for the node. Accepted: `worker`, `master`. Currently only one master is supported.
+
+### `kairos.id`
+
+Define a custom ID for the Kubernetes cluster. This can be used to create multiple clusters in the same network segment by specifying the same id across nodes with the same network token. Accepted: any string.
+
+### `kairos.dns`
+
+When the `kairos.dns` is set to `true` the embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server. For example, this is assuming `kairos bridge` is running in a separate terminal:
+
+```bash
+curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'
+```
+
+It will add the `foo.bar` domain with `2.2.2.2` as `A` response.
+
+Every node with DNS enabled will be able to resolve the domain after the domain is correctly announced.
+
+You can check out the DNS in the [DNS page in the API](http://localhost:8080/dns.html), see also the [EdgeVPN docs](https://mudler.github.io/edgevpn/docs/concepts/overview/dns/).
+
+Furthermore, it is possible to tweak the DNS server which are used to forward requests for domain listed outside, and as well, it's possible to lock down resolving only to nodes in the blockchain, by customizing the configuration file:
+
+```yaml
+#cloud-config
+kairos:
+  network_token: "...."
+  # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
+  dns: true
+
+vpn:
+  # Disable DNS forwarding
+  DNSFORWARD: "false"
+  # Set cache size
+  DNSCACHESIZE: "200"
+  # Set DNS forward server
+  DNSFORWARDSERVER: "8.8.8.8:53"
+```

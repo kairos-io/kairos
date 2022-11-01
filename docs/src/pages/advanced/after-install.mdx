@@ -80,7 +80,7 @@ stringData:
         echo Swapfile present
         exit 0
     fi
-    # we can't cp, that's a symlink!
+    # Note: this is a symlink. We can also cp -L, but be aware that standard cp doesn't work.
     cat /host/run/system-upgrade/secrets/custom-script/swapfile.yaml > /host/oem/10_swapfile.yaml
     sync
 
