@@ -12,7 +12,7 @@ Kairos supports live layering with `systemd-sysext`. Currently it is supported o
 
 ## Description
 
-For general reference on how `systemd-sysext` works, please read the [official](https://www.freedesktop.org/software/systemd/man/systemd-sysext.html) documentation. 
+For general reference on how `systemd-sysext` works, please read the [official](https://www.freedesktop.org/software/systemd/man/systemd-sysext.html) documentation.
 
 Systemd system extensions can be located in the directories `/etc/extensions/`, `/run/extensions/`, `/var/lib/extensions/`, `/usr/lib/extensions/` and `/usr/local/lib/extensions/`.
 
@@ -63,13 +63,13 @@ Systemd extensions can be images, directory or files, quoting the systemd-sysext
 
 - Disk images lacking a partition table, with a naked Linux file system (e.g. squashfs or ext4)
 
-All of those can be shipped as a container image and loaded as a bundle. 
+All of those can be shipped as a container image and loaded as a bundle.
 
 For example, a bundle can be defined as a naked container image containing only the files that we want to overlay in the system.
 
 Consider the following Dockerfile to create an extension which adds `/usr/bin/ipfs` to the system:
 
-```Dockerfile
+```docker
 FROM alpine as build
 # Install a binary
 ARG VERSION
@@ -97,4 +97,3 @@ docker build --build-arg VERSION=v1.0.0 -t image .
 
 Note that systemd extensions requires an extension-release file which matches the `ID` and the `VERSION_ID` of the OS iqn the `/etc/os-release` file.
 This has the consequence that bundles can be created for specific OS versions and are loaded only if `ID` and `VERSION_ID` are matching. In the example above this can be controlled by the `VERSION` build arg while building the container image.
-

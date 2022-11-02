@@ -10,7 +10,7 @@ Kairos is a container-based OS, if you want to change Kairos and add a package, 
 
 For example:
 
-```Dockerfile
+```docker
 FROM quay.io/kairos/kairos:opensuse-latest
 
 RUN zypper in -y ...
