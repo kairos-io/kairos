@@ -9,7 +9,6 @@
 /build
 docs/node_modules
 docs/dist
-docs/public
 docs/.vscode
 coverage.out
 .DS_Store
