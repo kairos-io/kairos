@@ -12,7 +12,7 @@ export default function RightSidebar({ headings }) {
         <h4>Table of contents</h4>
         <ul>
           {secondDepthHeadings.map((heading) => (
-            <li className="toc-item">
+            <li className="toc-item" key={heading.slug}>
               <a href={`#${heading.slug}`}>{heading.text}</a>
             </li>
           ))}

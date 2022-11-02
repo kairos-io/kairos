@@ -4,6 +4,7 @@ import LeftSidebar from "./LeftSidebar/index";
 import RightSidebar from "./RightSidebar/index";
 import Navbar from "./Navbar/index";
 import PageContent from "./PageContent.astro";
+import Favicon from "../../components/Favicon.astro";
 import "../../styles/theme.css";
 import "../../styles/index.css";
 
@@ -67,12 +68,13 @@ const content = await Astro.glob("../../pages/**/*.(md|mdx)");
           display: block;
         }
       }
-    </style>
+      </style>
+    <Favicon />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
-      rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+    rel="stylesheet"
     />
     <style is:global>
       .layout > * {

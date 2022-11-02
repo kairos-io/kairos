@@ -8,8 +8,10 @@
 /docs/.hugo_build.lock
 /build
 docs/node_modules
-docs/dist
 docs/public
+!docs/public/favicon
+!docs/public/CNAME
+docs/dist
 docs/.vscode
 coverage.out
 .DS_Store
