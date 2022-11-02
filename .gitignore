@@ -8,6 +8,9 @@
 /docs/.hugo_build.lock
 /build
 docs/node_modules
+docs/public
+!docs/public/favicon
+!docs/public/CNAME
 docs/dist
 docs/.vscode
 coverage.out
