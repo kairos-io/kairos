@@ -175,7 +175,11 @@ framework:
     RUN luet install -y --system-target /framework \
             system/elemental-toolkit-$TOOLKIT_IMG dracut/kcrypt system/kcrypt system/suc-upgrade
 
-    IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    # Keep openSUSE kernel on ARM
+    IF [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+        RUN luet install -y --system-target /framework \
+            distro-kernels/opensuse distro-initrd/opensuse
+    ELSE IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ]
         RUN luet install -y --system-target /framework \
             distro-kernels/ubuntu distro-initrd/ubuntu
     END
