@@ -171,6 +171,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			stateAssert("state.type", "ext4")
 			stateAssert("oem.mount_point", "/oem")
 			stateAssert("persistent.mount_point", "/usr/local")
+			stateAssert("persistent.name", "/dev/vda")
 			stateAssert("state.mount_point", "/run/initramfs/cos-state")
 			stateAssert("oem.read_only", "false")
 			stateAssert("persistent.read_only", "false")

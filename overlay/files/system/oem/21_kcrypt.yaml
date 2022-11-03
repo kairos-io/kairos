@@ -2,10 +2,11 @@ name: "Update discovery plugins"
 stages:
     after-upgrade:
     - name: "Update plugins"
+      if: "[ $(kairos-agent state get oem.found) == 'true' ]"
       commands:
       - |
           STATEDIR=/tmp/mnt/OEM
-          OEM=$(blkid -L COS_OEM || true)
+          OEM=$(kairos-agent state get oem.name)
           mkdir -p $STATEDIR || true
           mount ${OEM} $STATEDIR
           if [ -d "$STATEDIR/system/discovery" ]; then
