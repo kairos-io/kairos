@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Community Support
+    url: https://github.com/kairos-io/kairos/discussions
+    about: Please ask and answer questions here.
+  - name: Matrix channel
+    url: https://matrix.to/#/#kairos-io:matrix.org
+    about: Join our community on Matrix.
