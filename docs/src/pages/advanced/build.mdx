@@ -1,0 +1,59 @@
+---
+layout: "../../layouts/docs/Layout.astro"
+title: "Build"
+index: 3
+---
+
+import Info from "../../components/Info.astro";
+
+# Build Kairos-based appliances
+
+<Info>
+This feature is crazy and experimental! API is likely going to be subject to changes, don't rely on it yet!
+</Info>
+
+While it's possible to just run Kairos from the artifacts provided by our release process, there are specific use-cases which are not covered, for example,
+additional kernel modules, or specific configuration that we want to embed in the media used for installations to drive automatically installations with custom, user-defined logics.
+
+Kairos provides a set of Kubernetes Native Extensions that allows to programmatically generate Installable mediums, Cloud Images and Netboot artifacts to provide on-demand customization to further exploit Kubernetes patterns to automatically provision nodes using control-plane management clusters - however, the same toolset can be used manually to build appliances in order to develop and debug locally.
+
+The [automated](/installation/automated) section already shows some examples of how to leverage the Kubernetes Native Extensions and use the Kairos images to build appliances, in this section we will cover and describe in detail how to leverage the CRDs and Kairos factory to build custom appliances.
+
+## Prerequisites
+
+When building locally, only `docker` is required installed in the system, for building using the Kubernetes Native extensions, a Kubernetes cluster is required and `helm` and `kubectl` locally. Note [kind](https://github.com/kubernetes-sigs/kind) can be used as well. The Native extension don't require any special permission, and runs completely unprivileged.
+
+### Kubernetes
+
+If running on Kubernetes, we install the Kairos `osbuilder` controller.
+
+The chart depends on cert-manager. You can install the latest version of cert-manager by running the following commands:
+
+```bash
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
+kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
+```
+
+Install the Kubernetes charts with `helm`:
+
+```bash
+helm repo add kairos https://kairos-io.github.io/helm-charts
+helm repo update
+helm install kairos-crd kairos/kairos-crds
+helm install kairos-osbuilder kairos/osbuilder
+```
+
+
+## Build an ISO
+
+## Build a Cloud Image for AWS
+
+### Use the Image
+
+## Build a Cloud Image for Azure
+
+## Build a Cloud Image for GCE
+
+
+## Full API reference
+
