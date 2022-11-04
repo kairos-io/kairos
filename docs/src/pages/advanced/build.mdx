@@ -48,14 +48,187 @@ helm install kairos-osbuilder kairos/osbuilder
 
 ## Build an ISO
 
-## Build a Cloud Image for AWS
+To build an ISO, consider the following spec, which provides a hybrid bootable ISO (UEFI/MBR), with the `core` kairos image, adding `helm`:
 
-### Use the Image
+```yamlapiVersion: build.kairos.io/v1alpha1
+kind: OSArtifact
+metadata:
+  name: hello-kairos
+spec:
+  imageName: "quay.io/kairos/core-opensuse:latest"
+  iso: true
+  bundles:
+  # Bundles available at: https://packages.kairos.io/Kairos/
+  - quay.io/kairos/packages:helm-utils-3.10.1
+  cloudConfig: |
+            #cloud-config
+            users:
+            - name: "kairos"
+              passwd: "kairos"
+            install:
+              device: "auto"
+              reboot: true
+              poweroff: false
+              auto: true # Required, for automated installations
+```
+
+Note, the CRD allows to specify a custom Cloud config file, [check out the full configuration reference](/reference/configuration).
+
+The Spec will create a pod that builds the ISO ( we can follow the process by tailing to the containers log ) and later makes it accessible to its own dedicated service (nodeport by default):
+
+```bash
+$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ curl http://<node-ip>:$PORT/hello-kairos.iso -o output.iso
+```
+
+## Build a Cloud Image
+
+Cloud images are images that automatically boots into recovery mode and can be used to deploy whatever image you want to the VM. 
+Custom user-data from the Cloud provider is supported, additionally the CRD allows to embed a custom cloudConfig additionally that we can use to make configuration permanent.
+
+A Cloud Image boots in QEMU and also in AWS, consider:
+
+```yaml
+apiVersion: build.kairos.io/v1alpha1
+kind: OSArtifact
+metadata:
+  name: hello-kairos
+spec:
+  imageName: "quay.io/kairos/core-opensuse:latest"
+  cloudImage: true
+  bundles:
+  # Bundles available at: https://packages.kairos.io/Kairos/
+  - quay.io/kairos/packages:helm-utils-3.10.1
+  cloudConfig: |
+            #cloud-config
+            users:
+            - name: "kairos"
+              passwd: "kairos"
+```
+
+Will create a `hello-kairos.raw` file, which is an EFI bootable raw disk, bootable in QEMU and compatible with AWS:
+
+```bash
+$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ curl http://<node-ip>:$PORT/hello-kairos.raw -o output.raw
+```
+
+To run locally with QEMU:
+
+```bash
+qemu-system-x86_64 -m 2048 -bios /usr/share/qemu/ovmf-x86_64.bin -drive if=virtio,media=disk,file=output.raw
+```
+
+Since the image come with only the `recovery` system populated, we need to apply a cloud-config similar to this one which tells which container image we want to deploy:
+
+```yaml
+name: "Default deployment"
+stages:
+ rootfs.after:
+   - name: "Repart image"
+     layout:
+       # It will partition a device including the given filesystem label or part label (filesystem label matches first)
+       device:
+         label: COS_RECOVERY
+       add_partitions:
+         - fsLabel: COS_STATE
+           # 10Gb for COS_STATE, so the disk should have at least 16Gb
+           size: 10240
+           pLabel: state
+         - fsLabel: COS_PERSISTENT
+           # unset size or 0 size means all available space
+           pLabel: persistent
+ initramfs:
+   - if: '[ -f "/run/cos/recovery_mode" ]'
+     name: "Set sshd to wait for deployment"
+     files:
+     - path: "/etc/systemd/system/sshd.service.d/override.conf"
+       content: |
+           [Unit]
+           After=cos-setup-network.service
+ network:
+   - if: '[ -f "/run/cos/recovery_mode" ]'
+     name: "Deploy cos-system"
+     commands:
+       - |
+           # Use `elemental reset --system.uri docker:<img-ref>` to deploy a custom image
+           # By default the recovery Elemental gets deployed
+           elemental reset --reboot
+```
+
+### Use the Image in AWS
+
+
+To consume the image, copy it into an s3 bucket:
+
+```bash
+aws s3 cp <cos-raw-image> s3://<your_s3_bucket>
+```
+
+Create a `container.json` file refering to it:
+
+```json
+{
+"Description": "Kairos custom image",
+"Format": "raw",
+"UserBucket": {
+  "S3Bucket": "<your_s3_bucket>",
+  "S3Key": "<cos-raw-image>"
+}
+}
+```
+
+Import the image:
+
+```bash
+aws ec2 import-snapshot --description "Kairos custom image" --disk-container file://container.json
+```
+
+Follow the procedure described in [AWS docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/creating-an-ami-ebs.html#creating-launching-ami-from-snapshot) to register an AMI from snapshot. Used all default settings unless for the firmware, set to force to UEFI boot.
 
 ## Build a Cloud Image for Azure
 
+Similarly we can build images for Azure, consider:
+
+```yaml
+apiVersion: build.kairos.io/v1alpha1
+kind: OSArtifact
+metadata:
+  name: hello-kairos
+spec:
+  imageName: "quay.io/kairos/core-opensuse:latest"
+  azureImage: true
+  bundles:
+  # Bundles available at: https://packages.kairos.io/Kairos/
+  - quay.io/kairos/packages:helm-utils-3.10.1
+  cloudConfig: |
+            #cloud-config
+            users:
+            - name: "kairos"
+              passwd: "kairos"
+```
 ## Build a Cloud Image for GCE
 
+
+Similarly we can build images for GCE, consider:
+
+```yaml
+apiVersion: build.kairos.io/v1alpha1
+kind: OSArtifact
+metadata:
+  name: hello-kairos
+spec:
+  imageName: "quay.io/kairos/core-opensuse:latest"
+  gceImage: true
+  bundles:
+  # Bundles available at: https://packages.kairos.io/Kairos/
+  - quay.io/kairos/packages:helm-utils-3.10.1
+  cloudConfig: |
+            #cloud-config
+            users:
+            - name: "kairos"
+              passwd: "kairos"
+```
 
 ## Full API reference
 
