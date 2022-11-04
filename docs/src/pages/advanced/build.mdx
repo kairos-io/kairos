@@ -12,10 +12,12 @@ import Info from "../../components/Info.astro";
 This feature is crazy and experimental! API is likely going to be subject to changes, don't rely on it yet!
 </Info>
 
-While it's possible to just run Kairos from the artifacts provided by our release process, there are specific use-cases which are not covered, for example,
-additional kernel modules, or specific configuration that we want to embed in the media used for installations to drive automatically installations with custom, user-defined logics.
+While it's possible to just run Kairos from the artifacts provided by our release process, there are specific use-cases which are not covered, for example when
+additional kernel modules, or specific configuration that you might want to embed in the media used for installations to drive with custom, user-defined logics.
 
-Kairos provides a set of Kubernetes Native Extensions that allows to programmatically generate Installable mediums, Cloud Images and Netboot artifacts to provide on-demand customization to further exploit Kubernetes patterns to automatically provision nodes using control-plane management clusters - however, the same toolset can be used manually to build appliances in order to develop and debug locally.
+Note the same can be achieved by using advanced configuration and actually modify the images during installation phase by leveraging the `chroot` stages that takes place in the image - this is discouraged - as it goes in opposite with the "Single Image", "No infrastructure drift" approach of Kairos. The idea here is to create a system from "scratch" and applying it to our nodes - not to run any specifc logic in the node itself.
+
+For such purposes Kairos provides a set of Kubernetes Native Extensions that allows to programmatically generate Installable mediums, Cloud Images and Netboot artifacts to provide on-demand customization to further exploit Kubernetes patterns to automatically provision nodes using control-plane management clusters - however, the same toolset can be used manually to build appliances in order to develop and debug locally.
 
 The [automated](/installation/automated) section already shows some examples of how to leverage the Kubernetes Native Extensions and use the Kairos images to build appliances, in this section we will cover and describe in detail how to leverage the CRDs and Kairos factory to build custom appliances.
 

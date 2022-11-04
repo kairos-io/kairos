@@ -57,5 +57,4 @@ The upgrade happens in a transition image and take place only after all the nece
 
 ### Kernel and Initrd
 
-The Kernel and Initrd are loaded from the system images and expected to be present. A typical setup have kernels and initrd in a special boot partition.
-In Kairos instead the Kernel and Initrd are being loaded from the images, which are chainloaded from the bootloader (GRUB). This is a design choice to keep the entire OS stack confined as a single layer which gets pulled and swapped atomically during upgrades.
+The Kernel and Initrd are loaded from the system images and expected to be present in the container that are pulled down and used for upgrades. Differently from standard approaches, Kairos focuses on having static Initrds which are generated while contructing images consumed for upgrades - in opposite to generate Initramfs locally on the node. Indeed, a typical setup have kernels and initrd in a special boot partition dedicated for boot files - in Kairos instead the Kernel and Initrd are being loaded from the images, which are chainloaded from the bootloader (GRUB). This is a design choice to keep the entire OS stack confined as a single layer which gets pulled and swapped atomically during upgrades.
