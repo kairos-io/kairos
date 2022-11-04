@@ -21,9 +21,10 @@ A container-based operating system is an OS that is shipped via containers. Inde
 
 Upgrades are atomic operations that can be triggered manually or via Kubernetes. The node will create a transition image that will be swapped for the Active system, and the Active system becomes Passive. This ensures tamper-proof upgrades and automated fallback and boot assessment strategies are in place to automatically boot from the fallback system. The recovery image can be furthermore exploited to completely automatize node recovery.
 
-## Benefits of using containers to distribute upgrades
+## Benefits
 
-Container registries are already widely supported and used by anyone.
+- Container registries are already widely supported and used by anyone.
+- Reduce infrastructure drift, by pushing upgrades as single images, with atomic upgrades.
 
 If you are operating a Kubernetes cluster and deploying applications on top, chances are that you already have a container registry deployed somewhere and configured to store them or manage your infrastructure stack. By using container images, you can reuse the same infrastructure to propagate upgrades to the nodes and handle customizations.
 
@@ -31,7 +32,9 @@ If you are operating a Kubernetes cluster and deploying applications on top, cha
 
 Container images can be extended after a build by using standard container building practices and seamlessly plug into your existing pipelines. Kairos allows to seamlessly upgrade to container images that are derived from other versions.
 
-This means that to customize a Kairos version, all that is required is to build a standard container image with a plain Dockerfile—plus, the bits that are actually needed.
+We believe that bringing rollbacks, or incremental patches upgrades increases the exposure to infrastructure drift. In opposition, immutable, single images are deployed to the nodes as they were apps - no more discrepancies in your nodes - no need of configuration management tools like Chef, Ansible, or alikes.
+
+This means that to customize a Kairos version, all that is required is to build a standard container image with a plain Dockerfile—plus, the bits that are actually needed - we can't touch a system as we are typically used to.
 
 If you are familiar with Dockerfiles, then you are good to go to roll your own custom OS version to provision in the nodes. That removes any friction to questions like, "How do I add this package to my nodes?", or more complex ones as, "How can I replace with my own Kernel?".
 
