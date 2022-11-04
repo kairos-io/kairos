@@ -119,7 +119,8 @@ To run locally with QEMU:
 qemu-system-x86_64 -m 2048 -bios /usr/share/qemu/ovmf-x86_64.bin -drive if=virtio,media=disk,file=output.raw
 ```
 
-Since the image come with only the `recovery` system populated, we need to apply a cloud-config similar to this one which tells which container image we want to deploy:
+Since the image come with only the `recovery` system populated, we need to apply a cloud-config similar to this one which tells which container image we want to deploy.
+The first steps when the machine boots into is to actually create the partitions needed to boot the active and the passive images, and its populated during the first boot.
 
 ```yaml
 name: "Default deployment"
@@ -207,6 +208,23 @@ spec:
             - name: "kairos"
               passwd: "kairos"
 ```
+
+### How to use the image in Azure
+
+Upload the Azure Cloud VHD disk in  `.vhda`  format to your bucket:
+
+```bash
+az storage copy --source <cos-azure-image> --destination https://<account>.blob.core.windows.net/<container>/<destination-azure-image>
+```
+
+Import the disk:
+
+```bash
+az image create --resource-group <resource-group> --source https://<account>.blob.core.windows.net/<container>/<destination-azure-image> --os-type linux --hyper-v-generation v2 --name <image-name>
+```
+
+Note:  There is currently no way of altering the boot disk of an Azure VM via GUI, use the `az` to launch the VM with an expanded OS disk if needed
+
 ## Build a Cloud Image for GCE
 
 
@@ -229,6 +247,22 @@ spec:
             - name: "kairos"
               passwd: "kairos"
 ```
+
+### How to use the image in GCE
+
+To upload the image in GCE (compressed):
+
+```bash
+gsutil cp <cos-gce-image> gs://<your_bucket>/
+```
+
+Import the disk:
+
+```bash
+gcloud compute images create <new_image_name> --source-uri=<your_bucket>/<cos-gce-image> --guest-os-features=UEFI_COMPATIBLE
+```
+
+See [here how to use a cloud-init with Google cloud](https://cloud.google.com/container-optimized-os/docs/how-to/create-configure-instance#using_cloud-init_with_the_cloud_config_format).
 
 ## Full API reference
 
