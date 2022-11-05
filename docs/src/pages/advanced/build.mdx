@@ -9,7 +9,8 @@ import Info from "../../components/Info.astro";
 # Build Kairos-based appliances
 
 <Info>
-This feature is crazy and experimental! API is likely going to be subject to changes, don't rely on it yet!
+This page is a work in progress!
+The feature is experimental and API is likely going to be subject to changes, don't rely on it yet!
 </Info>
 
 While it's possible to just run Kairos from the artifacts provided by our release process, there are specific use-cases which are not covered, for example when
@@ -19,11 +20,11 @@ Note the same can be achieved by using advanced configuration and actually modif
 
 For such purposes Kairos provides a set of Kubernetes Native Extensions that allows to programmatically generate Installable mediums, Cloud Images and Netboot artifacts to provide on-demand customization to further exploit Kubernetes patterns to automatically provision nodes using control-plane management clusters - however, the same toolset can be used manually to build appliances in order to develop and debug locally.
 
-The [automated](/installation/automated) section already shows some examples of how to leverage the Kubernetes Native Extensions and use the Kairos images to build appliances, in this section we will cover and describe in detail how to leverage the CRDs and Kairos factory to build custom appliances.
+The [automated](/installation/automated) section already shows some examples of how to leverage the Kubernetes Native Extensions and use the Kairos images to build appliances, in this section we will cover and describe in detail how to leverage the CRDs and the Kairos factory to build custom appliances.
 
 ## Prerequisites
 
-When building locally, only `docker` is required installed in the system, for building using the Kubernetes Native extensions, a Kubernetes cluster is required and `helm` and `kubectl` locally. Note [kind](https://github.com/kubernetes-sigs/kind) can be used as well. The Native extension don't require any special permission, and runs completely unprivileged.
+When building locally, only `docker` is required installed in the system, for building using the Kubernetes Native extensions, a Kubernetes cluster is required and `helm` and `kubectl` installed locally. Note [kind](https://github.com/kubernetes-sigs/kind) can be used as well. The Native extension don't require any special permission, and runs completely unprivileged.
 
 ### Kubernetes
 
@@ -185,7 +186,7 @@ Import the image:
 aws ec2 import-snapshot --description "Kairos custom image" --disk-container file://container.json
 ```
 
-Follow the procedure described in [AWS docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/creating-an-ami-ebs.html#creating-launching-ami-from-snapshot) to register an AMI from snapshot. Used all default settings unless for the firmware, set to force to UEFI boot.
+Follow the procedure described in [AWS docs](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/creating-an-ami-ebs.html#creating-launching-ami-from-snapshot) to register an AMI from snapshot. Use all default settings except for the firmware, set to force to UEFI boot.
 
 ## Build a Cloud Image for Azure
 
@@ -207,6 +208,13 @@ spec:
             users:
             - name: "kairos"
               passwd: "kairos"
+```
+
+Will generate a compressed disk `hello-kairos-azure.vhd` ready to be used in GCE.
+
+```bash
+$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ curl http://<node-ip>:$PORT/hello-kairos-azure.vhd -o output.vhd
 ```
 
 ### How to use the image in Azure
@@ -248,6 +256,13 @@ spec:
               passwd: "kairos"
 ```
 
+Will generate a compressed disk `hello-kairos.gce.raw.tar.gz` ready to be used in GCE.
+
+```bash
+$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ curl http://<node-ip>:$PORT/hello-kairos.gce.raw.tar.gz -o output.gce.raw.tar.gz
+```
+
 ### How to use the image in GCE
 
 To upload the image in GCE (compressed):
@@ -263,6 +278,3 @@ gcloud compute images create <new_image_name> --source-uri=<your_bucket>/<cos-gc
 ```
 
 See [here how to use a cloud-init with Google cloud](https://cloud.google.com/container-optimized-os/docs/how-to/create-configure-instance#using_cloud-init_with_the_cloud_config_format).
-
-## Full API reference
-
