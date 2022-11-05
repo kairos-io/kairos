@@ -130,7 +130,26 @@ TEST SUITE: None
 
 # Applies an OSArtifact spec
 cat <<'EOF' | kubectl apply -f -
-c
+apiVersion: build.kairos.io/v1alpha1
+kind: OSArtifact
+metadata:
+  name: hello-kairos
+spec:
+  imageName: "quay.io/kairos/core-opensuse:latest"
+  iso: true
+  bundles:
+  # Bundles available at: https://packages.kairos.io/Kairos/
+  - quay.io/kairos/packages:helm-utils-3.10.1
+  cloudConfig: |
+            #cloud-config
+            users:
+            - name: "kairos"
+              passwd: "kairos"
+            install:
+              device: "auto"
+              reboot: true
+              poweroff: false
+              auto: true # Required, for automated installations
 EOF
 
 # Note on running with kind:
