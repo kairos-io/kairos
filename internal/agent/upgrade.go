@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -51,8 +52,12 @@ func Upgrade(version, image string, force, debug bool, dirs []string) error {
 			return fmt.Errorf("no releases found")
 		}
 
-		version = releases[0]
-		fmt.Println("latest release is ", version)
+		version = releases[len(releases)-1]
+		fmt.Println("Latest release is ", version)
+		fmt.Printf("Are you sure you want to upgrade to this release? (y/n) ")
+		if !askConfirmation() {
+			return nil
+		}
 	}
 
 	if utils.Version() == version && !force {
@@ -108,4 +113,21 @@ func Upgrade(version, image string, force, debug bool, dirs []string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func askConfirmation() bool {
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		s, _ := reader.ReadString('\n')
+		s = strings.TrimSpace(strings.ToLower(s))
+		if strings.Compare(s, "n") == 0 {
+			return false
+		} else if strings.Compare(s, "y") == 0 {
+			break
+		} else {
+			fmt.Printf("Please enter y or n: ")
+			continue
+		}
+	}
+	return true
 }
