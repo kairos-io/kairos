@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -53,9 +52,12 @@ func Upgrade(version, image string, force, debug bool, dirs []string) error {
 		}
 
 		version = releases[len(releases)-1]
-		fmt.Println("Latest release is ", version)
-		fmt.Printf("Are you sure you want to upgrade to this release? (y/n) ")
-		if !askConfirmation() {
+		msg := fmt.Sprintf("Latest release is %s\nAre you sure you want to upgrade to this release? (y/n)", version)
+		reply, err := promptBool(events.YAMLPrompt{Prompt: msg, Default: "y"})
+		if err != nil {
+			return err
+		}
+		if reply == "false" {
 			return nil
 		}
 	}
@@ -113,21 +115,4 @@ func Upgrade(version, image string, force, debug bool, dirs []string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-}
-
-func askConfirmation() bool {
-	reader := bufio.NewReader(os.Stdin)
-	for {
-		s, _ := reader.ReadString('\n')
-		s = strings.TrimSpace(strings.ToLower(s))
-		if strings.Compare(s, "n") == 0 {
-			return false
-		} else if strings.Compare(s, "y") == 0 {
-			break
-		} else {
-			fmt.Printf("Please enter y or n: ")
-			continue
-		}
-	}
-	return true
 }
