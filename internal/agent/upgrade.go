@@ -51,8 +51,15 @@ func Upgrade(version, image string, force, debug bool, dirs []string) error {
 			return fmt.Errorf("no releases found")
 		}
 
-		version = releases[0]
-		fmt.Println("latest release is ", version)
+		version = releases[len(releases)-1]
+		msg := fmt.Sprintf("Latest release is %s\nAre you sure you want to upgrade to this release? (y/n)", version)
+		reply, err := promptBool(events.YAMLPrompt{Prompt: msg, Default: "y"})
+		if err != nil {
+			return err
+		}
+		if reply == "false" {
+			return nil
+		}
 	}
 
 	if utils.Version() == version && !force {
