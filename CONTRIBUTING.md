@@ -75,8 +75,10 @@ branch. Please make sure to include the issue number and the label you're addres
 in your commit message, such as:
 
 ```bash
-git commit -am ":seedling: Drop foo flag (fixes #123)"
+git commit -s -am ":seedling: Drop foo flag (fixes #123)"
 ```
+
+NOTE: All commits must be signed-off (DCO - Developer Certificate of Origin) so make sure you use the `-s` flag when you commit.
 
 This helps us out by allowing us to track which issue your commit
 relates to.
