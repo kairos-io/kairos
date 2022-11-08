@@ -73,13 +73,41 @@ spec:
               auto: true # Required, for automated installations
 ```
 
+Apply the manifest with `kubectl apply`.
+
 Note, the CRD allows to specify a custom Cloud config file, [check out the full configuration reference](/reference/configuration).
 
-The Spec will create a pod that builds the ISO ( we can follow the process by tailing to the containers log ) and later makes it accessible to its own dedicated service (nodeport by default):
+The controller will create a pod that builds the ISO ( we can follow the process by tailing to the containers log ) and later makes it accessible to its own dedicated service (nodeport by default):
 
 ```bash
 $ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
 $ curl http://<node-ip>:$PORT/hello-kairos.iso -o output.iso
+```
+## Netboot artifacts
+
+It is possible to use the CRD to prepare artifacts required for netbooting, by enabling `netboot: true` for instance:
+
+```yaml
+kind: OSArtifact
+metadata:
+  name: hello-kairos
+spec:
+  imageName: "quay.io/kairos/core-opensuse:latest"
+  netboot: true
+  netbootURL: "http://..."
+  bundles:
+  # Bundles available at: https://packages.kairos.io/Kairos/
+  - quay.io/kairos/packages:helm-utils-3.10.1
+  cloudConfig: |
+            #cloud-config
+            users:
+            - name: "kairos"
+              passwd: "kairos"
+            install:
+              device: "auto"
+              reboot: true
+              poweroff: false
+              auto: true # Required, for automated installations
 ```
 
 ## Build a Cloud Image
@@ -114,7 +142,15 @@ $ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
 $ curl http://<node-ip>:$PORT/hello-kairos.raw -o output.raw
 ```
 
-To run locally with QEMU:
+Note, in order to use the image with QEMU, we need to resize the disk at least to 32GB, this can be done via CRD by setting `diskSize: 32000` or by truncating the file after downloading:
+
+```bash
+truncate -s "+$((32000*1024*1024))" hello-kairos.raw 
+```
+
+This is not required if running the image in the Cloud as providers usually resize the disk during import or creation of new instances.
+
+To run the image locally with QEMU we need `qemu` installed in the system, and we need to be able to run VMs with EFI, for example:
 
 ```bash
 qemu-system-x86_64 -m 2048 -bios /usr/share/qemu/ovmf-x86_64.bin -drive if=virtio,media=disk,file=output.raw
