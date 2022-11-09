@@ -19,7 +19,7 @@ require (
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.5.0
 	github.com/onsi/gomega v1.24.1
-	github.com/otiai10/copy v1.7.0
+	github.com/otiai10/copy v1.9.0
 	github.com/pterm/pterm v0.12.49
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/spectrocloud/peg v0.0.0-20221005172954-aa887438fafc
