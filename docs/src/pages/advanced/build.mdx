@@ -13,8 +13,10 @@ This page is a work in progress!
 The feature is experimental and API is likely going to be subject to changes, don't rely on it yet!
 </Info>
 
-While it's possible to just run Kairos from the artifacts provided by our release process, there are specific use-cases which are not covered, for example when
-additional kernel modules, or specific configuration that you might want to embed in the media used for installations to drive with custom, user-defined logics.
+This documentation section describes how the Kairos Kubernetes Native API extensions can be used to build custom appliances or booting medium for Kairos.
+
+While it's possible to just run Kairos from the artifacts provided by our release process, there are specific use-cases which needs extended customization, for example when
+additional kernel modules, or custom, user-defined logics that you might want to embed in the media used for installations.
 
 Note the same can be achieved by using advanced configuration and actually modify the images during installation phase by leveraging the `chroot` stages that takes place in the image - this is discouraged - as it goes in opposite with the "Single Image", "No infrastructure drift" approach of Kairos. The idea here is to create a system from "scratch" and applying it to our nodes - not to run any specifc logic in the node itself.
 
@@ -94,26 +96,15 @@ metadata:
 spec:
   imageName: "quay.io/kairos/core-opensuse:latest"
   netboot: true
-  netbootURL: "http://..."
-  bundles:
-  # Bundles available at: https://packages.kairos.io/Kairos/
-  - quay.io/kairos/packages:helm-utils-3.10.1
-  cloudConfig: |
-            #cloud-config
-            users:
-            - name: "kairos"
-              passwd: "kairos"
-            install:
-              device: "auto"
-              reboot: true
-              poweroff: false
-              auto: true # Required, for automated installations
+  netbootURL: ...
+  bundles: ...
+  cloudConfig: ...
 ```
 
 ## Build a Cloud Image
 
 Cloud images are images that automatically boots into recovery mode and can be used to deploy whatever image you want to the VM. 
-Custom user-data from the Cloud provider is supported, additionally the CRD allows to embed a custom cloudConfig additionally that we can use to make configuration permanent.
+Custom user-data from the Cloud provider is automatically retrieved, additionally the CRD allows to embed a custom cloudConfig so that we can use to make configuration permanent also for VM images running outside a cloud provider.
 
 A Cloud Image boots in QEMU and also in AWS, consider:
 
@@ -125,24 +116,51 @@ metadata:
 spec:
   imageName: "quay.io/kairos/core-opensuse:latest"
   cloudImage: true
-  bundles:
-  # Bundles available at: https://packages.kairos.io/Kairos/
-  - quay.io/kairos/packages:helm-utils-3.10.1
   cloudConfig: |
             #cloud-config
             users:
             - name: "kairos"
               passwd: "kairos"
+            name: "Default deployment"
+            stages:
+              boot:
+              - name: "Repart image"
+                layout:
+                  device:
+                    label: COS_RECOVERY
+                  add_partitions:
+                    - fsLabel: COS_STATE
+                      size: 16240 # At least 16gb
+                      pLabel: state
+              - name: "Repart image"
+                layout:
+                  device:
+                    label: COS_RECOVERY
+                  add_partitions:
+                    - fsLabel: COS_PERSISTENT
+                      pLabel: persistent
+                      size: 0 # all space
+              - if: '[ -f "/run/cos/recovery_mode" ] && [ ! -e /usr/local/.deployed ]'
+                name: "Deploy cos-system"
+                commands:
+                  - |
+                      # Use `elemental reset --system.uri docker:<img-ref>` to deploy a custom image
+                      elemental reset && \
+                      touch /usr/local/.deployed && \
+                      reboot
 ```
 
-Will create a `hello-kairos.raw` file, which is an EFI bootable raw disk, bootable in QEMU and compatible with AWS:
+Note: Since the image come with only the `recovery` system populated, we need to apply a cloud-config similar to this one which tells which container image we want to deploy.
+The first steps when the machine boots into is to actually create the partitions needed to boot the active and the passive images, and its populated during the first boot.
+
+After applying the spec, the controller will create a pod which runs the build process and create a `hello-kairos.raw` file, which is an EFI bootable raw disk, bootable in QEMU and compatible with AWS which automatically provision the node:
 
 ```bash
 $ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
 $ curl http://<node-ip>:$PORT/hello-kairos.raw -o output.raw
 ```
 
-Note, in order to use the image with QEMU, we need to resize the disk at least to 32GB, this can be done via CRD by setting `diskSize: 32000` or by truncating the file after downloading:
+Note, in order to use the image with QEMU, we need to resize the disk at least to 32GB, this can be done with the CRD by setting `diskSize: 32000` or by truncating the file after downloading:
 
 ```bash
 truncate -s "+$((32000*1024*1024))" hello-kairos.raw 
@@ -154,44 +172,6 @@ To run the image locally with QEMU we need `qemu` installed in the system, and w
 
 ```bash
 qemu-system-x86_64 -m 2048 -bios /usr/share/qemu/ovmf-x86_64.bin -drive if=virtio,media=disk,file=output.raw
-```
-
-Since the image come with only the `recovery` system populated, we need to apply a cloud-config similar to this one which tells which container image we want to deploy.
-The first steps when the machine boots into is to actually create the partitions needed to boot the active and the passive images, and its populated during the first boot.
-
-```yaml
-name: "Default deployment"
-stages:
- rootfs.after:
-   - name: "Repart image"
-     layout:
-       # It will partition a device including the given filesystem label or part label (filesystem label matches first)
-       device:
-         label: COS_RECOVERY
-       add_partitions:
-         - fsLabel: COS_STATE
-           # 10Gb for COS_STATE, so the disk should have at least 16Gb
-           size: 10240
-           pLabel: state
-         - fsLabel: COS_PERSISTENT
-           # unset size or 0 size means all available space
-           pLabel: persistent
- initramfs:
-   - if: '[ -f "/run/cos/recovery_mode" ]'
-     name: "Set sshd to wait for deployment"
-     files:
-     - path: "/etc/systemd/system/sshd.service.d/override.conf"
-       content: |
-           [Unit]
-           After=cos-setup-network.service
- network:
-   - if: '[ -f "/run/cos/recovery_mode" ]'
-     name: "Deploy cos-system"
-     commands:
-       - |
-           # Use `elemental reset --system.uri docker:<img-ref>` to deploy a custom image
-           # By default the recovery Elemental gets deployed
-           elemental reset --reboot
 ```
 
 ### Use the Image in AWS
@@ -236,14 +216,7 @@ metadata:
 spec:
   imageName: "quay.io/kairos/core-opensuse:latest"
   azureImage: true
-  bundles:
-  # Bundles available at: https://packages.kairos.io/Kairos/
-  - quay.io/kairos/packages:helm-utils-3.10.1
-  cloudConfig: |
-            #cloud-config
-            users:
-            - name: "kairos"
-              passwd: "kairos"
+  ...
 ```
 
 Will generate a compressed disk `hello-kairos-azure.vhd` ready to be used in GCE.
@@ -282,14 +255,7 @@ metadata:
 spec:
   imageName: "quay.io/kairos/core-opensuse:latest"
   gceImage: true
-  bundles:
-  # Bundles available at: https://packages.kairos.io/Kairos/
-  - quay.io/kairos/packages:helm-utils-3.10.1
-  cloudConfig: |
-            #cloud-config
-            users:
-            - name: "kairos"
-              passwd: "kairos"
+  ...
 ```
 
 Will generate a compressed disk `hello-kairos.gce.raw.tar.gz` ready to be used in GCE.
