@@ -18,7 +18,7 @@
     "@fortawesome/react-fontawesome": "^0.2.0",
     "astro": "^1.2.2",
     "install": "^0.13.0",
-    "npm": "^8.19.2",
+    "npm": "^9.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
