@@ -12,6 +12,7 @@ require (
 	github.com/itchyny/gojq v0.12.9
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.4.0
+	github.com/kairos-io/kcrypt v0.4.3
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
 	github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
@@ -82,12 +83,13 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
+	github.com/stretchr/testify v1.8.1 // indirect
 	github.com/wayneashleyberry/terminal-dimensions v1.1.0 // indirect
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	golang.org/x/crypto v0.2.0 // indirect
 	golang.org/x/image v0.0.0-20191206065243-da761ea9ff43 // indirect
 	golang.org/x/net v0.2.0 // indirect
 	golang.org/x/sys v0.2.0 // indirect
