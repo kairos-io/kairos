@@ -35,6 +35,7 @@ RUN apt install -y \
     neovim \
     open-vm-tools \
     conntrack \
+    snapd \
     iptables \
     linux-image-generic-hwe-20.04 && apt-get clean
 

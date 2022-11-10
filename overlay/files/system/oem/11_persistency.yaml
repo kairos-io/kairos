@@ -13,6 +13,7 @@ stages:
           /etc/modprobe.d
           /etc/rancher
           /etc/sysconfig
+          /etc/profile.d
           /etc/runlevels
           /etc/ssh
           /etc/ssl/certs
@@ -22,10 +23,12 @@ stages:
           /home
           /opt
           /root
+          /snap
           /usr/libexec
           /var/log
           /var/lib/rancher
           /var/lib/kubelet
+          /var/lib/snapd
           /var/lib/wicked
           /var/lib/longhorn
           /var/lib/cni
