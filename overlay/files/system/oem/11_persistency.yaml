@@ -13,7 +13,6 @@ stages:
           /etc/modprobe.d
           /etc/rancher
           /etc/sysconfig
-          /etc/profile.d
           /etc/runlevels
           /etc/ssh
           /etc/ssl/certs
