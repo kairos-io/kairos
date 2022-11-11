@@ -51,3 +51,24 @@ $ sudo umount /tmp/persistent
 ```
 
 You can push additional `cloud config` files. For a full reference check out the [docs](/reference/configuration) and also [configuration after-installation](/advanced/after-install)
+
+## Customizing the disk image
+
+The following shell script shows how to localy rebuild and customize the image with docker
+
+```
+IMAGE=quay.io/kairos/kairos-alpine-arm-rpi:v1.1.6-k3sv1.25.3-k3s1
+# Pull the image locally
+docker pull $IMAGE
+mkdir -p build
+docker run -v $PWD:/HERE -v /var/run/docker.sock:/var/run/docker.sock --privileged -i --rm --entrypoint=/build-arm-image.sh quay.io/kairos/osbuilder-tools:v0.4.0 \
+ --model rpi64 \
+ --state-partition-size 6200 \
+ --recovery-partition-size 4200 \
+ --size 15200 \
+ --images-size 2000 \
+ --local \
+ --config /HERE/cloud-config.yaml \
+ --docker-image $IMAGE /HERE/build/out.img
+
+```
