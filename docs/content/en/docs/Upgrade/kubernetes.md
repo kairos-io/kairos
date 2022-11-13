@@ -6,11 +6,11 @@ date: 2022-11-13
 description: >
 ---
 
-Kairos upgrades can be performed either manually or via Kubernetes if the cluster is composed of Kairos nodes. In order to trigger upgrades, it is required to apply a Central Registration Depository (CRD®) to the target cluster for the upgrade.
+Kairos upgrades can be performed either manually or via Kubernetes if the cluster is composed of Kairos nodes. In order to trigger upgrades, it is required to apply a `Plan` spec to the target cluster for the upgrade.
 
-### Upgrading from version X to version Y with Kubernetes
+## Prerequisites
 
-To upgrade a node, it is necessary [system-upgrade-controller](https://github.com/rancher/system-upgrade-controller) to be deployed in the target cluster.
+- It is necessary [system-upgrade-controller](https://github.com/rancher/system-upgrade-controller) to be deployed in the target cluster.
 
 To install it, use kubectl:
 
@@ -18,7 +18,9 @@ To install it, use kubectl:
 kubectl apply -f https://github.com/rancher/system-upgrade-controller/releases/download/v0.9.1/system-upgrade-controller.yaml
 ```
 
-To trigger an upgrade, create a plan for the `system-upgrade-controller` which refers to the image version that we want to upgrade.
+### Upgrading from version X to version Y with Kubernetes
+
+To trigger an upgrade, create a plan for `system-upgrade-controller` which refers to the image version that we want to upgrade.
 
 ```bash
 cat <<'EOF' | kubectl apply -f -
