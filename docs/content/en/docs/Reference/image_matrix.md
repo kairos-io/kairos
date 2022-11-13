@@ -1,0 +1,28 @@
+---
+title: "Image support matrix"
+linkTitle: "Image support matrix"
+weight: 5
+date: 2022-11-13
+description: >
+---
+
+Kairos builds several artifacts for user convenience which are based on openSUSE, Alpine Linux, and Ubuntu.
+
+The images are pushed over quay.io, and are available for installation and upgrading.
+
+The installable mediums part of the releases are generated with the methods described in the [automated installation reference](/docs/installation/automated/#iso-remastering) from the images sources listed below, and the images can be used to point over for upgrades, as well.
+
+
+| **Flavor/Variant**                                  	| **Core (no k3s)**                                       	| **Standard(k3s+opt.full-mesh)**                           	|
+|-----------------------------------------------------	|---------------------------------------------------------	|-----------------------------------------------------------	|
+| **openSUSE based**                                  	| https://quay.io/repository/kairos/core-opensuse         	| https://quay.io/repository/kairos/kairos-opensuse         	|
+| **Ubuntu based (rolling)** **                                   	| https://quay.io/repository/kairos/core-ubuntu           	| https://quay.io/repository/kairos/kairos-ubuntu           	|
+| **Ubuntu based (22 LTS)** **                                    	| https://quay.io/repository/kairos/core-ubuntu-22-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	|
+| **Ubuntu based (20 LTS)** **                                   	| https://quay.io/repository/kairos/core-ubuntu-20-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	|
+| **Alpine Linux based**                              	| https://quay.io/repository/kairos/core-alpine           	| https://quay.io/repository/kairos/kairos-alpine           	|
+| **openSUSE based (RaspberryPi 3 and 4, arm64)**     	| https://quay.io/repository/kairos/core-opensuse-arm-rpi 	| https://quay.io/repository/kairos/kairos-opensuse-arm-rpi 	|
+| **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	| https://quay.io/repository/kairos/core-alpine-arm-rpi   	| https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	|
+
+<Info>
+** the `ubuntu` flavor tracks the latest available Ubuntu release (at the time of writing 22.10). the LTS flavors instead are tracking the latest LTS available in dockerhub. i.e. ubuntu-22-lts uses 22.04 as base image
+</Info>

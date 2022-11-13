@@ -1,17 +1,13 @@
-export HUGO_VERSION?=0.91.2
+export HUGO_VERSION?=0.105.0
 export HUGO_PLATFORM?=Linux-64bit
 
-export ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))/
+export ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
 .DEFAULT_GOAL := build
 
 .PHONY: build
 build:
 	scripts/build.sh
-	cp -r dist/* public
-ifneq (,$(wildcard ./CNAME))
-	cp -rf CNAME public/
-endif
 
 .PHONY: serve
 serve:

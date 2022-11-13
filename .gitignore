@@ -15,6 +15,11 @@ docs/dist
 docs/.vscode
 coverage.out
 .DS_Store
+/docs/bin/
+/docs/public/
+/docs/resources/
+/docs/node_modules/
+/docs/tech-doc-hugo
 
 # editor and IDE paraphernalia
 .idea
