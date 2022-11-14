@@ -161,19 +161,17 @@ framework:
 
     ENV USER=root
 
-    IF [ "$FLAVOR" == "ubuntu-20-lts" ] || [ "$FLAVOR" == "ubuntu-22-lts" ]
-        ARG TOOLKIT_IMG="ubuntu"
-    ELSE IF [ "$FLAVOR" == "rockylinux" ]
-        ARG TOOLKIT_IMG="fedora"
-    ELSE IF [ "$FLAVOR" != "ubuntu" ] && [ "$FLAVOR" != "opensuse" ] && [ "$FLAVOR" != "fedora" ]
-        ARG TOOLKIT_IMG="opensuse"
-    ELSE
-        ARG TOOLKIT_IMG="$FLAVOR"
-    END
-
     # Framework files
     RUN luet install -y --system-target /framework \
-            system/elemental-toolkit-$TOOLKIT_IMG dracut/kcrypt system/kcrypt system/suc-upgrade
+            system/base-cloud-config dracut/immutable-rootfs dracut/kcrypt static/grub-config system/kcrypt system/suc-upgrade system/shim system/grub2-efi system/elemental-cli
+
+    IF [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    RUN luet install -y --system-target /framework \
+        init-svc/openrc
+    ELSE
+    RUN luet install -y --system-target /framework \
+        init-svc/systemd
+    END
 
     # Keep openSUSE kernel on ARM
     IF [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
@@ -183,11 +181,6 @@ framework:
         RUN luet install -y --system-target /framework \
             distro-kernels/ubuntu distro-initrd/ubuntu
     END
-
-    # Required for Secure boot
-    RUN luet install -y --system-target /framework system/shim system/grub2-efi
-    # Elemental CLI
-    RUN luet install -y --system-target /framework system/elemental-cli
 
     COPY +luet/luet /framework/usr/bin/luet
 
@@ -254,6 +247,24 @@ docker:
 
     # Copy kairos binaries
     COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    
+    # Enable services
+    IF [ -f /sbin/openrc ]
+     RUN mkdir -p /etc/runlevels/default && \
+      ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
+      ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
+      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
+      ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
+    # Otherwise we assume systemd
+    ELSE
+        RUN ls -liah /etc/systemd/system
+	RUN systemctl enable cos-setup-rootfs.service && \
+	    systemctl enable cos-setup-initramfs.service && \
+	    systemctl enable cos-setup-reconcile.timer && \
+	    systemctl enable cos-setup-fs.service && \
+	    systemctl enable cos-setup-boot.service && \
+	    systemctl enable cos-setup-network.service
+    END
 
     # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
