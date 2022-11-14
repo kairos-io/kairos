@@ -5,8 +5,6 @@ weight: 4
 description: >
 ---
 
-# Live layering
-
 Live layering allows to activates/deactivates system extension images. System extension images may – dynamically at runtime — extend the `/usr/` and `/opt/` directory hierarchies with additional files.
 
 Kairos supports live layering with `systemd-sysext`. Currently it is supported only on the `openSUSE`, `Fedora` and `Ubuntu` flavors with `systemd-sysext`.
