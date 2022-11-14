@@ -96,13 +96,6 @@ RUN apk --no-cache add  \
       open-vm-tools-vmbackup \
       openntpd
 
-RUN mkdir -p /etc/runlevels/default && \
-      ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
-      ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
-      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
-      ln -sf /etc/init.d/crond /etc/runlevels/default/crond && \
-      ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
-
 RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
     rc-update add acpid boot && \
@@ -111,6 +104,7 @@ RUN rc-update add sshd boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
     rc-update add openntpd boot && \
+    rc-update add crond && \
     rc-update add fail2ban
 
 # Symlinks to make elemental installer work
