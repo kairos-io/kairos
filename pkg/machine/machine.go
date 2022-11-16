@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/denisbrodbeck/machineid"
@@ -135,4 +136,16 @@ func ExecuteInlineCloudConfig(cloudConfig, stage string) error {
 func ExecuteCloudConfig(file, stage string) error {
 	_, err := utils.SH(fmt.Sprintf("elemental run-stage -s %s %s", stage, file))
 	return err
+}
+
+func FindCommand(def string, options []string) string {
+	for _, p := range options {
+		path, err := exec.LookPath(p)
+		if err == nil {
+			return path
+		}
+	}
+
+	// Otherwise return default
+	return def
 }

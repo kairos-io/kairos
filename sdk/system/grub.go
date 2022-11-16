@@ -37,7 +37,7 @@ func setGRUBOptions(opts map[string]string) error {
 	}()
 
 	for k, v := range opts {
-		out, err := utils.SH(fmt.Sprintf(`grub2-editenv /tmp/oem/grubenv set "%s=%s"`, k, v))
+		out, err := utils.SH(fmt.Sprintf(`%s /tmp/oem/grubenv set "%s=%s"`, machine.FindCommand("grub2-editenv", []string{"grub2-editenv", "grub-editenv"}), k, v))
 		if err != nil {
 			fmt.Printf("could not set boot option: %s\n", out+err.Error())
 		}
