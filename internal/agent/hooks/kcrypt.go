@@ -9,6 +9,8 @@ import (
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
 	cp "github.com/otiai10/copy"
+
+	pi "github.com/kairos-io/kcrypt/pkg/partition_info"
 )
 
 type Kcrypt struct{}
@@ -36,6 +38,21 @@ func (k Kcrypt) Run(c config.Config) error {
 			// Give time to show the error
 			time.Sleep(10 * time.Second)
 			return nil // do not error out
+		}
+
+		partitionInfo, _, err := pi.NewPartitionInfoFromFile(pi.DefaultPartitionInfoFile)
+		if err != nil {
+			fmt.Printf("Could not parse partition info file")
+			if c.FailOnBundleErrors {
+				return err
+			}
+		}
+		err = partitionInfo.UpdateMapping(out)
+		if err != nil {
+			fmt.Println("Failed updating the partition info file: ", err.Error())
+			if c.FailOnBundleErrors {
+				return err
+			}
 		}
 	}
 
