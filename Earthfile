@@ -176,7 +176,7 @@ framework:
     # Keep openSUSE kernel on ARM
     IF [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
         RUN luet install -y --system-target /framework \
-            distro-kernels/opensuse distro-initrd/opensuse
+            distro-kernels/opensuse-leap distro-initrd/opensuse-leap
     ELSE IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ]
         RUN luet install -y --system-target /framework \
             distro-kernels/ubuntu distro-initrd/ubuntu
