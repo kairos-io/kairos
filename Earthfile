@@ -165,6 +165,14 @@ framework:
     RUN luet install -y --system-target /framework \
             system/base-cloud-config dracut/immutable-rootfs dracut/kcrypt static/grub-config system/kcrypt system/suc-upgrade system/shim system/grub2-efi system/elemental-cli
 
+    IF [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+    RUN luet install -y --system-target /framework \
+        dracut/kairos-compat
+    ELSE
+    RUN luet install -y --system-target /framework \
+        dracut/kairos
+    END
+
     IF [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
     RUN luet install -y --system-target /framework \
         init-svc/openrc
