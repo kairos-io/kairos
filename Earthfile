@@ -163,14 +163,12 @@ framework:
 
     # Framework files
     RUN luet install -y --system-target /framework \
-            system/base-cloud-config dracut/immutable-rootfs dracut/kcrypt static/grub-config system/kcrypt system/suc-upgrade system/shim system/grub2-efi system/elemental-cli
+            system/base-cloud-config dracut/immutable-rootfs dracut/kcrypt dracut/network static/grub-config system/kcrypt system/suc-upgrade system/shim system/grub2-efi system/elemental-cli
 
-    IF [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+    # Ubuntu doesn't have systemd-sysext, neither a systemd-resolved dracut module (it is embedded into the ntework one)
+    IF [[ ! "$FLAVOR" =~ "ubuntu" ]] && [[ ! "$FLAVOR" = "rockylinux ]] && [[ ! "$FLAVOR" = "fedora" ]
     RUN luet install -y --system-target /framework \
-        dracut/kairos-compat
-    ELSE
-    RUN luet install -y --system-target /framework \
-        dracut/kairos
+        dracut/sysext dracut/systemd-resolved
     END
 
     IF [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
