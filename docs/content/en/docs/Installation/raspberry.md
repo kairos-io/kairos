@@ -19,11 +19,7 @@ If you are not familiar with the process, it is suggested to follow the [quickst
 
 ## Download
 
-Download the Kairos images from the [Releases](https://github.com/kairos-io/provider-kairos/releases) you are interested in. For example, for RPI and `k3sv1.21.14+k3s1`:
-
-```bash
-wget https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0-rc2/kairos-opensuse-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img
-```
+Extract the `img` file from a container image as described [in this page](/docs/reference/image_matrix)
 
 ## Flash the image
 
