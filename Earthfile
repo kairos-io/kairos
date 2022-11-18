@@ -166,7 +166,7 @@ framework:
             system/base-cloud-config dracut/immutable-rootfs dracut/kcrypt dracut/network static/grub-config system/kcrypt system/suc-upgrade system/shim system/grub2-efi system/elemental-cli
 
     # Ubuntu doesn't have systemd-sysext, neither a systemd-resolved dracut module (it is embedded into the ntework one)
-    IF [[ ! "$FLAVOR" =~ "ubuntu" ]] && [[ ! "$FLAVOR" = "rockylinux ]] && [[ ! "$FLAVOR" = "fedora" ]
+    IF [[ ! "$FLAVOR" =~ "ubuntu" ]] && [[ ! "$FLAVOR" = "rockylinux"  ]] && [[ ! "$FLAVOR" = "fedora" ]
     RUN luet install -y --system-target /framework \
         dracut/sysext dracut/systemd-resolved
     END
