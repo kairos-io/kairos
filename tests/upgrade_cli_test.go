@@ -25,7 +25,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 				Fail("CONTAINER_IMAGE needs to be set")
 			}
 
-			if os.Getenv("FLAVOR") == "alpine" {
+			if isFlavor("alpine") {
 				out, _ := Sudo("rc-status")
 				Expect(out).Should(ContainSubstring("kairos"))
 				Expect(out).Should(ContainSubstring("kairos-agent"))
