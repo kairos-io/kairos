@@ -23,6 +23,20 @@ The installable mediums part of the releases are generated with the methods desc
 | **openSUSE based (RaspberryPi 3 and 4, arm64)**     	| https://quay.io/repository/kairos/core-opensuse-arm-rpi 	| https://quay.io/repository/kairos/kairos-opensuse-arm-rpi 	|
 | **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	| https://quay.io/repository/kairos/core-alpine-arm-rpi   	| https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	|
 
-<Info>
+{{% alert title="Note" color="info" %}}
 ** the `ubuntu` flavor tracks the latest available Ubuntu release (at the time of writing 22.10). the LTS flavors instead are tracking the latest LTS available in dockerhub. i.e. ubuntu-22-lts uses 22.04 as base image
-</Info>
+{{% /alert %}}
+
+{{% alert title="Note" color="info" %}}
+  The pipelines don't publish `img` artifacts for arm architecture because the files are too big for Github Actions (they are above the artifact size limit).
+  They can be extracted from the published docker images with the following command:
+
+  ```bash
+  export IMAGE=quay.io/kairos/core-alpine-arm-rpi:v1.1.7.img
+  docker run -ti --rm -v $PWD:/image quay.io/luet/base util unpack "$IMAGE" /image
+  ```
+
+  (replace with the proper image)
+
+  The artifacts are in the `build/` directory.
+{{% /alert %}}

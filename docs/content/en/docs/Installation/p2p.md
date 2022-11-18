@@ -80,9 +80,9 @@ sudo kairos bridge --network-token <TOKEN>
 
 This command will create a TUN device in your machine and will make possible to contact each node in the cluster.
 
-<Info>
+{{% alert title="Note" color="info" %}}
 The command requires root permissions in order to create a TUN/TAP device on the host.
-</Info>
+{{% /alert %}}
 
 An API will be also available at [localhost:8080](http://localhost:8080) for inspecting the network status.
 
@@ -100,6 +100,6 @@ To retrieve `kubeconfig`, run the following:
 kairos get-kubeconfig > kubeconfig
 ```
 
-<Info>
+{{% alert title="Note" color="info" %}}
 `kairos bridge` acts like `kubectl proxy`. You need to keep it open to operate the Kubernetes cluster and access the API.
-</Info>
+{{% /alert %}}
