@@ -147,6 +147,64 @@ stages:
 
 The extended syntax can be also used to pass-by commands via Kernel boot parameters, see examples below. 
 
+## Test your cloud configs
+
+Writing YAML files can be a tedious process, where syntax or intendation errors might occour.
+
+To test your configuration, you can leverage the cloud-init commands, to test locally in a container, for instance, consider:
+
+```bash
+
+$ ls -liah
+total 32K
+38548066 drwxr-xr-x 2 mudler mudler 4.0K Nov 12 19:21 .
+38548063 drwxr-xr-x 3 mudler mudler 4.0K Nov 12 19:21 ..
+38548158 -rw-r--r-- 1 mudler mudler 1.4K Nov 12 19:21 00_rootfs.yaml
+38548159 -rw-r--r-- 1 mudler mudler 1.1K Nov 12 19:21 06_recovery.yaml
+38552350 -rw-r--r-- 1 mudler mudler  608 Nov 12 19:21 07_live.yaml
+38552420 -rw-r--r-- 1 mudler mudler 5.3K Nov 12 19:21 08_boot_assessment.yaml
+38553235 -rw-r--r-- 1 mudler mudler  380 Nov 12 19:21 09_services.yaml
+
+$ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm quay.io/kairos/core-alpine cloud-init /test
+INFO[2022-11-18T08:51:33Z] Starting elemental version v0.0.1
+INFO[2022-11-18T08:51:33Z] Running stage: default
+INFO[2022-11-18T08:51:33Z] Executing /test/00_rootfs.yaml
+INFO[2022-11-18T08:51:33Z] Executing /test/06_recovery.yaml
+INFO[2022-11-18T08:51:33Z] Executing /test/07_live.yaml
+INFO[2022-11-18T08:51:33Z] Executing /test/08_boot_assessment.yaml
+INFO[2022-11-18T08:51:33Z] Executing /test/09_services.yaml
+INFO[2022-11-18T08:51:33Z] Done executing stage 'default'
+```
+
+Note that by default the "default" stage is executed - which doesn't actually map to any stage, to test, for instance other stage, we can use the `--stage (-s)` option, for example for `initramfs`:
+
+```bash
+$ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm quay.io/kairos/core-alpine cloud-init -s initramfs /test
+```
+
+It is possible also to test individual file by piping them to cloud-init, consider:
+
+```bash
+cat <<EOF | docker run -i --rm --entrypoint /usr/bin/elemental quay.io/kairos/core-alpine cloud-init -s test -
+stages:
+ test:
+ - commands:
+   - echo "test"
+EOF
+
+# INFO[2022-11-18T08:53:45Z] Starting elemental version v0.0.1
+# INFO[2022-11-18T08:53:45Z] Running stage: test
+# INFO[2022-11-18T08:53:45Z] Executing stages:
+# test:
+# - commands:
+#   - echo "test"
+# INFO[2022-11-18T08:53:45Z] Applying '' for stage 'test'. Total stages: 1
+# INFO[2022-11-18T08:53:45Z] Processing stage step ''. ( commands: 1, files: 0, ... )
+# INFO[2022-11-18T08:53:45Z] Command output: test
+# INFO[2022-11-18T08:53:45Z] Stage 'test'. Defined stages: 1. Errors: false
+# INFO[2022-11-18T08:53:45Z] Done executing stage 'test'
+```
+
 ## Automatic Hostname at scale
 
 Sometimes you may want to create a single `cloud-init` file for a set of machines and also make sure each node has a different hostname.
