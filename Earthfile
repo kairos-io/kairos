@@ -171,7 +171,7 @@ framework:
         dracut/sysext dracut/systemd-resolved
     END
 
-    IF [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    IF [[ "$FLAVOR" =~ "alpine" ]]
     RUN luet install -y --system-target /framework \
         init-svc/openrc
     ELSE
@@ -180,10 +180,10 @@ framework:
     END
 
     # Keep openSUSE kernel on ARM
-    IF [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+    IF [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "alpine-arm-rpi" ] || [ "$FLAVOR" = "alpine-opensuse-leap" ]
         RUN luet install -y --system-target /framework \
             distro-kernels/opensuse-leap distro-initrd/opensuse-leap
-    ELSE IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ]
+    ELSE IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
         RUN luet install -y --system-target /framework \
             distro-kernels/ubuntu distro-initrd/ubuntu
     END
@@ -238,10 +238,11 @@ docker:
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
     # Copy flavor-specific overlay files
-    IF [ "$FLAVOR" = "alpine" ]
+    IF [[ "$FLAVOR" =~ "alpine" ]]
         COPY overlay/files-alpine/ /
-    ELSE IF [ "$FLAVOR" = "alpine-arm-rpi" ]
-        COPY overlay/files-alpine/ /
+    END
+    
+    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
@@ -432,7 +433,7 @@ linux-bench-scan:
 ###
 ### Test targets
 ###
-# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
+# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
     FROM opensuse/leap
     WORKDIR /test

@@ -19,7 +19,8 @@ The installable mediums part of the releases are generated with the methods desc
 | **Ubuntu based (rolling)** **                                   	| https://quay.io/repository/kairos/core-ubuntu           	| https://quay.io/repository/kairos/kairos-ubuntu           	|
 | **Ubuntu based (22 LTS)** **                                    	| https://quay.io/repository/kairos/core-ubuntu-22-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	|
 | **Ubuntu based (20 LTS)** **                                   	| https://quay.io/repository/kairos/core-ubuntu-20-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	|
-| **Alpine Linux based**                              	| https://quay.io/repository/kairos/core-alpine           	| https://quay.io/repository/kairos/kairos-alpine           	|
+| **Alpine Linux based (openSUSE kernel)**                              	| https://quay.io/repository/kairos/core-alpine-opensuse-leap           	| https://quay.io/repository/kairos/kairos-alpine-opensuse-leap           	|
+| **Alpine Linux based (Ubuntu kernel)**                              	| https://quay.io/repository/kairos/core-alpine-ubuntu           	| https://quay.io/repository/kairos/kairos-alpine-ubuntu           	|
 | **openSUSE based (RaspberryPi 3 and 4, arm64)**     	| https://quay.io/repository/kairos/core-opensuse-arm-rpi 	| https://quay.io/repository/kairos/kairos-opensuse-arm-rpi 	|
 | **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	| https://quay.io/repository/kairos/core-alpine-arm-rpi   	| https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	|
 

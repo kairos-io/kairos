@@ -28,7 +28,7 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 
 	Context("live cd", func() {
 		It("has default service active", func() {
-			if os.Getenv("FLAVOR") == "alpine" {
+			if isFlavor("alpine") {
 				out, _ := Sudo("rc-status")
 				Expect(out).Should(ContainSubstring("kairos"))
 				Expect(out).Should(ContainSubstring("kairos-agent"))
