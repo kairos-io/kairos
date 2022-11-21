@@ -6,7 +6,7 @@ ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.33.0
 ARG OS_ID=kairos
-ARG REPOSITORIES_FILE=repositories.yaml
+ARG REPOSITORIES_FILE=framework-profile.yaml
 
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
@@ -146,7 +146,8 @@ framework:
     ARG COSIGN_REPOSITORY
     ARG WITH_KERNEL
 
-    FROM alpine
+    FROM golang:alpine
+    WORKDIR /build
     COPY +luet/luet /usr/bin/luet
 
     # cosign keyless verify
@@ -156,37 +157,11 @@ framework:
     # Skip this repo artifacts verify as they are not signed
     ENV COSIGN_SKIP=${COSIGN_SKIP}
 
-    # Copy the luet config file pointing to the upgrade repository
-    COPY repositories/$REPOSITORIES_FILE /etc/luet/luet.yaml
-
     ENV USER=root
 
-    # Framework files
-    RUN luet install -y --system-target /framework \
-            system/base-cloud-config dracut/immutable-rootfs dracut/kcrypt dracut/network static/grub-config system/kcrypt system/suc-upgrade system/shim system/grub2-efi system/elemental-cli
-
-    # Ubuntu doesn't have systemd-sysext, neither a systemd-resolved dracut module (it is embedded into the ntework one)
-    IF [[ ! "$FLAVOR" =~ "ubuntu" ]] && [[ ! "$FLAVOR" = "rockylinux"  ]] && [[ ! "$FLAVOR" = "fedora" ]
-    RUN luet install -y --system-target /framework \
-        dracut/sysext dracut/systemd-resolved
-    END
-
-    IF [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-    RUN luet install -y --system-target /framework \
-        init-svc/openrc
-    ELSE
-    RUN luet install -y --system-target /framework \
-        init-svc/systemd
-    END
-
-    # Keep openSUSE kernel on ARM
-    IF [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-        RUN luet install -y --system-target /framework \
-            distro-kernels/opensuse-leap distro-initrd/opensuse-leap
-    ELSE IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ]
-        RUN luet install -y --system-target /framework \
-            distro-kernels/ubuntu distro-initrd/ubuntu
-    END
+    COPY . /build
+    
+    RUN go run ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
 
     COPY +luet/luet /framework/usr/bin/luet
 
@@ -238,10 +213,11 @@ docker:
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
     # Copy flavor-specific overlay files
-    IF [ "$FLAVOR" = "alpine" ]
+    IF [[ "$FLAVOR" =~ "alpine" ]]
         COPY overlay/files-alpine/ /
-    ELSE IF [ "$FLAVOR" = "alpine-arm-rpi" ]
-        COPY overlay/files-alpine/ /
+    END
+    
+    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
@@ -432,7 +408,7 @@ linux-bench-scan:
 ###
 ### Test targets
 ###
-# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
+# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
     FROM opensuse/leap
     WORKDIR /test

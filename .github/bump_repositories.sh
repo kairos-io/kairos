@@ -20,9 +20,9 @@ last_commit_snapshot() {
 latest_tag=$(last_commit_snapshot quay.io/kairos/packages)
 latest_tag_arm64=$(last_commit_snapshot quay.io/kairos/packages-arm64)
 
-for REPOFILE in repositories.yaml
+for REPOFILE in framework-profile.yaml
 do
-    $YQ eval "$(reference 0 $latest_tag)" -i repositories/$REPOFILE
-    $YQ eval "$(reference 1 $latest_tag_arm64)" -i repositories/$REPOFILE
+    $YQ eval "$(reference 0 $latest_tag)" -i $REPOFILE
+    $YQ eval "$(reference 1 $latest_tag_arm64)" -i $REPOFILE
 done
 

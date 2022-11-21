@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	process "github.com/mudler/go-processmanager"
@@ -148,4 +149,8 @@ func gatherLogs() {
 			"/run/events.json",
 			"/run/cmdline",
 		})
+}
+
+func isFlavor(flavor string) bool {
+	return strings.Contains(os.Getenv("FLAVOR"), flavor)
 }

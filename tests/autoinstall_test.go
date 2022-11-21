@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -35,7 +36,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 	Context("live cd", func() {
 		It("has default service active", func() {
-			if os.Getenv("FLAVOR") == "alpine" {
+			if strings.Contains(os.Getenv("FLAVOR"), "alpine") {
 				out, _ := Sudo("rc-status")
 				Expect(out).Should(ContainSubstring("kairos"))
 				Expect(out).Should(ContainSubstring("kairos-agent"))
