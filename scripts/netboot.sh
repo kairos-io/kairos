@@ -18,6 +18,10 @@ set url ${RELEASE_URL}/\${version}
 set kernel $OUTPUT_NAME-kernel
 set initrd $OUTPUT_NAME-initrd
 set rootfs $OUTPUT_NAME.squashfs
+# set dns 192.168.0.1
+set dns 8.8.8.8
+# Configure interface
+ifconf
 # set config https://example.com/machine-config
 # set cmdline extra.values=1
 kernel \${url}/\${kernel} initrd=\${initrd} ip=dhcp rd.cos.disable root=live:\${url}/\${rootfs} netboot nodepair.enable config_url=\${config} console=tty1 console=ttyS0 \${cmdline}
