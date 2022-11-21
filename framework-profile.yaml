@@ -1,65 +1,58 @@
 common:
-- system/base-cloud-config
-- dracut/immutable-rootfs
-- dracut/kcrypt
-- dracut/network
-- static/grub-config
-- system/kcrypt
-- system/suc-upgrade
-- system/shim
-- system/grub2-efi
-- system/elemental-cli
-
+  - system/base-cloud-config
+  - dracut/immutable-rootfs
+  - dracut/kcrypt
+  - dracut/network
+  - static/grub-config
+  - system/kcrypt
+  - system/suc-upgrade
+  - system/shim
+  - system/grub2-efi
+  - system/elemental-cli
 flavors:
-  ubuntu: 
-  - systemd-base
+  ubuntu:
+    - systemd-base
   ubuntu-22-lts:
-  - systemd-base
+    - systemd-base
   ubuntu-20-lts:
-  - systemd-base
+    - systemd-base
   fedora:
-  - systemd-base
+    - systemd-base
   rockylinux:
-  - systemd-base
+    - systemd-base
   opensuse:
-  - systemd-base
-  - systemd-latest
+    - systemd-base
+    - systemd-latest
   opensuse-arm-rpi:
-  - systemd-base
-  - systemd-latest
+    - systemd-base
+    - systemd-latest
   alpine-arm-rpi:
-  - opensuse-leap-kernel
-  - openrc
+    - opensuse-leap-kernel
+    - openrc
   alpine-opensuse-leap:
-  - openrc
-  - opensuse-leap-kernel
+    - openrc
+    - opensuse-leap-kernel
   alpine-ubuntu:
-  - ubuntu-kernel
-  - openrc
-
+    - ubuntu-kernel
+    - openrc
 openrc:
   packages:
-  - init-svc/openrc
-
+    - init-svc/openrc
 systemd-base:
   packages:
-  - init-svc/systemd
-
+    - init-svc/systemd
 opensuse-leap-kernel:
   packages:
-  - distro-kernels/opensuse-leap
-  - distro-initrd/opensuse-leap
-
+    - distro-kernels/opensuse-leap
+    - distro-initrd/opensuse-leap
 ubuntu-kernel:
   packages:
-  - distro-kernels/ubuntu
-  - distro-initrd/ubuntu
-
+    - distro-kernels/ubuntu
+    - distro-initrd/ubuntu
 systemd-latest:
   packages:
-  - dracut/sysext
-  - dracut/systemd-resolved
-
+    - dracut/sysext
+    - dracut/systemd-resolved
 repositories:
   - &kairos
     name: "kairos"
@@ -71,9 +64,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20221118114358-repository.yaml
+    reference: 20221121103515-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20221118115908-repository.yaml
+    reference: 20221121104704-repository.yaml
