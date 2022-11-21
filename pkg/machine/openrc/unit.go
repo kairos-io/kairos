@@ -2,7 +2,7 @@ package openrc
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -51,7 +51,7 @@ func NewService(opts ...ServiceOpts) (ServiceUnit, error) {
 func (s ServiceUnit) WriteUnit() error {
 	uname := s.name
 
-	if err := ioutil.WriteFile(filepath.Join(s.rootdir, fmt.Sprintf("/etc/init.d/%s", uname)), []byte(s.content), 0755); err != nil {
+	if err := os.WriteFile(filepath.Join(s.rootdir, fmt.Sprintf("/etc/init.d/%s", uname)), []byte(s.content), 0755); err != nil {
 		return err
 	}
 

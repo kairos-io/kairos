@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -141,7 +141,7 @@ func Scan(opts ...Option) (c *Config, err error) {
 			//fmt.Println("warning: Skipping file ", f, "as exceeds 1 MB in size")
 			continue
 		}
-		b, err := ioutil.ReadFile(f)
+		b, err := os.ReadFile(f)
 		if err == nil {
 			// best effort. skip lint checks
 			yaml.Unmarshal(b, c) //nolint:errcheck
@@ -164,7 +164,7 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 	// use last recorded if no config is found valid
 	if !configFound && lastYamlFileFound != "" {
-		b, err := ioutil.ReadFile(lastYamlFileFound)
+		b, err := os.ReadFile(lastYamlFileFound)
 		if err == nil {
 			yaml.Unmarshal(b, c) //nolint:errcheck
 			c.location = lastYamlFileFound
@@ -196,7 +196,7 @@ func Scan(opts ...Option) (c *Config, err error) {
 				}
 				defer resp.Body.Close()
 
-				body, err = ioutil.ReadAll(resp.Body)
+				body, err = io.ReadAll(resp.Body)
 				if err != nil {
 					return err
 				}
@@ -266,7 +266,7 @@ func SaveCloudConfig(name Stage, yc yip.YipConfig) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filepath.Join("usr", "local", "cloud-config", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
+	return os.WriteFile(filepath.Join("usr", "local", "cloud-config", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
 }
 
 func FromString(s string, o interface{}) error {

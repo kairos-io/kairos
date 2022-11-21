@@ -16,7 +16,6 @@
 package config_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -40,12 +39,12 @@ baz: bar
 kairos:
   network_token: foo
 `
-			d, _ := ioutil.TempDir("", "xxxx")
+			d, _ := os.MkdirTemp("", "xxxx")
 			defer os.RemoveAll(d)
 
-			err := ioutil.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
-			err = ioutil.WriteFile(filepath.Join(d, "b"), []byte(`
+			err = os.WriteFile(filepath.Join(d, "b"), []byte(`
 fooz:
 			`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -70,12 +69,12 @@ kairos:
 bb: 
   nothing: "foo"
 `
-			d, _ := ioutil.TempDir("", "xxxx")
+			d, _ := os.MkdirTemp("", "xxxx")
 			defer os.RemoveAll(d)
 
-			err := ioutil.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
-			err = ioutil.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
+			err = os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
 			c, err := Scan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")))
@@ -96,10 +95,10 @@ bb:
 			var cc string = `
 config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/bafae390eae4e6382fb1b68293568696823b3103/test.yaml"
 `
-			d, _ := ioutil.TempDir("", "xxxx")
+			d, _ := os.MkdirTemp("", "xxxx")
 			defer os.RemoveAll(d)
 
-			err := ioutil.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
 			c, err := Scan(Directories(d))

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -46,7 +45,7 @@ func Run(opts ...Option) error {
 
 	// Create if not exist
 	if _, err := os.Stat(fileName); err != nil {
-		err = ioutil.WriteFile(fileName, []byte{}, os.ModePerm)
+		err = os.WriteFile(fileName, []byte{}, os.ModePerm)
 		if err != nil {
 			return err
 		}

@@ -2,7 +2,6 @@ package systemd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,7 +67,7 @@ func (s ServiceUnit) WriteUnit() error {
 		uname = fmt.Sprintf("%s@", s.name)
 	}
 
-	if err := ioutil.WriteFile(filepath.Join(s.rootdir, fmt.Sprintf("/etc/systemd/system/%s.service", uname)), []byte(s.content), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(s.rootdir, fmt.Sprintf("/etc/systemd/system/%s.service", uname)), []byte(s.content), 0600); err != nil {
 		return err
 	}
 
@@ -80,7 +79,7 @@ func (s ServiceUnit) OverrideCmd(cmd string) error {
 	svcDir := filepath.Join(s.rootdir, fmt.Sprintf("/etc/systemd/system/%s.service.d/", s.name))
 	os.MkdirAll(svcDir, 0600) //nolint:errcheck
 
-	return ioutil.WriteFile(filepath.Join(svcDir, "override.conf"), []byte(fmt.Sprintf(overrideCmdTemplate, cmd)), 0600)
+	return os.WriteFile(filepath.Join(svcDir, "override.conf"), []byte(fmt.Sprintf(overrideCmdTemplate, cmd)), 0600)
 }
 
 func (s ServiceUnit) Start() error {

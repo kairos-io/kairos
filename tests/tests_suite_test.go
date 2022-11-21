@@ -3,7 +3,6 @@ package mos_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -77,7 +76,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	if os.Getenv("CREATE_VM") == "true" {
-		t, err := ioutil.TempDir("", "")
+		t, err := os.MkdirTemp("", "")
 		Expect(err).ToNot(HaveOccurred())
 
 		sshPort = "2222"
@@ -92,8 +91,8 @@ var _ = BeforeSuite(func() {
 			types.WithSSHUser(user()),
 			types.WithSSHPass(pass()),
 			types.OnFailure(func(p *process.Process) {
-				out, _ := ioutil.ReadFile(p.StdoutPath())
-				err, _ := ioutil.ReadFile(p.StderrPath())
+				out, _ := os.ReadFile(p.StdoutPath())
+				err, _ := os.ReadFile(p.StderrPath())
 				status, _ := p.ExitCode()
 				Fail(fmt.Sprintf("VM Aborted: %s %s Exit status: %s", out, err, status))
 			}),

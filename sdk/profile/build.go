@@ -2,7 +2,7 @@ package profile
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/kairos-io/kairos/pkg/utils"
@@ -19,7 +19,7 @@ type profileFileStruct struct {
 }
 
 func BuildFlavor(flavor string, profileFile string, directory string) error {
-	dat, err := ioutil.ReadFile(profileFile)
+	dat, err := os.ReadFile(profileFile)
 
 	if err != nil {
 		return fmt.Errorf("error while reading profile: %w", err)
@@ -55,7 +55,7 @@ func BuildFlavor(flavor string, profileFile string, directory string) error {
 
 func readProfilePackages(profile string, profileFile string) ([]string, error) {
 	res := []string{}
-	dat, err := ioutil.ReadFile(profileFile)
+	dat, err := os.ReadFile(profileFile)
 	if err != nil {
 		return res, fmt.Errorf("error while reading profile: %w", err)
 	}
@@ -86,7 +86,7 @@ func readProfilePackages(profile string, profileFile string) ([]string, error) {
 
 func readCommonPackages(profileFile string) ([]string, error) {
 	res := []string{}
-	dat, err := ioutil.ReadFile(profileFile)
+	dat, err := os.ReadFile(profileFile)
 	if err != nil {
 		return res, fmt.Errorf("error while reading profile: %w", err)
 	}
