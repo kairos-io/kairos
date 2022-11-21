@@ -2,7 +2,6 @@ package utils
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"os/exec"
 
@@ -17,7 +16,7 @@ func SH(c string) (string, error) {
 }
 
 func WriteEnv(envFile string, config map[string]string) error {
-	content, _ := ioutil.ReadFile(envFile)
+	content, _ := os.ReadFile(envFile)
 	env, _ := godotenv.Unmarshal(string(content))
 
 	for key, val := range config {

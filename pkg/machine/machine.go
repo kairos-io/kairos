@@ -2,7 +2,6 @@ package machine
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -118,7 +117,7 @@ func UUID() string {
 }
 
 func CreateSentinel(f string) error {
-	return ioutil.WriteFile(fmt.Sprintf("/usr/local/.kairos/sentinel_%s", f), []byte{}, os.ModePerm)
+	return os.WriteFile(fmt.Sprintf("/usr/local/.kairos/sentinel_%s", f), []byte{}, os.ModePerm)
 }
 
 func SentinelExist(f string) bool {

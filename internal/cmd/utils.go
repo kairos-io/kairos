@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/kairos-io/kairos/internal/kairos"
@@ -19,7 +18,7 @@ func PrintText(f string, banner string) {
 func PrintBranding(b []byte) {
 	brandingFile := kairos.BrandingFile("banner")
 	if _, err := os.Stat(brandingFile); err == nil {
-		f, err := ioutil.ReadFile(brandingFile)
+		f, err := os.ReadFile(brandingFile)
 		if err == nil {
 			fmt.Println(string(f))
 		}

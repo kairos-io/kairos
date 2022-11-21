@@ -1,7 +1,7 @@
 package machine
 
 import (
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/google/shlex"
@@ -12,7 +12,7 @@ func DotToYAML(file string) ([]byte, error) {
 	if file == "" {
 		file = "/proc/cmdline"
 	}
-	dat, err := ioutil.ReadFile(file)
+	dat, err := os.ReadFile(file)
 	if err != nil {
 		return []byte{}, err
 	}
