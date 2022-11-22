@@ -21,7 +21,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.5.0
 	github.com/onsi/gomega v1.24.1
 	github.com/otiai10/copy v1.9.0
-	github.com/pterm/pterm v0.12.49
+	github.com/pterm/pterm v0.12.50
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/spectrocloud/peg v0.0.0-20221005172954-aa887438fafc
 	github.com/twpayne/go-vfs v1.7.2
@@ -71,7 +71,7 @@ require (
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/makiuchi-d/gozxing v0.1.1 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
-	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/muesli/ansi v0.0.0-20211018074035-2e021307bc4b // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
