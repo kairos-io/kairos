@@ -349,14 +349,19 @@ ipxe-iso:
                            mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
                            # jq docker
     WORKDIR /build
-    ARG ISO_NAME=${OS_ID}
+    ARG ISO_NAME=${OS_ID}        
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+
     RUN git clone https://github.com/ipxe/ipxe
     IF [ "$ipxe_script" = "" ]
-        COPY +netboot/ipxe /build/ipxe/script.ipxe
+        COPY (+netboot/ipxe --VERSION=$VERSION) /build/ipxe/script.ipxe
     ELSE
         COPY $ipxe_script /build/ipxe/script.ipxe
     END
-    RUN cd ipxe/src && make EMBED=/build/ipxe/script.ipxe
+    RUN cd ipxe/src && \
+        sed -i 's/#undef\tDOWNLOAD_PROTO_HTTPS/#define\tDOWNLOAD_PROTO_HTTPS/' config/general.h && \
+        make EMBED=/build/ipxe/script.ipxe
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso.ipxe
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img.ipxe
 
