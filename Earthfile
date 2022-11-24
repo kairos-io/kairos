@@ -313,10 +313,18 @@ netboot:
    FROM $OSBUILDER_IMAGE
    ARG VERSION
    ARG ISO_NAME=${OS_ID}
+   ARG FROM_ARTIFACT
    WORKDIR /build
-   COPY +iso/kairos.iso kairos.iso
-   COPY . .
-   RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
+
+   IF [ "$FROM_ARTIFACT" = "" ]
+   	COPY +iso/${ISO_NAME}.iso kairos.iso
+   	COPY scripts/ .
+        RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
+   ELSE
+   	COPY . .
+        RUN /build/scripts/netboot.sh $FROM_ARTIFACT $ISO_NAME $VERSION
+   END
+
    SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
    SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
    SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd

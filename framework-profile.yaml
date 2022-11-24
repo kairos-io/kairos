@@ -12,20 +12,27 @@ common:
 flavors:
   ubuntu:
     - systemd-base
+    - dracut-network-legacy-compat
   ubuntu-22-lts:
     - systemd-base
+    - dracut-network-legacy-compat
   ubuntu-20-lts:
     - systemd-base
+    - dracut-network-legacy-compat
   fedora:
     - systemd-base
+    - dracut-network-legacy-compat
   rockylinux:
     - systemd-base
+    - dracut-network-legacy-compat
   opensuse:
     - systemd-base
     - systemd-latest
+    - dracut-network-legacy
   opensuse-arm-rpi:
     - systemd-base
     - systemd-latest
+    - dracut-network-legacy
   alpine-arm-rpi:
     - opensuse-leap-kernel
     - openrc
@@ -35,12 +42,22 @@ flavors:
   alpine-ubuntu:
     - ubuntu-kernel
     - openrc
+
+# See https://github.com/kairos-io/packages/pull/67 for rationale
+dracut-network-legacy:
+  packages:
+  - dracut/network-legacy 
+dracut-network-legacy-compat:
+  packages:
+  - dracut/network-legacy-compat
+
 openrc:
   packages:
     - init-svc/openrc
 systemd-base:
   packages:
     - init-svc/systemd
+    - systemd-default/network
 opensuse-leap-kernel:
   packages:
     - distro-kernels/opensuse-leap
