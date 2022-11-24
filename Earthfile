@@ -300,9 +300,8 @@ iso:
     RUN zypper in -y jq docker
     WORKDIR /build
     COPY . ./
-    WITH DOCKER --allow-privileged --load $IMAGE=(+docker)
-        RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false --local --overlay-iso /build/${overlay} $IMAGE --output /build/
-    END
+    COPY +docker-rootfs/rootfs /build/image
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     # See: https://github.com/rancher/elemental-cli/issues/228
     RUN sha256sum $ISO_NAME.iso > $ISO_NAME.iso.sha256
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
@@ -313,10 +312,17 @@ netboot:
    FROM $OSBUILDER_IMAGE
    ARG VERSION
    ARG ISO_NAME=${OS_ID}
+   ARG FROM_ARTIFACT
    WORKDIR /build
-   COPY +iso/kairos.iso kairos.iso
+
    COPY . .
-   RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
+   IF [ "$FROM_ARTIFACT" = "" ]
+   	COPY +iso/kairos.iso kairos.iso
+        RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
+   ELSE
+        RUN /build/scripts/netboot.sh $FROM_ARTIFACT $ISO_NAME $VERSION
+   END
+
    SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
    SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
    SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd

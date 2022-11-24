@@ -12,20 +12,27 @@ common:
 flavors:
   ubuntu:
     - systemd-base
+    - dracut-network-legacy
   ubuntu-22-lts:
     - systemd-base
+    - dracut-network-legacy-compat
   ubuntu-20-lts:
     - systemd-base
+    - dracut-network-legacy-compat
   fedora:
     - systemd-base
+    - dracut-network-legacy-compat
   rockylinux:
     - systemd-base
+    - dracut-network-legacy-compat
   opensuse:
     - systemd-base
     - systemd-latest
+    - dracut-network-legacy
   opensuse-arm-rpi:
     - systemd-base
     - systemd-latest
+    - dracut-network-legacy
   alpine-arm-rpi:
     - opensuse-leap-kernel
     - openrc
@@ -35,12 +42,20 @@ flavors:
   alpine-ubuntu:
     - ubuntu-kernel
     - openrc
+# See https://github.com/kairos-io/packages/pull/67 for rationale
+dracut-network-legacy:
+  packages:
+    - dracut/network-legacy
+dracut-network-legacy-compat:
+  packages:
+    - dracut/network-legacy-compat
 openrc:
   packages:
     - init-svc/openrc
 systemd-base:
   packages:
     - init-svc/systemd
+    - systemd-default/network
 opensuse-leap-kernel:
   packages:
     - distro-kernels/opensuse-leap
@@ -64,9 +79,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20221123160933-repository.yaml
+    reference: 20221124164625-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20221123162031-repository.yaml
+    reference: 20221124171828-repository.yaml
