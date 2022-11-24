@@ -316,12 +316,11 @@ netboot:
    ARG FROM_ARTIFACT
    WORKDIR /build
 
+   COPY . .
    IF [ "$FROM_ARTIFACT" = "" ]
-   	COPY +iso/${ISO_NAME}.iso kairos.iso
-   	COPY scripts/ .
+   	COPY +iso/kairos.iso kairos.iso
         RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
    ELSE
-   	COPY . .
         RUN /build/scripts/netboot.sh $FROM_ARTIFACT $ISO_NAME $VERSION
    END
 

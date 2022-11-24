@@ -12,6 +12,7 @@ RUN zypper in -y \
     curl \
     device-mapper \
     dosfstools \
+    dhcp-client \
     dracut \
     e2fsprogs \
     cryptsetup \
