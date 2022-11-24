@@ -300,9 +300,8 @@ iso:
     RUN zypper in -y jq docker
     WORKDIR /build
     COPY . ./
-    WITH DOCKER --allow-privileged --load $IMAGE=(+docker)
-        RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false --local --overlay-iso /build/${overlay} $IMAGE --output /build/
-    END
+    COPY +docker-rootfs/rootfs /build/image
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     # See: https://github.com/rancher/elemental-cli/issues/228
     RUN sha256sum $ISO_NAME.iso > $ISO_NAME.iso.sha256
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
