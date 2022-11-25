@@ -32,6 +32,34 @@ type TConfig struct {
 
 var _ = Describe("Get config", func() {
 	Context("directory", func() {
+
+		var d string
+		BeforeEach(func() {
+			d, _ = os.MkdirTemp("", "xxxx")
+		})
+
+		AfterEach(func() {
+			if d != "" {
+				os.RemoveAll(d)
+			}
+		})
+
+		headerCheck := func(c *Config) {
+			ok, header := HasHeader(c.String(), DefaultHeader)
+			ExpectWithOffset(1, ok).To(BeTrue())
+			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
+		}
+
+		It("reads from bootargs", func() {
+			err := os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			c, err := Scan(MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")))
+			Expect(err).ToNot(HaveOccurred())
+			headerCheck(c)
+			Expect(c.Options["foo"]).To(Equal("bar"))
+		})
+
 		It("reads config file greedly", func() {
 
 			var cc string = `#kairos-config
@@ -39,8 +67,6 @@ baz: bar
 kairos:
   network_token: foo
 `
-			d, _ := os.MkdirTemp("", "xxxx")
-			defer os.RemoveAll(d)
 
 			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -69,8 +95,6 @@ kairos:
 bb: 
   nothing: "foo"
 `
-			d, _ := os.MkdirTemp("", "xxxx")
-			defer os.RemoveAll(d)
 
 			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -95,8 +119,6 @@ bb:
 			var cc string = `
 config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/bafae390eae4e6382fb1b68293568696823b3103/test.yaml"
 `
-			d, _ := os.MkdirTemp("", "xxxx")
-			defer os.RemoveAll(d)
 
 			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -107,6 +129,25 @@ config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab2926857
 			Expect(len(c.Bundles)).To(Equal(1))
 			Expect(c.Bundles[0].Targets[0]).To(Equal("package:utils/edgevpn"))
 			Expect(c.String()).ToNot(Equal(cc))
+		})
+
+		It("keeps header", func() {
+
+			var cc string = `
+config_url: "https://gist.githubusercontent.com/mudler/7e3d0426fce8bfaaeb2644f83a9bfe0c/raw/77ded58aab3ee2a8d4117db95e078f81fd08dfde/testgist.yaml"
+`
+
+			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			c, err := Scan(Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c).ToNot(BeNil())
+			Expect(len(c.Bundles)).To(Equal(1))
+			Expect(c.Bundles[0].Targets[0]).To(Equal("package:utils/edgevpn"))
+			Expect(c.String()).ToNot(Equal(cc))
+
+			headerCheck(c)
 		})
 	})
 })

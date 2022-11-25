@@ -53,6 +53,8 @@ type Bundle struct {
 	Targets []string `yaml:"targets,omitempty"`
 }
 
+const DefaultHeader = "#cloud-config"
+
 func HasHeader(userdata, head string) (bool, string) {
 	header := strings.SplitN(userdata, "\n", 2)[0]
 
@@ -62,7 +64,7 @@ func HasHeader(userdata, head string) (bool, string) {
 	if head != "" {
 		return head == header, header
 	}
-	return (header == "#cloud-config") || (header == "#kairos-config") || (header == "#node-config"), header
+	return (header == DefaultHeader) || (header == "#kairos-config") || (header == "#node-config"), header
 }
 
 func (b Bundles) Options() (res [][]bundles.BundleOption) {
@@ -211,6 +213,14 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 		yaml.Unmarshal(body, c)               //nolint:errcheck
 		yaml.Unmarshal(body, &c.originalData) //nolint:errcheck
+
+		if exists, header := HasHeader(string(body), ""); exists {
+			c.header = header
+		}
+	}
+
+	if c.header == "" {
+		c.header = DefaultHeader
 	}
 
 	return c, nil
