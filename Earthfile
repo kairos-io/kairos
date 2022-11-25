@@ -297,7 +297,6 @@ iso:
     ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
-    RUN zypper in -y jq docker
     WORKDIR /build
     COPY . ./
     COPY +docker-rootfs/rootfs /build/image
