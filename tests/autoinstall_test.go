@@ -157,6 +157,12 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(out).To(ContainSubstring("/var/lib/longhorn"))
 		})
 
+		It("has rootfs shared mount", func() {
+			out, err := Sudo(`cat /proc/1/mountinfo | grep ' / / '`)
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("shared"))
+		})
+
 		It("has corresponding state", func() {
 			out, err := Sudo("kairos-agent state")
 			Expect(err).ToNot(HaveOccurred())
