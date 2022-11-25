@@ -12,7 +12,7 @@ require (
 	github.com/itchyny/gojq v0.12.9
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.4.0
-	github.com/kairos-io/kcrypt v0.4.3
+	github.com/kairos-io/kcrypt v0.4.4
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
 	github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
