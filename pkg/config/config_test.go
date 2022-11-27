@@ -22,6 +22,7 @@ import (
 	. "github.com/kairos-io/kairos/pkg/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 )
 
 type TConfig struct {
@@ -58,6 +59,37 @@ var _ = Describe("Get config", func() {
 			Expect(err).ToNot(HaveOccurred())
 			headerCheck(c)
 			Expect(c.Options["foo"]).To(Equal("bar"))
+		})
+
+		It("reads multiple config files", func() {
+			var cc string = `#kairos-config
+baz: bar
+kairos:
+  network_token: foo
+`
+			var c2 string = `
+b: f
+c: d
+`
+
+			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = os.WriteFile(filepath.Join(d, "b"), []byte(c2), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			c, err := Scan(Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c).ToNot(BeNil())
+			providerCfg := &TConfig{}
+			err = c.Unmarshal(providerCfg)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(providerCfg.Kairos).ToNot(BeNil())
+			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
+			all := map[string]string{}
+			yaml.Unmarshal([]byte(c.String()), &all)
+			Expect(all["b"]).To(Equal("f"))
+			Expect(all["baz"]).To(Equal("bar"))
 		})
 
 		It("reads config file greedly", func() {

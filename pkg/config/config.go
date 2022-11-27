@@ -146,7 +146,8 @@ func Scan(opts ...Option) (c *Config, err error) {
 		b, err := os.ReadFile(f)
 		if err == nil {
 			// best effort. skip lint checks
-			yaml.Unmarshal(b, c) //nolint:errcheck
+			yaml.Unmarshal(b, c)               //nolint:errcheck
+			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
 			if exists, header := HasHeader(string(b), ""); c.IsValid() || exists {
 				c.location = f
 				yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
