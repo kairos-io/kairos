@@ -52,6 +52,7 @@ test:
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     COPY +luet/luet /usr/bin/luet
     COPY . .
+    ENV ACK_GINKGO_DEPRECATIONS=2.5.1
     RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
