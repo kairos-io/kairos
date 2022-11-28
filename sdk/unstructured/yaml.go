@@ -9,6 +9,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func YQ(query string, content []byte) (map[string]interface{}, error) {
+	data := map[string]interface{}{}
+
+	err := yaml.Unmarshal([]byte(content), &data)
+	if err != nil {
+		return data, err
+	}
+	fmt.Printf("data = %+v\n", data)
+
+	return jq(fmt.Sprintf(".%s", query), data)
+}
+
 func jq(command string, data map[string]interface{}) (map[string]interface{}, error) {
 	query, err := gojq.Parse(command)
 	if err != nil {
@@ -22,7 +34,7 @@ func jq(command string, data map[string]interface{}) (map[string]interface{}, er
 
 	v, ok := iter.Next()
 	if !ok {
-		return nil, errors.New("failed getting rsult from gojq")
+		return nil, errors.New("failed getting result from gojq")
 	}
 	if err, ok := v.(error); ok {
 		return nil, err

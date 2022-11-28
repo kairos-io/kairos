@@ -12,6 +12,7 @@ import (
 	retry "github.com/avast/retry-go"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/sdk/bundles"
+	"github.com/kairos-io/kairos/sdk/unstructured"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v2"
@@ -105,24 +106,23 @@ func (c Config) String() string {
 	return string(dat)
 }
 
-func Scan(opts ...Option) (c *Config, err error) {
-
-	o := &Options{}
-
-	if err := o.Apply(opts...); err != nil {
-		return nil, err
-	}
-
-	dir := o.ScanDir
-
+func allFiles(dir []string) []string {
 	files := []string{}
 	for _, d := range dir {
 		if f, err := listFiles(d); err == nil {
 			files = append(files, f...)
 		}
 	}
+	return files
+}
 
-	c = parseConfig(files)
+func Scan(opts ...Option) (c *Config, err error) {
+	o := &Options{}
+	if err := o.Apply(opts...); err != nil {
+		return nil, err
+	}
+
+	c = parseConfig(o.ScanDir)
 
 	if o.MergeBootCMDLine {
 		d, err := machine.DotToYAML(o.BootCMDLineFile)
@@ -203,7 +203,9 @@ func listFiles(dir string) ([]string, error) {
 			if err != nil {
 				return nil
 			}
-			content = append(content, path)
+			if !info.IsDir() {
+				content = append(content, path)
+			}
 
 			return nil
 		})
@@ -258,8 +260,38 @@ func AddHeader(header, data string) string {
 	return fmt.Sprintf("%s\n%s", header, data)
 }
 
+func FindYAMLWithKey(s string, opts ...Option) ([]string, error) {
+	o := &Options{}
+
+	result := []string{}
+	if err := o.Apply(opts...); err != nil {
+		return result, err
+	}
+
+	files := allFiles(o.ScanDir)
+
+	for _, f := range files {
+		dat, err := os.ReadFile(f)
+		if err != nil {
+			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+		}
+
+		data, err := unstructured.YQ(s, dat)
+		fmt.Println(data)
+		if err != nil {
+			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+		}
+		if len(data) > 0 {
+			result = append(result, f)
+		}
+	}
+
+	return result, nil
+}
+
 // parseConfig merges all config back in one structure.
-func parseConfig(files []string) *Config {
+func parseConfig(dir []string) *Config {
+	files := allFiles(dir)
 	c := &Config{}
 	for _, f := range files {
 		if fileSize(f) > 1.0 {
