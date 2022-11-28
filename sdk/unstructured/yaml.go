@@ -9,6 +9,35 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+func YAMLHasKey(query string, content []byte) (bool, error) {
+	data := map[string]interface{}{}
+
+	err := yaml.Unmarshal([]byte(content), &data)
+	if err != nil {
+		return false, err
+	}
+
+	c, err := gojq.Parse(fmt.Sprintf(".%s | ..", query))
+	if err != nil {
+		return false, err
+	}
+	code, err := gojq.Compile(c)
+	if err != nil {
+		return false, err
+	}
+	iter := code.Run(data)
+
+	v, _ := iter.Next()
+
+	if err, ok := v.(error); ok {
+		return false, err
+	}
+	if v == nil {
+		return false, fmt.Errorf("not found")
+	}
+	return true, nil
+}
+
 func jq(command string, data map[string]interface{}) (map[string]interface{}, error) {
 	query, err := gojq.Parse(command)
 	if err != nil {
@@ -22,7 +51,7 @@ func jq(command string, data map[string]interface{}) (map[string]interface{}, er
 
 	v, ok := iter.Next()
 	if !ok {
-		return nil, errors.New("failed getting rsult from gojq")
+		return nil, errors.New("failed getting result from gojq")
 	}
 	if err, ok := v.(error); ok {
 		return nil, err

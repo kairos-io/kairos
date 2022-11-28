@@ -4,10 +4,13 @@ if [ ! -e disk.img ]; then
     qemu-img create -f qcow2 disk.img 40g
 fi
 
+[[ -n "${ENABLE_KVM}" ]] && KVM=(-enable-kvm)
+
 qemu-system-x86_64 \
     -m ${MEMORY:=2096} \
     -smp cores=2 \
     -nographic \
+    "${KVM[@]}" \
     -serial mon:stdio \
     -rtc base=utc,clock=rt \
     -chardev socket,path=qga.sock,server,nowait,id=qga0 \

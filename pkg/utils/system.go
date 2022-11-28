@@ -52,7 +52,7 @@ func Flavor() string {
 
 func IsOpenRCBased() bool {
 	f := Flavor()
-	return f == "alpine" || f == "alpine-arm-rpi"
+	return strings.Contains(f, "alpine")
 }
 
 func GetInterfaceIP(in string) string {

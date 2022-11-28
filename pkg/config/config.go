@@ -2,7 +2,7 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +12,7 @@ import (
 	retry "github.com/avast/retry-go"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/sdk/bundles"
+	"github.com/kairos-io/kairos/sdk/unstructured"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v2"
@@ -33,7 +34,6 @@ type Config struct {
 	Install *Install `yaml:"install,omitempty"`
 	//cloudFileContent string
 	originalData       map[string]interface{}
-	location           string
 	header             string
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
@@ -53,6 +53,8 @@ type Bundle struct {
 	Targets []string `yaml:"targets,omitempty"`
 }
 
+const DefaultHeader = "#cloud-config"
+
 func HasHeader(userdata, head string) (bool, string) {
 	header := strings.SplitN(userdata, "\n", 2)[0]
 
@@ -62,7 +64,7 @@ func HasHeader(userdata, head string) (bool, string) {
 	if head != "" {
 		return head == header, header
 	}
-	return (header == "#cloud-config") || (header == "#kairos-config") || (header == "#node-config"), header
+	return (header == DefaultHeader) || (header == "#kairos-config") || (header == "#node-config"), header
 }
 
 func (b Bundles) Options() (res [][]bundles.BundleOption) {
@@ -85,10 +87,6 @@ func (c Config) Unmarshal(o interface{}) error {
 	return yaml.Unmarshal([]byte(c.String()), o)
 }
 
-func (c Config) Location() string {
-	return c.location
-}
-
 func (c Config) Data() map[string]interface{} {
 	return c.originalData
 }
@@ -108,69 +106,23 @@ func (c Config) String() string {
 	return string(dat)
 }
 
-func (c Config) IsValid() bool {
-	return c.Install != nil ||
-		c.ConfigURL != "" ||
-		len(c.Bundles) != 0
-}
-
-func Scan(opts ...Option) (c *Config, err error) {
-
-	o := &Options{}
-
-	if err := o.Apply(opts...); err != nil {
-		return nil, err
-	}
-
-	dir := o.ScanDir
-
-	c = &Config{}
+func allFiles(dir []string) []string {
 	files := []string{}
 	for _, d := range dir {
 		if f, err := listFiles(d); err == nil {
 			files = append(files, f...)
 		}
 	}
+	return files
+}
 
-	configFound := false
-	lastYamlFileFound := ""
-
-	// Scanning happens as best-effort, therefore unmarshalling skips errors here.
-	for _, f := range files {
-		if fileSize(f) > 1.0 {
-			//fmt.Println("warning: Skipping file ", f, "as exceeds 1 MB in size")
-			continue
-		}
-		b, err := ioutil.ReadFile(f)
-		if err == nil {
-			// best effort. skip lint checks
-			yaml.Unmarshal(b, c) //nolint:errcheck
-			if exists, header := HasHeader(string(b), ""); c.IsValid() || exists {
-				c.location = f
-				yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
-				configFound = true
-				if exists {
-					c.header = header
-				}
-				break
-			}
-
-			// record back the only yaml file found (if any)
-			if strings.HasSuffix(strings.ToLower(f), "yaml") || strings.HasSuffix(strings.ToLower(f), "yml") {
-				lastYamlFileFound = f
-			}
-		}
+func Scan(opts ...Option) (c *Config, err error) {
+	o := &Options{}
+	if err := o.Apply(opts...); err != nil {
+		return nil, err
 	}
 
-	// use last recorded if no config is found valid
-	if !configFound && lastYamlFileFound != "" {
-		b, err := ioutil.ReadFile(lastYamlFileFound)
-		if err == nil {
-			yaml.Unmarshal(b, c) //nolint:errcheck
-			c.location = lastYamlFileFound
-			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
-		}
-	}
+	c = parseConfig(o.ScanDir)
 
 	if o.MergeBootCMDLine {
 		d, err := machine.DotToYAML(o.BootCMDLineFile)
@@ -196,7 +148,7 @@ func Scan(opts ...Option) (c *Config, err error) {
 				}
 				defer resp.Body.Close()
 
-				body, err = ioutil.ReadAll(resp.Body)
+				body, err = io.ReadAll(resp.Body)
 				if err != nil {
 					return err
 				}
@@ -211,6 +163,14 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 		yaml.Unmarshal(body, c)               //nolint:errcheck
 		yaml.Unmarshal(body, &c.originalData) //nolint:errcheck
+
+		if exists, header := HasHeader(string(body), ""); exists {
+			c.header = header
+		}
+	}
+
+	if c.header == "" {
+		c.header = DefaultHeader
 	}
 
 	return c, nil
@@ -243,7 +203,9 @@ func listFiles(dir string) ([]string, error) {
 			if err != nil {
 				return nil
 			}
-			content = append(content, path)
+			if !info.IsDir() {
+				content = append(content, path)
+			}
 
 			return nil
 		})
@@ -266,7 +228,7 @@ func SaveCloudConfig(name Stage, yc yip.YipConfig) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filepath.Join("usr", "local", "cloud-config", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
+	return os.WriteFile(filepath.Join("usr", "local", "cloud-config", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
 }
 
 func FromString(s string, o interface{}) error {
@@ -296,4 +258,58 @@ func MergeYAML(objs ...interface{}) ([]byte, error) {
 
 func AddHeader(header, data string) string {
 	return fmt.Sprintf("%s\n%s", header, data)
+}
+
+func FindYAMLWithKey(s string, opts ...Option) ([]string, error) {
+	o := &Options{}
+
+	result := []string{}
+	if err := o.Apply(opts...); err != nil {
+		return result, err
+	}
+
+	files := allFiles(o.ScanDir)
+
+	for _, f := range files {
+		dat, err := os.ReadFile(f)
+		if err != nil {
+			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+		}
+
+		found, err := unstructured.YAMLHasKey(s, dat)
+		if err != nil {
+			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+		}
+
+		if found {
+			result = append(result, f)
+		}
+
+	}
+
+	return result, nil
+}
+
+// parseConfig merges all config back in one structure.
+func parseConfig(dir []string) *Config {
+	files := allFiles(dir)
+	c := &Config{}
+	for _, f := range files {
+		if fileSize(f) > 1.0 {
+			fmt.Printf("warning: skipping %s. too big (>1MB)\n", f)
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
+			continue
+		}
+		yaml.Unmarshal(b, c)               //nolint:errcheck
+		yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
+		if exists, header := HasHeader(string(b), ""); exists {
+			c.header = header
+		}
+	}
+
+	return c
 }

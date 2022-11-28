@@ -3,7 +3,7 @@ package state
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -59,7 +59,7 @@ func detectPartition(b *block.Partition) PartitionState {
 }
 
 func detectBoot() Boot {
-	cmdline, err := ioutil.ReadFile("/proc/cmdline")
+	cmdline, err := os.ReadFile("/proc/cmdline")
 	if err != nil {
 		return Unknown
 	}

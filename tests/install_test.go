@@ -3,7 +3,6 @@ package mos_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -29,11 +28,11 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 	testInstall := func(cloudConfig string, actual interface{}, m types.GomegaMatcher) {
 		stateAssert("persistent.found", "false")
 
-		t, err := ioutil.TempFile("", "test")
+		t, err := os.CreateTemp("", "test")
 		ExpectWithOffset(1, err).ToNot(HaveOccurred())
 
 		defer os.RemoveAll(t.Name())
-		err = ioutil.WriteFile(t.Name(), []byte(cloudConfig), os.ModePerm)
+		err = os.WriteFile(t.Name(), []byte(cloudConfig), os.ModePerm)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = Machine.SendFile(t.Name(), "/tmp/config.yaml", "0770")

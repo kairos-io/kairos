@@ -112,7 +112,7 @@ users:
 - name: "kairos"
   passwd: "kairos"
   lock_passwd: true
-  groups: "admins"
+  groups: "admin"
   ssh_authorized_keys:
   - github:mudler
 

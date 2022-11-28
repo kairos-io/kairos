@@ -56,7 +56,8 @@ jobs:
       matrix:
        include:
          - flavor: "opensuse"
-         - flavor: "alpine"
+         - flavor: "alpine-ubuntu"
+         - flavor: "alpine-opensuse-leap"
          - flavor: "ubuntu-20-lts"
          - flavor: "ubuntu-22-lts"
          - flavor: "ubuntu"

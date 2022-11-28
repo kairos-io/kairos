@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"syscall"
@@ -40,7 +39,7 @@ func optsToArgs(options map[string]string) (res []string) {
 }
 
 func ManualInstall(config string, options map[string]string) error {
-	dat, err := ioutil.ReadFile(config)
+	dat, err := os.ReadFile(config)
 	if err != nil {
 		return err
 	}
@@ -195,7 +194,7 @@ func RunInstall(options map[string]string) error {
 	utils.SH("elemental run-stage kairos-install.pre")             //nolint:errcheck
 	events.RunHookScript("/usr/bin/kairos-agent.install.pre.hook") //nolint:errcheck
 
-	f, _ := ioutil.TempFile("", "xxxx")
+	f, _ := os.CreateTemp("", "xxxx")
 	defer os.RemoveAll(f.Name())
 
 	device, ok := options["device"]
@@ -232,7 +231,7 @@ func RunInstall(options map[string]string) error {
 	env := append(c.Install.Env, c.Env...)
 	utils.SetEnv(env)
 
-	err := ioutil.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
+	err := os.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
 	if err != nil {
 		fmt.Printf("could not write cloud init: %s\n", err.Error())
 		os.Exit(1)
