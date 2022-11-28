@@ -113,7 +113,7 @@ custom-iso.iso custom-iso.iso.sha256
 
 In order to go further and upgrade nodes using this image, now the only requirement is to push it in a container registry and upgrade the nodes using that container image.
 
-For upgrading to a container image see [manual upgrades](/upgrade/manual) and [kubernetes upgrades](/upgrade/kubernetes).
+For upgrading to a container image see [manual upgrades](/docs/upgrade/manual) and [kubernetes upgrades](/docs/upgrade/kubernetes).
 
 ## See also
 
