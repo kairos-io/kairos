@@ -276,14 +276,15 @@ func FindYAMLWithKey(s string, opts ...Option) ([]string, error) {
 			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
 		}
 
-		data, err := unstructured.YQ(s, dat)
-		fmt.Println(data)
+		found, err := unstructured.YAMLHasKey(s, dat)
 		if err != nil {
 			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
 		}
-		if len(data) > 0 {
+
+		if found {
 			result = append(result, f)
 		}
+
 	}
 
 	return result, nil

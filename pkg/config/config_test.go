@@ -207,7 +207,7 @@ b:
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		FIt("can find a top level key", func() {
+		It("can find a top level key", func() {
 			r, err := FindYAMLWithKey("a", Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(r).To(Equal([]string{c1Path}))
