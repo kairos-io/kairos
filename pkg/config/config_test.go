@@ -22,6 +22,7 @@ import (
 	. "github.com/kairos-io/kairos/pkg/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 )
 
 type TConfig struct {
@@ -30,20 +31,19 @@ type TConfig struct {
 	} `yaml:"kairos"`
 }
 
-var _ = Describe("Get config", func() {
+var _ = Describe("Config", func() {
+	var d string
+	BeforeEach(func() {
+		d, _ = os.MkdirTemp("", "xxxx")
+	})
+
+	AfterEach(func() {
+		if d != "" {
+			os.RemoveAll(d)
+		}
+	})
+
 	Context("directory", func() {
-
-		var d string
-		BeforeEach(func() {
-			d, _ = os.MkdirTemp("", "xxxx")
-		})
-
-		AfterEach(func() {
-			if d != "" {
-				os.RemoveAll(d)
-			}
-		})
-
 		headerCheck := func(c *Config) {
 			ok, header := HasHeader(c.String(), DefaultHeader)
 			ExpectWithOffset(1, ok).To(BeTrue())
@@ -58,6 +58,37 @@ var _ = Describe("Get config", func() {
 			Expect(err).ToNot(HaveOccurred())
 			headerCheck(c)
 			Expect(c.Options["foo"]).To(Equal("bar"))
+		})
+
+		It("reads multiple config files", func() {
+			var cc string = `#kairos-config
+baz: bar
+kairos:
+  network_token: foo
+`
+			var c2 string = `
+b: f
+c: d
+`
+
+			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = os.WriteFile(filepath.Join(d, "b"), []byte(c2), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			c, err := Scan(Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(c).ToNot(BeNil())
+			providerCfg := &TConfig{}
+			err = c.Unmarshal(providerCfg)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(providerCfg.Kairos).ToNot(BeNil())
+			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
+			all := map[string]string{}
+			yaml.Unmarshal([]byte(c.String()), &all)
+			Expect(all["b"]).To(Equal("f"))
+			Expect(all["baz"]).To(Equal("bar"))
 		})
 
 		It("reads config file greedly", func() {
@@ -148,6 +179,56 @@ config_url: "https://gist.githubusercontent.com/mudler/7e3d0426fce8bfaaeb2644f83
 			Expect(c.String()).ToNot(Equal(cc))
 
 			headerCheck(c)
+		})
+	})
+
+	Describe("FindYAMLWithKey", func() {
+		var c1Path, c2Path string
+
+		BeforeEach(func() {
+			var c1 = `
+a: 1
+b:
+  c: foo
+d:
+  e: bar
+`
+
+			var c2 = `
+b:
+  c: foo2
+`
+			c1Path = filepath.Join(d, "c1.yaml")
+			c2Path = filepath.Join(d, "c2.yaml")
+
+			err := os.WriteFile(c1Path, []byte(c1), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = os.WriteFile(c2Path, []byte(c2), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("can find a top level key", func() {
+			r, err := FindYAMLWithKey("a", Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(Equal([]string{c1Path}))
+		})
+
+		It("can find a nested key", func() {
+			r, err := FindYAMLWithKey("d.e", Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(Equal([]string{c1Path}))
+		})
+
+		It("returns multiple files when key exists in them", func() {
+			r, err := FindYAMLWithKey("b.c", Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(ContainElements(c1Path, c2Path))
+		})
+
+		It("return an empty list when key is not found", func() {
+			r, err := FindYAMLWithKey("does.not.exist", Directories(d))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(BeEmpty())
 		})
 	})
 })
