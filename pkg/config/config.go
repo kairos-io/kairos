@@ -33,7 +33,6 @@ type Config struct {
 	Install *Install `yaml:"install,omitempty"`
 	//cloudFileContent string
 	originalData       map[string]interface{}
-	location           string
 	header             string
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
@@ -87,10 +86,6 @@ func (c Config) Unmarshal(o interface{}) error {
 	return yaml.Unmarshal([]byte(c.String()), o)
 }
 
-func (c Config) Location() string {
-	return c.location
-}
-
 func (c Config) Data() map[string]interface{} {
 	return c.originalData
 }
@@ -110,12 +105,6 @@ func (c Config) String() string {
 	return string(dat)
 }
 
-func (c Config) IsValid() bool {
-	return c.Install != nil ||
-		c.ConfigURL != "" ||
-		len(c.Bundles) != 0
-}
-
 func Scan(opts ...Option) (c *Config, err error) {
 
 	o := &Options{}
@@ -126,7 +115,6 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 	dir := o.ScanDir
 
-	c = &Config{}
 	files := []string{}
 	for _, d := range dir {
 		if f, err := listFiles(d); err == nil {
@@ -134,46 +122,7 @@ func Scan(opts ...Option) (c *Config, err error) {
 		}
 	}
 
-	configFound := false
-	lastYamlFileFound := ""
-
-	// Scanning happens as best-effort, therefore unmarshalling skips errors here.
-	for _, f := range files {
-		if fileSize(f) > 1.0 {
-			//fmt.Println("warning: Skipping file ", f, "as exceeds 1 MB in size")
-			continue
-		}
-		b, err := os.ReadFile(f)
-		if err == nil {
-			// best effort. skip lint checks
-			yaml.Unmarshal(b, c)               //nolint:errcheck
-			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
-			if exists, header := HasHeader(string(b), ""); c.IsValid() || exists {
-				c.location = f
-				yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
-				configFound = true
-				if exists {
-					c.header = header
-				}
-				break
-			}
-
-			// record back the only yaml file found (if any)
-			if strings.HasSuffix(strings.ToLower(f), "yaml") || strings.HasSuffix(strings.ToLower(f), "yml") {
-				lastYamlFileFound = f
-			}
-		}
-	}
-
-	// use last recorded if no config is found valid
-	if !configFound && lastYamlFileFound != "" {
-		b, err := os.ReadFile(lastYamlFileFound)
-		if err == nil {
-			yaml.Unmarshal(b, c) //nolint:errcheck
-			c.location = lastYamlFileFound
-			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
-		}
-	}
+	c = parseConfig(files)
 
 	if o.MergeBootCMDLine {
 		d, err := machine.DotToYAML(o.BootCMDLineFile)
@@ -307,4 +256,27 @@ func MergeYAML(objs ...interface{}) ([]byte, error) {
 
 func AddHeader(header, data string) string {
 	return fmt.Sprintf("%s\n%s", header, data)
+}
+
+// parseConfig merges all config back in one structure.
+func parseConfig(files []string) *Config {
+	c := &Config{}
+	for _, f := range files {
+		if fileSize(f) > 1.0 {
+			fmt.Printf("warning: skipping %s. too big (>1MB)\n", f)
+			continue
+		}
+		b, err := os.ReadFile(f)
+		if err != nil {
+			fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
+			continue
+		}
+		yaml.Unmarshal(b, c)               //nolint:errcheck
+		yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
+		if exists, header := HasHeader(string(b), ""); exists {
+			c.header = header
+		}
+	}
+
+	return c
 }
