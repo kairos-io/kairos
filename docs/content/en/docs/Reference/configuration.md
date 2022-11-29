@@ -69,7 +69,7 @@ k3s:
     K3S_RESOLV_CONF: ""
     K3S_DATASTORE_ENDPOINT: "mysql://username:password@tcp(hostname:3306)/database-name"
   args:
-    - --label ""
+    - --node-label ""
     - --data-dir ""
   # Enabling below it replaces args/env entirely
   # replace_env: true
