@@ -8,7 +8,7 @@ description: >
 
 The goal of this quickstart is to use the Kairos releases artifacts to build a Kubernetes [k3s](https://k3s.io) cluster in a VM.
 
-Kairos releases ship a set of artifacts (ISO, images, etc. ) that we will use as we assume we don't have any prior cluster(s) available to generate them. Kairos Kubernetes Native components allow the creation of these artifacts inside Kubernetes from a set of input images.
+Kairos releases ship a set of artifacts (ISO, images, etc. ) for user convenience that we will use as we assume we don't have any prior cluster(s) available to generate them. Kairos Kubernetes Native components allow the creation of these artifacts inside Kubernetes from a set of input images.
 
 The same steps works on a barametal host, however, your mileage and configuration may vary based on your setup, see the documentation for a more exhaustive list of examples.
 
