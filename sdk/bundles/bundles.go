@@ -2,7 +2,6 @@ package bundles
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -143,7 +142,7 @@ type ContainerRunner struct{}
 
 func (l *ContainerRunner) Install(config *BundleConfig) error {
 
-	tempDir, err := ioutil.TempDir("", "containerrunner")
+	tempDir, err := os.MkdirTemp("", "containerrunner")
 	if err != nil {
 		return err
 	}

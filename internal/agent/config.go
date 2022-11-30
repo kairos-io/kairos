@@ -1,7 +1,7 @@
 package agent
 
 import (
-	"io/ioutil"
+	"os"
 
 	"github.com/kairos-io/kairos/internal/kairos"
 
@@ -29,35 +29,35 @@ func LoadConfig(path ...string) (*Config, error) {
 	cfg := &Config{}
 
 	for _, p := range path {
-		f, err := ioutil.ReadFile(p)
+		f, err := os.ReadFile(p)
 		if err == nil {
 			yaml.Unmarshal(f, cfg) //nolint:errcheck
 		}
 	}
 
 	if cfg.Branding.InteractiveInstall == "" {
-		f, err := ioutil.ReadFile(kairos.BrandingFile("interactive_install_text"))
+		f, err := os.ReadFile(kairos.BrandingFile("interactive_install_text"))
 		if err == nil {
 			cfg.Branding.InteractiveInstall = string(f)
 		}
 	}
 
 	if cfg.Branding.Install == "" {
-		f, err := ioutil.ReadFile(kairos.BrandingFile("install_text"))
+		f, err := os.ReadFile(kairos.BrandingFile("install_text"))
 		if err == nil {
 			cfg.Branding.Install = string(f)
 		}
 	}
 
 	if cfg.Branding.Recovery == "" {
-		f, err := ioutil.ReadFile(kairos.BrandingFile("recovery_text"))
+		f, err := os.ReadFile(kairos.BrandingFile("recovery_text"))
 		if err == nil {
 			cfg.Branding.Recovery = string(f)
 		}
 	}
 
 	if cfg.Branding.Reset == "" {
-		f, err := ioutil.ReadFile(kairos.BrandingFile("reset_text"))
+		f, err := os.ReadFile(kairos.BrandingFile("reset_text"))
 		if err == nil {
 			cfg.Branding.Reset = string(f)
 		}

@@ -23,6 +23,7 @@ stages:
           /opt
           /root
           /snap
+          /var/snap
           /usr/libexec
           /var/log
           /var/lib/rancher
@@ -58,6 +59,7 @@ stages:
           /opt
           /root
           /snap
+          /var/snap
           /usr/libexec
           /var/log
           /var/lib/rancher

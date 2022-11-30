@@ -2,7 +2,6 @@ package system
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -45,7 +44,7 @@ func writeCloudConfig(oem state.PartitionState, cloudConfig, subpath, filename s
 		machine.Umount(mountPath) //nolint:errcheck
 	}()
 	_ = os.MkdirAll(filepath.Join(mountPath, subpath), 0650)
-	return ioutil.WriteFile(filepath.Join(mountPath, subpath, fmt.Sprintf("%s.yaml", filename)), []byte(cloudConfig), 0650)
+	return os.WriteFile(filepath.Join(mountPath, subpath, fmt.Sprintf("%s.yaml", filename)), []byte(cloudConfig), 0650)
 }
 
 // WriteCloudConfigData adds cloud config data to oem (/oem or /usr/local/cloud-config, depending if OEM partition exists).

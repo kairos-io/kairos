@@ -6,7 +6,7 @@ ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.33.0
 ARG OS_ID=kairos
-ARG REPOSITORIES_FILE=repositories.yaml
+ARG REPOSITORIES_FILE=framework-profile.yaml
 
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
@@ -52,6 +52,7 @@ test:
     RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     COPY +luet/luet /usr/bin/luet
     COPY . .
+    ENV ACK_GINKGO_DEPRECATIONS=2.5.1
     RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
@@ -146,7 +147,8 @@ framework:
     ARG COSIGN_REPOSITORY
     ARG WITH_KERNEL
 
-    FROM alpine
+    FROM golang:alpine
+    WORKDIR /build
     COPY +luet/luet /usr/bin/luet
 
     # cosign keyless verify
@@ -156,31 +158,11 @@ framework:
     # Skip this repo artifacts verify as they are not signed
     ENV COSIGN_SKIP=${COSIGN_SKIP}
 
-    # Copy the luet config file pointing to the upgrade repository
-    COPY repositories/$REPOSITORIES_FILE /etc/luet/luet.yaml
-
     ENV USER=root
 
-    # Framework files
-    RUN luet install -y --system-target /framework \
-            system/base-cloud-config dracut/immutable-rootfs dracut/kcrypt static/grub-config system/kcrypt system/suc-upgrade system/shim system/grub2-efi system/elemental-cli
-
-    IF [ "$FLAVOR" = "alpine" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-    RUN luet install -y --system-target /framework \
-        init-svc/openrc
-    ELSE
-    RUN luet install -y --system-target /framework \
-        init-svc/systemd
-    END
-
-    # Keep openSUSE kernel on ARM
-    IF [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-        RUN luet install -y --system-target /framework \
-            distro-kernels/opensuse-leap distro-initrd/opensuse-leap
-    ELSE IF [ "$WITH_KERNEL" = "true" ] || [ "$FLAVOR" = "alpine" ]
-        RUN luet install -y --system-target /framework \
-            distro-kernels/ubuntu distro-initrd/ubuntu
-    END
+    COPY . /build
+    
+    RUN go run ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
 
     COPY +luet/luet /framework/usr/bin/luet
 
@@ -232,10 +214,11 @@ docker:
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
     # Copy flavor-specific overlay files
-    IF [ "$FLAVOR" = "alpine" ]
+    IF [[ "$FLAVOR" =~ "alpine" ]]
         COPY overlay/files-alpine/ /
-    ELSE IF [ "$FLAVOR" = "alpine-arm-rpi" ]
-        COPY overlay/files-alpine/ /
+    END
+    
+    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
@@ -315,12 +298,10 @@ iso:
     ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
-    RUN zypper in -y jq docker
     WORKDIR /build
     COPY . ./
-    WITH DOCKER --allow-privileged --load $IMAGE=(+docker)
-        RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false --local --overlay-iso /build/${overlay} $IMAGE --output /build/
-    END
+    COPY +docker-rootfs/rootfs /build/image
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     # See: https://github.com/rancher/elemental-cli/issues/228
     RUN sha256sum $ISO_NAME.iso > $ISO_NAME.iso.sha256
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
@@ -329,12 +310,21 @@ iso:
 netboot:
    ARG OSBUILDER_IMAGE
    FROM $OSBUILDER_IMAGE
-   ARG VERSION
+   COPY +version/VERSION ./
+   ARG VERSION=$(cat VERSION)
+   RUN echo "version ${VERSION}"
    ARG ISO_NAME=${OS_ID}
+   ARG FROM_ARTIFACT
    WORKDIR /build
-   COPY +iso/kairos.iso kairos.iso
+
    COPY . .
-   RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
+   IF [ "$FROM_ARTIFACT" = "" ]
+        COPY +iso/kairos.iso kairos.iso
+        RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
+   ELSE
+        RUN /build/scripts/netboot.sh $FROM_ARTIFACT $ISO_NAME $VERSION
+   END
+
    SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
    SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
    SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
@@ -367,14 +357,20 @@ ipxe-iso:
                            mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
                            # jq docker
     WORKDIR /build
-    ARG ISO_NAME=${OS_ID}
+    ARG ISO_NAME=${OS_ID}        
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    RUN echo "version ${VERSION}"
+
     RUN git clone https://github.com/ipxe/ipxe
     IF [ "$ipxe_script" = "" ]
-        COPY +netboot/ipxe /build/ipxe/script.ipxe
+        COPY (+netboot/ipxe --VERSION=$VERSION) /build/ipxe/script.ipxe
     ELSE
         COPY $ipxe_script /build/ipxe/script.ipxe
     END
-    RUN cd ipxe/src && make EMBED=/build/ipxe/script.ipxe
+    RUN cd ipxe/src && \
+        sed -i 's/#undef\tDOWNLOAD_PROTO_HTTPS/#define\tDOWNLOAD_PROTO_HTTPS/' config/general.h && \
+        make EMBED=/build/ipxe/script.ipxe
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso.ipxe
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img.ipxe
 
@@ -426,7 +422,7 @@ linux-bench-scan:
 ###
 ### Test targets
 ###
-# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine --FROM_ARTIFACTS=true
+# usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
     FROM opensuse/leap
     WORKDIR /test

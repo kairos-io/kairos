@@ -23,7 +23,8 @@ jobs:
          - flavor: "ubuntu"
          - flavor: "ubuntu-20-lts"
          - flavor: "ubuntu-22-lts"
-         - flavor: "alpine"
+         - flavor: "alpine-ubuntu"
+         - flavor: "alpine-opensuse-leap"
          - flavor: "fedora"
          - flavor: "rockylinux"
     steps:
@@ -156,7 +157,7 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "alpine"
+         - flavor: "alpine-opensuse-leap"
          - flavor: "opensuse"
          - flavor: "ubuntu"
          - flavor: "ubuntu-20-lts"
@@ -206,7 +207,7 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "alpine"
+         - flavor: "alpine-opensuse-leap"
          - flavor: "opensuse"
    #      - flavor: "ubuntu"
     steps:
@@ -231,7 +232,7 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "alpine"
+         - flavor: "alpine-opensuse-leap"
          - flavor: "opensuse"
     #     - flavor: "ubuntu"
     steps:
@@ -294,7 +295,7 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "alpine"
+         - flavor: "alpine-opensuse-leap"
          - flavor: "opensuse"
     #     - flavor: "ubuntu"
     steps:

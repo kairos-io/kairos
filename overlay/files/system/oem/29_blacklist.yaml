@@ -1,0 +1,6 @@
+stages:
+   initramfs.before:
+     - name: "Blacklist bpfilter on Alpine ( bug: https://github.com/kairos-io/kairos/issues/277 )"
+       if: '[ -e /sbin/rc-service ]'
+       commands:
+       - echo "install bpfilter /bin/false" > /etc/modprobe.d/blacklist_bpfilter.conf
