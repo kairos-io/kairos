@@ -7,8 +7,6 @@ description: >
   Install Kairos with p2p support
 ---
 
-# Full-mesh P2P support
-
 {{% alert title="Note" %}}
 
 This feature is crazy and experimental!
