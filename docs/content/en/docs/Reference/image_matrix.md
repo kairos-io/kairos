@@ -8,6 +8,13 @@ description: >
 
 Kairos builds several artifacts for user convenience which are based on openSUSE, Alpine Linux, and Ubuntu.
 
+{{% alert title="Note" color="info" %}}
+The Kairos core team does its best to test all distributions but *systemd* based ones(e.g. _openSUSE_, _ubuntu_, ) are more throughly tested as are uniform and have homogeneus settings. 
+Support for other flavors not using systemd (e.g. Alpine), although supported get less priority in our plannings due to the team bandwidth.
+
+Besides, there is tighter integration with systemd for several features that are available only with it (e.g. [live layering](./docs/advanced/livelayering/) ).
+{{% /alert %}}
+
 The images are pushed over quay.io, and are available for installation and upgrading.
 
 The installable mediums part of the releases are generated with the methods described in the [automated installation reference](/docs/installation/automated/#iso-remastering) from the images sources listed below, and the images can be used to point over for upgrades, as well.
