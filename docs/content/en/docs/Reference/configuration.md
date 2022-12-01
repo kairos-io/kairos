@@ -472,7 +472,7 @@ vpn:
 
 ## Stages
 
-The `stage` is a map that allows to execute blocks of cloud-init directives during the lifecycle of the node [stages](/docs/architecture/cloud-init).
+The `stages` key is a map that allows to execute blocks of cloud-init directives during the lifecycle of the node [stages](/docs/architecture/cloud-init).
 
 A full example of a stage is the following:
 
