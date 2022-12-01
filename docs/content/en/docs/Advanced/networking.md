@@ -10,7 +10,7 @@ By default, Kairos ISOs are configured to automatically get an IP from the netwo
 There are different network managers depending on the distro:
 
 - `connman` is available on Alpine-based distribution. By default is enabled on Kairos Alpine flavored variants.
-- systemd-based flavor are all using `systemd-networkd`
+- systemd-based flavors are all using `systemd-networkd`
 
 ## Static IP
 
