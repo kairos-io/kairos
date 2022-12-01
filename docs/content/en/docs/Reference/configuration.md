@@ -588,7 +588,7 @@ stages:
   - name: "echo"
     commands:
     - echo hello
-    node: "hostname" # Node hostname
+    node: "the_node_hostname_here" # Node hostname
 
 name: "Test yip!"
 ```
