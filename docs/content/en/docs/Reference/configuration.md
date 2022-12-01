@@ -732,7 +732,7 @@ stages:
 
 ### `node`
 
-If defined, the node hostname where this stage has to run, otherwise it skips the execution. The node can be also a regexp in the Golang format.
+If defined, the node hostname where this stage has to run, otherwise it skips the execution. The node can also be a regexp in the [Golang format](https://pkg.go.dev/regexp/syntax).
 
 ```yaml
 #cloud-config
