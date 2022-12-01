@@ -597,7 +597,6 @@ name: "Test yip!"
 
 Stages can be skipped based on if statements:
 
-
 ```yaml
 #cloud-config
 
