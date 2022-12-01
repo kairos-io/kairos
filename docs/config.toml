@@ -146,3 +146,8 @@ no = 'Oh snap! Sorry to hear that. Please <a href="https://github.com/kairos-io/
 	url = "https://calendar.google.com/calendar/embed?src=c_6d65f26502a5a67c9570bb4c16b622e38d609430bce6ce7fc1d8064f2df09c11%40group.calendar.google.com&ctz=Europe%2FRome"
         icon = "fa fa-calendar"
         desc = "Join us in our Office hours!"
+[[params.links.user]]
+        name = "Slack"
+        url = "https://join.slack.com/t/spectrocloudcommunity/shared_invite/zt-1k7wsz840-ugSsPKzZCP5gkasJ0kNpqw"
+	icon = "fab fa-slack"
+        desc = "Join us on Slack!"
