@@ -727,7 +727,7 @@ stages:
        authorized_keys:
          mudler:
          - github:mudler
-         - ssh-rsa: ...
+         - "ssh-rsa: ..."
 ```
 
 ### `node`
