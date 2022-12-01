@@ -224,7 +224,7 @@ EOF
 
 Fields of cloud-init are templated and can be used to allow dynamic configuration.
 
-Node information retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) is templated in the commands, file and entities fields.
+Node information is retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) and is templated in the commands, file and entity fields.
 
 This means that templating like the following is possible:
 
