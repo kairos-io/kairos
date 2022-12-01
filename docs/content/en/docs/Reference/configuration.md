@@ -127,9 +127,11 @@ write_files:
   owner: "bar"
 ```
 
+The Kairos configuration file allows to setup features of Kairos and system settings as well. A YAML file is used, similarly to [cloud-init](https://cloud-init.io/) which allows to specify both in the same unique file.
+
 ## Syntax
 
-Kairos supports the standard `cloud-init` syntax, and the extended syntax which is based on [yip](https://github.com/mudler/yip).
+Kairos supports a portion of the standard `cloud-init` syntax, and the extended syntax which is based on [yip](https://github.com/mudler/yip).
 
 Examples using the extended notation for running K3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples).
 
@@ -146,6 +148,15 @@ stages:
         nameservers:
           - 8.8.8.8
 ```
+
+{{% alert title="Note" %}}
+
+Kairos doesn't use [cloud-init](https://cloud-init.io/). [yip](https://github.com/mudler/yip) was created with a primarly key on distro agnosticism - indeed it doesn't bash out at all (exception is systemd configurations, where it's implied you have systemd) and can be run also on minimal Linux distros, built also from scratch.
+
+The rationale is to put us in trajectory to have very minimal requirements - indeed our cloud-init implementation doesn't have dependencies, while the original  cloud-init depends on python, which, makes a deptree grow. The CoreOS implementation have general assumption of the layout of the system, which makes it less portable and wasn't fitting Kairos use-cases.
+
+{{% /alert %}}
+
 
 The extended syntax can be also used to pass-by commands via Kernel boot parameters, see examples below. 
 
