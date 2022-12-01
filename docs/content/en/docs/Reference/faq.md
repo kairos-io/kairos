@@ -1,12 +1,10 @@
 ---
-title: "Frequently asked questions"
-linkTitle: "FAQ"
+title: "FAQ"
+linkTitle: "Frequently asked questions"
 weight: 9
 date: 2022-11-13
 description: >
 ---
-
-# FAQ
 
 ## What is the difference between Kairos compared to Talos/Sidero Metal and Flatcar?
 

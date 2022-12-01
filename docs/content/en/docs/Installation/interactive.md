@@ -7,8 +7,6 @@ description: >
   Install Kairos interactively
 ---
 
-# Interactive installation
-
 The interactive installation can be accessed from the LiveCD ISO and guides the user into the installation process.
 
 It generates a configuration file, which is later accessible after installation in the `/oem/99_custom.yaml` file.
