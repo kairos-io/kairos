@@ -575,7 +575,6 @@ stages:
 
 Below you can find a list of all the supported fields, mind to replace with the appropriate stage you want to hook into.
 
-
 ### Filtering stages by node hostname
 
 stages can be skipped based on the node hostname:
