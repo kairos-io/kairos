@@ -609,7 +609,7 @@ stages:
 name: "Test yip!"
 ```
 
-The expression inside the if will be evaluated in bash and, if specified, the stage gets executed only if the condition returns successfully (exit 0).
+The expression inside the `if` will be evaluated in bash and, if specified, the stage gets executed only if the condition returns successfully (exit 0).
 
 
 ### `name`
