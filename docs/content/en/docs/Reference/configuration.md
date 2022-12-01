@@ -748,7 +748,7 @@ stages:
 A map of users and user info to set. Passwords can also be encrypted.
 
 The `users` parameter adds or modifies the specified list of users. Each user is an object which consists of the following fields. Each field is optional and of type string unless otherwise noted.
-In case the user is already existing, the entry is ignored.
+In case the user already exists, only the `password` and `ssh-authorized-keys` are evaluated. The rest of the fields are ignored.
 
 - **name**: Required. Login name of user
 - **gecos**: GECOS comment of user
