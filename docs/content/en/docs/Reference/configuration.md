@@ -716,7 +716,7 @@ stages:
 ### `authorized_keys`
 
 A list of SSH authorized keys that should be added for each user.
-SSH keys can be obtained from GitHub user accounts by using the format github:${USERNAME},  similarly for Gitlab with gitlab:${USERNAME}.
+SSH keys can be obtained from GitHub user accounts by using the format github:${USERNAME}, similarly for Gitlab with gitlab:${USERNAME}.
 
 ```yaml
 #cloud-config
