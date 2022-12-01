@@ -224,6 +224,24 @@ jobs:
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
 
+  qemu-netboot-tests:
+    needs:
+    # Not really needs this, but it's a temporary "hack" to run them in sequence
+    # TODO: Use built artifacts and don't rebuild them in the run-qemu-netboot-tests target
+    - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+       include:
+         - flavor: "alpine-opensuse-leap"
+         - flavor: "opensuse"
+         - flavor: "ubuntu"
+    steps:
+    - uses: actions/checkout@v3
+    - run: |
+            ./earthly.sh +qemu-netboot-tests --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
+
   upgrade-with-cli-test:
     needs: 
     - build
