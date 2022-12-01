@@ -573,7 +573,7 @@ stages:
      if: "[ -e /foo/bar ]"
 ```
 
-Below you can find a list of all the supported fields, mind to replace with the appropriate stage you want to hook into.
+Below you can find a list of all the supported fields. Mind to replace with the appropriate stage you want to hook into.
 
 ### Filtering stages by node hostname
 
