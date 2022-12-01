@@ -153,7 +153,7 @@ stages:
 
 Kairos doesn't use [cloud-init](https://cloud-init.io/). [yip](https://github.com/mudler/yip) was created with the goals to be distro agnostic - indeed it doesn't bash out at all (exception is systemd configurations, where it's implied you have systemd) and can also be run on minimal Linux distros, built from scratch.
 
-The rationale is to put us in trajectory to have very minimal requirements - indeed our cloud-init implementation doesn't have dependencies, while the original  cloud-init depends on python, which, makes a deptree grow. The CoreOS implementation have general assumption of the layout of the system, which makes it less portable and wasn't fitting Kairos use-cases.
+The rationale is to put us in trajectory to have very minimal requirements - indeed our cloud-init implementation doesn't have dependencies, while the original cloud-init depends on python, which makes the dependency tree grow. There is a CoreOS implementation too, which makes a general assumption on the layout of the system. This makes it less portable and wasn't fitting Kairos use-cases.
 
 {{% /alert %}}
 
