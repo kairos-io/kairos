@@ -920,7 +920,6 @@ stages:
 
 ### `layout`
 
-
 Sets additional partitions on disk free space, if any, and/or expands the last
 partition. All sizes are expressed in MiB only and default value of `size: 0`
 means all available free space in disk. This plugin is useful to be used in
