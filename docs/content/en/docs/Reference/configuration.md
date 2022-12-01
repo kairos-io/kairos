@@ -577,7 +577,7 @@ Below you can find a list of all the supported fields. Mind to replace with the 
 
 ### Filtering stages by node hostname
 
-stages can be skipped based on the node hostname:
+Stages can be filtered using the `node` key with a hostname value:
 
 
 ```yaml
