@@ -222,7 +222,7 @@ EOF
 
 ### Using templates
 
-Fields of cloud init are templated can be used to allow dynamic configuration.
+Fields of cloud-init are templated and can be used to allow dynamic configuration.
 
 Node information retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) is templated in the commands, file and entities fields.
 
