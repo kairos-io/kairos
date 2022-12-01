@@ -745,7 +745,7 @@ stages:
 
 ### `users`
 
-A map of users and user info to set. Passwords can be also encrypted.
+A map of users and user info to set. Passwords can also be encrypted.
 
 The `users` parameter adds or modifies the specified list of users. Each user is an object which consists of the following fields. Each field is optional and of type string unless otherwise noted.
 In case the user is already existing, the entry is ignored.
