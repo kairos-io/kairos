@@ -991,7 +991,7 @@ stages:
         timeout: 0
         owner_string: "root"
       - path: /tmp/out
-        url: "http://www...."
+        url: "https://www...."
         permissions: 0700
         owner: 0
         group: 0
