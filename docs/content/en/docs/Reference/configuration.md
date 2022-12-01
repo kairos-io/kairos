@@ -590,7 +590,6 @@ stages:
     - echo hello
     node: "the_node_hostname_here" # Node hostname
 
-name: "Test yip!"
 ```
 
 ### Filtering stages with if statement
