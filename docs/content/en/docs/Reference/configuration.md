@@ -905,7 +905,6 @@ Sets to fetch user data from the specified cloud providers. It populates
 provider specific data into `/run/config` folder and the custom user data
 is stored into the provided path.
 
-
 ```yaml
 #cloud-config
 
