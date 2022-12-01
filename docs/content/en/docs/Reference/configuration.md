@@ -925,7 +925,6 @@ partition. All sizes are expressed in MiB only and default value of `size: 0`
 means all available free space in disk. This plugin is useful to be used in
 oem images where the default partitions might not suit the actual disk geometry.
 
-
 ```yaml
 #cloud-config
 
