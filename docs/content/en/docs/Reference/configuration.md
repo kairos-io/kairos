@@ -726,7 +726,7 @@ stages:
      - name: "Setup exception trace"
        authorized_keys:
          mudler:
-         - github:mudler
+         - "github:mudler"
          - "ssh-rsa: ..."
 ```
 
