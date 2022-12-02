@@ -1,7 +1,7 @@
 ---
 title: "Takeover"
 linkTitle: "Takeover"
-weight: 6
+weight: 7
 date: 2022-11-13
 description: >
 ---
