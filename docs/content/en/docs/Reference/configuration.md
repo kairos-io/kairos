@@ -86,7 +86,7 @@ k3s-agent:
   # replace_args: true
 
 # Additional cloud init syntax can be used here.
-# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/ for a complete reference
+# See `stages` below.
 stages:
   network:
     - name: "Setup users"
@@ -127,15 +127,19 @@ write_files:
   owner: "bar"
 ```
 
+The Kairos configuration file allows to setup features of Kairos and system settings as well. A YAML file is used, similarly to [cloud-init](https://cloud-init.io/) which allows to specify both in the same unique file.
+
 ## Syntax
 
-Kairos supports the standard `cloud-init` syntax, and the extended syntax which is based on [yip](https://github.com/mudler/yip).
+Kairos supports a portion of the standard `cloud-init` syntax, and the extended syntax which is based on [yip](https://github.com/mudler/yip).
 
 Examples using the extended notation for running K3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples).
 
 For instance, to set up the DNS at the boot stage:
 
 ```yaml
+#cloud-config
+
 stages:
   boot:
     - name: "DNS settings"
@@ -145,9 +149,18 @@ stages:
           - 8.8.8.8
 ```
 
+{{% alert title="Note" %}}
+
+Kairos doesn't use [cloud-init](https://cloud-init.io/). [yip](https://github.com/mudler/yip) was created with the goals to be distro agnostic - indeed it doesn't bash out at all (exception is systemd configurations, where it's implied you have systemd) and can also be run on minimal Linux distros, built from scratch.
+
+The rationale is to put us in trajectory to have very minimal requirements - indeed our cloud-init implementation doesn't have dependencies, while the original cloud-init depends on python, which makes the dependency tree grow. There is a CoreOS implementation too, which makes a general assumption on the layout of the system. This makes it less portable and wasn't fitting Kairos use-cases.
+
+{{% /alert %}}
+
+
 The extended syntax can be also used to pass-by commands via Kernel boot parameters, see examples below. 
 
-## Test your cloud configs
+### Test your cloud configs
 
 Writing YAML files can be a tedious process, where syntax or intendation errors might occour.
 
@@ -186,6 +199,8 @@ It is possible also to test individual file by piping them to cloud-init, consid
 
 ```bash
 cat <<EOF | docker run -i --rm --entrypoint /usr/bin/elemental quay.io/kairos/core-alpine cloud-init -s test -
+#cloud-config
+
 stages:
  test:
  - commands:
@@ -205,21 +220,41 @@ EOF
 # INFO[2022-11-18T08:53:45Z] Done executing stage 'test'
 ```
 
-## Automatic Hostname at scale
+### Using templates
+
+Fields of cloud-init are templated and can be used to allow dynamic configuration.
+
+Node information is retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) and is templated in the commands, file and entity fields.
+
+This means that templating like the following is possible:
+
+```yaml
+#cloud-config
+
+stages:
+  foo:
+  - name: "echo"
+    commands:
+    - echo "{{.Values.node.hostname}}"
+```
+And [sprig functions](http://masterminds.github.io/sprig/) are available.
+
+#### Automatic Hostname at scale
 
 Sometimes you may want to create a single `cloud-init` file for a set of machines and also make sure each node has a different hostname.
 
-The cloud-config syntax supports templating, so you can automate hostname generation based on the `machine ID` which is generated for each host:
+Leveraging templating, you can automate hostname generation based on the `machine ID` which is generated for each host:
 
 ```yaml
-#node-config
+#cloud-config
+
 stages:
   initramfs:
     - name: "Setup hostname"
       hostname: "node-{{ trunc 4 .MachineID }}"
 ```
 
-### `k3s`
+### K3s settings
 
 The `k3s` and the `k3s-agent` block are used to customize the environment and argument settings of K3s, consider:
 
@@ -252,14 +287,14 @@ k3s-agent:
 
 See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure K3s manually.
 
-## `install.grub_options`
+### Grub options
 
-This is a map of key/value GRUB options to be set in the GRUB environment after installation.
+`install.grub_options` is a map of key/value GRUB options to be set in the GRUB environment after installation.
 
 It can be used to set additional boot arguments on boot, consider to set `panic=0` as bootarg:
 
 ```yaml
-#node-config
+#cloud-config
 
 install:
   # See also: https://rancher.github.io/elemental-toolkit/docs/customizing/configure_grub/#grub-environment-variables
@@ -433,4 +468,533 @@ vpn:
   DNSCACHESIZE: "200"
   # Set DNS forward server
   DNSFORWARDSERVER: "8.8.8.8:53"
+```
+
+## Stages
+
+The `stages` key is a map that allows to execute blocks of cloud-init directives during the lifecycle of the node [stages](/docs/architecture/cloud-init).
+
+A full example of a stage is the following:
+
+
+```yaml
+#cloud-config
+
+stages:
+   # "boot" is the stage
+   boot:
+     - systemd_firstboot:
+         keymap: us
+     - files:
+        - path: /tmp/bar
+          content: |
+                    test
+          permissions: 0777
+          owner: 1000
+          group: 100
+       if: "[ ! -e /tmp/bar ]"
+     - files:
+        - path: /tmp/foo
+          content: |
+                    test
+          permissions: 0777
+          owner: 1000
+          group: 100
+       commands:
+        - echo "test"
+       modules:
+       - nvidia
+       environment:
+         FOO: "bar"
+       systctl:
+         debug.exception-trace: "0"
+       hostname: "foo"
+       systemctl:
+         enable:
+         - foo
+         disable:
+         - bar
+         start:
+         - baz
+         mask:
+         - foobar
+       authorized_keys:
+          user:
+          - "github:mudler"
+          - "ssh-rsa ...."
+       dns:
+         path: /etc/resolv.conf
+         nameservers:
+         - 8.8.8.8
+       ensure_entities:
+       -  path: /etc/passwd
+          entity: |
+                  kind: "user"
+                  username: "foo"
+                  password: "pass"
+                  uid: 0
+                  gid: 0
+                  info: "Foo!"
+                  homedir: "/home/foo"
+                  shell: "/bin/bash"
+       delete_entities:
+       -  path: /etc/passwd
+          entity: |
+                  kind: "user"
+                  username: "foo"
+                  password: "pass"
+                  uid: 0
+                  gid: 0
+                  info: "Foo!"
+                  homedir: "/home/foo"
+                  shell: "/bin/bash"
+      datasource:
+        providers:
+          - "digitalocean"
+          - "aws"
+          - "gcp"
+        path: "/usr/local/etc"
+```
+
+Note multiple stages can be specified, to execute blocks into different stages, consider:
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+   - commands:
+     - echo "hello from the boot stage"
+   initramfs:
+   - commands:
+     - echo "hello from the boot stage"
+   - commands:
+     - echo "so much wow, /foo/bar bar exists!"
+     if: "[ -e /foo/bar ]"
+```
+
+Below you can find a list of all the supported fields. Mind to replace with the appropriate stage you want to hook into.
+
+### Filtering stages by node hostname
+
+Stages can be filtered using the `node` key with a hostname value:
+
+
+```yaml
+#cloud-config
+
+stages:
+  foo:
+  - name: "echo"
+    commands:
+    - echo hello
+    node: "the_node_hostname_here" # Node hostname
+
+```
+
+### Filtering stages with if statement
+
+Stages can be skipped based on if statements:
+
+```yaml
+#cloud-config
+
+stages:
+  foo:
+  - name: "echo"
+    commands:
+    - echo hello
+    if: "cat /proc/cmdline | grep debug"
+
+name: "Test yip!"
+```
+
+The expression inside the `if` will be evaluated in bash and, if specified, the stage gets executed only if the condition returns successfully (exit 0).
+
+
+### `name`
+
+A description of the stage step. Used only when printing output to console.
+
+### `commands`
+
+A list of arbitrary commands to run after file writes and directory creation.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup something"
+       commands:
+         - echo 1 > /bar
+```
+
+### `files`
+
+A list of files to write to disk.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - files:
+        - path: /tmp/bar
+          content: |
+                    #!/bin/sh
+                    echo "test"
+          permissions: 0777
+          owner: 1000
+          group: 100
+```
+
+### `directories`
+
+A list of directories to be created on disk. Runs before `files`.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup folders"
+       directories:
+       - path: "/etc/foo"
+         permissions: 0600
+         owner: 0
+         group: 0
+```
+
+### `dns`
+
+A way to configure the `/etc/resolv.conf` file.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup dns"
+       dns:
+         nameservers:
+         - 8.8.8.8
+         - 1.1.1.1
+         search:
+         - foo.bar
+         options:
+         - ..
+         path: "/etc/resolv.conf.bak"
+```
+### `hostname`
+
+A string representing the machine hostname. It sets it in the running system, updates `/etc/hostname` and adds the new hostname to `/etc/hosts`.
+Templates can be used to allow dynamic configuration. For example in mass-install scenario it could be needed (and easier) to specify hostnames for multiple machines from a single cloud-init config file.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup hostname"
+       hostname: "node-{{ trunc 4 .MachineID }}"
+```
+### `sysctl`
+
+Kernel configuration. It sets `/proc/sys/<key>` accordingly, similarly to `sysctl`.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup exception trace"
+       systctl:
+         debug.exception-trace: "0"
+```
+
+### `authorized_keys`
+
+A list of SSH authorized keys that should be added for each user.
+SSH keys can be obtained from GitHub user accounts by using the format github:${USERNAME}, similarly for Gitlab with gitlab:${USERNAME}.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup exception trace"
+       authorized_keys:
+         mudler:
+         - "github:mudler"
+         - "ssh-rsa: ..."
+```
+
+### `node`
+
+If defined, the node hostname where this stage has to run, otherwise it skips the execution. The node can also be a regexp in the [Golang format](https://pkg.go.dev/regexp/syntax).
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup logging"
+       node: "bastion"
+```
+
+### `users`
+
+A map of users and user info to set. Passwords can also be encrypted.
+
+The `users` parameter adds or modifies the specified list of users. Each user is an object which consists of the following fields. Each field is optional and of type string unless otherwise noted.
+In case the user already exists, only the `password` and `ssh-authorized-keys` are evaluated. The rest of the fields are ignored.
+
+- **name**: Required. Login name of user
+- **gecos**: GECOS comment of user
+- **passwd**: Hash of the password to use for this user. Unencrypted strings are supported too.
+- **homedir**: User's home directory. Defaults to /home/*name*
+- **no-create-home**: Boolean. Skip home directory creation.
+- **primary-group**: Default group for the user. Defaults to a new group created named after the user.
+- **groups**: Add user to these additional groups
+- **no-user-group**: Boolean. Skip default group creation.
+- **ssh-authorized-keys**: List of public SSH keys to authorize for this user
+- **system**: Create the user as a system user. No home directory will be created.
+- **no-log-init**: Boolean. Skip initialization of lastlog and faillog databases.
+- **shell**: User's login shell.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup users"
+       users: 
+          bastion: 
+            passwd: "strongpassword"
+            homedir: "/home/foo
+```
+
+### `ensure_entities`
+
+A `user` or a `group` in the [entity](https://github.com/mudler/entities) format to be configured in the system
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup users"
+       ensure_entities:
+       -  path: /etc/passwd
+          entity: |
+                  kind: "user"
+                  username: "foo"
+                  password: "x"
+                  uid: 0
+                  gid: 0
+                  info: "Foo!"
+                  homedir: "/home/foo"
+                  shell: "/bin/bash"
+```
+### `delete_entities`
+
+A `user` or a `group` in the [entity](https://github.com/mudler/entities) format to be pruned from the system
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup users"
+       delete_entities:
+       -  path: /etc/passwd
+          entity: |
+                  kind: "user"
+                  username: "foo"
+                  password: "x"
+                  uid: 0
+                  gid: 0
+                  info: "Foo!"
+                  homedir: "/home/foo"
+                  shell: "/bin/bash"
+```
+### `modules`
+
+A list of kernel modules to load.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup users"
+       modules:
+       - nvidia
+```
+### `systemctl`
+
+A list of systemd services to `enable`, `disable`, `mask` or `start`.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup users"
+       systemctl:
+         enable:
+          - systemd-timesyncd
+          - cronie
+         mask:
+          - purge-kernels
+         disable:
+          - crond
+         start:
+          - cronie
+```
+### `environment`
+
+A map of variables to write in `/etc/environment`, or otherwise specified in `environment_file`
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup users"
+       environment:
+         FOO: "bar"
+```
+### `environment_file`
+
+A string to specify where to set the environment file
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup users"
+       environment_file: "/home/user/.envrc"
+       environment:
+         FOO: "bar"
+```
+### `timesyncd`
+
+Sets the `systemd-timesyncd` daemon file (`/etc/system/timesyncd.conf`) file accordingly. The documentation for `timesyncd` and all the options can be found [here](https://www.freedesktop.org/software/systemd/man/timesyncd.conf.html).
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Setup NTP"
+       systemctl:
+         enable:
+         - systemd-timesyncd
+       timesyncd:
+          NTP: "0.pool.org foo.pool.org"
+          FallbackNTP: ""
+          ...
+```
+
+### `datasource`
+
+Sets to fetch user data from the specified cloud providers. It populates
+provider specific data into `/run/config` folder and the custom user data
+is stored into the provided path.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Fetch cloud provider's user data"
+       datasource:
+         providers:
+         - "aws"
+         - "digitalocean"
+         path: "/etc/cloud-data"
+```
+
+### `layout`
+
+Sets additional partitions on disk free space, if any, and/or expands the last
+partition. All sizes are expressed in MiB only and default value of `size: 0`
+means all available free space in disk. This plugin is useful to be used in
+oem images where the default partitions might not suit the actual disk geometry.
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+     - name: "Repart disk"
+       layout:
+         device:
+           # It will partition a device including the given filesystem label
+           # or partition label (filesystem label matches first) or the device
+           # provided in 'path'. The label check has precedence over path when
+           # both are provided.
+           label: "COS_RECOVERY"
+           path: "/dev/sda"
+         # Only last partition can be expanded and it happens after all the other
+         # partitions are created. size: 0 means all available free space
+         expand_partition:
+           size: 4096
+         add_partitions:
+           - fsLabel: "COS_STATE"
+             size: 8192
+             # No partition label is applied if omitted
+             pLabel: "state"
+           - fsLabel: "COS_PERSISTENT"
+             # default filesystem is ext2 if omitted
+             filesystem: "ext4"
+```
+
+### `git`
+
+Pull git repositories, using golang native git (no need of git in the host).
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+    - git:
+       url: "git@gitlab.com:.....git"
+       path: "/oem/cloud-config-files"
+       branch: "main"
+       auth:
+         insecure: true
+         private_key: |
+          -----BEGIN RSA PRIVATE KEY-----
+          -----END RSA PRIVATE KEY-----
+```
+
+### `downloads`
+
+Download files to specified locations
+
+```yaml
+#cloud-config
+
+stages:
+   boot:
+    - downloads:
+      - path: /tmp/out
+        url: "https://www...."
+        permissions: 0700
+        owner: 0
+        group: 0
+        timeout: 0
+        owner_string: "root"
+      - path: /tmp/out
+        url: "https://www...."
+        permissions: 0700
+        owner: 0
+        group: 0
+        timeout: 0
+        owner_string: "root"
 ```

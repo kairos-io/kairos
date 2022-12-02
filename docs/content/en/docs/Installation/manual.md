@@ -7,8 +7,6 @@ description: >
   Install Kairos manually
 ---
 
-# Manual installation
-
 To install manually, follow the [quickstart](/docs/getting-started). When the QR code is prompted at the screen, you will be able to log in via SSH to the box with the password `kairos` as `kairos` user.
 
 {{% alert title="Note" %}}

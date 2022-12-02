@@ -310,7 +310,9 @@ iso:
 netboot:
    ARG OSBUILDER_IMAGE
    FROM $OSBUILDER_IMAGE
-   ARG VERSION
+   COPY +version/VERSION ./
+   ARG VERSION=$(cat VERSION)
+   RUN echo "version ${VERSION}"
    ARG ISO_NAME=${OS_ID}
    ARG FROM_ARTIFACT
    WORKDIR /build
@@ -318,7 +320,7 @@ netboot:
 
    COPY . .
    IF [ "$FROM_ARTIFACT" = "" ]
-   	COPY +iso/kairos.iso kairos.iso
+        COPY +iso/kairos.iso kairos.iso
         RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
    ELSE
         RUN /build/scripts/netboot.sh $FROM_ARTIFACT $ISO_NAME $VERSION
@@ -360,6 +362,7 @@ ipxe-iso:
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
     ARG RELEASE_URL
+    RUN echo "version ${VERSION}"
 
     RUN git clone https://github.com/ipxe/ipxe
     IF [ "$ipxe_script" = "" ]

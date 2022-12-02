@@ -6,8 +6,6 @@ date: 2022-11-13
 description: >
 ---
 
-# Takeover installations
-
 Kairos supports takeover installations. Here are a few summarized steps:
 
 - From the dedicated control panel (OVH, Hetzner, etc.), boot in *rescue* mode

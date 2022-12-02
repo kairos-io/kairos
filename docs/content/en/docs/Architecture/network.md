@@ -6,8 +6,6 @@ date: 2022-11-13
 description: >
 ---
 
-# P2P Network
-
 Optionally Kairos supports full p2p connectivity.
 
 Nodes automatically co-ordinates themselves and bootstrap from the ground-up using a distributed ledger:

@@ -6,8 +6,6 @@ date: 2022-11-13
 description: >
 ---
 
-# Upgrading manually
-
 Upgrades can be run manually from the terminal.
 
 Kairos images are released on [quay.io](https://quay.io/repository/kairos/kairos).
