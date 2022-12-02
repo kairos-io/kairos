@@ -38,7 +38,7 @@ func YAMLHasKey(query string, content []byte) (bool, error) {
 	return true, nil
 }
 
-func jq(command string, data map[string]interface{}) (map[string]interface{}, error) {
+func lookupKey(command string, data map[string]interface{}) (interface{}, error) {
 	query, err := gojq.Parse(command)
 	if err != nil {
 		return nil, err
@@ -53,6 +53,47 @@ func jq(command string, data map[string]interface{}) (map[string]interface{}, er
 	if !ok {
 		return nil, errors.New("failed getting result from gojq")
 	}
+
+	return v, nil
+}
+
+func LookupString(command string, data map[string]interface{}) (string, error) {
+	v, err := lookupKey(command, data)
+	if err != nil {
+		return "", err
+	}
+
+	if t, ok := v.(string); ok {
+		return t, nil
+	}
+
+	return "", fmt.Errorf("value is not a string: %T", v)
+}
+
+func ReplaceValue(command string, data map[string]interface{}) (string, error) {
+	v, err := lookupKey(command, data)
+	if err != nil {
+		return "", err
+	}
+
+	if _, ok := v.(map[string]interface{}); ok {
+		b, err := yaml.Marshal(v)
+		return string(b), err
+	}
+
+	return "", fmt.Errorf("unexpected type: %T", v)
+}
+
+// func ReplaceKeyValue(command string, data interface{}) (string, error) {
+// 	LookupString(commd
+// }
+
+func jq(command string, data map[string]interface{}) (map[string]interface{}, error) {
+	v, err := lookupKey(command, data)
+	if err != nil {
+		return make(map[string]interface{}), err
+	}
+
 	if err, ok := v.(error); ok {
 		return nil, err
 	}
