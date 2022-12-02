@@ -91,7 +91,6 @@ var _ = BeforeSuite(func() {
 			types.WithID(machineID),
 			types.WithSSHUser(user()),
 			types.WithSSHPass(pass()),
-			types.WithMemory("6000M"),
 			types.OnFailure(func(p *process.Process) {
 				defer GinkgoRecover()
 				out, _ := os.ReadFile(p.StdoutPath())
