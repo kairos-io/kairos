@@ -68,27 +68,46 @@ qemu-system-x86_64 \
 ## Notes on booting from network
 
 Another way to boot with the release artifacts is using [pixiecore](https://github.com/danderson/netboot/tree/master/pixiecore).
-Using a ipxe script [like the one in that project](https://github.com/danderson/netboot/blob/master/pixiecore/boot.ipxe), it is possible to use DHCP to boot to any version (unlike the hardcoded ISOs in the previous section).
-For example:
+`pixiecore` acts as a server which offers net boot files over the network and it's automatically discovered on a network where a DHCP server is running and is compatible with [the pixiecore architecture](https://github.com/danderson/netboot/blob/master/pixiecore/README.booting.md).
 
-- Start pixiecore server:
 
-```sh
-#!/bin/sh
+Assuming the current directory has the `kernel`, `initrd` and `squashfs` artifacts,
+`pixiecore` server can be started with `docker` like this:
 
-sudo docker run  \
-  --net=host \
-  -v $PWD/artifacts:/files \
-  quay.io/pixiecore/pixiecore \
-  boot /files/kairos-core-alpine-ubuntu-kernel \
-  /files/kairos-core-alpine-ubuntu-initrd \
-  --cmdline='rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID "/files/kairos-core-alpine-ubuntu.squashfs" }} netboot nodepair.enable config_url={{ ID "/files/config.yaml" }} console=tty1 console=ttyS0 console=tty0'
+```bash
+#!/bin/bash
+
+VERSION="v1.3.0"
+
+wget "https://github.com/kairos-io/kairos/releases/download/${VERSION}/kairos-opensuse-${VERSION}-kernel"
+wget "https://github.com/kairos-io/kairos/releases/download/${VERSION}/kairos-opensuse-${VERSION}-initrd"
+wget "https://github.com/kairos-io/kairos/releases/download/${VERSION}/kairos-opensuse-${VERSION}.squashfs"
+
+cat << EOF > config.yaml
+#cloud-config
+
+hostname: "hostname.domain.tld"
+users:
+- name: "kairos"
+  passwd: "kairos"
+EOF
+
+# This will start the pixiecore server.
+# Any machine that depends on DHCP to netboot will be send the specified files and the cmd boot line.
+docker run \
+  -d --name pixiecore --net=host -v $PWD:/files quay.io/pixiecore/pixiecore \
+    boot /files/kairos-opensuse-${VERSION}-kernel /files/kairos-opensuse-${VERSION}-initrd --cmdline="rd.neednet=1 ip=dhcp rd.cos.disable root=live:{{ ID \"/files/kairos-opensuse-${VERSION}.squashfs\" }} netboot nodepair.enable config_url={{ ID \"/files/config.yaml\" }} console=tty1 console=ttyS0 console=tty0"
 ```
 
-This will start the pixiecore server. Any machine that depends on DHCP to netboot will be send the specified files and the cmd boot line.
+If your machine doesn't support netbooting, you can use our [generic image](https://github.com/kairos-io/ipxe-dhcp/releases), which is built using an ipxe script [from the pixiecore project](https://github.com/danderson/netboot/blob/master/pixiecore/boot.ipxe). The ISO will wait for a DHCP proxy response from pixiecore.
 
-Kairos project has and experimental ISO that boots from DHCP that can be used to try this out:
+If pixiecore is successfully reached, you should see an output similar to this in the `pixiecore` docker container:
 
-https://github.com/kairos-io/ipxe-dhcp/releases
-
-(A DHCP server should be running on the same network where this boots and pixiecore server is running)
+```
+$ docker logs pixiecore
+[DHCP] Offering to boot 08:00:27:e5:22:8c
+[DHCP] Offering to boot 08:00:27:e5:22:8c
+[HTTP] Sending ipxe boot script to 192.168.1.49:4371
+[HTTP] Sent file "kernel" to 192.168.1.49:4371
+[HTTP] Sent file "initrd-0" to 192.168.1.49:4371
+```
