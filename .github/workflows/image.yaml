@@ -240,7 +240,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: |
-            ./earthly.sh +qemu-netboot-tests --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
+            ./earthly.sh +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
 
   upgrade-with-cli-test:
     needs: 
