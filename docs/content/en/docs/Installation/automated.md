@@ -83,7 +83,7 @@ $ mkdir -p files-iso/boot/grub2
 # You can replace this step with your own grub config. This GRUB configuration is the boot menu of the ISO
 $ wget https://raw.githubusercontent.com/kairos-io/kairos/master/overlay/files-iso/boot/grub2/grub.cfg -O files-iso/boot/grub2/grub.cfg
 # Copy the config file
-$ cp -rfv cloud_init.yaml files-iso/config.yaml
+$ cp -rfv cloud_init.yaml files-iso/cloud_config.yaml
 # Pull the image locally
 $ docker pull $IMAGE
 # Optionally, modify the image here!
