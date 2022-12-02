@@ -16,6 +16,7 @@ After cloning the repo (with submodules), just run `make serve` to test the webs
 ```
 $> git clone --recurse-submodule https://github.com/kairos-io/kairos
 $> cd kairos/docs
+$> npm run prepare
 $> make serve
 ```
 
