@@ -77,6 +77,7 @@ var _ = BeforeSuite(func() {
 
 	if os.Getenv("CREATE_VM") == "true" {
 		t, err := os.MkdirTemp("", "")
+		fmt.Printf("State dir = %+v\n", t)
 		Expect(err).ToNot(HaveOccurred())
 
 		sshPort = "2222"
@@ -91,9 +92,12 @@ var _ = BeforeSuite(func() {
 			types.WithSSHUser(user()),
 			types.WithSSHPass(pass()),
 			types.OnFailure(func(p *process.Process) {
+				defer GinkgoRecover()
 				out, _ := os.ReadFile(p.StdoutPath())
 				err, _ := os.ReadFile(p.StderrPath())
 				status, _ := p.ExitCode()
+				// Ginkgo doesn't print?
+				fmt.Printf("VM Aborted: %s %s Exit status: %s", out, err, status)
 				Fail(fmt.Sprintf("VM Aborted: %s %s Exit status: %s", out, err, status))
 			}),
 			types.WithStateDir(t),

@@ -316,6 +316,7 @@ netboot:
    ARG ISO_NAME=${OS_ID}
    ARG FROM_ARTIFACT
    WORKDIR /build
+   ARG RELEASE_URL
 
    COPY . .
    IF [ "$FROM_ARTIFACT" = "" ]
@@ -360,11 +361,12 @@ ipxe-iso:
     ARG ISO_NAME=${OS_ID}        
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
+    ARG RELEASE_URL
     RUN echo "version ${VERSION}"
 
     RUN git clone https://github.com/ipxe/ipxe
     IF [ "$ipxe_script" = "" ]
-        COPY (+netboot/ipxe --VERSION=$VERSION) /build/ipxe/script.ipxe
+        COPY (+netboot/ipxe --VERSION=$VERSION --RELEASE_URL=$RELEASE_URL) /build/ipxe/script.ipxe
     ELSE
         COPY $ipxe_script /build/ipxe/script.ipxe
     END
@@ -462,6 +464,43 @@ run-qemu-datasource-tests:
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+
+run-qemu-netboot-test:
+    FROM ubuntu
+
+    COPY . /test
+    WORKDIR /test
+
+    ARG ISO_NAME=${OS_ID}
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+
+    RUN apt update
+    RUN apt install -y qemu qemu-utils qemu-system golang git
+
+    # This is the IP at which qemu vm can see the host
+    ARG IP="10.0.2.2"
+
+    COPY (+netboot/squashfs --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.squashfs
+    COPY (+netboot/kernel --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-kernel
+    COPY (+netboot/initrd --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-initrd
+    COPY (+netboot/ipxe --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.ipxe
+    COPY (+ipxe-iso/iso --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/${ISO_NAME}-ipxe.iso
+
+    ENV ISO=/test/build/$ISO_NAME-ipxe.iso
+
+    ENV CREATE_VM=true
+    ENV USE_QEMU=true
+    ARG TEST_SUITE=netboot-test
+    ENV GOPATH="/go"
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
+    # TODO: use --pull or something to cache the python image in Earthly
+    WITH DOCKER
+        RUN docker run -d -v $PWD/build:/build --workdir=/build \
+            --net=host -it python:3.11.0-bullseye python3 -m http.server 80 && \
+            PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    END
 
 run-qemu-test:
     FROM opensuse/leap
