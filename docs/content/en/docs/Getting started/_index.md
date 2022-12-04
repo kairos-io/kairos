@@ -29,6 +29,8 @@ The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/relea
 
 The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) ship `k3s` and `P2P` full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
 
+See [Image Matrix Support](/docs/reference/image_matrix) for additional supported images and kernels.
+
 {{% /alert %}}
 
 ## Booting
