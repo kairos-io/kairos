@@ -45,6 +45,24 @@ kairos:
 
 The `kairos` block is used to configure settings to the mesh functionalities. The minimum required argument is the `network_token`.
 
+Full example:
+
+```yaml
+#cloud-config
+
+hostname: "p2p-{{ trunc 4 .MachineID }}"
+
+users:
+- name: "kairos"
+  passwd: "kairos"
+  ssh_authorized_keys:
+  - github:mudler
+
+kairos:
+ ## Generate a network token with the CLI as documented in https://kairos.io/docs/installation/p2p/#network_token
+ network_token: ""
+```
+
 ### `network_token`
 
 The `network_token` is a unique, shared secret which is spread over the nodes and can be generated with the Kairos CLI.
