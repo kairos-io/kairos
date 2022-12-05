@@ -9,7 +9,8 @@ description: >
 
 {{% alert title="Note" %}}
 
-This feature is crazy and experimental!
+This feature is crazy and experimental! Do not run in production servers. 
+Feedback and bug reports are welcome, as we are improving the p2p aspects of Kairos.
 
 {{% /alert %}}
 
