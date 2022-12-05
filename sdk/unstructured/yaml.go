@@ -33,7 +33,7 @@ func YAMLHasKey(query string, content []byte) (bool, error) {
 		return false, err
 	}
 	if v == nil {
-		return false, fmt.Errorf("not found")
+		return false, nil
 	}
 	return true, nil
 }
