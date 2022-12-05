@@ -43,7 +43,7 @@ kairos:
   # role: "master"
 ```
 
-The `kairos` block is used to configure settings to the mesh functionalities. The minimum required argument is the `network_token`.
+The `kairos` block is used to configure settings to the mesh functionalities. The minimum required argument is the `network_token` and there is no need to configure `k3s` manually with the `k3s` block.
 
 Full example:
 
@@ -62,6 +62,13 @@ kairos:
  ## Generate a network token with the CLI as documented in https://kairos.io/docs/installation/p2p/#network_token
  network_token: ""
 ```
+
+{{% alert title="Note" %}}
+
+The `k3s` block can still be used to override other `k3s` settings, e.g. `args`.
+
+{{% /alert %}}
+
 
 ### `network_token`
 
