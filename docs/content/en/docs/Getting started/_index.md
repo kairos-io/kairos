@@ -88,6 +88,7 @@ Save the configuration file as `config.yaml`, as we will use it later in the pro
 - `hostname` sets the machine hostname.
 - `dns` sets the DNS for the machine.
 - `k3s.enabled=true` enables K3s.
+- If you want to enable experimental P2P support, check out [P2P installation](/docs/installation/p2p)
 
 {{% alert title="Note" %}}
 
