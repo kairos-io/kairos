@@ -52,8 +52,9 @@ helm install kairos-osbuilder kairos/osbuilder
 
 To build an ISO, consider the following spec, which provides a hybrid bootable ISO (UEFI/MBR), with the `core` kairos image, adding `helm`:
 
-```yamlapiVersion: build.kairos.io/v1alpha1
+```yaml
 kind: OSArtifact
+apiVersion: build.kairos.io/v1alpha1
 metadata:
   name: hello-kairos
 spec:
