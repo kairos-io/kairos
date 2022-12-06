@@ -65,6 +65,8 @@ helm install kairos-entangle-proxy kairos/entangle-proxy
 
 ## Controlling a remote cluster
 
+![control](https://user-images.githubusercontent.com/2420543/205872002-894f24aa-ac1c-4f70-bb46-aaad89392a25.png)
+
 To control a remote cluster, you need a cluster where to issue and apply manifest from (the control cluster, where `entangle-proxy` is installed) and a cluster running `entangle` which proxies `kubectl` with a `ServiceAccount`/`Role` associated with it.
 
 They both need to agree on a secret, which is the `network_token` to be able to communicate, otherwise it won't work. There is no other configuration needed in order for the two cluster to talk to each other.
@@ -116,8 +118,6 @@ rules:
   - events
   verbs:
   - create
-
-
 ---
 apiVersion: v1
 kind: List
@@ -219,8 +219,18 @@ The `entangle` CRD can be used to interconnect services of clusters, or create t
 
 ### Deployment
 
-`entangle` can be used to tunnel a connection available from one cluster to another, consider the following example that tunnels a cluster `192.168.1.1:80` to another one using an `Entanglement`:
 
+`entangle` can be used to tunnel a connection or a service available from one cluster to another.
+
+![entangle-A](https://user-images.githubusercontent.com/2420543/205871973-d913680d-355f-4322-8cbb-6a94f8505ccb.png)
+In the image above, we can see how entangle can create a tunnel for a service running on Cluster A and mirror it to to Cluster B.
+
+
+It can also expose services that are reachable from the host Network:
+![entangle-B](https://user-images.githubusercontent.com/2420543/205871999-17abcde8-1b78-4a71-bc3e-ed77664c5551.png)
+
+
+Consider the following example that tunnels a cluster `192.168.1.1:80` to another one using an `Entanglement`:
 
 {{< tabpane text=true right=true  >}}
 {{% tab header="Cluster A (where `192.168.1.1:80` is accessible)" %}}
@@ -312,32 +322,6 @@ spec:
       restartPolicy: OnFailure
 ```
 
-Or an Entanglement can have injections as well:
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: mysecret
-  namespace: default
-type: Opaque
-stringData:
-  network_token: _YOUR_SECRET_GOES_HERE_
----
-apiVersion: entangle.kairos.io/v1alpha1
-kind: Entanglement
-metadata:
-  name: hello
-  namespace: default
-  labels:
-   entanglement.kairos.io/name: "mysecret"
-   entanglement.kairos.io/service: "foo"
-   entanglement.kairos.io/target_port: "9090"
-spec:
-   serviceUUID: "foo"
-   secretRef: "mysecret"
-   host: "127.0.0.1"
-   port: "8080"
-```
 
 Or we can combine them together:
 
