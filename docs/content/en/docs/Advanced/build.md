@@ -54,6 +54,7 @@ To build an ISO, consider the following spec, which provides a hybrid bootable I
 
 ```yamlapiVersion: build.kairos.io/v1alpha1
 kind: OSArtifact
+apiVersion: build.kairos.io/v1alpha1
 metadata:
   name: hello-kairos
 spec:
