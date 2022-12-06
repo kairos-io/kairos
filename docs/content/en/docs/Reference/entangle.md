@@ -15,7 +15,7 @@ Feedback and bug reports are welcome, as we are improving the p2p aspects of Kai
 
 Kairos has two Kubernetes Native extensions ( [entangle](https://github.com/kairos-io/entangle) and [entangle-proxy](https://github.com/kairos-io/entangle-proxy) ) that allows to interconnect services between different clusters via P2P with a shared secret.
 
-The clusters won't need to do any specific setting in order to establish a connection, as it uses internally [libp2p](https://github.com/libp2p/go-libp2p) to connect between the nodes.
+The clusters won't need to do any specific setting in order to establish a connection, as it uses [libp2p](https://github.com/libp2p/go-libp2p) to establish a connection between the nodes.
 
 Entangle can be used to connect services running on different clusters or can be used with `entangle-proxy` to control another cluster remotely via P2P.
 

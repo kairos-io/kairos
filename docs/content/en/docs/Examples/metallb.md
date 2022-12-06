@@ -3,7 +3,7 @@ title: "MetalLB"
 linkTitle: "MetalLB"
 weight: 3
 description: > 
-    This section describe examples on how to deploy Kairos with MetalLB
+    This section describe examples on how to deploy Kairos with k3s and MetalLB
 ---
 
 In the example below we will use a bare metal host to provision a Kairos node in the local network with K3s and MetalLB using the `192.168.1.10-192.168.1.20` IP range.
@@ -11,6 +11,10 @@ In the example below we will use a bare metal host to provision a Kairos node in
 [MetalLB](https://metallb.universe.tf/) is a load-balancer implementation for bare metal Kubernetes clusters, using standard routing protocols. Can be used with [k3s](https://k3s.io) in Kairos to provide Load Balancing for baremetal and manage IPs in a cluster.
 
 ## Installation
+
+Use the [provider-kairos](https://github.com/kairos-io/provider-kairos) artifacts which contains `k3s`.
+
+We will use the [k3s manifest method](/docs/reference/configuration#kubernetes-manifests) to deploy `MetaLB`.
 
 Follow the [Installation](/docs/installation) documentation, and use the following cloud config file with Kairos:
 
@@ -73,7 +77,7 @@ write_files:
 Notably:
 
 - we use the `k3s` block to disable `traefik` and `servicelb` (the default `k3s` load balancer)
-- we use `write_files` to write manifests to the default `k3s` manifest directory (`/var/lib/rancher/k3s/server/manifests/`) to deploy `MetalLB` and configure it with the `192.168.1.10-192.168.1.20` IP range.
+- we use `write_files` to write manifests to the default `k3s` manifest directory (`/var/lib/rancher/k3s/server/manifests/`) see [docs](/docs/reference/configuration#kubernetes-manifests) to deploy `MetalLB` and configure it with the `192.168.1.10-192.168.1.20` IP range. Make sure to pick up a range which doesn't interfere with your local DHCP network.
 
 ## Resources
 
