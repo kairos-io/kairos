@@ -21,7 +21,7 @@ The installable mediums part of the releases are generated with the methods desc
 
 ## Image flavors
 
-Kairos release process generates images based on official container images from the major popular Linux Distribution, If you can't find your prefered distributio first check [if we are already planning](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Fflavor) support for it, or create a new issue.
+Kairos release process generates images based on official container images from the major popular Linux Distributions, If you can't find your preferred distribution first check [if we are already planning](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Fflavor) support for it, or create a new issue.
 
 Below you can find a list of the images and their respective location on the `quay.io` registry.
 
