@@ -96,7 +96,7 @@ This is due to the fact that _dracut/systemd_ isn't supported in musl-based dist
 
 {{% /alert %}}
 
-In the _glibc-based_ distribution, it's enough to use the package manger of the distribution to replace the kernel inside the image with the wanted one, and rebuild the `initramfs` with `dracut`. For example:
+In the _glibc-based_ distribution, it's enough to use the package manager of the distribution to replace the kernel inside the image with the wanted one, and rebuild the `initramfs` with `dracut`. For example:
 
 ```bash
 # Replace the existing kernel with a new one
