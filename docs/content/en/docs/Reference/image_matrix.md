@@ -82,7 +82,8 @@ If you need to further customize images, including base image changes, package u
 
 Our changelog is published as part of the release process: it contains all the changeset, highlights and release notes that are pertinent to the release.
 
-We strongly reccomend to check every release changelog before running any upgrade, or while building your customized version of Kairos.
+We strongly recommend to check every release changelog before running any upgrade, or while building your customized version of Kairos.
+
 
 Release changelogs are available for Kairos core and for each component. Here you can find a list of the components that are part of a Kairos release and their respective release page with changelogs.
 
