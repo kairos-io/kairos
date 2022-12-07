@@ -63,17 +63,20 @@ Base images are tagged against specific upstream versions (e.g _Ubuntu 20 LTS_ p
 
 ## Versioning policy
 
-Kairos follows [Semantic Versioning](https://semver.org/), our releases versions signal changes regarding the Kairos components, not changes to the OS, and underlaying packages versions. Flavors are pinned to specific upstream OS branches (e.g. `opensuse` to `leap 15.4`) and major version bumps would be reflected by either having new flavors in our build matrix or having specific releases to follow upstream with regard to minor version bumps (e.g. `leap 15.3` and `leap 15.4`).
+Kairos follows [Semantic Versioning](https://semver.org/) and our releases versioning signal changes regarding the Kairos components, not changes to the OS, and underlaying packages versions. Flavors are pinned to specific upstream OS branches (e.g. `opensuse` to `leap 15.4`) and major version bumps would be reflected by either having new flavors in our build matrix or having specific releases to follow upstream with regard to minor version bumps (e.g. `leap 15.3` and `leap 15.4`).
 
 Consider:
 - We support only the latest release branch with patch releases.
-- Patch releases ( e.g. _1.1.x_ ) follows a weekly release cadence, if needed, exceptions made for highly impacting bugs in Kairos itself or OS (e.g. High scored CVEs).
+- Patch releases ( e.g. _1.1.x_ ) follows a weekly release cadence, if needed, exceptions made for highly impacting bugs in Kairos itself or at the OS layer (e.g. High scored CVEs).
 - Minor releases follows a monthly cadence and are expected to bring enhancements, with planned releases.
 - Major releases signal a new a set of advanced features, or significant changes to the codebase. In-place upgrade from old to new major release branch is not always guaranteed, however we steer to keep compatibility among versions.
 
 {{% alert title="Note" color="info" %}}
 In order to give more control over the chosen base image (e.g. `openSUSE`, `Ubuntu`, ... ), and rely less on our CI infrastructure, we are actively working on streamling the creation of Kairos-based distributions directly from upstream base images. You can track the development progress over [here](https://github.com/kairos-io/kairos/issues/116).
+
+If you need to further customize images, including base image changes, package updates, and CVE hotfixes, follow the [customization docs](/docs/advanced/customizing).
 {{% /alert %}}
+
 
 ## Release changelog
 
