@@ -67,7 +67,7 @@ Kairos follows [Semantic Versioning](https://semver.org/), our releases versions
 
 Consider:
 - We support only the latest release branch with patch releases.
-- Patch releases ( e.g. _1.1.x_ ) follows a weekly release cadence, if needed, exceptions made for highly impacting bugs.
+- Patch releases ( e.g. _1.1.x_ ) follows a weekly release cadence, if needed, exceptions made for highly impacting bugs in Kairos itself or OS (e.g. High scored CVEs).
 - Minor releases follows a monthly cadence and are expected to bring enhancements, with planned releases.
 - Major releases signal a new a set of advanced features, or significant changes to the codebase. In-place upgrade from old to new major release branch is not always guaranteed, however we steer to keep compatibility among versions.
 
