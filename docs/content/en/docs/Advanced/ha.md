@@ -24,9 +24,9 @@ users:
 - name: kairos
   # Change to your pass here
   passwd: kairos
-  ssh_authorized_keys:
-  # Add your github user here!
-  - github:mudler
+  #ssh_authorized_keys:
+  ## Add your github user here!
+  #- github:mudler
 
 k3s:
   enabled: true
