@@ -69,7 +69,7 @@ Consider:
 - We support only the latest release branch with patch releases.
 - Patch releases ( e.g. _1.1.x_ ) follows a weekly release cadence, if needed, exceptions made for highly impacting bugs in Kairos itself or at the OS layer (e.g. High scored CVEs).
 - Minor releases follows a monthly cadence and are expected to bring enhancements, with planned releases.
-- Major releases signal a new a set of advanced features, or significant changes to the codebase. In-place upgrade from old to new major release branch is not always guaranteed, however we steer to keep compatibility among versions.
+- Major releases signal a new a set of advanced features, or significant changes to the codebase. In-place upgrade from old to new major release branch is not always guaranteed, however we strive for compatibility among versions.
 
 {{% alert title="Note" color="info" %}}
 In order to give more control over the chosen base image (e.g. `openSUSE`, `Ubuntu`, ... ), and rely less on our CI infrastructure, we are actively working on streamling the creation of Kairos-based distributions directly from upstream base images. You can track the development progress over [here](https://github.com/kairos-io/kairos/issues/116).
