@@ -83,3 +83,33 @@ kairos@node2:~> figlet kairos rocks!
 |   < (_| | | | | (_) \__ \ | | | (_) | (__|   <\__ \_|
 |_|\_\__,_|_|_|  \___/|___/ |_|  \___/ \___|_|\_\___(_)
 ```
+
+## Customizing the Kernel
+
+Kernel and Initrd are part of the images, and they are shipped in the core Kairos images.
+
+_glibc-based_ flavors such as _OpenSUSE_ and _Ubuntu_ contains the kernel from the respective distribution vendors, while _Alpine_ has two distinct flavors that use the kernel of _OpenSUSE_ and _Ubuntu_, thus modifying the kernel of _Alpine_ based flavors is possible only by rebuilding the kernel and initrd outside the Dockerfile build and embedding it into the image.
+
+{{% alert title="Note" %}}
+
+This is due to the fact that _dracut/systemd_ isn't supported in musl-based distributions. This is an area we are currently exploring to provide initramfs that can be generated from musl systems as well.
+
+{{% /alert %}}
+
+In the _glibc-based_ distribution, it's enough to use the package manger of the distribution to replace the kernel inside the image with the wanted one, and rebuild the `initramfs` with `dracut`. For example:
+
+```bash
+# Replace the existing kernel with a new one
+apt-get install -y ...
+# Create the kernel symlink
+kernel=$(ls /boot/vmlinuz-* | head -n1)
+ln -sf "${kernel#/boot/}" /boot/vmlinuz
+# Regenerate the initrd, in openSUSE we could just use "mkinitrd"
+kernel=$(ls /lib/modules | head -n1)
+dracut -v -f "/boot/initrd-${kernel}" "${kernel}"
+ln -sf "initrd-${kernel}" /boot/initrd
+kernel=$(ls /lib/modules | head -n1)
+depmod -a "${kernel}"
+```
+
+Note that we create symlinks for the kernel and initrd, `/boot/vmlinuz` and `/boot/initrd` which by convention are expected to be present in Kairos images in order to be bootable.
