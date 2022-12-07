@@ -59,7 +59,7 @@ k3s:
     K3S_TOKEN: "TOKEN_GOES_HERE"
 ```
 
-Now you have a highly available control plane. Any successfully clustered servers can be used in the `--server` argument to join additional server and worker nodes. 
+Now you have a highly available control plane. Any successfully clustered server can be used in the `--server` argument to join additional server and worker nodes. 
 
 ### Joining a worker
 
