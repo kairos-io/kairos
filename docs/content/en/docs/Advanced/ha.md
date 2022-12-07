@@ -14,7 +14,7 @@ This document describes how to configure Kairos with `k3s` by following the same
 
 To run Kairos and k3s in this mode, you must have an odd number of server nodes. K3s documentation recommends starting with three nodes.
 
-To get started, first launch a server node with the cluster-init flag added in `k3s.args` to enable clustering. A token here can be specieid, and will be used as a shared secret to join additional servers to the cluster. Note, if you don't provide one, a token will be generated automatically on your behalf and available at `/var/lib/rancher/k3s/server/node-token`.
+To get started, first launch a server node with the cluster-init flag added in `k3s.args` to enable clustering. A token here can be specified, and will be used as a shared secret to join additional servers to the cluster. Note, if you don't provide one, a token will be generated automatically on your behalf and available at `/var/lib/rancher/k3s/server/node-token`.
 
 ```yaml
 #cloud-config
