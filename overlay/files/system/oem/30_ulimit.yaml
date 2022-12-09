@@ -1,5 +1,5 @@
 stages:
-   boot:
+   boot.before:
      - name: "Setup higher limit for open files"
        if: '[ -e /sbin/rc-service ]'
        commands:
