@@ -163,6 +163,13 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(out).To(ContainSubstring("shared"))
 		})
 
+		It("doesn't has grub data into the cloud config", func() {
+			out, err := Sudo(`cat /oem/90_custom.yaml`)
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).ToNot(ContainSubstring("vga_text"))
+			Expect(out).ToNot(ContainSubstring("videotest"))
+		})
+
 		It("has corresponding state", func() {
 			out, err := Sudo("kairos-agent state")
 			Expect(err).ToNot(HaveOccurred())

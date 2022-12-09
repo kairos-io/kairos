@@ -299,15 +299,19 @@ func parseConfig(dir []string) *Config {
 			fmt.Printf("warning: skipping %s. too big (>1MB)\n", f)
 			continue
 		}
-		b, err := os.ReadFile(f)
-		if err != nil {
-			fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
-			continue
-		}
-		yaml.Unmarshal(b, c)               //nolint:errcheck
-		yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
-		if exists, header := HasHeader(string(b), ""); exists {
-			c.header = header
+		if strings.Contains(f, "userdata") || filepath.Ext(f) == ".yml" || filepath.Ext(f) == ".yaml" {
+			b, err := os.ReadFile(f)
+			if err != nil {
+				fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
+				continue
+			}
+			yaml.Unmarshal(b, c)               //nolint:errcheck
+			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
+			if exists, header := HasHeader(string(b), ""); exists {
+				c.header = header
+			}
+		} else {
+			fmt.Printf("warning: skipping %s (extension).\n", f)
 		}
 	}
 

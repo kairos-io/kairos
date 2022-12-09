@@ -71,10 +71,10 @@ b: f
 c: d
 `
 
-			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			err = os.WriteFile(filepath.Join(d, "b"), []byte(c2), os.ModePerm)
+			err = os.WriteFile(filepath.Join(d, "b.yaml"), []byte(c2), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
 			c, err := Scan(Directories(d))
@@ -99,9 +99,9 @@ kairos:
   network_token: foo
 `
 
-			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
-			err = os.WriteFile(filepath.Join(d, "b"), []byte(`
+			err = os.WriteFile(filepath.Join(d, "b.yaml"), []byte(`
 fooz:
 			`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -127,7 +127,7 @@ bb:
   nothing: "foo"
 `
 
-			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 			err = os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -151,7 +151,7 @@ bb:
 config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/bafae390eae4e6382fb1b68293568696823b3103/test.yaml"
 `
 
-			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
 			c, err := Scan(Directories(d))
@@ -168,7 +168,7 @@ config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab2926857
 config_url: "https://gist.githubusercontent.com/mudler/7e3d0426fce8bfaaeb2644f83a9bfe0c/raw/77ded58aab3ee2a8d4117db95e078f81fd08dfde/testgist.yaml"
 `
 
-			err := os.WriteFile(filepath.Join(d, "test"), []byte(cc), os.ModePerm)
+			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
 			c, err := Scan(Directories(d))
