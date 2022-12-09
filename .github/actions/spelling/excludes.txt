@@ -5,7 +5,6 @@
 (?:^|/)go\.sum$
 (?:^|/)package(?:-lock|)\.json$
 (?:^|/)vendor/
-ignore$
 \.a$
 \.ai$
 \.avi$
@@ -56,3 +55,17 @@ ignore$
 \.zip$
 ^\.github/actions/spelling/
 ^\Q.github/workflows/spelling.yml\E$
+^\Qdocs/assets/css/sections.css\E$
+^\Qdocs/layouts/index.html\E$
+^\Qdocs/static/favicons/browserconfig.xml\E$
+^\Qdocs/static/index/index.css\E$
+^\Qimages/Dockerfile.alpine-arm-rpi\E$
+^\Qimages/Dockerfile.alpine-opensuse-leap\E$
+^\Qimages/Dockerfile.opensuse-arm-rpi\E$
+^\Qimages/Dockerfile.opensuse\E$
+^\Qinternal/agent/iconunix.go\E$
+^\Qoverlay/files/etc/runlevels/.keep\E$
+^\Qoverlay/files/usr/libexec/.keep\E$
+^\Qoverlay/files/var/log/kairos/.keep\E$
+^\Qtests/assets/qrcode.yaml\E$
+ignore$
