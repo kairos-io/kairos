@@ -75,11 +75,19 @@ The `k3s` block can still be used to override other `k3s` settings, e.g. `args`.
 The `network_token` is a unique, shared secret which is spread over the nodes and can be generated with the Kairos CLI.
 It will make all the node connect automatically to the same network. Every node will generate a set of private/public key pair automatically on boot that are used to communicate securely within an end-to-end encryption (E2EE) channel.
 
-To generate a new network token, you can use the Kairos CLI:
-
+To generate a new network token, you can use the Kairos CLI or Docker:
+{{< tabpane text=true right=true  >}}
+{{% tab header="docker" %}}
+```bash
+docker run -ti --rm quay.io/mudler/edgevpn -b -g
+```
+{{% /tab %}}
+{{% tab header="CLI" %}}
 ```bash
 kairos generate-token
 ```
+{{% /tab %}}
+{{< /tabpane >}}
 
 ### `network_id`
 
