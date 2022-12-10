@@ -38,7 +38,7 @@ Kairos can be used to:
 - Manage the cluster lifecycle with Kubernetes—from building to provisioning, and upgrading :rocket:
 - Create a multiple—node, a single cluster that spans up across regions :earth_africa:
 
-For comprehensive docs, tutorials, and examples see our [documentation](https://kairos.io/quickstart).
+For comprehensive docs, tutorials, and examples see our [documentation](https://kairos.io/docs/getting-started/).
 
 ## Project status
 
