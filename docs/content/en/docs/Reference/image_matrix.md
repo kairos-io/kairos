@@ -47,7 +47,7 @@ Base images are tagged against specific upstream versions (e.g _Ubuntu 20 LTS_ p
 {{% /alert %}}
 
 {{% alert title="Note" color="info" %}}
-  The pipelines don't publish `img` artifacts for arm architecture because the files are too big for Github Actions (they are above the artifact size limit).
+  The pipelines don't publish `img` artifacts for arm architecture because the files are too big for GitHub Actions (they are above the artifact size limit).
   They can be extracted from the published docker images with the following command:
 
   ```bash

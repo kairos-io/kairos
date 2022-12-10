@@ -464,6 +464,11 @@ go install(?:\s+[a-z]+\.[-@\w/.]+)+
 # posthog secrets
 posthog\.init\((['"])phc_[^"',]+\g{-1},
 
+# Documentation specific stuff
+
+root
+mudler
+
 # xcode
 
 # xcodeproject scenes

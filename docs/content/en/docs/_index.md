@@ -102,7 +102,7 @@ You can find us at:
 
 - [#Kairos-io at matrix.org](https://matrix.to/#/#kairos-io:matrix.org)
 - [IRC #kairos in libera.chat](https://web.libera.chat/#kairos)
-- [Github Discussions](https://github.com/kairos-io/kairos/discussions)
+- [GitHub Discussions](https://github.com/kairos-io/kairos/discussions)
 
 ### Project Office Hours
 

@@ -1,4 +1,4 @@
-name: Github Pages Updates
+name: GitHub Pages Updates
 on:
   push:
 #    tags:

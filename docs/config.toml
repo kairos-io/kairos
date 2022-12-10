@@ -137,7 +137,7 @@ no = 'Oh snap! Sorry to hear that. Please <a href="https://github.com/kairos-io/
         icon = "fa fa-message"
         desc = "Join us on Matrix!"
 [[params.links.user]]
-	name = "Github discussions"
+	name = "GitHub discussions"
 	url = "https://github.com/kairos-io/kairos/discussions"
         icon = "fa fa-comments"
         desc = "Questions?"
