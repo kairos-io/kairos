@@ -5,7 +5,7 @@
 (?:^|/)go\.sum$
 (?:^|/)package(?:-lock|)\.json$
 (?:^|/)vendor/
-(?:^|/)test/
+(?:^|/)tests/
 (?:^|/)pkg/
 (?:^|/)cmd/
 (?:^|/)internal/
@@ -19,7 +19,6 @@
 (?:^|/)docs/static/
 (?:^|/)docs/themes/
 CNAME$
-
 Makefile$
 \.a$
 \.ai$
