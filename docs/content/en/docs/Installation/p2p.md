@@ -14,54 +14,55 @@ Feedback and bug reports are welcome, as we are improving the p2p aspects of Kai
 
 {{% /alert %}}
 
-This section will guide you on how to leverage the peer-to-peer (P2P), full-mesh capabilities of Kairos.
+Deploying Kubernetes at the Edge can be a complex and time-consuming process, especially when it comes to setting up and managing multiple clusters. To make this process easier, Kairos leverages peer-to-peer technology to automatically coordinate and create Kubernetes clusters without the need for a control management interface.
 
-Kairos supports P2P full-mesh out of the box. That allows to seamlessly interconnect clusters and nodes from different regions into a unified overlay network. Additionally, the same network is used for coordinating nodes automatically allowing self-automated, node bootstrap.
+With this feature, users can simply avoid specifying any setting, or just set the number of master nodes in a HA cluster they want to create and the necessary configuration details, and Kairos will take care of the rest. The peer-to-peer technology allows the nodes in the cluster to communicate and coordinate with each other, ensuring that the clusters are set up correctly and efficiently with K3s.
 
-A hybrid network is automatically set up between all the nodes, so there is no need to expose them over the Internet or expose the Kubernetes management API outside, reducing the attacker's exploiting surface.
+This not only saves users time and effort, but also makes it easier to deploy and manage Kubernetes clusters at the Edge, allowing users to focus on running and scaling their applications.
 
-Kairos can be configured to automatically bootstrap a Kubernetes cluster with the full-mesh functionalities, or it can include an additional interface to the machines to let them communicate within a new network segment.
+This feature is currently experimental and can be optionally enabled by adding the following configuration to the node deployment file, if you are not familiar with the installation process, it is suggested to follow the [quickstart](/docs/getting-started):
 
-If you are not familiar with the process, it is suggested to follow the [quickstart](/docs/getting-started) first and the steps below, in sequence.
+```yaml
+p2p:
+  # Disabling DHT makes co-ordination to discover nodes only in the local network
+ disable_dht: true #Enabled by default
+ # Automatic cluster deployment configuration
+ auto:
+   ha:
+     # Enables HA controlplane
+     enable: true
+     # number of HA master node (beside the one used for init) for the control-plane
+     master_nodes: 2
+ # network_token is the shared secret used by the nodes to co-ordinate with p2p.
+ # Setting a network token implies auto.enable = true.
+ # To disable, just set auto.enable = false
+ network_token: "YOUR_TOKEN_GOES_HERE"
 
-The section below explains the difference in the configuration options to enable P2P full-mesh during the installation phase.
 
-## Prerequisites
+```
 
-- Kairos CLI
+To enable the automatic cluster deployment with peer-to-peer technology, specify a `p2p.network_token`. To enable HA, set `p2p.auto.ha.master_nodes` to the number of wanted HA/master nodes. Additionally, the p2p block can be used to configure the VPN and other settings as needed.
+
+With these settings used to deploy all the nodes, those will automatically communicate and coordinate with each other to deploy and manage the Kubernetes cluster without the need for a control management interface and user intervention.
 
 ## Configuration
 
-To configure a node to join over the same P2P network during installation, add a `kairos` block in the configuration, like the following:
-
-```yaml
-kairos:
-  network_token: "...."
-  # Optionally, set a network id (for multiple clusters in the same network)
-  # network_id: "dev"
-  # Optionally set a role
-  # role: "master"
-```
-
-The `kairos` block is used to configure settings to the mesh functionalities. The minimum required argument is the `network_token` and there is no need to configure `k3s` manually with the `k3s` block as it is already implied.
-
-Full example:
+A minimum configuraton file, that bootstraps a cluster with a simple single-master topology, can look like the following:
 
 ```yaml
 #cloud-config
-
-hostname: "p2p-{{ trunc 4 .MachineID }}"
+hostname: "kubevip-{{ trunc 4 .MachineID }}"
 
 users:
 - name: "kairos"
   passwd: "kairos"
   ssh_authorized_keys:
   - github:mudler
-
-kairos:
- ## Generate a network token with the CLI as documented in https://kairos.io/docs/installation/p2p/#network_token
- network_token: ""
+p2p:
+ network_token: "YOUR_TOKEN_GOES_HERE"
 ```
+
+The `p2p` block is used to configure settings to the mesh functionalities. The minimum required argument is the `network_token` and there is no need to configure `k3s` manually with the `k3s` block as it is already implied.
 
 {{% alert title="Note" %}}
 
@@ -69,7 +70,154 @@ The `k3s` block can still be used to override other `k3s` settings, e.g. `args`.
 
 {{% /alert %}}
 
+The network token is a shared secret available to all the nodes of the cluster. It allows the node to co-ordinate and automatically assign roles. To generate a network token, see [documentation](/docs/installation/p2p/#network_token).
 
+Simply applying the same configuration file to all the nodes should eventually bring one master and all the other nodes as workers. Adding nodes can be done also in a later step, which will automatically setup the node without any further configuration.
+
+Full example:
+
+
+```yaml
+#cloud-config
+
+install:
+  auto: true
+  device: "auto"
+  reboot: true
+
+hostname: "kubevip-{{ trunc 4 .MachineID }}"
+users:
+- name: "kairos"
+  passwd: "kairos"
+  ssh_authorized_keys:
+  - github:mudler
+
+## Sets the Elastic IP used in KubeVIP
+kubevip:
+  eip: "192.168.1.110"
+  # Specify a manifest URL for KubeVIP. Empty uses default
+  manifest_url: ""
+  # Enables KubeVIP
+  enable: true
+  # Specifies a KubeVIP Interface
+  interface: "ens18"
+
+p2p:
+ role: "" # Set an hardcoded role, optional
+  # Disabling DHT makes co-ordination to discover nodes only in the local network
+ disable_dht: true #Enabled by default
+ # Configures a VPN for the cluster nodes
+ vpn:
+   create: false # defaults to true
+   use: false # defaults to true
+   env:
+      .....
+ # Automatic cluster deployment configuration
+ auto:
+   # Enables Automatic node configuration (self-coordination)
+   # for role assignment
+   enable: true
+   # HA enables automatic HA roles assignment.
+   # A master cluster init is always required,
+   # Any additional master_node is configured as part of the 
+   # HA control plane.
+   # If auto is disabled, HA has no effect.
+   ha:
+     # Enables HA controlplane
+     enable: true
+     # number of HA master node (beside the one used for init) for the control-plane
+     master_nodes: 2
+     # Use an External database for the HA control plane
+     external_db: "external-db-string"
+ # network_token is the shared secret used by the nodes to co-ordinate with p2p
+ network_token: "YOUR_TOKEN_GOES_HERE"
+```
+
+In the YAML configuration example, there are several important keywords that control the behavior of the automatic cluster deployment:
+
+| Keyword | Description |
+| --- | --- |
+| `p2p` | Configures the peer to peer networking of the cluster |
+| `p2p.disable_dht` | Disables the distributed hash table for cluster discovery |
+| `p2p.network_token` | The shared secret used by the nodes to coordinate with p2p |
+| `p2p.network_id` | Optional, unique identifier for the kubernetes cluster. It allows bootstrapping of multiple cluster using the same network token |
+| `p2p.role` | Force a specific role for the node of the cluster |
+| `p2p.vpn` | Configures a VPN for the cluster nodes |
+| `p2p.vpn.create` | Enables the creation of the VPN |
+| `p2p.vpn.use` | Enables the use of the VPN for routing Kubernetes traffic of the cluster |
+| `p2p.vpn.env` | Configures the environment variables used to start for the VPN |
+| `p2p.vpn.auto` | Configures the automatic deployment of the cluster |
+| `p2p.vpn.auto.enable` | Enables automatic node configuration for role assignment |
+| `p2p.vpn.auto.ha` | Configures the high availability settings for the cluster |
+| `p2p.vpn.auto.ha.enable` | Enables the high availability settings |
+| `p2p.vpn.auto.ha.master_nodes` | The number of expected HA master nodes in the cluster |
+| `p2p.vpn.auto.ha.external_db` | The external database used for high availability |
+
+## Elastic IP
+
+If deploying a cluster in a Local network, it might be preferable to disable the VPN functionalities.
+
+We use KubeVIP to provide an elastic ip for the control plane that can be configured via a specific block:
+
+```yaml
+
+p2p:
+ network_token: ".."
+ vpn:
+   # Disable VPN, so traffic is not configured with a VPN
+   create: false
+   use: false
+
+## Sets the Elastic IP used in KubeVIP
+kubevip:
+  eip: "192.168.1.110"
+  # Specify a manifest URL for KubeVIP. Empty uses default
+  manifest_url: ""
+  # Enables KubeVIP
+  enable: true
+  # Specifies a KubeVIP Interface
+  interface: "ens18"
+```
+
+
+| Keyword | Description |
+| --- | --- |
+| `kubevip` | Block to configure KubeVIP for the cluster |
+| `kubevip.eip` | The Elastic IP used for KubeVIP. Specifying one automatically enables KubeVIP |
+| `kubevip.manifest_url` | The URL for the KubeVIP manifest |
+| `kubevip.enable` | Enables KubeVIP for the cluster |
+| `kubevip.interface` | The interface used for KubeVIP |
+
+A full example, with KubeVIP and HA:
+
+```yaml
+
+#cloud-config
+
+install:
+  auto: true
+  device: "auto"
+  reboot: true
+
+hostname: "kubevip-{{ trunc 4 .MachineID }}"
+users:
+- name: "kairos"
+  passwd: "kairos"
+  ssh_authorized_keys:
+  - github:mudler
+
+p2p:
+ network_token: "..."
+ ha:
+   master_nodes: 2
+ vpn:
+   # Disable VPN, so traffic is not configured with a VPN
+   create: false
+   use: false
+
+kubevip:
+  eip: "192.168.1.110"
+```
 ### `network_token`
 
 The `network_token` is a unique, shared secret which is spread over the nodes and can be generated with the Kairos CLI.
@@ -89,18 +237,9 @@ kairos generate-token
 {{% /tab %}}
 {{< /tabpane >}}
 
-### `network_id`
-
-This is an optional, unique identifier for the cluster. It allows bootstrapping of multiple cluster over the same underlying network.
-
-### `role`
-
-Force a role for the node. Available: `worker`, `master`.
-
-
 ## Join new nodes
 
-To join new nodes, reapply the process to new nodes by specifying the same `config.yaml` for all the machines. Unless you have specified a role for each of the nodes, the configuration doesn't need any further change. The machines will connect automatically between themselves, either remotely on local network.
+To join new nodes, reapply the process to new nodes by specifying the same configuration file for all the machines. Unless you have specified a role for each of the nodes, the configuration doesn't need any further change. The machines will connect automatically between themselves, either remotely on local network.
 
 ## Connect to the nodes
 
