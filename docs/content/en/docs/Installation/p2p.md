@@ -147,11 +147,11 @@ In the YAML configuration example, there are several important keywords that con
 | `p2p.vpn.use` | Enables the use of the VPN for routing Kubernetes traffic of the cluster |
 | `p2p.vpn.env` | Configures the environment variables used to start for the VPN |
 | `p2p.vpn.auto` | Configures the automatic deployment of the cluster |
-| `p2p.vpn.auto.enable` | Enables automatic node configuration for role assignment |
-| `p2p.vpn.auto.ha` | Configures the high availability settings for the cluster |
-| `p2p.vpn.auto.ha.enable` | Enables the high availability settings |
-| `p2p.vpn.auto.ha.master_nodes` | The number of expected HA master nodes in the cluster |
-| `p2p.vpn.auto.ha.external_db` | The external database used for high availability |
+| `p2p.auto.enable` | Enables automatic node configuration for role assignment |
+| `p2p.auto.ha` | Configures the high availability settings for the cluster |
+| `p2p.auto.ha.enable` | Enables the high availability settings |
+| `p2p.auto.ha.master_nodes` | The number of expected HA master nodes in the cluster besides the cluster-init master. |
+| `p2p.auto.ha.external_db` | The external database used for high availability |
 
 ## Elastic IP
 
@@ -220,10 +220,9 @@ kubevip:
 ```
 ### `network_token`
 
-The `network_token` is a unique, shared secret which is spread over the nodes and can be generated with the Kairos CLI.
-It will make all the node connect automatically to the same network. Every node will generate a set of private/public key pair automatically on boot that are used to communicate securely within an end-to-end encryption (E2EE) channel.
+The `network_token` is a unique code that is shared among nodes and can be created with the Kairos CLI or `edgevpn`. This allows nodes to automatically connect to the same network and generates private/public key pairs for secure communication using end-to-end encryption.
 
-To generate a new network token, you can use the Kairos CLI or Docker:
+To generate a new token, run:
 {{< tabpane text=true right=true  >}}
 {{% tab header="docker" %}}
 ```bash
@@ -239,17 +238,17 @@ kairos generate-token
 
 ## Join new nodes
 
-To join new nodes, reapply the process to new nodes by specifying the same configuration file for all the machines. Unless you have specified a role for each of the nodes, the configuration doesn't need any further change. The machines will connect automatically between themselves, either remotely on local network.
+To add new nodes to the network, follow the same process as before and use the same configuration file for all machines. Unless you have specified roles for each node, no further changes to the configuration are necessary. The machines will automatically connect to each other, whether they are on a local or remote network.
 
 ## Connect to the nodes
 
-The `kairos-cli` can be used to establish a tunnel with the nodes network given a `network_token`.
+To connect to the nodes, you can use the kairos-cli and provide the network_token to establish a tunnel to the nodes network.
 
 ```bash
 sudo kairos bridge --network-token <TOKEN>
 ```
 
-This command will create a TUN device in your machine and will make possible to contact each node in the cluster.
+This command creates a TUN device on your machine and allows you to communicate with each node in the cluster.
 
 {{% alert title="Note" color="info" %}}
 The command requires root permissions in order to create a TUN/TAP device on the host.
@@ -259,18 +258,14 @@ An API will be also available at [localhost:8080](http://localhost:8080) for ins
 
 ## Get kubeconfig
 
-To retrieve `kubeconfig`, it is sufficient to either log in to the master node and get it from the engine (e.g., K3s places it `/etc/rancher/k3s/k3s.yaml`) or use the Kairos CLI.
-
-By using the CLI, you need to be connected to the bridge or logged in from one of the nodes and perform the commands in the console.
-
-If you are using the CLI, you need to run the bridge in a separate window.
-
-To retrieve `kubeconfig`, run the following:
+To get the cluster `kubeconfig`, you can log in to the master node and retrieve it from the engine (e.g., it is located at `/etc/rancher/k3s/k3s.yaml` for K3s) or use the Kairos CLI. If using the CLI, you must be connected to the bridge or logged in from one of the nodes and run the following command in the console:
 
 ```bash
 kairos get-kubeconfig > kubeconfig
 ```
 
 {{% alert title="Note" color="info" %}}
-`kairos bridge` acts like `kubectl proxy`. You need to keep it open to operate the Kubernetes cluster and access the API.
+
+Note that you must run kairos bridge in a separate window as act like `kubectl proxy` and access the Kubernetes cluster VPN. Keep the kairos bridge command running to operate the cluster.
+
 {{% /alert %}}

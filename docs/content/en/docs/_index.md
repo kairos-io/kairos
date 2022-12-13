@@ -8,72 +8,63 @@ menu:
     weight: 20
 ---
 
-Welcome to the Kairos documentation!
+Welcome to the Kairos Documentation
 
-Kairos is an open-source project which brings Edge, cloud, and bare metal OS lifecycle management into the same design principles with a unified Cloud Native API.
+Kairos is the open-source project that simplifies Edge, cloud, and bare metal OS lifecycle management. With a unified Cloud Native API, Kairos is community-driven, open source, and distro agnostic.
 
-At a glance:
+Our key features include:
 
-- Community Driven
-- Open Source
+- [Immutability](/docs/architecture/immutable): ensure your infrastructure stays consistent with atomic upgrades
+- Security: protect your cluster from vulnerabilities and attacks with a read-only system
+- [Container-based](/docs/architecture/container): manage your nodes as apps in containers for maximum flexibility and portability
+- [P2P Mesh](/docs/architecture/network): self-coordinated, automated, no interaction Kubernetes deployments with P2P
 - [Meta-Distribution](/docs/architecture/meta), distro agnostic
-- [Immutable](/docs/architecture/immutable)
-- Secure
-- [Container-based](/docs/architecture/container)
-- [P2P Mesh](/docs/architecture/network)
 
-Kairos can be used to:
 
-- Easily spin up a Kubernetes cluster with the Linux distribution of your choice.
-- Create your Immutable infrastructure, with atomic upgrades no more infrastructure drift!
-- Manage the cluster lifecycle with Kubernetes—from building to provisioning and upgrading.
-- Create a multiple-node, single cluster which spans across regions.
+In this documentation, you will find everything you need to know about Kairos, from installation and configuration, to examples and advanced features.
 
-To become familiar with Kairos, check out the [quickstart](/docs/getting-started).
+To get started with Kairos, follow the instructions in the [quickstart](/docs/getting-started) guide. Then, check out the [examples](/docs/examples) to see how Kairos can be used in real-world scenarios.
 
-## What is it ?
+For more information, please refer to this documentation. If you have any questions or feedback, feel free to [open an issue](https://github.com/kairos-io/kairos/issues/new) or [join our community forum](https://github.com/kairos-io/kairos/discussions).
 
-Kairos is a cloud native, meta-Linux distribution that can be built, managed, and runs on Kubernetes.
 
-Why or when should I use it?
+## What is Kairos ?
 
-- Build your cloud on-premise, no vendor lock-in, completely open source.
-- Brings the same convenience of public cloud on-premise.
-- Node provisioning—bring your own image or use the Kairos releases.
-- For appliances that doesn't have to be Kubernetes application specific, its design fits multiple use case scenarios.
+Kairos is a cloud-native meta-Linux distribution that runs on Kubernetes and brings the power of the public cloud to your on-premises environment. With Kairos, you can build your own cloud with complete control and no vendor lock-in.
+
+Here are a few reasons why you should try Kairos:
+
+- Build your own cloud on-premises with complete control and no vendor lock-in
+- Provision nodes with your own image or use Kairos releases for added flexibility
+- Use Kairos for a wide range of use cases, from Kubernetes applications to appliances and more
+
+## What I can do with it ?
+
+With Kairos, you can easily spin up a Kubernetes cluster with the Linux distribution of your choice, and manage the entire cluster lifecycle with Kubernetes. Try Kairos today and experience the benefits of a unified, cloud-native approach to OS management.
+
+With Kairos, you can:
+
+- Spin up a Kubernetes cluster with any Linux distribution in just a few clicks
+- Create an immutable infrastructure that stays consistent and free of drift with atomic upgrades
+- Manage your cluster's entire lifecycle with Kubernetes, from building to upgrading
+- Automatically create multi-node, single clusters that spans across regions for maximum flexibility and scalability
+
+Try Kairos today and experience the benefits of a unified, cloud-native approach to OS management. Say goodbye to the hassle of managing multiple systems, and hello to a more streamlined and efficient way of working.
 
 ## Features
 
-- At the current state, Kairos can create multiple-node Kubernetes clusters with [K3s](https://k3s.io)—all K3s features are supported.
-- Upgrade manually via CLI or with Kubernetes. Upgrade distributions are done via container registries.
-- As an immutable distribution, configured to your needs, stays immutable.
-- Node configuration via a single cloud-init config file.
-- Handles airgap upgrades with in-cluster, container registries.
-- Extends the image in runtime or builds time via Kubernetes Native APIs.
-- Plans to support CAPI with full device lifecycle management.
-- Plans to support up to RKE2, kubeadm, and much more!
-- Nodes can optionally connect autonomously via a full-mesh P2P hybrid VPN network. It allows to stretch a cluster up to 10000 km!
-  Kairos can create private virtual network segments to enhance your cluster perimeter without any SPOF.
+- Easily create multi-node Kubernetes clusters with [K3s](https://k3s.io), and enjoy all of [K3s](https://k3s.io)'s features
+- Upgrade manually via CLI or with Kubernetes, and use container registries for distribution upgrades
+- Enjoy the benefits of an immutable distribution that stays configured to your needs
+- Configure nodes with a single cloud-init config file for added simplicity
+- Upgrade even in airgap environments with in-cluster container registries
+- Extend your image at runtime or build time with Kubernetes Native APIs
+- Look forward to support for CAPI with full device lifecycle management, and more
+- Create private virtual network segments with a full-mesh P2P hybrid VPN network that can stretch up to 10000 km
 
 ## More than a Linux distribution
 
-Kairos is available as ISO, qcow2 and Netboot artifact for user convenience based from Alpine and openSUSE, but it is actually more than that. It allows to turn any Linux distribution into a uniform, comformant distro with immutable design. As such, any distro which is "converted" will share the same, common feature set between all of them, and they are managed in the same way by Kubernetes Native API components.
-
-Any input OS will inherit:
-
-- Immutability
-- A/B upgrades
-- Booting mechanism Fallback
-- Boot assessment
-- Single image, container-based atomic upgrades
-- Cloud init support
-- All the Kairos feature-set
-
-Kairos treats all the OSes homogeneously in a distro-agnostic fashion.
-
-The OS is a container image. That means that upgrades to nodes are distributed via container registries.
-
-Installations medium and other assets required to boot bare metal or Edge devices are built dynamically by the Kubernetes Native API components provided by Kairos.
+Kairos is more than just an ISO, qcow2, or Netboot artifact. It allows you to turn any Linux distribution into a uniform and compliant distro with an immutable design. This means that any distro "converted" with Kairos will share the same common feature set and can be managed in the same way using Kubernetes Native API components. Kairos treats all OSes homogeneously and upgrades are distributed via container registries. Installations mediums and other assets required for booting bare metal or edge devices are built dynamically by Kairos' Kubernetes Native API components.
 
 ![livecd](https://user-images.githubusercontent.com/2420543/189219806-29b4deed-b4a1-4704-b558-7a60ae31caf2.gif)
 
