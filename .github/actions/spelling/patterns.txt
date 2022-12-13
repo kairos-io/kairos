@@ -92,3 +92,10 @@ go install(?:\s+[a-z]+\.[-@\w/.]+)+
 
 # ignore long runs of a single character:
 \b([A-Za-z])\g{-1}{3,}\b
+
+# Automatically suggested patterns
+# hit-count: 43 file-count: 11
+root
+
+# hit-count: 38 file-count: 17
+mudler
