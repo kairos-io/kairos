@@ -50,6 +50,12 @@ type Cluster struct {
 
 	// Options are arbitrary values the sdk may be interested in.  These values are not validated by Kairos and are simply forwarded to the sdk.
 	Options string `yaml:"config,omitempty" json:"config,omitempty"`
+
+	// Env contains the list of environment variables to be set on the cluster
+	Env map[string]string `yaml:"env,omitempty" json:"env,omitempty"`
+
+	// CACerts list of trust certificates.
+	CACerts []string `yaml:"ca_certs,omitempty" json:"ca_certs,omitempty"`
 }
 
 type Config struct {
