@@ -162,6 +162,8 @@ jobs:
          - flavor: "ubuntu"
          - flavor: "ubuntu-20-lts"
          - flavor: "ubuntu-22-lts"
+         - flavor: "fedora"
+         - flavor: "rockylinux"
     steps:
     - uses: actions/checkout@v3
     - name: Download artifacts

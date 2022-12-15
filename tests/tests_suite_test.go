@@ -89,6 +89,7 @@ var _ = BeforeSuite(func() {
 			types.WithISO(os.Getenv("ISO")),
 			types.WithSSHPort(sshPort),
 			types.WithID(machineID),
+			types.WithCPUType("Cascadelake-Server-v4"),
 			types.WithSSHUser(user()),
 			types.WithSSHPass(pass()),
 			types.OnFailure(func(p *process.Process) {
