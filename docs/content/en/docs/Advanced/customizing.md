@@ -5,11 +5,10 @@ weight: 2
 description: >
 ---
 
-Kairos is a container-based OS, if you want to change Kairos and add a package, it is required to build only a Docker image.
-
-For example:
+Kairos is an open source, container-based operating system. To modify Kairos and add a package, you'll need to build a container image from the [Kairos images](/docs/reference/image_matrix/). Here's an example with Docker which adds `figlet`:
 
 ```docker
+# Use images from docs/reference/image_matrix/
 FROM quay.io/kairos/kairos:opensuse-latest
 
 RUN zypper in -y figlet
@@ -18,7 +17,7 @@ RUN export VERSION="my-version"
 RUN envsubst '${VERSION}' </etc/os-release
 ```
 
-After that you build your own image  with:
+After creating your Dockerfile, you can build your own image by running the following command:
 
 ```bash
 $ docker build -t docker.io/<yourorg>/myos:0.1 .
@@ -35,7 +34,9 @@ Removing intermediate container b7bcb24969f5
 Successfully built ca21930a4585
 Successfully tagged <your-org>/myos:0.1
 ```
-Publish the image, for example to docker hub:
+
+Once you have built your image, you can publish it to Docker Hub or another registry with the following command:
+
 ```bash
 $ docker push <your-org>/myos:0.1
 The push refers to repository [docker.io/<your-org>/myos]
@@ -44,8 +45,7 @@ c58930881bc4: Pushed
 ...
 ```
 
-The image can be then used with `kairos-agent upgrade` or with system-upgrade-controller for upgrades within Kubernetes.
-Here is how to do it with the `kairos-agent` command:
+You can use your custom image with the `kairos-agent upgrade` command, or with the [system-upgrade-controller in Kubernetes](/docs/upgrade/kubernetes). Here's how to use the `kairos-agent` command:
 
 ```
 node:/home/kairos # kairos-agent  upgrade --image docker.io/<your-org>/myos:0.1
@@ -86,30 +86,32 @@ kairos@node2:~> figlet kairos rocks!
 
 ## Customizing the Kernel
 
-Kernel and Initrd are part of the images, and they are shipped in the core Kairos images.
+Kairos allows you to customize the kernel and initrd as part of your container-based operating system. If you are using a glibc-based distribution, such as OpenSUSE or Ubuntu, you can use the distribution's package manager to replace the kernel with the one you want, and then rebuild the initramfs with `dracut`.
 
-_glibc-based_ flavors such as _OpenSUSE_ and _Ubuntu_ contains the kernel from the respective distribution vendors, while _Alpine_ has two distinct flavors that use the kernel of _OpenSUSE_ and _Ubuntu_, thus modifying the kernel of _Alpine_ based flavors is possible only by rebuilding the kernel and initrd outside the Dockerfile build and embedding it into the image.
-
-{{% alert title="Note" %}}
-
-This is due to the fact that _dracut/systemd_ isn't supported in musl-based distributions. This is an area we are currently exploring to provide initramfs that can be generated from musl systems as well.
-
-{{% /alert %}}
-
-In the _glibc-based_ distribution, it's enough to use the package manager of the distribution to replace the kernel inside the image with the wanted one, and rebuild the `initramfs` with `dracut`. For example:
+Here's an example of how to do this:
 
 ```bash
-# Replace the existing kernel with a new one
+# Replace the existing kernel with a new one, depending on the base image it can differ
 apt-get install -y ...
+
 # Create the kernel symlink
 kernel=$(ls /boot/vmlinuz-* | head -n1)
 ln -sf "${kernel#/boot/}" /boot/vmlinuz
+
 # Regenerate the initrd, in openSUSE we could just use "mkinitrd"
 kernel=$(ls /lib/modules | head -n1)
 dracut -v -f "/boot/initrd-${kernel}" "${kernel}"
 ln -sf "initrd-${kernel}" /boot/initrd
+
+# Update the module dependencies
 kernel=$(ls /lib/modules | head -n1)
 depmod -a "${kernel}"
 ```
 
-Note that we create symlinks for the kernel and initrd, `/boot/vmlinuz` and `/boot/initrd` which by convention are expected to be present in Kairos images in order to be bootable.
+{{% alert title="Note" %}}
+
+If you are using an Alpine-based distribution, modifying the kernel is only possible by rebuilding the kernel and initrd outside of the Dockerfile and then embedding it into the image. This is because dracut and systemd are not supported in musl-based distributions. We are currently exploring ways to provide initramfs that can be generated from musl systems as well.
+
+{{% /alert %}}
+
+After you have modified the kernel and initrd, you can use the kairos-agent upgrade command to update your nodes, or [within Kubernetes](/docs/upgrade/kubernetes).

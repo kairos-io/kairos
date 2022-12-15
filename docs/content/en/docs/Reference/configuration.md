@@ -6,7 +6,9 @@ date: 2022-11-13
 description: >
 ---
 
-Here you can find a full reference of the fields available to configure a Kairos node.
+Welcome to the Kairos configuration reference page. This page provides details on the fields available in the YAML file used for installing Kairos, a Linux distribution focused on running Kubernetes. This file, written in cloud-config format, allows you to enable Kairos features, configure k3s, and set various other options.
+
+The structure of the configuration file is as follows:
 
 ```yaml
 #cloud-config
@@ -127,15 +129,26 @@ write_files:
   owner: "bar"
 ```
 
-The Kairos configuration file allows to setup features of Kairos and system settings as well. A YAML file is used, similarly to [cloud-init](https://cloud-init.io/) which allows to specify both in the same unique file.
+The `kairos` block is used to enable the p2p full-mesh functionalities of Kairos. If you do not want to use these functionalities, simply don't specify a kairos block in your configuration file.
+
+Inside the `kairos` block, you can specify the network_token field, which is used to establish the p2p full meshed network. If you do not want to use the full-mesh functionalities, don't specify a network_token value.
+
+The role field allows you to manually set the node role for your Kairos installation. The available options are `master` and `worker`, and the default value is auto (which means no role is set).
+
+The `network_id` field allows you to set a user-defined network ID, which can be used to have multiple Kairos clusters on the same network.
+
+Finally, the `dns` field allows you to enable embedded DNS for Kairos. For more information on DNS in Kairos, see the link provided in the YAML code above.
+
+That's a brief overview of the structure and fields available in the Kairos configuration file. For more detailed information on how to use these fields, see the examples and explanations provided in the sections below.
+
 
 ## Syntax
 
-Kairos supports a portion of the standard `cloud-init` syntax, and the extended syntax which is based on [yip](https://github.com/mudler/yip).
+Kairos supports a portion of the standard [cloud-init](https://cloud-init.io/) syntax, and the extended syntax which is based on [yip](https://github.com/mudler/yip).
 
-Examples using the extended notation for running K3s as agent or server are in [examples](https://github.com/kairos-io/kairos/tree/master/examples).
+Examples using the extended notation for running K3s as agent or server can be found in the [examples](https://github.com/kairos-io/kairos/tree/master/examples)  directory of the Kairos repository.
 
-For instance, to set up the DNS at the boot stage:
+Here's an example that shows how to set up DNS at the [boot stage](/docs/architecture/cloud-init) using the extended syntax:
 
 ```yaml
 #cloud-config
@@ -151,23 +164,23 @@ stages:
 
 {{% alert title="Note" %}}
 
-Kairos doesn't use [cloud-init](https://cloud-init.io/). [yip](https://github.com/mudler/yip) was created with the goals to be distro agnostic - indeed it doesn't bash out at all (exception is systemd configurations, where it's implied you have systemd) and can also be run on minimal Linux distros, built from scratch.
+Kairos does not use [cloud-init](https://cloud-init.io/). [yip](https://github.com/mudler/yip) was created with the goal of being distro agnostic, and does not use Bash at all (with the exception of systemd configurations, which are assumed to be available). This makes it possible to run yip on minimal Linux distros that have been built from scratch.
 
-The rationale is to put us in trajectory to have very minimal requirements - indeed our cloud-init implementation doesn't have dependencies, while the original cloud-init depends on python, which makes the dependency tree grow. There is a CoreOS implementation too, which makes a general assumption on the layout of the system. This makes it less portable and wasn't fitting Kairos use-cases.
+The rationale behind using yip instead of cloud-init is that it allows Kairos to have very minimal requirements. The cloud-init implementation has dependencies, while yip does not, which keeps the dependency tree small. There is also a CoreOS implementation of cloud-init, but it makes assumptions about the layout of the system that are not always applicable to Kairos, making it less portable.
 
 {{% /alert %}}
 
 
-The extended syntax can be also used to pass-by commands via Kernel boot parameters, see examples below. 
+The extended syntax can also be used to pass commands through Kernel boot parameters. See the examples below for more details.
 
 ### Test your cloud configs
 
-Writing YAML files can be a tedious process, where syntax or intendation errors might occour.
+Writing YAML files can be a tedious process, and it's easy to make syntax or indentation errors. To make sure your configuration is correct, you can use the cloud-init commands to test your YAML files locally in a container.
 
-To test your configuration, you can leverage the cloud-init commands, to test locally in a container, for instance, consider:
+Here's an example of how to test your configuration using a Docker container:
 
 ```bash
-
+# List the YAML files in your current directory
 $ ls -liah
 total 32K
 38548066 drwxr-xr-x 2 mudler mudler 4.0K Nov 12 19:21 .
@@ -178,8 +191,11 @@ total 32K
 38552420 -rw-r--r-- 1 mudler mudler 5.3K Nov 12 19:21 08_boot_assessment.yaml
 38553235 -rw-r--r-- 1 mudler mudler  380 Nov 12 19:21 09_services.yaml
 
+# Run the cloud-init command on your YAML files in a Docker container
 $ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm quay.io/kairos/core-alpine cloud-init /test
-INFO[2022-11-18T08:51:33Z] Starting elemental version v0.0.1
+
+# Output from the cloud-init command
+INFO[2022-11-18T08:51:33Z] Starting elemental version ...
 INFO[2022-11-18T08:51:33Z] Running stage: default
 INFO[2022-11-18T08:51:33Z] Executing /test/00_rootfs.yaml
 INFO[2022-11-18T08:51:33Z] Executing /test/06_recovery.yaml
@@ -189,14 +205,14 @@ INFO[2022-11-18T08:51:33Z] Executing /test/09_services.yaml
 INFO[2022-11-18T08:51:33Z] Done executing stage 'default'
 ```
 
-Note that by default the "default" stage is executed - which doesn't actually map to any stage, to test, for instance other stage, we can use the `--stage (-s)` option, for example for `initramfs`:
+By default, the cloud-init command runs the `default` stage, which doesn't actually map to any specific stage in your YAML files. To test a different stage, you can use the `--stage` (`-s`) option, like this:
 
 ```bash
+# Run the cloud-init command on your YAML files in a Docker container, and specify the "initramfs" stage
 $ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm quay.io/kairos/core-alpine cloud-init -s initramfs /test
 ```
 
-It is possible also to test individual file by piping them to cloud-init, consider:
-
+You can also test individual YAML files by piping them to the cloud-init command, like this:
 ```bash
 cat <<EOF | docker run -i --rm --entrypoint /usr/bin/elemental quay.io/kairos/core-alpine cloud-init -s test -
 #cloud-config
@@ -222,11 +238,9 @@ EOF
 
 ### Using templates
 
-Fields of cloud-init are templated and can be used to allow dynamic configuration.
+Fields in the Kairos cloud-init configuration can be templated, which allows for dynamic configuration. Node information is retrieved using the [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) library, and can be templated in the `commands`, `file`, and `entity` fields.
 
-Node information is retrieved by [sysinfo](https://github.com/zcalusic/sysinfo#sample-output) and is templated in the commands, file and entity fields.
-
-This means that templating like the following is possible:
+Here's an example of how you can use templating in your Kairos configuration:
 
 ```yaml
 #cloud-config
@@ -237,13 +251,13 @@ stages:
     commands:
     - echo "{{.Values.node.hostname}}"
 ```
-And [sprig functions](http://masterminds.github.io/sprig/) are available.
+In addition to standard templating, [sprig functions](http://masterminds.github.io/sprig/) are also available for use in your Kairos configuration.
 
 #### Automatic Hostname at scale
 
-Sometimes you may want to create a single `cloud-init` file for a set of machines and also make sure each node has a different hostname.
+You can also use templating to automatically generate hostnames for a set of machines. For example, if you have a single `cloud-init` file that you want to use for multiple machines, you can use the machine ID (which is generated for each host) to automatically set the hostname for each machine.
 
-Leveraging templating, you can automate hostname generation based on the `machine ID` which is generated for each host:
+Here's an example of how you can do this:
 
 ```yaml
 #cloud-config
@@ -254,9 +268,13 @@ stages:
       hostname: "node-{{ trunc 4 .MachineID }}"
 ```
 
+This will set the hostname for each machine based on the first 4 characters of the machine ID. For example, if the machine ID for a particular machine is `abcdef123456`, the hostname for that machine will be set to `node-abcd`.
+
 ### K3s settings
 
-The `k3s` and the `k3s-agent` block are used to customize the environment and argument settings of K3s, consider:
+The `k3s` and `k3s-agent` blocks in the Kairos configuration file allow you to customize the environment and argument settings for K3s.
+
+Here's an example of how to use these blocks in your Kairos configuration:
 
 {{< tabpane text=true right=true  >}}
 {{% tab header="server" %}}
@@ -285,24 +303,23 @@ k3s-agent:
 {{% /tab %}}
 {{< /tabpane >}}
 
-See also the [examples](https://github.com/kairos-io/kairos/tree/master/examples) folder in the repository to configure K3s manually.
+For more examples of how to configure K3s manually, see the [examples](/docs/examples) section or [HA](/docs/advanced/ha).
 
 ### Grub options
 
-`install.grub_options` is a map of key/value GRUB options to be set in the GRUB environment after installation.
+The `install.grub_options` field in the Kairos configuration file allows you to set key/value pairs for GRUB options that will be set in the GRUB environment after installation.
 
-It can be used to set additional boot arguments on boot, consider to set `panic=0` as bootarg:
+Here's an example of how you can use this field to set the `panic=0` boot argument:
 
 ```yaml
 #cloud-config
 
 install:
-  # See also: https://rancher.github.io/elemental-toolkit/docs/customizing/configure_grub/#grub-environment-variables
   grub_options:
     extra_cmdline: "panic=0"
 ```
 
-Below a full list of all the available options:
+The table below lists all the available options for the `install.grub_options` field:
 
 | Variable               | Description                                             |
 | ---------------------- | ------------------------------------------------------- |
@@ -317,7 +334,9 @@ Below a full list of all the available options:
 
 ## Kubernetes manifests
 
-When using the `k3s` as Kubernetes distribution, it's possible to automatically deploy Helm charts or Kubernetes resources automatically after deployment, for instance to deploy fleet automatically:
+The `k3s` distribution of Kubernetes allows you to automatically deploy Helm charts or Kubernetes resources after deployment.
+
+Here's an example of how you can use the `k3s` configuration file to deploy Fleet out of the box:
 
 ```yaml
 name: "Deploy fleet out of the box"
@@ -348,6 +367,8 @@ stages:
             spec:
               chart: https://github.com/rancher/fleet/releases/download/v0.3.8/fleet-0.3.8.tgz
 ```
+
+This configuration will automatically deploy the Fleet Helm chart in the cattle-system namespace after the deployment of `k3s` using the extended syntax.
 
 ## Kernel boot parameters
 
