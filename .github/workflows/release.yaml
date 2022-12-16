@@ -62,6 +62,7 @@ jobs:
          - flavor: "ubuntu-22-lts"
          - flavor: "ubuntu"
          - flavor: "fedora"
+         - flavor: "debian"
    #      - flavor: "fedora"
    #      - flavor: "rockylinux"
     steps:

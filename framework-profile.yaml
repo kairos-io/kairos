@@ -2,7 +2,6 @@ common:
   - system/base-cloud-config
   - dracut/immutable-rootfs
   - dracut/kcrypt
-  - dracut/network
   - static/grub-config
   - system/kcrypt
   - system/suc-upgrade
@@ -10,6 +9,9 @@ common:
   - system/grub2-efi
   - system/elemental-cli
 flavors:
+  debian:
+    - systemd-base
+    - dracut-network-legacy
   ubuntu:
     - systemd-base
     - dracut-network-legacy

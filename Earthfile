@@ -224,7 +224,7 @@ docker:
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
         COPY overlay/files-fedora/ /
-    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /
     END
 
@@ -249,6 +249,9 @@ docker:
 	    systemctl enable cos-setup-network.service
     END
 
+    IF [ "$FLAVOR" = "debian" ]
+	    RUN rm -rf /boot/initrd.img-*
+    END
     # Regenerate initrd if necessary
     IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
      RUN mkinitrd
@@ -261,7 +264,7 @@ docker:
      RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
      # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
      RUN rm -rf /boot/initramfs-*
-    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
      RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
             ln -sf "${kernel#/boot/}" /boot/vmlinuz
      RUN kernel=$(ls /lib/modules | head -n1) && \
