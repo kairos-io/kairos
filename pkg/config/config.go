@@ -10,12 +10,13 @@ import (
 	"unicode"
 
 	retry "github.com/avast/retry-go"
+	"github.com/itchyny/gojq"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/kairos-io/kairos/sdk/unstructured"
 	yip "github.com/mudler/yip/pkg/schema"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 type Install struct {
@@ -106,6 +107,38 @@ func (c Config) String() string {
 	return string(dat)
 }
 
+func (c Config) Query(s string) (res string, err error) {
+	s = fmt.Sprintf(".%s", s)
+	jsondata := map[string]interface{}{}
+
+	err = yaml.Unmarshal([]byte(c.String()), &jsondata)
+	if err != nil {
+		return
+	}
+	query, err := gojq.Parse(s)
+	if err != nil {
+		return res, err
+	}
+
+	iter := query.Run(jsondata) // or query.RunWithContext
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, ok := v.(error); ok {
+			return res, fmt.Errorf("failed parsing, error: %w", err)
+		}
+
+		dat, err := yaml.Marshal(v)
+		if err != nil {
+			break
+		}
+		res += string(dat)
+	}
+	return
+}
+
 func allFiles(dir []string) []string {
 	files := []string{}
 	for _, d := range dir {
@@ -122,7 +155,7 @@ func Scan(opts ...Option) (c *Config, err error) {
 		return nil, err
 	}
 
-	c = parseConfig(o.ScanDir)
+	c = parseConfig(o.ScanDir, o.NoLogs)
 
 	if o.MergeBootCMDLine {
 		d, err := machine.DotToYAML(o.BootCMDLineFile)
@@ -291,18 +324,22 @@ func FindYAMLWithKey(s string, opts ...Option) ([]string, error) {
 }
 
 // parseConfig merges all config back in one structure.
-func parseConfig(dir []string) *Config {
+func parseConfig(dir []string, nologs bool) *Config {
 	files := allFiles(dir)
 	c := &Config{}
 	for _, f := range files {
 		if fileSize(f) > 1.0 {
-			fmt.Printf("warning: skipping %s. too big (>1MB)\n", f)
+			if !nologs {
+				fmt.Printf("warning: skipping %s. too big (>1MB)\n", f)
+			}
 			continue
 		}
 		if strings.Contains(f, "userdata") || filepath.Ext(f) == ".yml" || filepath.Ext(f) == ".yaml" {
 			b, err := os.ReadFile(f)
 			if err != nil {
-				fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
+				if !nologs {
+					fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
+				}
 				continue
 			}
 			yaml.Unmarshal(b, c)               //nolint:errcheck
@@ -311,7 +348,9 @@ func parseConfig(dir []string) *Config {
 				c.header = header
 			}
 		} else {
-			fmt.Printf("warning: skipping %s (extension).\n", f)
+			if !nologs {
+				fmt.Printf("warning: skipping %s (extension).\n", f)
+			}
 		}
 	}
 
