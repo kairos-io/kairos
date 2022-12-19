@@ -173,11 +173,12 @@ EOF
 
 This will create a new ISO with Kairos and the specified bundles included. You can then use this ISO to boot your machine and automatically install Kairos with the specified configuration.
 
-Note: If you're using kind, you'll need to use the IP address and port of the hello-kairos service to access the ISO. You can get this with:
+Note: If you're using kind, you'll need to use the IP address and port of the nginx service to access the ISO. You can get this with:
+
 ```bash
 # Note on running with kind:
 $ IP=$(docker inspect kind-control-plane | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
-$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ PORT=$(kubectl get svc osartifactbuilder-operator-osbuilder-nginx -o json | jq '.spec.ports[0].nodePort')
 $ curl http://$IP:$PORT/hello-kairos.iso -o test.iso
 ```
 
