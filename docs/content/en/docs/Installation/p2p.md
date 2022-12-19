@@ -62,7 +62,7 @@ p2p:
  network_token: "YOUR_TOKEN_GOES_HERE"
 ```
 
-The `p2p` block is used to configure settings to the mesh functionalities. The minimum required argument is the `network_token` and there is no need to configure `k3s` manually with the `k3s` block as it is already implied.
+The `p2p` block is used to configure settings related to the mesh functionalities. The minimum required argument is the `network_token` and there is no need to configure `k3s` manually with the `k3s` block as it is already implied.
 
 {{% alert title="Note" %}}
 
