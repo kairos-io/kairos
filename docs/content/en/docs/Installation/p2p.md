@@ -20,7 +20,7 @@ With this feature, users don't need to specify any network settings. They can ju
 
 This makes it easier to deploy and manage Kubernetes clusters at the Edge, saving user's time and effort, allowing them to focus on running and scaling their applications.
 
-This feature is currently experimental and can be optionally enabled by adding the following configuration to the node deployment file, if you are not familiar with the installation process, it is suggested to follow the [quickstart](/docs/getting-started):
+This feature is currently experimental and can be optionally enabled by adding the following configuration to the node deployment file. If you are not familiar with the installation process, it is suggested to follow the [quickstart](/docs/getting-started):
 
 ```yaml
 p2p:
