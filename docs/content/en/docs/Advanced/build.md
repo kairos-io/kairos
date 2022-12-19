@@ -15,21 +15,21 @@ The feature is experimental and API is likely going to be subject to changes, do
 This documentation section describes how the Kairos Kubernetes Native API extensions can be used to build custom appliances or booting medium for Kairos.
 
 While it's possible to just run Kairos from the artifacts provided by our release process, there are specific use-cases which needs extended customization, for example when
-additional kernel modules, or custom, user-defined logics that you might want to embed in the media used for installations.
+additional kernel modules, or custom, user-defined logic that you might want to embed in the media used for installations.
 
-Note the same can be achieved by using advanced configuration and actually modify the images during installation phase by leveraging the `chroot` stages that takes place in the image - this is discouraged - as it goes in opposite with the "Single Image", "No infrastructure drift" approach of Kairos. The idea here is to create a system from "scratch" and applying it to our nodes - not to run any specifc logic in the node itself.
+Note the same can be achieved by using advanced configuration and actually modify the images during installation phase by leveraging the `chroot` stages that takes place in the image - this is discouraged - as it goes in opposite with the "Single Image", "No infrastructure drift" approach of Kairos. The idea here is to create a system from "scratch" and apply that on the nodes - not to run any specific logic on the node itself.
 
-For such purposes Kairos provides a set of Kubernetes Native Extensions that allows to programmatically generate Installable mediums, Cloud Images and Netboot artifacts to provide on-demand customization to further exploit Kubernetes patterns to automatically provision nodes using control-plane management clusters - however, the same toolset can be used manually to build appliances in order to develop and debug locally.
+To achieve that, Kairos provides a set of Kubernetes Native Extensions that allow to programmatically generate Installable mediums, Cloud Images and Netboot artifacts. These provide on-demand customization and exploit Kubernetes patterns to automatically provision nodes using control-plane management clusters - however, the same toolset can be used to build appliances for local development and debugging.
 
 The [automated](/docs/installation/automated) section already shows some examples of how to leverage the Kubernetes Native Extensions and use the Kairos images to build appliances, in this section we will cover and describe in detail how to leverage the CRDs and the Kairos factory to build custom appliances.
 
 ## Prerequisites
 
-When building locally, only `docker` is required installed in the system, for building using the Kubernetes Native extensions, a Kubernetes cluster is required and `helm` and `kubectl` installed locally. Note [kind](https://github.com/kubernetes-sigs/kind) can be used as well. The Native extension don't require any special permission, and runs completely unprivileged.
+When building locally, only `docker` is required to be installed on the system. To build with the Kubernetes Native extensions, a Kubernetes cluster is required and `helm` and `kubectl` installed locally. Note [kind](https://github.com/kubernetes-sigs/kind) can be used as well. The Native extensions don't require any special permission, and run completely unprivileged.
 
 ### Kubernetes
 
-If running on Kubernetes, we install the Kairos `osbuilder` controller.
+To build with Kubernetes we need to install the Kairos `osbuilder` controller.
 
 The chart depends on cert-manager. You can install the latest version of cert-manager by running the following commands:
 
@@ -47,6 +47,8 @@ helm install kairos-crd kairos/kairos-crds
 helm install kairos-osbuilder kairos/osbuilder
 ```
 
+Among the things deployed by the helm chart, is also an nginx server which is used to
+serve the artifact files after they are built. See below for more.
 
 ## Build an ISO
 
@@ -79,10 +81,14 @@ Apply the manifest with `kubectl apply`.
 
 Note, the CRD allows to specify a custom Cloud config file, [check out the full configuration reference](/docs/reference/configuration).
 
+As mentioned above, there is an nginx server that will serve the built artifacts as soon as they are ready.
+By default, it is exposed with a `NodePort` type of service. Use the following commands
+to get its URL:
+
 The controller will create a pod that builds the ISO ( we can follow the process by tailing to the containers log ) and later makes it accessible to its own dedicated service (nodeport by default):
 
 ```bash
-$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ PORT=$(kubectl get svc osartifactbuilder-operator-osbuilder-nginx -o json | jq '.spec.ports[0].nodePort')
 $ curl http://<node-ip>:$PORT/hello-kairos.iso -o output.iso
 ```
 ## Netboot artifacts
@@ -153,10 +159,11 @@ spec:
 Note: Since the image come with only the `recovery` system populated, we need to apply a cloud-config similar to this one which tells which container image we want to deploy.
 The first steps when the machine boots into is to actually create the partitions needed to boot the active and the passive images, and its populated during the first boot.
 
-After applying the spec, the controller will create a pod which runs the build process and create a `hello-kairos.raw` file, which is an EFI bootable raw disk, bootable in QEMU and compatible with AWS which automatically provision the node:
+After applying the spec, the controller will create a Kubernetes Job which runs the build process and
+then copy the produced `hello-kairos.raw` file to the nginx server (see above). This file is an EFI bootable raw disk, bootable in QEMU and compatible with AWS which automatically provisions the node:
 
 ```bash
-$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ PORT=$(kubectl get svc osartifactbuilder-operator-osbuilder-nginx -o json | jq '.spec.ports[0].nodePort')
 $ curl http://<node-ip>:$PORT/hello-kairos.raw -o output.raw
 ```
 
@@ -175,7 +182,6 @@ qemu-system-x86_64 -m 2048 -bios /usr/share/qemu/ovmf-x86_64.bin -drive if=virti
 ```
 
 ### Use the Image in AWS
-
 
 To consume the image, copy it into an s3 bucket:
 
@@ -222,7 +228,7 @@ spec:
 Will generate a compressed disk `hello-kairos-azure.vhd` ready to be used in GCE.
 
 ```bash
-$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ PORT=$(kubectl get svc osartifactbuilder-operator-osbuilder-nginx -o json | jq '.spec.ports[0].nodePort')
 $ curl http://<node-ip>:$PORT/hello-kairos-azure.vhd -o output.vhd
 ```
 
@@ -261,7 +267,7 @@ spec:
 Will generate a compressed disk `hello-kairos.gce.raw.tar.gz` ready to be used in GCE.
 
 ```bash
-$ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
+$ PORT=$(kubectl get svc osartifactbuilder-operator-osbuilder-nginx -o json | jq '.spec.ports[0].nodePort')
 $ curl http://<node-ip>:$PORT/hello-kairos.gce.raw.tar.gz -o output.gce.raw.tar.gz
 ```
 
