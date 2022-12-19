@@ -7,10 +7,9 @@ description: >
   Install Kairos automatically, with zero touch provisioning
 ---
 
-It is possible to drive the installation automatically by configuring a specific portion of the `install` configuration file .
-The configuration file then can be supplied in various way, by either creating an additional ISO to mount (if a VM burn to USB stick or if bare metal), specifying a configuration via URL or even create an ISO from a container image with an embedded configuration file, which we are going to explore here.
+To automate Kairos installation, you can configure a specific portion of the installation configuration file. The configuration file can then be supplied in a few different ways, such as creating an additional ISO to mount, specifying a URL, or even creating an ISO from a container image with an embedded configuration file.
 
-The `install` block can be used to customize the installation drive, reboot or shutdown, and include bundles. For example:
+Here's an example of how you might customize the install block:
 
 ```yaml
 install:
@@ -24,14 +23,16 @@ install:
   auto: true
   # A list of bundles
   bundles:
-    - quay.io/Kairos/packages/...
+    -  quay.io/kairos/packages:k9s-utils-0.26.7
 ```
+
+This block allows you to specify the device on which to install Kairos, whether to reboot or power off after installation, and which bundles to include.
 
 ## Data source
 
-The configuration file can be provided to Kairos by mounting an ISO in the node with the `cidata` label. The ISO must contain a `user-data` (which contain your configuration) and `meta-data` file.
+To supply your Kairos configuration file, you can create an ISO that contains both a user-data file (which contains your configuration) and a meta-data file.
 
-Consider a `cloud-init` of the following content which is configured to automatically install onto `/dev/sda` and reboot:
+Here's an example `user-data` configuration that is set up to automatically install Kairos onto /dev/sda and reboot after installation:
 
 ```yaml
 #node-config
@@ -47,35 +48,43 @@ kairos:
 # extra configuration
 ```
 
-Save it as `cloud_init.yaml`, and we will now create an ISO with it.
+Save this file as `cloud_init.yaml`, then create an ISO with the following steps:
 
-To create an ISO as data source, run the following:
-
+1. Create a new directory and navigate to it:
 ```bash
 $ mkdir -p build
 $ cd build
+```
+2. Create empty `meta-data` and copy your config as `user-data`:
+```bash
 $ touch meta-data
 $ cp -rfv cloud_init.yaml user-data
+```
+3. Use `mkisofs` to create the ISO file:
+```bash
 $ mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
 ```
 
-Now the ISO is ready to be attached as the CDROM to the machine, boot it up as usual along with the Kairos ISO.
+Once the ISO is created, you can attach it to your machine and boot up as usual, along with the Kairos ISO.
 
 ## Via config URL
 
-It is possible to specify `config_url=<URL>` as a boot argument during boot. This will let the machine pull down the configuration specified via the URL and perform the installation with the configuration specified. The configuration will be available in the system after installation as usual at `/oem/99_custom.yaml`.
+Another way to supply your Kairos configuration file is to specify a URL as a boot argument during startup. To do this, add `config_url=<URL>` as a boot argument. This will allow the machine to download your configuration from the specified URL and perform the installation using the provided settings.
 
-If you don't know where to upload such configuration, it is common habit to upload those as GitHub gists.
+After installation, the configuration will be available on the system at `/oem/90_custom.yaml`.
+
+If you're not sure where to host your configuration file, a common option is to upload it as a GitHub gist.
 
 ## ISO remastering
 
-It is possible to create custom ISOs with an embedded cloud-config. This will let the machine automatically boot with a configuration file, which will later be installed in the system after provisioning is completed.
+It is possible to create custom ISOs with an embedded cloud configuration. This allows the machine to automatically boot with a pre-specified configuration file, which will be installed on the system after provisioning is complete.
+
 
 ### Locally
 
-To remaster an ISO locally, you need Docker.
+To create a custom ISO, you will need Docker installed on your machine. 
 
-As Kairos is based on Elemental, the Elemental CLI can be used to create a new ISO with an additional configuration, consider the following steps:
+Here's an example of how you might do this:
 
 ```bash
 $ IMAGE=<source/image>
@@ -93,25 +102,31 @@ $ docker pull $IMAGE
 $ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/kairos/osbuilder-tools:latest --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/files-iso $IMAGE --output /cOS/
 ```
 
+This will create a new ISO with your specified cloud configuration embedded in it. You can then use this ISO to boot your machine and automatically install Kairos with your desired settings.
+
+You can as well modify the image in this step and add additional packages before deployment. See [customizing the system image](/docs/advanced/customizing).
+
 ### Kubernetes
 
-It is possible to create ISOs and derivatives, using extended Kubernetes API resources with an embedded config file, to drive automated installations.
+It is possible to create custom ISOs and derivatives using extended Kubernetes API resources with an embedded configuration file. This allows you to drive automated installations and customize the container image without breaking the concept of immutability.
 
-This method also allows to tweak the container image by overlaying others on top without breaking the concept of immutability and single image OS.
+To do this, you will need a Kubernetes cluster. Here's an example of how you might use Kubernetes to create a custom ISO with Kairos:
 
-Consider the following example, which requires a Kubernetes cluster to run the components, but works also on `kind`:
 
+1. Add the Kairos Helm repository:
 ```bash
-
-# Adds the Kairos repo to Helm
 $ helm repo add kairos https://Kairos-io.github.io/helm-charts
 "kairos" has been added to your repositories
+```
+2. Update your Helm repositories:
+```bash
 $ helm repo update
 Hang tight while we grab the latest from your chart repositories...
 ...Successfully got an update from the "kairos" chart repository
 Update Complete. ⎈Happy Helming!⎈
-
-# Install the CRD chart
+```
+3. Install the Kairos CRD chart:
+```bash
 $ helm install kairos-crd kairos/kairos-crds
 NAME: kairos-crd
 LAST DEPLOYED: Tue Sep  6 20:35:34 2022
@@ -119,8 +134,9 @@ NAMESPACE: default
 STATUS: deployed
 REVISION: 1
 TEST SUITE: None
-
-# Installs osbuilder
+```
+4. Install the Kairos `osbuilder` chart:
+```bash
 $ helm install kairos-osbuilder kairos/osbuilder
 NAME: kairos-osbuilder
 LAST DEPLOYED: Tue Sep  6 20:35:53 2022
@@ -128,8 +144,9 @@ NAMESPACE: default
 STATUS: deployed
 REVISION: 1
 TEST SUITE: None
-
-# Applies an OSArtifact spec
+```
+5. Use `kubectl` to apply an `OSArtifact` spec:
+```bash
 cat <<'EOF' | kubectl apply -f -
 apiVersion: build.kairos.io/v1alpha1
 kind: OSArtifact
@@ -152,11 +169,16 @@ spec:
               poweroff: false
               auto: true # Required, for automated installations
 EOF
+```
 
+This will create a new ISO with Kairos and the specified bundles included. You can then use this ISO to boot your machine and automatically install Kairos with the specified configuration.
+
+Note: If you're using kind, you'll need to use the IP address and port of the hello-kairos service to access the ISO. You can get this with:
+```bash
 # Note on running with kind:
 $ IP=$(docker inspect kind-control-plane | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
 $ PORT=$(kubectl get svc hello-kairos -o json | jq '.spec.ports[0].nodePort')
 $ curl http://$IP:$PORT/hello-kairos.iso -o test.iso
-
-
 ```
+
+Check out the [dedicated section in the documentation](/docs/advanced/build) for further examples.

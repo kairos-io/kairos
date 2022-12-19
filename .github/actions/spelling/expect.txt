@@ -1,3 +1,5 @@
+abcd
+abcdef
 acpid
 addresspool
 Admins
@@ -36,7 +38,6 @@ blockchain
 blog
 Bma
 BNzd
-bootarg
 bootup
 Bpbn
 BTR
@@ -44,8 +45,6 @@ btrfs
 buf
 bugfix
 bugfixes
-bugfixing
-bugreporting
 buildcontext
 buildx
 busybox
@@ -62,10 +61,8 @@ cfg
 CGO
 chainloaded
 changelog
-changeset
 chmod
 chown
-chroot
 cidata
 circleci
 cmdline
@@ -114,7 +111,6 @@ DNSCACHESIZE
 DNSFORWARD
 DNSFORWARDSERVER
 dockerfile
-dockerhub
 docsy
 dosfstools
 dotnet
@@ -209,7 +205,6 @@ Hetzner
 hhvm
 hmac
 homedir
-homogeneus
 hostname
 hotfixes
 href
@@ -245,7 +240,6 @@ initramfs
 initrd
 initscripts
 installable
-intendation
 ipfs
 iproute
 iptables
@@ -331,7 +325,6 @@ mssql
 MSVFj
 MTl
 mtools
-mudler
 multiarch
 musl
 MWFBT
@@ -370,7 +363,6 @@ nvidia
 Nwog
 NXTj
 Nzc
-occour
 oci
 octocat
 ODU
@@ -448,7 +440,6 @@ roadmap
 robbot
 robinraju
 rockylinux
-rootfs
 rpi
 RRk
 rsa
@@ -480,7 +471,6 @@ softprops
 specifc
 Spectro
 spectrocloud
-spellcheck
 SPOF
 squashfs
 src
@@ -512,7 +502,6 @@ sysinfo
 sysinit
 syslinux
 syslog
-sysroot
 systctl
 systemctl
 systemd

@@ -6,29 +6,22 @@ date: 2022-11-13
 description: >
 ---
 
-Kairos builds several artifacts for user convenience which are based on openSUSE, Alpine Linux, and Ubuntu.
+Kairos offers several pre-built images for user convenience based on popular Linux distributions such as openSUSE, Alpine Linux, and Ubuntu. The Kairos core team does its best to test these images, but those that are based on systemd (e.g. openSUSE, Ubuntu) are more thoroughly tested due to their homogenous settings. Support for other non-systemd based flavors (e.g. Alpine) may be limited due to team bandwidth. However, as Kairos is an open source community-driven project, we welcome any contributions, bug reports, and bug fixes. Check out our [Contribution guidelines](https://github.com/kairos-io/kairos/contribute) for more information.
 
-{{% alert title="Note" color="info" %}}
-The Kairos core team does its best to test all distributions but *systemd* based ones(e.g. _openSUSE_, _ubuntu_, ) are more throughly tested as are uniform and have homogeneus settings. 
-Support for other flavors not using systemd (e.g. Alpine), get less priority in our plannings due to the team bandwidth. We encourage you to contribute, as Kairos is a community-driven, Open Source Project, and we welcome any contribution, bugreporting, bugfixing, check out our [Contribution guidelines](https://github.com/kairos-io/kairos/contribute)!
+In addition, tighter integration with systemd allows for several features that are only available with it, such as live layering.
 
-Besides, there is tighter integration with systemd for several features that are available only with it (e.g. [live layering](/docs/advanced/livelayering/) ).
-{{% /alert %}}
-
-The images are pushed over quay.io, and are available for installation and upgrading.
-
-The installable mediums part of the releases are generated with the methods described in the [automated installation reference](/docs/installation/automated/#iso-remastering) from the images sources listed below, and the images can be used to point over for upgrades, as well.
+These images are pushed to quay.io and are available for installation and upgrading. The installable mediums included in the releases are generated using the methods described in the [automated installation reference](/docs/installation/automated/#iso-remastering), and the images can be used for upgrades as well.
 
 ## Image flavors
 
-Kairos release process generates images based on official container images from the major popular Linux Distributions, If you can't find your preferred distribution first check [if we are already planning](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Fflavor) support for it, or create a new issue.
+Kairos release processes generates images based on official container images from popular Linux distributions. If you don't see your preferred distribution, check if [we are already planning](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3Aarea%2Fflavor) support for it or create a new issue.
 
-Below you can find a list of the images and their respective location on the `quay.io` registry.
+Below is a list of the available images and their locations on the quay.io registry:
 
-- The **Core** images does not contain any Kubernetes engine. Those images can be used as base for manual customization.
-- The **Standard** images contains `k3s` and the `kairos` provider which enables Kubernetes deployments, optionally with [p2p](/docs/installation/p2p).
+- The **Core** images do not include any Kubernetes engine and can be used as a base for customizations.
+- The **Standard** images include `k3s` and the [kairos provider](https://github.com/kairos-io/provider-kairos), which enables Kubernetes deployments and optionally enables [p2p](/docs/installation/p2p).
 
-Base images are tagged against specific upstream versions (e.g _Ubuntu 20 LTS_ pins to _Ubuntu 20:04_, _opensuse_ to _opensuse leap 15.4_, ...).
+Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pinned to Ubuntu 20:04, openSUSE to openSUSE leap 15.4, etc.).
 
 | **Flavor/Variant**                                  	| **Core (no k3s)**                                       	| **Standard(k3s)**                           	|
 |-----------------------------------------------------	|---------------------------------------------------------	|-----------------------------------------------------------	|
@@ -43,51 +36,46 @@ Base images are tagged against specific upstream versions (e.g _Ubuntu 20 LTS_ p
 
 {{% alert title="Note" color="info" %}}
 
-** the `ubuntu` flavor tracks the latest available Ubuntu release (at the time of writing 22.10). the LTS flavors instead are tracking the latest LTS available in dockerhub. i.e. ubuntu-22-lts uses 22.04 as base image
+** The `ubuntu` flavor tracks the latest available Ubuntu release (at the time of writing 22.10). The LTS flavors, on the other hand, track the latest LTS available on DockerHub. For example, ubuntu-22-lts uses 22.04 as the base image.
 {{% /alert %}}
 
 {{% alert title="Note" color="info" %}}
-  The pipelines don't publish `img` artifacts for arm architecture because the files are too big for GitHub Actions (they are above the artifact size limit).
-  They can be extracted from the published docker images with the following command:
+The pipelines do not publish `img` artifacts for the arm architecture because the files are too large for GitHub Actions (they exceed the artifact size limit). These artifacts can be extracted from the published docker images using the following command:
 
-  ```bash
-  export IMAGE=quay.io/kairos/core-alpine-arm-rpi:v1.1.7.img
-  docker run -ti --rm -v $PWD:/image quay.io/luet/base util unpack "$IMAGE" /image
-  ```
+```bash
+export IMAGE=quay.io/kairos/core-alpine-arm-rpi:v1.1.7.img
+docker run -ti --rm -v $PWD:/image quay.io/luet/base util unpack "$IMAGE" /image
+```
 
-  (replace with the proper image)
+(replace `$IMAGE` with the proper image)
 
-  The artifacts are in the `build/` directory.
+The artifacts can be found in the `build` directory.
+
 {{% /alert %}}
 
 
 ## Versioning policy
 
-Kairos follows [Semantic Versioning](https://semver.org/) and our releases versioning signal changes regarding the Kairos components, not changes to the OS, and underlaying packages versions. Flavors are pinned to specific upstream OS branches (e.g. `opensuse` to `leap 15.4`) and major version bumps would be reflected by either having new flavors in our build matrix or having specific releases to follow upstream with regard to minor version bumps (e.g. `leap 15.3` and `leap 15.4`).
+Kairos follows [Semantic Versioning](https://semver.org/) and our releases signal changes to Kairos components, rather than changes to the underlying OS and package versions. Flavors are pinned to specific upstream OS branches (e.g. `opensuse` to `leap 15.4`) and major version bumps will be reflected through new flavors in our build matrix or through specific releases to follow upstream with regard to minor version bumps (e.g. `leap 15.3` and `leap 15.4`).
 
-Consider:
-- We support only the latest release branch with patch releases.
-- Patch releases ( e.g. _1.1.x_ ) follows a weekly release cadence, if needed, exceptions made for highly impacting bugs in Kairos itself or at the OS layer (e.g. High scored CVEs).
-- Minor releases follows a monthly cadence and are expected to bring enhancements, with planned releases.
-- Major releases signal a new a set of advanced features, or significant changes to the codebase. In-place upgrade from old to new major release branch is not always guaranteed, however we strive for compatibility among versions.
+Here are some key points to note:
+- We only support the latest release branch with patch releases.
+- Patch releases (e.g. _1.1.x_) follow a weekly release cadence, unless there are exceptions for highly impactful bugs in Kairos itself or at the OS layer (e.g. high-severity CVEs).
+- Minor releases follow a monthly cadence and are expected to bring enhancements through planned releases.
+- Major releases signal new advanced features or significant changes to the codebase. In-place upgrades from old to new major release branches are not always guaranteed, but we strive for compatibility across versions.
 
 {{% alert title="Note" color="info" %}}
-In order to give more control over the chosen base image (e.g. `openSUSE`, `Ubuntu`, ... ), and rely less on our CI infrastructure, we are actively working on streamling the creation of Kairos-based distributions directly from upstream base images. You can track the development progress over [here](https://github.com/kairos-io/kairos/issues/116).
+In order to give users more control over the chosen base image (e.g. `openSUSE`, `Ubuntu`, etc.) and reduce reliance on our CI infrastructure, we are actively working on streamlining the creation of Kairos-based distributions directly from upstream base images. You can track the development progress [here](https://github.com/kairos-io/kairos/issues/116).
 
-If you need to further customize images, including base image changes, package updates, and CVE hotfixes, follow the [customization docs](/docs/advanced/customizing).
+If you need to further customize images, including changes to the base image, package updates, and CVE hotfixes, check out the [customization docs](/docs/advanced/customizing).
 {{% /alert %}}
 
 
 ## Release changelog
 
-Our changelog is published as part of the release process: it contains all the changeset, highlights and release notes that are pertinent to the release.
+Our changelog is published as part of the release process and contains all the changes, highlights, and release notes that are relevant to the release. We strongly recommend checking the changelog for each release before upgrading or building a customized version of Kairos.
 
-We strongly recommend to check every release changelog before running any upgrade, or while building your customized version of Kairos.
-
-
-Release changelogs are available for Kairos core and for each component. Here you can find a list of the components that are part of a Kairos release and their respective release page with changelogs.
-
-
+Release changelogs are available for Kairos core and for each component. Below is a list of the components that are part of a Kairos release and their respective release pages with changelogs.
 
 | **Project**                                  	| **Release page**                                       	|
 |-----------------------------------------------------	|---------------------------------------------------------	|
