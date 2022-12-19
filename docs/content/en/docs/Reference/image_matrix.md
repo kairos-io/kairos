@@ -36,7 +36,7 @@ Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pi
 
 {{% alert title="Note" color="info" %}}
 
-** the `ubuntu` flavor tracks the latest available Ubuntu release (at the time of writing 22.10). The LTS flavors, on the other hand, track the latest LTS available on DockerHub. For example, ubuntu-22-lts uses 22.04 as the base image.
+** The `ubuntu` flavor tracks the latest available Ubuntu release (at the time of writing 22.10). The LTS flavors, on the other hand, track the latest LTS available on DockerHub. For example, ubuntu-22-lts uses 22.04 as the base image.
 {{% /alert %}}
 
 {{% alert title="Note" color="info" %}}

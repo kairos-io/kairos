@@ -23,7 +23,7 @@ install:
   auto: true
   # A list of bundles
   bundles:
-    - quay.io/Kairos/packages/...
+    -  quay.io/kairos/packages:k9s-utils-0.26.7
 ```
 
 This block allows you to specify the device on which to install Kairos, whether to reboot or power off after installation, and which bundles to include.
@@ -32,7 +32,7 @@ This block allows you to specify the device on which to install Kairos, whether 
 
 To supply your Kairos configuration file, you can create an ISO that contains both a user-data file (which contains your configuration) and a meta-data file.
 
-Here's an example configuration that is set up to automatically install Kairos onto /dev/sda and reboot after installation:
+Here's an example `user-data` configuration that is set up to automatically install Kairos onto /dev/sda and reboot after installation:
 
 ```yaml
 #node-config
