@@ -22,7 +22,7 @@ Once the installation is complete, you can begin using yuor Kubernetes cluster.
 
 1. Visit the Kairos [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases)
 1. Select the latest release and download the assets of your flavor. For example, pick the [kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso) ISO file for the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v1.0.0` is the Kairos one to deploy on a VM.
-1. You can use also [netboot](/docs/installation/netboot) to boot Kairos over the network
+1. You can also use [netboot](/docs/installation/netboot) to boot Kairos over the network
 
 {{% alert title="Note" %}}
 The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship **without** K3s and P2P full-mesh functionalities; however, further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
