@@ -7,6 +7,7 @@ import (
 	agent "github.com/kairos-io/kairos/internal/agent"
 	"github.com/kairos-io/kairos/internal/bus"
 
+	"github.com/kairos-io/kairos/pkg/config"
 	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
 	bundles "github.com/kairos-io/kairos/sdk/bundles"
@@ -181,7 +182,67 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 			return nil
 		},
 	},
+	{
+		Name:        "config",
+		Usage:       "get machine configuration",
+		Description: "Print machine state information, e.g. `state get uuid` returns the machine uuid",
+		Aliases:     []string{"c"},
+		Action: func(c *cli.Context) error {
+			runtime, err := state.NewRuntime()
+			if err != nil {
+				return err
+			}
 
+			fmt.Print(runtime)
+			return err
+		},
+		Subcommands: []cli.Command{
+			{
+				Name:        "show",
+				Usage:       "Shows the machine configuration",
+				Description: "Show the runtime configuration of the machine. It will scan the machine for all the configuration and will return the config file processed and found.",
+				Aliases:     []string{"s"},
+				Action: func(c *cli.Context) error {
+					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs)
+					if err != nil {
+						return err
+					}
+
+					fmt.Printf("%s", config.String())
+					return nil
+				},
+			},
+			{
+				Name:  "get",
+				Usage: "Get specific data from the configuration",
+				UsageText: `
+Use it to retrieve configuration programmatically from the CLI:
+
+$ kairos-agent config get k3s.enabled
+true
+
+or
+
+$ kairos-agent config get k3s
+enabled: true`,
+				Description: "It allows to navigate the YAML config file by searching with 'yq' style keywords as `config get k3s` to retrieve the k3s config block",
+				Aliases:     []string{"g"},
+				Action: func(c *cli.Context) error {
+					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs)
+					if err != nil {
+						return err
+					}
+
+					res, err := config.Query(c.Args().First())
+					if err != nil {
+						return err
+					}
+					fmt.Printf("%s", res)
+					return nil
+				},
+			},
+		},
+	},
 	{
 		Name:        "state",
 		Usage:       "get machine state",

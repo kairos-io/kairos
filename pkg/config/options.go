@@ -4,9 +4,15 @@ type Options struct {
 	ScanDir          []string
 	BootCMDLineFile  string
 	MergeBootCMDLine bool
+	NoLogs           bool
 }
 
 type Option func(o *Options) error
+
+var NoLogs Option = func(o *Options) error {
+	o.NoLogs = true
+	return nil
+}
 
 func (o *Options) Apply(opts ...Option) error {
 	for _, oo := range opts {

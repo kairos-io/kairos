@@ -50,7 +50,7 @@ var _ = Describe("Config", func() {
 			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
 		}
 
-		It("reads from bootargs", func() {
+		It("reads from bootargs and can query", func() {
 			err := os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -58,6 +58,8 @@ var _ = Describe("Config", func() {
 			Expect(err).ToNot(HaveOccurred())
 			headerCheck(c)
 			Expect(c.Options["foo"]).To(Equal("bar"))
+			Expect(c.Query("options")).To(Equal("foo: bar\n"))
+			Expect(c.Query("options.foo")).To(Equal("bar\n"))
 		})
 
 		It("reads multiple config files", func() {
@@ -96,7 +98,7 @@ c: d
 			var cc string = `#kairos-config
 baz: bar
 kairos:
-  network_token: foo
+    network_token: foo
 `
 
 			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
@@ -114,7 +116,8 @@ fooz:
 			Expect(err).ToNot(HaveOccurred())
 			Expect(providerCfg.Kairos).ToNot(BeNil())
 			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
-			Expect(c.String()).To(Equal(cc))
+			Expect(c.String()).To(Equal(cc), c.String(), cc)
+
 		})
 
 		It("merges with bootargs", func() {
