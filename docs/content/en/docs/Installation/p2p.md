@@ -18,7 +18,7 @@ Deploying Kubernetes at the Edge can be a complex and time-consuming process, es
 
 With this feature, users don't need to specify any network settings. They can just set the desired number of master nodes (in the case of an HA cluster) and the necessary configuration details, and Kairos will take care of the rest. The peer-to-peer technology allows the nodes in the cluster to communicate and coordinate with each other, ensuring that the clusters are set up correctly and efficiently with K3s.
 
-This not only saves users time and effort, but also makes it easier to deploy and manage Kubernetes clusters at the Edge, allowing users to focus on running and scaling their applications.
+This makes it easier to deploy and manage Kubernetes clusters at the Edge, saving user's time and effort, allowing them to focus on running and scaling their applications.
 
 This feature is currently experimental and can be optionally enabled by adding the following configuration to the node deployment file, if you are not familiar with the installation process, it is suggested to follow the [quickstart](/docs/getting-started):
 
