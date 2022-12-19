@@ -346,6 +346,7 @@ netbooting
 netdev
 networkd
 nfs
+nginx
 Njg
 nodejs
 nodepair
@@ -377,6 +378,7 @@ openntpd
 openrc
 openssh
 opensuse
+osartifactbuilder
 osbuilder
 OSRELEASE
 OTcx
@@ -468,7 +470,6 @@ smartmontools
 smp
 Smx
 softprops
-specifc
 Spectro
 spectrocloud
 SPOF
