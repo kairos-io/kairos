@@ -102,7 +102,7 @@ RUN rc-update add sshd boot && \
     rc-update add syslog boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
-    rc-update add openntpd boot && \
+    rc-update add ntpd boot && \
     rc-update add crond && \
     rc-update add fail2ban
 
