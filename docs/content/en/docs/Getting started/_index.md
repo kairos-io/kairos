@@ -14,20 +14,23 @@ The same steps works on a barametal host, however, your mileage and configuratio
 
 ## Prerequisites
 
-- A VM hypervisor that boots ISOs ( or, a baremetal )
+- A VM (hypervisor) or a physical server (bare-metal) that boots ISOs
 - A Linux or a Windows machine where to run the Kairos CLI (optional, we will see)
-- A `cloud-init` configuration file
-
+- A `cloud-init` configuration file (example below)
+- At least 30+ Gb of available disk space.
 ## Download
 
 Kairos can be used to turn any Linux Distribution into an immutable system; however, there are several artifacts published as part of the releases to get started.
 
-You can find the latest releases in the [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases). For instance, download the [kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso) ISO file to pick the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v1.0.0` is the Kairos one.
+You can find the latest releases in the [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases).
+
+For instance, download the [kairos-opensuse-v1.3.2-k3sv1.20.15+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.3.2/kairos-opensuse-v1.3.2-k3sv1.20.15+k3s1.iso) ISO file to pick the openSUSE based version. The image name includes the Kairos and K3s versions, which are `v1.3.2` and `v1.20.15+k3s1` in this example.
+
 
 {{% alert title="Note" %}}
-The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship without K3s and P2P full-mesh functionalities; however, further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
+The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship **without** K3s and P2P full-mesh functionalities; however, further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
 
-The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) ship `k3s` and `P2P` full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
+The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) ship **with** k3s and P2P full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
 
 See [Image Matrix Support](/docs/reference/image_matrix) for additional supported images and kernels.
 
@@ -35,17 +38,60 @@ See [Image Matrix Support](/docs/reference/image_matrix) for additional supporte
 
 ## Booting
 
-Download the ISO, and boot it up on a VM running on the hypervisor of your choice. When deploying on a bare metal server, directly flash the image into a USB stick with DD:
+Now that you have the ISO at hand, it's time to boot!
 
-```bash
-dd if=/path/to/iso of=/path/to/dev bs=4MB
-```
+Here are some additional helpful tips depending on the physical/virtual machine you're using.
 
-Another alternative is to use [balenaEtcher](https://www.balena.io/etcher/).
+{{< tabpane text=true right=true >}}
+  {{% tab header="**Machine**:" disabled=true /%}}
+  {{% tab header="Bare-Metal" %}}
 
-You should be greeted with a GRUB boot menu, where multiple entries are available. 
+  When deploying on a bare metal server, directly flash the image into a USB stick. There are multiple ways to do this:
 
-Choosing the appropriate entry depends on how you plan to install Kairos. 
+  **From the command line using the `dd` command**
+
+  ```bash
+  dd if=/path/to/iso of=/path/to/dev bs=4MB
+  ```
+
+  <br/>
+
+  **From the GUI**
+
+  For example using an application like [balenaEtcher](https://www.balena.io/etcher/) but can be any other application which allows you to write bootable USBs.
+  {{% /tab %}}
+  {{< tab header="QEMU" >}}
+    {{% alert title="Warning" %}}
+    Make sure you have KVM enabled, this will improve the performance of your VM significantly!
+    {{% /alert %}}
+
+    This would be the way to start it via the command line, but you can also use the GUI
+
+    {{< highlight bash >}}
+      virt-install --name my-first-kairos-vm \
+                  --vcpus 1 \
+                  --memory 1024 \
+                  --cdrom /path/to/kairos-opensuse-v1.3.2-k3sv1.20.15+k3s1.iso \
+                  --disk size=30 \
+                  --os-variant opensuse-factory \
+                  --virt-type kvm
+
+    <br/>
+    {{< / highlight >}}
+
+    <br/>
+    Immediately after open a viewer so you can interact with the boot menu
+    <br/>
+
+    {{< highlight bash >}}
+    virt-viewer my-first-kairos-vm
+    {{< / highlight >}}
+
+  {{% /tab %}}
+{{< /tabpane >}}
+
+
+Once you're greeted by the GRUB boot menu, you will have multiple options to choose from. Choosing the appropriate entry depends on how you plan to install Kairos. 
 
 - The first entry will boot into installation with the QR code ( we are going to cover below ).
 - The second entry will boot into [Manual installation](/docs/installation/manual) - a console will be started, see the documentation for more details on how to install manually.
@@ -63,6 +109,10 @@ The configuration can be either served via QR code or manually by connecting via
 In this example, we configure the node as a single-node, Kubernetes cluster. We enable K3s, and we set a default password for the Kairos user to later access the box. We also need to define SSH keys:
 
 **Example of a single-node, Kubernetes clusters**
+
+{{% alert title="Warning" %}}
+The `#cloud-config` at the top is not a comment. Make sure to start your configuration file with it.
+{{% /alert %}}
 
 ```yaml
 #cloud-config

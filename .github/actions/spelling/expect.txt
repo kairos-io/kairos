@@ -278,6 +278,7 @@ kubernetes
 kubesplit
 kubo
 kustomize
+kvm
 kyverno
 lastlog
 LBA
@@ -566,6 +567,7 @@ uuidgen
 Uxpbn
 varcheck
 vbox
+vcpus
 VEdo
 versioning
 VEVHTz
@@ -574,6 +576,7 @@ vhd
 vhda
 VHM
 VHRXb
+virt
 virtio
 Vlnb
 VLVUl
