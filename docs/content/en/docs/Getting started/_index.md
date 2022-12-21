@@ -14,11 +14,6 @@ The same steps works on a barametal host, however, your mileage and configuratio
 
 ## Prerequisites
 
-
-{{% alert title="Warning" %}}
-Keep in mind the size of the resulting image. This will vary between distributions but you should be safe if you have 30+ Gb available disk space.
-{{% /alert %}}
-
 - A VM (hypervisor) or a physical server (bare-metal) that boots ISOs
 - A Linux or a Windows machine where to run the Kairos CLI (optional, we will see)
 - A `cloud-init` configuration file (example below)
