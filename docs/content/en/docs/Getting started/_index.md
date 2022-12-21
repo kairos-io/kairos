@@ -85,7 +85,7 @@ Here are some additional helpful tips depending on the physical/virtual machine 
     {{< / highlight >}}
 
     <br/>
-    Immediatelly after open a viewer so you can interact with the boot menu
+    Immediately after open a viewer so you can interact with the boot menu
     <br/>
 
     {{< highlight bash >}}
