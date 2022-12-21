@@ -17,7 +17,7 @@ The same steps works on a barametal host, however, your mileage and configuratio
 - A VM (hypervisor) or a physical server (bare-metal) that boots ISOs
 - A Linux or a Windows machine where to run the Kairos CLI (optional, we will see)
 - A `cloud-init` configuration file (example below)
-
+- At least 30+ Gb of available disk space.
 ## Download
 
 Kairos can be used to turn any Linux Distribution into an immutable system; however, there are several artifacts published as part of the releases to get started.
