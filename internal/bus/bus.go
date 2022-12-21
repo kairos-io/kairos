@@ -32,7 +32,7 @@ type Bus struct {
 
 func (b *Bus) LoadProviders() {
 	wd, _ := os.Getwd()
-	b.Manager.Autoload("agent-provider", "/system/providers", wd).Register()
+	b.Manager.Autoload("agent-provider", "/system/providers", "/usr/local/system/providers", wd).Register()
 }
 
 func (b *Bus) Initialize() {
