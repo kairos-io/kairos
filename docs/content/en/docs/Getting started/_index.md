@@ -15,7 +15,7 @@ The same steps works on a barametal host, however, your mileage and configuratio
 ## Prerequisites
 
 
-{{% alert title="Note" %}}
+{{% alert title="Warning" %}}
 Keep in mind the size of the resulting image. This will vary between distributions but you should be safe if you have 30+ Gb available disk space.
 {{% /alert %}}
 
@@ -114,6 +114,10 @@ The configuration can be either served via QR code or manually by connecting via
 In this example, we configure the node as a single-node, Kubernetes cluster. We enable K3s, and we set a default password for the Kairos user to later access the box. We also need to define SSH keys:
 
 **Example of a single-node, Kubernetes clusters**
+
+{{% alert title="Warning" %}}
+The `#cloud-config` at the top is not a comment. Make sure to start your configuration file with it.
+{{% /alert %}}
 
 ```yaml
 #cloud-config
