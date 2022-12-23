@@ -26,7 +26,6 @@ RUN dnf install -y \
     device-mapper \
     grub2 \
     which \
-    curl \
     nano \
     gawk \
     tar \
