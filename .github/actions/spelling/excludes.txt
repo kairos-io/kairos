@@ -3,6 +3,7 @@
 (?:^|/)(?i)LICEN[CS]E
 (?:^|/)3rdparty/
 (?:^|/)go\.sum$
+(?:^|/)go\.mod$
 (?:^|/)package(?:-lock|)\.json$
 (?:^|/)vendor/
 (?:^|/)tests/
