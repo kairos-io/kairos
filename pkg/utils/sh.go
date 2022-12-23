@@ -8,6 +8,14 @@ import (
 	"github.com/joho/godotenv"
 )
 
+func SHInDir(c, dir string) (string, error) {
+	cmd := exec.Command("/bin/sh", "-c", c)
+	cmd.Env = os.Environ()
+	cmd.Dir = dir
+	o, err := cmd.CombinedOutput()
+	return string(o), err
+}
+
 func SH(c string) (string, error) {
 	cmd := exec.Command("/bin/sh", "-c", c)
 	cmd.Env = os.Environ()
