@@ -6,6 +6,7 @@ Admins
 airgap
 AIsuqiw
 alikes
+allowlist
 Almalinux
 amd
 amont
@@ -20,6 +21,8 @@ asc
 aspnetcore
 aus
 autoinstall
+Autolink
+Automerge
 autoremove
 aws
 azb
@@ -28,6 +31,7 @@ balena
 barametal
 baremetal
 baz
+bbfb
 bcb
 BDMk
 binfmt
@@ -40,6 +44,7 @@ Bma
 BNzd
 bootup
 Bpbn
+bradleyfalzon
 BTR
 btrfs
 buf
@@ -61,16 +66,19 @@ cfg
 CGO
 chainloaded
 changelog
+checkbox
 chmod
 chown
 cidata
 circleci
 cmdline
+cmp
 CNCF
 codebase
 codecov
-CODEOWNERS
+codeowners
 comformant
+committers
 compat
 config
 connman
@@ -94,6 +102,8 @@ dccbf
 deadcode
 debian
 debugrw
+ded
+Dependabot
 deploypkg
 depmod
 deps
@@ -168,8 +178,10 @@ getfedora
 gettext
 gfortran
 ghc
+ghinstallation
 ghr
 Giacinto
+gitignore
 gitlab
 gitmodules
 glibc
@@ -177,6 +189,7 @@ goarch
 goconst
 gocyclo
 godot
+goenv
 gofmt
 goheader
 gohugo
@@ -197,6 +210,7 @@ growpart
 grubenv
 gsutil
 guestinfo
+GVk
 GVydm
 hakavlad
 haveged
@@ -233,6 +247,8 @@ IGp
 IGttb
 IGxlbmd
 IHRo
+Iiwid
+Ijoi
 IKIC
 img
 ineffassign
@@ -240,6 +256,7 @@ initramfs
 initrd
 initscripts
 installable
+ioutil
 ipfs
 iproute
 iptables
@@ -253,6 +270,7 @@ IVHJm
 JCNFBHNEt
 jdk
 JIWl
+Jjcm
 JJMl
 Jlbm
 joliet
@@ -346,6 +364,7 @@ netboot
 netbooting
 netdev
 networkd
+newreposecretwithxcrypto
 nfs
 nginx
 Njg
@@ -365,6 +384,7 @@ nvidia
 Nwog
 NXTj
 Nzc
+oauth
 oci
 octocat
 ODU
@@ -372,6 +392,7 @@ oem
 oflag
 Ogog
 OIDC
+omitempty
 onboards
 oneline
 onsi
@@ -413,12 +434,14 @@ QUUh
 QVVOWUZS
 QVxk
 raccos
+ratelimits
 rbac
 rbd
 rbind
 RCblly
 RCi
 readme
+Rebasing
 reccomended
 reconfig
 refactoring
@@ -428,6 +451,7 @@ Regex
 regexp
 regist
 remastering
+renovatebot
 REPOFILE
 REPONAME
 resolv
@@ -454,6 +478,7 @@ runlevels
 Ryb
 RYUk
 sbin
+SCIM
 screenshot
 scst
 sda
@@ -483,13 +508,17 @@ statereset
 staticcheck
 stdin
 strace
+stringify
 strongpassword
 structcheck
+structs
+styfle
 subvolumes
 suc
 sudo
 SUSE
 SVFLQ
+svg
 swapfile
 swapon
 SXNn
@@ -531,6 +560,7 @@ tmp
 tmpl
 TNS
 TODO
+togithub
 tonistiigi
 tonumber
 toolset
@@ -591,8 +621,10 @@ VVB
 VVpp
 VXVEd
 VZza
+webhook
 website
 wget
+whitelist
 whoami
 wiki
 wireguard
@@ -606,6 +638,8 @@ WVd
 www
 Wxl
 WZv
+WZXIi
+XBk
 Xek
 xfsprogs
 XJCDU
@@ -617,8 +651,10 @@ Yng
 yourhandle
 yourorg
 YWdl
+YXRl
 ZBMj
 zcalusic
+ZElu
 ZERDd
 zfs
 ZGdm
