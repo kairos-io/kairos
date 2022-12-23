@@ -159,7 +159,8 @@ func (l *ContainerRunner) Install(config *BundleConfig) error {
 		return fmt.Errorf("could not unpack container: %w - %s", err, out)
 	}
 
-	out, err = utils.SH(fmt.Sprintf("CONTAINERDIR=%s %s/run.sh", tempDir, tempDir))
+	// We want to expect tempDir as context
+	out, err = utils.SHInDir(fmt.Sprintf("CONTAINERDIR=%s %s/run.sh", tempDir, tempDir), tempDir)
 	if err != nil {
 		return fmt.Errorf("could not execute container: %w - %s", err, out)
 	}
