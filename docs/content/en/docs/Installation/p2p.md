@@ -24,7 +24,7 @@ This feature is currently experimental and can be optionally enabled by adding t
 
 ```yaml
 p2p:
-  # Disabling DHT makes co-ordination to discover nodes only in the local network
+ # Disabling DHT makes co-ordination to discover nodes only in the local network
  disable_dht: true #Enabled by default
  # Automatic cluster deployment configuration
  auto:
