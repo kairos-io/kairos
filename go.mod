@@ -27,7 +27,8 @@ require (
 	github.com/spectrocloud/peg v0.0.0-20221005172954-aa887438fafc
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/twpayne/go-vfs/v4 v4.1.0
-	github.com/urfave/cli v1.22.10
+	github.com/urfave/cli v1.22.9
+	github.com/urfave/cli/v2 v2.23.7
 	golang.org/x/oauth2 v0.3.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
 	gopkg.in/yaml.v2 v2.4.0
