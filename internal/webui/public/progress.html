@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+  <style>
+    .box {
+      background-color: black;
+      color: white;
+      width: 100%;
+      height: calc(100vh - 56px); /* fixed height equal to the height of the screen minus the height of the topbar */
+      overflow-y: scroll;
+    }
+  </style>
+  <title>Installation Progress</title>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#"> <img src="[LOGO_URL]" alt="Logo" class="h-8"></a>
+  </nav>
+  <div class="container mt-3">
+    <label class="custom-control custom-switch">
+      <input type="checkbox" class="custom-control-input" id="autoscroll-switch">
+      <span class="custom-control-label">Autoscroll</span>
+    </label>
+  </div>
+  <div class="container mt-5">
+    <div class="mx-auto box p-5 rounded-lg shadow" id="output">
+    </div>
+  </div>
+  <script>
+    var loc = window.location;
+    var uri = 'ws:';
+    const autoscrollSwitch = document.getElementById('autoscroll-switch');
+    const box = document.querySelector('.output');
+
+    // toggle autoscroll when the switch is clicked
+    autoscrollSwitch.addEventListener('click', () => {
+      if (autoscrollSwitch.checked) {
+        box.addEventListener('scroll', () => {
+          autoscrollSwitch.checked = box.scrollTop + box.clientHeight === box.scrollHeight;
+        });
+      } else {
+        box.removeEventListener('scroll', () => {
+          autoscrollSwitch.checked = box.scrollTop + box.clientHeight === box.scrollHeight;
+        });
+      }
+    });
+    if (loc.protocol === 'https:') {
+      uri = 'wss:';
+    }
+    uri += '//' + loc.host;
+    uri +=  '/ws';
+
+    ws = new WebSocket(uri)
+
+    ws.onopen = function() {
+      console.log('Connected')
+    }
+
+    ws.onmessage = function(evt) {
+      var out = document.getElementById('output');
+      out.innerHTML += '<pre class="text-white">' + evt.data + '</pre>';
+      // scroll the content to the bottom when new content is added
+      if (autoscrollSwitch.checked) {
+       out.scrollTop = out.scrollHeight;
+      }
+    }
+
+    setInterval(function() {
+      ws.send('Hello, Server!');
+    }, 1000);
+
+  </script>
+</body>
+</html>

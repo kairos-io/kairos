@@ -29,6 +29,7 @@ type Install struct {
 	Encrypt                []string          `yaml:"encrypted_partitions,omitempty"`
 	SkipEncryptCopyPlugins bool              `yaml:"skip_copy_kcrypt_plugin,omitempty"`
 	Env                    []string          `yaml:"env,omitempty"`
+	Image                  string            `yaml:"image,omitempty"`
 }
 
 type Config struct {

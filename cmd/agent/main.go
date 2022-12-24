@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	agent "github.com/kairos-io/kairos/internal/agent"
 	"github.com/kairos-io/kairos/internal/bus"
+	"github.com/kairos-io/kairos/internal/webui"
 
 	"github.com/kairos-io/kairos/pkg/config"
 	machine "github.com/kairos-io/kairos/pkg/machine"
@@ -180,6 +182,16 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 		Action: func(c *cli.Context) error {
 			fmt.Print(machine.UUID())
 			return nil
+		},
+	},
+	{
+		Name:        "webui",
+		Usage:       "Starts the webui",
+		Description: "Print node uuid",
+		Aliases:     []string{"u"},
+		Action: func(c *cli.Context) error {
+			return webui.Start(context.Background(), ":8080")
+			//return nil
 		},
 	},
 	{

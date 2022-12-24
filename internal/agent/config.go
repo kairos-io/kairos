@@ -16,7 +16,8 @@ type BrandingText struct {
 }
 
 type Config struct {
-	Fast bool `yaml:"fast,omitempty"`
+	Fast                bool `yaml:"fast,omitempty"`
+	DisableWebUIInstall bool `yaml:"disable_webui_install"`
 
 	Branding BrandingText `yaml:"branding"`
 }
