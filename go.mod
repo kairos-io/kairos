@@ -9,7 +9,7 @@ require (
 	github.com/google/go-github/v40 v40.0.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/itchyny/gojq v0.12.10
+	github.com/itchyny/gojq v0.12.11
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.4.0
 	github.com/kairos-io/kcrypt v0.4.4
