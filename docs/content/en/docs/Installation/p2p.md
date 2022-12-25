@@ -125,7 +125,9 @@ p2p:
    ha:
      # Enables HA controlplane
      enable: true
-     # number of HA master node (beside the one used for init) for the control-plane
+     # Number of HA additional master nodes.
+     # A master node is always required for creating the cluster and is implied.
+     # The setting below adds 2 additional master nodes, for a total of 3.
      master_nodes: 2
      # Use an External database for the HA control plane
      external_db: "external-db-string"
@@ -150,7 +152,7 @@ In the YAML configuration example, there are several important keywords that con
 | `p2p.auto.enable` | Enables automatic node configuration for role assignment |
 | `p2p.auto.ha` | Configures the high availability settings for the cluster |
 | `p2p.auto.ha.enable` | Enables the high availability settings |
-| `p2p.auto.ha.master_nodes` | The number of expected HA master nodes in the cluster besides the cluster-init master. |
+| `p2p.auto.ha.master_nodes` | The number of additional HA master nodes expected in the cluster. |
 | `p2p.auto.ha.external_db` | The external database used for high availability |
 
 ## Elastic IP
@@ -183,7 +185,7 @@ kubevip:
 | Keyword | Description |
 | --- | --- |
 | `kubevip` | Block to configure KubeVIP for the cluster |
-| `kubevip.eip` | The Elastic IP used for KubeVIP. Specifying one automatically enables KubeVIP |
+| `kubevip.eip` | The Elastic IP used for KubeVIP. Specifying one automatically enables KubeVIP. Choose a free IP that is not in a DHCP range of your network.  |
 | `kubevip.manifest_url` | The URL for the KubeVIP manifest |
 | `kubevip.enable` | Enables KubeVIP for the cluster |
 | `kubevip.interface` | The interface used for KubeVIP |

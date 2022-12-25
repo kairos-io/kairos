@@ -37,6 +37,7 @@ Here are a few reasons why you should try Kairos:
 - Build your own cloud on-premises with complete control and no vendor lock-in
 - Provision nodes with your own image or use Kairos releases for added flexibility
 - Use Kairos for a wide range of use cases, from Kubernetes applications to appliances and more
+- Simple and streamlined day-2 operations (e.g. node upgrades)
 
 ## What I can do with it ?
 
@@ -59,7 +60,7 @@ Try Kairos today and experience the benefits of a unified, cloud-native approach
 - Configure nodes with a single cloud-init config file for added simplicity
 - Upgrade even in airgap environments with in-cluster container registries
 - Extend your image at runtime or build time with Kubernetes Native APIs
-- Look forward to support for CAPI with full device lifecycle management, and more
+- Coming soon: CAPI support with full device lifecycle management and more
 - Create private virtual network segments with a full-mesh P2P hybrid VPN network that can stretch up to 10000 km
 
 ## More than a Linux distribution

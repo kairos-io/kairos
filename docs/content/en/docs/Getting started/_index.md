@@ -6,9 +6,11 @@ description: >
   Getting started with Kairos
 ---
 
-Ready to launch your Kubernetes cluster with ease? With Kairos, deployment is a breeze! Simply download the pre-packaged artifacts, boot up on a VM or bare metal, and let Kairos handle the rest. Whether you're a Linux or Windows user, our quickstart guide will have you up and running in no time. Don't have a cluster already? No problem! Kairos can build one for you with just a few simple steps. Start building your Kubernetes cluster today with Kairos!
+Ready to launch your Kubernetes cluster with ease? With Kairos, deployment is a breeze! Simply download the pre-packaged artifacts, boot up on a VM or bare metal, and let Kairos handle the rest. Whether you're a Linux or Windows user, our quickstart guide will have you up and running in no time. Kairos can build a Kubernetes cluster for you with just a few simple steps!
 
 The goal of this quickstart is to help you quickly and easily deploy a Kubernetes cluster using Kairos releases. With Kairos, you can easily build a k3s cluster in a VM, or a baremetal using our pre-packaged artifacts, even if you don't already have a cluster. This process can also be used on bare metal hosts with some configuration adjustments. Check out our documentation further for more detailed instructions and examples.
+
+To create a Kubernetes cluster with Kairos, they only thing needed is one or more machines that will become the Kubernetes nodes. No previously existing clusters is needed.
 
 Once the installation is complete, you can begin using yuor Kubernetes cluster.
 
@@ -116,9 +118,6 @@ The `#cloud-config` at the top is not a comment. Make sure to start your configu
 ```yaml
 #cloud-config
 
-# Specify the hostname for the node. It should be in the format "hostname.domain.tld".
-hostname: "hostname.domain.tld"
-
 # Define the user accounts on the node.
 users:
 - name: "kairos"                       # The username for the user.
@@ -138,7 +137,6 @@ Save this file as config.yaml and use it to start the installation process with 
 
 **Note**:
 
-- `hostname`: This specifies the hostname for the node.
 - `users`: This block defines the user accounts on the node. In this example, it creates a user named `kairos` with the password `kairos` and adds two SSH keys to the user's authorized keys.
 - `k3s`: This block enables K3s on the node.
 - If you want to enable experimental P2P support, check out [P2P installation](/docs/installation/p2p)
