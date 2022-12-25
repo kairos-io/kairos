@@ -29,7 +29,7 @@ p2p:
  # Automatic cluster deployment configuration
  auto:
    ha:
-     # Enables HA controlplane
+     # Enables HA control-plane
      enable: true
      # number of HA master node (beside the one used for init) for the control-plane
      master_nodes: 2
@@ -47,7 +47,7 @@ With these settings used to deploy all the nodes, those will automatically commu
 
 ## Configuration
 
-A minimum configuraton file, that bootstraps a cluster with a simple single-master topology, can look like the following:
+A minimum configuration file, that bootstraps a cluster with a simple single-master topology, can look like the following:
 
 ```yaml
 #cloud-config
@@ -123,7 +123,7 @@ p2p:
    # HA control plane.
    # If auto is disabled, HA has no effect.
    ha:
-     # Enables HA controlplane
+     # Enables HA control-plane
      enable: true
      # Number of HA additional master nodes.
      # A master node is always required for creating the cluster and is implied.

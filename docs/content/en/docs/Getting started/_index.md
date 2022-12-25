@@ -12,7 +12,7 @@ The goal of this quickstart is to help you quickly and easily deploy a Kubernete
 
 To create a Kubernetes cluster with Kairos, they only thing needed is one or more machines that will become the Kubernetes nodes. No previously existing clusters is needed.
 
-Once the installation is complete, you can begin using yuor Kubernetes cluster.
+Once the installation is complete, you can begin using your Kubernetes cluster.
 
 ## Prerequisites
 
