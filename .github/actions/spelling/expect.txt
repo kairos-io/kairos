@@ -25,7 +25,6 @@ aws
 azb
 bak
 balena
-barametal
 baremetal
 baz
 bcb
@@ -70,7 +69,6 @@ CNCF
 codebase
 codecov
 CODEOWNERS
-comformant
 compat
 config
 connman
@@ -100,7 +98,7 @@ deps
 devcontainer
 dflags
 dhcp
-DHT
+dht
 digitalocean
 dishomogeneous
 disksize
@@ -132,6 +130,7 @@ editenv
 Edm
 efi
 efibootmgr
+eip
 EJI
 EJUb
 EKICAg
@@ -199,6 +198,7 @@ gsutil
 guestinfo
 GVydm
 hakavlad
+hardcoded
 haveged
 Hdv
 Hetzner
@@ -271,11 +271,11 @@ keymap
 KICAg
 KSkt
 kube
-kubeadm
 kubeconfig
 kubectl
 kubernetes
 kubesplit
+kubevip
 kubo
 kustomize
 kvm
@@ -434,7 +434,6 @@ resolv
 retrigger
 rfv
 RHVk
-RKE
 Rlcn
 Rlen
 Rmpz
@@ -454,6 +453,7 @@ runlevels
 Ryb
 RYUk
 sbin
+scalability
 screenshot
 scst
 sda
@@ -473,7 +473,6 @@ Smx
 softprops
 Spectro
 spectrocloud
-SPOF
 squashfs
 src
 ssaa
