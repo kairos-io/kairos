@@ -10,7 +10,7 @@ Ready to launch your Kubernetes cluster with ease? With Kairos, deployment is a 
 
 The goal of this quickstart is to help you quickly and easily deploy a Kubernetes cluster using Kairos releases. With Kairos, you can easily build a k3s cluster in a VM, or a baremetal using our pre-packaged artifacts, even if you don't already have a cluster. This process can also be used on bare metal hosts with some configuration adjustments. Check out our documentation further for more detailed instructions and examples.
 
-To create a Kubernetes cluster with Kairos, they only thing needed is one or more machines that will become the Kubernetes nodes. No previously existing clusters is needed.
+To create a Kubernetes cluster with Kairos, the only thing needed is one or more machines that will become the Kubernetes nodes. No previously existing clusters is needed.
 
 Once the installation is complete, you can begin using your Kubernetes cluster.
 
