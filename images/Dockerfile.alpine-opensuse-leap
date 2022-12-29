@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.16.3
+ARG BASE_IMAGE=alpine
 FROM $BASE_IMAGE
 ARG K3S_VERSION
 
@@ -16,7 +16,6 @@ RUN apk --no-cache add  \
       parted \
       e2fsprogs \
       logrotate \
-      busybox-initscripts \
       dosfstools \
       coreutils \
       which \
@@ -28,7 +27,7 @@ RUN apk --no-cache add  \
       rsync \
       bash-completion \
       blkid \
-      busybox-initscripts \
+      busybox-openrc \
       ca-certificates \
       conntrack-tools \
       coreutils \
