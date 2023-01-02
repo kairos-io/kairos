@@ -108,6 +108,17 @@ func Start(ctx context.Context, l string) error {
 	ec.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
 
 	ec.POST("/install", func(c echo.Context) error {
+
+		s.Lock()
+		if s.p != nil {
+			status, _ := s.p.ExitCode()
+			if s.p.IsAlive() || status == "0" {
+				s.Unlock()
+				return c.Redirect(http.StatusSeeOther, "progress.html")
+			}
+		}
+		s.Unlock()
+
 		formData := new(FormData)
 		if err := c.Bind(formData); err != nil {
 			return err
