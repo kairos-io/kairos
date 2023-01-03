@@ -172,10 +172,10 @@ func Start(ctx context.Context, l string) error {
 
 		args := []string{"manual-install"}
 
-		if powerOff == "poweroff" {
+		if powerOff == "on" {
 			args = append(args, "--poweroff")
 		}
-		if reboot == "reboot" {
+		if reboot == "on" {
 			args = append(args, "--reboot")
 		}
 		args = append(args, "--device", installationDevice)
