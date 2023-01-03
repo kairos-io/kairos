@@ -24,7 +24,7 @@
   </style>  
   <title>WebUI System Installer</title>
 </head>
-<body class="bg-gray-200 font-sans">
+<body class="bg-gray-200 font-sans" x-data="{page: location.hash}" >
     <!-- Top bar with logo -->
     <nav class="navbar navbar-expand-lg navbar-light">
       <a class="navbar-brand pl-4" href="#">
@@ -36,11 +36,13 @@
     {{if eq (index . "type") "danger" }}
     <div class="container mt-5">
       <h1> Installation failed   </h1>      
-      <button x-on:click="window.location='index.html'" class="btn btn-primary">Go Back</button>
     </div>
     {{ end }}
     <div class="container mt-5 alert alert-{{index . "type"}}">
       {{index . "message"}}
+    </div>
+    <div class="container mt-5">
+      <button x-on:click="window.location='index.html'" class="btn btn-primary">Go Back</button>
     </div>
     
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>

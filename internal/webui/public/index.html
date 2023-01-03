@@ -19,8 +19,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.57.0/mode/yaml/yaml.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.57.0/theme/material.min.css">
 
+  <!-- Add the yaml-js library -->
+  <script type="text/javascript" src="/js/yaml.min.js"></script>
+
   <!-- Alpine.js -->
-  <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js" defer></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     .navbar {
       background-color: #ee5007;
@@ -31,7 +34,7 @@
   </style>  
   <title>WebUI System Installer</title>
 </head>
-<body class="bg-gray-200 font-sans">
+<body class="bg-gray-200 font-sans" x-data="{page: location.hash}">
     <!-- Top bar with logo -->
     <nav class="navbar navbar-expand-lg navbar-light">
       <a class="navbar-brand pl-4" href="#">
@@ -41,16 +44,56 @@
     </nav>
 
     <div class="container mt-5">
-      <h1>Installer</h1>
-      <p>Enter your cloud config and select the device to install on:</p>
+      <h1>Welcome to the Installer!</h1>
+      <p>Enter your <a href="https://kairos.io/docs/reference/configuration/" target="_blank">cloud-config config configuration file</a> and select the device to install on:</p>
       <div class="alert alert-info" role="alert">
         Need help with your cloud config? Check out our <a href="https://kairos.io/docs/examples/" class="alert-link">documentation on where to find examples</a>.
       </div>
       <form action="/install" method="POST">
-        <div class="form-group">
+        <div class="form-group" 
+             x-data="{ 
+                valid: false,
+                show: false,
+                error: '',
+                content: '#cloud-config',
+                getText() {
+                  if (this.valid) {
+                    return 'Valid YAML syntax'
+                  } else {
+                    return 'Failed validating syntax: ' + this.error
+                  }
+                },
+                validateYAML() {
+                  this.show = true
+                  try {
+                    // Parse the YAML
+                    const yaml = YAML.parse(this.content);
+                    this.valid=true
+                  } catch(error) {
+                    this.error = error
+                    this.valid = false
+                  }
+                }
+              }" 
+            x-init="
+              codeMirrorEditor = CodeMirror.fromTextArea($refs.input, {
+                mode: 'yaml',
+                theme: 'material',
+                lineWrapping: true
+              });
+
+              codeMirrorEditor.setValue(content);
+              setTimeout(function() {
+                codeMirrorEditor.refresh();
+              }, 1);
+
+              codeMirrorEditor.on('change', () => content = codeMirrorEditor.getValue())
+            " 
+            x-on:keydown="validateYAML"
+        >
           <label for="cloud-config">Cloud Config</label>
-          <textarea class="form-control" id="cloud-config" name="cloud-config" rows="5">#cloud-config
-</textarea>
+          <div class="alert" x-text="getText" :class="{ 'alert-info': valid, 'alert-danger': !valid }" x-show="show"></div>
+          <textarea x-model.debounce.750ms="content" x-ref="input" class="form-control" id="cloud-config" name="cloud-config" rows="5"></textarea>
         </div>
         <div class="form-group">
           <label for="installation-device">Device</label>
@@ -74,14 +117,6 @@
   <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js" integrity="sha384-B4gt1jrGC7Jh4AgTPSdUtOBvfO8shuf57BaghqFfPlYxofvL8/KUEfYiJOMMV+rV" crossorigin="anonymous"></script>
-  <script>
-    CodeMirror.fromTextArea(document.getElementById("cloud-config"), {
-      mode: "yaml",
-      theme: "material",
-      styleActiveLine: true,
-      lineNumbers: true
-    });
-  </script>
   
   <footer class="bg-light py-3 mt-5 d-flex justify-content-center">
     <div class="container mx-auto">
