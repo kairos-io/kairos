@@ -3,12 +3,14 @@ package webui
 import (
 	"context"
 	"embed"
+	"io"
 	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/kairos-io/kairos/internal/agent"
@@ -38,6 +40,15 @@ func getFileSystem() http.FileSystem {
 	return http.FS(fsys)
 }
 
+func getFS() fs.FS {
+	fsys, err := fs.Sub(embededFiles, "public")
+	if err != nil {
+		panic(err)
+	}
+
+	return fsys
+}
+
 func streamProcess(s *state) func(c echo.Context) error {
 	return func(c echo.Context) error {
 		websocket.Handler(func(ws *websocket.Conn) {
@@ -56,7 +67,15 @@ func streamProcess(s *state) func(c echo.Context) error {
 				s.Unlock()
 
 				if !s.p.IsAlive() {
-					err := websocket.Message.Send(ws, "Process stopped!")
+					errOut, err := os.ReadFile(s.p.StderrPath())
+					if err == nil {
+						websocket.Message.Send(ws, string(errOut))
+					}
+					out, err := os.ReadFile(s.p.StdoutPath())
+					if err == nil {
+						websocket.Message.Send(ws, string(out))
+					}
+					err = websocket.Message.Send(ws, "Process stopped!")
 					if err != nil {
 						c.Logger().Error(err)
 					}
@@ -90,12 +109,32 @@ type state struct {
 	sync.Mutex
 }
 
+// TemplateRenderer is a custom html/template renderer for Echo framework
+type TemplateRenderer struct {
+	templates *template.Template
+}
+
+// Render renders a template document
+func (t *TemplateRenderer) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+
+	// Add global methods if data is a map
+	if viewContext, isMap := data.(map[string]interface{}); isMap {
+		viewContext["reverse"] = c.Echo().Reverse
+	}
+
+	return t.templates.ExecuteTemplate(w, name, data)
+}
+
 func Start(ctx context.Context, l string) error {
 
 	s := state{}
 	ec := echo.New()
 	assetHandler := http.FileServer(getFileSystem())
 
+	renderer := &TemplateRenderer{
+		templates: template.Must(template.ParseFS(getFS(), "*.html")),
+	}
+	ec.Renderer = renderer
 	agentConfig, err := agent.LoadConfig()
 	if err != nil {
 		return err
@@ -153,7 +192,10 @@ func Start(ctx context.Context, l string) error {
 		s.Unlock()
 		err = s.p.Run()
 		if err != nil {
-			log.Println(err)
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{
+				"message": err.Error(),
+				"type":    "danger",
+			})
 		}
 
 		// Start install process, lock with sentinel
