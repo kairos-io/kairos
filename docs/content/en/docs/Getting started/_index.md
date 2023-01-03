@@ -75,10 +75,9 @@ Here are some additional helpful tips depending on the physical/virtual machine 
                   --os-variant opensuse-factory \
                   --virt-type kvm
 
-    <br/>
     {{< / highlight >}}
-
     <br/>
+
     Immediately after open a viewer so you can interact with the boot menu
     <br/>
 
