@@ -79,6 +79,7 @@ func streamProcess(s *state) func(c echo.Context) error {
 					if err != nil {
 						c.Logger().Error(err)
 					}
+					return
 				}
 
 				t, err := tail.TailFile(s.p.StdoutPath(), tail.Config{Follow: true})
@@ -93,9 +94,9 @@ func streamProcess(s *state) func(c echo.Context) error {
 				for {
 					select {
 					case line := <-t.Lines:
-						websocket.Message.Send(ws, line.Text)
+						websocket.Message.Send(ws, line.Text+"\r\n")
 					case line := <-t2.Lines:
-						websocket.Message.Send(ws, line.Text)
+						websocket.Message.Send(ws, line.Text+"\r\n")
 					}
 				}
 			}
