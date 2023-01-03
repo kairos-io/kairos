@@ -1,6 +1,7 @@
 ---
-title: "Contributing"
-linkTitle: "Contribution guidelines"
+title: "Contribution Guidelines"
+linkTitle: "Contribution Guidelines"
+manualLink: https://github.com/kairos-io/kairos/blob/master/CONTRIBUTING.md
 weight: 20
 menu:
   main:

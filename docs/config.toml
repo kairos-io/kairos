@@ -60,7 +60,7 @@ languageName ="English"
 weight = 1
 
 [[menu.main]]
-    name = "Contribution guidelines"
+    name = "Contribute"
     weight = 50
     url = "https://github.com/kairos-io/kairos/contribute"
     pre = "<i class='fab fa-github'></i>"
