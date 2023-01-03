@@ -12,22 +12,23 @@
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.1/css/all.css" integrity="sha384-vp86vTRFVJgpjF9jiIGPEEqYqlDwgyBgEF109VFjmqGmIY/Y4HV4d3Gp2irVfcrp" crossorigin="anonymous">
 
   <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700' rel='stylesheet' type='text/css'>
+  <link href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css" rel="stylesheet" type="text/css">
+  <script src="/js/xterm-theme.js"></script>
 
+  
   <!-- Alpine.js -->
   <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js" defer></script>
   <style>
     .navbar {
       background-color: #ee5007;
     }
-    * {
-      font-family: 'Open Sans', sans-serif;
+    .navbar,.body,footer {
+      font-family: 'Open Sans', sans-serif; 
     }
     .box {
-      background-color: black;
+      background-color: #262626;
       color: white;
       width: 100%;
-      height: calc(100vh - 56px); /* fixed height equal to the height of the screen minus the height of the topbar */
-      overflow-y: scroll;
     }
   </style>  
   <title>Installation progress</title>
@@ -41,22 +42,32 @@
         </a>
       </nav>
 
-  <div class="container mt-3">
+  <div class="container mt-3 body d-none">
     <label class="custom-control custom-switch">
       <input type="checkbox" class="custom-control-input" id="autoscroll-switch">
       <span class="custom-control-label">Autoscroll</span>
     </label>
   </div>
   <div class="container mt-5">
-    <div class="mx-auto box p-5 rounded-lg shadow">
-      <pre class="text-white" id="output"></pre>
+    <div class="mx-auto box rounded-lg shadow">
+      <div class="mt-5 p-2" id="output"></div>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.js"></script>
   <script>
+    const box = document.getElementById('output');
+
+    var term = new Terminal({theme: xtermTheme.MaterialDark});
+
+    fit = new FitAddon.FitAddon()
+    term.loadAddon(fit)
+    term.open(document.getElementById('output'));
+    fit.fit()
+
     var loc = window.location;
     var uri = 'ws:';
     const autoscrollSwitch = document.getElementById('autoscroll-switch');
-    const box = document.querySelector('.output');
 
     // toggle autoscroll when the switch is clicked
     autoscrollSwitch.addEventListener('click', () => {
@@ -84,17 +95,13 @@
 
     ws.onmessage = function(evt) {
       var out = document.getElementById('output');
-      out.innerHTML += evt.data;
+      term.write(evt.data)
+      //out.innerHTML += evt.data;
       // scroll the content to the bottom when new content is added
       if (autoscrollSwitch.checked) {
-       out.scrollTop = out.scrollHeight;
+        term.scrollToBottom()
       }
     }
-
-    setInterval(function() {
-      ws.send('Hello, Server!');
-    }, 1000);
-
   </script>
  <footer class="bg-light py-3 mt-5 d-flex justify-content-center">
   <div class="container mx-auto">
