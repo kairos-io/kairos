@@ -51,6 +51,11 @@ func getFS() fs.FS {
 
 func streamProcess(s *state) func(c echo.Context) error {
 	return func(c echo.Context) error {
+		consumeError := func(err error) {
+			if err != nil {
+				c.Logger().Error(err)
+			}
+		}
 		websocket.Handler(func(ws *websocket.Conn) {
 			defer ws.Close()
 			for {
@@ -58,9 +63,7 @@ func streamProcess(s *state) func(c echo.Context) error {
 				if s.p == nil {
 					// Write
 					err := websocket.Message.Send(ws, "No process!")
-					if err != nil {
-						c.Logger().Error(err)
-					}
+					consumeError(err)
 					s.Unlock()
 					return
 				}
@@ -69,16 +72,16 @@ func streamProcess(s *state) func(c echo.Context) error {
 				if !s.p.IsAlive() {
 					errOut, err := os.ReadFile(s.p.StderrPath())
 					if err == nil {
-						websocket.Message.Send(ws, string(errOut))
+						err := websocket.Message.Send(ws, string(errOut))
+						consumeError(err)
 					}
 					out, err := os.ReadFile(s.p.StdoutPath())
 					if err == nil {
-						websocket.Message.Send(ws, string(out))
+						err = websocket.Message.Send(ws, string(out))
+						consumeError(err)
 					}
 					err = websocket.Message.Send(ws, "Process stopped!")
-					if err != nil {
-						c.Logger().Error(err)
-					}
+					consumeError(err)
 					return
 				}
 
@@ -94,9 +97,11 @@ func streamProcess(s *state) func(c echo.Context) error {
 				for {
 					select {
 					case line := <-t.Lines:
-						websocket.Message.Send(ws, line.Text+"\r\n")
+						err = websocket.Message.Send(ws, line.Text+"\r\n")
+						consumeError(err)
 					case line := <-t2.Lines:
-						websocket.Message.Send(ws, line.Text+"\r\n")
+						err = websocket.Message.Send(ws, line.Text+"\r\n")
+						consumeError(err)
 					}
 				}
 			}
@@ -110,12 +115,12 @@ type state struct {
 	sync.Mutex
 }
 
-// TemplateRenderer is a custom html/template renderer for Echo framework
+// TemplateRenderer is a custom html/template renderer for Echo framework.
 type TemplateRenderer struct {
 	templates *template.Template
 }
 
-// Render renders a template document
+// Render renders a template document.
 func (t *TemplateRenderer) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
 
 	// Add global methods if data is a map
@@ -180,12 +185,17 @@ func Start(ctx context.Context, l string) error {
 		}
 		args = append(args, "--device", installationDevice)
 
+		// create tempfile to store cloud-config, bail out if we fail as we couldn't go much further
 		file, err := ioutil.TempFile("", "install-webui")
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("could not create tmpfile for cloud-config: %s", err.Error())
 		}
 
-		os.WriteFile(file.Name(), []byte(cloudConfig), 0600)
+		err = os.WriteFile(file.Name(), []byte(cloudConfig), 0600)
+		if err != nil {
+			log.Fatalf("could not write tmpfile for cloud-config: %s", err.Error())
+		}
+
 		args = append(args, file.Name())
 
 		s.Lock()
@@ -212,7 +222,10 @@ func Start(ctx context.Context, l string) error {
 	go func() {
 		<-ctx.Done()
 		ct, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		ec.Shutdown(ct)
+		err := ec.Shutdown(ct)
+		if err != nil {
+			log.Printf("shutdown failed: %s", err.Error())
+		}
 		cancel()
 	}()
 
