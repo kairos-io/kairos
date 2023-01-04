@@ -27,6 +27,9 @@ To get started with Kairos, follow the instructions in the [quickstart](/docs/ge
 
 For more information, please refer to this documentation. If you have any questions or feedback, feel free to [open an issue](https://github.com/kairos-io/kairos/issues/new) or [join our community forum](https://github.com/kairos-io/kairos/discussions).
 
+{{% alert title="Note" %}}
+You can also find some good resources on the [Media Section]({{< ref "docs/media" >}} "Media")
+{{% /alert %}}
 
 ## What is Kairos ?
 
