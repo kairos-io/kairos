@@ -19,4 +19,3 @@ description: >
 ### Meet Kairos, an OSS project building the immutable Kubernetes edge
 
 {{< youtube id="kiDQujibz2k" title="Meet Kairos, an OSS project building the immutable Kubernetes edge" >}}
-Livin’ Kubernetes on the (Immutable) Edge with Kairos Project
