@@ -6,6 +6,10 @@ description: >
   Getting started with Kairos
 ---
 
+{{% alert title="Note" %}}
+If you prefer video format, you can also watch our [Introduction to Kairos video]({{< ref "docs/media/#introduction-to-kairos" >}} "Media") on the [Media Section]({{< ref "docs/media" >}} "Media")
+{{% /alert %}}
+
 Ready to launch your Kubernetes cluster with ease? With Kairos, deployment is a breeze! Simply download the pre-packaged artifacts, boot up on a VM or bare metal, and let Kairos handle the rest. Whether you're a Linux or Windows user, our quickstart guide will have you up and running in no time. Kairos can build a Kubernetes cluster for you with just a few simple steps!
 
 The goal of this quickstart is to help you quickly and easily deploy a Kubernetes cluster using Kairos releases. With Kairos, you can easily build a k3s cluster in a VM, or a baremetal using our pre-packaged artifacts, even if you don't already have a cluster. This process can also be used on bare metal hosts with some configuration adjustments. Check out our documentation further for more detailed instructions and examples.
@@ -75,10 +79,9 @@ Here are some additional helpful tips depending on the physical/virtual machine 
                   --os-variant opensuse-factory \
                   --virt-type kvm
 
-    <br/>
     {{< / highlight >}}
-
     <br/>
+
     Immediately after open a viewer so you can interact with the boot menu
     <br/>
 

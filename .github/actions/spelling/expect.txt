@@ -114,6 +114,7 @@ dosfstools
 dotnet
 downloader
 dpkg
+DQujibz
 dracut
 drwxr
 DTkt
@@ -262,6 +263,7 @@ jre
 json
 jumpbox
 Jvb
+jxy
 Jzel
 kbd
 kbn
@@ -616,6 +618,7 @@ yml
 Yng
 yourhandle
 yourorg
+youtube
 YWdl
 ZBMj
 zcalusic
