@@ -187,10 +187,10 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 	{
 		Name:        "webui",
 		Usage:       "Starts the webui",
-		Description: "Print node uuid",
-		Aliases:     []string{"u"},
+		Description: "Starts the webui installer",
+		Aliases:     []string{"w"},
 		Action: func(c *cli.Context) error {
-			return webui.Start(context.Background(), ":8080")
+			return webui.Start(context.Background())
 			//return nil
 		},
 	},

@@ -131,21 +131,29 @@ func (t *TemplateRenderer) Render(w io.Writer, name string, data interface{}, c 
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
-func Start(ctx context.Context, l string) error {
+func Start(ctx context.Context) error {
 
 	s := state{}
+	listen := ":8080"
+
 	ec := echo.New()
 	assetHandler := http.FileServer(getFileSystem())
 
 	renderer := &TemplateRenderer{
 		templates: template.Must(template.ParseFS(getFS(), "*.html")),
 	}
+
 	ec.Renderer = renderer
 	agentConfig, err := agent.LoadConfig()
 	if err != nil {
 		return err
 	}
-	if agentConfig.DisableWebUIInstall {
+
+	if agentConfig.WebUI.ListenAddress != "" {
+		listen = agentConfig.WebUI.ListenAddress
+	}
+
+	if agentConfig.WebUI.Disable {
 		log.Println("WebUI installer disabled by branding")
 		return nil
 	}
@@ -215,7 +223,7 @@ func Start(ctx context.Context, l string) error {
 
 	ec.GET("/ws", streamProcess(&s))
 
-	if err := ec.Start(l); err != nil && err != http.ErrServerClosed {
+	if err := ec.Start(listen); err != nil && err != http.ErrServerClosed {
 		return err
 	}
 
