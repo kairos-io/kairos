@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+
+depend() {
+  provide kairos-webui
+}
+
+supervisor=supervise-daemon
+name="kairos-webui"
+command="kairos-agent webui"
+supervise_daemon_args="--stdout /var/log/kairos/webui.log --stderr /var/log/kairos/webui.log"
+pidfile="/run/kairos-agent.pid"
+respawn_delay=5
+set -o allexport
+if [ -f /etc/environment ]; then source /etc/environment; fi
+set +o allexport

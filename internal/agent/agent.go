@@ -75,6 +75,12 @@ func Run(opts ...Option) error {
 		if c.FailOnBundleErrors && err != nil {
 			return err
 		}
+
+		// Re-read config files
+		c, err = config.Scan(config.Directories(o.Dir...))
+		if err != nil {
+			return err
+		}
 	}
 
 	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: o.APIAddress, Config: c.String(), Logfile: fileName})

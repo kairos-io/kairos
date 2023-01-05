@@ -14,10 +14,13 @@ type BrandingText struct {
 	Reset              string `yaml:"reset"`
 	Recovery           string `yaml:"recovery"`
 }
-
+type WebUI struct {
+	Disable       bool   `yaml:"disable"`
+	ListenAddress string `yaml:"listen_address"`
+}
 type Config struct {
-	Fast bool `yaml:"fast,omitempty"`
-
+	Fast     bool         `yaml:"fast,omitempty"`
+	WebUI    WebUI        `yaml:"webui"`
 	Branding BrandingText `yaml:"branding"`
 }
 

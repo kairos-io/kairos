@@ -228,6 +228,10 @@ func RunInstall(options map[string]string) error {
 		c.Install.Reboot = true
 	}
 
+	if c.Install.Image != "" {
+		options["system.uri"] = c.Install.Image
+	}
+
 	env := append(c.Install.Env, c.Env...)
 	utils.SetEnv(env)
 

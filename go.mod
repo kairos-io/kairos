@@ -7,13 +7,13 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/erikgeiser/promptkit v0.6.0
 	github.com/google/go-github/v40 v40.0.0
-	github.com/google/go-github/v48 v48.2.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/itchyny/gojq v0.12.11
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.4.0
 	github.com/kairos-io/kcrypt v0.4.4
+	github.com/labstack/echo/v4 v4.6.3
 	github.com/mudler/go-nodepair v0.0.0-20220507212557-7d47aa3cc1f1
 	github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
@@ -26,7 +26,6 @@ require (
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/spectrocloud/peg v0.0.0-20221005172954-aa887438fafc
 	github.com/twpayne/go-vfs v1.7.2
-	github.com/twpayne/go-vfs/v4 v4.1.0
 	github.com/urfave/cli v1.22.10
 	golang.org/x/oauth2 v0.3.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
@@ -68,10 +67,12 @@ require (
 	github.com/jaypipes/pcidb v1.0.0 // indirect
 	github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240 // indirect
 	github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 // indirect
+	github.com/labstack/gommon v0.3.1 // indirect
 	github.com/lithammer/fuzzysearch v1.1.5 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/makiuchi-d/gozxing v0.1.1 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -86,6 +87,8 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/stretchr/testify v1.8.1 // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
+	github.com/valyala/fasttemplate v1.2.1 // indirect
 	github.com/wayneashleyberry/terminal-dimensions v1.1.0 // indirect
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
