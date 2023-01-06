@@ -230,6 +230,9 @@ docker:
 
     # Copy kairos binaries
     COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+
+    # Copy webui deps
+    COPY +webui-deps/* ./internal/webui/public/node_modules/
     
     # Enable services
     IF [ -f /sbin/openrc ]
@@ -630,3 +633,10 @@ examples-bundle-config:
     RUN echo "    targets:" >> tests/assets/live-overlay.yaml
     RUN echo "    - container://${BUNDLE_IMAGE}" >> tests/assets/live-overlay.yaml
     SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml
+
+webui-deps:
+    FROM node:18-alpine
+    COPY . .
+    WORKDIR ./internal/webui/public
+    RUN npm install
+    SAVE ARTIFACT ./node_modules/* AS LOCAL ./internal/webui/public/node_modules/
