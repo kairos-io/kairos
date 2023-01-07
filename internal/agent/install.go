@@ -110,6 +110,12 @@ func Install(dir ...string) error {
 		fmt.Printf("- config not found in the system: %s", err.Error())
 	}
 
+	if len(bus.Manager.Plugins) == 0 {
+		fmt.Println("No providers found, dropping to a shell")
+
+		return utils.Shell().Run()
+	}
+
 	_, err = bus.Manager.Publish(events.EventChallenge, events.EventPayload{Config: cc.String()})
 	if err != nil {
 		return err
