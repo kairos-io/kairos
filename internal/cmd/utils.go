@@ -15,14 +15,18 @@ func PrintText(f string, banner string) {
 		f)
 }
 
+func ClearScreen() {
+	fmt.Print("\033c")
+}
+
 func PrintBranding(b []byte) {
 	brandingFile := kairos.BrandingFile("banner")
 	if _, err := os.Stat(brandingFile); err == nil {
 		f, err := os.ReadFile(brandingFile)
 		if err == nil {
 			fmt.Println(string(f))
+			return
 		}
-
 	}
 	utils.PrintBanner(b)
 }

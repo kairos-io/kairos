@@ -135,7 +135,7 @@ func (t *TemplateRenderer) Render(w io.Writer, name string, data interface{}, c 
 func Start(ctx context.Context) error {
 
 	s := state{}
-	listen := config.DefaultWebUIAddr
+	listen := config.DefaultWebUIListenAddress
 
 	ec := echo.New()
 	assetHandler := http.FileServer(getFileSystem())

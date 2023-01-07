@@ -43,12 +43,12 @@ func displayInfo(agentConfig *Config) {
 	fmt.Println("--------------------------")
 	fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
 	if !agentConfig.WebUI.Disable {
-		if agentConfig.WebUI.ListenAddress == "" {
+		if !agentConfig.WebUI.HasAddress() {
 			ips := machine.LocalIPs()
 			if len(ips) > 0 {
 				fmt.Print("WebUI installer running at : ")
 				for _, ip := range ips {
-					fmt.Printf("%s%s ", ip, config.DefaultWebUIAddr)
+					fmt.Printf("%s%s ", ip, config.DefaultWebUIListenAddress)
 				}
 				fmt.Print("\n")
 			}
@@ -139,13 +139,12 @@ func Install(dir ...string) error {
 	}
 
 	// try to clear screen
-	fmt.Print("\033c")
-
+	cmd.ClearScreen()
 	cmd.PrintBranding(DefaultBanner)
 
 	// If there are no providers registered, we enter a shell for manual installation and print information about
 	// the webUI
-	if len(bus.Manager.Plugins) == 0 {
+	if !bus.Manager.HasRegisteredPlugins() {
 		displayInfo(agentConfig)
 		return utils.Shell().Run()
 	}

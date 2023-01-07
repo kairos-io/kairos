@@ -18,6 +18,11 @@ type WebUI struct {
 	Disable       bool   `yaml:"disable"`
 	ListenAddress string `yaml:"listen_address"`
 }
+
+func (w WebUI) HasAddress() bool {
+	return w.ListenAddress != ""
+}
+
 type Config struct {
 	Fast     bool         `yaml:"fast,omitempty"`
 	WebUI    WebUI        `yaml:"webui"`

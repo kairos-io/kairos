@@ -35,6 +35,10 @@ func (b *Bus) LoadProviders() {
 	b.Manager.Autoload("agent-provider", "/system/providers", "/usr/local/system/providers", wd).Register()
 }
 
+func (b *Bus) HasRegisteredPlugins() bool {
+	return len(b.Plugins) > 0
+}
+
 func (b *Bus) Initialize() {
 	if b.registered {
 		return
