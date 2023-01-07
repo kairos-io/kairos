@@ -88,7 +88,7 @@ func Install(dir ...string) error {
 
 	// Reads config, and if present and offline is defined,
 	// runs the installation
-	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine)
+	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine, config.NoLogs)
 	if err == nil && cc.Install != nil && cc.Install.Auto {
 		r["cc"] = cc.String()
 		r["device"] = cc.Install.Device
