@@ -4,6 +4,20 @@ import (
 	"net"
 )
 
+func Interfaces() (in []string) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return
+	}
+	for _, i := range ifaces {
+		if i.Flags == net.FlagLoopback {
+			continue
+		}
+		in = append(in, i.Name)
+	}
+	return
+}
+
 func LocalIPs() (ips []string) {
 	ifaces, err := net.Interfaces()
 	if err != nil {

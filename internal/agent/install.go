@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,6 +37,28 @@ func optsToArgs(options map[string]string) (res []string) {
 		}
 	}
 	return
+}
+
+func displayInfo(agentConfig *Config) {
+	fmt.Println("--------------------------")
+	fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
+	if !agentConfig.WebUI.Disable {
+		if agentConfig.WebUI.ListenAddress == "" {
+			ips := machine.LocalIPs()
+			if len(ips) > 0 {
+				fmt.Print("WebUI installer running at : ")
+				for _, ip := range ips {
+					fmt.Printf("%s%s ", ip, config.DefaultWebUIAddr)
+				}
+				fmt.Print("\n")
+			}
+		} else {
+			fmt.Printf("WebUI installer running at : %s\n", agentConfig.WebUI.ListenAddress)
+		}
+
+		ifaces := machine.Interfaces()
+		fmt.Printf("Network Interfaces: %s\n", strings.Join(ifaces, " "))
+	}
 }
 
 func ManualInstall(config string, options map[string]string) error {
@@ -123,22 +146,7 @@ func Install(dir ...string) error {
 	// If there are no providers registered, we enter a shell for manual installation and print information about
 	// the webUI
 	if len(bus.Manager.Plugins) == 0 {
-		fmt.Println("--------------------------")
-		fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
-		if !agentConfig.WebUI.Disable {
-			if agentConfig.WebUI.ListenAddress == "" {
-				ips := machine.LocalIPs()
-				if len(ips) > 0 {
-					fmt.Print("WebUI installer running at : ")
-					for _, ip := range ips {
-						fmt.Printf("%s%s ", ip, config.DefaultWebUIAddr)
-					}
-					fmt.Print("\n")
-				}
-			} else {
-				fmt.Printf("WebUI installer running at : %s\n", agentConfig.WebUI.ListenAddress)
-			}
-		}
+		displayInfo(agentConfig)
 		return utils.Shell().Run()
 	}
 
