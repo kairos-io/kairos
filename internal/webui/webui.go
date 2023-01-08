@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/kairos-io/kairos/internal/agent"
+	"github.com/kairos-io/kairos/pkg/config"
 	"github.com/labstack/echo/v4"
 	process "github.com/mudler/go-processmanager"
 	"github.com/nxadm/tail"
@@ -134,7 +135,7 @@ func (t *TemplateRenderer) Render(w io.Writer, name string, data interface{}, c 
 func Start(ctx context.Context) error {
 
 	s := state{}
-	listen := ":8080"
+	listen := config.DefaultWebUIListenAddress
 
 	ec := echo.New()
 	assetHandler := http.FileServer(getFileSystem())

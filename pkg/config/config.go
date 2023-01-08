@@ -19,6 +19,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const DefaultWebUIListenAddress = ":8080"
+
 type Install struct {
 	Auto                   bool              `yaml:"auto,omitempty"`
 	Reboot                 bool              `yaml:"reboot,omitempty"`

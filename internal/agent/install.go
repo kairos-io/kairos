@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,6 +37,28 @@ func optsToArgs(options map[string]string) (res []string) {
 		}
 	}
 	return
+}
+
+func displayInfo(agentConfig *Config) {
+	fmt.Println("--------------------------")
+	fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
+	if !agentConfig.WebUI.Disable {
+		if !agentConfig.WebUI.HasAddress() {
+			ips := machine.LocalIPs()
+			if len(ips) > 0 {
+				fmt.Print("WebUI installer running at : ")
+				for _, ip := range ips {
+					fmt.Printf("%s%s ", ip, config.DefaultWebUIListenAddress)
+				}
+				fmt.Print("\n")
+			}
+		} else {
+			fmt.Printf("WebUI installer running at : %s\n", agentConfig.WebUI.ListenAddress)
+		}
+
+		ifaces := machine.Interfaces()
+		fmt.Printf("Network Interfaces: %s\n", strings.Join(ifaces, " "))
+	}
 }
 
 func ManualInstall(config string, options map[string]string) error {
@@ -88,7 +111,7 @@ func Install(dir ...string) error {
 
 	// Reads config, and if present and offline is defined,
 	// runs the installation
-	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine)
+	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine, config.NoLogs)
 	if err == nil && cc.Install != nil && cc.Install.Auto {
 		r["cc"] = cc.String()
 		r["device"] = cc.Install.Device
@@ -110,14 +133,23 @@ func Install(dir ...string) error {
 		fmt.Printf("- config not found in the system: %s", err.Error())
 	}
 
-	_, err = bus.Manager.Publish(events.EventChallenge, events.EventPayload{Config: cc.String()})
+	agentConfig, err := LoadConfig()
 	if err != nil {
 		return err
 	}
 
+	// try to clear screen
+	cmd.ClearScreen()
 	cmd.PrintBranding(DefaultBanner)
 
-	agentConfig, err := LoadConfig()
+	// If there are no providers registered, we enter a shell for manual installation and print information about
+	// the webUI
+	if !bus.Manager.HasRegisteredPlugins() {
+		displayInfo(agentConfig)
+		return utils.Shell().Run()
+	}
+
+	_, err = bus.Manager.Publish(events.EventChallenge, events.EventPayload{Config: cc.String()})
 	if err != nil {
 		return err
 	}
