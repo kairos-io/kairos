@@ -1,10 +1,11 @@
 ---
-title: "Build Kairos appliances"
-linkTitle: "Build"
+title: "Bundles"
+linkTitle: "Bundles"
 weight: 5
 description: >
----
+    Bundles are a powerful feature of Kairos that allow you to customize and configure your operating system. This section explains how to use and build custom bundles.
 
+---
 
 Bundles are a powerful feature of Kairos that allow you to customize and configure your operating system, as well as your Kubernetes cluster. Whether you want to add custom logic, install additional packages, or make any other changes to your system, bundles make it easy to apply these changes after installation or before bootstrapping a node.
 

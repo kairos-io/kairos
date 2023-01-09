@@ -13,18 +13,14 @@ The structure of the configuration file is as follows:
 ```yaml
 #cloud-config
 
-# The kairos block enables the p2p full-mesh functionalities.
-# To disable, don't specify one.
-kairos:
-  # This is a network token used to establish the p2p full meshed network.
-  # Don't specify one to disable full-mesh functionalities.
-  network_token: "...."
-  # Manually set node role. Available: master, worker. Defaults auto (none). This is available
-  role: "master"
-  # User defined network-id. Can be used to have multiple clusters in the same network
-  network_id: "dev"
-  # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
-  dns: true
+# Additional system users
+users:
+- name: "kairos"
+  passwd: "kairos"
+  lock_passwd: true
+  groups: "admin"
+  ssh_authorized_keys:
+  - github:mudler
 
 # The install block is to drive automatic installations without user interaction.
 install:
@@ -53,18 +49,6 @@ install:
   env:
   - foo=bar
 
-vpn:
-  # EdgeVPN environment options
-  DHCP: "true"
-  # Disable DHT (for airgap)
-  EDGEVPNDHT: "false"
-  EDGEVPNMAXCONNS: "200"
-  # If DHCP is false, it's required to be given a specific node IP. Can be arbitrary
-  ADDRESS: "10.2.0.30/24"
-  # See all EDGEVPN options:
-  # - https://github.com/mudler/edgevpn/blob/master/cmd/util.go#L33
-  # - https://github.com/mudler/edgevpn/blob/master/cmd/main.go#L48
-
 k3s:
   # Additional env/args for k3s server instances
   env:
@@ -86,6 +70,64 @@ k3s-agent:
   # Enabling below it replaces args/env entirely
   # replace_env: true
   # replace_args: true
+
+# The p2p block enables the p2p full-mesh functionalities.
+# To disable, don't specify one.
+p2p:
+  # Manually set node role. Available: master, worker. Defaults auto (none). This is available
+ role: "master"
+  # User defined network-id. Can be used to have multiple clusters in the same network
+ network_id: "dev"
+  # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
+ dns: true
+ # Disabling DHT makes co-ordination to discover nodes only in the local network
+ disable_dht: true #Enabled by default
+ # Configures a VPN for the cluster nodes
+ vpn:
+   create: false # defaults to true
+   use: false # defaults to true
+   env:
+    # EdgeVPN environment options
+    DHCP: "true"
+    # Disable DHT (for airgap)
+    EDGEVPNDHT: "false"
+    EDGEVPNMAXCONNS: "200"
+    # If DHCP is false, it's required to be given a specific node IP. Can be arbitrary
+    ADDRESS: "10.2.0.30/24"
+    # See all EDGEVPN options:
+    # - https://github.com/mudler/edgevpn/blob/master/cmd/util.go#L33
+    # - https://github.com/mudler/edgevpn/blob/master/cmd/main.go#L48
+ # Automatic cluster deployment configuration
+ auto:
+   # Enables Automatic node configuration (self-coordination)
+   # for role assignment
+   enable: true
+   # HA enables automatic HA roles assignment.
+   # A master cluster init is always required,
+   # Any additional master_node is configured as part of the 
+   # HA control plane.
+   # If auto is disabled, HA has no effect.
+   ha:
+     # Enables HA control-plane
+     enable: true
+     # Number of HA additional master nodes.
+     # A master node is always required for creating the cluster and is implied.
+     # The setting below adds 2 additional master nodes, for a total of 3.
+     master_nodes: 2
+     # Use an External database for the HA control plane
+     external_db: "external-db-string"
+ # network_token is the shared secret used by the nodes to co-ordinate with p2p
+ network_token: "YOUR_TOKEN_GOES_HERE"
+
+## Sets the Elastic IP used in KubeVIP. Only valid with p2p
+kubevip:
+  eip: "192.168.1.110"
+  # Specify a manifest URL for KubeVIP. Empty uses default
+  manifest_url: ""
+  # Enables KubeVIP
+  enable: true
+  # Specifies a KubeVIP Interface
+  interface: "ens18"
 
 # Additional cloud init syntax can be used here.
 # See `stages` below.
@@ -110,13 +152,6 @@ options:
 growpart:
  devices: ['/']
 
-users:
-- name: "kairos"
-  passwd: "kairos"
-  lock_passwd: true
-  groups: "admin"
-  ssh_authorized_keys:
-  - github:mudler
 
 runcmd:
 - foo
@@ -447,21 +482,21 @@ localhost:~$
 
 P2P functionalities are experimental Kairos features and disabled by default. In order to enable them, just use the `kairos` configuration block.
 
-### `kairos.network_token`
+### `p2p.network_token`
 
 This defines the network token used by peers to join the p2p virtual private network. You can generate it with the Kairos CLI with `kairos generate-token`. Check out [the P2P section](/docs/installation/p2p) for more instructions.
 
-### `kairos.role`
+### `p2p.role`
 
 Define a role for the node. Accepted: `worker`, `master`. Currently only one master is supported.
 
-### `kairos.id`
+### `p2p.network_id`
 
 Define a custom ID for the Kubernetes cluster. This can be used to create multiple clusters in the same network segment by specifying the same id across nodes with the same network token. Accepted: any string.
 
-### `kairos.dns`
+### `p2p.dns`
 
-When the `kairos.dns` is set to `true` the embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server. For example, this is assuming `kairos bridge` is running in a separate terminal:
+When the `p2p.dns` is set to `true` the embedded DNS is configured on the node. This allows to propagate custom records to the nodes by using the blockchain DNS server. For example, this is assuming `kairos bridge` is running in a separate terminal:
 
 ```bash
 curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'
@@ -477,18 +512,18 @@ Furthermore, it is possible to tweak the DNS server which are used to forward re
 
 ```yaml
 #cloud-config
-kairos:
+p2p:
   network_token: "...."
   # Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/
   dns: true
-
-vpn:
-  # Disable DNS forwarding
-  DNSFORWARD: "false"
-  # Set cache size
-  DNSCACHESIZE: "200"
-  # Set DNS forward server
-  DNSFORWARDSERVER: "8.8.8.8:53"
+  vpn:
+    env:
+      # Disable DNS forwarding
+      DNSFORWARD: "false"
+      # Set cache size
+      DNSCACHESIZE: "200"
+      # Set DNS forward server
+      DNSFORWARDSERVER: "8.8.8.8:53"
 ```
 
 ## Stages
