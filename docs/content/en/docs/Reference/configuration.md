@@ -32,6 +32,8 @@ install:
   poweroff: true
   # Set to true when installing without Pairing
   auto: true
+  # Use a different container image for the installation
+  image: "docker:.."
   # Add bundles in runtime
   bundles:
     - ...
