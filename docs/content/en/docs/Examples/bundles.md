@@ -18,8 +18,6 @@ Before we begin, you will need to have the following:
 1. Kairos [provider-kairos](https://github.com/kairos-io/provider-kairos) artifacts which includes K3s
 1. A baremetal node to run the installation
 
-
-
 ## Installation
 
 1. Follow the [Installation](/docs/installation) documentation for Kairos.
