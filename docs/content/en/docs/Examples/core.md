@@ -1,17 +1,20 @@
 ---
-title: "Using core images"
-linkTitle: "Using core images"
+title: "Using Kairos Core Images as an Installer"
+linkTitle: "Using Kairos Core Images as an Installer"
 weight: 4
 description: > 
-    This section provides examples on how to use Kairos core images
+    Core images serve as the foundation for creating downstream images or as an installer for deploying other images during the installation process. In this guide, we'll take a closer look at using Kairos core images as an installer to deploy other container images.
 ---
 
-Welcome to the Kairos core image documentation! Our core images are released as part of the [kairos-io/kairos](https://github.com/kairos-io/kairos) repository and can be found in the releases section. These images don't include k3s, but can be used either as a base for customizing and creating downstream images or as an installer to pull and deploy other images during installation. In this guide, we'll be focusing on using the core images as an installer to deploy other images. If you're interested in using the core images as a base for customization, check out our [customizing](/docs/advanced/customizing) documentation.
+Kairos is a powerful, open-source meta-distribution that allows you to easily deploy and manage nodes on your Immutable infrastructure.
 
+One key feature of Kairos is the use of its core images, which are released as part of the [kairos-io/kairos](https://github.com/kairos-io/kairos) repository and can be found in the releases section. These core images serve as the foundation for creating [downstream images](/docs/advanced/customizing) or as an installer for deploying other images during the installation process. In this guide, we'll take a closer look at using Kairos core images as an installer to deploy other container images.
 
-## Installation
+## Getting started
 
-To get started with installing a Kairos core image, you'll want to use the artifacts from the [Kairos core](https://github.com/kairos-io/kairos/releases) repository, which don't contain any Kubernetes engine. The only configuration you'll need to apply is to specify the container image you want to deploy in the install.image field of your cloud config file. You can find a list of available images in [our support matrix](/docs/reference/image_matrix). For example, to use an image from the [provider-kairos](https://github.com/kairos-io/provider-kairos) repository, your cloud config might look like this:
+To begin using Kairos core images as an installer, you'll need to start by using the artifacts from the [Kairos core](https://github.com/kairos-io/kairos/releases) repository. These images do not include the Kubernetes engine, so you'll need to configure the container image you want to deploy in the `install.image` field of your cloud config file. A list of available images can be found in [our support matrix](/docs/reference/image_matrix).
+
+For example, let's say you want to use an image from the provider-kairos repository. Your cloud config file might look something like this:
 
 ```yaml
 #cloud-config
@@ -20,7 +23,9 @@ install:
  image: "docker:quay.io/kairos/kairos-opensuse:v1.4.0-k3sv1.26.0-k3s1"
 ```
 
-Once you've chosen your image, follow the steps in our [Installation](/docs/installation) documentation to complete the process. After the installation is complete, the configuration in the k3s block will take effect, and you'll be able to use it just as you would with an image from the provider-kairos repository. For example:
+Once you've chosen your image, you can move on to the installation process by following the steps outlined in our [Installation](/docs/installation) documentation.
+
+For example, a full cloud-config might look like this:
 
 ```yaml
 #cloud-config
@@ -43,9 +48,13 @@ k3s:
   enable: true
 ```
 
-There are a few key points to note in the configuration file:
+## Configuring the installation
 
-- we set `install.image` to the container image that we want to deploy. That can be a [custom image](/docs/advanced/customizing) or an [image from scratch](/docs/reference/build)
-- we use the `k3s` block as we normally would do on a provider-kairos image. This is because after installation we would boot in the image specified in the `install.image` field, and thus the configuration would take effect
+As you move through the installation process, there are a few key points to keep in mind when configuring your cloud config file:
 
-That's it! With these steps, you should now be able to use Kairos core images as an installer to deploy other container images
+- We set `install.image` to the container image that we want to deploy. This can be a [custom image](/docs/advanced/customizing) or an [image from scratch](/docs/reference/build).
+- After the installation is complete, the configuration in the `k3s` block will take effect. This is because after the installation, the system will boot into the image specified in the `install.image` field, which in the example above is an image with the Kairos K3s provider, and thus the configuration in the k3s block will become active.
+
+With these steps, you should now be able to use Kairos core images as an installer to deploy other container images. The process is straightforward and gives you the flexibility to customize your deployments and build custom images as needed.
+
+You can also refer our [troubleshoot](/docs/reference/troubleshooting) document if you are facing any issue while following the installation process.
