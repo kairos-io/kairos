@@ -45,7 +45,7 @@ c58930881bc4: Pushed
 ...
 ```
 
-You can use your custom image with the `kairos-agent upgrade` command, or with the [system-upgrade-controller in Kubernetes](/docs/upgrade/kubernetes). Here's how to use the `kairos-agent` command:
+You can use your custom image when [upgrade nodes manually](/docs/upgrade/manual), [with Kubernetes](/docs/upgrade/kubernetes) or [specifying it in the cloud-config during installation](/docs/examples/core). Here's how to do it manually with the `kairos-agent` command:
 
 ```
 node:/home/kairos # kairos-agent  upgrade --image docker.io/<your-org>/myos:0.1
