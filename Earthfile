@@ -106,7 +106,9 @@ version:
 
 build-kairos-agent:
     FROM +go-deps
-    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
+    BUILD +webui-deps
+    COPY +webui-deps/node_modules ./internal/webui/public/node_modules
+    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED --WEBUI_DEPS=1
 
 build:
     BUILD +build-kairos-agent
@@ -230,10 +232,7 @@ docker:
 
     # Copy kairos binaries
     COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
-
-    # Copy webui deps
-    COPY +webui-deps/* ./internal/webui/public/node_modules/
-    
+ 
     # Enable services
     IF [ -f /sbin/openrc ]
      RUN mkdir -p /etc/runlevels/default && \
@@ -639,4 +638,4 @@ webui-deps:
     COPY . .
     WORKDIR ./internal/webui/public
     RUN npm install
-    SAVE ARTIFACT ./node_modules/* AS LOCAL ./internal/webui/public/node_modules/
+    SAVE ARTIFACT node_modules /node_modules AS LOCAL internal/webui/public/node_modules
