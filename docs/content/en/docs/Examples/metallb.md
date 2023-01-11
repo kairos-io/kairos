@@ -14,6 +14,7 @@ But first, let's talk a little bit about what [MetalLB](https://metallb.universe
 
 Now that you have an understanding of what we'll be working with, let's dive into the installation process.
 
+Check out the [bundle](/docs/examples/bundles) example to configure `MetalLB` with bundles. Bundles provides a streamlined way to publish and re-use configuration between nodes.
 
 To get started, you'll need to use the [provider-kairos](https://github.com/kairos-io/provider-kairos) artifacts, which include k3s. We'll be using the [k3s manifest method](/docs/reference/configuration#kubernetes-manifests) to deploy MetalLB.
 

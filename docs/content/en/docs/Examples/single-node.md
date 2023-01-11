@@ -30,44 +30,6 @@ k3s:
   enabled: true
   args:
   - --disable=traefik,servicelb
-
-# Additional manifests that are applied by k3s on boot
-write_files:
-- path: /var/lib/rancher/k3s/server/manifests/metallb.yaml
-  permissions: "0644"
-  content: |
-        apiVersion: v1
-        kind: Namespace
-        metadata:
-          name: metallb-system
-        ---
-        apiVersion: helm.cattle.io/v1
-        kind: HelmChart
-        metadata:
-          name: metallb
-          namespace: metallb-system
-        spec:
-          chart: https://github.com/metallb/metallb/releases/download/metallb-chart-0.13.7/metallb-0.13.7.tgz
-- path: /var/lib/rancher/k3s/server/manifests/addresspool.yaml
-  permissions: "0644"
-  content: |
-        apiVersion: metallb.io/v1beta1
-        kind: IPAddressPool
-        metadata:
-          name: default
-          namespace: metallb-system
-        spec:
-          addresses:
-          - 192.168.1.10-192.168.1.20
-        ---
-        apiVersion: metallb.io/v1beta1
-        kind: L2Advertisement
-        metadata:
-          name: default
-          namespace: metallb-system
-        spec:
-          ipAddressPools:
-          - default
 ```
 
 Notably:

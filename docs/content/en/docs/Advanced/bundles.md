@@ -71,7 +71,6 @@ metallb:
 
 Bundles can carry also binaries that can be overlayed in the rootfs, either while [building images](/docs/advanced/build) or with [Live layering](https://kairos.io/docs/advanced/livelayering/).
 
-
 Kairos supports three types of bundles:
 
 - **Container**: This type is a bare container that simply contains files that need to be copied to the system. It is useful for copying over configuration files, scripts, or any other static content that you want to include on your system (prefixed with `container:` or `docker:`).
