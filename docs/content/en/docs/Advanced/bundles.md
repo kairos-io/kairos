@@ -74,16 +74,18 @@ Bundles can carry also binaries that can be overlayed in the rootfs, either whil
 
 Kairos supports three types of bundles:
 
-- *Container*: This type is a bare container that simply contains files that need to be copied to the system. It is useful for copying over configuration files, scripts, or any other static content that you want to include on your system.
+- **Container**: This type is a bare container that simply contains files that need to be copied to the system. It is useful for copying over configuration files, scripts, or any other static content that you want to include on your system (prefixed with `container:` or `docker:`).
 
-- *Run*: This type is also a bare container, but it comes with a script that can be run during the installation phase to add custom logic. This is useful for performing any necessary setup or configuration tasks that need to be done before the cluster is fully deployed.
+- **Run**: This type is also a bare container, but it comes with a script that can be run during the installation phase to add custom logic. This is useful for performing any necessary setup or configuration tasks that need to be done before the cluster is fully deployed (prefixed with `run:`).
 
-- *Package*: This type is a [luet](https://luet.io) package that will be installed in the system. It requires the luet repository definition in order to work. Luet packages are a powerful way to manage dependencies and install software on your system.
+- **Package**: This type is a [luet](https://luet.io) package that will be installed in the system. It requires you to specify a `luet` repository in order to work. Luet packages are a powerful way to manage dependencies and install software on your system (prefixed with `luet:`).
 
-Note: In the future, Kairos will also support a local type for use in airgap situations, where you can pre-add bundles to the image before deployment.
+
+{{% alert title="Note" %}}
+In the future, Kairos will also support a local type for use in airgap situations, where you can pre-add bundles to the image before deployment.
+{{% /alert %}}
 
 It's important to note that bundles do not have any special meaning in terms of immutability. They install files over paths that are mutable in the system, as they are simply overlaid during the boot process. This means that you can use bundles to make changes to your system at any time, even after it has been deployed.
-
 
 ## Create bundles
 
@@ -123,7 +125,7 @@ For example:
 docker build -t <image> .
 ```
 
-This command will build an image with the name "my-bundle" based on the instructions in your Dockerfile.
+This command will build an image with the name you specify ( replace `<image>` accordingly ) based on the instructions in your Dockerfile.
 
 After building your bundle image, you will need to push it to a registry so that it can be accessed by Kairos. You can use a public registry like Docker Hub. To push your image to a registry, use the docker push command. For example:
 
@@ -131,7 +133,7 @@ After building your bundle image, you will need to push it to a registry so that
 docker push <image>
 ```
 
-This will push the "my-bundle" image to your specified registry.
+This will push the `<image>` to your specified registry.
 
 And use it with Kairos:
 
@@ -140,6 +142,7 @@ And use it with Kairos:
 
 bundles:
 - targets:
+  # e.g. run://quay.io/...:tag
   - run://<image>
 
 example:

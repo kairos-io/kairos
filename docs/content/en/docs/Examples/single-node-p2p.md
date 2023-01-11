@@ -7,7 +7,7 @@ description: >
    This documentation page provides instructions on how to install Kairos with P2P support on a single-node cluster
 ---
 
-{{% alert title="Note" %}}
+{{% alert title="Note" color="warning" %}}
 
 This feature is crazy and experimental! Do not run in production servers. 
 Feedback and bug reports are welcome, as we are improving the p2p aspects of Kairos.

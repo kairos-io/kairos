@@ -72,7 +72,5 @@ write_files:
 
 Notably:
 
-- we use the `k3s` block to disable `traefik` and `servicelb` (the default `k3s` load balancer)
-- we use `write_files` to write manifests to the default `k3s` manifest directory (`/var/lib/rancher/k3s/server/manifests/`) see [docs](/docs/reference/configuration#kubernetes-manifests) to deploy `MetalLB` and configure it with the `192.168.1.10-192.168.1.20` IP range. Make sure to pick up a range which doesn't interfere with your local DHCP network.
-
-## Resources
+- We use the `k3s` block to disable `traefik` and `servicelb` (the default `k3s` load balancer).
+- We use `write_files` to write manifests to the default `k3s` manifest directory (`/var/lib/rancher/k3s/server/manifests/`) see [docs](/docs/reference/configuration#kubernetes-manifests) to deploy `MetalLB` and configure it with the `192.168.1.10-192.168.1.20` IP range. Make sure to pick up a range which doesn't interfere with your local DHCP network.
