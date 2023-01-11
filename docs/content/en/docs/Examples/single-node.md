@@ -23,8 +23,8 @@ users:
   # Change to your pass here
   passwd: kairos
   ssh_authorized_keys:
-  # Add your github user here!
-  - github:mudler
+  # Replace with your github user and un-comment the line below:
+  # - github:mudler
 
 k3s:
   enabled: true
