@@ -26,8 +26,8 @@ hostname: kairoslab-{{ trunc 4 .MachineID }}
 users:
 - name: kairos
   ssh_authorized_keys:
-  # Add your github user here!
-  - github:mudler
+  # Replace with your github user and un-comment the line below:
+  # - github:mudler
 
 p2p:
  # Disabling DHT makes co-ordination to discover nodes only in the local network
