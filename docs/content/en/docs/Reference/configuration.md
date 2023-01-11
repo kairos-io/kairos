@@ -20,7 +20,7 @@ users:
   lock_passwd: true
   groups: "admin"
   ssh_authorized_keys:
-  - github:mudler
+  # - github:mudler
 
 # The install block is to drive automatic installations without user interaction.
 install:
