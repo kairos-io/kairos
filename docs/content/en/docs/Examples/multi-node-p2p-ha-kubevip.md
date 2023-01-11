@@ -31,8 +31,8 @@ hostname: kairoslab-{{ trunc 4 .MachineID }}
 users:
 - name: kairos
   ssh_authorized_keys:
-  # Add your github user here!
-  - github:mudler
+  # Replace with your github user and un-comment the line below:
+  # - github:mudler
 
 kubevip:
   eip: "192.168.1.110"
