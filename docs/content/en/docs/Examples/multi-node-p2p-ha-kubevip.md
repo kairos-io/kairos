@@ -72,4 +72,4 @@ When configuring the `p2p` section, start by adding your desired `network_token`
 
 Next, set up an Elastic IP (`kubevip.eip`) with a free IP in your network. KubeVIP will advertise this IP, so make sure to select an IP that is available for use on your network.
 
-In the vpn configuration, the create and use options are disabled, so the VPN setup is skipped and not used to route any traffic into.
+In the VPN configuration, the create and use options are disabled, so the VPN setup is skipped and not used to route any traffic into.
