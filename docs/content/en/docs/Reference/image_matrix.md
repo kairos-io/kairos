@@ -26,6 +26,8 @@ Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pi
 | **Flavor/Variant**                                  	| **Core (no k3s)**                                       	| **Standard(k3s)**                           	|
 |-----------------------------------------------------	|---------------------------------------------------------	|-----------------------------------------------------------	|
 | **openSUSE based**                                  	| https://quay.io/repository/kairos/core-opensuse         	| https://quay.io/repository/kairos/kairos-opensuse         	|
+| **Fedora based**                                  	| https://quay.io/repository/kairos/core-fedora         	| https://quay.io/repository/kairos/kairos-fedora         	|
+| **Debian based**                                  	| https://quay.io/repository/kairos/core-debian         	| https://quay.io/repository/kairos/kairos-debian         	|
 | **Ubuntu based (rolling)** **                                   	| https://quay.io/repository/kairos/core-ubuntu           	| https://quay.io/repository/kairos/kairos-ubuntu           	|
 | **Ubuntu based (22 LTS)** **                                    	| https://quay.io/repository/kairos/core-ubuntu-22-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	|
 | **Ubuntu based (20 LTS)** **                                   	| https://quay.io/repository/kairos/core-ubuntu-20-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	|
