@@ -37,7 +37,7 @@ install:
    - run://<image>
 ```
 
-One of the benefits of using bundles is that they can also extend the cloud-config keywords available during deployment. This means that by adding bundles to your configuration file, you can add new blocks of configuration options and customize your system even further.
+One of the benefits of using bundles is that they can also extend the cloud-config keywords available during installation. This means that by adding bundles to your configuration file, you can add new blocks of configuration options and customize your system even further.
 
 A full config using a bundle from [community-bundles](https://github.com/kairos-io/community-bundles) that configures `metalLB` might look like this:
 
