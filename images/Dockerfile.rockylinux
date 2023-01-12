@@ -12,6 +12,7 @@ RUN dnf install -y \
     NetworkManager \
     squashfs-tools \ 
     dracut-live \
+    livecd-tools \
     dracut-squash \
     dracut-network \
     efibootmgr \
@@ -22,7 +23,6 @@ RUN dnf install -y \
     dracut \
     e2fsprogs \
     dosfstools \
-    livecd-tools \
     device-mapper \
     grub2 \
     which \
@@ -34,8 +34,10 @@ RUN dnf install -y \
     grub2-pc \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
+    systemd-networkd \
     kernel kernel-modules kernel-modules-extra \
-    systemd-networkd systemd-timesyncd \
+    systemd-timesyncd \
+    systemd-resolved \
     rsync && dnf clean all
 
 RUN mkdir -p /run/lock
@@ -44,5 +46,10 @@ RUN systemctl enable getty@tty1.service
 RUN systemctl enable getty@tty2.service
 RUN systemctl enable getty@tty3.service
 RUN systemctl enable systemd-networkd
+RUN systemctl enable systemd-resolved
+RUN systemctl disable dnf-makecache.service
 RUN systemctl disable NetworkManager
 RUN systemctl enable sshd
+
+# Enable tmp
+RUN systemctl enable tmp.mount
