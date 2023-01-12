@@ -21,5 +21,7 @@ coverage.out
 /docs/node_modules/
 /docs/tech-doc-hugo
 
+node_modules/
+
 # editor and IDE paraphernalia
 .idea
