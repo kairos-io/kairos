@@ -12,6 +12,7 @@ var All = []Interface{
 	&RunStage{},    // Shells out to stages defined from the container image
 	&GrubOptions{}, // Set custom GRUB options
 	&BundleOption{},
+	&CustomMounts{}, // add user persitent mounts
 	&Kcrypt{},
 	&Lifecycle{}, // Handles poweroff/reboot by config options
 }
