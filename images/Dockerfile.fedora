@@ -35,6 +35,7 @@ RUN dnf install -y \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
     systemd-networkd \
+    systemd-resolved \
     kernel kernel-modules kernel-modules-extra \
     rsync && dnf clean all
 
@@ -45,4 +46,5 @@ RUN systemctl enable getty@tty2.service
 RUN systemctl enable getty@tty3.service
 
 RUN systemctl enable systemd-networkd
+RUN systemctl enable systemd-resolved
 RUN systemctl enable sshd
