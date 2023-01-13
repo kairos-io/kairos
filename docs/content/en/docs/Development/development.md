@@ -19,18 +19,17 @@ Kairos uses [earthly](https://earthly.dev/) as a build system instead of Makefil
 
 ## Build Kairos
 
+To build Kairos you need only Docker installed locally, and there is a convenience script in the root of the repository (`earthly.sh`) which wraps `earthly` inside Docker to avoid to install locally which can be used instead of `earthly` (e.g. `./earthly.sh +iso ...`). However, for daily development, it is strongly suggested to install it in your workstation. The `earthly.sh` script runs `earthly` in a container, and as such there are limitations on image caching between builds.
 
-To build Kairos you need only Docker installed locally, and there is a convenience script in the root of the repository (`earthly.sh`) which wraps `earthly` inside Docker to avoid to install locally which can be used instead of `earthly` (e.g. `./earthly.sh +iso ...`).
+To build a Kairos ISO, you need to specify the flavor. For example, to build Kairos Alpine with `earthly` installed locally:
 
-To build a Kairos ISO, you need to specify the flavor. For example, to build Kairos Alpine:
-
-```
+```bash
 earthly -P +iso --FLAVOR=alpine
 ```
 
 This will build a container image from scratch and create an ISO which is ready to be booted.
 
-Note earthly targets are prefixed with `+` while variables are passed as flags.
+Note earthly targets are prefixed with `+` while variables are passed as flags, and `ARGS` can be passed as parameters with `--`.
 
 ### Adding flavors
 
