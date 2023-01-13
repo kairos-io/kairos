@@ -65,6 +65,12 @@ weight = 1
     url = "https://github.com/kairos-io/kairos/contribute"
     pre = "<i class='fab fa-github'></i>"
     post = "" 
+[[menu.main]]
+    name = "Contribution guidelines"
+    weight = 50
+    url = "https://github.com/kairos-io/kairos/blob/master/CONTRIBUTING.md"
+    pre = "<i class='fab fa-github'></i>"
+    post = "" 
 [markup]
   [markup.goldmark]
     [markup.goldmark.renderer]

@@ -11,11 +11,12 @@ How to contribute
 -  **Send a pull request** - if you want to contribute code. Please be
    sure to file an issue first.
 -  **Check good first-issue** - check out [good first issues](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) if you want to contribute to a specific problem
+-  **Read about our code of conduct and governance**: Kairos is an Open source, community-driven project with a [governance](https://github.com/kairos-io/kairos/blob/master/GOVERNANCE.md) and adopts CNCF [Code of conduct](https://github.com/kairos-io/kairos/blob/master/CODE_OF_CONDUCT.md)
 
 Pull request best practices
 ---------------------------
 
-We want to accept your pull requests. Please follow these steps:
+We want to accept your pull requests! Please follow these steps:
 
 ## Step 1: File an issue
 
@@ -25,6 +26,8 @@ give you feedback before you spend any time writing code. There may be a
 known limitation that can't be addressed, or a bug that has already been
 fixed in a different way. The issue allows us to communicate and figure
 out if it's worth your time to write a bunch of code for the project.
+If changes are trivial, use the PR message to write why we need the patch, 
+and the motivations behind it.
 
 ## Step 2: Fork this repository in GitHub
 
@@ -113,6 +116,18 @@ You can run the lint and test checks locally with:
 ```bash
 ./earthly.ps1 +lint
 ./earthly.ps1 +test
+```
+
+You might want to test your changes with an ISO, to build an ISO locally:
+
+### Linux
+```bash
+./earthly.sh +iso --FLAVOR=opensuse
+```
+
+### Windows
+```bash
+./earthly.ps1 +iso --FLAVOR=opensuse
 ```
 
 ## Step 8: Send the pull request
