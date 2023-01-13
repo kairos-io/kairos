@@ -27,6 +27,7 @@ import (
 
 type TConfig struct {
 	Kairos struct {
+		OtherKey     string `yaml:"other_key"`
 		NetworkToken string `yaml:"network_token"`
 	} `yaml:"kairos"`
 }
@@ -95,7 +96,7 @@ c: d
 
 		It("reads config file greedly", func() {
 
-			var cc string = `#kairos-config
+			var cc = `#kairos-config
 baz: bar
 kairos:
     network_token: foo
@@ -108,6 +109,12 @@ fooz:
 			`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
+			err = os.WriteFile(filepath.Join(d, "more-kairos.yaml"), []byte(`
+kairos:
+    other_key: test
+`), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
 			c, err := Scan(Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
@@ -116,8 +123,14 @@ fooz:
 			Expect(err).ToNot(HaveOccurred())
 			Expect(providerCfg.Kairos).ToNot(BeNil())
 			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
-			Expect(c.String()).To(Equal(cc), c.String(), cc)
-
+			Expect(providerCfg.Kairos.OtherKey).To(Equal("test"))
+			expectedString := `#kairos-config
+baz: bar
+kairos:
+    network_token: foo
+    other_key: test
+`
+			Expect(c.String()).To(Equal(expectedString), c.String(), cc)
 		})
 
 		It("merges with bootargs", func() {

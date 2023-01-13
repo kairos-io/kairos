@@ -345,8 +345,12 @@ func parseConfig(dir []string, nologs bool) *Config {
 				}
 				continue
 			}
-			yaml.Unmarshal(b, c)               //nolint:errcheck
-			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
+
+			yaml.Unmarshal(b, c) //nolint:errcheck
+
+			var newYaml map[string]interface{}
+			yaml.Unmarshal(b, &newYaml) //nolint:errcheck
+			c.originalData = mergeMaps(c.originalData, newYaml)
 			if exists, header := HasHeader(string(b), ""); exists {
 				c.header = header
 			}
@@ -358,4 +362,25 @@ func parseConfig(dir []string, nologs bool) *Config {
 	}
 
 	return c
+}
+
+// mergeMaps deeply merges 2 maps
+// Copied from here: https://stackoverflow.com/a/70291996
+func mergeMaps(a, b map[string]interface{}) map[string]interface{} {
+	out := make(map[string]interface{}, len(a))
+	for k, v := range a {
+		out[k] = v
+	}
+	for k, v := range b {
+		if v, ok := v.(map[string]interface{}); ok {
+			if bv, ok := out[k]; ok {
+				if bv, ok := bv.(map[string]interface{}); ok {
+					out[k] = mergeMaps(bv, v)
+					continue
+				}
+			}
+		}
+		out[k] = v
+	}
+	return out
 }
