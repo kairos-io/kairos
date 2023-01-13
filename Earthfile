@@ -79,9 +79,13 @@ BUILD_GOLANG:
     ARG CGO_ENABLED
     ARG BIN
     ARG SRC
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
     ENV CGO_ENABLED=${CGO_ENABLED}
-
-    RUN go build -ldflags "-s -w" -o ${BIN} ./cmd/${SRC} && upx ${BIN}
+    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
+    RUN echo "Building ${BIN} from ${SRC} using ${VERSION}"
+    RUN echo ${LDFLAGS}
+    RUN go build -o ${BIN} -ldflags "${LDFLAGS}" ./cmd/${SRC} && upx ${BIN}
     SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
 
 uuidgen:
@@ -100,9 +104,11 @@ version:
 
     COPY . ./
 
-    RUN echo $(git describe --exact-match --tags || echo "v0.0.0-$(git log --oneline -n 1 | cut -d" " -f1)") > VERSION
+    RUN --no-cache echo $(git describe --always --tags --dirty) > VERSION
 
+    ARG VERSION=$(cat VERSION)
     SAVE ARTIFACT VERSION VERSION
+
 
 build-kairos-agent:
     FROM +go-deps
@@ -147,6 +153,9 @@ framework:
     ARG COSIGN_EXPERIMENTAL
     ARG COSIGN_REPOSITORY
     ARG WITH_KERNEL
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
 
     FROM golang:alpine
     WORKDIR /build
@@ -162,8 +171,8 @@ framework:
     ENV USER=root
 
     COPY . /build
-    
-    RUN go run ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
+
+    RUN go run -ldflags "${LDFLAGS}" ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
 
     COPY +luet/luet /framework/usr/bin/luet
 

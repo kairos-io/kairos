@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kairos-io/kairos/internal/common"
 	"github.com/kairos-io/kairos/sdk/profile"
 	"github.com/urfave/cli"
 )
@@ -12,7 +13,7 @@ func main() {
 
 	app := &cli.App{
 		Name:    "profile-build",
-		Version: "0.1",
+		Version: common.VERSION,
 		Author:  "Ettore Di Giacinto",
 		Usage:   "Build kairos framework images",
 		Description: `
