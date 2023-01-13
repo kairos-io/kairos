@@ -14,7 +14,7 @@ description: >
 
 ### Introduction to Kairos
 
-{{< youtube id="doXT1jxyZe0" title="Introduction to Kairos" >}}
+{{< youtube id="eOclxfwVBGc" title="Introduction to Kairos" >}}
 
 ### Meet Kairos, an OSS project building the immutable Kubernetes edge
 
