@@ -14,7 +14,7 @@ func main() {
 	app := &cli.App{
 		Name:    "profile-build",
 		Version: common.VERSION,
-		Author:  "Ettore Di Giacinto",
+		Author:  "Kairos authors",
 		Usage:   "Build kairos framework images",
 		Description: `
 Uses profile files to build kairos images`,
