@@ -3,6 +3,7 @@ package hook
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	config "github.com/kairos-io/kairos/pkg/config"
@@ -10,7 +11,7 @@ import (
 	"github.com/kairos-io/kairos/pkg/utils"
 	cp "github.com/otiai10/copy"
 
-	pi "github.com/kairos-io/kcrypt/pkg/partition_info"
+	kcryptconfig "github.com/kairos-io/kcrypt/pkg/config"
 )
 
 type Kcrypt struct{}
@@ -28,6 +29,14 @@ func (k Kcrypt) Run(c config.Config) error {
 
 	_ = os.MkdirAll("/oem/system/discovery", 0650)
 
+	kcryptc, err := kcryptconfig.GetConfiguration(kcryptconfig.ConfigScanDirs)
+	if err != nil {
+		fmt.Println("Failed getting kcrypt configuration: ", err.Error())
+		if c.FailOnBundleErrors {
+			return err
+		}
+	}
+
 	for _, p := range c.Install.Encrypt {
 		out, err := utils.SH(fmt.Sprintf("kcrypt encrypt %s", p))
 		if err != nil {
@@ -40,19 +49,20 @@ func (k Kcrypt) Run(c config.Config) error {
 			return nil // do not error out
 		}
 
-		partitionInfo, _, err := pi.NewPartitionInfoFromFile(pi.DefaultPartitionInfoFile)
+		err = kcryptc.SetMapping(strings.TrimSpace(out))
 		if err != nil {
-			fmt.Printf("Could not parse partition info file")
+			fmt.Println("Failed updating the kcrypt configuration file: ", err.Error())
 			if c.FailOnBundleErrors {
 				return err
 			}
 		}
-		err = partitionInfo.UpdateMapping(out)
-		if err != nil {
-			fmt.Println("Failed updating the partition info file: ", err.Error())
-			if c.FailOnBundleErrors {
-				return err
-			}
+	}
+
+	err = kcryptc.WriteMappings(kcryptconfig.MappingsFile)
+	if err != nil {
+		fmt.Println("Failed writing kcrypt partition mappings: ", err.Error())
+		if c.FailOnBundleErrors {
+			return err
 		}
 	}
 
@@ -61,7 +71,7 @@ func (k Kcrypt) Run(c config.Config) error {
 		return nil
 	}
 
-	err := cp.Copy("/system/discovery", "/oem/system/discovery")
+	err = cp.Copy("/system/discovery", "/oem/system/discovery")
 	if err != nil {
 		fmt.Println("Failed during copying discovery plugins: ", err.Error())
 		if c.FailOnBundleErrors {
