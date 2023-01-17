@@ -9,9 +9,10 @@ fi
 # see earthly +datasource-iso for producing the iso
 [[ -n "${DATASOURCE}" ]] && CLOUD_INIT_ISO=("-drive if=ide,media=cdrom,file=${DATASOURCE}")
 
+CPU_CORES="${CPU_CORES:-2}"
 qemu-system-x86_64 \
     -m ${MEMORY:=2096} \
-    -smp cores=2 \
+    -smp cores="${CPU_CORES}" \
     -nographic \
     "${KVM[@]}" \
     -serial mon:stdio \
