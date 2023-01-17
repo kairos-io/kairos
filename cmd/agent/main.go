@@ -9,6 +9,7 @@ import (
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/webui"
 
+	"github.com/kairos-io/kairos/internal/common"
 	"github.com/kairos-io/kairos/pkg/config"
 	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
@@ -412,7 +413,7 @@ func main() {
 
 	app := &cli.App{
 		Name:    "kairos-agent",
-		Version: "0.1",
+		Version: common.VERSION,
 		Author:  "Ettore Di Giacinto",
 		Usage:   "kairos agent start",
 		Description: `
