@@ -6,6 +6,9 @@ fi
 
 [[ -n "${ENABLE_KVM}" ]] && KVM=(-enable-kvm)
 
+# see earthly +datasource-iso for producing the iso
+[[ -n "${DATASOURCE}" ]] && CLOUD_INIT_ISO=("-drive if=ide,media=cdrom,file=${DATASOURCE}")
+
 qemu-system-x86_64 \
     -m ${MEMORY:=2096} \
     -smp cores=2 \
@@ -17,4 +20,5 @@ qemu-system-x86_64 \
     -device virtio-serial \
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
     -drive if=virtio,media=disk,file=disk.img \
+    "${CLOUD_INIT_ISO[@]}" \
     -drive if=ide,media=cdrom,file=${1:-kairos.iso}
