@@ -189,7 +189,7 @@ To consume the image, copy it into an s3 bucket:
 aws s3 cp <cos-raw-image> s3://<your_s3_bucket>
 ```
 
-Create a `container.json` file refering to it:
+Create a `container.json` file referring to it:
 
 ```json
 {

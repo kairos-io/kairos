@@ -76,13 +76,13 @@ Kairos is more than just an ISO, qcow2, or Netboot artifact. It allows you to tu
 
 The Kairos ultimate goal is to bridge the gap between Cloud and Edge by creating a smooth user experience. There are several areas in the ecosystem that can be improved for edge deployments to make it in pair with the cloud.
 
-The Kairos project encompassess all the tools and architectural pieces needed to fill those gaps. This spans between providing Kubernetes Native API components to assemble OSes, deliver upgrades, and control nodes after deployment.
+The Kairos project encompasses all the tools and architectural pieces needed to fill those gaps. This spans between providing Kubernetes Native API components to assemble OSes, deliver upgrades, and control nodes after deployment.
 
 Kairos is distro-agnostic, and embraces openness: The user can provide their own underlying base image, and Kairos onboards it and takes it over to make it Cloud Native, immutable that plugs into an already rich ecosystem by leveraging containers as distribution medium.
 
 ## Contribute
 
-Kairos is an open source project, and any contribution is more than welcome! The project is big and narrows to various degree of complexity and problem space. Feel free to join our chat, discuss in our forums and join us in the Office hours. Check out the [contribution guidelines](https://github.com/kairos-io/kairos/contribute) to see how to get started and our [governance](https://github.com/kairos-io/kairos/blob/master/GOVERNANCE.md).
+Kairos is an open source project, and any contribution is more than welcome! The project is big and narrows to various degrees of complexity and problem space. Feel free to join our chat, discuss in our forums and join us in the Office hours. Check out the [contribution guidelines](https://github.com/kairos-io/kairos/contribute) to see how to get started and our [governance](https://github.com/kairos-io/kairos/blob/master/GOVERNANCE.md).
 
 We have an open roadmap, so you can always have a look on what's going on, and actively contribute to it.
 
