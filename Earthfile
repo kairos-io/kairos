@@ -306,7 +306,6 @@ docker-rootfs:
 
 iso:
     ARG OSBUILDER_IMAGE
-    ARG ISO_NAME=${OS_ID}
     ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
@@ -314,10 +313,8 @@ iso:
     COPY . ./
     COPY +docker-rootfs/rootfs /build/image
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
-    # See: https://github.com/rancher/elemental-cli/issues/228
-    RUN sha256sum $ISO_NAME.iso > $ISO_NAME.iso.sha256
-    SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
-    SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
+    SAVE ARTIFACT /build/$ISO_NAME.iso AS LOCAL build/$ISO_NAME.iso
+    SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
 netboot:
    ARG OSBUILDER_IMAGE
@@ -325,15 +322,14 @@ netboot:
    COPY +version/VERSION ./
    ARG VERSION=$(cat VERSION)
    RUN echo "version ${VERSION}"
-   ARG ISO_NAME=${OS_ID}
    ARG FROM_ARTIFACT
    WORKDIR /build
    ARG RELEASE_URL
 
    COPY . .
    IF [ "$FROM_ARTIFACT" = "" ]
-        COPY +iso/kairos.iso kairos.iso
-        RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
+        COPY +iso/$ISO_NAME.iso $ISO_NAME.iso
+        RUN /build/scripts/netboot.sh $ISO_NAME.iso $ISO_NAME $VERSION
    ELSE
         RUN /build/scripts/netboot.sh $FROM_ARTIFACT $ISO_NAME $VERSION
    END
@@ -370,7 +366,6 @@ ipxe-iso:
                            mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
                            # jq docker
     WORKDIR /build
-    ARG ISO_NAME=${OS_ID}        
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
     ARG RELEASE_URL
@@ -457,8 +452,8 @@ run-qemu-datasource-tests:
     IF [ -e /test/build/kairos.iso ]
         ENV ISO=/test/build/kairos.iso
     ELSE
-        COPY +iso/kairos.iso kairos.iso
-        ENV ISO=/test/kairos.iso
+        COPY +iso/$ISO_NAME.iso $ISO_NAME.iso
+        ENV ISO=/test/$ISO_NAME.iso
     END
 
     IF [ ! -e /test/build/datasource.iso ]
@@ -483,7 +478,6 @@ run-qemu-netboot-test:
     COPY . /test
     WORKDIR /test
 
-    ARG ISO_NAME=${OS_ID}
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
 
