@@ -7,6 +7,7 @@ require (
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/erikgeiser/promptkit v0.6.0
 	github.com/google/go-github/v40 v40.0.0
+	github.com/google/go-github/v49 v49.1.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/imdario/mergo v0.3.13
