@@ -1,0 +1,12 @@
+#node-config
+
+stages:
+   initramfs:
+     - name: "Set user and password"
+       users:
+        kairos:
+          passwd: "kairos"
+       hostname: kairos-{{ trunc 4 .Random }}
+   rootfs:
+     - modules:
+         - zfs

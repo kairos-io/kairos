@@ -3,8 +3,15 @@ ARG BASE_IMAGE=fedora:36
 FROM $BASE_IMAGE
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
-
+RUN dnf install -y https://zfsonlinux.org/fedora/zfs-release-2-2$(rpm --eval "%{dist}").noarch.rpm
 RUN dnf install -y \
+    NetworkManager \
+    squashfs-tools \
+    dracut-live \
+    livecd-tools \
+    dracut-squash \
+    dracut-network \
+    efibootmgr \
     audit \
     coreutils \
     curl \
@@ -34,14 +41,16 @@ RUN dnf install -y \
     polkit \
     rsync \
     shim-x64 \
-    squashfs-tools \ 
+    squashfs-tools \
     sudo \
     systemd \
     systemd-networkd \
     systemd-resolved \
     tar \
     which \
-    && dnf clean all
+    kernel kernel-modules kernel-modules-extra \
+    zfs \
+    rsync && dnf clean all
 
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep

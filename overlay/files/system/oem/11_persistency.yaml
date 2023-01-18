@@ -16,7 +16,8 @@ stages:
           /etc/runlevels
           /etc/ssh
           /etc/ssl/certs
-          /etc/iscsi
+          /etc/iscsi 
+          /etc/zfs 
           /etc/cni
           /etc/kubernetes
           /home
