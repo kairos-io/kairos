@@ -39,6 +39,7 @@ RUN apt install -y \
     iptables \
     lldpd \
     snmpd \
+    console-data \
     linux-image-generic-hwe-22.04 && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
@@ -48,6 +49,8 @@ RUN systemctl enable systemd-networkd
 RUN systemctl enable ssh
 RUN echo "auto lo" > /etc/network/interfaces
 RUN echo "iface lo inet loopback" >> /etc/network/interfaces
+# Package console-data and setting this font is needed for QR
+RUN echo "FONT=\"default8x16.psf.gz\"" >> /etc/default/console-setup
 
 # Enable tmp
 RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 
