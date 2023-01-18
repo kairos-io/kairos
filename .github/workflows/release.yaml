@@ -96,6 +96,13 @@ jobs:
           TAG=${GITHUB_REF##*/}
           docker push quay.io/kairos/core-${{ matrix.flavor }}:$TAG
           cosign sign quay.io/kairos/core-${{ matrix.flavor }}:$TAG
+      - name: Sign ISO sha files
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          export TAG=${GITHUB_REF##*/}
+          cosign sign-blob --yes --output-certificate=release/kairos-$FLAVOR-$TAG.iso.sha256.pem --output-signature=release/kairos-$FLAVOR-$TAG.iso.sha256.sig release/kairos-$FLAVOR-$TAG.iso.sha256
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -105,12 +112,16 @@ jobs:
       - run: |
           sudo mv release/*.iso ./
           sudo mv release/*.sha256 ./
+          sudo mv release/*.sha256.pem ./
+          sudo mv release/*.sha256.sig ./
       - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
           path: |
             *.iso
             *.sha256
+            *.sha256.pem
+            *.sha256.sig
           if-no-files-found: error
 
 
