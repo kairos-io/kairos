@@ -3,7 +3,13 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
-RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && zypper ref
+RUN <<EOF
+zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64
+zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbleweed/utilities.repo
+zypper ar -G https://download.opensuse.org/repositories/filesystems/openSUSE_Tumbleweed/filesystems.repo
+zypper ref
+EOF
+
 RUN zypper in -y \
     bash-completion \
     bcm43xx-firmware \
@@ -75,4 +81,6 @@ RUN zypper in -y \
     which \
     wireless-tools \
     wpa_supplicant \
-    && zypper cc
+    zfs \
+    zfs-kmp-default \
+    which && zypper cc

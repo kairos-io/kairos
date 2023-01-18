@@ -5,11 +5,27 @@ FROM $BASE_IMAGE
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
+RUN <<EOF
+echo "deb http://deb.debian.org/debian bookworm main contrib" >> /etc/apt/sources.list.d/kairos.list
+EOF
+
+RUN apt update
+RUN apt install -y --no-install-recommends \
     binutils \
     conntrack \
     console-setup \
+    systemd \
+    grub-pc-bin \
+    grub-efi-amd64-bin \
+    grub2 \
+    grub2-common \
+    sudo \
+    iproute2 \
+    squashfs-tools \
+    parted dracut \
+    dracut-network dracut-live tar \
+    e2fsprogs \
+    dosfstools \
     coreutils \
     cryptsetup \
     curl \
@@ -84,7 +100,8 @@ RUN apt-get update \
     xxd \
     xz-utils \
     zerofree \
-  && rm -rf /var/lib/apt/lists/*
+    zfsutils-linux \
+    linux-image-amd64 && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv

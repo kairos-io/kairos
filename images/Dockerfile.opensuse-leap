@@ -1,8 +1,16 @@
+# syntax=docker/dockerfile:1.4
 ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM $BASE_IMAGE
 
-RUN zypper in -y \
+ARG K3S_VERSION
+RUN <<EOF
+RUN zypper in -y
+zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo
+zypper ar -G https://download.opensuse.org/repositories/filesystems/15.4/filesystems.repo
+zypper ref
+EOF
+RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
     coreutils \
@@ -60,4 +68,8 @@ RUN zypper in -y \
     tmux \
     vim \
     which \
-    && zypper cc
+    zfs \
+    zfs-kmp-default \
+    which && zypper cc
+
+>>>>>>> added zfs packages to all images
