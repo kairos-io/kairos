@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	retry "github.com/avast/retry-go"
+	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/sdk/bundles"
@@ -345,8 +346,16 @@ func parseConfig(dir []string, nologs bool) *Config {
 				}
 				continue
 			}
-			yaml.Unmarshal(b, c)               //nolint:errcheck
-			yaml.Unmarshal(b, &c.originalData) //nolint:errcheck
+
+			yaml.Unmarshal(b, c) //nolint:errcheck
+
+			var newYaml map[string]interface{}
+			yaml.Unmarshal(b, &newYaml) //nolint:errcheck
+			if err := mergo.Merge(&c.originalData, newYaml); err != nil {
+				if !nologs {
+					fmt.Printf("warning: failed to merge config %s to originalData: %s\n", f, err.Error())
+				}
+			}
 			if exists, header := HasHeader(string(b), ""); exists {
 				c.header = header
 			}
