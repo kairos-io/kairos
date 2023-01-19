@@ -29,7 +29,7 @@ Where the configuration can be a `cloud-init` file or a URL to it:
 ```yaml
 #cloud-init
 
-kairos:
+p2p:
   network_token: ....
 # extra configuration
 ```
