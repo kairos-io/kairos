@@ -49,7 +49,7 @@ To retrieve all the available versions, use "kairos upgrade list-releases"
 
 $ kairos upgrade list-releases
 
-See https://kairos.io/after_install/upgrades/#manual for documentation.
+See https://kairos.io/docs/upgrade/manual/ for documentation.
 
 `,
 		Subcommands: []cli.Command{
@@ -64,10 +64,8 @@ See https://kairos.io/after_install/upgrades/#manual for documentation.
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
 					releases := agent.ListReleases()
-					releases = utils.ListOutput(releases, c.String("output"))
-					for _, r := range releases {
-						fmt.Println(r)
-					}
+					fmt.Println("Releases: ", len(releases))
+					utils.ListOutput(releases, c.String("output"))
 
 					return nil
 				},
