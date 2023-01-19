@@ -64,8 +64,10 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
 					releases := agent.ListReleases()
-					fmt.Println("Releases: ", len(releases))
-					utils.ListOutput(releases, c.String("output"))
+					list := utils.ListOutput(releases, c.String("output"))
+					for _, i := range list {
+						fmt.Println(i)
+					}
 
 					return nil
 				},
