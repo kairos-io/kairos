@@ -36,7 +36,7 @@ var sshPort string
 var machineID string = os.Getenv("MACHINE_ID")
 
 var _ = AfterSuite(func() {
-	if os.Getenv("CREATE_VM") == "true" {
+	if os.Getenv("CREATE_VM") == "true" && os.Getenv("KEEP_VM") != "true" {
 		if Machine != nil {
 			Machine.Stop()
 			Machine.Clean()
@@ -44,6 +44,9 @@ var _ = AfterSuite(func() {
 	}
 	if !CurrentSpecReport().Failure.IsZero() {
 		gatherLogs()
+	}
+	if os.Getenv("CREATE_VM") == "true" && os.Getenv("KEEP_VM") == "true" {
+		fmt.Println("WARNING: Not cleaning", Machine.Config().StateDir)
 	}
 })
 
