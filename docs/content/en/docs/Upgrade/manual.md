@@ -8,7 +8,7 @@ description: >
 
 Upgrades can be run manually from the terminal.
 
-Kairos images are released on [quay.io](https://quay.io/repository/kairos/kairos).
+Kairos images are released on [quay.io](https://quay.io/organization/kairos).
 
 ## List available versions
 
