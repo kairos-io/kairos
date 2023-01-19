@@ -37,6 +37,19 @@ stages:
           /var/lib/ca-certificates
         PERSISTENT_STATE_BIND: "true"
     - if: |
+        [ -r /run/cos/custom-layout.env ]
+      name: "append custom bind and ephemeral mounts to /run/cos/cos-layout.env"
+      commands:
+        - |
+          if [ -r /run/cos/custom-layout.env ]; then
+             source /run/cos/cos-layout.env
+             source /run/cos/custom-layout.env
+             PERSISTENT_STATE_PATHS="${CUSTOM_EPHEMERAL_MOUNTS} ${PERSISTENT_STATE_PATHS}"
+             RW_PATHS="${CUSTOM_BIND_MOUNTS} ${RW_PATHS}"
+             echo CUSTOM_BIND_MOUNTS=\"${CUSTOM_BIND_MOUNTS}\" >> /run/cos/cos-layout.env
+             echo CUSTOM_EPHEMERAL_MOUNTS=\"${CUSTOM_EPHEMERAL_MOUNTS}\" >> /run/cos/cos-layout.env
+          fi
+    - if: |
         cat /proc/cmdline | grep -q "kairos.boot_live_mode"
       name: "Layout configuration"
       environment_file: /run/cos/cos-layout.env
