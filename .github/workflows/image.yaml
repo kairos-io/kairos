@@ -1,4 +1,4 @@
-name: Build image
+name: build image
 
 on: 
  push:
@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # OIDC support
+      id-token: write  # oidc support
     strategy:
       fail-fast: false
       matrix:
@@ -34,21 +34,21 @@ jobs:
           git fetch --prune --unshallow
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
-      - name: Release space from worker
+      - name: release space from worker
         run: |
-          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
-          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
-      - name: Install Cosign
+          sudo rm -rf /usr/local/lib/android # will release about 10 gb if you don't need android
+          sudo rm -rf /usr/share/dotnet # will release about 20gb if you don't need .net
+      - name: install cosign
         uses: sigstore/cosign-installer@main
-      - name: Login to Quay Registry
+      - name: login to quay registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Build  🔧
+        run: echo ${{ secrets.quay_password }} | docker login -u ${{ secrets.quay_username }} --password-stdin quay.io
+      - name: build  🔧
         env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
+          flavor: ${{ matrix.flavor }}
+          image: quay.io/kairos/core-${{ matrix.flavor }}:latest
         run: |
-          ./earthly.sh +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          ./earthly.sh +all --image=$image --flavor=$flavor
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v3
@@ -83,14 +83,14 @@ jobs:
           path: |
             *.ipxe
           if-no-files-found: error
-      - name: Push to quay
+      - name: push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
-          COSIGN_EXPERIMENTAL: 1
+          cosign_experimental: 1
         run: | 
           docker push quay.io/kairos/core-${{ matrix.flavor }}:latest
           cosign sign quay.io/kairos/core-${{ matrix.flavor }}:latest
-      - name: Push to testing
+      - name: push to testing
         run: | 
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
@@ -106,25 +106,25 @@ jobs:
          - flavor: "opensuse"
     steps:
       - uses: actions/checkout@v3
-      - name: Download artifacts
+      - name: download artifacts
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
-      - name: Install deps
+      - name: install deps
         run: |
           brew install cdrtools jq
-      - name: Install Go
+      - name: install go
         uses: actions/setup-go@v3
         with:
             go-version: '^1.16'
       - run: |
               ls -liah
-              export ISO=$PWD/$(ls *.iso)
-              export GOPATH="/Users/runner/go"
-              export PATH=$PATH:$GOPATH/bin
-              export CLOUD_INIT=$PWD/config.yaml 
-              export CREATE_VM=true 
-              export FLAVOR=${{ matrix.flavor }}
+              export iso=$pwd/$(ls *.iso)
+              export gopath="/users/runner/go"
+              export path=$path:$gopath/bin
+              export cloud_init=$pwd/config.yaml 
+              export create_vm=true 
+              export flavor=${{ matrix.flavor }}
               ./.github/run_test.sh "install-test"
       - uses: actions/upload-artifact@v3
         if: failure()
@@ -138,11 +138,11 @@ jobs:
     steps:
     - uses: robinraju/release-downloader@v1.7
       with:     
-      # A flag to set the download target as latest release
-      # The default value is 'false'
+      # a flag to set the download target as latest release
+      # the default value is 'false'
         latest: true
         repository: "kairos-io/kairos"
-        fileName: "*"
+        filename: "*"
         out-file-path: "last-release"
     - uses: actions/upload-artifact@v3
       with:
@@ -166,17 +166,17 @@ jobs:
          - flavor: "ubuntu-22-lts"
     steps:
     - uses: actions/checkout@v3
-    - name: Download artifacts
+    - name: download artifacts
       uses: actions/download-artifact@v3
       with:
           name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
-            export ISO=$PWD/$(ls *.iso)
+            export iso=$pwd/$(ls *.iso)
             mkdir build
-            mv $ISO build/kairos.iso
-            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }}
+            mv $iso build/kairos.iso
+            ./earthly.sh +datasource-iso --cloud_config=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-datasource-tests --flavor=${{ matrix.flavor }}
 
   qemu-bundles-tests:
     needs: 
@@ -189,8 +189,8 @@ jobs:
          - flavor: "opensuse"
     steps:
     - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+    - run: |
+        git fetch --prune --unshallow
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
