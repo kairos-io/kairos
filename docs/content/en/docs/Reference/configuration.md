@@ -166,9 +166,9 @@ write_files:
   owner: "bar"
 ```
 
-The `kairos` block is used to enable the p2p full-mesh functionalities of Kairos. If you do not want to use these functionalities, simply don't specify a kairos block in your configuration file.
+The `p2p` block is used to enable the p2p full-mesh functionalities of Kairos. If you do not want to use these functionalities, simply don't specify a kairos block in your configuration file.
 
-Inside the `kairos` block, you can specify the network_token field, which is used to establish the p2p full meshed network. If you do not want to use the full-mesh functionalities, don't specify a network_token value.
+Inside the `p2p` block, you can specify the network_token field, which is used to establish the p2p full meshed network. If you do not want to use the full-mesh functionalities, don't specify a network_token value.
 
 The role field allows you to manually set the node role for your Kairos installation. The available options are `master` and `worker`, and the default value is auto (which means no role is set).
 
@@ -482,7 +482,7 @@ localhost:~$
 
 ## P2P configuration
 
-P2P functionalities are experimental Kairos features and disabled by default. In order to enable them, just use the `kairos` configuration block.
+P2P functionalities are experimental Kairos features and disabled by default. In order to enable them, just use the `p2p` configuration block.
 
 ### `p2p.network_token`
 
