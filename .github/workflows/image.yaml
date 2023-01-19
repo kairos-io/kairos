@@ -189,6 +189,8 @@ jobs:
          - flavor: "opensuse"
     steps:
     - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:

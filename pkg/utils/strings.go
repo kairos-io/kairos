@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -33,9 +32,6 @@ func ListOutput(rels []string, output string) []string {
 		d, _ := json.Marshal(rels)
 		return []string{string(d)}
 	default:
-		for _, r := range rels {
-			fmt.Println(r)
-		}
 		return rels
 	}
 }
