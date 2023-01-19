@@ -113,6 +113,15 @@ var _ = BeforeSuite(func() {
 			opts = append(opts, types.VBoxEngine)
 		}
 
+		memory := os.Getenv("MEMORY")
+		if memory != "" {
+			opts = append(opts, types.WithMemory(os.Getenv("MEMORY")))
+		}
+		cpu := os.Getenv("CPU")
+		if cpu != "" {
+			opts = append(opts, types.WithCPU(os.Getenv("CPUS")))
+		}
+
 		m, err := machine.New(opts...)
 		if err != nil {
 			Fail(err.Error())
