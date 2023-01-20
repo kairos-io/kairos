@@ -57,7 +57,7 @@ Bonding setup with Ubuntu can be configured via systemd-networkd (Ubuntu based i
 {{< tabpane text=true right=true  >}}
 {{% tab header="systemd-networkd" %}}
 ```yaml
-#node-config
+#cloud-config
 name: "My Deployment"
 stages:
   boot:

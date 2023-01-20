@@ -256,7 +256,7 @@ func InteractiveInstall(spawnShell bool) error {
 		return err
 	}
 
-	finalCloudConfig := config.AddHeader("#node-config", string(dat))
+	finalCloudConfig := config.AddHeader("#cloud-config", string(dat))
 
 	pterm.Info.Println("Starting installation")
 	pterm.Info.Println(finalCloudConfig)

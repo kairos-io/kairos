@@ -181,8 +181,8 @@ func Install(dir ...string) error {
 	// now merge cloud config from system and the one received from the agent-provider
 	ccData := map[string]interface{}{}
 
-	// make sure the config we write has at least the #node-config header, if any other was defined beforeahead
-	header := "#node-config"
+	// make sure the config we write has at least the #cloud-config header, if any other was defined beforeahead
+	header := "#cloud-config"
 	if hasHeader, head := config.HasHeader(cc.String(), ""); hasHeader {
 		header = head
 	}

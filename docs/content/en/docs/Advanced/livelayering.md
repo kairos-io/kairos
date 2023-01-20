@@ -30,7 +30,7 @@ luet util unpack <image> /usr/local/lib/extensions/<extension_name>
 To load an extension during installation of a Kairos node, it can be supplied as a bundle in the `install` block in the node configuration:
 
 ```yaml
-#node-config
+#cloud-config
 
 # Set username and password
 stages:
