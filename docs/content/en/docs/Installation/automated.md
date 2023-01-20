@@ -35,7 +35,7 @@ To supply your Kairos configuration file, you can create an ISO that contains bo
 Here's an example `user-data` configuration that is set up to automatically install Kairos onto /dev/sda and reboot after installation:
 
 ```yaml
-#node-config
+#cloud-config
 
 install:
   device: "/dev/sda"
