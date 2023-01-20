@@ -57,6 +57,7 @@ Create a branch with a descriptive name, such as ``fix/dns``.
         - ✨ (`:sparkles:`, feature additions)
         - 🐛 (`:bug:`, patch and bugfixes)
         - 📖 (`:book:`, documentation or proposals)
+        - 🔧 (`:wrenchIcon:`, toolings for developers)
         - :art: ( `:art`, for refactoring )
         - 🌱 (`:seedling:`, minor or other)
         - :penguin: (`:penguin:`, for Distribution or Dockerfile changes)
