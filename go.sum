@@ -400,6 +400,8 @@ github.com/pterm/pterm v0.12.36/go.mod h1:NjiL09hFhT/vWjQHSj1athJpx6H8cjpHXNAK5b
 github.com/pterm/pterm v0.12.40/go.mod h1:ffwPLwlbXxP+rxT0GsgDTzS3y3rmpAO1NMjUkGTYf8s=
 github.com/pterm/pterm v0.12.53 h1:8ERV5eXyvXlAIY8LRrhapPS34j7IKKDAnb7o1Ih3T0w=
 github.com/pterm/pterm v0.12.53/go.mod h1:BY2H3GtX2BX0ULqLY11C2CusIqnxsYerbkil3XvXIBg=
+github.com/pterm/pterm v0.12.54 h1:7DX218ZhG2v3NsvmvsHeTJHC92zUyK9Bgeqbu0x4mG0=
+github.com/pterm/pterm v0.12.54/go.mod h1:x6HvVq6rUC/Ik2u3MxMgS6kIx2Mlj1qLq5xquul2TWs=
 github.com/qeesung/image2ascii v1.0.1 h1:Fe5zTnX/v/qNC3OC4P/cfASOXS501Xyw2UUcgrLgtp4=
 github.com/qeesung/image2ascii v1.0.1/go.mod h1:kZKhyX0h2g/YXa/zdJR3JnLnJ8avHjZ3LrvEKSYyAyU=
 github.com/rivo/uniseg v0.1.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
