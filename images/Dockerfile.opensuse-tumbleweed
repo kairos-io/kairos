@@ -1,8 +1,7 @@
 ARG BASE_IMAGE=opensuse/tumbleweed
 
-ARG K3S_VERSION
-
 FROM $BASE_IMAGE
+ARG K3S_VERSION
 
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
 
@@ -13,12 +12,15 @@ RUN zypper in -y \
     curl \
     device-mapper \
     dosfstools \
+    dhcp-client \
     dracut \
     e2fsprogs \
+    cryptsetup \
     findutils \
     gawk \
     gptfdisk \
     grub2-i386-pc \
+    logrotate \
     grub2-x86_64-efi \
     nohang \
     fail2ban \
@@ -41,18 +43,21 @@ RUN zypper in -y \
     nfs-utils \
     open-iscsi \
     open-vm-tools \
+    openssh \
     parted \
+    polkit \
     pigz \
     policycoreutils \
     procps \
-    python-azure-agent \
     qemu-guest-agent \
     rng-tools \
     rsync \
     squashfs \
     strace \
     systemd \
+    systemd-network \
     systemd-sysvinit \
+    sudo \
     tar \
     timezone \
     tmux \

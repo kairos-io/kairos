@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -55,7 +55,8 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
+         - flavor: "opensuse-tumbleweed"
          - flavor: "alpine-ubuntu"
          - flavor: "alpine-opensuse-leap"
          - flavor: "ubuntu-20-lts"

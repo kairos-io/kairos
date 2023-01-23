@@ -1,7 +1,7 @@
 VERSION 0.6
 FROM alpine
 ARG VARIANT=core # core, lite, framework
-ARG FLAVOR=opensuse
+ARG FLAVOR=opensuse-leap
 ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 ARG LUET_VERSION=0.33.0
@@ -230,7 +230,7 @@ docker:
     
     IF [ "$FLAVOR" = "alpine-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
+    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
         COPY overlay/files-fedora/ /
@@ -262,7 +262,7 @@ docker:
 	    RUN rm -rf /boot/initrd.img-*
     END
     # Regenerate initrd if necessary
-    IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
+    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" || [ "$FLAVOR" = "opensuse-tumbleweed" ]
      RUN mkinitrd
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
      RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
