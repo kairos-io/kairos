@@ -2,7 +2,6 @@
 ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM $BASE_IMAGE
-ARG K3S_VERSION
 
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && zypper ref
 

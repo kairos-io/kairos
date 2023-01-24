@@ -1,7 +1,6 @@
 ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
-ARG K3S_VERSION
 
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
 
