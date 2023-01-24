@@ -50,6 +50,13 @@ install:
   # Environmental variable to set to the installer calls
   env:
   - foo=bar
+  # custom user mounts
+  # bind mounts, can be read and modified, changes persist reboots
+  bind_mounts:
+  - /mnt/bind1
+  - /mnt/bind2
+  # ephemeral mounts, can be read and modified, changed are discarded at reboot
+  ephemeral_mounts:
 
 k3s:
   # Additional env/args for k3s server instances
