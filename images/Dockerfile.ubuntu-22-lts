@@ -39,6 +39,7 @@ RUN apt install -y \
     iptables \
     lldpd \
     snmpd \
+    console-data \
     linux-image-generic-hwe-22.04 && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
