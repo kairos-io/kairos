@@ -1,0 +1,7 @@
+name: "Start installer on tty1"
+stages:
+  initramfs.after:
+    - name: "setupcon initramfs.after"
+      commands:
+        - echo "Run setupcon to have fonts working on Ubuntu"
+        - setupcon
