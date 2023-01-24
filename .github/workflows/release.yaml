@@ -64,7 +64,7 @@ jobs:
          - flavor: "fedora"
          - flavor: "debian"
    #      - flavor: "fedora"
-   #      - flavor: "rockylinux"
+         - flavor: "rockylinux"
     steps:
       - uses: actions/checkout@v3
       - run: |
