@@ -4,7 +4,7 @@
     "@popperjs/core": "^2.11.6",
     "alpinejs": "^3.10.5",
     "bootstrap": "^5.0.0",
-    "codemirror": "^5.57.0",
+    "codemirror": "^6.0.0",
     "jquery": "^3.5.1",
     "xterm": "^5.1.0",
     "xterm-addon-fit": "^0.7.0",
