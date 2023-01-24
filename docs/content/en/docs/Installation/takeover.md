@@ -13,7 +13,7 @@ Kairos supports takeover installations. Here are a few summarized steps:
 
 ```
 export DEVICE=/dev/sda
-export IMAGE=quay.io/kairos/core-opensuse:v1.1.4
+export IMAGE=quay.io/kairos/core-opensuse-leap:v1.1.4
 cat <<'EOF' > config.yaml
 #cloud-config
 users:
