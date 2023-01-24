@@ -33,6 +33,7 @@ The ipxe ISOs from the Kairos release artifacts, were built with a ipxe script t
 
 E.g.:
 
+<!-- TODO: change this to include leap in the name once we release 1.5.0-->
 ```
 #!ipxe
 set url https://github.com/kairos-io/kairos/releases/download/v1.3.0
@@ -74,11 +75,12 @@ Another way to boot with the release artifacts is using [pixiecore](https://gith
 Assuming the current directory has the `kernel`, `initrd` and `squashfs` artifacts,
 `pixiecore` server can be started with `docker` like this:
 
+<!-- TODO: change this to include leap in the name once we release 1.5.0-->
+
 ```bash
 #!/bin/bash
 
 VERSION="v1.3.0"
-
 wget "https://github.com/kairos-io/kairos/releases/download/${VERSION}/kairos-opensuse-${VERSION}-kernel"
 wget "https://github.com/kairos-io/kairos/releases/download/${VERSION}/kairos-opensuse-${VERSION}-initrd"
 wget "https://github.com/kairos-io/kairos/releases/download/${VERSION}/kairos-opensuse-${VERSION}.squashfs"
