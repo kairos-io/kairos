@@ -4,6 +4,7 @@ common:
   - dracut/kcrypt
   - static/grub-config
   - system/kcrypt
+  - system/kcrypt-challenger
   - system/suc-upgrade
   - system/shim
   - system/grub2-efi
