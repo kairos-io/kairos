@@ -111,7 +111,7 @@ users:
   # - github:mudler
 ```
 
-Note, we define a list of partition labels that we want to encrypt. In the examble above we set `COS_PERSISTENT` to be encrypted, which in turns will encrypt all the user-data of the machine (this includes, for instance, Kubernetes pulled images, or any runtime persisting data on the machine).
+Note, we define a list of partition labels that we want to encrypt. In the example above we set `COS_PERSISTENT` to be encrypted, which in turns will encrypt all the user-data of the machine (this includes, for instance, Kubernetes pulled images, or any runtime persisting data on the machine).
 
 ## Online mode 
 
