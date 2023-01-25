@@ -261,6 +261,40 @@ jobs:
           name: latest-release.zip
           path: last-release
           if-no-files-found: error
+      - uses: robinraju/release-downloader@v1.7
+        with:
+          # A flag to set the download target as latest release
+          # The default value is 'false'
+          latest: true
+          repository: "kairos-io/kairos"
+          fileName: "*opensuse-leap*.iso"
+          out-file-path: "last-release"
+      - uses: actions/upload-artifact@v3
+        with:
+          name: latest-release.zip
+          path: last-release
+          if-no-files-found: error
+  zfs-tests:
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: "opensuse-leap"
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: kairos-${{ matrix.flavor }}.iso.zip
+      - run: |
+          ls -liah
+          export ISO=$PWD/$(ls *.iso)
+          mkdir build
+          mv $ISO build/kairos.iso
+          ./earthly.sh +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ matrix.flavor }}
   qemu-acceptance-tests:
     needs:
       - build

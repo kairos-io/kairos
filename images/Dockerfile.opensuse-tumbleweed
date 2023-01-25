@@ -7,7 +7,7 @@ zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbl
 zypper ar -G https://download.opensuse.org/repositories/filesystems/openSUSE_Tumbleweed/filesystems.repo
 zypper ref
 EOF
-RUN zypper in -y \
+RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
     coreutils \
@@ -66,7 +66,6 @@ RUN zypper in -y \
     vim \
     e2fsprogs \
     zfs \
-    zfs-kmp-default \
     which && zypper cc
 
 # workaround https://github.com/systemd/systemd/issues/12231
