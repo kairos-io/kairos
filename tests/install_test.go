@@ -59,7 +59,7 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 			testInstall(`
 install:
   auto: true
-  device: /dev/sda
+  device: auto
 stages:
   initramfs:
   - name: "Set user and password"
@@ -80,7 +80,7 @@ bundles:
 			testInstall(`#cloud-config
 install:
   auto: true
-  device: /dev/sda
+  device: auto
 users:
 - name: "kairos"
   passwd: "kairos"
@@ -101,7 +101,7 @@ stages:
 			testInstall(`
 install:
   auto: true
-  device: /dev/sda
+  device: auto
 config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae331e5c0/raw/01137c458ad62cfcdfb201cae2f8814db702c6f9/testgist.yaml"`, func() string {
 				var out string
 				out, _ = Sudo("/usr/local/bin/usr/bin/edgevpn --help")
