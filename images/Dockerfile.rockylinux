@@ -1,7 +1,6 @@
 ARG BASE_IMAGE=rockylinux:9
 
 FROM $BASE_IMAGE
-ARG K3S_VERSION
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 

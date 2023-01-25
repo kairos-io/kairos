@@ -27,11 +27,19 @@ flavors:
   rockylinux:
     - systemd-base
     - dracut-network-legacy-compat
-  opensuse:
+  opensuse-tumbleweed:
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
-  opensuse-arm-rpi:
+  opensuse-tumbleweed-arm-rpi:
+    - systemd-base
+    - systemd-latest
+    - dracut-network-legacy
+  opensuse-leap:
+    - systemd-base
+    - systemd-latest
+    - dracut-network-legacy
+  opensuse-leap-arm-rpi:
     - systemd-base
     - systemd-latest
     - dracut-network-legacy

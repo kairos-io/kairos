@@ -20,7 +20,7 @@ For example, let's say you want to use an image from the provider-kairos reposit
 #cloud-config
 install:
  # Here we specify the image that we want to deploy
- image: "docker:quay.io/kairos/kairos-opensuse:v1.4.0-k3sv1.26.0-k3s1"
+ image: "docker:quay.io/kairos/kairos-opensuse-leap:v1.4.0-k3sv1.26.0-k3s1"
 ```
 
 Once you've chosen your image, you can move on to the installation process by following the steps outlined in our [Installation](/docs/installation) documentation.
@@ -35,7 +35,7 @@ install:
  auto: true
  reboot: true
  # Here we specify the image that we want to deploy
- image: "docker:quay.io/kairos/kairos-opensuse:v1.4.0-k3sv1.26.0-k3s1"
+ image: "docker:quay.io/kairos/kairos-opensuse-leap:v1.4.0-k3sv1.26.0-k3s1"
 
 hostname: "test"
 users:
