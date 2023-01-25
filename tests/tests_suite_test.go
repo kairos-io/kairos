@@ -113,6 +113,11 @@ var _ = BeforeSuite(func() {
 			opts = append(opts, types.VBoxEngine)
 		}
 
+		display := os.Getenv("MACHINE_DISPLAY") // display is already taken on Linux X sessions
+		if display != "" {
+			opts = append(opts, types.WithDisplay(display))
+		}
+
 		memory := os.Getenv("MEMORY")
 		if memory != "" {
 			opts = append(opts, types.WithMemory(os.Getenv("MEMORY")))
