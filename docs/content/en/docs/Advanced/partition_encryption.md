@@ -72,7 +72,7 @@ kcrypt:
 
 ## Requirements
 
-The host machine must have a TPM chip version 2.0 or higher to use encryption with Kairos. A list of TPM chips/HW can be gound out here : https://trustedcomputinggroup.org/membership/certification/tpm-certified-products/
+The host machine must have a TPM chip version 2.0 or higher to use encryption with Kairos. A list of TPM chips/HW can be found [in the list of certified products](https://trustedcomputinggroup.org/membership/certification/tpm-certified-products/), however, any modern machine have a TPM 2.0 chip.
 
 ## Components  
 
@@ -86,13 +86,13 @@ The Kairos encryption design involves three components to manage partitions encr
 
 This scenario covers encryption of data at rest without any third party or KMS server. The keys used to encrypt the partitions are stored in the TPM chip.
 
-### Deployment  
+### Scenario: Offline encryption 
 
-A high level overview of the components can be observed here:
+A high level overview of the interaction between the components can be observed here:
 
 ![encryption1_1674472109993_0](https://user-images.githubusercontent.com/2420543/214405302-96bfef4b-fb5e-4442-8d50-c8d7ebe53dab.png)
 
-A complete cloud config example for this scenario can be found in the code block below:
+A complete cloud config example for this scenario can be:
 
 ```yaml
 #cloud-config
@@ -111,9 +111,11 @@ users:
   # - github:mudler
 ```
 
+Note, we define a list of partition labels that we want to encrypt. In the examble above we set `COS_PERSISTENT` to be encrypted, which in turns will encrypt all the user-data of the machine (this includes, for instance, Kubernetes pulled images, or any runtime persisting data on the machine).
+
 ## Online mode 
 
-Online mode involves an external service (the Key Management Server, KMS) to boot the machines. The KMS role is to enable machine to boot by providing the encrypted secrets, or passphrases to unlock the encrypted drive. Authentication with the KMS is done via TPM challenging.
+Online mode involves an external service (the Key Management Server, **KMS**) to boot the machines. The KMS role is to enable machine to boot by providing the encrypted secrets, or passphrases to unlock the encrypted drive. Authentication with the KMS is done via TPM challenging.
 
 In this scenario, we need to first deploy the KMS server to an existing Kubernetes cluster, and associate the TPM hash of the nodes that we want to manage. During deployment, we specify the KMS server inside the cloud-config of the nodes to be provisioned.
 
@@ -279,6 +281,6 @@ users:
 ## Troubleshooting  
 - Invoking `/system/discovery/kcrypt-discovery-challenger` without arguments returns the TPM pubhash.
 - Invoking `kcrypt-discovery-challenger` with 'discovery.password' triggers the logic to retrieve the passphrase, for instance can be used as such:
-```
-    echo '{ "data": "{ \"label\": \"LABEL\" }"}' | sudo -E WSS_SERVER="http://localhost:30000" /system/discovery/kcrypt-discovery-challenger "discovery.password"
+```bash
+echo '{ "data": "{ \"label\": \"LABEL\" }"}' | sudo -E WSS_SERVER="http://localhost:30000" /system/discovery/kcrypt-discovery-challenger "discovery.password"
 ```
