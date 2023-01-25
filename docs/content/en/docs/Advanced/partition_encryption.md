@@ -6,6 +6,12 @@ description: >
     This section describes how to encrypt partition with LUKS in Kairos.
 ---
 
+{{% alert title="Note" color="warning" %}}
+
+This feature will be available in Kairos version `1.5.0` and in all future releases.
+
+{{% /alert %}}
+
 Kairos offers the ability to encrypt user data partitions with `LUKS`. User-data partitions are dedicated to persist data for a running system, stored separately from the OS images. This encryption mechanism can also be used to encrypt additional partitions created during the installation process.  
 
 Kairos supports the following encryption scenarios:  
