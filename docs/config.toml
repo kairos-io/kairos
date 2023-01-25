@@ -8,7 +8,6 @@ theme = ["docsy"]
 
 # Will give values to .Lastmod etc.
 enableGitInfo = true
-prism_syntax_highlighting = true
 # Language settings
 contentDir = "content/en"
 defaultContentLanguage = "en"
@@ -77,12 +76,14 @@ weight = 1
       unsafe = true
   [markup.highlight]
       # See a complete list of available styles at https://xyproto.github.io/splash/docs/all.html
-      style = "dracula"
+      style = "tango"
 # Everything below this are Site Params
 
 [params]
 copyright = "Kairos authors"
 privacy_policy = "https://policies.google.com/privacy"
+
+prism_syntax_highlighting = true
 
 # First one is picked as the Twitter card image if not set on page.
 # images = ["images/project-illustration.png"]
