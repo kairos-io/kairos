@@ -8,12 +8,16 @@ type Interface interface {
 	Run(c config.Config) error
 }
 
-var All = []Interface{
+var AfterInstall = []Interface{
 	&RunStage{},    // Shells out to stages defined from the container image
 	&GrubOptions{}, // Set custom GRUB options
 	&BundleOption{},
 	&Kcrypt{},
 	&Lifecycle{}, // Handles poweroff/reboot by config options
+}
+
+var AfterReset = []Interface{
+	&Kcrypt{},
 }
 
 var FirstBoot = []Interface{

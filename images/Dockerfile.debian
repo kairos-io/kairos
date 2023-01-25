@@ -2,7 +2,6 @@
 ARG BASE_IMAGE=debian:testing
 
 FROM $BASE_IMAGE
-ARG K3S_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive
 

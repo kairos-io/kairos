@@ -1,7 +1,6 @@
 ARG BASE_IMAGE=alpine
 
 FROM $BASE_IMAGE
-ARG K3S_VERSION
 
 RUN apk --no-cache add  \
       grub \
