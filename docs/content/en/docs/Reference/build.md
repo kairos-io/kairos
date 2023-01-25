@@ -37,7 +37,6 @@ RUN apk --no-cache add  \
       parted \
       e2fsprogs \
       logrotate \
-      busybox-initscripts \
       dosfstools \
       coreutils \
       which \
@@ -49,7 +48,7 @@ RUN apk --no-cache add  \
       rsync \
       bash-completion \
       blkid \
-      busybox-initscripts \
+      busybox-openrc \
       ca-certificates \
       conntrack-tools \
       coreutils \
@@ -114,8 +113,7 @@ RUN apk --no-cache add  \
       open-vm-tools-deploypkg \
       open-vm-tools-guestinfo \
       open-vm-tools-static \
-      open-vm-tools-vmbackup \
-      openntpd
+      open-vm-tools-vmbackup
 
 # Enable some services
 RUN rc-update add sshd boot && \
@@ -125,7 +123,7 @@ RUN rc-update add sshd boot && \
     rc-update add syslog boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
-    rc-update add openntpd boot && \
+    rc-update add ntpd boot && \
     rc-update add crond && \
     rc-update add fail2ban
 
