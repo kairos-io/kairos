@@ -14,7 +14,6 @@ RUN apt install -y \
     grub-efi-amd64-bin \
     grub2 \
     grub2-common \
-    nohang \
     sudo \
     iproute2 \
     squashfs-tools \
@@ -43,7 +42,6 @@ RUN apt install -y \
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
-RUN systemctl enable nohang-desktop.service
 RUN systemctl enable systemd-networkd
 RUN systemctl enable ssh
 RUN echo "auto lo" > /etc/network/interfaces
