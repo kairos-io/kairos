@@ -9,7 +9,7 @@ stages:
         path: "/oem"
     - if: '[ ! -f /oem/userdata ]'
       files:
-      - path: /oem/.userdata_load
+      - path: /run/.userdata_load
   initramfs.before:
     - <<: *datasource
     - if: '[ ! -f /oem/userdata ]'
@@ -18,11 +18,11 @@ stages:
   # After network, if no datasource could be pulled, we stop trying
   network:
     - <<: *datasource
-    - if: '[ -f /oem/userdata ] && [ -f /oem/.userdata_load ]'
+    - if: '[ -f /oem/userdata ] && [ -f /run/.userdata_load ]'
       commands:
       - elemental cloud-init -s initramfs /oem/userdata
       - elemental cloud-init -s boot /oem/userdata
-      - rm -rf /oem/.userdata_load
-    - if: '[ ! -f /oem/userdata ] && [ -f /oem/.userdata_load ]'
+      - rm -rf /run/.userdata_load
+    - if: '[ ! -f /oem/userdata ] && [ -f /run/.userdata_load ]'
       commands:
-      - rm -rf /oem/.userdata_load
+      - rm -rf /run/.userdata_load
