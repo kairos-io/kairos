@@ -2,8 +2,6 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
-
 RUN zypper in -y \
     bash-completion \
     conntrack-tools \
@@ -21,7 +19,6 @@ RUN zypper in -y \
     grub2-i386-pc \
     logrotate \
     grub2-x86_64-efi \
-    nohang \
     fail2ban \
     haveged \
     htop \
