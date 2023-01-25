@@ -127,6 +127,15 @@ var _ = BeforeSuite(func() {
 			opts = append(opts, types.WithCPU(os.Getenv("CPUS")))
 		}
 
+		if os.Getenv("KVM") == "true" {
+			opts = append(opts, func(m *types.MachineConfig) error {
+				m.Args = append(m.Args,
+					"-enable-kvm",
+				)
+				return nil
+			})
+		}
+
 		m, err := machine.New(opts...)
 		if err != nil {
 			Fail(err.Error())
