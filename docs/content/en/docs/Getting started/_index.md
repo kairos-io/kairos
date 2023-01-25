@@ -12,7 +12,7 @@ If you prefer video format, you can also watch our [Introduction to Kairos video
 
 Ready to launch your Kubernetes cluster with ease? With Kairos, deployment is a breeze! Simply download the pre-packaged artifacts, boot up on a VM or bare metal, and let Kairos handle the rest. Whether you're a Linux or Windows user, our quickstart guide will have you up and running in no time. Kairos can build a Kubernetes cluster for you with just a few simple steps!
 
-The goal of this quickstart is to help you quickly and easily deploy a Kubernetes cluster using Kairos releases. With Kairos, you can easily build a k3s cluster in a VM, or a baremetal using our pre-packaged artifacts, even if you don't already have a cluster. This process can also be used on bare metal hosts with some configuration adjustments. Check out our documentation further for more detailed instructions and examples.
+The goal of this quickstart is to help you quickly and easily deploy a Kubernetes cluster using Kairos releases. With Kairos, you can easily build a k3s cluster in a VM, or a baremetal using our pre-packaged artifacts, even if you don't already have a cluster. This process can also be used on bare metal hosts with some configuration adjustments. Check out our documentation further for more detailed instructions and [examples](/docs/examples).
 
 To create a Kubernetes cluster with Kairos, the only thing needed is one or more machines that will become the Kubernetes nodes. No previously existing clusters is needed.
 
@@ -24,6 +24,7 @@ Once the installation is complete, you can begin using your Kubernetes cluster.
 - A Linux or a Windows machine where to run the Kairos CLI (optional, we will see)
 - A `cloud-init` configuration file (example below)
 - At least 30+ Gb of available disk space.
+
 ## Download
 
 1. Visit the Kairos [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases)
@@ -31,9 +32,9 @@ Once the installation is complete, you can begin using your Kubernetes cluster.
 1. You can also use [netboot](/docs/installation/netboot) to boot Kairos over the network
 
 {{% alert title="Note" %}}
-The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship **without** K3s and P2P full-mesh functionalities; however, further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
+The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship **without** K3s and P2P full-mesh functionalities; Core images can be used as a generic installer to [deploy container images](/docs/examples/core).
 
-The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) ship **with** k3s and P2P full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
+The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) **contains** already k3s and P2P full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
 
 See [Image Matrix Support](/docs/reference/image_matrix) for additional supported images and kernels.
 
@@ -80,11 +81,7 @@ Here are some additional helpful tips depending on the physical/virtual machine 
                   --virt-type kvm
 
     {{< / highlight >}}
-    <br/>
-
-    Immediately after open a viewer so you can interact with the boot menu
-    <br/>
-
+    Immediately after open a viewer so you can interact with the boot menu:
     {{< highlight bash >}}
     virt-viewer my-first-kairos-vm
     {{< / highlight >}}
@@ -228,12 +225,13 @@ There are other ways to install Kairos:
 - [Manual login and installation](/docs/installation/manual)
 - [Create decentralized clusters](/docs/installation/p2p)
 - [Take over installation](/docs/installation/takeover)
+- [Installation via network](/docs/installation/netboot)
 - [Raspberry Pi](/docs/installation/raspberry)
-- [Netboot (TODO)]()
 - [CAPI Lifecycle Management (TODO)]()
 
 ## What's Next?
 
 - [Upgrade nodes with Kubernetes](/docs/upgrade/kubernetes)
 - [Upgrade nodes manually](/docs/upgrade/manual)
+- [Encrypt partitions](/docs/advanced/partition_encryption)
 - [Immutable architecture](/docs/architecture/immutable)
