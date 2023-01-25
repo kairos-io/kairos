@@ -34,7 +34,7 @@ Once the installation is complete, you can begin using your Kubernetes cluster.
 {{% alert title="Note" %}}
 The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship **without** K3s and P2P full-mesh functionalities; Core images can be used as a generic installer to [deploy container images](/docs/examples/core).
 
-The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) contains already **with** k3s and P2P full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
+The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) **contains** already k3s and P2P full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
 
 See [Image Matrix Support](/docs/reference/image_matrix) for additional supported images and kernels.
 

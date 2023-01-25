@@ -17,7 +17,7 @@ Kairos offers the ability to encrypt user data partitions with `LUKS`. User-data
 Kairos supports the following encryption scenarios:  
 
 1. **Offline mode** - Encryption key for partitions is stored on the machine inside the TPM chip.  
-1. **Online mode (Automated)** - Keypair used to encrypt the partition passphrase is stored on the TPM chip.
+1. **Online mode (Automated)** - Keypair used to encrypt the partition passphrase is stored on the TPM chip, and an external server is used to store the encrypted passphrases.
 1. **Online mode (Manually configured)** - Plaintext passphrase is stored in the KMS server and returned to the node after TPM challenging.
 
 ![encryption1_1674470732563_0](https://user-images.githubusercontent.com/2420543/214405291-97a30f2d-d70a-45ba-b842-5282c722c79e.png)
