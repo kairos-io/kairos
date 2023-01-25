@@ -214,7 +214,7 @@ users:
   passwd: kairos
   ssh_authorized_keys:
   # Replace with your github user and un-comment the line below:
-  - github:mudler
+  # - github:mudler
 ```
 
 ### Scenario: Static keys  
