@@ -60,7 +60,7 @@ apiVersion: build.kairos.io/v1alpha1
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/kairos/core-opensuse:latest"
+  imageName: "quay.io/kairos/core-opensuse-leap:latest"
   iso: true
   bundles:
   # Bundles available at: https://packages.kairos.io/Kairos/
@@ -100,7 +100,7 @@ kind: OSArtifact
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/kairos/core-opensuse:latest"
+  imageName: "quay.io/kairos/core-opensuse-leap:latest"
   netboot: true
   netbootURL: ...
   bundles: ...
@@ -120,7 +120,7 @@ kind: OSArtifact
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/kairos/core-opensuse:latest"
+  imageName: "quay.io/kairos/core-opensuse-leap:latest"
   cloudImage: true
   cloudConfig: |
             #cloud-config
@@ -220,7 +220,7 @@ kind: OSArtifact
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/kairos/core-opensuse:latest"
+  imageName: "quay.io/kairos/core-opensuse-leap:latest"
   azureImage: true
   ...
 ```
@@ -259,7 +259,7 @@ kind: OSArtifact
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/kairos/core-opensuse:latest"
+  imageName: "quay.io/kairos/core-opensuse-leap:latest"
   gceImage: true
   ...
 ```

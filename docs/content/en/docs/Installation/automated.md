@@ -153,7 +153,7 @@ kind: OSArtifact
 metadata:
   name: hello-kairos
 spec:
-  imageName: "quay.io/kairos/core-opensuse:latest"
+  imageName: "quay.io/kairos/core-opensuse-leap:latest"
   iso: true
   bundles:
   # Bundles available at: https://packages.kairos.io/Kairos/

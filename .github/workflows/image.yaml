@@ -19,7 +19,8 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
+         - flavor: "opensuse-tumbleweed"
          - flavor: "ubuntu"
          - flavor: "ubuntu-20-lts"
          - flavor: "ubuntu-22-lts"
@@ -103,7 +104,7 @@ jobs:
       fail-fast: true
       matrix:
        include:
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
       - name: Download artifacts
@@ -159,7 +160,8 @@ jobs:
       matrix:
        include:
          - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
+         - flavor: "opensuse-tumbleweed"
          - flavor: "ubuntu"
          - flavor: "debian"
          - flavor: "ubuntu-20-lts"
@@ -186,7 +188,7 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
     steps:
     - uses: actions/checkout@v3
     - run: |
@@ -212,7 +214,7 @@ jobs:
       matrix:
        include:
          - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
    #      - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
@@ -239,7 +241,7 @@ jobs:
       matrix:
        include:
          - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
          - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
@@ -255,7 +257,7 @@ jobs:
       matrix:
        include:
          - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
     #     - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
@@ -318,7 +320,7 @@ jobs:
       matrix:
        include:
          - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse"
+         - flavor: "opensuse-leap"
     #     - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3

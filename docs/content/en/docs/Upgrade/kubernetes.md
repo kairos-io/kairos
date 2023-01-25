@@ -48,13 +48,13 @@ spec:
   upgrade:
     # Here goes the image which is tied to the flavor being used.
     # Currently can pick between opensuse and alpine
-    image: quay.io/kairos/kairos-opensuse
+    image: quay.io/kairos/kairos-opensuse-leap
     command:
     - "/usr/sbin/suc-upgrade"
 EOF
 ```
 
-To check all the available versions, see the [images](https://quay.io/repository/kairos/kairos-opensuse?tab=tags) available on the container registry, corresponding to the flavor/version selected.
+To check all the available versions, see the [images](https://quay.io/repository/kairos/kairos-opensuse-leap?tab=tags) available on the container registry, corresponding to the flavor/version selected.
 
 {{% alert title="Note" %}}
 
@@ -115,7 +115,7 @@ spec:
   upgrade:
     # Here goes the image which is tied to the flavor being used.
     # Currently can pick between opensuse and alpine
-    image: quay.io/kairos/kairos-opensuse
+    image: quay.io/kairos/kairos-opensuse-leap
     command:
       - "/bin/bash"
       - "-c"
@@ -166,7 +166,7 @@ spec:
   upgrade:
     # Here goes the image which is tied to the flavor being used.
     # Currently can pick between opensuse and alpine
-    image: quay.io/kairos/kairos-opensuse
+    image: quay.io/kairos/kairos-opensuse-leap
     command:
       - "/bin/bash"
       - "-c"
