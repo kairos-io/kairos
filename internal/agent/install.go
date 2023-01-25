@@ -286,7 +286,7 @@ func RunInstall(options map[string]string) error {
 		os.Exit(1)
 	}
 
-	if err := hook.Run(*c, hook.All...); err != nil {
+	if err := hook.Run(*c, hook.AfterInstall...); err != nil {
 		return err
 	}
 

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	"github.com/kairos-io/kairos/pkg/config"
@@ -86,6 +87,10 @@ func Reset(dir ...string) error {
 	if err := cmd.Run(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+
+	if err := hook.Run(*c, hook.AfterReset...); err != nil {
+		return err
 	}
 
 	bus.Manager.Publish(sdk.EventAfterReset, sdk.EventPayload{}) //nolint:errcheck
