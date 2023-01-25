@@ -10,4 +10,7 @@ Maintainers are approvers who have shown good technical judgement in guiding fea
 | Oz Tiram                 | [@oz123](https://github.com/oz123 )                    |  SpectroCloud                | Maintainer                                |
 | Mauro Morales            | [@mauromorales](https://github.com/mauromorales )      |  SpectroCloud                | Maintainer                                |
 
+See also [our Contributors](/CONTRIBUTORS.md) page.
+
 **Note**: Please refer to the [Project Governance](/GOVERNANCE.md) for more information on the responsibilities and privileges of a maintainer in Kairos.
+
