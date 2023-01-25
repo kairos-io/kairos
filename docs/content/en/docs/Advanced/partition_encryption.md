@@ -72,7 +72,7 @@ kcrypt:
 
 ## Requirements
 
-The host machine must have a TPM chip version 2.0 or higher to use encryption with Kairos. A list of TPM chips/HW can be found [in the list of certified products](https://trustedcomputinggroup.org/membership/certification/tpm-certified-products/), however, any modern machine have a TPM 2.0 chip.
+The host machine must have a TPM chip version 2.0 or higher to use encryption with Kairos. A list of TPM chips/HW can be found [in the list of certified products](https://trustedcomputinggroup.org/membership/certification/tpm-certified-products/), however, any modern machine has a TPM 2.0 chip.
 
 ## Components  
 
