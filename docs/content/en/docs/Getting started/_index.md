@@ -91,7 +91,7 @@ Here are some additional helpful tips depending on the physical/virtual machine 
 
 After booting you'll be greeted with a GRUB boot menu with multiple options. The option you choose will depend on how you plan to install Kairos:
 
-- The first entry will boot into installation with a QR code, which we'll cover in the next step.
+- The first entry will boot into installation with a QR code or [WebUI](/docs/installation/webui), which we'll cover in the next step.
 - The second entry will boot into [Manual installation mode](/docs/installation/manual), where you can install Kairos manually using the console.
 - The third boot option boots into [Interactive installation mode](/docs/installation/interactive), where you can use the terminal host to drive the installation and skip the Configuration and Provisioning step.
 
@@ -103,6 +103,7 @@ To begin the installation process, select the first entry and let the machine bo
 
 After booting up the ISO, the machine will wait for you to provide configuration details before continuing with the installation process. There are different ways to provide these details:
 
+- Use the [WebUI](/docs/installation/webui) to continue the installation.
 - Serve the configuration via QR code.
 - Connect to the machine via [SSH](/docs/installation/manual) and start the installation process with a configuration file ( with `kairos-agent manual-install <config>`).
 - [Use a datasource iso, or a generating a custom one](/docs/installation/automated)
