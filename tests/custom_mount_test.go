@@ -48,7 +48,7 @@ stages:
 				var out string
 				out, _ = Sudo("cat /run/cos/cos-layout.env")
 				return strings.Split(out, "\n")
-			}, ContainElements(ContainSubstring("/mnt/bind1"), ContainSubstring("/mnt/ephemeral2")), true)
+			}, ContainElements(ContainSubstring("/mnt/bind1"), ContainSubstring("/mnt/ephemeral")), true)
 		})
 
 	})
