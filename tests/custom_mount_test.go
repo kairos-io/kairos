@@ -9,7 +9,7 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("kairos test custom user mounts", Label("custom-mounts-test"), func() {
+var _ = Describe("kairos test custom user mounts", Label("install-test"), func() {
 
 	BeforeEach(func() {
 		EventuallyConnects(1200)

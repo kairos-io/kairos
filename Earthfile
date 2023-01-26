@@ -476,6 +476,39 @@ run-qemu-datasource-tests:
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
+run-qemu-install-tests:
+    FROM opensuse/leap
+    WORKDIR /test
+    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
+    ARG FLAVOR
+    ARG TEST_SUITE=install-test
+    ENV FLAVOR=$FLAVOR
+    ENV SSH_PORT=60022
+    ENV CREATE_VM=true
+    ENV USE_QEMU=true
+
+    ENV GOPATH="/go"
+
+    ENV CLOUD_CONFIG=$CLOUD_CONFIG
+    COPY . .
+    RUN ls -liah
+    IF [ -e /test/build/kairos.iso ]
+        ENV ISO=/test/build/kairos.iso
+    ELSE
+        COPY +iso/kairos.iso kairos.iso
+        ENV ISO=/test/kairos.iso
+    END
+
+    RUN go get github.com/onsi/gomega/...
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
+    ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
+
+    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+
 run-qemu-netboot-test:
     FROM ubuntu
 
