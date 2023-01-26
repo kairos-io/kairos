@@ -42,8 +42,18 @@ go-deps:
     SAVE ARTIFACT go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum AS LOCAL go.sum
 
-test:
+
+ginkgo:
     FROM +go-deps
+    WORKDIR /build
+    RUN go get github.com/onsi/gomega/...
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
+test:
+    FROM +ginkgo
     WORKDIR /build
     RUN go get github.com/onsi/gomega/...
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
@@ -466,12 +476,7 @@ run-qemu-datasource-tests:
     ELSE 
         ENV DATASOURCE=/test/build/datasource.iso
     END
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-
+    FROM +ginkgo
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
@@ -499,11 +504,7 @@ run-qemu-custom-mount-tests:
         ENV ISO=/test/kairos.iso
     END
 
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+    FROM +ginkgo
 
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
@@ -537,7 +538,8 @@ run-qemu-netboot-test:
     ENV USE_QEMU=true
     ARG TEST_SUITE=netboot-test
     ENV GOPATH="/go"
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
+    FROM +ginkgo
 
     # TODO: use --pull or something to cache the python image in Earthly
     WITH DOCKER
@@ -563,12 +565,7 @@ run-qemu-test:
 
 
     COPY . .
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-
+    FROM +ginkgo
     ARG ISO=$(ls /test/build/*.iso)
     ENV ISO=$ISO
 
