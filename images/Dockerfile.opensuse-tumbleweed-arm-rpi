@@ -3,8 +3,6 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && zypper ref
-
 RUN zypper in -y \
     raspberrypi-eeprom \
     bcm43xx-firmware \
@@ -38,7 +36,6 @@ RUN zypper in -y \
     findutils \
     gawk \
     gptfdisk \
-    nohang \
     haveged \
     htop \
     fail2ban \
