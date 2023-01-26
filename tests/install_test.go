@@ -2,7 +2,6 @@ package mos_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -32,14 +31,12 @@ func testInstall(cloudConfig string, actual interface{}, m types.GomegaMatcher, 
 	out, err = Sudo("kairos-agent install")
 	Expect(err).ToNot(HaveOccurred(), out)
 	Expect(out).Should(ContainSubstring("Running after-install hook"))
-	fmt.Println(out)
 	Sudo("sync")
 
 	detachAndReboot()
 
 	EventuallyConnects(1200)
 	if should {
-		fmt.Println("should ", should)
 		Eventually(actual, 5*time.Minute, 10*time.Second).Should(m)
 	} else {
 		Eventually(actual, 5*time.Minute, 10*time.Second).ShouldNot(m)

@@ -2,14 +2,14 @@ package mos_test
 
 import (
 	"context"
-	"fmt"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("kairos test custom user mounts", Label("install-test"), func() {
+var _ = Describe("kairos test custom user mounts", Label("custom-mounts-test"), func() {
 
 	BeforeEach(func() {
 		EventuallyConnects(1200)
@@ -44,12 +44,11 @@ stages:
     users:
      kairos:
       passwd: "kairos"
-`, func() string {
+`, func() []string {
 				var out string
 				out, _ = Sudo("cat /run/cos/cos-layout.env")
-				fmt.Println(out)
-				return out
-			}, ContainElements(ContainSubstring("/mnt/bind1"), ContainSubstring("/mnt/ephemeral")), true)
+				return strings.Split(out, "\n")
+			}, ContainElements(ContainSubstring("/mnt/bind1"), ContainSubstring("/mnt/ephemeral2")), true)
 		})
 
 	})
