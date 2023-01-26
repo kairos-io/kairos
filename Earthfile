@@ -447,13 +447,13 @@ linux-bench-scan:
 ###
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
-    FROM opensuse/leap
+    FROM +ginkgo
+    RUN apt install -y qemu-system-x86 qemu-utils golang git
     WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
     ARG FLAVOR
     ARG TEST_SUITE=autoinstall-test
     ENV FLAVOR=$FLAVOR
-    ENV SSH_PORT=60022
+    ENV SSH_PORT=60023
     ENV CREATE_VM=true
     ARG CLOUD_CONFIG="./tests/assets/autoinstall.yaml"
     ENV USE_QEMU=true
@@ -476,40 +476,34 @@ run-qemu-datasource-tests:
     ELSE 
         ENV DATASOURCE=/test/build/datasource.iso
     END
-    FROM +ginkgo
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
-    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 run-qemu-custom-mount-tests:
-    FROM opensuse/leap
-    WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
+    FROM +ginkgo
+    RUN apt install -y qemu-system-x86 qemu-utils golang git
     ARG FLAVOR
-    ARG TEST_SUITE=custom-mounts-test
-    ENV FLAVOR=$FLAVOR
-    ENV SSH_PORT=60022
-    ENV CREATE_VM=true
-    ENV USE_QEMU=true
-
-    ENV GOPATH="/go"
 
     COPY . .
     RUN ls -liah
-    IF [ -e /test/build/kairos.iso ]
-        ENV ISO=/test/build/kairos.iso
+    IF [ -e /build/kairos.iso ]
+        ENV ISO=/build/kairos.iso
     ELSE
         COPY +iso/kairos.iso kairos.iso
-        ENV ISO=/test/kairos.iso
+        ENV ISO=/build/kairos.iso
     END
 
-    FROM +ginkgo
-
-    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter custom-mounts-test --fail-fast -r ./tests/
+    ENV GOPATH="/go"
+    ARG TEST_SUITE=custom-mounts-test
+    ENV SSH_PORT=60024
+    ENV CREATE_VM=true
+    ENV USE_QEMU=true
+    RUN pwd && ls -liah
+    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter custom-mounts-test --fail-fast -r ./tests/
 
 run-qemu-netboot-test:
-    FROM ubuntu
-
+    FROM +ginkgo
     COPY . /test
     WORKDIR /test
 
@@ -536,7 +530,6 @@ run-qemu-netboot-test:
     ARG TEST_SUITE=netboot-test
     ENV GOPATH="/go"
 
-    FROM +ginkgo
 
     # TODO: use --pull or something to cache the python image in Earthly
     WITH DOCKER
@@ -546,9 +539,8 @@ run-qemu-netboot-test:
     END
 
 run-qemu-test:
-    FROM opensuse/leap
-    WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
+    FROM +ginkgo
+    RUN apt install -y qemu-system-x86 qemu-utils golang git
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG CONTAINER_IMAGE
@@ -560,13 +552,15 @@ run-qemu-test:
 
     ENV GOPATH="/go"
 
-
     COPY . .
-    FROM +ginkgo
-    ARG ISO=$(ls /test/build/*.iso)
-    ENV ISO=$ISO
-
-    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    IF [ -e /build/kairos.iso ]
+        ENV ISO=/build/kairos.iso
+    ELSE
+        COPY +iso/kairos.iso kairos.iso
+        ENV ISO=/build/kairos.iso
+    END
+    RUN pwd && ls -l && ls -l build
+    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 ###
 ### Artifacts targets
