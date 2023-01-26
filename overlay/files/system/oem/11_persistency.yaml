@@ -41,7 +41,6 @@ stages:
       name: "append custom bind and ephemeral mounts to /run/cos/cos-layout.env"
       commands:
         - |
-          if [ -r /run/cos/custom-layout.env ]; then
              source /run/cos/cos-layout.env
              source /run/cos/custom-layout.env
              PERSISTENT_STATE_PATHS="${CUSTOM_EPHEMERAL_MOUNTS} ${PERSISTENT_STATE_PATHS}"
@@ -52,7 +51,6 @@ stages:
              echo RW_PATHS=\"${RW_PATHS}\" >> /run/cos/cos-layout.env
              echo "# persistent state paths with user ephemeral mounts" >> /run/cos/cos-layout.env
              echo PERSISTENT_STATE_PATHS=\"${PERSISTENT_STATE_PATHS}\" >> /run/cos/cos-layout.env
-          fi
     - if: |
         cat /proc/cmdline | grep -q "kairos.boot_live_mode"
       name: "Layout configuration"
