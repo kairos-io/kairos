@@ -189,7 +189,7 @@ jobs:
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
 
-  qemu-install-tests:
+  qemu-custom-mount-tests:
     needs:
     - build
     runs-on: ubuntu-latest
@@ -197,9 +197,7 @@ jobs:
       fail-fast: false
       matrix:
        include:
-         - flavor: "alpine-opensuse-leap"
          - flavor: "opensuse-leap"
-         - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
     - name: Download artifacts
@@ -207,7 +205,7 @@ jobs:
       with:
           name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
-            ./earthly.sh +run-qemu-install-tests --FLAVOR=${{ matrix.flavor }}
+            ./earthly.sh +run-qemu-custom-mount-tests --FLAVOR=${{ matrix.flavor }}
 
   qemu-bundles-tests:
     needs: 

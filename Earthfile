@@ -476,12 +476,12 @@ run-qemu-datasource-tests:
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
-run-qemu-install-tests:
+run-qemu-custom-mount-tests:
     FROM opensuse/leap
     WORKDIR /test
     RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
     ARG FLAVOR
-    ARG TEST_SUITE=install-test
+    ARG TEST_SUITE=custom-mounts-test
     ENV FLAVOR=$FLAVOR
     ENV SSH_PORT=60022
     ENV CREATE_VM=true
