@@ -113,6 +113,7 @@ version:
 build-kairos-agent:
     FROM +go-deps
     COPY +webui-deps/node_modules ./internal/webui/public/node_modules
+    COPY +docs/public/local ./internal/webui/public/local
     DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
 
 build:
@@ -635,3 +636,15 @@ webui-deps:
     WORKDIR ./internal/webui/public
     RUN npm install
     SAVE ARTIFACT node_modules /node_modules AS LOCAL internal/webui/public/node_modules
+
+docs:
+    FROM node:18-alpine
+    RUN apk add git
+    RUN apk add make
+    RUN apk add hugo
+    COPY . .
+    WORKDIR ./docs
+    RUN npm run prepare
+    RUN npm install --save-dev autoprefixer postcss-cli postcss
+    RUN HUGO_ENV="production" hugo --gc -b "/local/" -d "public/local"
+    SAVE ARTIFACT public /public AS LOCAL docs/public
