@@ -42,7 +42,7 @@ We've also updated our Alpine support, so you can now run Kairos on the latest v
 
 ## Extend Kairos
 
-Extend the configuration of your node with custom, container-based deployment models (see [our documentation here](/docs/advanced/bundles) and a [full example showing how to deploy MetaLB](/docs/examples/bundles)). There are also available `Kubevirt` and `MetalLB` bundles from the [community-bundles](https://github.com/kairos-io/community-bundles) repository.
+Extend the configuration of your node with custom, container-based deployment models (see [our documentation here](/docs/advanced/bundles) and a [full example showing how to deploy MetaLB](/docs/examples/bundles)). `Kubevirt` and `MetalLB` bundles are availble in the [community-bundles](https://github.com/kairos-io/community-bundles) repository.
 
 ## Notes
 
