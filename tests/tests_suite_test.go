@@ -124,7 +124,7 @@ var _ = BeforeSuite(func() {
 		}
 		cpu := os.Getenv("CPU")
 		if cpu != "" {
-			opts = append(opts, types.WithCPU(os.Getenv("CPUS")))
+			opts = append(opts, types.WithCPU(cpu))
 		}
 
 		if os.Getenv("KVM") == "true" {
