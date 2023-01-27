@@ -62,20 +62,20 @@ To validate the whole chain you would need:
 3. ISO, sha256, certificate and signature files for the release/flavor that you want to verify. All the artifacts are available on the [kairos release page](https://github.com/kairos-io/kairos/releases)
 
 
-In this example we will use the `v1.5.0` version and `opensuse` flavor
+In this example we will use the `v1.5.1` version and `opensuse-leap` flavor
 
 First we check that we have all needed files:
 
 ```bash
 $ ls      
-kairos-opensuse-leap-v1.4.0.iso         kairos-opensuse-leap-v1.4.0.iso.sha256.pem
-kairos-opensuse-leap-v1.4.0.iso.sha256  kairos-opensuse-leap-v1.4.0.iso.sha256.sig
+kairos-opensuse-leap-v1.5.1.iso         kairos-opensuse-leap-v1.5.1.iso.sha256.pem
+kairos-opensuse-leap-v1.5.1.iso.sha256  kairos-opensuse-leap-v1.5.1.iso.sha256.sig
 ```
 
 We first verify that the sha256 checksums haven't been tampered with:
 
 ```bash
-$ COSIGN_EXPERIMENTAL=1 cosign verify-blob --cert kairos-opensuse-leap-v1.4.0.iso.sha256.pem --signature kairos-opensuse-leap-v1.4.0.iso.sha256.sig kairos-opensuse-leap-v1.4.0.iso.sha256 
+$ COSIGN_EXPERIMENTAL=1 cosign verify-blob --cert kairos-opensuse-leap-v1.5.1.iso.sha256.pem --signature kairos-opensuse-leap-v1.5.1.iso.sha256.sig kairos-opensuse-leap-v1.5.1.iso.sha256 
 tlog entry verified with uuid: 51ef927a43557386ad7912802607aa421566772524319703a99f8331f0bb778f index: 11977200
 Verified OK
 ```
@@ -85,9 +85,9 @@ Once we see that `Verified OK` we can be sure that the file hasn't been tampered
 For an example of a failure validation see below:
 
 ```bash
-$ COSIGN_EXPERIMENTAL=1 cosign verify-blob --enforce-sct --cert kairos-opensuse-leap-v1.4.0.iso.sha256.pem --signature kairos-opensuse-leap-v1.4.0.iso.sha256.sig kairos-opensuse-leap-v1.4.0.iso.sha256.modified
-Error: verifying blob [kairos-opensuse-leap-v1.4.0.iso.sha256.modified]: invalid signature when validating ASN.1 encoded signature
-main.go:62: error during command execution: verifying blob [kairos-opensuse-leap-v1.4.0.iso.sha256.modified]: invalid signature when validating ASN.1 encoded signature
+$ COSIGN_EXPERIMENTAL=1 cosign verify-blob --enforce-sct --cert kairos-opensuse-leap-v1.5.1.iso.sha256.pem --signature kairos-opensuse-leap-v1.5.1.iso.sha256.sig kairos-opensuse-leap-v1.5.1.iso.sha256.modified
+Error: verifying blob [kairos-opensuse-leap-v1.5.1.iso.sha256.modified]: invalid signature when validating ASN.1 encoded signature
+main.go:62: error during command execution: verifying blob [kairos-opensuse-leap-v1.5.1.iso.sha256.modified]: invalid signature when validating ASN.1 encoded signature
 ```
 {{% alert title="Info" %}}
 We use `COSIGN_EXPERIMENTAL=1` to verify the blob using the keyless method. That means that only ephemeral keys are created to sign, and it relays on using
@@ -99,8 +99,8 @@ via the CI with no external access to the signing process. For more information 
 Now we can verify that the integrity of the ISO hasnt been compromise:
 
 ```bash
-$ sha256sum -c kairos-opensuse-leap-v1.4.0.iso.sha256 
-kairos-opensuse-leap-v1.4.0.iso: OK
+$ sha256sum -c kairos-opensuse-leap-v1.5.1.iso.sha256 
+kairos-opensuse-leap-v1.5.1.iso: OK
 ```
 
 Once we reached this point, we can be sure that from the ISO hasn't been tampered with since it was created by our release workflow.
