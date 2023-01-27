@@ -643,6 +643,7 @@ docs:
     RUN apk add make
     RUN apk add hugo
     COPY . .
+    RUN git submodule update --init --recursive --depth 1
     WORKDIR ./docs
     RUN npm run prepare
     RUN npm install --save-dev autoprefixer postcss-cli postcss
