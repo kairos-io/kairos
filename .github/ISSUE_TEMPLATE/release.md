@@ -19,6 +19,7 @@ assignees: mudler
 - [ ] **Stage 0 - Finishing Touches**
     - [ ] Check kairos/packages, and for any needed update
     - [ ] Make sure CI tests are passing.
+    - [ ] Consider cutting an `rc`, `alpha`, ... based on changes on the CI
 - [ ] **Stage 1 - Manual testing**
   - How: Using the assets from master, make sure that test scenarios not covered by automatic tests are passing, and that docs are still aligned
     - [ ] Fedora flavor install, and manual upgrade works
@@ -26,5 +27,11 @@ assignees: mudler
 - [ ] **Stage 3 - Release**
   - [ ] Tag the release on master.
 - [ ] **Stage 4 - Update provider-kairos**
+  - [ ] Update go mod to consume `kairos-io/kairos`.
+  - [ ] Check if any changes on the pipelines and building pieces are required
+    - [ ] Flavor changes
+    - [ ] `osbuilder` version bumps
   - [ ] Update the `CORE_VERSION` file of `kairos-io/provider` to match the release tag of `kairos-io/kairos`
   - [ ] Tag the release on `provider-kairos`
+- [ ] **Stage 5 - Announcement**
+  - [ ] Blog post announcement
