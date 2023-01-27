@@ -16,7 +16,7 @@ require (
 	github.com/kairos-io/kcrypt v0.5.0
 	github.com/labstack/echo/v4 v4.10.0
 	github.com/mudler/go-nodepair v0.0.0-20221223092639-ba399a66fdfb
-	github.com/mudler/go-pluggable v0.0.0-20220716112424-189d463e3ff3
+	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
 	github.com/mudler/yip v0.11.4
 	github.com/nxadm/tail v1.4.8
