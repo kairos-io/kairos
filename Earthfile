@@ -482,7 +482,7 @@ run-qemu-datasource-tests:
 
 run-qemu-custom-mount-tests:
     FROM +ginkgo
-    RUN apt install -y qemu-system-x86 qemu-utils golang git
+    RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
 
     COPY . .
@@ -512,7 +512,7 @@ run-qemu-netboot-test:
     ARG VERSION=$(cat VERSION)
 
     RUN apt update
-    RUN apt install -y qemu qemu-utils qemu-system golang git
+    RUN apt install -y qemu qemu-utils qemu-system git && apt clean
 
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
@@ -540,7 +540,7 @@ run-qemu-netboot-test:
 
 run-qemu-test:
     FROM +ginkgo
-    RUN apt install -y qemu-system-x86 qemu-utils golang git
+    RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG CONTAINER_IMAGE
