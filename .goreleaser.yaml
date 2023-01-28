@@ -1,4 +1,5 @@
 # Make sure to check the documentation at http://goreleaser.com
+project_name: kairos-agent
 builds:
   - ldflags:
       - -w -s
@@ -11,14 +12,14 @@ builds:
       - arm64
       - 386
     main: ./cmd/agent/
-    id: "kairos-agent"
-    binary: "kairos-agent"
+    binary: '{{ .ProjectName }}'
 source:
   enabled: true
   name_template: '{{ .ProjectName }}-{{ .Tag }}-source'
 archives:
   # Default template uses underscores instead of -
   - name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    # TODO: this is deprecated -> https://goreleaser.com/deprecations#archivesreplacements
     replacements:
       darwin: Darwin
       linux: Linux

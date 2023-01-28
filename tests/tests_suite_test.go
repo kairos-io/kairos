@@ -113,6 +113,11 @@ var _ = BeforeSuite(func() {
 			opts = append(opts, types.VBoxEngine)
 		}
 
+		display := os.Getenv("MACHINE_DISPLAY") // display is already taken on Linux X sessions
+		if display != "" {
+			opts = append(opts, types.WithDisplay(display))
+		}
+
 		memory := os.Getenv("MEMORY")
 		if memory != "" {
 			opts = append(opts, types.WithMemory(os.Getenv("MEMORY")))
@@ -120,6 +125,15 @@ var _ = BeforeSuite(func() {
 		cpu := os.Getenv("CPU")
 		if cpu != "" {
 			opts = append(opts, types.WithCPU(os.Getenv("CPUS")))
+		}
+
+		if os.Getenv("KVM") == "true" {
+			opts = append(opts, func(m *types.MachineConfig) error {
+				m.Args = append(m.Args,
+					"-enable-kvm",
+				)
+				return nil
+			})
 		}
 
 		m, err := machine.New(opts...)
