@@ -134,6 +134,7 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
 
+  # This job is used to download the latest release and then used by the upgrade-latest-* jobs
   latest-release:
     runs-on: ubuntu-latest
     steps:
@@ -143,7 +144,7 @@ jobs:
       # The default value is 'false'
         latest: true
         repository: "kairos-io/kairos"
-        fileName: "*"
+        fileName: "*opensuse-leap*.iso"
         out-file-path: "last-release"
     - uses: actions/upload-artifact@v3
       with:
