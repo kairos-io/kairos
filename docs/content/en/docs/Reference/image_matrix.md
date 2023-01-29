@@ -37,6 +37,8 @@ Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pi
 | **openSUSE Leap based (RaspberryPi 3 and 4, arm64)**     	              | https://quay.io/repository/kairos/core-opensuse-leap-arm-rpi 	          | https://quay.io/repository/kairos/kairos-opensuse-leap-arm-rpi 	          |
 | **openSUSE Tumbleweed based (RaspberryPi 3 and 4, arm64)**     	        | https://quay.io/repository/kairos/core-opensuse-tumbleweed-arm-rpi 	    | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed-arm-rpi 	        |
 | **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	                   | https://quay.io/repository/kairos/core-alpine-arm-rpi   	               | https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	               |
+| **Rocky Linux based** 	                   | https://quay.io/repository/kairos/core-rockylinux   	               |                |
+| **Debian Linux based** 	                   | https://quay.io/repository/kairos/core-debian   	               | https://quay.io/repository/kairos/kairos-debian   	               |
 
 {{% alert title="Note" color="info" %}}
 
