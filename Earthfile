@@ -263,7 +263,7 @@ docker:
 	    RUN rm -rf /boot/initrd.img-*
     END
     # Regenerate initrd if necessary
-    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" || [ "$FLAVOR" = "opensuse-tumbleweed" ]
+    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed" ]
      RUN mkinitrd
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
      RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
