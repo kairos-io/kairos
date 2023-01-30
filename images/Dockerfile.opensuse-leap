@@ -6,20 +6,19 @@ RUN zypper in -y \
     bash-completion \
     conntrack-tools \
     coreutils \
+    cryptsetup \
     curl \
     device-mapper \
-    dosfstools \
     dhcp-client \
+    dosfstools \
     dracut \
     e2fsprogs \
-    cryptsetup \
+    fail2ban \
     findutils \
     gawk \
     gptfdisk \
     grub2-i386-pc \
-    logrotate \
     grub2-x86_64-efi \
-    fail2ban \
     haveged \
     htop \
     iproute2 \
@@ -30,6 +29,7 @@ RUN zypper in -y \
     kernel-default \
     kernel-firmware-all \
     less \
+    logrotate \
     lsscsi \
     lvm2 \
     mdadm \
@@ -41,21 +41,22 @@ RUN zypper in -y \
     open-vm-tools \
     openssh \
     parted \
-    polkit \
     pigz \
     policycoreutils \
+    polkit \
     procps \
     qemu-guest-agent \
     rng-tools \
     rsync \
     squashfs \
     strace \
+    sudo \
     systemd \
     systemd-network \
     systemd-sysvinit \
-    sudo \
     tar \
     timezone \
     tmux \
     vim \
-    which && zypper cc
+    which \
+    && zypper cc

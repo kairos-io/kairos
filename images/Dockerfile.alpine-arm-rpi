@@ -3,29 +3,12 @@ ARG BASE_IMAGE=alpine
 FROM $BASE_IMAGE
 
 RUN apk --no-cache add  \
-      grub \
-      grub-efi \
       bash \
-      connman \
-      gettext \
-      squashfs-tools \
-      openrc \
-      parted \
-      e2fsprogs \
-      dosfstools \
-      coreutils \
-      which \
-      logrotate \
-      curl \
-      nano \
-      gawk \
-      haveged \
-      tar \
-      rsync \
       bash-completion \
       blkid \
       busybox-openrc \
       ca-certificates \
+      connman \
       conntrack-tools \
       coreutils \
       cryptsetup \
@@ -39,7 +22,10 @@ RUN apk --no-cache add  \
       eudev \
       fail2ban \
       findutils \
+      gawk \
       gcompat \
+      gettext \
+      grub \
       grub-efi \
       haveged \
       htop \
@@ -50,9 +36,9 @@ RUN apk --no-cache add  \
       iscsi-scst \
       jq \
       kbd-bkeymaps \
-      lm-sensors \
       libc6-compat \
       libusb \
+      lm-sensors \
       logrotate \
       lsscsi \
       lvm2 \
@@ -61,10 +47,16 @@ RUN apk --no-cache add  \
       mdadm-misc \
       mdadm-udev \
       multipath-tools \
+      nano \
       ncurses \
       ncurses-terminfo \
       nfs-utils \
       open-iscsi \
+      open-vm-tools \
+      open-vm-tools-deploypkg \
+      open-vm-tools-guestinfo \
+      open-vm-tools-static \
+      open-vm-tools-vmbackup \
       openrc \
       openssh-client \
       openssh-server \
@@ -73,23 +65,20 @@ RUN apk --no-cache add  \
       qemu-guest-agent \
       rng-tools \
       rsync \
-      strace \
       smartmontools \
+      squashfs-tools \
+      strace \
       sudo \
       tar \
       tzdata \
       util-linux \
       vim \
+      which \
       wireguard-tools \
       wpa_supplicant \
       xfsprogs \
-      xz \
-      open-vm-tools \
-      open-vm-tools-deploypkg \
-      open-vm-tools-guestinfo \
-      open-vm-tools-static \
-      open-vm-tools-vmbackup
-
+      xz
+      
 RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
     rc-update add acpid boot && \
@@ -104,4 +93,3 @@ RUN rc-update add sshd boot && \
 # Symlinks to make elemental installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
     ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
-

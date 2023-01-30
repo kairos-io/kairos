@@ -2,32 +2,14 @@ ARG BASE_IMAGE=alpine
 FROM $BASE_IMAGE
 
 RUN apk --no-cache add  \
-      grub \
-      grub-efi \
-      grub-bios \
       bash \
-      bonding \
-      bridge \
-      connman \
-      gettext \
-      squashfs-tools \
-      openrc \
-      parted \
-      e2fsprogs \
-      logrotate \
-      dosfstools \
-      coreutils \
-      which \
-      curl \
-      nano \
-      gawk \
-      haveged \
-      tar \
-      rsync \
       bash-completion \
       blkid \
+      bonding \
+      bridge \
       busybox-openrc \
       ca-certificates \
+      connman \
       conntrack-tools \
       coreutils \
       cryptsetup \
@@ -41,7 +23,11 @@ RUN apk --no-cache add  \
       eudev \
       fail2ban \
       findutils \
+      gawk \
       gcompat \
+      gettext \
+      grub \
+      grub-bios \
       grub-efi \
       haveged \
       htop \
@@ -52,9 +38,9 @@ RUN apk --no-cache add  \
       iscsi-scst \
       jq \
       kbd-bkeymaps \
-      lm-sensors \
       libc6-compat \
       libusb \
+      lm-sensors \
       logrotate \
       lsscsi \
       lvm2 \
@@ -63,35 +49,38 @@ RUN apk --no-cache add  \
       mdadm-misc \
       mdadm-udev \
       multipath-tools \
+      nano \
       ncurses \
       ncurses-terminfo \
       nfs-utils \
       open-iscsi \
-      rbd-nbd \
+      open-vm-tools \
+      open-vm-tools-deploypkg \
+      open-vm-tools-guestinfo \
+      open-vm-tools-static \
+      open-vm-tools-vmbackup \
       openrc \
       openssh-client \
       openssh-server \
       parted \
       procps \
       qemu-guest-agent \
+      rbd-nbd \
       rng-tools \
       rsync \
-      strace \
       smartmontools \
+      squashfs-tools \
+      strace \
       sudo \
       tar \
       tzdata \
       util-linux \
       vim \
+      which \
       wireguard-tools \
       wpa_supplicant \
       xfsprogs \
-      xz \
-      open-vm-tools \
-      open-vm-tools-deploypkg \
-      open-vm-tools-guestinfo \
-      open-vm-tools-static \
-      open-vm-tools-vmbackup
+      xz
 
 RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
