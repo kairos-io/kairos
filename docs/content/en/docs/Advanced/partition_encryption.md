@@ -90,7 +90,7 @@ This scenario covers encryption of data at rest without any third party or KMS s
 
 A high level overview of the interaction between the components can be observed here:
 
-![encryption1_1674472109993_0](https://user-images.githubusercontent.com/2420543/214405302-96bfef4b-fb5e-4442-8d50-c8d7ebe53dab.png)
+![offline](https://user-images.githubusercontent.com/2420543/214795800-f7d54309-2a3c-4d29-b6da-c74644424244.png)
 
 A complete cloud config example for this scenario can be:
 

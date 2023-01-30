@@ -13,7 +13,6 @@ RUN apt install -y \
     grub-efi-amd64-bin \
     grub2 \
     grub2-common \
-    nohang \
     sudo \
     iproute2 \
     squashfs-tools \
@@ -41,7 +40,6 @@ RUN apt install -y \
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
-RUN systemctl enable nohang-desktop.service
 RUN systemctl enable systemd-networkd
 RUN systemctl enable ssh
 RUN echo "auto lo" > /etc/network/interfaces
@@ -50,8 +48,8 @@ RUN echo "iface lo inet loopback" >> /etc/network/interfaces
 # workaround https://github.com/systemd/systemd/issues/12231
 # see also: https://github.com/OSInside/kiwi/issues/1015
 # TODO: backport patch into packages
-COPY images/dracut-debian.patch /
-RUN cd /usr/lib/dracut/modules.d/90dmsquash-live && patch < /dracut-debian.patch && rm -rf /dracut-debian.patch
+COPY images/dracut-missing-overlay-dirs.patch /
+RUN cd /usr/lib/dracut/modules.d/90dmsquash-live && patch < /dracut-missing-overlay-dirs.patch && rm -rf /dracut-missing-overlay-dirs.patch
 
 # Enable tmp
 RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 

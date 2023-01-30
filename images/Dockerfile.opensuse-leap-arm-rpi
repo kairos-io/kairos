@@ -3,8 +3,6 @@ ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM $BASE_IMAGE
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && zypper ref
-
 RUN zypper in -y \
     raspberrypi-eeprom \
     bcm43xx-firmware \
@@ -40,7 +38,6 @@ RUN zypper in -y \
     gptfdisk \
     grub2-i386-pc \
     grub2-x86_64-efi \
-    nohang \
     haveged \
     htop \
     fail2ban \
