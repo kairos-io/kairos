@@ -102,12 +102,7 @@ func Install(dir ...string) error {
 		}
 	})
 
-	// Try to pull userdata once more. best-effort
-	if _, err := os.Stat("/oem/userdata"); err != nil {
-		if err := machine.ExecuteCloudConfig("/system/oem/00_datasource.yaml", "rootfs.before"); err != nil {
-			fmt.Println("Warning: Failed pulling from datasources")
-		}
-	}
+	ensureDataSourceReady()
 
 	// Reads config, and if present and offline is defined,
 	// runs the installation
@@ -291,4 +286,25 @@ func RunInstall(options map[string]string) error {
 	}
 
 	return nil
+}
+
+func ensureDataSourceReady() {
+	timeout := time.NewTimer(5 * time.Minute)
+	ticker := time.NewTicker(500 * time.Millisecond)
+
+	defer timeout.Stop()
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout.C:
+			fmt.Println("userdata configuration failed to load after 5m, ignoring.")
+			return
+		case <-ticker.C:
+			if _, err := os.Stat("/run/.userdata_load"); os.IsNotExist(err) {
+				return
+			}
+			fmt.Println("userdata configuration has not yet completed. (waiting for /run/.userdata_load to be deleted)")
+		}
+	}
 }
