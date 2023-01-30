@@ -26,7 +26,7 @@ require (
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/spectrocloud/peg v0.0.0-20230126082901-925f4b5310f4
 	github.com/twpayne/go-vfs v1.7.2
-	github.com/urfave/cli/v2 v2.24.1
+	github.com/urfave/cli/v2 v2.24.2
 	golang.org/x/net v0.5.0
 	golang.org/x/oauth2 v0.4.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
