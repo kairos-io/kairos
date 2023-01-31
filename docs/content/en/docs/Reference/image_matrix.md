@@ -24,21 +24,20 @@ Below is a list of the available images and their locations on the quay.io regis
 Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pinned to Ubuntu 20:04, openSUSE to openSUSE leap 15.4, etc.).
 
 | **Flavor/Variant**                                  	                   | **Core (no k3s)**                                       	               | **Standard(k3s)**                           	                             |
-|-------------------------------------------------------------------------|-------------------------------------------------------------------------|---------------------------------------------------------------------------|
-| **openSUSE Leap based**                                  	              | https://quay.io/repository/kairos/core-opensuse-leap         	          | https://quay.io/repository/kairos/kairos-opensuse-leap         	          |
-| **openSUSE Tumbleweed based**                                  	        | https://quay.io/repository/kairos/core-tumbleweed-leap         	        | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed         	    |
-| **Fedora based**                                  	                     | https://quay.io/repository/kairos/core-fedora         	                 | https://quay.io/repository/kairos/kairos-fedora         	                 |
-| **Debian based**                                  	                     | https://quay.io/repository/kairos/core-debian         	                 | https://quay.io/repository/kairos/kairos-debian         	                 |
-| **Ubuntu based (rolling)** **                                   	       | https://quay.io/repository/kairos/core-ubuntu           	               | https://quay.io/repository/kairos/kairos-ubuntu           	               |
-| **Ubuntu based (22 LTS)** **                                    	       | https://quay.io/repository/kairos/core-ubuntu-22-lts           	        | https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	        |
-| **Ubuntu based (20 LTS)** **                                   	        | https://quay.io/repository/kairos/core-ubuntu-20-lts           	        | https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	        |
+|--------------------------------------------------------------------------|-------------------------------------------------------------------------|---------------------------------------------------------------------------|
 | **Alpine Linux based (openSUSE kernel)**                              	 | https://quay.io/repository/kairos/core-alpine-opensuse-leap           	 | https://quay.io/repository/kairos/kairos-alpine-opensuse-leap           	 |
-| **Alpine Linux based (Ubuntu kernel)**                              	   | https://quay.io/repository/kairos/core-alpine-ubuntu           	        | https://quay.io/repository/kairos/kairos-alpine-ubuntu           	        |
-| **openSUSE Leap based (RaspberryPi 3 and 4, arm64)**     	              | https://quay.io/repository/kairos/core-opensuse-leap-arm-rpi 	          | https://quay.io/repository/kairos/kairos-opensuse-leap-arm-rpi 	          |
-| **openSUSE Tumbleweed based (RaspberryPi 3 and 4, arm64)**     	        | https://quay.io/repository/kairos/core-opensuse-tumbleweed-arm-rpi 	    | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed-arm-rpi 	        |
+| **Alpine Linux based (Ubuntu kernel)**                              	   | https://quay.io/repository/kairos/core-alpine-ubuntu           	       | https://quay.io/repository/kairos/kairos-alpine-ubuntu           	       |
 | **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	                   | https://quay.io/repository/kairos/core-alpine-arm-rpi   	               | https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	               |
-| **Rocky Linux based** 	                   | https://quay.io/repository/kairos/core-rockylinux   	               |                |
-| **Debian Linux based** 	                   | https://quay.io/repository/kairos/core-debian   	               | https://quay.io/repository/kairos/kairos-debian   	               |
+| **Debian based**                                  	                     | https://quay.io/repository/kairos/core-debian         	                 | https://quay.io/repository/kairos/kairos-debian         	                 |
+| **Fedora based**                                  	                     | https://quay.io/repository/kairos/core-fedora         	                 | https://quay.io/repository/kairos/kairos-fedora         	                 |
+| **openSUSE Leap based**                                  	               | https://quay.io/repository/kairos/core-opensuse-leap         	         | https://quay.io/repository/kairos/kairos-opensuse-leap         	         |
+| **openSUSE Leap based (RaspberryPi 3 and 4, arm64)**     	               | https://quay.io/repository/kairos/core-opensuse-leap-arm-rpi 	         | https://quay.io/repository/kairos/kairos-opensuse-leap-arm-rpi 	         |
+| **openSUSE Tumbleweed based**                                  	         | https://quay.io/repository/kairos/core-tumbleweed-leap         	       | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed         	   |
+| **openSUSE Tumbleweed based (RaspberryPi 3 and 4, arm64)**     	         | https://quay.io/repository/kairos/core-opensuse-tumbleweed-arm-rpi 	   | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed-arm-rpi 	   |
+| **Ubuntu based (rolling)** **                                   	       | https://quay.io/repository/kairos/core-ubuntu           	               | https://quay.io/repository/kairos/kairos-ubuntu           	               |
+| **Ubuntu based (22 LTS)** **                                    	       | https://quay.io/repository/kairos/core-ubuntu-22-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	       |
+| **Ubuntu based (20 LTS)** **                                   	         | https://quay.io/repository/kairos/core-ubuntu-20-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	       |
+| **Rocky Linux based**                                                    | https://quay.io/repository/kairos/core-rockylinux                       | N/A                                                                       |
 
 {{% alert title="Note" color="info" %}}
 
