@@ -9,36 +9,37 @@ RUN apt install -y software-properties-common
 RUN add-apt-repository ppa:oibaf/test
 RUN apt update
 RUN apt install -y \
-    systemd \
-    grub-pc-bin \
-    grub-efi-amd64-bin \
-    grub2 \
-    grub2-common \
-    sudo \
-    iproute2 \
-    squashfs-tools \
-    parted dracut \
+    conntrack \
+    console-data \
+    coreutils \
+    curl \
+    debianutils \
+    dosfstools \
     dracut-network dracut-live tar \
     e2fsprogs \
-    dosfstools \
-    coreutils \
-    debianutils \
-    curl \
-    openssh-server \
-    nano \
     gawk \
+    grub-efi-amd64-bin \
+    grub-pc-bin \
+    grub2 \
+    grub2-common \
     haveged \
-    rsync \
+    iproute2 \
+    iptables \
     jq \
+    linux-image-generic-hwe-22.04 \
+    lldpd \
+    nano \
     neovim \
     open-vm-tools \
+    openssh-server \
+    parted dracut \
+    rsync \
     snapd \
-    conntrack \
-    iptables \
-    lldpd \
     snmpd \
-    console-data \
-    linux-image-generic-hwe-22.04 && apt-get clean
+    squashfs-tools \
+    sudo \
+    systemd \
+    && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv

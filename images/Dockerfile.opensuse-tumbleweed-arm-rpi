@@ -4,27 +4,8 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 FROM $BASE_IMAGE
 
 RUN zypper in -y \
-    raspberrypi-eeprom \
-    bcm43xx-firmware \
-    raspberrypi-firmware-dt \
-    raspberrypi-firmware \
-    kernel-firmware-usb-network \
-    kernel-firmware-serial \
-    kernel-firmware-realtek \
-    kernel-firmware-network \
-    kernel-firmware-iwlwifi \
-    kernel-firmware-brcm \
-    kernel-firmware-bluetooth \
-    kernel-firmware-atheros \
-    kernel-firmware-ath11k \
-    kernel-firmware-ath10k \
-    wireless-tools \
-    logrotate \
-    wpa_supplicant \
-    iw \
-    systemd-sysvinit \
-    grub2-arm64-efi \
     bash-completion \
+    bcm43xx-firmware \
     conntrack-tools \
     coreutils \
     curl \
@@ -33,19 +14,32 @@ RUN zypper in -y \
     dosfstools \
     dracut \
     e2fsprogs \
+    fail2ban \
     findutils \
     gawk \
     gptfdisk \
+    grub2-arm64-efi \
     haveged \
     htop \
-    fail2ban \
     iproute2 \
     iptables \
     iputils \
     issue-generator \
+    iw \
     jq \
     kernel-default \
+    kernel-firmware-ath10k \
+    kernel-firmware-ath11k \
+    kernel-firmware-atheros \
+    kernel-firmware-bluetooth \
+    kernel-firmware-brcm \
+    kernel-firmware-iwlwifi \
+    kernel-firmware-network \
+    kernel-firmware-realtek \
+    kernel-firmware-serial \
+    kernel-firmware-usb-network \
     less \
+    logrotate \
     lsscsi \
     lvm2 \
     mdadm \
@@ -55,26 +49,31 @@ RUN zypper in -y \
     nfs-utils \
     open-iscsi \
     open-vm-tools \
+    openssh \
     parted \
     pigz \
     policycoreutils \
-    procps \
-    sudo \
-    sysconfig \
     polkit \
-    sysconfig-netconfig \
-    sysvinit-tools \
-    systemd-network \
+    procps \
+    raspberrypi-eeprom \
+    raspberrypi-firmware \
+    raspberrypi-firmware-dt \
     rng-tools \
     rsync \
     squashfs \
     strace \
-    openssh \
+    sudo \
+    sysconfig \
+    sysconfig-netconfig \
     systemd \
+    systemd-network \
     systemd-sysvinit \
+    sysvinit-tools \
     tar \
     timezone \
     tmux \
     vim \
+    which \
+    wireless-tools \
     wpa_supplicant \
-    which && zypper cc
+    && zypper cc

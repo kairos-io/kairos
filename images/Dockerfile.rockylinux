@@ -8,36 +8,37 @@ RUN dnf install -y epel-release
 RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
-    NetworkManager \
-    squashfs-tools \ 
-    dracut-live \
-    livecd-tools \
-    dracut-squash \
-    dracut-network \
-    efibootmgr \
     audit \
-    sudo \
-    systemd \
-    parted \
-    dracut \
-    e2fsprogs \
-    dosfstools \
     device-mapper \
-    grub2 \
-    which \
-    nano \
+    dosfstools \
+    dracut \
+    dracut-live \
+    dracut-network \
+    dracut-squash \
+    e2fsprogs \
+    efibootmgr \
     gawk \
-    tar \
-    openssh-server \
-    shim-x64 \
-    grub2-pc \
+    grub2 \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
-    systemd-networkd \
+    grub2-pc \
     kernel kernel-modules kernel-modules-extra \
-    systemd-timesyncd \
+    livecd-tools \
+    nano \
+    NetworkManager \
+    openssh-server \
+    parted \
+    rsync \
+    shim-x64 \
+    squashfs-tools \ 
+    sudo \
+    systemd \
+    systemd-networkd \
     systemd-resolved \
-    rsync && dnf clean all
+    systemd-timesyncd \
+    tar \
+    which \
+    && dnf clean all
 
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
