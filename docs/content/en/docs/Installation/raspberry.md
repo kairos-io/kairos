@@ -26,7 +26,7 @@ Extract the `img` file from a container image as described [in this page](/docs/
 Plug the SD card to your system. To flash the image, you can either use Etcher or `dd`. Note it's compressed with "XZ", so we need to decompress it first:
 
 ```bash
-xzcat kairos-opensuse-leap-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img | sudo dd of=<device> oflag=sync status=progress bs=10MB
+xzcat kairos-opensuse-leap-arm-rpi-v1.0.0-rc2-k3sv1.21.14+k3s1.img.xz | sudo dd of=<device> oflag=sync status=progress bs=10MB
 ```
 
 Once the image is flashed, there is no need to carry any other installation steps. We can boot the image, or apply our config.
