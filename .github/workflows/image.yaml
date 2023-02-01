@@ -225,6 +225,7 @@ jobs:
           name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
+            rm .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
@@ -300,6 +301,7 @@ jobs:
         df -h
     - run: |
             ls -liah
+            rm .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             sudo mkdir build
             sudo mv $ISO build/
@@ -363,6 +365,7 @@ jobs:
         df -h
     - run: |
             ls -liah
+            rm .earthlyignore
             export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
             sudo mkdir build
             sudo mv $ISO build/
