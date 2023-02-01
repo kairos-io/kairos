@@ -11,31 +11,46 @@ import (
 )
 
 type FullConfig struct {
-	Users []User `json:"users" minimum:"1"`
+	Users []User   `json:"users,omitempty" minimum:"1" required:"true"`
+	_     struct{} `title:"Kairos Config" description:"Defines all valid Kairos configuration attributes."`
 }
 
 type User struct {
-	Name   string `json:"name" pattern:"([a-z_][a-z0-9_]{0,30})" required:"true"`
-	Passwd string `json:"passwd" pattern:"[abc]"`
+	Name              string   `json:"name,omitempty" pattern:"([a-z_][a-z0-9_]{0,30})" required:"true" example:"kairos"`
+	Passwd            string   `json:"passwd,omitempty" example:"kairos"`
+	Groups            string   `json:"groups,omitempty" example:"admin"`
+	LockPasswd        bool     `json:"lockPasswd,omitempty" example:"true"`
+	SSHAuthorizedKeys []string `json:"sshAuthorizedKeys,omitempty" example:"github:mudler"`
 }
 
 type Validator struct {
-	data        string
-	header      string
-	yamlError   error
-	schemaError error
-	fullConfig  FullConfig
+	Data         string
+	Header       string
+	yamlError    error
+	schemaError  error
+	parsedConfig FullConfig
 }
 
 func Validate(data, header string) error {
-	v := Validator{data: data, header: header}
+	v := Validator{Data: data, Header: header}
 
-	// First we check that we receive a YAML with valid syntax
 	if !v.isValidYaml() {
 		return v.yamlError
 	}
-	// Then we check if the schema/struct/grammar is correct
+
 	if !v.isValidSchema() {
+		return v.schemaError
+	}
+
+	return nil
+}
+
+func (v *Validator) Error() error {
+	if v.yamlError != nil {
+		return v.yamlError
+	}
+
+	if v.schemaError != nil {
 		return v.schemaError
 	}
 
@@ -45,29 +60,33 @@ func Validate(data, header string) error {
 func (v *Validator) isValidSchema() bool {
 	reflector := jsonschemago.Reflector{}
 
-	fmt.Printf("########  %#v", v.fullConfig.Users)
-
-	schema, err := reflector.Reflect(v.fullConfig)
+	generatedSchema, err := reflector.Reflect(v.parsedConfig)
 	if err != nil {
 		v.schemaError = err
 		return false
 	}
 
-	j, err := json.MarshalIndent(schema, "", " ")
+	generatedSchemaJson, err := json.MarshalIndent(generatedSchema, "", " ")
 	if err != nil {
 		v.schemaError = err
 		return false
 	}
 
-	s := string(j)
+	// TODO: remove
+	fmt.Println("############ schema: ")
+	fmt.Println(string(generatedSchemaJson))
 
-	instance, err := json.Marshal(v.fullConfig)
+	instance, err := json.Marshal(v.parsedConfig)
 	if err != nil {
 		v.schemaError = err
 		return false
 	}
 
-	sch, err := jsonschema.CompileString("schema.json", s)
+	// TODO: remove
+	fmt.Println("############ instance")
+	fmt.Println(string(instance))
+
+	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJson))
 	if err != nil {
 		v.schemaError = err
 		return false
@@ -89,11 +108,11 @@ func (v *Validator) isValidSchema() bool {
 
 func (v *Validator) isValidYaml() bool {
 	if !v.hasHeader() {
-		v.yamlError = fmt.Errorf("missing %s header", v.header)
+		v.yamlError = fmt.Errorf("missing %s header", v.Header)
 		return false
 	}
 
-	err := yaml.Unmarshal([]byte(v.data), &v.fullConfig)
+	err := yaml.Unmarshal([]byte(v.Data), &v.parsedConfig)
 	if err != nil {
 		v.yamlError = err
 		return false
@@ -103,5 +122,5 @@ func (v *Validator) isValidYaml() bool {
 }
 
 func (cv *Validator) hasHeader() bool {
-	return strings.HasPrefix(cv.data, cv.header)
+	return strings.HasPrefix(cv.Data, cv.Header)
 }

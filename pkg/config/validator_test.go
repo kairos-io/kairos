@@ -1,17 +1,30 @@
 package config_test
 
 import (
+	"strings"
+
 	. "github.com/kairos-io/kairos/pkg/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Config Validator", func() {
+	// var validator *Validator
+	var data string
+
+	JustBeforeEach(func() {
+		// validator = &Validator{
+		// 	Header: DefaultHeader,
+		// }
+	})
+
 	Context("With invalid YAML syntax", func() {
-		data := `#cloud-config
+		BeforeEach(func() {
+			data = `#cloud-config
 this is:
 - invalid
 yaml`
+		})
 
 		It("errors", func() {
 			Expect(Validate(data, DefaultHeader)).To(MatchError("yaml: line 4: could not find expected ':'"))
@@ -19,23 +32,72 @@ yaml`
 	})
 
 	Context("Without a header", func() {
-		data := `---
+		BeforeEach(func() {
+			data = `---
 users:
 - name: "kairos"
   passwd: "kairos"`
+		})
 
 		It("errors", func() {
 			Expect(Validate(data, DefaultHeader)).To(MatchError("missing #cloud-config header"))
 		})
 	})
 
-	Context("Without a username", func() {
-		data := `#cloud-config
-users:
-- passwd: "kairos"`
+	Context("When `users` is empty", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users: []`
+		})
 
 		It("errors", func() {
-			Expect(Validate(data, DefaultHeader)).To(HaveOccurred())
+			Expect(Validate(data, DefaultHeader).Error()).To(MatchRegexp("missing properties: 'users'"))
+		})
+	})
+
+	Context("When a user has no name", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users:
+- passwd: foobar`
+		})
+
+		It("errors", func() {
+			Expect(Validate(data, DefaultHeader).Error()).To(MatchRegexp("missing properties: 'name'"))
+		})
+	})
+
+	Context("When a user name doesn't fit the pattern", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users:
+- name: "007"
+  passwd: "bond"`
+		})
+
+		It("errors", func() {
+			Expect(
+				strings.Contains(Validate(data, DefaultHeader).Error(),
+					"does not match pattern '([a-z_][a-z0-9_]{0,30})'",
+				),
+			).To(BeTrue())
+		})
+	})
+
+	Context("With a valid user", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users:
+- name: "kairos"
+  passwd: "kairos"
+  lock_passwd: true
+  groups: "admin"
+  ssh_authorized_keys:
+    - github:mudler`
+		})
+
+		It("succeeds", func() {
+			Expect(Validate(data, DefaultHeader)).ToNot(HaveOccurred())
 		})
 	})
 })
