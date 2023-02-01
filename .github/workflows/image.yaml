@@ -120,6 +120,7 @@ jobs:
             go-version: '^1.16'
       - run: |
               ls -liah
+              sed -i '/build.*/d' .earthlyignore
               export ISO=$PWD/$(ls *.iso)
               export GOPATH="/Users/runner/go"
               export PATH=$PATH:$GOPATH/bin
@@ -225,7 +226,7 @@ jobs:
           name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
-            rm .earthlyignore
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
@@ -301,7 +302,7 @@ jobs:
         df -h
     - run: |
             ls -liah
-            rm .earthlyignore
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             sudo mkdir build
             sudo mv $ISO build/
@@ -365,7 +366,7 @@ jobs:
         df -h
     - run: |
             ls -liah
-            rm .earthlyignore
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
             sudo mkdir build
             sudo mv $ISO build/
