@@ -28,4 +28,14 @@ users:
 			Expect(Validate(data, DefaultHeader)).To(MatchError("missing #cloud-config header"))
 		})
 	})
+
+	Context("Without a username", func() {
+		data := `#cloud-config
+users:
+- passwd: "kairos"`
+
+		It("errors", func() {
+			Expect(Validate(data, DefaultHeader)).To(HaveOccurred())
+		})
+	})
 })
