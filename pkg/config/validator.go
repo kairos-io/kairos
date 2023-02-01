@@ -10,18 +10,18 @@ import (
 type FullConfig struct {
 }
 
-type ConfigValidator struct {
+type Validator struct {
 	data      string
 	header    string
 	yamlError error
 }
 
 func Validate(data, header string) error {
-	cv := ConfigValidator{data: data, header: header}
+	v := Validator{data: data, header: header}
 
 	// First we check that we receive a YAML with valid syntax
-	if !cv.isValidYaml() {
-		return cv.yamlError
+	if !v.isValidYaml() {
+		return v.yamlError
 	}
 
 	// Then we check if the schema/struct/grammar is correct
@@ -30,7 +30,7 @@ func Validate(data, header string) error {
 	return nil
 }
 
-func (cv *ConfigValidator) isValidYaml() bool {
+func (cv *Validator) isValidYaml() bool {
 	if !cv.hasHeader() {
 		cv.yamlError = fmt.Errorf("missing %s header", cv.header)
 		return false
@@ -46,6 +46,6 @@ func (cv *ConfigValidator) isValidYaml() bool {
 	return true
 }
 
-func (cv *ConfigValidator) hasHeader() bool {
+func (cv *Validator) hasHeader() bool {
 	return strings.HasPrefix(cv.data, cv.header)
 }
