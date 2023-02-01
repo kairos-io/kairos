@@ -16,8 +16,8 @@ stages:
           homedir: "/home/kairos"
           groups:
             - "admin"
-    - name: "Set user password if running in live"
-      if: "[ -e /run/cos/live_mode ]"
+    - name: "Set user password if running in live or uki"
+      if: "[ -e /run/cos/live_mode ] || [ -e /run/cos/uki_mode ]"
       users:
         kairos:
           passwd: "kairos"

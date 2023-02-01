@@ -13,7 +13,7 @@ stages:
         providers: ["aws", "gcp", "openstack", "cdrom"]
         path: "/oem"
   rootfs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+    - if: '[ ! -f "/run/cos/recovery_mode" ] &&  [ ! -e "/run/cos/uki_mode" ]'
       name: "Layout configuration"
       environment_file: /run/cos/cos-layout.env
       environment:
