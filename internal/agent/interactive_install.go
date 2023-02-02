@@ -128,6 +128,8 @@ func detectDevice() string {
 }
 
 func InteractiveInstall(spawnShell bool) error {
+	releaseLock := acquireInstallLock()
+	defer releaseLock()
 	bus.Manager.Initialize()
 
 	cmd.PrintBranding(DefaultBanner)

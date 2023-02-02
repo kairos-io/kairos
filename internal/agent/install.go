@@ -64,6 +64,8 @@ func displayInfo(agentConfig *Config) {
 
 func ManualInstall(c string, options map[string]string, strictValidations bool) error {
 	dat, err := os.ReadFile(c)
+	releaseLock := acquireInstallLock()
+	defer releaseLock()
 	if err != nil {
 		return err
 	}
@@ -89,6 +91,8 @@ func ManualInstall(c string, options map[string]string, strictValidations bool) 
 }
 
 func Install(dir ...string) error {
+	releaseLock := acquireInstallLock()
+	defer releaseLock()
 	utils.OnSignal(func() {
 		svc, err := machine.Getty(1)
 		if err == nil {
@@ -243,8 +247,7 @@ func RunInstall(options map[string]string) error {
 
 	device, ok := options["device"]
 	if !ok {
-		fmt.Println("device must be specified among options")
-		os.Exit(1)
+		return fmt.Errorf("device must be specified among options")
 	}
 
 	if device == "auto" {
@@ -253,8 +256,7 @@ func RunInstall(options map[string]string) error {
 
 	cloudInit, ok := options["cc"]
 	if !ok {
-		fmt.Println("cloudInit must be specified among options")
-		os.Exit(1)
+		return fmt.Errorf("cloudInit must be specified among options")
 	}
 
 	c := &config.Config{}
@@ -281,8 +283,7 @@ func RunInstall(options map[string]string) error {
 
 	err := os.WriteFile(f.Name(), []byte(cloudInit), os.ModePerm)
 	if err != nil {
-		fmt.Printf("could not write cloud init: %s\n", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("could not write cloud init: %s", err.Error())
 	}
 	args := []string{"install"}
 	args = append(args, optsToArgs(options)...)
@@ -294,8 +295,7 @@ func RunInstall(options map[string]string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		return err
 	}
 
 	if err := hook.Run(*c, hook.AfterInstall...); err != nil {
@@ -323,5 +323,28 @@ func ensureDataSourceReady() {
 			}
 			fmt.Println("userdata configuration has not yet completed. (waiting for /run/.userdata_load to be deleted)")
 		}
+	}
+}
+
+var flock *os.File
+var err error
+
+func acquireInstallLock() func() {
+	fmt.Println("acquiring install lock")
+	for {
+		flock, err = os.OpenFile("/var/run/.kairos-install", os.O_CREATE|os.O_EXCL, 0600)
+		if err == nil {
+			fmt.Println("acquired install lock")
+			break
+		}
+
+		fmt.Println("another install is in progress, waiting for lock: ", err)
+		time.Sleep(1 * time.Second)
+	}
+
+	return func() {
+		fmt.Println("released install lock")
+		_ = flock.Close()
+		_ = os.Remove(flock.Name())
 	}
 }
