@@ -11,7 +11,7 @@ import (
 )
 
 type FullConfig struct {
-	Users []User   `json:"users,omitempty" minimum:"1" required:"true"`
+	Users []User   `json:"users,omitempty" minItems:"1" required:"true"`
 	_     struct{} `title:"Kairos Config" description:"Defines all valid Kairos configuration attributes."`
 }
 
@@ -20,7 +20,7 @@ type User struct {
 	Passwd            string   `json:"passwd,omitempty" example:"kairos"`
 	Groups            string   `json:"groups,omitempty" example:"admin"`
 	LockPasswd        bool     `json:"lockPasswd,omitempty" example:"true"`
-	SSHAuthorizedKeys []string `json:"sshAuthorizedKeys,omitempty" example:"github:mudler"`
+	SSHAuthorizedKeys []string `json:"sshAuthorizedKeys,omitempty" examples:"[\"github:USERNAME\",\"ssh-ed25519 AAAF00BA5\"]"`
 }
 
 type Validator struct {
