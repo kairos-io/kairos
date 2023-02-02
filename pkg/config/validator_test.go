@@ -136,7 +136,12 @@ p2p:
 		})
 
 		It("Fails", func() {
-			Expect(Validate(data, DefaultHeader)).To(HaveOccurred())
+			err := Validate(data, DefaultHeader)
+			Expect(
+				strings.Contains(err.Error(),
+					"length must be >= 1, but got 0",
+				),
+			).To(BeTrue())
 		})
 	})
 

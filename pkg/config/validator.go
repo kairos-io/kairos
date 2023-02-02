@@ -17,7 +17,7 @@ type Schema struct {
 }
 
 type P2P struct {
-	DisableDHT bool `json:"disable_dht" default:"true"`
+	DisableDHT bool `json:"disable_dht,omitempty" default:"true"`
 	NetworkTokenControlFlow
 }
 
