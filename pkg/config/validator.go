@@ -10,35 +10,51 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type FullConfig struct {
+type Schema struct {
 	Users []User   `json:"users,omitempty" minItems:"1" required:"true"`
-	_     struct{} `title:"Kairos Config" description:"Defines all valid Kairos configuration attributes."`
+	P2P   P2P      `json:"p2p,omitempty"`
+	_     struct{} `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
 }
 
-type UserSecurityAccess struct {
+type P2P struct {
+	DisableDHT bool `json:"disable_dht" default:"true"`
+	NetworkTokenControlFlow
 }
 
-type PasswordAccess struct {
-	Passwd string `json:"passwd,omitempty" example:"kairos" required:"true"`
+type NetworkTokenControlFlow struct{}
+
+type EmptyNetworkToken struct {
+	NetworkToken string `json:"network_token" const:""`
 }
 
-type KeyAccess struct {
-	SSHAuthorizedKeys []string `json:"ssh_authorized_keys,omitempty" examples:"[\"github:USERNAME\",\"ssh-ed25519 AAAF00BA5\"]" required:"true"`
+type PresentNetworkToken struct {
+	NetworkToken string `json:"network_token,omitempty" requried:"true" minLength:"1"`
 }
 
-var _ jsonschemago.AnyOfExposer = UserSecurityAccess{}
+type DisabledAuto struct {
+	Auto struct {
+		Enable bool `json:"enable,omitempty" const:"false"`
+	} `json:"auto"`
+}
 
-func (UserSecurityAccess) JSONSchemaAnyOf() []interface{} {
-	return []interface{}{
-		PasswordAccess{}, KeyAccess{},
-	}
+func (NetworkTokenControlFlow) JSONSchemaIf() interface{} {
+	return DisabledAuto{}
+}
+
+func (NetworkTokenControlFlow) JSONSchemaThen() interface{} {
+	return EmptyNetworkToken{}
+}
+
+func (NetworkTokenControlFlow) JSONSchemaElse() interface{} {
+	return PresentNetworkToken{}
 }
 
 type User struct {
-	Name       string `json:"name,omitempty" pattern:"([a-z_][a-z0-9_]{0,30})" required:"true" example:"kairos"`
-	Groups     string `json:"groups,omitempty" example:"admin"`
-	LockPasswd bool   `json:"lockPasswd,omitempty" example:"true"`
-	UserSecurityAccess
+	Name              string   `json:"name,omitempty" pattern:"([a-z_][a-z0-9_]{0,30})" required:"true" example:"kairos"`
+	Groups            string   `json:"groups,omitempty" example:"admin"`
+	LockPasswd        bool     `json:"lockPasswd,omitempty" example:"true"`
+	Passwd            string   `json:"passwd,omitempty" example:"kairos"`
+	SSHAuthorizedKeys []string `json:"ssh_authorized_keys,omitempty" examples:"[\"github:USERNAME\",\"ssh-ed25519 AAAF00BA5\"]"`
 }
 
 type Validator struct {
@@ -78,7 +94,7 @@ func (v *Validator) Error() error {
 func (v *Validator) isValidSchema() bool {
 	reflector := jsonschemago.Reflector{}
 
-	generatedSchema, err := reflector.Reflect(FullConfig{})
+	generatedSchema, err := reflector.Reflect(Schema{})
 	if err != nil {
 		v.schemaError = err
 		return false

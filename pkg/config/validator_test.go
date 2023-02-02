@@ -84,23 +84,6 @@ users:
 		})
 	})
 
-	Context("When a user has no security access defined", func() {
-		BeforeEach(func() {
-			data = `#cloud-config
-users:
-- name: "kairos"`
-		})
-
-		It("errors", func() {
-			err := Validate(data, DefaultHeader)
-			Expect(
-				strings.Contains(err.Error(),
-					"missing properties: 'passwd'",
-				),
-			).To(BeTrue())
-		})
-	})
-
 	Context("With a valid user", func() {
 		BeforeEach(func() {
 			data = `#cloud-config
@@ -111,6 +94,62 @@ users:
   groups: "admin"
   ssh_authorized_keys:
     - github:mudler`
+		})
+
+		It("succeeds", func() {
+			Expect(Validate(data, DefaultHeader)).ToNot(HaveOccurred())
+		})
+	})
+
+	Context("With a network_token and p2p.auto.enable = false", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users:
+- name: "kairos"
+  passwd: "kairos"
+p2p:
+  network_token: foobar
+  auto:
+    enable: false`
+		})
+
+		It("errors", func() {
+			err := Validate(data, DefaultHeader)
+			Expect(
+				strings.Contains(err.Error(),
+					"value must be \"\"",
+				),
+			).To(BeTrue())
+		})
+	})
+
+	Context("With an empty network_token and p2p.auto.enable = true", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users:
+- name: "kairos"
+  passwd: "kairos"
+p2p:
+  network_token: ""
+  auto:
+    enable: true`
+		})
+
+		It("Fails", func() {
+			Expect(Validate(data, DefaultHeader)).To(HaveOccurred())
+		})
+	})
+
+	Context("With a network_token and p2p.auto.enable = true", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users:
+- name: "kairos"
+  passwd: "kairos"
+p2p:
+  network_token: "foobar"
+  auto:
+    enable: true`
 		})
 
 		It("succeeds", func() {
