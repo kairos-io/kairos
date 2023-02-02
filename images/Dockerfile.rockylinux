@@ -28,6 +28,7 @@ RUN dnf install -y \
     NetworkManager \
     openssh-server \
     parted \
+    polkit \
     rsync \
     shim-x64 \
     squashfs-tools \ 
