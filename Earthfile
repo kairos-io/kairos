@@ -181,7 +181,7 @@ framework:
     COPY overlay/files /framework
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
-    SAVE ARTIFACT /framework/ framework
+    SAVE ARTIFACT --keep-own /framework/ framework
 
 framework-image:
     FROM scratch
@@ -299,7 +299,7 @@ docker:
 
 docker-rootfs:
     FROM +docker
-    SAVE ARTIFACT /. rootfs
+    SAVE ARTIFACT --keep-own /. rootfs
 
 ###
 ### Artifacts targets (ISO, netboot, ARM)
@@ -313,7 +313,7 @@ iso:
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
-    COPY +docker-rootfs/rootfs /build/image
+    COPY --keep-own +docker-rootfs/rootfs /build/image
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
