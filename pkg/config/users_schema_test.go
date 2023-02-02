@@ -14,7 +14,7 @@ var _ = Describe("Users Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, DefaultHeader, User{})
+		config, err = NewConfigFromYAML(yaml, DefaultHeader, UserSchema{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 

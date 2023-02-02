@@ -1,6 +1,6 @@
 package config
 
-type User struct {
+type UserSchema struct {
 	Name              string   `json:"name,omitempty" pattern:"([a-z_][a-z0-9_]{0,30})" required:"true" example:"kairos"`
 	Groups            string   `json:"groups,omitempty" example:"admin"`
 	LockPasswd        bool     `json:"lockPasswd,omitempty" example:"true"`

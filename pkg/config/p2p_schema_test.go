@@ -14,7 +14,7 @@ var _ = Describe("Users Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, DefaultHeader, P2P{})
+		config, err = NewConfigFromYAML(yaml, DefaultHeader, P2PSchema{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 

@@ -1,6 +1,6 @@
 package config
 
-type P2P struct {
+type P2PSchema struct {
 	DisableDHT bool `json:"disable_dht,omitempty" default:"true"`
 	NetworkTokenControlFlow
 }
