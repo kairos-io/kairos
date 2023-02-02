@@ -53,5 +53,4 @@ users: []`
 			Expect(config.ValidationError()).To(MatchRegexp("minimum 1 items required, but found 0 items"))
 		})
 	})
-
 })

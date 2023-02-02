@@ -11,9 +11,10 @@ import (
 )
 
 type Schema struct {
-	Users []UserSchema `json:"users,omitempty" minItems:"1" required:"true"`
-	P2P   P2PSchema    `json:"p2p,omitempty"`
-	_     struct{}     `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
+	Users   []UserSchema  `json:"users,omitempty" minItems:"1" required:"true"`
+	Install InstallSchema `json:"install,omitempty"`
+	P2P     P2PSchema     `json:"p2p,omitempty"`
+	_       struct{}      `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
 }
 
 type KConfig struct {
