@@ -15,12 +15,30 @@ type FullConfig struct {
 	_     struct{} `title:"Kairos Config" description:"Defines all valid Kairos configuration attributes."`
 }
 
+type UserSecurityAccess struct {
+}
+
+type PasswordAccess struct {
+	Passwd string `json:"passwd,omitempty" example:"kairos" required:"true"`
+}
+
+type KeyAccess struct {
+	SSHAuthorizedKeys []string `json:"ssh_authorized_keys,omitempty" examples:"[\"github:USERNAME\",\"ssh-ed25519 AAAF00BA5\"]" required:"true"`
+}
+
+var _ jsonschemago.AnyOfExposer = UserSecurityAccess{}
+
+func (UserSecurityAccess) JSONSchemaAnyOf() []interface{} {
+	return []interface{}{
+		PasswordAccess{}, KeyAccess{},
+	}
+}
+
 type User struct {
-	Name              string   `json:"name,omitempty" pattern:"([a-z_][a-z0-9_]{0,30})" required:"true" example:"kairos"`
-	Passwd            string   `json:"passwd,omitempty" example:"kairos"`
-	Groups            string   `json:"groups,omitempty" example:"admin"`
-	LockPasswd        bool     `json:"lockPasswd,omitempty" example:"true"`
-	SSHAuthorizedKeys []string `json:"sshAuthorizedKeys,omitempty" examples:"[\"github:USERNAME\",\"ssh-ed25519 AAAF00BA5\"]"`
+	Name       string `json:"name,omitempty" pattern:"([a-z_][a-z0-9_]{0,30})" required:"true" example:"kairos"`
+	Groups     string `json:"groups,omitempty" example:"admin"`
+	LockPasswd bool   `json:"lockPasswd,omitempty" example:"true"`
+	UserSecurityAccess
 }
 
 type Validator struct {
@@ -28,7 +46,7 @@ type Validator struct {
 	Header       string
 	yamlError    error
 	schemaError  error
-	parsedConfig FullConfig
+	parsedConfig interface{}
 }
 
 func Validate(data, header string) error {
@@ -60,7 +78,7 @@ func (v *Validator) Error() error {
 func (v *Validator) isValidSchema() bool {
 	reflector := jsonschemago.Reflector{}
 
-	generatedSchema, err := reflector.Reflect(v.parsedConfig)
+	generatedSchema, err := reflector.Reflect(FullConfig{})
 	if err != nil {
 		v.schemaError = err
 		return false
@@ -92,13 +110,7 @@ func (v *Validator) isValidSchema() bool {
 		return false
 	}
 
-	var u interface{}
-	if err := json.Unmarshal([]byte(instance), &u); err != nil {
-		v.schemaError = err
-		return false
-	}
-
-	if err = sch.Validate(u); err != nil {
+	if err = sch.Validate(v.parsedConfig); err != nil {
 		v.schemaError = err
 		return false
 	}
@@ -117,6 +129,8 @@ func (v *Validator) isValidYaml() bool {
 		v.yamlError = err
 		return false
 	}
+	fmt.Println("#### ParsedConfig:")
+	fmt.Println(v.parsedConfig)
 
 	return true
 }

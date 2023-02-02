@@ -51,7 +51,7 @@ users: []`
 		})
 
 		It("errors", func() {
-			Expect(Validate(data, DefaultHeader).Error()).To(MatchRegexp("missing properties: 'users'"))
+			Expect(Validate(data, DefaultHeader).Error()).To(MatchRegexp("minimum 1 items required, but found 0 items"))
 		})
 	})
 
@@ -79,6 +79,23 @@ users:
 			Expect(
 				strings.Contains(Validate(data, DefaultHeader).Error(),
 					"does not match pattern '([a-z_][a-z0-9_]{0,30})'",
+				),
+			).To(BeTrue())
+		})
+	})
+
+	Context("When a user has no security access defined", func() {
+		BeforeEach(func() {
+			data = `#cloud-config
+users:
+- name: "kairos"`
+		})
+
+		It("errors", func() {
+			err := Validate(data, DefaultHeader)
+			Expect(
+				strings.Contains(err.Error(),
+					"missing properties: 'passwd'",
 				),
 			).To(BeTrue())
 		})
