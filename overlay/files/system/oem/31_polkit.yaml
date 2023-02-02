@@ -1,0 +1,14 @@
+# Workaround for COPY not keeping original owner
+# https://github.com/earthly/earthly/issues/2640
+# This causes https://github.com/kairos-io/kairos/issues/280
+name: "Fix ownership of polkit dirs"
+stages:
+  initramfs:
+    - name: "/usr/share/polkit-1/rules.d"
+      if: '[ -d /usr/share/polkit-1/rules.d ] && getent passwd polkitd'
+      commands:
+        - chown polkitd -R /usr/share/polkit-1/rules.d
+    - name: "/etc/polkit-1/rules.d"
+      if: '[ -d /etc/polkit-1/rules.d ] && getent passwd polkitd'
+      commands:
+        - chown polkitd -R /etc/polkit-1/rules.d
