@@ -120,6 +120,7 @@ jobs:
             go-version: '^1.16'
       - run: |
               ls -liah
+              sed -i '/build.*/d' .earthlyignore
               export ISO=$PWD/$(ls *.iso)
               export GOPATH="/Users/runner/go"
               export PATH=$PATH:$GOPATH/bin
@@ -161,11 +162,17 @@ jobs:
       matrix:
        include:
          - flavor: "alpine-opensuse-leap"
+           port: 50001
          - flavor: "opensuse-leap"
+           port: 50002
          - flavor: "opensuse-tumbleweed"
+           port: 50003
          - flavor: "ubuntu"
+           port: 50004
          - flavor: "debian"
+           port: 50005
          - flavor: "ubuntu-20-lts"
+           port: 50006
          - flavor: "ubuntu-22-lts"
     steps:
     - uses: actions/checkout@v3
@@ -178,8 +185,9 @@ jobs:
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
+            sed  '/build.*/d' .earthlyignore
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }}
+            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
 
   qemu-bundles-tests:
     needs: 
@@ -225,6 +233,7 @@ jobs:
           name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
@@ -300,6 +309,7 @@ jobs:
         df -h
     - run: |
             ls -liah
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             sudo mkdir build
             sudo mv $ISO build/
@@ -363,6 +373,7 @@ jobs:
         df -h
     - run: |
             ls -liah
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
             sudo mkdir build
             sudo mv $ISO build/
