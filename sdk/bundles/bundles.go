@@ -10,11 +10,16 @@ import (
 	"github.com/kairos-io/kairos/pkg/utils"
 )
 
+const (
+	filePrefix = "file://"
+)
+
 type BundleConfig struct {
 	Target     string
 	Repository string
 	DBPath     string
 	RootPath   string
+	LocalFile  bool
 }
 
 // BundleOption defines a configuration option for a bundle.
@@ -148,10 +153,15 @@ func (l *ContainerRunner) Install(config *BundleConfig) error {
 	}
 	defer os.RemoveAll(tempDir)
 
+	target := config.Target
+	if config.LocalFile {
+		target = strings.Join([]string{filePrefix, target}, "")
+	}
+
 	out, err := utils.SH(
 		fmt.Sprintf(
 			`luet util unpack %s %s`,
-			config.Target,
+			target,
 			tempDir,
 		),
 	)
@@ -171,11 +181,16 @@ type ContainerInstaller struct{}
 
 func (l *ContainerInstaller) Install(config *BundleConfig) error {
 
+	target := config.Target
+	if config.LocalFile {
+		target = strings.Join([]string{filePrefix, target}, "")
+	}
+
 	//mkdir -p test/etc/luet/repos.conf.d
 	out, err := utils.SH(
 		fmt.Sprintf(
 			`luet util unpack %s %s`,
-			config.Target,
+			target,
 			config.RootPath,
 		),
 	)
