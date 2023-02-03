@@ -31,7 +31,7 @@ Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pi
 | **Fedora based**                         | [core][c-fedora], [standard][k-fedora]                             |                                                                                                                                                            |
 | **openSUSE Leap based**                  | [core][c-opensuse-leap], [standard][k-opensuse-leap]               | [core][c-opensuse-leap-arm-rpi], [core-img][c-opensuse-leap-arm-rpi-img], [standard][k-opensuse-leap-arm-rpi], [standard-img][k-opensuse-leap-arm-rpi-img] |
 | **openSUSE Tumbleweed based**            | [core][c-opensuse-tumbleweed], [standard][k-opensuse-tumbleweed]   | [core][c-opensuse-tumbleweed-arm-rpi], [standard][k-opensuse-tumbleweed-arm-rpi]                                                                           |
-| **Ubuntu based (rolling)** **            | [core][c-ubuntu], [standard][k-ubuntu]                             |                                                                                                                                                            |
+| **Ubuntu based (rolling)** **            | [core][c-ubuntu], [standard][k-ubuntu]                             | [core][c-ubuntu-rpi], [standard][k-ubuntu-rpi]                                                                                                             |
 | **Ubuntu based (22 LTS)** **             | [core][c-ubuntu-22-lts], [standard][k-ubuntu-22-lts]               |                                                                                                                                                            |
 | **Ubuntu based (20 LTS)** **             | [core][c-ubuntu-20-lts], [standard][k-ubuntu-20-lts]               |                                                                                                                                                            |
 | **Rocky Linux based**                    | [core][c-rockylinux], [standard][k-rockylinux]                     |                                                                                                                                                            |
@@ -52,6 +52,7 @@ Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pi
 [c-ubuntu]: https://quay.io/repository/kairos/core-ubuntu
 [c-ubuntu-22-lts]: https://quay.io/repository/kairos/core-ubuntu-22-lts
 [c-ubuntu-20-lts]: https://quay.io/repository/kairos/core-ubuntu-20-lts
+[c-ubuntu-rpi]: https://quay.io/repository/kairos/core-ubuntu-arm-rpi
 [c-rockylinux]: https://quay.io/repository/kairos/core-rockylinux
 
 [k-alpine-opensuse-leap]: https://quay.io/repository/kairos/kairos-alpine-opensuse-leap
@@ -69,8 +70,8 @@ Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pi
 [k-ubuntu]: https://quay.io/repository/kairos/kairos-ubuntu
 [k-ubuntu-22-lts]: https://quay.io/repository/kairos/kairos-ubuntu-22-lts
 [k-ubuntu-20-lts]: https://quay.io/repository/kairos/kairos-ubuntu-20-lts
+[k-ubuntu-rpi]: https://quay.io/repository/kairos/kairos-ubuntu-arm-rpi
 [k-rockylinux]: https://quay.io/repository/kairos/kairos-rockylinux
-
 
 {{% alert title="Note" color="info" %}}
 

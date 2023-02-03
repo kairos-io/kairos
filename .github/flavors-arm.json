@@ -10,5 +10,9 @@
     {
         "flavor": "alpine-arm-rpi",
         "model": "rpi64"
+    },
+    {
+        "flavor": "ubuntu-arm-rpi",
+        "model": "rpi64"
     }
 ]
