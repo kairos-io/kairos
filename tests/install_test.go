@@ -43,6 +43,15 @@ func testInstall(cloudConfig string, actual interface{}, m types.GomegaMatcher, 
 	}
 }
 
+func collectData() []string {
+	results := []string{}
+	cat, _ := Sudo("cat /etc/foo")
+	layout, _ := Sudo("cat /run/cos/cos-layout.env")
+	edgevpn, _ := Sudo("/usr/local/bin/usr/bin/edgevpn --help")
+	results = append(results, cat, layout, edgevpn)
+	return results
+}
+
 var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	BeforeEach(func() {
@@ -57,48 +66,41 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	Context("install", func() {
 
-		It("with bundles", func() {
-			testInstall(`
-install:
-  auto: true
-  device: auto
-stages:
-  initramfs:
-  - name: "Set user and password"
-    users:
-     kairos:
-      passwd: "kairos"
-bundles:
-- rootfs_path: "/usr/local/bin"
-  targets:
-  - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
-`, func() string {
-				var out string
-				out, _ = Sudo("/usr/local/bin/usr/bin/edgevpn --help")
-				return out
-			}, ContainSubstring("peerguard"), true)
-		})
 		It("cloud-config syntax mixed with extended syntax", func() {
 			testInstall(`#cloud-config
 install:
   auto: true
   device: auto
+  bind_mounts:
+  - /mnt/bind1
+  - /mnt/bind2
+  ephemeral_mounts:
+  - /mnt/ephemeral
+  - /mnt/ephemeral2
 users:
 - name: "kairos"
   passwd: "kairos"
 stages:
   initramfs:
   - name: "Set user and password"
+    users:
+	  kairos:
+	    passwd: "kairos"
     commands:
     - echo "bar" > /etc/foo
-`, func() string {
-				var out string
-				out, _ = Sudo("cat /etc/foo")
-				return out
-			}, ContainSubstring("bar"), true)
-
+bundles:
+- rootfs_path: "/usr/local/bin"
+  targets:
+  - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
+`,
+				collectData,
+				ContainElements(ContainSubstring("bar"),
+					ContainSubstring("/mnt/ephemeral"),
+					ContainSubstring("/mnt/bind1"),
+					ContainSubstring("peerguard")), true)
 			stateAssert("persistent.found", "true")
 		})
+
 		It("with config_url", func() {
 			testInstall(`
 install:
