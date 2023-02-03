@@ -42,8 +42,18 @@ go-deps:
     SAVE ARTIFACT go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum AS LOCAL go.sum
 
-test:
+
+ginkgo:
     FROM +go-deps
+    WORKDIR /build
+    RUN go get github.com/onsi/gomega/...
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
+    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
+    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
+test:
+    FROM +ginkgo
     WORKDIR /build
     RUN go get github.com/onsi/gomega/...
     RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
@@ -314,7 +324,7 @@ iso:
     WORKDIR /build
     COPY . ./
     COPY --keep-own +docker-rootfs/rootfs /build/image
-    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
@@ -437,13 +447,13 @@ linux-bench-scan:
 ###
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
-    FROM opensuse/leap
+    FROM +ginkgo
+    RUN apt install -y qemu-system-x86 qemu-utils golang git
     WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
     ARG FLAVOR
     ARG TEST_SUITE=autoinstall-test
     ENV FLAVOR=$FLAVOR
-    ENV SSH_PORT=60022
+    ENV SSH_PORT=60023
     ENV CREATE_VM=true
     ARG CLOUD_CONFIG="./tests/assets/autoinstall.yaml"
     ENV USE_QEMU=true
@@ -466,19 +476,34 @@ run-qemu-datasource-tests:
     ELSE 
         ENV DATASOURCE=/test/build/datasource.iso
     END
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
-    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+
+run-qemu-custom-mount-tests:
+    FROM +ginkgo
+    RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
+    ARG FLAVOR
+
+    COPY . .
+    RUN ls -liah
+    IF [ -e /build/kairos.iso ]
+        ENV ISO=/build/kairos.iso
+    ELSE
+        COPY +iso/kairos.iso kairos.iso
+        ENV ISO=/build/kairos.iso
+    END
+
+    ENV GOPATH="/go"
+    ARG TEST_SUITE=custom-mounts-test
+    ENV SSH_PORT=60024
+    ENV CREATE_VM=true
+    ENV USE_QEMU=true
+    RUN pwd && ls -liah
+    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter custom-mounts-test --fail-fast -r ./tests/
 
 run-qemu-netboot-test:
-    FROM ubuntu
-
+    FROM +ginkgo
     COPY . /test
     WORKDIR /test
 
@@ -487,7 +512,7 @@ run-qemu-netboot-test:
     ARG VERSION=$(cat VERSION)
 
     RUN apt update
-    RUN apt install -y qemu qemu-utils qemu-system golang git
+    RUN apt install -y qemu qemu-utils qemu-system git && apt clean
 
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
@@ -504,7 +529,7 @@ run-qemu-netboot-test:
     ENV USE_QEMU=true
     ARG TEST_SUITE=netboot-test
     ENV GOPATH="/go"
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
 
     # TODO: use --pull or something to cache the python image in Earthly
     WITH DOCKER
@@ -514,9 +539,8 @@ run-qemu-netboot-test:
     END
 
 run-qemu-test:
-    FROM opensuse/leap
-    WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
+    FROM +ginkgo
+    RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG CONTAINER_IMAGE
@@ -528,18 +552,15 @@ run-qemu-test:
 
     ENV GOPATH="/go"
 
-
     COPY . .
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-
-    ARG ISO=$(ls /test/build/*.iso)
-    ENV ISO=$ISO
-
-    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    IF [ -e /build/kairos.iso ]
+        ENV ISO=/build/kairos.iso
+    ELSE
+        COPY +iso/kairos.iso kairos.iso
+        ENV ISO=/build/kairos.iso
+    END
+    RUN pwd && ls -l && ls -l build
+    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 ###
 ### Artifacts targets

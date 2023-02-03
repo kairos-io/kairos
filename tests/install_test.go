@@ -2,7 +2,6 @@ package mos_test
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -12,6 +11,37 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 )
+
+func testInstall(cloudConfig string, actual interface{}, m types.GomegaMatcher, should bool) {
+	stateAssert("persistent.found", "false")
+
+	t, err := os.CreateTemp("", "test")
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+
+	defer os.RemoveAll(t.Name())
+	err = os.WriteFile(t.Name(), []byte(cloudConfig), os.ModePerm)
+	Expect(err).ToNot(HaveOccurred())
+
+	err = Machine.SendFile(t.Name(), "/tmp/config.yaml", "0770")
+	Expect(err).ToNot(HaveOccurred())
+
+	out, err := Sudo("sudo mv /tmp/config.yaml /oem/")
+	Expect(err).ToNot(HaveOccurred(), out)
+
+	out, err = Sudo("kairos-agent install")
+	Expect(err).ToNot(HaveOccurred(), out)
+	Expect(out).Should(ContainSubstring("Running after-install hook"))
+	Sudo("sync")
+
+	detachAndReboot()
+
+	EventuallyConnects(1200)
+	if should {
+		Eventually(actual, 5*time.Minute, 10*time.Second).Should(m)
+	} else {
+		Eventually(actual, 5*time.Minute, 10*time.Second).ShouldNot(m)
+	}
+}
 
 var _ = Describe("kairos install test", Label("install-test"), func() {
 
@@ -24,34 +54,6 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 		Machine.Create(context.Background())
 		EventuallyConnects(1200)
 	})
-
-	testInstall := func(cloudConfig string, actual interface{}, m types.GomegaMatcher) {
-		stateAssert("persistent.found", "false")
-
-		t, err := os.CreateTemp("", "test")
-		ExpectWithOffset(1, err).ToNot(HaveOccurred())
-
-		defer os.RemoveAll(t.Name())
-		err = os.WriteFile(t.Name(), []byte(cloudConfig), os.ModePerm)
-		Expect(err).ToNot(HaveOccurred())
-
-		err = Machine.SendFile(t.Name(), "/tmp/config.yaml", "0770")
-		Expect(err).ToNot(HaveOccurred())
-
-		out, err := Sudo("sudo mv /tmp/config.yaml /oem/")
-		Expect(err).ToNot(HaveOccurred(), out)
-
-		out, err = Sudo("kairos-agent install")
-		Expect(err).ToNot(HaveOccurred(), out)
-		Expect(out).Should(ContainSubstring("Running after-install hook"))
-		fmt.Println(out)
-		Sudo("sync")
-
-		detachAndReboot()
-
-		EventuallyConnects(1200)
-		Eventually(actual, 5*time.Minute, 10*time.Second).Should(m)
-	}
 
 	Context("install", func() {
 
@@ -74,7 +76,7 @@ bundles:
 				var out string
 				out, _ = Sudo("/usr/local/bin/usr/bin/edgevpn --help")
 				return out
-			}, ContainSubstring("peerguard"))
+			}, ContainSubstring("peerguard"), true)
 		})
 		It("cloud-config syntax mixed with extended syntax", func() {
 			testInstall(`#cloud-config
@@ -93,7 +95,7 @@ stages:
 				var out string
 				out, _ = Sudo("cat /etc/foo")
 				return out
-			}, ContainSubstring("bar"))
+			}, ContainSubstring("bar"), true)
 
 			stateAssert("persistent.found", "true")
 		})
@@ -106,7 +108,7 @@ config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae
 				var out string
 				out, _ = Sudo("/usr/local/bin/usr/bin/edgevpn --help")
 				return out
-			}, ContainSubstring("peerguard"))
+			}, ContainSubstring("peerguard"), true)
 		})
 	})
 })
