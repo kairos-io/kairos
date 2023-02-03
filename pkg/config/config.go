@@ -23,15 +23,18 @@ import (
 const DefaultWebUIListenAddress = ":8080"
 
 type Install struct {
-	Auto        bool              `yaml:"auto,omitempty"`
-	Reboot      bool              `yaml:"reboot,omitempty"`
-	Device      string            `yaml:"device,omitempty"`
-	Poweroff    bool              `yaml:"poweroff,omitempty"`
-	GrubOptions map[string]string `yaml:"grub_options,omitempty"`
-	Bundles     Bundles           `yaml:"bundles,omitempty"`
-	Encrypt     []string          `yaml:"encrypted_partitions,omitempty"`
-	Env         []string          `yaml:"env,omitempty"`
-	Image       string            `yaml:"image,omitempty"`
+	Auto                   bool              `yaml:"auto,omitempty"`
+	Reboot                 bool              `yaml:"reboot,omitempty"`
+	Device                 string            `yaml:"device,omitempty"`
+	Poweroff               bool              `yaml:"poweroff,omitempty"`
+	GrubOptions            map[string]string `yaml:"grub_options,omitempty"`
+	Bundles                Bundles           `yaml:"bundles,omitempty"`
+	Encrypt                []string          `yaml:"encrypted_partitions,omitempty"`
+	SkipEncryptCopyPlugins bool              `yaml:"skip_copy_kcrypt_plugin,omitempty"`
+	Env                    []string          `yaml:"env,omitempty"`
+	Image                  string            `yaml:"image,omitempty"`
+	EphemeralMounts        []string          `yaml:"ephemeral_mounts,omitempty"`
+	BindMounts             []string          `yaml:"bind_mounts,omitempty"`
 }
 
 type Config struct {

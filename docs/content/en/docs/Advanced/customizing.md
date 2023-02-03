@@ -115,3 +115,45 @@ If you are using an Alpine-based distribution, modifying the kernel is only poss
 {{% /alert %}}
 
 After you have modified the kernel and initrd, you can use the kairos-agent upgrade command to update your nodes, or [within Kubernetes](/docs/upgrade/kubernetes).
+
+
+## Customizing the file system hierarchy using custom mounts.
+
+
+### Bind mounts
+
+For clusters that needs to mount network block storage you might want to add
+custom mount point that bind mounted to your system. For example, when using
+Ceph file system, the OS mounts drives to `/var/lib/ceph` (for example).
+
+To achieve this you need to add the key `bind_mounts` to the `install` section
+you pass the install, and specify a list of one or more bind mounts path.
+
+```
+install:
+  auto: true
+  device: "auto"
+  # changes persist reboot  - mount as BIND
+  bind_mounts:
+  - /var/lib/ceph
+...
+```
+
+
+### Ephemeral mounts
+
+One can also specifying custom mounts which are ephemeral. These are writable,
+however changes are discarded at boot (like `/etc/` already does).
+```
+install:
+  auto: true
+  device: "auto"
+  # changes persist reboot  - mount as BIND
+  bind_mounts:
+  - /var/lib/ceph
+  ephemeral_mounts:
+  - /opt/scratch/
+...
+```
+Note, that these paths should exist in the container file-system used to create the ISO.
+See [ISO customization](/docs/Advanced/customizing/) above.
