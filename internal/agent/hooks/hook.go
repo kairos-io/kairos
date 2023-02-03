@@ -12,6 +12,7 @@ var AfterInstall = []Interface{
 	&RunStage{},    // Shells out to stages defined from the container image
 	&GrubOptions{}, // Set custom GRUB options
 	&BundleOption{},
+	&CustomMounts{},
 	&Kcrypt{},
 	&Lifecycle{}, // Handles poweroff/reboot by config options
 }
