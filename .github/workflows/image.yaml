@@ -107,6 +107,8 @@ jobs:
          - flavor: "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
@@ -176,6 +178,8 @@ jobs:
          - flavor: "ubuntu-22-lts"
     steps:
     - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
@@ -227,6 +231,8 @@ jobs:
    #      - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
@@ -256,6 +262,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: |
+        git fetch --prune --unshallow
+    - run: |
             ./earthly.sh +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
 
   upgrade-with-cli-test:
@@ -271,6 +279,8 @@ jobs:
     #     - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
@@ -335,6 +345,8 @@ jobs:
     #     - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:

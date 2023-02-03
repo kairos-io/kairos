@@ -25,10 +25,7 @@ func testInstall(cloudConfig string, actual interface{}, m types.GomegaMatcher, 
 	err = Machine.SendFile(t.Name(), "/tmp/config.yaml", "0770")
 	Expect(err).ToNot(HaveOccurred())
 
-	out, err := Sudo("sudo mv /tmp/config.yaml /oem/")
-	Expect(err).ToNot(HaveOccurred(), out)
-
-	out, err = Sudo("kairos-agent install")
+	out, err := Sudo(`kairos-agent manual-install --device "auto" /tmp/config.yaml`)
 	Expect(err).ToNot(HaveOccurred(), out)
 	Expect(out).Should(ContainSubstring("Running after-install hook"))
 	Sudo("sync")
@@ -69,8 +66,6 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 		It("cloud-config syntax mixed with extended syntax", func() {
 			testInstall(`#cloud-config
 install:
-  auto: true
-  device: auto
   bind_mounts:
   - /mnt/bind1
   - /mnt/bind2
@@ -84,8 +79,8 @@ stages:
   initramfs:
   - name: "Set user and password"
     users:
-	  kairos:
-	    passwd: "kairos"
+      kairos:
+         passwd: "kairos"
     commands:
     - echo "bar" > /etc/foo
 bundles:
@@ -103,9 +98,6 @@ bundles:
 
 		It("with config_url", func() {
 			testInstall(`
-install:
-  auto: true
-  device: auto
 config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae331e5c0/raw/01137c458ad62cfcdfb201cae2f8814db702c6f9/testgist.yaml"`, func() string {
 				var out string
 				out, _ = Sudo("/usr/local/bin/usr/bin/edgevpn --help")

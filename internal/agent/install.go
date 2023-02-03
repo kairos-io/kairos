@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -61,12 +62,28 @@ func displayInfo(agentConfig *Config) {
 	}
 }
 
-func ManualInstall(config string, options map[string]string) error {
-	dat, err := os.ReadFile(config)
+func ManualInstall(c string, options map[string]string) error {
+	dat, err := os.ReadFile(c)
 	if err != nil {
 		return err
 	}
-	options["cc"] = string(dat)
+
+	dir, err := os.MkdirTemp("", "kairos-install")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+
+	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), dat, 0600); err != nil {
+		return err
+	}
+
+	cc, err := config.Scan(config.Directories(dir), config.MergeBootLine)
+	if err != nil {
+		return err
+	}
+
+	options["cc"] = cc.String()
 
 	return RunInstall(options)
 }
