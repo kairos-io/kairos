@@ -47,7 +47,18 @@ passwd: "bond"`
 		})
 	})
 
-	Context("With a valid user", func() {
+	Context("With only the required attributes", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+name: "kairos"`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("With all possible attributes", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config
 name: "kairos"
