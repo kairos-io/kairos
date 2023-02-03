@@ -1,0 +1,62 @@
+ARG BASE_IMAGE=ubuntu:20.04
+
+FROM $BASE_IMAGE
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:oibaf/test && \
+    apt-get update && \
+    apt-get install -y \
+    conntrack \
+    console-data \
+    coreutils \
+    curl \
+    debianutils \
+    dosfstools \
+    dracut-network tar \
+    e2fsprogs \
+    gawk \
+    grub-efi-arm64-bin \
+    grub2-common \
+    haveged \
+    iproute2 \
+    iptables \
+    jq \
+    linux-firmware-raspi \
+    linux-modules-extra-raspi \
+    linux-raspi \
+    lldpd \
+    nano \
+    neovim \
+    open-vm-tools \
+    openssh-server \
+    parted dracut \
+    policykit-1 \
+    rpi-eeprom \
+    rsync \
+    snapd \
+    snmpd \
+    squashfs-tools \
+    sudo \
+    systemd \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
+RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
+RUN systemctl enable systemd-networkd
+RUN systemctl enable ssh
+RUN echo "auto lo" > /etc/network/interfaces
+RUN echo "iface lo inet loopback" >> /etc/network/interfaces
+
+# Enable tmp
+RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 
+RUN systemctl enable tmp.mount
+
+# Fixup sudo perms
+RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
+
+
+# Clear cache
+RUN apt-get clean && rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
