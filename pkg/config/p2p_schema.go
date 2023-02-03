@@ -11,6 +11,7 @@ type P2PSchema struct {
 	Dns        bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
 	DisableDHT bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
 	P2PNetworkExtended
+	Vpn `json:"vpn,omitempty"`
 }
 
 type P2PNetworkExtended struct {
