@@ -25,6 +25,8 @@ jobs:
             model: rpi64
           - flavor: "alpine-arm-rpi"
             model: rpi64
+          - flavor: "ubuntu-arm-rpi"
+            model: rpi64
     steps:
       - name: Release space from worker
         run: |
