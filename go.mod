@@ -12,7 +12,7 @@ require (
 	github.com/imdario/mergo v0.3.13
 	github.com/itchyny/gojq v0.12.11
 	github.com/jaypipes/ghw v0.9.0
-	github.com/joho/godotenv v1.4.0
+	github.com/joho/godotenv v1.5.0
 	github.com/kairos-io/kcrypt v0.5.0
 	github.com/labstack/echo/v4 v4.10.0
 	github.com/mudler/go-nodepair v0.0.0-20221223092639-ba399a66fdfb
