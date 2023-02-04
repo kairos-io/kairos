@@ -207,7 +207,7 @@ framework:
         COPY overlay/files-fedora/ /framework
     ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /framework
-    ELSE IF [ "$FLAVOR" = "ubuntu-arm-rpi" ]
+    ELSE IF [ "$FLAVOR" = "ubuntu-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-20-lts-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-22-lts-arm-rpi" ]
         COPY overlay/files-ubuntu-arm-rpi/ /
     END
 
