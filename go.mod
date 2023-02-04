@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/denisbrodbeck/machineid v1.0.1
-	github.com/erikgeiser/promptkit v0.6.0
+	github.com/erikgeiser/promptkit v0.8.0
 	github.com/google/go-github/v40 v40.0.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/hashicorp/go-multierror v1.1.1
@@ -40,11 +40,12 @@ require (
 	github.com/StackExchange/wmi v1.2.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59 // indirect
+	github.com/aymanbagabas/go-osc52 v1.2.1 // indirect
 	github.com/bramvdbogaerde/go-scp v1.2.1 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
-	github.com/charmbracelet/bubbles v0.10.3 // indirect
-	github.com/charmbracelet/bubbletea v0.20.0 // indirect
-	github.com/charmbracelet/lipgloss v0.5.0 // indirect
+	github.com/charmbracelet/bubbles v0.14.0 // indirect
+	github.com/charmbracelet/bubbletea v0.23.1 // indirect
+	github.com/charmbracelet/lipgloss v0.6.0 // indirect
 	github.com/chuckpreslar/emission v0.0.0-20170206194824-a7ddd980baf9 // indirect
 	github.com/codingsince1985/checksum v1.2.6 // indirect
 	github.com/containerd/console v1.0.3 // indirect
@@ -75,11 +76,13 @@ require (
 	github.com/makiuchi-d/gozxing v0.1.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
+	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/muesli/ansi v0.0.0-20211018074035-2e021307bc4b // indirect
+	github.com/muesli/ansi v0.0.0-20221106050444-61f0cd9a192a // indirect
+	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
-	github.com/muesli/termenv v0.11.1-0.20220212125758-44cd13922739 // indirect
+	github.com/muesli/termenv v0.13.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5 // indirect

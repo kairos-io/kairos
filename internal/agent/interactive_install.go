@@ -30,7 +30,7 @@ func prompt(prompt, initialValue, placeHolder string, canBeEmpty, hidden bool) (
 	input.InitialValue = initialValue
 	input.Placeholder = placeHolder
 	if canBeEmpty {
-		input.Validate = func(s string) bool { return true }
+		input.Validate = func(s string) error { return nil }
 	}
 	input.Hidden = hidden
 
