@@ -233,7 +233,7 @@ workflows:
         matrix:
           parameters:
             image: ["quay.io/kairos/core"]
-            flavor: ["ubuntu-arm-rpi", "opensuse-tumbleweed-arm-rpi", "opensuse-leap-arm-rpi", "alpine-arm-rpi"]
+            flavor: ["ubuntu-arm-rpi", "ubuntu-20-lts-arm-rpi", "ubuntu-22-lts-arm-rpi", "opensuse-tumbleweed-arm-rpi", "opensuse-leap-arm-rpi", "alpine-arm-rpi"]
             model: ["rpi64"]
             release: ["no"]
     - build-framework:

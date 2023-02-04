@@ -19,6 +19,12 @@ flavors:
   ubuntu-arm-rpi:
     - systemd-base
     - dracut-network-legacy
+  ubuntu-20-lts-arm-rpi:
+    - systemd-base
+    - dracut-network-legacy
+  ubuntu-22-lts-arm-rpi:
+    - systemd-base
+    - dracut-network-legacy
   ubuntu-22-lts:
     - systemd-base
     - dracut-network-legacy-compat

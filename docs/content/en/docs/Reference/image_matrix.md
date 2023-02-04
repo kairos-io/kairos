@@ -37,7 +37,9 @@ Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pi
 | **Ubuntu based (rolling)** **                                   	       | https://quay.io/repository/kairos/core-ubuntu           	               | https://quay.io/repository/kairos/kairos-ubuntu           	               |
 | **Ubuntu based (rolling) (RaspberryPi 3 and 4, arm64)** **                                   	       | https://quay.io/repository/kairos/core-ubuntu-arm-rpi           	               | https://quay.io/repository/kairos/kairos-ubuntu-arm-rpi    
 | **Ubuntu based (22 LTS)** **                                    	       | https://quay.io/repository/kairos/core-ubuntu-22-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	       |
+| **Ubuntu based (22 LTS) (RaspberryPi 3 and 4, arm64)** **                                    	       | https://quay.io/repository/kairos/core-ubuntu-22-lts-arm-rpi           	       | https://quay.io/repository/kairos/kairos-ubuntu-22-lts-arm-rpi    
 | **Ubuntu based (20 LTS)** **                                   	         | https://quay.io/repository/kairos/core-ubuntu-20-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	       |
+| **Ubuntu based (20 LTS) (RaspberryPi 3 and 4, arm64)** **                                   	         | https://quay.io/repository/kairos/core-ubuntu-20-lts-arm-rpi           	       | https://quay.io/repository/kairos/kairos-ubuntu-20-lts-arm-rpi                    |
 | **Rocky Linux based**                                                    | https://quay.io/repository/kairos/core-rockylinux                       | N/A                                                                       |
 
 {{% alert title="Note" color="info" %}}
