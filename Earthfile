@@ -141,7 +141,7 @@ dist:
     RUN goreleaser build --rm-dist --skip-validate --snapshot
     SAVE ARTIFACT /build/dist/* AS LOCAL dist/
 
-lint:
+golint:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
     ARG GOLINT_VERSION
@@ -149,6 +149,9 @@ lint:
     WORKDIR /build
     COPY . .
     RUN golangci-lint run
+
+lint:
+    BUILD +golint
 
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
