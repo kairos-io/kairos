@@ -20,6 +20,7 @@ ARG CGO_ENABLED=0
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:v0.3.3
 ARG GOLINT_VERSION=1.47.3
 ARG GO_VERSION=1.18
+ARG HADOLINT_VERSION=2.12.0
 
 all:
   BUILD +docker
@@ -150,8 +151,17 @@ golint:
     COPY . .
     RUN golangci-lint run
 
+hadolint:
+    ARG HADOLINT_VERSION
+    FROM hadolint/hadolint:$HADOLINT_VERSION-alpine
+    WORKDIR /images
+    COPY images .
+    RUN ls
+    RUN find . -name "Dockerfile*" -print | xargs -r -n1 hadolint
+
 lint:
     BUILD +golint
+    BUILD +hadolint
 
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
