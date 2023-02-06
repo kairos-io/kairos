@@ -15,7 +15,7 @@ import (
 
 func testInstall(cloudConfig string) { //, actual interface{}, m types.GomegaMatcher) {
 	out, _ := Sudo(fmt.Sprintf("kairos-agent state get persistent.found"))
-	fmt.Printf("persistent.found: %s", out)
+	fmt.Printf("persistent.found: %s\n", out)
 	stateAssert("persistent.found", "false")
 
 	t, err := os.CreateTemp("", "test")
@@ -60,29 +60,29 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 
 		It("cloud-config syntax mixed with extended syntax", func() {
 			testInstall(`#cloud-config
-		install:
-		  bind_mounts:
-		  - /mnt/bind1
-		  - /mnt/bind2
-		  ephemeral_mounts:
-		  - /mnt/ephemeral
-		  - /mnt/ephemeral2
-		users:
-		- name: "kairos"
-		  passwd: "kairos"
-		stages:
-		  initramfs:
-		  - name: "Set user and password"
-		    users:
-		      kairos:
-		         passwd: "kairos"
-		    commands:
-		    - echo "bar" > /etc/foo
-		bundles:
-		- rootfs_path: "/usr/local/bin"
-		  targets:
-		  - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
-		`)
+install:
+  bind_mounts:
+  - /mnt/bind1
+  - /mnt/bind2
+  ephemeral_mounts:
+  - /mnt/ephemeral
+  - /mnt/ephemeral2
+users:
+- name: "kairos"
+  passwd: "kairos"
+stages:
+  initramfs:
+  - name: "Set user and password"
+    users:
+      kairos:
+         passwd: "kairos"
+    commands:
+    - echo "bar" > /etc/foo
+bundles:
+- rootfs_path: "/usr/local/bin"
+  targets:
+  - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
+`)
 			fmt.Println("Installation succeeded")
 
 			Eventually(func() string {
