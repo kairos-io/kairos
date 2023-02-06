@@ -24,8 +24,7 @@ RUN apt-get update && \
     iproute2 \
     iptables \
     jq \
-    linux-firmware-raspi \
-    linux-modules-extra-raspi \
+    linux-firmware-raspi2 \
     linux-raspi \
     lldpd \
     nano \
