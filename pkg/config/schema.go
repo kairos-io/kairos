@@ -31,28 +31,6 @@ type KConfig struct {
 	header          string
 }
 
-func (kc *KConfig) PrintInstance() {
-	out, _ := json.MarshalIndent(kc.parsed, "", " ")
-
-	fmt.Println(string(out))
-}
-
-func (kc *KConfig) PrintSchema() {
-	reflector := jsonschemago.Reflector{}
-
-	generatedSchema, err := reflector.Reflect(kc.schemaType)
-	if err != nil {
-		kc.validationError = err
-	}
-
-	generatedSchemaJson, err := json.MarshalIndent(generatedSchema, "", " ")
-	if err != nil {
-		kc.validationError = err
-	}
-
-	fmt.Println(string(generatedSchemaJson))
-}
-
 func (kc *KConfig) validate() {
 	reflector := jsonschemago.Reflector{}
 
