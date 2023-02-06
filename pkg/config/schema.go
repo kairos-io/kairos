@@ -31,7 +31,13 @@ type KConfig struct {
 	header          string
 }
 
-func (kc *KConfig) validate() {
+func (kc *KConfig) PrintInstance() {
+	out, _ := json.MarshalIndent(kc.parsed, "", " ")
+
+	fmt.Println(string(out))
+}
+
+func (kc *KConfig) PrintSchema() {
 	reflector := jsonschemago.Reflector{}
 
 	generatedSchema, err := reflector.Reflect(kc.schemaType)
@@ -44,7 +50,23 @@ func (kc *KConfig) validate() {
 		kc.validationError = err
 	}
 
-	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJson))
+	fmt.Println(string(generatedSchemaJson))
+}
+
+func (kc *KConfig) validate() {
+	reflector := jsonschemago.Reflector{}
+
+	generatedSchema, err := reflector.Reflect(kc.schemaType)
+	if err != nil {
+		kc.validationError = err
+	}
+
+	generatedSchemaJSON, err := json.MarshalIndent(generatedSchema, "", " ")
+	if err != nil {
+		kc.validationError = err
+	}
+
+	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
 	if err != nil {
 		kc.validationError = err
 	}
@@ -57,11 +79,7 @@ func (kc *KConfig) validate() {
 func (kc *KConfig) IsValid() bool {
 	kc.validate()
 
-	if kc.validationError == nil {
-		return true
-	}
-
-	return false
+	return kc.validationError == nil
 }
 
 func (kc *KConfig) ValidationError() string {

@@ -7,8 +7,8 @@ import (
 type P2PSchema struct {
 	_          struct{} `title:"Kairos Schema: P2P block" description:"The p2p block enables the p2p full-mesh functionalities."`
 	Role       string   `json:"role,omitempty" default:"none" enum:"[\"master\",\"worker\",\"none\"]"`
-	NetworkId  string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
-	Dns        bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
+	NetworkID  string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
+	DNS        bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
 	DisableDHT bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
 	P2PNetworkExtended
 	Vpn `json:"vpn,omitempty"`
@@ -36,7 +36,7 @@ type P2PAutoDisabled struct {
 }
 
 type P2PAutoEnabled struct {
-	NetworkToken string `json:"network_token" requried:"true" minLength:"1" description:"network_token is the shared secret used by the nodes to co-ordinate with p2p"`
+	NetworkToken string `json:"network_token" required:"true" minLength:"1" description:"network_token is the shared secret used by the nodes to co-ordinate with p2p"`
 	Auto         struct {
 		Enable bool `json:"enable,omitempty" const:"true"`
 		Ha     struct {

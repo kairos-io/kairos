@@ -55,7 +55,7 @@ type PowerOffOnly struct {
 var _ jsonschemago.AnyOfExposer = PowerManagement{}
 
 // The AnyOfModel interface is only needed for the tests that check the new schemas contain all needed fields
-// it can be removed once the new schema is the single source of truth
+// it can be removed once the new schema is the single source of truth.
 type AnyOfModel interface {
 	JSONSchemaAnyOf() []interface{}
 }
