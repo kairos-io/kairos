@@ -11,10 +11,16 @@ import (
 )
 
 type Schema struct {
-	_       struct{}      `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
-	Users   []UserSchema  `json:"users,omitempty" minItems:"1" required:"true"`
-	Install InstallSchema `json:"install,omitempty"`
-	P2P     P2PSchema     `json:"p2p,omitempty"`
+	_                  struct{}       `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
+	Bundles            []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	ConfigURL          string         `json:"config_url,omitempty" description:"URL download configuration from."`
+	Env                []string       `json:"env,omitempty"`
+	FailOnBundleErrors bool           `json:"fail_on_bundles_errors,omitempty"`
+	GrubOptions        `json:"grub_options,omitempty"`
+	Install            InstallSchema `json:"install,omitempty"`
+	Options            []interface{} `json:"options,omitempty" description:"Various options."`
+	Users              []UserSchema  `json:"users,omitempty" minItems:"1" required:"true"`
+	P2P                P2PSchema     `json:"p2p,omitempty"`
 }
 
 type KConfig struct {

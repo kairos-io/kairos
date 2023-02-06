@@ -14,6 +14,14 @@ type P2PSchema struct {
 	Vpn `json:"vpn,omitempty"`
 }
 
+type KubeVIPSchema struct {
+	_           struct{} `title:"Kairos Schema: KubeVIP block" description:"Sets the Elastic IP used in KubeVIP. Only valid with p2p"`
+	EIP         string   `json:"eip,omitempty" example:"192.168.1.110"`
+	ManifestURL string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
+	Enable      bool     `json:"enable,omitempty" description:"Enables KubeVIP"`
+	Interface   bool     `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+}
+
 type P2PNetworkExtended struct {
 }
 

@@ -162,4 +162,20 @@ auto:
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
+
+	Context("kubevip", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="
+auto:
+  enable: true
+  ha:
+    enable: true
+    master_nodes: 2`
+		})
+
+		It("succeedes", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
 })
