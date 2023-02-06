@@ -7,13 +7,16 @@ import (
 type InstallSchema struct {
 	_                   struct{}       `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
 	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
+	BindMounts          []string       `json:"bind_mounts,omitempty"`
 	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
 	Device              string         `json:"device,omitempty" pattern:"^(auto|/|(/[a-zA-Z0-9_-]+)+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\"]"`
+	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
 	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
 	Env                 []interface{}  `json:"env,omitempty"`
 	GrubOptions         `json:"grub_options,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
+	SkipEncryptCopyPlugins bool `json:"skip_copy_kcrypt_plugin,omitempty"`
 }
 
 type BundleSchema struct {
