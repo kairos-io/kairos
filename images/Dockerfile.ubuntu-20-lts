@@ -5,7 +5,9 @@ FROM $BASE_IMAGE
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends software-properties-common \
+  && apt-get install -y --no-install-recommends \
+    gnupg \
+    software-properties-common \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
