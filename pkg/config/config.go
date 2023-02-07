@@ -20,7 +20,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const DefaultWebUIListenAddress = ":8080"
+const (
+	DefaultWebUIListenAddress = ":8080"
+	FilePrefix                = "file://"
+)
 
 type Install struct {
 	Auto                   bool              `yaml:"auto,omitempty"`
@@ -53,11 +56,11 @@ type Config struct {
 type Bundles []Bundle
 
 type Bundle struct {
-	Repository string `yaml:"repository,omitempty"`
-	Rootfs     string `yaml:"rootfs_path,omitempty"`
-	DB         string `yaml:"db_path,omitempty"`
-
-	Targets []string `yaml:"targets,omitempty"`
+	Repository string   `yaml:"repository,omitempty"`
+	Rootfs     string   `yaml:"rootfs_path,omitempty"`
+	DB         string   `yaml:"db_path,omitempty"`
+	LocalFile  bool     `yaml:"local_file,omitempty"`
+	Targets    []string `yaml:"targets,omitempty"`
 }
 
 const DefaultHeader = "#cloud-config"
@@ -83,6 +86,9 @@ func (b Bundles) Options() (res [][]bundles.BundleOption) {
 			}
 			if bundle.DB != "" {
 				opts = append(opts, bundles.WithDBPath(bundle.DB))
+			}
+			if bundle.LocalFile {
+				opts = append(opts, bundles.WithLocalFile(true))
 			}
 			res = append(res, opts)
 		}
