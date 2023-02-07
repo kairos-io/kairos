@@ -38,6 +38,7 @@ RUN apt install -y \
     sudo \
     systemd \
     systemd-sysv \
+    xz-utils \
     && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
