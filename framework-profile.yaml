@@ -78,7 +78,6 @@ ubuntu-kernel:
 systemd-latest:
   packages:
     - dracut/sysext
-    - dracut/systemd-resolved
 repositories:
   - &kairos
     name: "kairos"
