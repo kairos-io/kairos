@@ -23,6 +23,7 @@ type InstallSchema struct {
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
 type BundleSchema struct {
 	DB         string   `json:"db_path,omitempty"`
+	LocalFile  bool     `json:"local_file,omitempty"`
 	Repository string   `json:"repository,omitempty"`
 	Rootfs     string   `json:"rootfs_path,omitempty"`
 	Targets    []string `json:"targets,omitempty"`
