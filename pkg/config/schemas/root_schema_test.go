@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	. "github.com/kairos-io/kairos/pkg/config"
+	. "github.com/kairos-io/kairos/pkg/config/schemas"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -71,11 +72,11 @@ var _ = Describe("Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, DefaultHeader, Schema{})
+		config, err = NewConfigFromYAML(yaml, DefaultHeader, RootSchema{})
 	})
 
 	Context("While the new Schema is not the single source of truth", func() {
-		structFieldsContainedInOtherStruct(Config{}, Schema{})
+		structFieldsContainedInOtherStruct(Config{}, RootSchema{})
 	})
 	Context("While the new InstallSchema is not the single source of truth", func() {
 		structFieldsContainedInOtherStruct(Install{}, InstallSchema{})

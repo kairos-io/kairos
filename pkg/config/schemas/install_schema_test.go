@@ -3,7 +3,7 @@ package config_test
 import (
 	"strings"
 
-	. "github.com/kairos-io/kairos/pkg/config"
+	. "github.com/kairos-io/kairos/pkg/config/schemas"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -14,7 +14,7 @@ var _ = Describe("Install Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, DefaultHeader, InstallSchema{})
+		config, err = NewConfigFromYAML(yaml, "#cloud-config", InstallSchema{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 

@@ -10,8 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Schema represents the root schema of the Kairos configuration.
-type Schema struct {
+// RootSchema groups all the different schemas of the Kairos configuration together.
+type RootSchema struct {
 	_                  struct{}       `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
 	Bundles            []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
 	ConfigURL          string         `json:"config_url,omitempty" description:"URL download configuration from."`
