@@ -33,8 +33,8 @@ func structContainsField(f, t string, str interface{}) bool {
 			if types.Field(j).Type.Kind() == reflect.Struct {
 				if types.Field(j).Type.Name() != "" {
 					model := reflect.New(types.Field(j).Type)
-					if instance, ok := model.Interface().(AnyOfModel); ok {
-						for _, childSchema := range instance.JSONSchemaAnyOf() {
+					if instance, ok := model.Interface().(OneOfModel); ok {
+						for _, childSchema := range instance.JSONSchemaOneOf() {
 							if structContainsField(f, t, childSchema) {
 								return true
 							}
