@@ -65,6 +65,13 @@ func WithTarget(p string) BundleOption {
 	}
 }
 
+func WithLocalFile(p bool) BundleOption {
+	return func(bc *BundleConfig) error {
+		bc.LocalFile = p
+		return nil
+	}
+}
+
 func (bc *BundleConfig) extractRepo() (string, string, error) {
 	s := strings.Split(bc.Repository, "://")
 	if len(s) != 2 {
