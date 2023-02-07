@@ -3,7 +3,7 @@ title: "Kairos release v1.5"
 date: 2023-01-27
 linkTitle: "Announcing v1.5 Kairos release"
 description: "Introducing Kairos 1.5: A Smarter, More Secure Way to Manage Your Infrastructure"
-author: Ettore Di Giacinto ([Twitter](https://twitter.com/mudler_it)) ([Github](https://github.com/mudler))
+author: Ettore Di Giacinto ([Twitter](https://twitter.com/mudler_it)) ([GitHub](https://github.com/mudler))
 ---
 <h1 align="center">
   <br>
