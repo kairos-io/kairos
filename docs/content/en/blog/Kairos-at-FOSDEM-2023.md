@@ -18,7 +18,7 @@ Image-based Linux and Secure Measured Boot devroom
 
 ## Other talks which are relevant to Kairos
 
-There were other interesting presentations I had the opportunity to attend, which I think are also relevant to Kairos and our community. These would be my top pics:
+There were other interesting presentations I had the opportunity to attend, which I think are also relevant to Kairos and our community. These would be my top picks:
 
 If you're completely new to the concepts of Image-Based Linux, Unified Kernel Image or Discoverable Disk Image, I'd recommend checking Luca Bocassi's talk [Introducing and decoding image-based Linux terminology and concepts](https://fosdem.org/2023/schedule/event/image_linux_secureboot_uki_ddi_ohmy/). As someone who very recently joined the Kairos project, I still get a bit lost with all the different technologies used in Image-Based Linux. The presenter made a good job clarifying some of these technologies and how they work together.
 
