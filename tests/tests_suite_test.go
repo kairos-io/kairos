@@ -37,6 +37,7 @@ var machineID string = os.Getenv("MACHINE_ID")
 
 var _ = AfterSuite(func() {
 	if os.Getenv("CREATE_VM") == "true" && os.Getenv("KEEP_VM") != "true" {
+		fmt.Printf("Deleting VM ... %s\n", Machine.Config().StateDir)
 		if Machine != nil {
 			Machine.Stop()
 			Machine.Clean()

@@ -493,27 +493,6 @@ run-qemu-datasource-tests:
 
     RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
-run-qemu-custom-mount-tests:
-    FROM +ginkgo
-    RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
-    ARG FLAVOR
-
-    COPY . .
-    RUN ls -liah
-    IF [ -e /build/kairos.iso ]
-        ENV ISO=/build/kairos.iso
-    ELSE
-        COPY +iso/kairos.iso kairos.iso
-        ENV ISO=/build/kairos.iso
-    END
-
-    ENV GOPATH="/go"
-    ARG TEST_SUITE=custom-mounts-test
-    ENV SSH_PORT=60024
-    ENV CREATE_VM=true
-    ENV USE_QEMU=true
-    RUN pwd && ls -liah
-    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter custom-mounts-test --fail-fast -r ./tests/
 
 run-qemu-netboot-test:
     FROM +ginkgo
