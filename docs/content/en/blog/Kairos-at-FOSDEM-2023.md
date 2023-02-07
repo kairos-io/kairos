@@ -1,7 +1,6 @@
 ---
 title: "Kairos at FOSDEM 2023"
 date: 2023-02-07T10:53:13+01:00
-draft: true
 author: Mauro Morales ([Twitter](https://twitter.com/mauromrls)) ([GitHub](https://github.com/mauromorales))
 ---
 
