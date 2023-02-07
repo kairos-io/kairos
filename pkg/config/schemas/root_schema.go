@@ -24,7 +24,7 @@ type RootSchema struct {
 	P2P                P2PSchema     `json:"p2p,omitempty"`
 }
 
-// KConfig is used to parse and validate Kairos configuration files
+// KConfig is used to parse and validate Kairos configuration files.
 type KConfig struct {
 	source          string
 	parsed          interface{}
