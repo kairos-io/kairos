@@ -20,6 +20,7 @@ ARG CGO_ENABLED=0
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:v0.3.3
 ARG GOLINT_VERSION=1.47.3
 ARG GO_VERSION=1.18
+ARG HADOLINT_VERSION=2.12.0
 
 all:
   BUILD +docker
@@ -141,7 +142,7 @@ dist:
     RUN goreleaser build --rm-dist --skip-validate --snapshot
     SAVE ARTIFACT /build/dist/* AS LOCAL dist/
 
-lint:
+golint:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
     ARG GOLINT_VERSION
@@ -149,6 +150,18 @@ lint:
     WORKDIR /build
     COPY . .
     RUN golangci-lint run
+
+hadolint:
+    ARG HADOLINT_VERSION
+    FROM hadolint/hadolint:$HADOLINT_VERSION-alpine
+    WORKDIR /images
+    COPY images .
+    RUN ls
+    RUN find . -name "Dockerfile*" -print | xargs -r -n1 hadolint
+
+lint:
+    BUILD +golint
+    BUILD +hadolint
 
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
