@@ -78,7 +78,6 @@ ubuntu-kernel:
 systemd-latest:
   packages:
     - dracut/sysext
-    - dracut/systemd-resolved
 repositories:
   - &kairos
     name: "kairos"
@@ -90,9 +89,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230205173213-repository.yaml
+    reference: 20230207111419-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230205172555-repository.yaml
+    reference: 20230207112527-repository.yaml
