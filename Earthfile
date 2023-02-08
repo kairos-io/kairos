@@ -24,6 +24,8 @@ ARG GOLINT_VERSION=1.47.3
 ARG GO_VERSION=1.18
 # renovate: datasource=docker depName=hadolint/hadolint versioning=docker
 ARG HADOLINT_VERSION=2.12.0-alpine
+# renovate: datasource=docker depName=renovate/renovate
+ARG RENOVATE_VERSION=34
 
 all:
   BUILD +docker
@@ -162,9 +164,17 @@ hadolint:
     RUN ls
     RUN find . -name "Dockerfile*" -print | xargs -r -n1 hadolint
 
+renovate-validate:
+    ARG RENOVATE_VERSION
+    FROM renovate/renovate:$RENOVATE_VERSION
+    WORKDIR /usr/src/app
+    COPY renovate.json .
+    RUN renovate-config-validator
+
 lint:
     BUILD +golint
     BUILD +hadolint
+    BUILD +renovate-validate
 
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
