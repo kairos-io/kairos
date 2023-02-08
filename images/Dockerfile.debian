@@ -38,6 +38,7 @@ RUN apt install -y \
     sudo \
     systemd \
     systemd-sysv \
+    systemd-timesyncd \
     xz-utils \
     && apt-get clean
 

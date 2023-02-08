@@ -38,6 +38,7 @@ RUN apt install -y \
     squashfs-tools \
     sudo \
     systemd \
+    systemd-timesyncd \
     && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
