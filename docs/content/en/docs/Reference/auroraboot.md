@@ -406,6 +406,18 @@ docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host \
                                 --set "kairos.password=foobar"
 ```
 
+Config files can be also hosted remotely, and given as URLs to AuroraBoot.
+
+We can indeed use the template in the example folder with the command above:
+
+```bash
+docker run --rm -ti --net host \
+                        quay.io/kairos/auroraboot \
+                        --cloud-config https://raw.githubusercontent.com/kairos-io/kairos/master/examples/auroraboot/master-template.yaml \
+                        --set "github.user=mudler" \
+                        --set "kairos.password=foobar"
+```
+
 ## Examples
 
 {{% alert title="Note" %}}
@@ -508,7 +520,3 @@ And then run:
 ```bash
 docker run -v $PWD/aurora.yaml:/aurora.yaml --rm -ti --net host quay.io/kairos/auroraboot /aurora.yaml
 ```
-
-{{% alert title="Note" %}}
-Config files can be also hosted remotely, and given as URLs to AuroraBoot.
-{{% /alert %}}
