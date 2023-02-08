@@ -49,7 +49,7 @@ device: foobar`
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
 			Expect(
-				strings.Contains(config.ValidationError(),
+				strings.Contains(config.ValidationError.Error(),
 					"does not match pattern '^(auto|/|(/[a-zA-Z0-9_-]+)+)$'",
 				),
 			).To(BeTrue())
@@ -66,7 +66,7 @@ poweroff: true`
 
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError()).To(MatchRegexp("value must be false"))
+			Expect(config.ValidationError.Error()).To(MatchRegexp("value must be false"))
 		})
 	})
 

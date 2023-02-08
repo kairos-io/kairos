@@ -120,7 +120,7 @@ users: []`
 		It("errors", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError()).To(MatchRegexp("minimum 1 items required, but found 0 items"))
+			Expect(config.ValidationError.Error()).To(MatchRegexp("minimum 1 items required, but found 0 items"))
 		})
 	})
 })

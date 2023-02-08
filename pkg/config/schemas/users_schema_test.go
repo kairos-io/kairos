@@ -27,7 +27,7 @@ passwd: foobar`
 
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError()).To(MatchRegexp("missing properties: 'name'"))
+			Expect(config.ValidationError.Error()).To(MatchRegexp("missing properties: 'name'"))
 		})
 	})
 
@@ -41,7 +41,7 @@ passwd: "bond"`
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
 			Expect(
-				strings.Contains(config.ValidationError(),
+				strings.Contains(config.ValidationError.Error(),
 					"does not match pattern '([a-z_][a-z0-9_]{0,30})'",
 				),
 			).To(BeTrue())

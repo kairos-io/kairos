@@ -28,7 +28,7 @@ type RootSchema struct {
 type KConfig struct {
 	source          string
 	parsed          interface{}
-	validationError error
+	ValidationError error
 	schemaType      interface{}
 	header          string
 }
@@ -38,21 +38,24 @@ func (kc *KConfig) validate() {
 
 	generatedSchema, err := reflector.Reflect(kc.schemaType)
 	if err != nil {
-		kc.validationError = err
+		kc.ValidationError = err
+		return
 	}
 
 	generatedSchemaJSON, err := json.MarshalIndent(generatedSchema, "", " ")
 	if err != nil {
-		kc.validationError = err
+		kc.ValidationError = err
+		return
 	}
 
 	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
 	if err != nil {
-		kc.validationError = err
+		kc.ValidationError = err
+		return
 	}
 
 	if err = sch.Validate(kc.parsed); err != nil {
-		kc.validationError = err
+		kc.ValidationError = err
 	}
 }
 
@@ -60,18 +63,7 @@ func (kc *KConfig) validate() {
 func (kc *KConfig) IsValid() bool {
 	kc.validate()
 
-	return kc.validationError == nil
-}
-
-// ValidationError returns one of the errors of an invalid schemam rule, when the configuration is valid, then it returns an empty string.
-func (kc *KConfig) ValidationError() string {
-	kc.validate()
-
-	if kc.validationError != nil {
-		return kc.validationError.Error()
-	}
-
-	return ""
+	return kc.ValidationError == nil
 }
 
 func (kc *KConfig) hasHeader() bool {
