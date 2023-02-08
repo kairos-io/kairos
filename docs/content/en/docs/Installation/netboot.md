@@ -66,6 +66,19 @@ qemu-system-x86_64 \
 
 ```
 
+## Use `AuroraBoot`
+
+[AuroraBoot](/docs/reference/auroraboot) can be used to deploy automatically Kairos from Network, for instance:
+
+```bash
+docker run --rm -ti --net host quay.io/kairos/auroraboot \
+                    --set "container_image=quay.io/kairos/kairos-opensuse-leap:v1.5.1-k3sv1.21.14-k3s1"
+                    # Optionally:
+                    # --cloud-config ....
+```
+
+Will netboot the `quay.io/kairos/kairos-opensuse-leap:v1.5.1-k3sv1.21.14-k3s1` image. You can find more details in the [AuroraBoot documentation section](/docs/reference/auroraboot).
+
 ## Notes on booting from network
 
 Another way to boot with the release artifacts is using [pixiecore](https://github.com/danderson/netboot/tree/master/pixiecore).
