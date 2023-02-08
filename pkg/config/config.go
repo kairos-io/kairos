@@ -356,7 +356,7 @@ func parseConfig(dir []string, nologs bool) *Config {
 			}
 
 			err = yaml.Unmarshal(b, c)
-			if err != nil {
+			if err != nil && !nologs {
 				fmt.Printf("warning: failed to merge config:\n%s\n", err.Error())
 			}
 
