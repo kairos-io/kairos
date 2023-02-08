@@ -186,12 +186,16 @@ Run AuroraBoot with a cloud-config to create an ISO with the embedded configurat
 
 {{< tabpane text=true  >}}
 {{% tab header="Container image" %}}
+
+Check we have the cloud config file:
 ```bash
-# Check we have the cloud config file
-$ ls 
-config.yaml
-# Build the ISO
-$ docker run -v $PWD/config.yaml:/config.yaml \
+ls 
+# config.yaml
+```
+
+Build the ISO:
+```bash
+docker run -v $PWD/config.yaml:/config.yaml \
                     -v $PWD/build:/tmp/auroraboot \
                     --rm -ti quay.io/kairos/auroraboot \
                     --set container_image=quay.io/kairos/core-rockylinux:v1.5.0 \
@@ -199,24 +203,32 @@ $ docker run -v $PWD/config.yaml:/config.yaml \
                     --set "disable_netboot=true" \
                     --cloud-config /config.yaml \
                     --set "state_dir=/tmp/auroraboot"
-# Artifacts are under build/
-$ sudo ls -liah build/iso
-total 778M
-34648528 drwx------ 2 root root 4.0K Feb  8 16:39 .
-34648526 drwxr-xr-x 5 root root 4.0K Feb  8 16:38 ..
-34648529 -rw-r--r-- 1 root root  253 Feb  8 16:38 config.yaml
-34649370 -rw-r--r-- 1 root root 389M Feb  8 16:38 kairos.iso
-34649372 -rw-r--r-- 1 root root 389M Feb  8 16:39 kairos.iso.custom.iso
-34649371 -rw-r--r-- 1 root root   76 Feb  8 16:39 kairos.iso.sha256
+```
+
+Results should be available under `build/` in the current directory:
+```bash
+sudo ls -liah build/iso
+#
+# total 778M
+# 34648528 drwx------ 2 root root 4.0K Feb  8 16:39 .
+# 34648526 drwxr-xr-x 5 root root 4.0K Feb  8 16:38 ..
+# 34648529 -rw-r--r-- 1 root root  253 Feb  8 16:38 config.yaml
+# 34649370 -rw-r--r-- 1 root root 389M Feb  8 16:38 kairos.iso
+# 34649372 -rw-r--r-- 1 root root 389M Feb  8 16:39 kairos.iso.custom.iso
+# 34649371 -rw-r--r-- 1 root root   76 Feb  8 16:39 kairos.iso.sha256
 ```
 {{% /tab %}}
 {{% tab header="Github releases" %}}
+
+Check we have the cloud config file:
 ```bash
-# Check we have the cloud config file
-$ ls 
-config.yaml
-# Builds a custom ISO
-$ docker run -v $PWD/build:/tmp/auroraboot -v /var/run/docker.sock:/var/run/docker.sock --rm -ti quay.io/kairos/auroraboot \
+ls 
+# config.yaml
+```
+
+Build the ISO:
+```bash
+docker run -v $PWD/build:/tmp/auroraboot -v /var/run/docker.sock:/var/run/docker.sock --rm -ti quay.io/kairos/auroraboot \
                     --set "artifact_version=v1.5.1-k3sv1.21.14+k3s1" \
                     --set "release_version=v1.5.1" \
                     --set "flavor=opensuse-leap" \
@@ -225,16 +237,22 @@ $ docker run -v $PWD/build:/tmp/auroraboot -v /var/run/docker.sock:/var/run/dock
                     --set "disable_netboot=true" \
                     --cloud-config /config.yaml \
                     --set "state_dir=/tmp/auroraboot"
-# Artifacts are under build/
-$ sudo ls -liah build/iso
-total 778M
-34648528 drwx------ 2 root root 4.0K Feb  8 16:39 .
-34648526 drwxr-xr-x 5 root root 4.0K Feb  8 16:38 ..
-34648529 -rw-r--r-- 1 root root  253 Feb  8 16:38 config.yaml
-34649370 -rw-r--r-- 1 root root 389M Feb  8 16:38 kairos.iso
-34649372 -rw-r--r-- 1 root root 389M Feb  8 16:39 kairos.iso.custom.iso
-34649371 -rw-r--r-- 1 root root   76 Feb  8 16:39 kairos.iso.sha256
 ```
+
+Results should be available under `build/` in the current directory:
+
+```bash
+sudo ls -liah build/iso
+#
+# total 778M
+# 34648528 drwx------ 2 root root 4.0K Feb  8 16:39 .
+# 34648526 drwxr-xr-x 5 root root 4.0K Feb  8 16:38 ..
+# 34648529 -rw-r--r-- 1 root root  253 Feb  8 16:38 config.yaml
+# 34649370 -rw-r--r-- 1 root root 389M Feb  8 16:38 kairos.iso
+# 34649372 -rw-r--r-- 1 root root 389M Feb  8 16:39 kairos.iso.custom.iso
+# 34649371 -rw-r--r-- 1 root root   76 Feb  8 16:39 kairos.iso.sha256
+```
+
 {{% /tab %}}
 {{< /tabpane >}}
 
@@ -378,10 +396,14 @@ users:
   - github:[[.github.user]]
 ```
 
-We would then set the user and the password when running AuroraBoot like the following:
+We would then set the user to `mudler` and the password to `foobar` when running AuroraBoot like the following:
 
 ```bash
-docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host quay.io/kairos/auroraboot .... --cloud-config /config.yaml --set "github.user=mudler" --set "kairos.password=foobar"
+docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host \
+                                quay.io/kairos/auroraboot \
+                                --cloud-config /config.yaml \
+                                --set "github.user=mudler" \
+                                --set "kairos.password=foobar"
 ```
 
 ## Examples
