@@ -356,6 +356,34 @@ docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host quay.io/kairos/a
 
 Both the config file and the cloud-config file can be a URL.
 
+### Cloud config
+
+A custom cloud configuration file can be passed either with the `--cloud-config` flag, or in the AuroraBoot configuration file under the `cloud_config` key.
+
+It is possible to apply templating to a cloud config. Indeed any value passed to `--set` is accessible as a template in the cloud config file with the `[[` and `]]` delimiter, for instance consider the following cloud config file, which allows to set a password for the `kairos` user and a GitHub handle allowed to login to the machine:
+
+```yaml
+#cloud-config
+
+install:
+  auto: true
+  device: "auto"
+  reboot: true
+
+# Define the user accounts on the node.
+users:
+- name: "kairos"                       # The username for the user.
+  passwd: "[[.kairos.password]]"                      # The password for the user.
+  ssh_authorized_keys:                  # A list of SSH keys to add to the user's authorized keys.
+  - github:[[.github.user]]
+```
+
+We would then set the user and the password when running AuroraBoot like the following:
+
+```bash
+docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host quay.io/kairos/auroraboot .... --cloud-config /config.yaml --set "github.user=mudler" --set "kairos.password=foobar"
+```
+
 ## Examples
 
 {{% alert title="Note" %}}
