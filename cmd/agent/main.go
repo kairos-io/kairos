@@ -402,6 +402,17 @@ See also https://kairos.io/after_install/reset_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
 	},
+	{
+		Name: "validate",
+		Action: func(c *cli.Context) error {
+			config := c.Args().First()
+			return agent.Validate(config)
+		},
+		Usage: "Validates a config file",
+		Description: `
+The validate command expects a configuration file as its only argument. Local files and URLs are accepted.
+		`,
+	},
 }
 
 func main() {
