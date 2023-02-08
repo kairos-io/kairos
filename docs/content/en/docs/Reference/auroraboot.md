@@ -15,6 +15,8 @@ Auroraboot can be useful to:
 - offer a simple, intuitive and streamlined way to deploy Kairos automatically and manually
 - deploy Kairos nodes in a network segment where we can already send workload to (running `AuroraBoot` in an already-existing downstream cluster)
 
+![AuroraBoot](https://user-images.githubusercontent.com/2420543/217617696-f993a8e3-55ac-4d3e-98f0-c2317cb54cb9.png)
+
 ## Scope
 
 `AuroraBoot` has the following scope:
