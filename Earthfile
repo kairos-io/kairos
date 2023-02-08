@@ -4,6 +4,7 @@ ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse-leap
 ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
+# renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
 ARG OS_ID=kairos
 ARG REPOSITORIES_FILE=framework-profile.yaml
@@ -19,8 +20,10 @@ ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:v0.3.3
 ARG GOLINT_VERSION=1.47.3
+# renovate: datasource=docker depName=golang
 ARG GO_VERSION=1.18
-ARG HADOLINT_VERSION=2.12.0
+# renovate: datasource=docker depName=hadolint/hadolint versioning=docker
+ARG HADOLINT_VERSION=2.12.0-alpine
 
 all:
   BUILD +docker
@@ -153,7 +156,7 @@ golint:
 
 hadolint:
     ARG HADOLINT_VERSION
-    FROM hadolint/hadolint:$HADOLINT_VERSION-alpine
+    FROM hadolint/hadolint:$HADOLINT_VERSION
     WORKDIR /images
     COPY images .
     RUN ls
