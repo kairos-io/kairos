@@ -12,6 +12,7 @@ import (
 	retry "github.com/avast/retry-go"
 	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
+	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/kairos-io/kairos/sdk/unstructured"
@@ -151,6 +152,11 @@ func (c Config) Query(s string) (res string, err error) {
 	return
 }
 
+// HasConfigURL returns true if ConfigURL has been set and false if it's empty
+func (c Config) HasConfigURL() bool {
+	return c.ConfigURL != ""
+}
+
 func allFiles(dir []string) []string {
 	files := []string{}
 	for _, d := range dir {
@@ -182,40 +188,27 @@ func Scan(opts ...Option) (c *Config, err error) {
 		}
 	}
 
-	if c.ConfigURL != "" {
-		var body []byte
-
-		err := retry.Do(
-			func() error {
-				resp, err := http.Get(c.ConfigURL)
-				if err != nil {
-					return err
-				}
-				defer resp.Body.Close()
-
-				body, err = io.ReadAll(resp.Body)
-				if err != nil {
-					return err
-				}
-
-				return nil
-			},
-		)
-
+	if c.HasConfigURL() {
+		err = c.fetchRemoteConfig()
 		if err != nil {
-			return c, fmt.Errorf("could not merge configs: %w", err)
-		}
-
-		yaml.Unmarshal(body, c)               //nolint:errcheck
-		yaml.Unmarshal(body, &c.originalData) //nolint:errcheck
-
-		if exists, header := HasHeader(string(body), ""); exists {
-			c.header = header
+			return c, err
 		}
 	}
 
 	if c.header == "" {
 		c.header = DefaultHeader
+	}
+
+	fullConfigYAML, err := yaml.Marshal(c.originalData)
+	if err != nil {
+		fmt.Printf("WARNING: %v\n", err)
+	}
+	kc, err := schema.NewConfigFromYAML(string(fullConfigYAML), c.header, schema.RootSchema{})
+	if err != nil {
+		fmt.Printf("WARNING: %v\n", err)
+	}
+	if !kc.IsValid() {
+		fmt.Printf("WARNING: %v\n", kc.ValidationError)
 	}
 
 	return c, nil
@@ -375,4 +368,38 @@ func parseConfig(dir []string, nologs bool) *Config {
 	}
 
 	return c
+}
+
+func (c *Config) fetchRemoteConfig() error {
+	var body []byte
+
+	err := retry.Do(
+		func() error {
+			resp, err := http.Get(c.ConfigURL)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			body, err = io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not merge configs: %w", err)
+	}
+
+	yaml.Unmarshal(body, c)               //nolint:errcheck
+	yaml.Unmarshal(body, &c.originalData) //nolint:errcheck
+
+	if exists, header := HasHeader(string(body), ""); exists {
+		c.header = header
+	}
+
+	return nil
 }
