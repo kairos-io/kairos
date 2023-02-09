@@ -51,7 +51,7 @@ var _ = Describe("Config", func() {
 			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
 		}
 
-		FIt("reads from bootargs and can query", func() {
+		It("reads from bootargs and can query", func() {
 			err := os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 

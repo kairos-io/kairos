@@ -44,15 +44,14 @@ type Install struct {
 type Config struct {
 	Install *Install `yaml:"install,omitempty"`
 	//cloudFileContent string
-	originalData          map[string]interface{}
-	header                string
-	ConfigURL             string            `yaml:"config_url,omitempty"`
-	Options               map[string]string `yaml:"options,omitempty"`
-	FailOnBundleErrors    bool              `yaml:"fail_on_bundles_errors,omitempty"`
-	Bundles               Bundles           `yaml:"bundles,omitempty"`
-	GrubOptions           map[string]string `yaml:"grub_options,omitempty"`
-	Env                   []string          `yaml:"env,omitempty"`
-	forceSchemaValidation bool              `yaml:"force_schema_validation,omitempty"`
+	originalData       map[string]interface{}
+	header             string
+	ConfigURL          string            `yaml:"config_url,omitempty"`
+	Options            map[string]string `yaml:"options,omitempty"`
+	FailOnBundleErrors bool              `yaml:"fail_on_bundles_errors,omitempty"`
+	Bundles            Bundles           `yaml:"bundles,omitempty"`
+	GrubOptions        map[string]string `yaml:"grub_options,omitempty"`
+	Env                []string          `yaml:"env,omitempty"`
 }
 
 type Bundles []Bundle
