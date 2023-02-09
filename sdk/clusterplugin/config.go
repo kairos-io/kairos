@@ -56,6 +56,12 @@ type Cluster struct {
 
 	// CACerts list of trust certificates.
 	CACerts []string `yaml:"ca_certs,omitempty" json:"ca_certs,omitempty"`
+
+	// ImportLocalImages import local archive images to containerd on start.
+	ImportLocalImages bool `yaml:"import_local_images,omitempty" json:"import_local_images,omitempty"`
+
+	// LocalImagesPath path to local archive images to load into containerd from the filesystem  start
+	LocalImagesPath string `yaml:"local_images_path,omitempty" json:"local_images_path,omitempty"`
 }
 
 type Config struct {
