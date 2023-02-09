@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -9,6 +10,17 @@ import (
 	config "github.com/kairos-io/kairos/pkg/config"
 	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 )
+
+func JSONSchema() error {
+	schema, err := schema.GenerateSchema(schema.RootSchema{})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(schema)
+
+	return nil
+}
 
 func Validate(file string) error {
 	var yaml string

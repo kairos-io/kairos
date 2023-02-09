@@ -413,6 +413,20 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 The validate command expects a configuration file as its only argument. Local files and URLs are accepted.
 		`,
 	},
+	{
+		Name: "schema",
+		Action: func(c *cli.Context) error {
+			err := agent.JSONSchema()
+
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+		Usage:       "Print out Kairos' Cloud Configuration JSON Schema",
+		Description: `Prints out Kairos' Cloud Configuration JSON Schema`,
+	},
 }
 
 func main() {

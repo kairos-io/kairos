@@ -33,16 +33,23 @@ type KConfig struct {
 	header          string
 }
 
-func (kc *KConfig) validate() {
+func GenerateSchema(schemaType interface{}) (string, error) {
 	reflector := jsonschemago.Reflector{}
 
-	generatedSchema, err := reflector.Reflect(kc.schemaType)
+	generatedSchema, err := reflector.Reflect(schemaType)
 	if err != nil {
-		kc.ValidationError = err
-		return
+		return "", err
+	}
+	generatedSchemaJSON, err := json.MarshalIndent(generatedSchema, "", " ")
+	if err != nil {
+		return "", err
 	}
 
-	generatedSchemaJSON, err := json.MarshalIndent(generatedSchema, "", " ")
+	return string(generatedSchemaJSON), nil
+}
+
+func (kc *KConfig) validate() {
+	generatedSchemaJSON, err := GenerateSchema(kc.schemaType)
 	if err != nil {
 		kc.ValidationError = err
 		return
