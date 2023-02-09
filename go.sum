@@ -254,6 +254,8 @@ github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfV
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/kairos-io/kcrypt v0.5.0 h1:uWeUZZpfOgMvS6WbqHIEuDAaclHAntHyNCl0c9Db0TY=
 github.com/kairos-io/kcrypt v0.5.0/go.mod h1:w8k7pDYjFVvt/qsEDNN/nt9qw4URg70cEKLPHGhnNgU=
+github.com/kairos-io/kcrypt v0.5.1 h1:aKuhmfB/7/UamJN8XL5Ky49FXgcju3KXHPrh7DzoESo=
+github.com/kairos-io/kcrypt v0.5.1/go.mod h1:RGgYNj0S2G42eJuDYjIjaSshp+zkgADWQPtIMB89V6o=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 h1:qq2nCpSrXrmvDGRxW0ruW9BVEV1CN2a9YDOExdt+U0o=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329/go.mod h1:2VPVQDR4wO7KXHwP+DAypEy67rXf+okUx2zjgpCxZw4=
 github.com/kevinburke/ssh_config v0.0.0-20201106050909-4977a11b4351/go.mod h1:CT57kijsi8u/K/BOFA39wgDQJ9CxiF4nAY/ojJ6r6mM=
