@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	config "github.com/kairos-io/kairos/pkg/config"
-	. "github.com/kairos-io/kairos/pkg/config/schemas"
+	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 )
 
 func Validate(file string) error {
@@ -32,7 +32,7 @@ func Validate(file string) error {
 		yaml = string(dat)
 	}
 
-	config, err := NewConfigFromYAML(yaml, config.DefaultHeader, RootSchema{})
+	config, err := schema.NewConfigFromYAML(yaml, config.DefaultHeader, schema.RootSchema{})
 	if err != nil {
 		return err
 	}

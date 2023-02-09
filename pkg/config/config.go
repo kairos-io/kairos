@@ -152,7 +152,7 @@ func (c Config) Query(s string) (res string, err error) {
 	return
 }
 
-// HasConfigURL returns true if ConfigURL has been set and false if it's empty
+// HasConfigURL returns true if ConfigURL has been set and false if it's empty.
 func (c Config) HasConfigURL() bool {
 	return c.ConfigURL != ""
 }
