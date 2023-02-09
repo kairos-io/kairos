@@ -21,10 +21,10 @@ Booting using these files can happen in two ways:
 - Software based network booting. This works with a special ISO, built with
   [ipxe](https://ipxe.org/) project. Kairos releases include pre-built ISOs for
   netbooting (named like `*.ipxe.iso.ipxe`).
-
+- Use [AuroraBoot](/docs/reference/auroraboot)
 
 Generic hardware based netbooting is out of scope for this document.
-Below we give instructions on how to use the Kairos release artifacts to netboot.
+Below we give instructions on how to use the Kairos release artifacts to netboot and how to use [AuroraBoot](/docs/reference/auroraboot) to boot from network.
 
 ## Boot with pre-built ISOs
 
@@ -34,7 +34,7 @@ The ipxe ISOs from the Kairos release artifacts, were built with a ipxe script t
 E.g.:
 
 <!-- TODO: change this to include leap in the name once we release 1.5.0-->
-```
+```bash
 #!ipxe
 set url https://github.com/kairos-io/kairos/releases/download/v1.3.0
 set kernel kairos-alpine-opensuse-leap-v1.3.0-kernel
@@ -53,7 +53,7 @@ boot
 
 Booting the ISO will automatically download and boot those artifacts. E.g. using qemu:
 
-```
+```bash
 #!/bin/bash
 
 qemu-img create -f qcow2 disk.img 40g
@@ -65,6 +65,19 @@ qemu-system-x86_64 \
     -drive if=ide,media=cdrom,file=${1:-kairos.iso}
 
 ```
+
+## Use `AuroraBoot`
+
+[AuroraBoot](/docs/reference/auroraboot) is a Kairos convinience tool that can be used to quickly deploy Kairos from Network with zero-touch configuration, for instance:
+
+```bash
+docker run --rm -ti --net host quay.io/kairos/auroraboot \
+                    --set "container_image=quay.io/kairos/kairos-opensuse-leap:v1.5.1-k3sv1.21.14-k3s1"
+                    # Optionally:
+                    # --cloud-config ....
+```
+
+Will netboot the `quay.io/kairos/kairos-opensuse-leap:v1.5.1-k3sv1.21.14-k3s1` image. You can find more details in the [AuroraBoot documentation section](/docs/reference/auroraboot).
 
 ## Notes on booting from network
 

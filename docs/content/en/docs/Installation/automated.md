@@ -77,14 +77,46 @@ If you're not sure where to host your configuration file, a common option is to 
 
 ## ISO remastering
 
-It is possible to create custom ISOs with an embedded cloud configuration. This allows the machine to automatically boot with a pre-specified configuration file, which will be installed on the system after provisioning is complete.
-
+It is possible to create custom ISOs with an embedded cloud configuration. This allows the machine to automatically boot with a pre-specified configuration file, which will be installed on the system after provisioning is complete. See also [AuroraBoot](/docs/reference/auroraboot) for documentation.
 
 ### Locally
 
 To create a custom ISO, you will need Docker installed on your machine. 
 
 Here's an example of how you might do this:
+
+{{< tabpane text=true  >}}
+{{% tab header="AuroraBoot" %}}
+
+We can use [AuroraBoot](/docs/reference/auroraboot) to handle the the ISO build process.
+
+```bash
+$ IMAGE=<source/image>
+$ docker pull $IMAGE
+# Optionally, modify the image here!
+$ docker run --entrypoint /bin/bash --name changes -ti $IMAGE
+$ docker commit changes $IMAGE
+# Build the ISO
+$ docker run -v $PWD/cloud_init.yaml:/cloud_init.yaml \
+                    -v $PWD/build:/tmp/auroraboot \
+                    --rm -ti quay.io/kairos/auroraboot \
+                    --set container_image=docker://$IMAGE \
+                    --set "disable_http_server=true" \
+                    --set "disable_netboot=true" \
+                    --cloud-config /cloud_init.yaml \
+                    --set "state_dir=/tmp/auroraboot"
+# Artifacts are under build/
+$ sudo ls -liah build/iso
+total 778M
+34648528 drwx------ 2 root root 4.0K Feb  8 16:39 .
+34648526 drwxr-xr-x 5 root root 4.0K Feb  8 16:38 ..
+34648529 -rw-r--r-- 1 root root  253 Feb  8 16:38 config.yaml
+34649370 -rw-r--r-- 1 root root 389M Feb  8 16:38 kairos.iso
+34649372 -rw-r--r-- 1 root root 389M Feb  8 16:39 kairos.iso.custom.iso
+34649371 -rw-r--r-- 1 root root   76 Feb  8 16:39 kairos.iso.sha256
+```
+{{% /tab %}}
+{{% tab header="Manually" %}}
 
 ```bash
 $ IMAGE=<source/image>
@@ -101,6 +133,8 @@ $ docker pull $IMAGE
 # Build an ISO with $IMAGE
 $ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/kairos/osbuilder-tools:latest --name "custom-iso" --debug build-iso --date=false --local --overlay-iso /cOS/files-iso $IMAGE --output /cOS/
 ```
+{{% /tab %}}
+{{< /tabpane >}}
 
 This will create a new ISO with your specified cloud configuration embedded in it. You can then use this ISO to boot your machine and automatically install Kairos with your desired settings.
 

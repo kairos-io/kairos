@@ -13,7 +13,7 @@ Here you can find development notes intended for maintainers and guidance for ne
 
 Kairos uses [earthly](https://earthly.dev/) as a build system instead of Makefiles. This ensures that despite the environment you should be able to build `Kairos` seamlessly. To track external packages (like kernels, additional binaries, and so on) which follow their own versioning [luet](https://luet.io) is used and there is a separate [repository](https://github.com/kairos-io/packages) with package building specifications.
 
-- [The Kairos repository](https://github.com/kairos-io/kairos) contains the `kairos-agent` code, the OS definitions (`Dockerfile`s) and configuration. The releases generate core ISOs without any Kubernetes engine. 
+- [The Kairos repository](https://github.com/kairos-io/kairos) contains the `kairos-agent` code, the OS definitions (`Dockerfile`s) and configuration. The releases generate core ISOs without any Kubernetes engine.
 - [The packages repository](https://github.com/kairos-io/packages) contains package specifications used by `kairos` while building OS images.
 - [The provider-kairos repository](https://github.com/kairos-io/provider-kairos) contains the kairos provider component which uses the SDK to bring up a Kubernetes cluster with `k3s`. It uses images from `kairos` core to remaster images with `k3s` and the `provider` embedded. This allows to automatically bootstrap Kubernetes cluster. Note, Kairos core in runtime can be extended to add providers or deploy automatically images with the embedded provider.
 
@@ -46,9 +46,21 @@ Generally to add a flavor the image needs to have installed:
 
 If you are building a flavor without Earthly, be sure to consume the packages from our repository to convert it to a Kairos-based version.
 
+### Bumping packages
+
+Let's assume there is some change you introduce in a package consumed by kairos
+(e.g. [kcrypt](https://github.com/kairos-io/kcrypt)). In order to build a kairos image
+with the updated package, first tag the repository (`kcrypt` in our example).
+Then trigger [the auto-bump pipeline](https://github.com/kairos-io/packages/actions/workflows/autobump.yaml)
+on the packages repository. This should create at least on PR which bumps the desired package to the latest tag.
+It may also create more PRs if other packages had new tags recently. When PR passes CI, merge it.
+Next, in order to bump the packages on kairos, manually trigger [the bump-repos pipeline](https://github.com/kairos-io/kairos/actions/workflows/bump_repos.yml).
+This will automatically open a PR on the kairos repository which can be merged when it passes CI.
+After this, any images produced by the kairos repository, will have the latest version of the package(s).
+
 ## New controllers
 
-Kairos-io adopts [operator-sdk](https://github.com/operator-framework/operator-sdk). 
+Kairos-io adopts [operator-sdk](https://github.com/operator-framework/operator-sdk).
 
 To install `operator-sdk` locally you can use the `kairos` repositories:
 

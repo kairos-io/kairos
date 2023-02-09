@@ -57,10 +57,12 @@ require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gookit/color v1.5.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
@@ -89,8 +91,12 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
+	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
+	github.com/swaggest/jsonschema-go v0.3.47 // indirect
+	github.com/swaggest/refl v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wayneashleyberry/terminal-dimensions v1.1.0 // indirect
@@ -105,6 +111,7 @@ require (
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/term v0.4.0 // indirect
 	golang.org/x/text v0.6.0 // indirect
+	golang.org/x/tools v0.5.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
