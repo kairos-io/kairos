@@ -72,7 +72,7 @@ var _ = Describe("Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, DefaultHeader, RootSchema{})
+		config, err = NewConfigFromYAML(yaml, RootSchema{})
 	})
 
 	Context("While the new Schema is not the single source of truth", func() {

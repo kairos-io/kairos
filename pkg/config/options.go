@@ -5,6 +5,7 @@ type Options struct {
 	BootCMDLineFile  string
 	MergeBootCMDLine bool
 	NoLogs           bool
+	StrictValidation bool
 }
 
 type Option func(o *Options) error
@@ -37,6 +38,12 @@ func WithBootCMDLineFile(s string) Option {
 func Directories(d ...string) Option {
 	return func(o *Options) error {
 		o.ScanDir = d
+		return nil
+	}
+}
+func StrictValidation(b bool) Option {
+	return func(o *Options) error {
+		o.StrictValidation = b
 		return nil
 	}
 }

@@ -7,12 +7,12 @@ import (
 	"os"
 	"strings"
 
-	config "github.com/kairos-io/kairos/pkg/config"
 	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 )
 
-func JSONSchema() error {
-	schema, err := schema.GenerateSchema(schema.RootSchema{})
+func JSONSchema(version string) error {
+	url := fmt.Sprintf("https://kairos.io/%s/cloud-config.json", version)
+	schema, err := schema.GenerateSchema(schema.RootSchema{}, url)
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func Validate(file string) error {
 		yaml = string(dat)
 	}
 
-	config, err := schema.NewConfigFromYAML(yaml, config.DefaultHeader, schema.RootSchema{})
+	config, err := schema.NewConfigFromYAML(yaml, schema.RootSchema{})
 	if err != nil {
 		return err
 	}

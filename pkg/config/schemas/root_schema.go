@@ -30,16 +30,19 @@ type KConfig struct {
 	parsed          interface{}
 	ValidationError error
 	schemaType      interface{}
-	header          string
 }
 
-func GenerateSchema(schemaType interface{}) (string, error) {
+func GenerateSchema(schemaType interface{}, url string) (string, error) {
 	reflector := jsonschemago.Reflector{}
 
 	generatedSchema, err := reflector.Reflect(schemaType)
 	if err != nil {
 		return "", err
 	}
+	if url != "" {
+		generatedSchema.WithSchema(url)
+	}
+
 	generatedSchemaJSON, err := json.MarshalIndent(generatedSchema, "", " ")
 	if err != nil {
 		return "", err
@@ -49,7 +52,7 @@ func GenerateSchema(schemaType interface{}) (string, error) {
 }
 
 func (kc *KConfig) validate() {
-	generatedSchemaJSON, err := GenerateSchema(kc.schemaType)
+	generatedSchemaJSON, err := GenerateSchema(kc.schemaType, "")
 	if err != nil {
 		kc.ValidationError = err
 		return
@@ -74,19 +77,26 @@ func (kc *KConfig) IsValid() bool {
 }
 
 func (kc *KConfig) hasHeader() bool {
-	return strings.HasPrefix(kc.source, kc.header)
+	var found bool
+
+	availableHeaders := []string{"#cloud-config", "#kairos-config", "#node-config"}
+	for _, header := range availableHeaders {
+		if strings.HasPrefix(kc.source, header) {
+			found = true
+		}
+	}
+	return found
 }
 
 // NewConfigFromYAML is a constructor for KConfig instances. The source of the configuration is passed in YAML and if there are any issues unmarshaling it will return an error.
-func NewConfigFromYAML(s, h string, st interface{}) (*KConfig, error) {
+func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 	kc := &KConfig{
 		source:     s,
-		header:     h,
 		schemaType: st,
 	}
 
 	if !kc.hasHeader() {
-		return kc, fmt.Errorf("missing %s header", kc.header)
+		return kc, fmt.Errorf("missing #cloud-config header")
 	}
 
 	err := yaml.Unmarshal([]byte(s), &kc.parsed)

@@ -41,7 +41,7 @@ func ListReleases() []string {
 	return releases
 }
 
-func Upgrade(version, image string, force, debug bool, dirs []string) error {
+func Upgrade(version, image string, force, debug, strictValidations bool, dirs []string) error {
 	bus.Manager.Initialize()
 
 	if version == "" && image == "" {
@@ -96,7 +96,7 @@ func Upgrade(version, image string, force, debug bool, dirs []string) error {
 		fmt.Printf("Upgrading to image: '%s'\n", img)
 	}
 
-	c, err := config.Scan(config.Directories(dirs...))
+	c, err := config.Scan(config.Directories(dirs...), config.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}

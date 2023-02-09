@@ -79,7 +79,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			if c.Args().Len() == 1 {
 				v = c.Args().First()
 			}
-			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"), configScanDir)
+			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"), c.Bool("strict-validation"), configScanDir)
 		},
 	},
 
@@ -237,7 +237,7 @@ enabled: true`,
 				Description: "It allows to navigate the YAML config file by searching with 'yq' style keywords as `config get k3s` to retrieve the k3s config block",
 				Aliases:     []string{"g"},
 				Action: func(c *cli.Context) error {
-					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs)
+					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs, config.StrictValidation(c.Bool("strict-validation")))
 					if err != nil {
 						return err
 					}
@@ -348,7 +348,8 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 			if c.Bool("reboot") {
 				options["reboot"] = "true"
 			}
-			return agent.ManualInstall(config, options)
+
+			return agent.ManualInstall(config, options, c.Bool("strict-validation"))
 		},
 	},
 
@@ -416,7 +417,8 @@ The validate command expects a configuration file as its only argument. Local fi
 	{
 		Name: "schema",
 		Action: func(c *cli.Context) error {
-			err := agent.JSONSchema()
+
+			err := agent.JSONSchema(common.VERSION)
 
 			if err != nil {
 				return err
@@ -433,6 +435,13 @@ func main() {
 	bus.Manager.Initialize()
 
 	app := &cli.App{
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "strict-validation",
+				Usage:   "Fail instead of warn on validation errors.",
+				EnvVars: []string{"STRICT_VALIDATIONS"},
+			},
+		},
 		Name:    "kairos-agent",
 		Version: common.VERSION,
 		Authors: []*cli.Author{

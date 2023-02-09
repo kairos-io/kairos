@@ -44,14 +44,15 @@ type Install struct {
 type Config struct {
 	Install *Install `yaml:"install,omitempty"`
 	//cloudFileContent string
-	originalData       map[string]interface{}
-	header             string
-	ConfigURL          string            `yaml:"config_url,omitempty"`
-	Options            map[string]string `yaml:"options,omitempty"`
-	FailOnBundleErrors bool              `yaml:"fail_on_bundles_errors,omitempty"`
-	Bundles            Bundles           `yaml:"bundles,omitempty"`
-	GrubOptions        map[string]string `yaml:"grub_options,omitempty"`
-	Env                []string          `yaml:"env,omitempty"`
+	originalData          map[string]interface{}
+	header                string
+	ConfigURL             string            `yaml:"config_url,omitempty"`
+	Options               map[string]string `yaml:"options,omitempty"`
+	FailOnBundleErrors    bool              `yaml:"fail_on_bundles_errors,omitempty"`
+	Bundles               Bundles           `yaml:"bundles,omitempty"`
+	GrubOptions           map[string]string `yaml:"grub_options,omitempty"`
+	Env                   []string          `yaml:"env,omitempty"`
+	forceSchemaValidation bool              `yaml:"force_schema_validation,omitempty"`
 }
 
 type Bundles []Bundle
@@ -199,16 +200,30 @@ func Scan(opts ...Option) (c *Config, err error) {
 		c.header = DefaultHeader
 	}
 
-	fullConfigYAML, err := yaml.Marshal(c.originalData)
-	if err != nil {
-		fmt.Printf("WARNING: %v\n", err)
+	finalYAML, err := yaml.Marshal(c)
+	if !o.NoLogs && err != nil {
+		fmt.Printf("WARNING: %s\n", err.Error())
 	}
-	kc, err := schema.NewConfigFromYAML(string(fullConfigYAML), c.header, schema.RootSchema{})
+
+	kc, err := schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
 	if err != nil {
-		fmt.Printf("WARNING: %v\n", err)
+		if !o.NoLogs {
+			fmt.Printf("WARNING: %s\n", err.Error())
+		}
+
+		if o.StrictValidation {
+			return c, err
+		}
 	}
+
 	if !kc.IsValid() {
-		fmt.Printf("WARNING: %v\n", kc.ValidationError)
+		if !o.NoLogs {
+			fmt.Printf("warning: %s\n", kc.ValidationError.Error())
+		}
+
+		if o.StrictValidation {
+			return c, kc.ValidationError
+		}
 	}
 
 	return c, nil

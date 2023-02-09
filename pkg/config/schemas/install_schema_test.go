@@ -14,7 +14,7 @@ var _ = Describe("Install Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, "#cloud-config", InstallSchema{})
+		config, err = NewConfigFromYAML(yaml, InstallSchema{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 

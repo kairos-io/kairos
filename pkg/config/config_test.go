@@ -51,11 +51,11 @@ var _ = Describe("Config", func() {
 			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
 		}
 
-		It("reads from bootargs and can query", func() {
+		FIt("reads from bootargs and can query", func() {
 			err := os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")))
+			c, err := Scan(MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			headerCheck(c)
 			Expect(c.Options["foo"]).To(Equal("bar"))
@@ -80,7 +80,7 @@ c: d
 			err = os.WriteFile(filepath.Join(d, "b.yaml"), []byte(c2), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d))
+			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			providerCfg := &TConfig{}
@@ -115,7 +115,7 @@ kairos:
 `), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d))
+			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			providerCfg := &TConfig{}
@@ -148,7 +148,7 @@ bb:
 			err = os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")))
+			c, err := Scan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c.Options["foo"]).To(Equal("bar"))
 
@@ -170,7 +170,7 @@ config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab2926857
 			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d))
+			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			Expect(len(c.Bundles)).To(Equal(1))
@@ -187,7 +187,7 @@ config_url: "https://gist.githubusercontent.com/mudler/7e3d0426fce8bfaaeb2644f83
 			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d))
+			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			Expect(len(c.Bundles)).To(Equal(1))
