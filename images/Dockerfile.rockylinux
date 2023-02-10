@@ -22,7 +22,9 @@ RUN dnf install -y \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
     grub2-pc \
-    kernel kernel-modules kernel-modules-extra \
+    kernel \
+    kernel-modules \
+    kernel-modules-extra \
     livecd-tools \
     nano \
     NetworkManager \
