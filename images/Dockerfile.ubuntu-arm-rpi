@@ -4,11 +4,11 @@ FROM $BASE_IMAGE
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && \
-    apt-get install -y software-properties-common && \
-    add-apt-repository ppa:oibaf/test && \
-    apt-get update && \
-    apt-get install -y \
+RUN apt-get update \
+    && apt-get install -y software-properties-common \
+    && add-apt-repository ppa:oibaf/test \
+    && apt-get update \
+    && apt-get install -y \
     conntrack \
     console-data \
     coreutils \
