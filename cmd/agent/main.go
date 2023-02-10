@@ -409,13 +409,13 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 			config := c.Args().First()
 			return agent.Validate(config)
 		},
-		Usage: "Validates a config file",
+		Usage: "Validates a cloud config file",
 		Description: `
 The validate command expects a configuration file as its only argument. Local files and URLs are accepted.
 		`,
 	},
 	{
-		Name: "schema",
+		Name: "print-schema",
 		Action: func(c *cli.Context) error {
 
 			err := agent.JSONSchema(common.VERSION)
