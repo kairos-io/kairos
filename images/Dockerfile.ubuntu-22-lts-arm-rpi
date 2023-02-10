@@ -15,7 +15,9 @@ RUN apt-get update && \
     curl \
     debianutils \
     dosfstools \
-    dracut-network dracut-live tar \
+    dracut \
+    dracut-network \
+    dracut-live \
     e2fsprogs \
     gawk \
     grub-efi-arm64-bin \
@@ -32,7 +34,7 @@ RUN apt-get update && \
     neovim \
     open-vm-tools \
     openssh-server \
-    parted dracut \
+    parted \
     polkitd \
     rpi-eeprom \
     rsync \
@@ -41,6 +43,7 @@ RUN apt-get update && \
     squashfs-tools \
     sudo \
     systemd \
+    tar \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
