@@ -15,7 +15,9 @@ RUN apt install -y \
     curl \
     debianutils \
     dosfstools \
-    dracut-network dracut-live tar \
+    dracut \
+    dracut-live \
+    dracut-network \
     e2fsprogs \
     gawk \
     grub-efi-amd64-bin \
@@ -31,7 +33,7 @@ RUN apt install -y \
     neovim \
     open-vm-tools \
     openssh-server \
-    parted dracut \
+    parted \
     polkitd \
     rsync \
     snapd \
@@ -39,6 +41,7 @@ RUN apt install -y \
     sudo \
     systemd \
     systemd-timesyncd \
+    tar \
     && apt-get clean
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install

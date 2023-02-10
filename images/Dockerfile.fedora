@@ -22,7 +22,8 @@ RUN dnf install -y \
     grub2-efi-x64-modules \
     grub2-pc \
     haveged \
-    kernel kernel-modules \
+    kernel \
+    kernel-modules \
     kernel-modules-extra \
     livecd-tools \
     nano \
