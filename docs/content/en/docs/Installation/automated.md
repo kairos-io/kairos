@@ -88,14 +88,11 @@ Here's an example of how you might do this:
 {{< tabpane text=true  >}}
 {{% tab header="AuroraBoot" %}}
 
-We can use [AuroraBoot](/docs/reference/auroraboot) to handle the the ISO build process.
+We can use [AuroraBoot](/docs/reference/auroraboot) to handle the the ISO build process, for example:
 
 ```bash
 $ IMAGE=<source/image>
 $ docker pull $IMAGE
-# Optionally, modify the image here!
-$ docker run --entrypoint /bin/bash --name changes -ti $IMAGE
-$ docker commit changes $IMAGE
 # Build the ISO
 $ docker run -v $PWD/cloud_init.yaml:/cloud_init.yaml \
                     -v $PWD/build:/tmp/auroraboot \

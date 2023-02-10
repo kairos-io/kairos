@@ -13,7 +13,7 @@ require (
 	github.com/itchyny/gojq v0.12.11
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.5.1
-	github.com/kairos-io/kcrypt v0.5.0
+	github.com/kairos-io/kcrypt v0.5.1
 	github.com/labstack/echo/v4 v4.10.0
 	github.com/mudler/go-nodepair v0.0.0-20221223092639-ba399a66fdfb
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
@@ -24,11 +24,13 @@ require (
 	github.com/onsi/gomega v1.26.0
 	github.com/pterm/pterm v0.12.54
 	github.com/qeesung/image2ascii v1.0.1
+	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230207104055-5f48d834ddf6
+	github.com/swaggest/jsonschema-go v0.3.47
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/urfave/cli/v2 v2.24.3
-	golang.org/x/net v0.5.0
-	golang.org/x/oauth2 v0.4.0
+	golang.org/x/net v0.6.0
+	golang.org/x/oauth2 v0.5.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -92,10 +94,8 @@ require (
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
-	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
-	github.com/swaggest/jsonschema-go v0.3.47 // indirect
 	github.com/swaggest/refl v1.1.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
@@ -108,9 +108,9 @@ require (
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.5.0 // indirect
 	golang.org/x/image v0.0.0-20191206065243-da761ea9ff43 // indirect
-	golang.org/x/sys v0.4.0 // indirect
-	golang.org/x/term v0.4.0 // indirect
-	golang.org/x/text v0.6.0 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
+	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/tools v0.5.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
 	google.golang.org/appengine v1.6.7 // indirect

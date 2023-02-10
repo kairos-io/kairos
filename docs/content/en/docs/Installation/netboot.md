@@ -15,7 +15,7 @@ Kairos releases include artifacts to allow booting from the network. In general,
 - The kernel: This is the kernel of the operating system that will boot.
 - The squashfs: The filesystem of the operating system that will boot.
 
-Booting using these files can happen in two ways:
+Booting using these files can happen in multiple ways:
 
 - Either with direct support from the machine BIOS plus network configuration (DHCP server etc).
 - Software based network booting. This works with a special ISO, built with
@@ -66,7 +66,7 @@ qemu-system-x86_64 \
 
 ```
 
-## Use `AuroraBoot`
+## Use AuroraBoot
 
 [AuroraBoot](/docs/reference/auroraboot) is a Kairos convinience tool that can be used to quickly deploy Kairos from Network with zero-touch configuration, for instance:
 

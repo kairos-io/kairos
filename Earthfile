@@ -18,7 +18,9 @@ ELSE
 END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
-ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:v0.3.3
+# renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
+ARG OSBUILDER_VERSION=v0.5.2
+ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.47.3
 # renovate: datasource=docker depName=golang
 ARG GO_VERSION=1.18
