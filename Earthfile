@@ -26,7 +26,7 @@ ARG GOLINT_VERSION=1.47.3
 ARG GO_VERSION=1.18
 # renovate: datasource=docker depName=hadolint/hadolint versioning=docker
 ARG HADOLINT_VERSION=2.12.0-alpine
-# renovate: datasource=docker depName=renovate/renovate
+# renovate: datasource=docker depName=renovate/renovate versioning=docker
 ARG RENOVATE_VERSION=34
 
 all:

@@ -17,7 +17,8 @@ RUN apt-get update \
     curl \
     debianutils \
     dosfstools \
-    dracut-network tar \
+    dracut \
+    dracut-network \
     e2fsprogs \
     gawk \
     grub-efi-amd64-bin \
@@ -34,7 +35,7 @@ RUN apt-get update \
     neovim \
     open-vm-tools \
     openssh-server \
-    parted dracut \
+    parted \
     policykit-1 \
     rsync \
     snapd \

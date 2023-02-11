@@ -12,7 +12,9 @@ RUN apt-get update \
     curl \
     debianutils \
     dosfstools \
-    dracut-network dracut-live tar \
+    dracut \
+    dracut-live \
+    dracut-network \
     e2fsprogs \
     gawk \
     grub-efi-amd64-bin \
@@ -28,9 +30,9 @@ RUN apt-get update \
     neovim \
     open-vm-tools \
     openssh-server \
-    parted dracut \
-    polkitd \
+    parted \
     patch \
+    polkitd \
     rsync \
     snapd \
     squashfs-tools \
@@ -38,6 +40,7 @@ RUN apt-get update \
     systemd \
     systemd-sysv \
     systemd-timesyncd \
+    tar \
     xz-utils \
   && rm -rf /var/lib/apt/lists/*
 
