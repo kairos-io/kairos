@@ -6,8 +6,21 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+    dmsetup \
+    file \
     gnupg \
+    krb5-locales \
+    libnss-systemd \
+    libpam-cap \
+    libsasl2-modules \
+    networkd-dispatcher \
+    packagekit-tools \
+    publicsuffix \
+    shared-mime-info \
     software-properties-common \
+    unattended-upgrades \
+    xdg-user-dirs \
+    xz-utils \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -44,7 +57,6 @@ RUN apt-get update \
     sudo \
     systemd \
     systemd-timesyncd \
-    xz-utils \
   && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install

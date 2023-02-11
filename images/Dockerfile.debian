@@ -7,33 +7,68 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+    binutils \
     conntrack \
+    console-setup \
     coreutils \
+    cryptsetup \
     curl \
     debianutils \
+    dmraid \
     dosfstools \
     dracut \
     dracut-live \
     dracut-network \
     e2fsprogs \
+    e2fsprogs-l10n \
+    efibootmgr \
+    ethtool \
+    firmware-linux-free \
+    fuse3 \
     gawk \
+    gnupg \
+    gnupg1-l10n \
     grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
     grub-pc-bin \
     grub2 \
     grub2-common \
     haveged \
     iproute2 \
     iptables \
+    isc-dhcp-common \
     jq \
+    krb5-locales \
+    libatm1 \
+    libglib2.0-data \
+    libgpm2 \
+    libldap-common \
+    libnss-systemd \
+    libpam-cap \
+    libsasl2-modules \
     linux-image-amd64 \
+    lvm2 \
+    mdadm \
     nano \
+    nbd-client \
+    ncurses-term \
     neovim \
+    nfs-common \
+    nftables \
+    open-iscsi \
     open-vm-tools \
     openssh-server \
+    os-prober \
     parted \
     patch \
+    pigz \
+    pkg-config \
     polkitd \
+    psmisc \
+    publicsuffix \
+    python3-pynvim \
     rsync \
+    shared-mime-info \
     snapd \
     squashfs-tools \
     sudo \
@@ -41,7 +76,12 @@ RUN apt-get update \
     systemd-sysv \
     systemd-timesyncd \
     tar \
+    xauth \
+    xclip \
+    xdg-user-dirs \
+    xxd \
     xz-utils \
+    zerofree \
   && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install

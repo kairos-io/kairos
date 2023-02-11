@@ -6,8 +6,20 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+    dmsetup \
     gnupg \
+    libldap-common \
+    libnss-systemd \
+    libpam-cap \
+    libsasl2-modules \
+    networkd-dispatcher \
+    packagekit-tools \
+    publicsuffix \
+    shared-mime-info \
     software-properties-common \
+    systemd-timesyncd \
+    unattended-upgrades \
+    xdg-user-dirs \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -44,7 +56,6 @@ RUN apt-get update \
     squashfs-tools \
     sudo \
     systemd \
-    systemd-timesyncd \
     xz-utils \
   && rm -rf /var/lib/apt/lists/*
 
