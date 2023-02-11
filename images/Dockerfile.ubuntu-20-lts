@@ -24,39 +24,68 @@ RUN apt-get update \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
+    binutils \
     conntrack \
+    console-common \
     console-data \
+    console-setup \
     coreutils \
+    cryptsetup \
     curl \
     debianutils \
+    dmraid \
     dosfstools \
     dracut \
     dracut-network \
     e2fsprogs \
+    efibootmgr \
+    ethtool \
+    fuse \
     gawk \
     grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
     grub-pc-bin \
     grub2 \
     grub2-common \
     haveged \
+    initramfs-tools \
     iproute2 \
     iptables \
+    isc-dhcp-common \
     jq \
+    kbd \
+    libatm1 \
+    libfile-fcntllock-perl \
+    liblocale-gettext-perl \
     linux-image-generic-hwe-20.04 \
     lldpd \
+    lvm2 \
+    mdadm \
     nano \
+    nbd-client \
+    ncurses-term \
     neovim \
+    nfs-common \
+    open-iscsi \
     open-vm-tools \
     openssh-server \
+    os-prober \
     parted \
     policykit-1 \
+    python3-neovim \
     rsync \
     snapd \
     snmpd \
     squashfs-tools \
+    ssh-import-id \
     sudo \
     systemd \
     systemd-timesyncd \
+    thermald \
+    xauth \
+    xclip \
+    xxd \
+    zerofree \
   && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install

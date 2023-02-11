@@ -26,38 +26,69 @@ RUN apt-get update \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
+    binutils \
     conntrack \
+    console-common \
     console-data \
+    console-setup \
     coreutils \
+    cryptsetup \
     curl \
     debianutils \
+    dmraid \
     dosfstools \
     dracut \
     dracut-live \
     dracut-network \
     e2fsprogs \
+    efibootmgr \
+    ethtool \
+    firmware-sof-signed \
+    fuse3 \
     gawk \
     grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
     grub-pc-bin \
     grub2 \
     grub2-common \
     haveged \
+    initramfs-tools \
     iproute2 \
     iptables \
+    isc-dhcp-common \
     jq \
+    kbd \
+    libatm1 \
     linux-image-generic-hwe-22.04 \
+    lvm2 \
+    mdadm \
     nano \
+    nbd-client \
+    ncurses-term \
     neovim \
+    nfs-common \
+    open-iscsi \
     open-vm-tools \
     openssh-server \
+    os-prober \
     parted \
+    pigz \
+    pkg-config \
     polkitd \
+    python3-pynvim \
     rsync \
     snapd \
     squashfs-tools \
+    ssh-import-id \
     sudo \
     systemd \
+    systemd-hwe-hwdb \
+    thermald \
+    xauth \
+    xclip \
+    xxd \
     xz-utils \
+    zerofree \
   && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
