@@ -43,6 +43,7 @@ RUN apt-get update \
     squashfs-tools \
     sudo \
     systemd \
+    systemd-timesyncd \
     tar \
     && rm -rf /var/lib/apt/lists/*
 
