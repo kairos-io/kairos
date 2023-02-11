@@ -6,20 +6,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    dmsetup \
     gnupg \
-    libldap-common \
-    libnss-systemd \
-    libpam-cap \
-    libsasl2-modules \
-    networkd-dispatcher \
-    packagekit-tools \
-    publicsuffix \
-    shared-mime-info \
     software-properties-common \
-    systemd-timesyncd \
-    unattended-upgrades \
-    xdg-user-dirs \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -32,6 +20,7 @@ RUN apt-get update \
     cryptsetup \
     curl \
     debianutils \
+    dmsetup \
     dosfstools \
     dracut \
     dracut-live \
@@ -55,7 +44,11 @@ RUN apt-get update \
     kbd \
     libatm1 \
     libfile-fcntllock-perl \
+    libldap-common \
     liblocale-gettext-perl \
+    libnss-systemd \
+    libpam-cap \
+    libsasl2-modules \
     linux-image-generic-hwe-22.04 \
     lldpd \
     lvm2 \
@@ -64,16 +57,20 @@ RUN apt-get update \
     nbd-client \
     ncurses-term \
     neovim \
+    networkd-dispatcher \
     nfs-common \
     open-iscsi \
     open-vm-tools \
     openssh-server \
     os-prober \
+    packagekit-tools \
     parted \
     pigz \
     polkitd \
+    publicsuffix \
     python3-neovim \
     rsync \
+    shared-mime-info \
     snapd \
     snmpd \
     squashfs-tools \
@@ -81,9 +78,12 @@ RUN apt-get update \
     sudo \
     systemd \
     systemd-hwe-hwdb \
+    systemd-timesyncd \
     thermald \
+    unattended-upgrades \
     xauth \
     xclip \
+    xdg-user-dirs \
     xxd \
     xz-utils \
     zerofree \

@@ -6,21 +6,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    dmsetup \
-    file \
     gnupg \
-    krb5-locales \
-    libnss-systemd \
-    libpam-cap \
-    libsasl2-modules \
-    networkd-dispatcher \
-    packagekit-tools \
-    publicsuffix \
-    shared-mime-info \
     software-properties-common \
-    unattended-upgrades \
-    xdg-user-dirs \
-    xz-utils \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -32,12 +19,14 @@ RUN apt-get update \
     cryptsetup \
     curl \
     debianutils \
+    dmsetup \
     dosfstools \
     dracut \
     dracut-network \
     e2fsprogs \
     efibootmgr \
     ethtool \
+    file \
     fuse \
     gawk \
     grub-efi-amd64-bin \
@@ -51,9 +40,13 @@ RUN apt-get update \
     isc-dhcp-common \
     jq \
     kbd \
+    krb5-locales \
     libatm1 \
     libfile-fcntllock-perl \
     liblocale-gettext-perl \
+    libnss-systemd \
+    libpam-cap \
+    libsasl2-modules \
     linux-image-generic-hwe-20.04 \
     lldpd \
     lvm2 \
@@ -62,15 +55,19 @@ RUN apt-get update \
     nbd-client \
     ncurses-term \
     neovim \
+    networkd-dispatcher \
     nfs-common \
     open-iscsi \
     open-vm-tools \
     openssh-server \
     os-prober \
+    packagekit-tools \
     parted \
     policykit-1 \
+    publicsuffix \
     python3-neovim \
     rsync \
+    shared-mime-info \
     snapd \
     snmpd \
     squashfs-tools \
@@ -79,9 +76,12 @@ RUN apt-get update \
     systemd \
     systemd-timesyncd \
     thermald \
+    unattended-upgrades \
     xauth \
     xclip \
+    xdg-user-dirs \
     xxd \
+    xz-utils \
     zerofree \
   && rm -rf /var/lib/apt/lists/*
 
