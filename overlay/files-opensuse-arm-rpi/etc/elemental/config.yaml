@@ -19,4 +19,3 @@ reset:
 
 cloud-init-paths:
 - /run/initramfs/cos-state
-# - /run/initramfs/live
