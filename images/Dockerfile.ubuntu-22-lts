@@ -4,47 +4,90 @@ FROM $BASE_IMAGE
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update
-RUN apt install -y software-properties-common
-RUN add-apt-repository ppa:oibaf/test
-RUN apt update
-RUN apt install -y \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    gnupg \
+    software-properties-common \
+  && add-apt-repository ppa:oibaf/test \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
+    binutils \
+    bzip2 \
     conntrack \
     console-data \
+    console-setup \
     coreutils \
+    cryptsetup \
     curl \
     debianutils \
+    dmsetup \
     dosfstools \
     dracut \
     dracut-live \
     dracut-network \
     e2fsprogs \
+    efibootmgr \
+    ethtool \
+    firmware-sof-signed \
+    fuse3 \
     gawk \
     grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
     grub-pc-bin \
     grub2 \
     grub2-common \
     haveged \
     iproute2 \
     iptables \
+    isc-dhcp-common \
     jq \
+    kbd \
+    libatm1 \
+    libfile-fcntllock-perl \
+    libldap-common \
+    liblocale-gettext-perl \
+    libnss-systemd \
+    libpam-cap \
+    libsasl2-modules \
     linux-image-generic-hwe-22.04 \
     lldpd \
+    lvm2 \
+    mdadm \
     nano \
+    nbd-client \
+    ncurses-term \
     neovim \
+    networkd-dispatcher \
+    nfs-common \
+    open-iscsi \
     open-vm-tools \
     openssh-server \
+    os-prober \
+    packagekit-tools \
     parted \
+    pigz \
     polkitd \
+    publicsuffix \
+    python3-neovim \
     rsync \
+    shared-mime-info \
     snapd \
     snmpd \
     squashfs-tools \
+    ssh-import-id \
     sudo \
     systemd \
+    systemd-hwe-hwdb \
     systemd-timesyncd \
-    tar \
-    && apt-get clean
+    thermald \
+    unattended-upgrades \
+    xauth \
+    xclip \
+    xdg-user-dirs \
+    xxd \
+    xz-utils \
+    zerofree \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
@@ -60,4 +103,4 @@ RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
 
 # Clear cache
-RUN apt-get clean && rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
