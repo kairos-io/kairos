@@ -26,14 +26,12 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     binutils \
     conntrack \
-    console-common \
     console-data \
     console-setup \
     coreutils \
     cryptsetup \
     curl \
     debianutils \
-    dmraid \
     dosfstools \
     dracut \
     dracut-network \
@@ -48,7 +46,6 @@ RUN apt-get update \
     grub2 \
     grub2-common \
     haveged \
-    initramfs-tools \
     iproute2 \
     iptables \
     isc-dhcp-common \

@@ -26,14 +26,12 @@ RUN apt-get update \
     binutils \
     bzip2 \
     conntrack \
-    console-common \
     console-data \
     console-setup \
     coreutils \
     cryptsetup \
     curl \
     debianutils \
-    dmraid \
     dosfstools \
     dracut \
     dracut-live \
@@ -50,7 +48,6 @@ RUN apt-get update \
     grub2 \
     grub2-common \
     haveged \
-    initramfs-tools \
     iproute2 \
     iptables \
     isc-dhcp-common \
