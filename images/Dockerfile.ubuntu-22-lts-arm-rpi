@@ -61,4 +61,4 @@ RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
 
 # Clear cache
-RUN apt-get clean && rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
