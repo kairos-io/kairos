@@ -11,10 +11,8 @@ RUN apt-get update \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
-    binutils \
     conntrack \
     console-data \
-    console-setup \
     coreutils \
     cryptsetup \
     curl \
@@ -25,7 +23,6 @@ RUN apt-get update \
     dracut-network \
     e2fsprogs \
     efibootmgr \
-    ethtool \
     file \
     fuse \
     gawk \
@@ -41,20 +38,12 @@ RUN apt-get update \
     jq \
     kbd \
     krb5-locales \
-    libatm1 \
-    libfile-fcntllock-perl \
-    liblocale-gettext-perl \
-    libnss-systemd \
-    libpam-cap \
-    libsasl2-modules \
     linux-image-generic-hwe-20.04 \
     lldpd \
     lvm2 \
     mdadm \
-    nano \
     nbd-client \
     ncurses-term \
-    neovim \
     networkd-dispatcher \
     nfs-common \
     open-iscsi \
@@ -65,20 +54,15 @@ RUN apt-get update \
     parted \
     policykit-1 \
     publicsuffix \
-    python3-neovim \
     rsync \
     shared-mime-info \
-    snapd \
     snmpd \
     squashfs-tools \
-    ssh-import-id \
     sudo \
     systemd \
     systemd-timesyncd \
     thermald \
     unattended-upgrades \
-    xauth \
-    xclip \
     xdg-user-dirs \
     xxd \
     xz-utils \
