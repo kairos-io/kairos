@@ -672,3 +672,31 @@ docs:
     RUN npm run prepare
     RUN HUGO_ENV="production" hugo --gc -b "/local/" -d "public/local"
     SAVE ARTIFACT public /public AS LOCAL docs/public
+
+## ./earthly.sh --push +temp-image --FLAVOR=ubuntu
+## all same flags than the `docker` target plus 
+## - the EXPIRATION time, defaults to 24h
+## - the NAME of the image in ttl.sh, defaults to the branch name + short sha
+## the push flag is optional
+## 
+## you will have access to an image in ttl.sh e.g. ttl.sh/add-earthly-target-to-build-temp-images-339dfc7:24h
+temp-image:
+    FROM alpine 
+    RUN apk add git
+    COPY . ./
+
+    IF [ "$EXPIRATION" = "" ]
+        ARG EXPIRATION="24h"
+    END
+
+    ARG BRANCH=$(git symbolic-ref --short HEAD)
+    ARG SHA=$(git rev-parse --short HEAD)
+    IF [ "$NAME" = "" ]
+        ARG NAME="${BRANCH}-${SHA}"
+    END
+
+    ARG TTL_IMAGE = "ttl.sh/${NAME}:${EXPIRATION}"
+
+    FROM +docker
+    SAVE IMAGE --push $TTL_IMAGE
+
