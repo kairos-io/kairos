@@ -11,11 +11,8 @@ RUN apt-get update \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
-    binutils \
-    bzip2 \
     conntrack \
     console-data \
-    console-setup \
     coreutils \
     cryptsetup \
     curl \
@@ -27,7 +24,6 @@ RUN apt-get update \
     dracut-network \
     e2fsprogs \
     efibootmgr \
-    ethtool \
     firmware-sof-signed \
     fuse3 \
     gawk \
@@ -42,21 +38,12 @@ RUN apt-get update \
     isc-dhcp-common \
     jq \
     kbd \
-    libatm1 \
-    libfile-fcntllock-perl \
-    libldap-common \
-    liblocale-gettext-perl \
-    libnss-systemd \
-    libpam-cap \
-    libsasl2-modules \
     linux-image-generic-hwe-22.04 \
     lldpd \
     lvm2 \
     mdadm \
-    nano \
     nbd-client \
     ncurses-term \
-    neovim \
     networkd-dispatcher \
     nfs-common \
     open-iscsi \
@@ -68,21 +55,16 @@ RUN apt-get update \
     pigz \
     polkitd \
     publicsuffix \
-    python3-neovim \
     rsync \
     shared-mime-info \
-    snapd \
     snmpd \
     squashfs-tools \
-    ssh-import-id \
     sudo \
     systemd \
     systemd-hwe-hwdb \
     systemd-timesyncd \
     thermald \
     unattended-upgrades \
-    xauth \
-    xclip \
     xdg-user-dirs \
     xxd \
     xz-utils \
