@@ -33,7 +33,7 @@ type KConfig struct {
 
 // GenerateSchema takes the given schema type and builds a JSON Schema out of it
 // if a URL is passed it will also add it as the $schema key, which is useful when
-// definig a version of a Root Schema which will be available online
+// definig a version of a Root Schema which will be available online.
 func GenerateSchema(schemaType interface{}, url string) (string, error) {
 	reflector := jsonschemago.Reflector{}
 
@@ -78,7 +78,7 @@ func (kc *KConfig) IsValid() bool {
 	return kc.ValidationError == nil
 }
 
-// HasHeader returns true if the config has one of the valid headers
+// HasHeader returns true if the config has one of the valid headers.
 func (kc *KConfig) HasHeader() bool {
 	var found bool
 
