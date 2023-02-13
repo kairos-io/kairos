@@ -208,25 +208,23 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 	kc, err := schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
 	if err != nil {
-		if o.StrictValidation {
-			return c, fmt.Errorf("ERROR: %s", err.Error())
-		} else {
-			if !o.NoLogs {
-				fmt.Printf("WARNING: %s\n", err.Error())
-			}
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", err.Error())
 		}
 
+		if o.StrictValidation {
+			return c, fmt.Errorf("ERROR: %s", err.Error())
+		}
 	}
 
 	if !kc.IsValid() {
-		if o.StrictValidation {
-			return c, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
-		} else {
-			if !o.NoLogs {
-				fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
-			}
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
 		}
 
+		if o.StrictValidation {
+			return c, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
+		}
 	}
 
 	return c, nil
