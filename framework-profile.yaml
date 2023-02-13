@@ -1,6 +1,6 @@
 common:
   - system/base-cloud-config
-  - dracut/immutable-rootfs
+  - dracut/immucore
   - dracut/kcrypt
   - static/grub-config
   - system/kcrypt
@@ -9,6 +9,7 @@ common:
   - system/shim
   - system/grub2-efi
   - system/elemental-cli
+  - system/immucore
 flavors:
   debian:
     - systemd-base
@@ -89,9 +90,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230219230039-repository.yaml
+    reference: 20230222092935-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230219220016-repository.yaml
+    reference: 20230222093538-repository.yaml

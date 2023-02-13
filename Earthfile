@@ -294,13 +294,11 @@ docker:
       ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
     # Otherwise we assume systemd
     ELSE
-        RUN ls -liah /etc/systemd/system
-	RUN systemctl enable cos-setup-rootfs.service && \
-	    systemctl enable cos-setup-initramfs.service && \
-	    systemctl enable cos-setup-reconcile.timer && \
-	    systemctl enable cos-setup-fs.service && \
-	    systemctl enable cos-setup-boot.service && \
-	    systemctl enable cos-setup-network.service
+      RUN ls -liah /etc/systemd/system
+      RUN systemctl enable cos-setup-reconcile.timer && \
+          systemctl enable cos-setup-fs.service && \
+          systemctl enable cos-setup-boot.service && \
+          systemctl enable cos-setup-network.service
     END
 
     IF [ "$FLAVOR" = "debian" ]
