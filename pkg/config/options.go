@@ -41,6 +41,8 @@ func Directories(d ...string) Option {
 		return nil
 	}
 }
+
+// StrictValidation sets the strict validation option to true or false
 func StrictValidation(b bool) Option {
 	return func(o *Options) error {
 		o.StrictValidation = b
