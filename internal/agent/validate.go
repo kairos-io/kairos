@@ -11,20 +11,18 @@ import (
 )
 
 // JSONSchema builds a JSON Schema based on the Root Schema and the given version
-// this is helpful when mapping a validation error
-func JSONSchema(version string) error {
+// this is helpful when mapping a validation error.
+func JSONSchema(version string) (string, error) {
 	url := fmt.Sprintf("https://kairos.io/%s/cloud-config.json", version)
 	schema, err := schema.GenerateSchema(schema.RootSchema{}, url)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	fmt.Println(schema)
-
-	return nil
+	return schema, nil
 }
 
-// Validate ensures that a given schema is Valid according to the Root Schema from the agent
+// Validate ensures that a given schema is Valid according to the Root Schema from the agent.
 func Validate(file string) error {
 	var yaml string
 

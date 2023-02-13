@@ -418,11 +418,13 @@ The validate command expects a configuration file as its only argument. Local fi
 		Name: "print-schema",
 		Action: func(c *cli.Context) error {
 
-			err := agent.JSONSchema(common.VERSION)
+			json, err := agent.JSONSchema(common.VERSION)
 
 			if err != nil {
 				return err
 			}
+
+			fmt.Println(json)
 
 			return nil
 		},
