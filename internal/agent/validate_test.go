@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("Validate", func() {
+var _ = Describe("Validate", func() {
 	Context("JSONSchema", func() {
 		It("returns a schema with a url to the given version", func() {
 			out, err := JSONSchema("0.0.0")
