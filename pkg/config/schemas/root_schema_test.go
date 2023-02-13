@@ -110,4 +110,32 @@ users: []`
 			Expect(config.ValidationError.Error()).To(MatchRegexp("minimum 1 items required, but found 0 items"))
 		})
 	})
+
+	Context("without a valid header", func() {
+		BeforeEach(func() {
+			yaml = `---
+users:
+  - name: kairos
+    passwd: kairos`
+		})
+
+		It("is successful but HasHeader returns false", func() {
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.HasHeader()).To(BeFalse())
+		})
+	})
+
+	Context("With a valid config", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos`
+		})
+
+		It("is successful ", func() {
+			Expect(err).ToNot(HaveOccurred())
+			Expect(config.HasHeader()).To(BeTrue())
+		})
+	})
 })

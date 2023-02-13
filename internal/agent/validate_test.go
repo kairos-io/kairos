@@ -86,16 +86,4 @@ users:
 			})
 		})
 	})
-	// Context("With the wrong header", func() {
-	// 	BeforeEach(func() {
-	// 		yaml = `---
-	// users:
-	// - name: "kairos"
-	// passwd: "kairos"`
-	// 	})
-
-	// 	It("errors", func() {
-	// 		Expect(err.Error()).To(MatchRegexp("missing #cloud-config header"))
-	// 	})
-	// })
 })
