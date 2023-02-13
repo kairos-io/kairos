@@ -25,7 +25,7 @@ require (
 	github.com/pterm/pterm v0.12.54
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
-	github.com/spectrocloud/peg v0.0.0-20230207104055-5f48d834ddf6
+	github.com/spectrocloud/peg v0.0.0-20230210110137-1780ceedb1e5
 	github.com/swaggest/jsonschema-go v0.3.47
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/urfave/cli/v2 v2.24.3
