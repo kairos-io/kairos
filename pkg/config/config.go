@@ -124,6 +124,8 @@ func (c Config) Query(s string) (res string, err error) {
 	s = fmt.Sprintf(".%s", s)
 	jsondata := map[string]interface{}{}
 
+	// c.String() takes the original data map[string]interface{} and Marshals into YAML, then here we unmarshall it again?
+	// we should be able to use c.originalData and copy it to jsondata
 	err = yaml.Unmarshal([]byte(c.String()), &jsondata)
 	if err != nil {
 		return
@@ -199,30 +201,32 @@ func Scan(opts ...Option) (c *Config, err error) {
 		c.header = DefaultHeader
 	}
 
-	finalYAML, err := yaml.Marshal(c)
+	finalYAML, err := yaml.Marshal(c.originalData)
 	if !o.NoLogs && err != nil {
 		fmt.Printf("WARNING: %s\n", err.Error())
 	}
 
 	kc, err := schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
 	if err != nil {
-		if !o.NoLogs {
-			fmt.Printf("WARNING: %s\n", err.Error())
+		if o.StrictValidation {
+			return c, fmt.Errorf("ERROR: %s", err.Error())
+		} else {
+			if !o.NoLogs {
+				fmt.Printf("WARNING: %s\n", err.Error())
+			}
 		}
 
-		if o.StrictValidation {
-			return c, err
-		}
 	}
 
 	if !kc.IsValid() {
-		if !o.NoLogs {
-			fmt.Printf("warning: %s\n", kc.ValidationError.Error())
+		if o.StrictValidation {
+			return c, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
+		} else {
+			if !o.NoLogs {
+				fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
+			}
 		}
 
-		if o.StrictValidation {
-			return c, kc.ValidationError
-		}
 	}
 
 	return c, nil

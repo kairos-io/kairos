@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -26,7 +25,7 @@ type RootSchema struct {
 
 // KConfig is used to parse and validate Kairos configuration files.
 type KConfig struct {
-	source          string
+	Source          string
 	parsed          interface{}
 	ValidationError error
 	schemaType      interface{}
@@ -76,12 +75,12 @@ func (kc *KConfig) IsValid() bool {
 	return kc.ValidationError == nil
 }
 
-func (kc *KConfig) hasHeader() bool {
+func (kc *KConfig) HasHeader() bool {
 	var found bool
 
 	availableHeaders := []string{"#cloud-config", "#kairos-config", "#node-config"}
 	for _, header := range availableHeaders {
-		if strings.HasPrefix(kc.source, header) {
+		if strings.HasPrefix(kc.Source, header) {
 			found = true
 		}
 	}
@@ -91,12 +90,8 @@ func (kc *KConfig) hasHeader() bool {
 // NewConfigFromYAML is a constructor for KConfig instances. The source of the configuration is passed in YAML and if there are any issues unmarshaling it will return an error.
 func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 	kc := &KConfig{
-		source:     s,
+		Source:     s,
 		schemaType: st,
-	}
-
-	if !kc.hasHeader() {
-		return kc, fmt.Errorf("missing #cloud-config header")
 	}
 
 	err := yaml.Unmarshal([]byte(s), &kc.parsed)

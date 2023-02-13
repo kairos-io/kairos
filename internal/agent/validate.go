@@ -49,6 +49,10 @@ func Validate(file string) error {
 		return err
 	}
 
+	if !config.HasHeader() {
+		return fmt.Errorf("missing #cloud-config header")
+	}
+
 	if config.IsValid() {
 		return nil
 	}
