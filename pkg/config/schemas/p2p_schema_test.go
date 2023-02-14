@@ -3,7 +3,6 @@ package config_test
 import (
 	"strings"
 
-	. "github.com/kairos-io/kairos/pkg/config"
 	. "github.com/kairos-io/kairos/pkg/config/schemas"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,7 +14,7 @@ var _ = Describe("P2P Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, DefaultHeader, P2PSchema{})
+		config, err = NewConfigFromYAML(yaml, P2PSchema{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -63,8 +62,8 @@ network_token: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg=="`
 		})
 
 		It("errors", func() {
-			Expect(config.ValidationError()).To(MatchRegexp(`value must be one of "master", "worker", "none"`))
 			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "master", "worker", "none"`))
 		})
 	})
 
@@ -79,7 +78,7 @@ auto:
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
 			Expect(
-				strings.Contains(config.ValidationError(), `value must be true`),
+				strings.Contains(config.ValidationError.Error(), `value must be true`),
 			).To(BeTrue())
 		})
 	})
@@ -95,7 +94,7 @@ auto:
 		It("Fails", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
 			Expect(
-				strings.Contains(config.ValidationError(),
+				strings.Contains(config.ValidationError.Error(),
 					"length must be >= 1, but got 0",
 				),
 			).To(BeTrue())
@@ -127,7 +126,7 @@ auto:
 
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError()).To(MatchRegexp("(length must be >= 1, but got 0|value must be true)"))
+			Expect(config.ValidationError.Error()).To(MatchRegexp("(length must be >= 1, but got 0|value must be true)"))
 		})
 	})
 
@@ -144,7 +143,7 @@ auto:
 
 		It("fails", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError()).To(MatchRegexp("must be >= 1 but found 0"))
+			Expect(config.ValidationError.Error()).To(MatchRegexp("must be >= 1 but found 0"))
 		})
 	})
 

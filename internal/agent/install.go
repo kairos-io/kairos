@@ -62,7 +62,7 @@ func displayInfo(agentConfig *Config) {
 	}
 }
 
-func ManualInstall(c string, options map[string]string) error {
+func ManualInstall(c string, options map[string]string, strictValidations bool) error {
 	dat, err := os.ReadFile(c)
 	if err != nil {
 		return err
@@ -78,7 +78,7 @@ func ManualInstall(c string, options map[string]string) error {
 		return err
 	}
 
-	cc, err := config.Scan(config.Directories(dir), config.MergeBootLine)
+	cc, err := config.Scan(config.Directories(dir), config.MergeBootLine, config.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}

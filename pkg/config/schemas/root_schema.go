@@ -2,7 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -26,33 +25,49 @@ type RootSchema struct {
 
 // KConfig is used to parse and validate Kairos configuration files.
 type KConfig struct {
-	source          string
+	Source          string
 	parsed          interface{}
-	validationError error
+	ValidationError error
 	schemaType      interface{}
-	header          string
 }
 
-func (kc *KConfig) validate() {
+// GenerateSchema takes the given schema type and builds a JSON Schema out of it
+// if a URL is passed it will also add it as the $schema key, which is useful when
+// defining a version of a Root Schema which will be available online.
+func GenerateSchema(schemaType interface{}, url string) (string, error) {
 	reflector := jsonschemago.Reflector{}
 
-	generatedSchema, err := reflector.Reflect(kc.schemaType)
+	generatedSchema, err := reflector.Reflect(schemaType)
 	if err != nil {
-		kc.validationError = err
+		return "", err
+	}
+	if url != "" {
+		generatedSchema.WithSchema(url)
 	}
 
 	generatedSchemaJSON, err := json.MarshalIndent(generatedSchema, "", " ")
 	if err != nil {
-		kc.validationError = err
+		return "", err
+	}
+
+	return string(generatedSchemaJSON), nil
+}
+
+func (kc *KConfig) validate() {
+	generatedSchemaJSON, err := GenerateSchema(kc.schemaType, "")
+	if err != nil {
+		kc.ValidationError = err
+		return
 	}
 
 	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
 	if err != nil {
-		kc.validationError = err
+		kc.ValidationError = err
+		return
 	}
 
 	if err = sch.Validate(kc.parsed); err != nil {
-		kc.validationError = err
+		kc.ValidationError = err
 	}
 }
 
@@ -60,34 +75,27 @@ func (kc *KConfig) validate() {
 func (kc *KConfig) IsValid() bool {
 	kc.validate()
 
-	return kc.validationError == nil
+	return kc.ValidationError == nil
 }
 
-// ValidationError returns one of the errors of an invalid schemam rule, when the configuration is valid, then it returns an empty string.
-func (kc *KConfig) ValidationError() string {
-	kc.validate()
+// HasHeader returns true if the config has one of the valid headers.
+func (kc *KConfig) HasHeader() bool {
+	var found bool
 
-	if kc.validationError != nil {
-		return kc.validationError.Error()
+	availableHeaders := []string{"#cloud-config", "#kairos-config", "#node-config"}
+	for _, header := range availableHeaders {
+		if strings.HasPrefix(kc.Source, header) {
+			found = true
+		}
 	}
-
-	return ""
-}
-
-func (kc *KConfig) hasHeader() bool {
-	return strings.HasPrefix(kc.source, kc.header)
+	return found
 }
 
 // NewConfigFromYAML is a constructor for KConfig instances. The source of the configuration is passed in YAML and if there are any issues unmarshaling it will return an error.
-func NewConfigFromYAML(s, h string, st interface{}) (*KConfig, error) {
+func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 	kc := &KConfig{
-		source:     s,
-		header:     h,
+		Source:     s,
 		schemaType: st,
-	}
-
-	if !kc.hasHeader() {
-		return kc, fmt.Errorf("missing %s header", kc.header)
 	}
 
 	err := yaml.Unmarshal([]byte(s), &kc.parsed)
