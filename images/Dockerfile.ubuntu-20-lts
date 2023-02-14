@@ -4,44 +4,70 @@ FROM $BASE_IMAGE
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update
-RUN apt install -y software-properties-common
-RUN add-apt-repository ppa:oibaf/test
-RUN apt update
-RUN apt install -y \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    gnupg \
+    software-properties-common \
+  && add-apt-repository ppa:oibaf/test \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
     conntrack \
     console-data \
     coreutils \
+    cryptsetup \
     curl \
     debianutils \
+    dmsetup \
     dosfstools \
-    dracut-network tar \
+    dracut \
+    dracut-network \
     e2fsprogs \
+    efibootmgr \
+    file \
+    fuse \
     gawk \
     grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
     grub-pc-bin \
     grub2 \
     grub2-common \
     haveged \
     iproute2 \
     iptables \
+    isc-dhcp-common \
     jq \
+    kbd \
+    krb5-locales \
     linux-image-generic-hwe-20.04 \
     lldpd \
-    nano \
-    neovim \
+    lvm2 \
+    mdadm \
+    nbd-client \
+    ncurses-term \
+    networkd-dispatcher \
+    nfs-common \
+    open-iscsi \
     open-vm-tools \
     openssh-server \
-    parted dracut \
+    os-prober \
+    packagekit-tools \
+    parted \
     policykit-1 \
+    publicsuffix \
     rsync \
-    snapd \
+    shared-mime-info \
     snmpd \
     squashfs-tools \
     sudo \
     systemd \
     systemd-timesyncd \
-    && apt-get clean
+    thermald \
+    unattended-upgrades \
+    xdg-user-dirs \
+    xxd \
+    xz-utils \
+    zerofree \
+  && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
@@ -57,4 +83,4 @@ RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
 
 # Clear cache
-RUN apt-get clean && rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname

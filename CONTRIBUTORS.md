@@ -9,3 +9,4 @@ These are active contributors who have made multiple contributions to the projec
 | Christian Prim           | [@christianprim](https://github.com/christianprim )    |
 | Ludea                    | [@ludea](https://github.com/ludea )                    |
 | Jason B. Alonso          | [@jbalonso](https://github.com/jbalonso )              |
+| Shawn Wilsher            | [@sdwilsh](https://github.com/sdwilsh )                |
