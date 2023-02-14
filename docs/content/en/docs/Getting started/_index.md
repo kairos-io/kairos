@@ -227,6 +227,11 @@ To trigger the installation process via QR code, you need to use the Kairos CLI.
 curl -L https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-cli-v1.0.0-Linux-x86_64.tar.gz -o - | tar -xvzf - -C .
 ```
 
+```bash
+mv kairos-cli /usr/local/bin/kairos
+
+```
+
 The CLI allows to register a node with a screenshot, an image, or a token. During pairing, the configuration is sent over, and the node will continue the installation process.
 
 In a terminal window from your desktop/workstation, run:
