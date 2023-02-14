@@ -351,7 +351,7 @@ cloud_config: |
 | `netboot_http_port` | Specify a netboot HTTP port (defaults to `8090`). |
 | `state_dir` | Specify a directory that will be used by auroraboot to download artifacts and reuse the same to cache artifacts. |
 | `listen_addr` | Default http binding port for offline ISO generation. |
-| `cloud_config` | Inline cloud config to use for the machines. |
+| `cloud_config` | Cloud config path to use for the machines. A URL can be specified, use `-` to pass-by the cloud-config from _STDIN_ |
 
 
 To use the configuration file with AuroraBoot, run AuroraBoot specifying the file or URL of the config as first argument:
@@ -416,6 +416,45 @@ docker run --rm -ti --net host \
                         --cloud-config https://raw.githubusercontent.com/kairos-io/kairos/master/examples/auroraboot/master-template.yaml \
                         --set "github.user=mudler" \
                         --set "kairos.password=foobar"
+```
+
+To pass-by a cloud-config via pipes, set `--cloud-config -`, for example:
+
+```yaml
+cat <<EOF | docker run --rm -i --net host quay.io/kairos/auroraboot \
+                    --cloud-config - \
+                    --set "container_image=quay.io/kairos/kairos-opensuse-leap:v1.5.1-k3sv1.21.14-k3s1"
+#cloud-config
+
+install:
+ device: "auto"
+ auto: true
+ reboot: true
+
+hostname: metal-bundle-test-{{ trunc 4 .MachineID }}
+
+users:
+- name: kairos
+  # Change to your pass here
+  passwd: kairos
+  ssh_authorized_keys:
+  # Replace with your github user and un-comment the line below:
+  - github:mudler
+
+k3s:
+  enabled: true
+
+# Specify the bundle to use
+bundles:
+- targets:
+  - run://quay.io/kairos/community-bundles:system-upgrade-controller_latest
+  - run://quay.io/kairos/community-bundles:cert-manager_latest
+  - run://quay.io/kairos/community-bundles:kairos_latest
+
+kairos:
+  entangle:
+    enable: true
+EOF
 ```
 
 ## Examples

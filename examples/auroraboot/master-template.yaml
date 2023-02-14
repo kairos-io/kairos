@@ -4,10 +4,10 @@ hostname: metal-{{ trunc 4 .MachineID }}
 users:
 - name: kairos
   # Change to your pass here
-  passwd: [[kairos.password]]
+  passwd: [[.kairos.password]]
   ssh_authorized_keys:
   # Replace with your github user and un-comment the line below:
-  - github:[[github.user]]
+  - github:[[.github.user]]
 
 k3s:
   enabled: true
