@@ -228,7 +228,9 @@ curl -L https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/ka
 ```
 
 ```bash
+# optionally, install the CLI locally
 mv kairos-cli /usr/local/bin/kairos
+chmod +x /usr/local/bin/kairos
 
 ```
 
