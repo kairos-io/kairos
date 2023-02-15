@@ -62,6 +62,7 @@ RUN apt-get update \
     systemd \
     systemd-timesyncd \
     thermald \
+    ubuntu-advantage-tools \
     unattended-upgrades \
     xdg-user-dirs \
     xxd \
