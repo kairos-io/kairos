@@ -700,3 +700,13 @@ temp-image:
     FROM +docker
     SAVE IMAGE --push $TTL_IMAGE
 
+generate-schema:
+    FROM alpine
+    COPY . ./
+    COPY +version/VERSION ./
+    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    ARG RELEASE_VERSION=$(cat VERSION)
+    RUN mkdir "docs/static/$RELEASE_VERSION"
+    ARG SCHEMA_FILE="docs/static/$RELEASE_VERSION/cloud-config.json"
+    RUN kairos-agent print-schema > $SCHEMA_FILE 
+    SAVE ARTIFACT ./docs/static/* AS LOCAL docs/static/
