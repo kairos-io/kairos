@@ -1,0 +1,36 @@
+on:
+  # push:
+  #   tags:
+  #     - v*
+  pull_request:
+    branches:
+      - schematest
+jobs:
+  generate-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
+      - name: setup-docker
+        uses: docker-practice/actions-setup-docker@master
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: '^1.18'
+      - name: Generate cloud-config Schema
+        run: |
+          ./earthly.sh +generate-schema
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          commit-message: Add latest release cloud config schema to docs
+          committer: GitHub <noreply@github.com>
+          branch: cloud-config-schema-release
+          delete-branch: true
+          title: ':book: Add latest release cloud clonfig schema'
+          body: |
+            Adds latest release cloud config schema
+          add-paths: |
+            docs/static/**/*.json
