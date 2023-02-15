@@ -106,6 +106,7 @@ var _ = BeforeSuite(func() {
 			}),
 			types.WithStateDir(t),
 			types.WithDataSource(os.Getenv("DATASOURCE")),
+			types.WithDisplay("-vga qxl -spice port=5900,disable-ticketing,addr=127.0.0.1"),
 		}
 
 		if os.Getenv("USE_QEMU") == "true" {
