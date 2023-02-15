@@ -157,6 +157,8 @@ golint:
     WORKDIR /build
     COPY . .
     RUN golangci-lint run
+    FROM cytopia/yamllint
+    RUN yamllint .github/workflows/*
 
 hadolint:
     ARG HADOLINT_VERSION
