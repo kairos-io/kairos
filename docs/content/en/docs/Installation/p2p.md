@@ -18,7 +18,7 @@ Deploying Kubernetes at the Edge can be a complex and time-consuming process, es
 
 With this feature, users don't need to specify any network settings. They can just set the desired number of master nodes (in the case of an HA cluster) and the necessary configuration details, and Kairos will take care of the rest. The peer-to-peer technology allows the nodes in the cluster to communicate and coordinate with each other, ensuring that the clusters are set up correctly and efficiently with K3s.
 
-This makes it easier to deploy and manage Kubernetes clusters at the Edge, saving user's time and effort, allowing them to focus on running and scaling their applications.
+This makes it easier to deploy and manage Kubernetes clusters at the Edge, saving user's time and effort, allowing them to focus on running and scaling their applications. For more information about how does it work behind the scenes, [check out the architecture section](/docs/architecture/network).
 
 This feature is currently experimental and can be optionally enabled by adding the following configuration to the node deployment file. If you are not familiar with the installation process, it is suggested to follow the [quickstart](/docs/getting-started):
 
@@ -220,7 +220,8 @@ p2p:
 kubevip:
   eip: "192.168.1.110"
 ```
-### `network_token`
+
+## `network_token`
 
 The `network_token` is a unique code that is shared among nodes and can be created with the Kairos CLI or `edgevpn`. This allows nodes to automatically connect to the same network and generates private/public key pairs for secure communication using end-to-end encryption.
 
