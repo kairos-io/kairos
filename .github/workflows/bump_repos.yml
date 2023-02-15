@@ -1,26 +1,26 @@
 name: Bump repositories
-on: 
- schedule:
-   - cron: 0 20 * * *
- workflow_dispatch:
+on:
+  schedule:
+    - cron: 0 20 * * *
+  workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Bump cos 🔧
-      run: |
-           docker run --name=yq -v "${PWD}":/workdir mikefarah/yq
-           docker cp yq:/usr/bin/yq ./
-           export YQ=$PWD/yq
-           sudo -E bash ./.github/bump_repositories.sh
-           rm -rf yq
-    - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v4
-      with:
-        token: ${{ secrets.PAT_TOKEN }}
-        push-to-fork: ci-robbot/c3os
-        commit-message: ":arrow_up: Update repositories"
-        title: ":arrow_up: Update repositories"
-        body: "Bump of Kairos repositories"
-        signoff: true
+      - uses: actions/checkout@v3
+      - name: Bump cos 🔧
+        run: |
+             docker run --name=yq -v "${PWD}":/workdir mikefarah/yq
+             docker cp yq:/usr/bin/yq ./
+             export YQ=$PWD/yq
+             sudo -E bash ./.github/bump_repositories.sh
+             rm -rf yq
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          push-to-fork: ci-robbot/c3os
+          commit-message: ":arrow_up: Update repositories"
+          title: ":arrow_up: Update repositories"
+          body: "Bump of Kairos repositories"
+          signoff: true

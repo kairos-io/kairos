@@ -166,6 +166,11 @@ hadolint:
     RUN ls
     RUN find . -name "Dockerfile*" -print | xargs -r -n1 hadolint
 
+yamllint:
+    FROM cytopia/yamllint
+    COPY . .
+    RUN yamllint .github/workflows/
+
 renovate-validate:
     ARG RENOVATE_VERSION
     FROM renovate/renovate:$RENOVATE_VERSION
