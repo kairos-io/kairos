@@ -1,10 +1,10 @@
 name: Build image
 
-on: 
- push:
-   branches:
-     - master
- pull_request:
+on:
+  push:
+    branches:
+      - master
+  pull_request:
 
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
@@ -18,17 +18,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "opensuse-leap"
-         - flavor: "opensuse-tumbleweed"
-         - flavor: "ubuntu"
-         - flavor: "ubuntu-20-lts"
-         - flavor: "ubuntu-22-lts"
-         - flavor: "alpine-ubuntu"
-         - flavor: "alpine-opensuse-leap"
-         - flavor: "fedora"
-         - flavor: "debian"
-         - flavor: "rockylinux"
+        include:
+          - flavor: "opensuse-leap"
+          - flavor: "opensuse-tumbleweed"
+          - flavor: "ubuntu"
+          - flavor: "ubuntu-20-lts"
+          - flavor: "ubuntu-22-lts"
+          - flavor: "alpine-ubuntu"
+          - flavor: "alpine-opensuse-leap"
+          - flavor: "fedora"
+          - flavor: "debian"
+          - flavor: "rockylinux"
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -88,23 +88,23 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_EXPERIMENTAL: 1
-        run: | 
+        run: |
           docker push quay.io/kairos/core-${{ matrix.flavor }}:latest
           cosign sign quay.io/kairos/core-${{ matrix.flavor }}:latest
       - name: Push to testing
-        run: | 
+        run: |
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
-  
+
   install-test:
-    needs: 
+    needs:
     - build
     runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
-       include:
-         - flavor: "opensuse-leap"
+        include:
+          - flavor: "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -119,15 +119,15 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v3
         with:
-            go-version: '^1.16'
+          go-version: '^1.16'
       - run: |
               ls -liah
               gsed -i '/build.*/d' .earthlyignore
               export ISO=$PWD/$(ls *.iso)
               export GOPATH="/Users/runner/go"
               export PATH=$PATH:$GOPATH/bin
-              export CLOUD_INIT=$PWD/config.yaml 
-              export CREATE_VM=true 
+              export CLOUD_INIT=$PWD/config.yaml
+              export CREATE_VM=true
               export FLAVOR=${{ matrix.flavor }}
               ./.github/run_test.sh "install-test"
       - uses: actions/upload-artifact@v3
@@ -142,40 +142,40 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: robinraju/release-downloader@v1.7
-      with:     
-      # A flag to set the download target as latest release
-      # The default value is 'false'
+      with:
+        # A flag to set the download target as latest release
+        # The default value is 'false'
         latest: true
         repository: "kairos-io/kairos"
         fileName: "*opensuse-leap*.iso"
         out-file-path: "last-release"
     - uses: actions/upload-artifact@v3
       with:
-          name: latest-release.zip
-          path: last-release
-          if-no-files-found: error
+        name: latest-release.zip
+        path: last-release
+        if-no-files-found: error
 
   qemu-acceptance-tests:
-    needs: 
+    needs:
     - build
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "alpine-opensuse-leap"
-           port: 50001
-         - flavor: "opensuse-leap"
-           port: 50002
-         - flavor: "opensuse-tumbleweed"
-           port: 50003
-         - flavor: "ubuntu"
-           port: 50004
-         - flavor: "debian"
-           port: 50005
-         - flavor: "ubuntu-20-lts"
-           port: 50006
-         - flavor: "ubuntu-22-lts"
+        include:
+          - flavor: "alpine-opensuse-leap"
+            port: 50001
+          - flavor: "opensuse-leap"
+            port: 50002
+          - flavor: "opensuse-tumbleweed"
+            port: 50003
+          - flavor: "ubuntu"
+            port: 50004
+          - flavor: "debian"
+            port: 50005
+          - flavor: "ubuntu-20-lts"
+            port: 50006
+          - flavor: "ubuntu-22-lts"
     steps:
     - uses: actions/checkout@v3
     - run: |
@@ -183,7 +183,7 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
+        name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
             export ISO=$PWD/$(ls *.iso)
@@ -194,14 +194,14 @@ jobs:
             ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
 
   qemu-bundles-tests:
-    needs: 
+    needs:
     - build
     runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "opensuse-leap"
+        include:
+          - flavor: "opensuse-leap"
     steps:
     - uses: actions/checkout@v3
     - run: |
@@ -209,7 +209,7 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
+        name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
             export ISO=$PWD/$(ls *.iso)
@@ -219,16 +219,16 @@ jobs:
             ./earthly.sh +run-qemu-bundles-tests --FLAVOR=${{ matrix.flavor }}
 
   qemu-reset-tests:
-    needs: 
+    needs:
     - build
     runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse-leap"
-   #      - flavor: "ubuntu"
+        include:
+          - flavor: "alpine-opensuse-leap"
+          - flavor: "opensuse-leap"
+          # - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
     - run: |
@@ -236,7 +236,7 @@ jobs:
     - name: Download artifacts
       uses: actions/download-artifact@v3
       with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
+        name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
             sed -i '/build.*/d' .earthlyignore
@@ -255,10 +255,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse-leap"
-         - flavor: "ubuntu"
+        include:
+          - flavor: "alpine-opensuse-leap"
+          - flavor: "opensuse-leap"
+          - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
     - run: |
@@ -267,16 +267,16 @@ jobs:
             ./earthly.sh +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
 
   upgrade-with-cli-test:
-    needs: 
+    needs:
     - build
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse-leap"
-    #     - flavor: "ubuntu"
+        include:
+          - flavor: "alpine-opensuse-leap"
+          - flavor: "opensuse-leap"
+          # - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
     - run: |
@@ -332,17 +332,17 @@ jobs:
         if-no-files-found: warn
 
   upgrade-latest-with-cli-test:
-    needs: 
+    needs:
     - build
     - latest-release
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "alpine-opensuse-leap"
-         - flavor: "opensuse-leap"
-    #     - flavor: "ubuntu"
+        include:
+          - flavor: "alpine-opensuse-leap"
+          - flavor: "opensuse-leap"
+          # - flavor: "ubuntu"
     steps:
     - uses: actions/checkout@v3
     - run: |
@@ -396,4 +396,3 @@ jobs:
         name: ${{ matrix.flavor }}-upgrade-test.logs.zip
         path: tests/**/logs/*
         if-no-files-found: warn
-

@@ -1,10 +1,10 @@
 ---
 name: 'Push latest ARM images'
 
-on: 
- push:
-   branches:
-     - master
+on:
+  push:
+    branches:
+      - master
 
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
@@ -67,7 +67,7 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: 1
           FLAVOR: ${{ matrix.flavor }}
-        run: | 
+        run: |
           TAG=latest
           cosign sign quay.io/kairos/core-$FLAVOR:$TAG
       - name: Upload results
