@@ -1,11 +1,10 @@
 name: Cloud Config Schema
 on:
-  pull_request:
+  push:
     branches:
       - schematest
-  # push:
-  #   tags:
-  #     - v*
+  # tags:
+  #   - v*
 jobs:
   generate-schema:
     runs-on: ubuntu-latest
