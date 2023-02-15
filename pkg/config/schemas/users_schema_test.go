@@ -3,7 +3,6 @@ package config_test
 import (
 	"strings"
 
-	. "github.com/kairos-io/kairos/pkg/config"
 	. "github.com/kairos-io/kairos/pkg/config/schemas"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -15,7 +14,7 @@ var _ = Describe("Users Schema", func() {
 	var yaml string
 
 	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, DefaultHeader, UserSchema{})
+		config, err = NewConfigFromYAML(yaml, UserSchema{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -27,7 +26,7 @@ passwd: foobar`
 
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
-			Expect(config.ValidationError()).To(MatchRegexp("missing properties: 'name'"))
+			Expect(config.ValidationError.Error()).To(MatchRegexp("missing properties: 'name'"))
 		})
 	})
 
@@ -41,7 +40,7 @@ passwd: "bond"`
 		It("errors", func() {
 			Expect(config.IsValid()).NotTo(BeTrue())
 			Expect(
-				strings.Contains(config.ValidationError(),
+				strings.Contains(config.ValidationError.Error(),
 					"does not match pattern '([a-z_][a-z0-9_]{0,30})'",
 				),
 			).To(BeTrue())
