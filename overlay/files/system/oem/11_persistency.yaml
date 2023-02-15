@@ -9,6 +9,7 @@ stages:
         OVERLAY: "tmpfs:25%"
         RW_PATHS: "/var /etc /srv"
         PERSISTENT_STATE_PATHS: >-
+          /etc/amazon/ssm
           /etc/systemd
           /etc/modprobe.d
           /etc/rancher
@@ -19,6 +20,7 @@ stages:
           /etc/iscsi 
           /etc/cni
           /etc/kubernetes
+          /etc/defaults
           /home
           /opt
           /root
@@ -60,6 +62,7 @@ stages:
         OVERLAY: "tmpfs:25%"
         RW_PATHS: "/var /etc /srv"
         PERSISTENT_STATE_PATHS: >-
+          /etc/amazon/ssm
           /etc/systemd
           /etc/modprobe.d
           /etc/rancher
@@ -70,6 +73,7 @@ stages:
           /etc/iscsi 
           /etc/cni
           /etc/kubernetes
+          /etc/defaults
           /home
           /opt
           /root
