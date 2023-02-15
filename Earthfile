@@ -157,8 +157,6 @@ golint:
     WORKDIR /build
     COPY . .
     RUN golangci-lint run
-    FROM cytopia/yamllint
-    RUN yamllint .github/workflows/*
 
 hadolint:
     ARG HADOLINT_VERSION
@@ -167,6 +165,11 @@ hadolint:
     COPY images .
     RUN ls
     RUN find . -name "Dockerfile*" -print | xargs -r -n1 hadolint
+
+yamllint:
+    FROM cytopia/yamllint
+    COPY . .
+    RUN yamllint .github/workflows/
 
 renovate-validate:
     ARG RENOVATE_VERSION
