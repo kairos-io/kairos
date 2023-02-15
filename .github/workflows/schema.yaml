@@ -1,3 +1,4 @@
+name: Cloud Config Schema
 on:
   # push:
   #   tags:
