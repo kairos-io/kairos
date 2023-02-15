@@ -1,18 +1,17 @@
 name: Cloud Config Schema
 on:
-  # push:
-  #   tags:
-  #     - v*
   pull_request:
     branches:
       - schematest
+  # push:
+  #   tags:
+  #     - v*
 jobs:
   generate-schema:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+      - name: Checkout code
+        uses: actions/checkout@v3
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
       - name: Install Go
