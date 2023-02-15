@@ -20,7 +20,7 @@ require (
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
 	github.com/mudler/yip v1.0.0
 	github.com/nxadm/tail v1.4.8
-	github.com/onsi/ginkgo/v2 v2.8.0
+	github.com/onsi/ginkgo/v2 v2.8.1
 	github.com/onsi/gomega v1.26.0
 	github.com/pterm/pterm v0.12.54
 	github.com/qeesung/image2ascii v1.0.1
@@ -111,7 +111,7 @@ require (
 	golang.org/x/sys v0.5.0 // indirect
 	golang.org/x/term v0.5.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
-	golang.org/x/tools v0.5.0 // indirect
+	golang.org/x/tools v0.6.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220517211312-f3a8303e98df // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
