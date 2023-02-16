@@ -114,7 +114,7 @@ To explain how the packet flow works between two nodes, Node A and Node B, refer
 <img src="https://user-images.githubusercontent.com/2420543/219048445-300de7e8-428f-4ded-848d-bf73c56acca1.png">
 </p>
 
-While partecipating actively on a network, each node keeps the shared ledger up-to-date with information about itself and how to be reached by advertizing its own IP and the libp2p identity, allowing nodes to discover each other and how to route packets.
+While participating actively on a network, each node keeps the shared ledger up-to-date with information about itself and how to be reached by advertizing its own IP and the libp2p identity, allowing nodes to discover each other and how to route packets.
 
 Assuming that we want to establish an SSH connection from Node A to Node B through the VPN network, which exposes the `sshd` service, the process is as follows:
 
