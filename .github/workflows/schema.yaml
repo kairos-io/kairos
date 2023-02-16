@@ -4,8 +4,9 @@ on:
   # push:
   #   branches:
   #     - schematest
-  tags:
-    - v*
+  push:
+    tags:
+      - v*
 jobs:
   generate-schema:
     runs-on: ubuntu-latest
