@@ -44,7 +44,7 @@ The private network is bootstrapped in three phases, with discovery driven by a 
 1. Gossip network
 1. Full connectivity
 
-During the discovery phase, which can occur via mDNS (for LAN) or DHT (for WAN). During this phase, nodes discover each other by broadcasting their presence to the network.
+During the discovery phase, which can occur via mDNS (for LAN) or DHT (for WAN), nodes discover each other by broadcasting their presence to the network.
 
 In the second phase, rendezvous points are rotated by OTP (one-time password). A shared token containing OTP seeds is used to generate these rendezvous points, which serve as a secure way to bootstrap connections between nodes. This is essential for establishing a secure and self-coordinated P2P network.
 
@@ -55,7 +55,7 @@ Optionally, full connectivity can be established by bringing up a TUN interface,
 The coordination process in Kairos is designed to be resilient and self-coordinated, with no need for complex network configurations or control management interfaces. By using this approach, Kairos simplifies the process of deploying and managing Kubernetes clusters at the edge, making it easy for users to focus on running and scaling their applications.
 
 <p align="center">
-<img width="900" src="https://mudler.github.io/edgevpn/docs/concepts/architecture/edevpn_bootstrap_hu8e61a09dccbf3a67bf1fc604ae4924fd_64246_1200x550_fit_catmullrom_3.png">
+<img src="https://mudler.github.io/edgevpn/docs/concepts/architecture/edevpn_bootstrap_hu8e61a09dccbf3a67bf1fc604ae4924fd_64246_1200x550_fit_catmullrom_3.png">
 </p>
 
 ### Why Peer-to-Peer?
@@ -86,7 +86,7 @@ Nonetheless, these tradeoffs can be overcome, and new features can be added due 
 - Internal cluster traffic can also be offloaded to other mechanisms if network performance is a prerequisite
 - For instance, with [KubeVIP](/docs/examples/multi-node-p2p-ha-kubevip), new nodes can join the network and become cluster members even after the cluster provisioning phase, making EdgeVPN a scalable solution.
 
-## Why a VPN ?
+### Why a VPN ?
 
 A VPN allows for the configuration of a Kubernetes cluster without depending on the underlying network configuration. This design model is popular in certain use cases at the edge where fixed IPs are not a viable solution. We can summarize the implications as follows:
 
@@ -94,7 +94,7 @@ A VPN allows for the configuration of a Kubernetes cluster without depending on 
 |----------|---------------------|----------------------------------------------------------|
 | IP management    | Needs to have static IP assigned by DHCP or manually configured (can be automated) | Automatically coordinated Virtual IPs for nodes. Or manually assign them |
 | Network Configuration | `etcd` needs to be configured with IPs assigned by your network/fixed | Automatically assigned, fixed VirtualIPs for `etcd`. |
-| Networking | Cluster IPs, and networking is handled by CNIs natively (no layers) | Kubernetes Network services will have Cluster IPs sitting below the VPN. Every internal kubernetes communication goes through VPN. The additional e2e encrypted network layer might add additional latency, 0-1ms in LAN.|
+| Networking | Cluster IPs, and networking is handled by CNIs natively (no layers) | Kubernetes Network services will have Cluster IPs sitting below the VPN. <br> Every internal kubernetes communication goes through VPN. <br> The additional e2e encrypted network layer might add additional latency, 0-1ms in LAN.|
 
 The use of a VPN for a Kubernetes cluster has significant implications. With a VPN, IP management is automatic and does not require static IP addresses assigned by DHCP or manually configured. Nodes can be assigned virtual IPs that are automatically coordinated or manually assigned, which eliminates the need for manual configuration of IP addresses. Additionally, EdgeVPN implements distributed DHCP, so there are no Single point of Failures.
 
@@ -111,7 +111,7 @@ The Virtual Private Network used is [EdgeVPN](https://github.com/mudler/edgevpn)
 To explain how the packet flow works between two nodes, Node A and Node B, refer to the diagram below:
 
 <p align="center">
-<img width="700" src="https://user-images.githubusercontent.com/2420543/219048445-300de7e8-428f-4ded-848d-bf73c56acca1.png">
+<img src="https://user-images.githubusercontent.com/2420543/219048445-300de7e8-428f-4ded-848d-bf73c56acca1.png">
 </p>
 
 While partecipating actively on a network, each node keeps the shared ledger up-to-date with information about itself and how to be reached by advertizing its own IP and the libp2p identity, allowing nodes to discover each other and how to route packets.
@@ -140,7 +140,7 @@ See also the Entangle [documentation](/docs/reference/entangle) to learn more ab
 ## Benefits
 
 <p align="center">
-<img width="700" src="https://user-images.githubusercontent.com/2420543/195459436-236139cf-605d-4608-9018-ea80381d4e77.png">
+<img src="https://user-images.githubusercontent.com/2420543/195459436-236139cf-605d-4608-9018-ea80381d4e77.png">
 </p>
 
 The use of p2p technology to enable self-coordination of Kubernetes clusters in Kairos offers a number of benefits:
