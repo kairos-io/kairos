@@ -1,9 +1,9 @@
 name: Lint
 on:
- push:
-   branches:
-     - master
- pull_request:
+  push:
+    branches:
+      - master
+  pull_request:
 
 jobs:
   lint:
@@ -20,3 +20,6 @@ jobs:
       - name: Run Lint checks
         run: |
           ./earthly.sh +lint
+      - name: Yaml Lint checks
+        run: |
+          ./earthly.sh +yamllint

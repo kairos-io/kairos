@@ -1,9 +1,9 @@
 name: Release
 
-on: 
- push:
-   tags:
-     - v*
+on:
+  push:
+    tags:
+      - v*
 jobs:
 
   build-framework:
@@ -14,8 +14,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "opensuse-leap"
+        include:
+          - flavor: "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -39,7 +39,7 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: 1
           IMAGE: quay.io/kairos/framework
-        run: | 
+        run: |
           export TAG=${GITHUB_REF##*/}
           docker push ${IMAGE}:$TAG
           docker push ${IMAGE}-generic:$TAG
@@ -54,18 +54,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-       include:
-         - flavor: "opensuse-leap"
-         - flavor: "opensuse-tumbleweed"
-         - flavor: "alpine-ubuntu"
-         - flavor: "alpine-opensuse-leap"
-         - flavor: "ubuntu-20-lts"
-         - flavor: "ubuntu-22-lts"
-         - flavor: "ubuntu"
-         - flavor: "fedora"
-         - flavor: "debian"
-   #      - flavor: "fedora"
-         - flavor: "rockylinux"
+        include:
+          - flavor: "opensuse-leap"
+          - flavor: "opensuse-tumbleweed"
+          - flavor: "alpine-ubuntu"
+          - flavor: "alpine-opensuse-leap"
+          - flavor: "ubuntu-20-lts"
+          - flavor: "ubuntu-22-lts"
+          - flavor: "ubuntu"
+          - flavor: "fedora"
+          - flavor: "debian"
+          # - flavor: "fedora"
+          - flavor: "rockylinux"
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -92,7 +92,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           COSIGN_EXPERIMENTAL: 1
-        run: | 
+        run: |
           TAG=${GITHUB_REF##*/}
           docker push quay.io/kairos/core-${{ matrix.flavor }}:$TAG
           cosign sign quay.io/kairos/core-${{ matrix.flavor }}:$TAG
@@ -125,76 +125,76 @@ jobs:
           if-no-files-found: error
 
 
-  # build-vm-images:
-  #   needs: build
-  #   runs-on: macos-12
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #      include:
-  #        - flavor: "opensuse"
-  #        - flavor: "alpine"
-  #   steps:
-  #     - uses: actions/checkout@v2
-  #     - name: Install deps
-  #       run: |
-  #         brew install hudochenkov/sshpass/sshpass
-  #         brew install qemu
-  #     - name: Download artifacts
-  #       uses: actions/download-artifact@v2
-  #       with:
-  #         name: kairos-${{ matrix.flavor }}.iso.zip
-  #     - run: |
-  #             ls -liah
-  #             iso=$(ls *.iso)
-  #             bash scripts/build_vm.sh $iso
-  #     - uses: actions/upload-artifact@v2
-  #       with:
-  #         name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
-  #         path: |
-  #           *.qcow2.tar.xz
-  #     - uses: actions/upload-artifact@v2
-  #       with:
-  #         name: kairos-${{ matrix.flavor }}.ova
-  #         path: |
-  #           *.ova
-  #         if-no-files-found: error
+# build-vm-images:
+#   needs: build
+#   runs-on: macos-12
+#   strategy:
+#     fail-fast: false
+#     matrix:
+#      include:
+#        - flavor: "opensuse"
+#        - flavor: "alpine"
+#   steps:
+#     - uses: actions/checkout@v2
+#     - name: Install deps
+#       run: |
+#         brew install hudochenkov/sshpass/sshpass
+#         brew install qemu
+#     - name: Download artifacts
+#       uses: actions/download-artifact@v2
+#       with:
+#         name: kairos-${{ matrix.flavor }}.iso.zip
+#     - run: |
+#             ls -liah
+#             iso=$(ls *.iso)
+#             bash scripts/build_vm.sh $iso
+#     - uses: actions/upload-artifact@v2
+#       with:
+#         name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
+#         path: |
+#           *.qcow2.tar.xz
+#     - uses: actions/upload-artifact@v2
+#       with:
+#         name: kairos-${{ matrix.flavor }}.ova
+#         path: |
+#           *.ova
+#         if-no-files-found: error
 
-  # release-images:
-  #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: write
-  #   needs: build-vm-images
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #      include:
-  #        - flavor: "opensuse"
-  #        - flavor: "alpine"
-  #   steps:
-  #     - name: Download artifacts
-  #       uses: actions/download-artifact@v2
-  #       with:
-  #         name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
-  #     - name: Download artifacts
-  #       uses: actions/download-artifact@v2
-  #       with:
-  #         name: kairos-${{ matrix.flavor }}.ova
-  #     - run: |
-  #             mkdir release
-  #             mv *.qcow2.tar.xz release/
-  #             mv *.ova release/
-  #     - uses: web3-storage/add-to-web3@v2
-  #       id: web3
-  #       with:
-  #         web3_token: ${{ secrets.WEB3_STORAGE_TOKEN }}
-  #         path_to_add: 'release'
-  #     - run: |
-  #         mkdir dist
-  #         echo ${{ steps.web3.outputs.url }} > dist/kairos-${{ matrix.flavor }}.qcow2.url.txt
-  #     - name: Release
-  #       uses: softprops/action-gh-release@v1
-  #       if: startsWith(github.ref, 'refs/tags/')
-  #       with:
-  #         files: |
-  #           dist/*
+# release-images:
+#   runs-on: ubuntu-latest
+#   permissions:
+#     contents: write
+#   needs: build-vm-images
+#   strategy:
+#     fail-fast: false
+#     matrix:
+#      include:
+#        - flavor: "opensuse"
+#        - flavor: "alpine"
+#   steps:
+#     - name: Download artifacts
+#       uses: actions/download-artifact@v2
+#       with:
+#         name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
+#     - name: Download artifacts
+#       uses: actions/download-artifact@v2
+#       with:
+#         name: kairos-${{ matrix.flavor }}.ova
+#     - run: |
+#             mkdir release
+#             mv *.qcow2.tar.xz release/
+#             mv *.ova release/
+#     - uses: web3-storage/add-to-web3@v2
+#       id: web3
+#       with:
+#         web3_token: ${{ secrets.WEB3_STORAGE_TOKEN }}
+#         path_to_add: 'release'
+#     - run: |
+#         mkdir dist
+#         echo ${{ steps.web3.outputs.url }} > dist/kairos-${{ matrix.flavor }}.qcow2.url.txt
+#     - name: Release
+#       uses: softprops/action-gh-release@v1
+#       if: startsWith(github.ref, 'refs/tags/')
+#       with:
+#         files: |
+#           dist/*
