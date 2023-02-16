@@ -151,9 +151,6 @@ The use of p2p technology to enable self-coordination of Kubernetes clusters in 
 1. **Secure and replicated**: The use of rendezvous points and a shared ledger, encrypted with AES and rotated via OTP, ensures that the p2p network is secure and resilient. This is especially important when deploying Kubernetes clusters at the edge, where network conditions can be unpredictable.
 1. **Resilient**: Kairos ensures that the cluster remains resilient, even in the face of network disruptions or failures. By using VirtualIPs, nodes can communicate with each other without the need for static IPs, and the cluster's etcd database remains unaffected by any disruptions.
 1. **Scalable**: Kairos is designed to be highly scalable. With the use of p2p technology, users can easily add or remove nodes from the cluster, without the need for any external management interface.
-
-
-
 By leveraging p2p technology, Kairos makes it easy for users to deploy and manage their clusters without the need for complex network configurations or external management interfaces. The cluster remains secure, resilient, and scalable, ensuring that it can handle the challenges of deploying Kubernetes at the edge.
 
 ## Conclusions
