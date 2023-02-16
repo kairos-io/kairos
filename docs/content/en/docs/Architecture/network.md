@@ -156,7 +156,6 @@ The use of p2p technology to enable self-coordination of Kubernetes clusters in 
 
 By leveraging p2p technology, Kairos makes it easy for users to deploy and manage their clusters without the need for complex network configurations or external management interfaces. The cluster remains secure, resilient, and scalable, ensuring that it can handle the challenges of deploying Kubernetes at the edge.
 
-
 ## Conclusions
 
 In conclusion, Kairos offers an innovative approach to deploying and managing Kubernetes clusters at the edge. By leveraging peer-to-peer technology, Kairos eliminates the need for a control management interface and enables self-coordination of clusters. This makes it easier to deploy and manage Kubernetes clusters at the edge, saving users time and effort.
