@@ -133,7 +133,7 @@ EOF
 
 Start the Machines (VM, or baremetal) with Netboot ( see also [here](/docs/reference/auroraboot/#3-start-nodes) ) and wait for the installation to finish.
 
-Afterward you should be able to ssh to one of the machines and be able to use your Kubernetes cluster:
+Afterward, you should be able to ssh to one of the machines and be able to use your Kubernetes cluster:
 
 ``` bash
 $ ssh kairos@IP
