@@ -10,6 +10,10 @@ description: >
 
  * [Livin’ Kubernetes on the (Immutable) Edge with Kairos Project](https://thenewstack.io/livin-kubernetes-on-the-immutable-edge-with-kairos-project/) on The New Stack
 
+## Slides
+
+ * [Kairos and libp2p](https://github.com/kairos-io/kairos/files/10743709/Kairos_P2P.pdf)
+
 ## Videos
 
 ### Introduction to Kairos
