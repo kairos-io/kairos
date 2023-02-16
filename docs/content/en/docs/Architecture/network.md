@@ -55,8 +55,54 @@ Optionally, full connectivity can be established by bringing up a TUN interface,
 The coordination process in Kairos is designed to be resilient and self-coordinated, with no need for complex network configurations or control management interfaces. By using this approach, Kairos simplifies the process of deploying and managing Kubernetes clusters at the edge, making it easy for users to focus on running and scaling their applications.
 
 <p align="center">
-<img width="700" src="https://mudler.github.io/edgevpn/docs/concepts/architecture/edevpn_bootstrap_hu8e61a09dccbf3a67bf1fc604ae4924fd_64246_1200x550_fit_catmullrom_3.png">
+<img width="900" src="https://mudler.github.io/edgevpn/docs/concepts/architecture/edevpn_bootstrap_hu8e61a09dccbf3a67bf1fc604ae4924fd_64246_1200x550_fit_catmullrom_3.png">
 </p>
+
+### Why Peer-to-Peer?
+
+Kairos has chosen Peer-to-Peer as an internal component to enable automatic coordination of Kairos nodes. To understand why [EdgeVPN](https://github.com/mudler/edgevpn) has been selected, see the comparison table below, which compares EdgeVPN with other popular VPN solutions:
+
+|      | Wireguard | OpenVPN     | EdgeVPN                                            |
+|------|-----------|-------------|----------------------------------------------------|
+| Memory Space | Kernel-module | Userspace   | Userspace                                          |
+| Protocol     | UDP         | UDP, TCP    | TCP, UDP/quick, UDP, ws, everything supported by libp2p |
+| P2P          | Yes         | Yes         | Yes                                                |
+| Fully meshed | No          | No          | Yes                                                |
+| Management Server (SPOF) | Yes         | Yes         | No                                                 |
+| Self-coordinated         | No          | No          | Yes                                                |
+
+Key factors, such as self-coordination and the ability to share metadata between nodes, have led to the selection of EdgeVPN. However, there are tradeoffs and considerations to note in the current architecture, such as:
+
+- Routing all traffic to a VPN can introduce additional latency
+- Gossip protocols can be chatty, especially if using DHT, creating VPNs that span across regions
+- EdgeVPN is in user-space, which can be slower compared to kernel-space solutions such as Wireguard
+- For highly trafficked environments, there will be an increase in CPU usage due to the additional encryption layers introduced by EdgeVPN
+
+Nonetheless, these tradeoffs can be overcome, and new features can be added due to EdgeVPN's design. For example:
+
+- There is no need for any server to handle traffic (no SPOF), and no additional configuration is necessary
+- The p2p layer is decentralized and can span across different networks by using DHT and a bootstrap server
+- Self-coordination simplifies the provisioning experience
+- Internal cluster traffic can also be offloaded to other mechanisms if network performance is a prerequisite
+- For instance, with [KubeVIP](/docs/examples/multi-node-p2p-ha-kubevip), new nodes can join the network and become cluster members even after the cluster provisioning phase, making EdgeVPN a scalable solution.
+
+## Why a VPN ?
+
+A VPN allows for the configuration of a Kubernetes cluster without depending on the underlying network configuration. This design model is popular in certain use cases at the edge where fixed IPs are not a viable solution. We can summarize the implications as follows:
+
+|          | K8s Without VPN     | K8s With VPN                                            |
+|----------|---------------------|----------------------------------------------------------|
+| IP management    | Needs to have static IP assigned by DHCP or manually configured (can be automated) | Automatically coordinated Virtual IPs for nodes. Or manually assign them |
+| Network Configuration | `etcd` needs to be configured with IPs assigned by your network/fixed | Automatically assigned, fixed VirtualIPs for `etcd`. |
+| Networking | Cluster IPs, and networking is handled by CNIs natively (no layers) | Kubernetes Network services will have Cluster IPs sitting below the VPN. Every internal kubernetes communication goes through VPN. The additional e2e encrypted network layer might add additional latency, 0-1ms in LAN.|
+
+The use of a VPN for a Kubernetes cluster has significant implications. With a VPN, IP management is automatic and does not require static IP addresses assigned by DHCP or manually configured. Nodes can be assigned virtual IPs that are automatically coordinated or manually assigned, which eliminates the need for manual configuration of IP addresses. Additionally, EdgeVPN implements distributed DHCP, so there are no Single point of Failures.
+
+Additionally, network configuration is simplified with a VPN. Without a VPN, `etcd` needs to be configured with IPs assigned by your network or fixed. With a VPN, virtual IPs are automatically assigned for `etcd`.
+
+In terms of networking, a Kubernetes cluster without a VPN handles cluster IPs and networking natively without additional layers. However, with a VPN, Kubernetes network services will have Cluster IPs below the VPN. This means that all internal Kubernetes communication goes through the VPN. While the additional end-to-end encrypted network layer might add some latency, it is observed typically to be only 0-1ms in LAN. However, due to the Encryption layers, the CPU usage might be high if used for high-demanding traffic.
+
+It's also worth noting that while a VPN provides a unified network environment, it may not be necessary or appropriate for all use cases. Users can choose to opt-out of using the VPN and leverage only the coordination aspect, for example, with KubeVIP. Ultimately, the decision to use a VPN should be based on the specific needs and requirements of your Kubernetes cluster, and as such you can just use the co-ordination aspect and leverage for instance [KubeVIP](/docs/examples/multi-node-p2p-ha-kubevip).
 
 ### Packet flow
 
