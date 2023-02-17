@@ -1,10 +1,10 @@
 name: "default-paths"
 stages:
-   fs.before:
-     - name: "Default system dirs"
-       directories:
-       - path: /var/lib/longhorn
-       # TODO: create dir and set persistent path only when snapd is detected as installed
-       - path: /var/lib/snapd
-       - path: /snap
-       - path: /var/snap
+  fs.before:
+    - name: "Default system dirs"
+      directories:
+        - path: /var/lib/longhorn
+        # TODO: create dir and set persistent path only when snapd is detected as installed
+        - path: /var/lib/snapd
+        - path: /snap
+        - path: /var/snap

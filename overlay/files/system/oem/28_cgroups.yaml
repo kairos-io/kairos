@@ -1,7 +1,7 @@
 stages:
-   initramfs.before:
-     - name: "Setup hybrid cgroups"
-       if: '[ -e /sbin/rc-service ]'
-       commands:
-       - echo 'rc_cgroup_mode="hybrid"' >> /etc/rc.conf
-       - echo 'rc_cgroup_controllers="cpuset cpu io memory hugetlb pids"' >> /etc/rc.conf
+  initramfs.before:
+    - name: "Setup hybrid cgroups"
+      if: '[ -e /sbin/rc-service ]'
+      commands:
+        - echo 'rc_cgroup_mode="hybrid"' >> /etc/rc.conf
+        - echo 'rc_cgroup_controllers="cpuset cpu io memory hugetlb pids"' >> /etc/rc.conf

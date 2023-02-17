@@ -169,7 +169,7 @@ hadolint:
 yamllint:
     FROM cytopia/yamllint
     COPY . .
-    RUN yamllint .github/workflows/
+    RUN yamllint .github/workflows/ overlay/
 
 renovate-validate:
     ARG RENOVATE_VERSION

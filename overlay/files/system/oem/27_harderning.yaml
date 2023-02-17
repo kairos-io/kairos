@@ -1,13 +1,13 @@
 name: "Security configuration hardening"
 stages:
-    initramfs:
-    - name: "Ensure runtime permission"
-      if: '[ -e "/oem" ]'
-      commands:
+  initramfs:
+  - name: "Ensure runtime permission"
+    if: '[ -e "/oem" ]'
+    commands:
       - chown -R root:admin /oem
       - chmod 770 /oem
-    - name: "Ensure runtime permission"
-      if: '[ -e "/usr/local/cloud-config" ]'
-      commands:
+  - name: "Ensure runtime permission"
+    if: '[ -e "/usr/local/cloud-config" ]'
+    commands:
       - chown -R root:admin /usr/local/cloud-config
       - chmod 770 /usr/local/cloud-config
