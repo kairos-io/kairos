@@ -1,19 +1,19 @@
 name: "Default network configuration"
 stages:
-   initramfs:
-     - name: "Setup network"
-       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
-       systemctl:
-         enable: 
-         - systemd-networkd
-         - systemd-resolved
-         disable: 
-         - NetworkManager
-         - wicked
-       commands:
-       - rm /etc/resolv.conf
-       - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
-#      dns: 
-#       path: /etc/resolv.conf
-#       nameservers:
-#       - 8.8.8.8
+  initramfs:
+    - name: "Setup network"
+      if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+      systemctl:
+        enable:
+          - systemd-networkd
+          - systemd-resolved
+        disable:
+          - NetworkManager
+          - wicked
+      commands:
+        - rm /etc/resolv.conf
+        - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+#     dns:
+#      path: /etc/resolv.conf
+#      nameservers:
+#      - 8.8.8.8
