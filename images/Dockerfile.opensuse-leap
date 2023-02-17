@@ -29,6 +29,7 @@ RUN zypper in -y \
     kernel-default \
     kernel-firmware-all \
     less \
+    lldpd \
     logrotate \
     lsscsi \
     lvm2 \
