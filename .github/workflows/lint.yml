@@ -20,6 +20,3 @@ jobs:
       - name: Run Lint checks
         run: |
           ./earthly.sh +lint
-      - name: Yaml Lint checks
-        run: |
-          ./earthly.sh +yamllint
