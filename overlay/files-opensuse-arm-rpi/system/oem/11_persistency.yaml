@@ -14,7 +14,7 @@ stages:
           /etc/sysconfig
           /etc/runlevels
           /etc/ssh
-          /etc/iscsi 
+          /etc/iscsi
           /etc/cni
           /home
           /opt
