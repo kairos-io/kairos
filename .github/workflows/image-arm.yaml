@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - armdocsissue
 
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
