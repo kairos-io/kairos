@@ -682,7 +682,9 @@ docs:
     RUN ls -las .
     RUN tar xzf hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz && \
           rm -r hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz
+    RUN ls -las .
     RUN mv hugo /usr/bin
+    RUN ls -las /usr/bin
     COPY . .
     WORKDIR ./docs
     RUN npm install postcss-cli
