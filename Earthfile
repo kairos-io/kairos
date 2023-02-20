@@ -676,20 +676,16 @@ docs:
     ARG USERARCH
     RUN echo $USERARCH
     RUN apt install git
+    COPY . .
+    WORKDIR ./docs
     # renovate: datasource=github-releases depName=gohugoio/hugo
     ARG HUGO_VERSION="0.110.0"
     RUN wget --quiet "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz"
-    RUN ls -las .
     RUN tar xzf hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz && \
           rm -r hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz
-    RUN ls -las .
-    RUN mv hugo /usr/bin
-    RUN ls -las /usr/bin
-    COPY . .
-    WORKDIR ./docs
     RUN npm install postcss-cli
     RUN npm run prepare
-    RUN HUGO_ENV="production" /usr/bin/hugo --gc -b "/local/" -d "public/local"
+    RUN HUGO_ENV="production" ./hugo --gc -b "/local/" -d "public/local"
     SAVE ARTIFACT public /public AS LOCAL docs/public
 
 ## ./earthly.sh --push +temp-image --FLAVOR=ubuntu
