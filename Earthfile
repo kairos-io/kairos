@@ -685,6 +685,7 @@ docs:
           rm -r hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz
     RUN npm install postcss-cli
     RUN npm run prepare
+    RUN ls -las .
     RUN HUGO_ENV="production" ./hugo --gc -b "/local/" -d "public/local"
     SAVE ARTIFACT public /public AS LOCAL docs/public
 
