@@ -57,6 +57,7 @@ RUN apt-get update \
     publicsuffix \
     rsync \
     shared-mime-info \
+    snapd \
     snmpd \
     squashfs-tools \
     sudo \

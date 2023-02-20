@@ -60,6 +60,7 @@ RUN apt-get update \
     rsync \
     shared-mime-info \
     squashfs-tools \
+    snapd \
     sudo \
     systemd \
     systemd-hwe-hwdb \
