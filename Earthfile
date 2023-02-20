@@ -674,19 +674,29 @@ webui-deps:
 docs:
     FROM node:19-bullseye
     ARG USERARCH
-    RUN echo $USERARCH
+    ARG MODEL
+    IF [ "$MODEL" = "rpi64" ] || [ "$USERARCH" = "arm64" ] || [ "$USERARCH" = "linux/arm64" ]
+      ARG ARCHI = "arm64"
+    ELSE
+      ARG ARCHI = "amd64"
+    END
+
+    # Install dependencies
     RUN apt install git
-    COPY . .
-    WORKDIR ./docs
     # renovate: datasource=github-releases depName=gohugoio/hugo
     ARG HUGO_VERSION="0.110.0"
-    RUN wget --quiet "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz"
-    RUN tar xzf hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz && \
-          rm -r hugo_extended_${HUGO_VERSION}_linux-${USERARCH}.tar.gz
+    RUN wget --quiet "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${ARCHI}.tar.gz" && \
+        tar xzf hugo_extended_${HUGO_VERSION}_linux-${ARCHI}.tar.gz && \
+        rm -r hugo_extended_${HUGO_VERSION}_linux-${ARCHI}.tar.gz && \
+        mv hugo /usr/bin
+
+    COPY . .
+    WORKDIR ./docs
+    
     RUN npm install postcss-cli
     RUN npm run prepare
-    RUN ls -las .
-    RUN HUGO_ENV="production" ./hugo --gc -b "/local/" -d "public/local"
+
+    RUN HUGO_ENV="production" /usr/bin/hugo --gc -b "/local/" -d "public/local"
     SAVE ARTIFACT public /public AS LOCAL docs/public
 
 ## ./earthly.sh --push +temp-image --FLAVOR=ubuntu
