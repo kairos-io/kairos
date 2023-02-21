@@ -23,11 +23,11 @@ func JSONSchema(version string) (string, error) {
 }
 
 // Validate ensures that a given schema is Valid according to the Root Schema from the agent.
-func Validate(file string) error {
+func Validate(source string) error {
 	var yaml string
 
-	if strings.HasPrefix(file, "http") {
-		resp, err := http.Get(file)
+	if strings.HasPrefix(source, "http") {
+		resp, err := http.Get(source)
 		if err != nil {
 			return err
 		}
@@ -38,11 +38,16 @@ func Validate(file string) error {
 		//Convert the body to type string
 		yaml = string(body)
 	} else {
-		dat, err := os.ReadFile(file)
+		dat, err := os.ReadFile(source)
 		if err != nil {
-			return err
+			if strings.Contains(err.Error(), "no such file or directory") {
+				yaml = source
+			} else {
+				return err
+			}
+		} else {
+			yaml = string(dat)
 		}
-		yaml = string(dat)
 	}
 
 	config, err := schema.NewConfigFromYAML(yaml, schema.RootSchema{})
