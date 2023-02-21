@@ -27,3 +27,7 @@ description: >
 ### How we build and maintain Kairos
 
 {{< youtube id="XD5nfMf59v4" title="How we build and maintain Kairos" >}}
+
+### How Kairos uses libp2p
+
+{{< youtube id="7Vym18wz9Uw" title="Kairos and libp2p" >}}
