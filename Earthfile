@@ -219,6 +219,8 @@ framework:
 
     RUN go run -ldflags "${LDFLAGS}" ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
 
+    # Copy kairos binaries
+    COPY +build-kairos-agent/kairos-agent /framework/usr/bin/kairos-agent
     COPY +luet/luet /framework/usr/bin/luet
 
     RUN luet cleanup --system-target /framework
@@ -283,8 +285,6 @@ docker:
         COPY overlay/files-ubuntu/ /
     END
 
-    # Copy kairos binaries
-    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
     # Enable services
     IF [ -f /sbin/openrc ]
      RUN mkdir -p /etc/runlevels/default && \
