@@ -161,6 +161,21 @@ func Start(ctx context.Context) error {
 
 	ec.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
 
+	ec.POST("/validate", func(c echo.Context) error {
+		formData := new(FormData)
+		if err := c.Bind(formData); err != nil {
+			return err
+		}
+		cloudConfig := formData.CloudConfig
+
+		err := agent.Validate(cloudConfig)
+		if err != nil {
+			return c.String(http.StatusOK, err.Error())
+		}
+
+		return c.String(http.StatusOK, "")
+	})
+
 	ec.POST("/install", func(c echo.Context) error {
 
 		s.Lock()
