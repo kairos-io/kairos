@@ -171,11 +171,42 @@ RUN luet install -y distro-kernels/opensuse-leap distro-initrd/opensuse-leap
 # RUN cp cloud.yaml /system/oem/configuration.yaml 
 ```
 
-After building the container image, use the `osbuilder-tools` image to create an ISO:
+After building the container image, we can create an ISO:
 
+{{< tabpane text=true  >}}
+{{% tab header="AuroraBoot" %}}
+
+We can use [AuroraBoot](/docs/reference/auroraboot) to handle the the ISO build process and optionally attach it a default cloud config, for example:
+
+```bash
+$ IMAGE=<source/image>
+$ docker run -v $PWD/cloud_init.yaml:/cloud_init.yaml \
+                    -v $PWD/build:/tmp/auroraboot \
+                    -v /var/run/docker.sock:/var/run/docker.sock \
+                    --rm -ti quay.io/kairos/auroraboot \
+                    --set container_image=docker://$IMAGE \
+                    --set "disable_http_server=true" \
+                    --set "disable_netboot=true" \
+                    --cloud-config /cloud_init.yaml \
+                    --set "state_dir=/tmp/auroraboot"
+# Artifacts are under build/
+$ sudo ls -liah build/iso
+total 778M
+34648528 drwx------ 2 root root 4.0K Feb  8 16:39 .
+34648526 drwxr-xr-x 5 root root 4.0K Feb  8 16:38 ..
+34648529 -rw-r--r-- 1 root root  253 Feb  8 16:38 config.yaml
+34649370 -rw-r--r-- 1 root root 389M Feb  8 16:38 kairos.iso
+34649372 -rw-r--r-- 1 root root 389M Feb  8 16:39 kairos.iso.custom.iso
+34649371 -rw-r--r-- 1 root root   76 Feb  8 16:39 kairos.iso.sha256
+```
+{{% /tab %}}
+{{% tab header="Manually" %}}
+Use `osbuilder-tools`:
 ```bash
 docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm quay.io/kairos/osbuilder-tools:latest --name "custom-iso" --debug build-iso --date=false --local $IMAGE --output /cOS/
 ```
+{{% /tab %}}
+{{< /tabpane >}}
 
 Use QEMU to test the ISO:
 
