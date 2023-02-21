@@ -12,7 +12,7 @@ We like to define Kairos as a meta-Linux Distribution, as its goal is to convert
 
 The Kairos stack is composed of the following:
 
-- A core OS image release for each flavor in ISO, qcow2, and other similar formats (currently can pick from openSUSE and Alpine based) provided for user convenience
+- A core OS image release for each flavor in ISO, qcow2, and other similar formats (see [the list of supported distributions](/docs/reference/image_matrix)) provided for user convenience
 - A release with K3s embedded.
 - A set of Kubernetes Native API components (CRDs) to install into the control-plane node, to manage deployment, artifacts creation, and lifecycle (WIP).
 - A set of Kubernetes Native API components (CRDs) to install into the target nodes to manage and control the node after deployment (WIP).
