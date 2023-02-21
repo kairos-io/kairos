@@ -96,6 +96,7 @@ $ docker pull $IMAGE
 # Build the ISO
 $ docker run -v $PWD/cloud_init.yaml:/cloud_init.yaml \
                     -v $PWD/build:/tmp/auroraboot \
+                    -v /var/run/docker.sock:/var/run/docker.sock \
                     --rm -ti quay.io/kairos/auroraboot \
                     --set container_image=docker://$IMAGE \
                     --set "disable_http_server=true" \
