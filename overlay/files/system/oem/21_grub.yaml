@@ -6,13 +6,18 @@ stages:
       if: '[ -e "/etc/kairos/branding/grubmenu.cfg" ]'
       commands:
         - |
-            STATEDIR=/tmp/mnt/STATE
-            STATE=$(blkid -L COS_STATE || true)
-            mkdir -p $STATEDIR || true
-            mount ${STATE} $STATEDIR
-            cp -rfv /etc/kairos/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
-            umount /tmp/mnt/STATE
-  after-upgrade:
-    - <<: *grubinstall
+          STATEDIR=/tmp/mnt/STATE
+          STATE=$(blkid -L COS_STATE || true)
+          mkdir -p $STATEDIR || true
+          mount ${STATE} $STATEDIR
+          cp -rfv /etc/kairos/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
+          
+          if [ -d /tmp/mnt/STATE/grub ]; then
+            echo "configfile (\$root)'/grub2/grub.cfg'" >> /tmp/mnt/STATE/grub/grub.cfg
+          fi
+
+          umount /tmp/mnt/STATE
   after-reset:
+    - <<: *grubinstall
+  after-upgrade:
     - <<: *grubinstall
