@@ -37,18 +37,21 @@ stages:
           /var/lib/ca-certificates
         PERSISTENT_STATE_BIND: "true"
     - if: '[ -r /run/cos/custom-layout.env ] && [ ! -f "/run/cos/recovery_mode" ] && [ ! -f /run/cos/live_mode ]'
-      name: "append custom bind and ephemeral mounts to /run/cos/cos-layout.env"
+      name: "add custom bind and ephemeral mounts to /run/cos/cos-layout.env"
       commands:
         - |
-             source /run/cos/cos-layout.env
-             source /run/cos/custom-layout.env
-             PERSISTENT_STATE_PATHS="${CUSTOM_EPHEMERAL_MOUNTS} ${PERSISTENT_STATE_PATHS}"
-             echo CUSTOM_BIND_MOUNTS=\"${CUSTOM_BIND_MOUNTS}\" >> /run/cos/cos-layout.env
-             echo CUSTOM_EPHEMERAL_MOUNTS=\"${CUSTOM_EPHEMERAL_MOUNTS}\" >> /run/cos/cos-layout.env
-             echo "# rw paths with user bind mounts" >> /run/cos/cos-layout.env
-             echo RW_PATHS=\"${RW_PATHS}\" >> /run/cos/cos-layout.env
-             echo "# persistent state paths with user ephemeral mounts" >> /run/cos/cos-layout.env
-             echo PERSISTENT_STATE_PATHS=\"${PERSISTENT_STATE_PATHS}\" >> /run/cos/cos-layout.env
+            source /run/cos/cos-layout.env
+            source /run/cos/custom-layout.env
+            PERSISTENT_STATE_PATHS="${CUSTOM_BIND_MOUNTS} ${PERSISTENT_STATE_PATHS}"
+            RW_PATHS="${CUSTOM_EPHEMERAL_MOUNTS} ${RW_PATHS}"
+            # Remove the existing lines that we are gonna rewrite
+            sed -i "/RW_PATHS/d" /run/cos/cos-layout.env
+            sed -i "/PERSISTENT_STATE_PATHS/d" /run/cos/cos-layout.env
+            # Add the new lines
+            echo "# rw paths with user bind mounts" >> /run/cos/cos-layout.env
+            echo RW_PATHS=\"${RW_PATHS}\" >> /run/cos/cos-layout.env
+            echo "# persistent state paths with user ephemeral mounts" >> /run/cos/cos-layout.env
+            echo PERSISTENT_STATE_PATHS=\"${PERSISTENT_STATE_PATHS}\" >> /run/cos/cos-layout.env
     - if: |
         cat /proc/cmdline | grep -q "kairos.boot_live_mode"
       name: "Layout configuration"
