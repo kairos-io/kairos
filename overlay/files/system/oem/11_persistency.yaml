@@ -36,8 +36,7 @@ stages:
           /usr/share/pki/trust/anchors
           /var/lib/ca-certificates
         PERSISTENT_STATE_BIND: "true"
-    - if: |
-        [ -r /run/cos/custom-layout.env ]
+    - if: '[ -r /run/cos/custom-layout.env ] && [ ! -f "/run/cos/recovery_mode" ] && [ ! -f /run/cos/live_mode ]'
       name: "append custom bind and ephemeral mounts to /run/cos/cos-layout.env"
       commands:
         - |
