@@ -46,13 +46,7 @@ var _ = Describe("Config", func() {
 	})
 
 	Context("directory", func() {
-		headerCheck := func(c *Config) {
-			ok, header := HasHeader(c.String(), DefaultHeader)
-			ExpectWithOffset(1, ok).To(BeTrue())
-			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
-		}
-
-		kHeaderCheck := func(kc *schema.KConfig) {
+		headerCheck := func(kc *schema.KConfig) {
 			ok, header := HasHeader(kc.String(), DefaultHeader)
 			ExpectWithOffset(1, ok).To(BeTrue())
 			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
@@ -64,7 +58,7 @@ var _ = Describe("Config", func() {
 
 			c, err := KScan(MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
-			kHeaderCheck(c)
+			headerCheck(c)
 			Expect(c.Options("foo")).To(Equal("bar"))
 			Expect(c.Query("options")).To(Equal("foo: bar\n"))
 			Expect(c.Query("options.foo")).To(Equal("bar\n"))
@@ -179,11 +173,11 @@ config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab2926857
 			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := KScan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
-			Expect(len(c.Bundles)).To(Equal(1))
-			Expect(c.Bundles[0].Targets[0]).To(Equal("package:utils/edgevpn"))
+			Expect(len(c.Bundles())).To(Equal(1))
+			Expect(c.Bundles()[0].Targets[0]).To(Equal("package:utils/edgevpn"))
 			Expect(c.String()).ToNot(Equal(cc))
 		})
 
@@ -196,11 +190,11 @@ config_url: "https://gist.githubusercontent.com/mudler/7e3d0426fce8bfaaeb2644f83
 			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := KScan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
-			Expect(len(c.Bundles)).To(Equal(1))
-			Expect(c.Bundles[0].Targets[0]).To(Equal("package:utils/edgevpn"))
+			Expect(len(c.Bundles())).To(Equal(1))
+			Expect(c.Bundles()[0].Targets[0]).To(Equal("package:utils/edgevpn"))
 			Expect(c.String()).ToNot(Equal(cc))
 
 			headerCheck(c)

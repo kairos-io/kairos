@@ -47,6 +47,14 @@ func (kc KConfig) Header() string {
 	return strings.TrimRightFunc(header, unicode.IsSpace)
 }
 
+func (kc KConfig) Bundles() []BundleSchema {
+	jsonString, _ := json.Marshal(kc.Data()["bundles"])
+	bundles := []BundleSchema{}
+	json.Unmarshal(jsonString, &bundles)
+
+	return bundles
+}
+
 func (kc KConfig) Options(key string) interface{} {
 	options := kc.Data()["options"]
 
