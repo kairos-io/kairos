@@ -44,7 +44,6 @@ stages:
              source /run/cos/cos-layout.env
              source /run/cos/custom-layout.env
              PERSISTENT_STATE_PATHS="${CUSTOM_EPHEMERAL_MOUNTS} ${PERSISTENT_STATE_PATHS}"
-             RW_PATHS="${CUSTOM_BIND_MOUNTS} ${RW_PATHS}"
              echo CUSTOM_BIND_MOUNTS=\"${CUSTOM_BIND_MOUNTS}\" >> /run/cos/cos-layout.env
              echo CUSTOM_EPHEMERAL_MOUNTS=\"${CUSTOM_EPHEMERAL_MOUNTS}\" >> /run/cos/cos-layout.env
              echo "# rw paths with user bind mounts" >> /run/cos/cos-layout.env
