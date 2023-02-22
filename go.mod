@@ -14,7 +14,7 @@ require (
 	github.com/jaypipes/ghw v0.9.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kairos-io/kcrypt v0.5.1
-	github.com/labstack/echo/v4 v4.10.1
+	github.com/labstack/echo/v4 v4.10.2
 	github.com/mudler/go-nodepair v0.0.0-20221223092639-ba399a66fdfb
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
@@ -28,7 +28,7 @@ require (
 	github.com/spectrocloud/peg v0.0.0-20230210110137-1780ceedb1e5
 	github.com/swaggest/jsonschema-go v0.3.47
 	github.com/twpayne/go-vfs v1.7.2
-	github.com/urfave/cli/v2 v2.24.3
+	github.com/urfave/cli/v2 v2.24.4
 	golang.org/x/net v0.7.0
 	golang.org/x/oauth2 v0.5.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0

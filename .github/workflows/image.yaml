@@ -210,13 +210,36 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: kairos-${{ matrix.flavor }}.iso.zip
-    - run: |
+    - env:
+        KVM: true
+      run: |
             ls -liah
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
-            ./earthly.sh +prepare-bundles-tests
-            ./earthly.sh +run-qemu-bundles-tests --FLAVOR=${{ matrix.flavor }}
+
+            # Get earthly with luet
+            curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+            chmod +x luet
+            sudo mv luet /usr/bin/luet
+            sudo mkdir -p /etc/luet/repos.conf.d/
+            sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
+            LUET_NOLOCK=true sudo -E luet install -y utils/earthly
+
+            # Configure earthly to use the docker mirror in CI
+            # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+            mkdir -p ~/.earthly/
+            cat << EOF > ~/.earthly/config.yml
+            global:
+              buildkit_additional_config: |
+                [registry."docker.io"]
+                  mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+                [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                  insecure = true
+            EOF
+
+            earthly -P +prepare-bundles-tests
+            earthly -P +run-qemu-bundles-tests --FLAVOR=${{ matrix.flavor }}
 
   qemu-reset-tests:
     needs:
@@ -237,14 +260,37 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: kairos-${{ matrix.flavor }}.iso.zip
-    - run: |
+    - env:
+        KVM: true
+      run: |
             ls -liah
             sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
-            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            ./earthly.sh +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
+
+            # Get earthly with luet
+            curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+            chmod +x luet
+            sudo mv luet /usr/bin/luet
+            sudo mkdir -p /etc/luet/repos.conf.d/
+            sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
+            LUET_NOLOCK=true sudo -E luet install -y utils/earthly
+
+            # Configure earthly to use the docker mirror in CI
+            # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+            mkdir -p ~/.earthly/
+            cat << EOF > ~/.earthly/config.yml
+            global:
+              buildkit_additional_config: |
+                [registry."docker.io"]
+                  mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+                [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                  insecure = true
+            EOF
+
+            earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            earthly -P +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
 
   qemu-netboot-tests:
     needs:

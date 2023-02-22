@@ -18,6 +18,10 @@ Deploying Kubernetes at the Edge can be a complex and time-consuming process, es
 
 To leverage p2p self-coordination capabilities of Kairos, you will need to configure the `network_token` under the `p2p` configuration block in your cloud-config file. Once you have set this, Kairos will handle the configuration of each node.
 
+{{% alert title="Note" %}}
+You can see this example live in the [Kairos and libp2p video]({{< ref "docs/media/#how-kairos-uses-libp2p" >}} "Media") in the [Media Section]({{< ref "docs/media" >}} "Media")
+{{% /alert %}}
+
 ## Description
 
 In the following example we are going to bootstrap a new multi-node, single cluster with Kairos. We will use at least 2 nodes, one as a master and one as a worker. Note how we don't specify any role, or either pin any IP in the following configurations.

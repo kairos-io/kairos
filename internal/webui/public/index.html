@@ -69,7 +69,22 @@
                   try {
                     // Parse the YAML
                     const yaml = YAML.parse(this.content);
-                    this.valid=true
+                    const formData = new FormData()
+                    formData.append('cloud-config', this.content)
+                    const settings = {
+                        method: 'POST',
+                        body: formData,
+                    };
+                    fetch(`/validate`, settings)
+                      .then((response) => response.text())
+                      .then((text) => {
+                        if (text === '') {
+                          this.valid = true
+                        } else {
+                          this.error = text
+                          this.valid = false
+                        }
+                      })
                   } catch(error) {
                     this.error = error
                     this.valid = false
