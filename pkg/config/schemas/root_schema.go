@@ -2,8 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
+	"unicode"
 
+	"github.com/itchyny/gojq"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	jsonschemago "github.com/swaggest/jsonschema-go"
 	"gopkg.in/yaml.v3"
@@ -23,12 +26,85 @@ type RootSchema struct {
 	P2P                P2PSchema     `json:"p2p,omitempty"`
 }
 
+const KDefaultHeader = "#cloud-config"
+
 // KConfig is used to parse and validate Kairos configuration files.
 type KConfig struct {
 	Source          string
 	parsed          interface{}
 	ValidationError error
 	schemaType      interface{}
+}
+
+func (kc KConfig) Header() string {
+	if !kc.HasHeader() {
+		return KDefaultHeader
+
+	}
+
+	header := strings.SplitN(kc.Source, "\n", 2)[0]
+
+	return strings.TrimRightFunc(header, unicode.IsSpace)
+}
+
+func (kc KConfig) Options(key string) interface{} {
+	options := kc.Data()["options"]
+
+	return options.(map[string]interface{})[key]
+}
+
+func (kc KConfig) String() string {
+	if len(kc.parsed.(map[string]interface{})) == 0 {
+		dat, err := yaml.Marshal(kc)
+		if err == nil {
+			return fmt.Sprintf("%s\n%s", kc.Header(), string(dat))
+		}
+	}
+
+	dat, _ := yaml.Marshal(kc.parsed)
+	return fmt.Sprintf("%s\n%s", kc.Header(), string(dat))
+}
+
+func (kc KConfig) Unmarshal(o interface{}) error {
+	return yaml.Unmarshal([]byte(kc.String()), o)
+}
+
+func (kc KConfig) Data() map[string]interface{} {
+	return kc.parsed.(map[string]interface{})
+}
+
+func (kc KConfig) Query(s string) (res string, err error) {
+	s = fmt.Sprintf(".%s", s)
+	jsondata := map[string]interface{}{}
+
+	// c.String() takes the original data map[string]interface{} and Marshals into YAML, then here we unmarshall it again?
+	// we should be able to use c.originalData and copy it to jsondata
+	err = yaml.Unmarshal([]byte(kc.Source), &jsondata)
+	if err != nil {
+		return
+	}
+	query, err := gojq.Parse(s)
+	if err != nil {
+		return res, err
+	}
+
+	iter := query.Run(jsondata) // or query.RunWithContext
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, ok := v.(error); ok {
+			return res, fmt.Errorf("failed parsing, error: %w", err)
+		}
+
+		dat, err := yaml.Marshal(v)
+		if err != nil {
+			break
+		}
+		res += string(dat)
+	}
+	return
 }
 
 // GenerateSchema takes the given schema type and builds a JSON Schema out of it
@@ -82,7 +158,7 @@ func (kc *KConfig) IsValid() bool {
 func (kc *KConfig) HasHeader() bool {
 	var found bool
 
-	availableHeaders := []string{"#cloud-config", "#kairos-config", "#node-config"}
+	availableHeaders := []string{KDefaultHeader, "#kairos-config", "#node-config"}
 	for _, header := range availableHeaders {
 		if strings.HasPrefix(kc.Source, header) {
 			found = true

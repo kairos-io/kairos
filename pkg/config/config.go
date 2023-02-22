@@ -168,6 +168,44 @@ func allFiles(dir []string) []string {
 	return files
 }
 
+func KScan(opts ...Option) (kc *schema.KConfig, err error) {
+	c, err := Scan(opts...)
+	o := &Options{}
+	if err := o.Apply(opts...); err != nil {
+		return nil, err
+	}
+
+	content, err := yaml.Marshal(c.originalData)
+	finalYAML := fmt.Sprintf("%s\n%s", c.header, content)
+
+	if !o.NoLogs && err != nil {
+		fmt.Printf("WARNING: %s\n", err.Error())
+	}
+
+	kc, err = schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
+	if err != nil {
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", err.Error())
+		}
+
+		if o.StrictValidation {
+			return kc, fmt.Errorf("ERROR: %s", err.Error())
+		}
+	}
+
+	if !kc.IsValid() {
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
+		}
+
+		if o.StrictValidation {
+			return kc, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
+		}
+	}
+
+	return kc, nil
+}
+
 func Scan(opts ...Option) (c *Config, err error) {
 	o := &Options{}
 	if err := o.Apply(opts...); err != nil {
@@ -198,32 +236,6 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 	if c.header == "" {
 		c.header = DefaultHeader
-	}
-
-	finalYAML, err := yaml.Marshal(c.originalData)
-	if !o.NoLogs && err != nil {
-		fmt.Printf("WARNING: %s\n", err.Error())
-	}
-
-	kc, err := schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
-	if err != nil {
-		if !o.NoLogs && !o.StrictValidation {
-			fmt.Printf("WARNING: %s\n", err.Error())
-		}
-
-		if o.StrictValidation {
-			return c, fmt.Errorf("ERROR: %s", err.Error())
-		}
-	}
-
-	if !kc.IsValid() {
-		if !o.NoLogs && !o.StrictValidation {
-			fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
-		}
-
-		if o.StrictValidation {
-			return c, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
-		}
 	}
 
 	return c, nil

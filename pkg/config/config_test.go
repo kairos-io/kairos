@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 
 	. "github.com/kairos-io/kairos/pkg/config"
+	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
@@ -51,14 +52,20 @@ var _ = Describe("Config", func() {
 			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
 		}
 
+		kHeaderCheck := func(kc *schema.KConfig) {
+			ok, header := HasHeader(kc.String(), DefaultHeader)
+			ExpectWithOffset(1, ok).To(BeTrue())
+			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
+		}
+
 		It("reads from bootargs and can query", func() {
 			err := os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
+			c, err := KScan(MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
-			headerCheck(c)
-			Expect(c.Options["foo"]).To(Equal("bar"))
+			kHeaderCheck(c)
+			Expect(c.Options("foo")).To(Equal("bar"))
 			Expect(c.Query("options")).To(Equal("foo: bar\n"))
 			Expect(c.Query("options.foo")).To(Equal("bar\n"))
 		})
@@ -80,7 +87,7 @@ c: d
 			err = os.WriteFile(filepath.Join(d, "b.yaml"), []byte(c2), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := KScan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			providerCfg := &TConfig{}
@@ -115,7 +122,7 @@ kairos:
 `), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := KScan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			providerCfg := &TConfig{}
@@ -148,9 +155,9 @@ bb:
 			err = os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
+			c, err := KScan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
-			Expect(c.Options["foo"]).To(Equal("bar"))
+			Expect(c.Options("foo")).To(Equal("bar"))
 
 			providerCfg := &TConfig{}
 			err = c.Unmarshal(providerCfg)
@@ -159,6 +166,8 @@ bb:
 			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
 			_, exists := c.Data()["zz"]
 			Expect(exists).To(BeFalse())
+			_, exists = c.Data()["bb"]
+			Expect(exists).To(BeTrue())
 		})
 
 		It("reads config file from url", func() {
