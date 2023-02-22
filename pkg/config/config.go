@@ -16,7 +16,6 @@ import (
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/kairos-io/kairos/sdk/unstructured"
-	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v3"
 )
@@ -275,18 +274,6 @@ const (
 
 func (n Stage) String() string {
 	return string(n)
-}
-
-func SaveCloudConfig(name Stage, yc yip.YipConfig) error {
-	dnsYAML, err := yaml.Marshal(yc)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join("usr", "local", "cloud-config", fmt.Sprintf("100_%s.yaml", name)), dnsYAML, 0700)
-}
-
-func FromString(s string, o interface{}) error {
-	return yaml.Unmarshal([]byte(s), o)
 }
 
 func MergeYAML(objs ...interface{}) ([]byte, error) {
