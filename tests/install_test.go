@@ -93,11 +93,11 @@ bundles:
 			Eventually(func() string {
 				out, _ := Sudo("cat /run/cos/cos-layout.env")
 				return out
-			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("CUSTOM_BIND_MOUNTS=\"/mnt/bind1 /mnt/bind2\""))
+			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("PERSISTENT_STATE_PATHS=\"/mnt/bind1 /mnt/bind2"))
 			Eventually(func() string {
 				out, _ := Sudo("cat /run/cos/cos-layout.env")
 				return out
-			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("CUSTOM_EPHEMERAL_MOUNTS=\"/mnt/ephemeral /mnt/ephemeral2\""))
+			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("RW_PATHS=\"/mnt/ephemeral /mnt/ephemeral2"))
 
 			Eventually(func() string {
 				out, _ := Sudo("/usr/local/bin/usr/bin/edgevpn --help | grep peer")
