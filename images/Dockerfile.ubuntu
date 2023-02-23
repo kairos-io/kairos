@@ -28,6 +28,7 @@ RUN apt-get update \
     firmware-sof-signed \
     fuse3 \
     gawk \
+    gdisk \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     grub-pc-bin \
