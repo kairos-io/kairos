@@ -1,14 +1,13 @@
-#/bin/sh
+#!/bin/sh
 
-if [ -z "$GOPATH" ]; then
+if [ -z "${GOPATH}" ]; then
     echo GOPATH environment variable not set
     exit
 fi
 
-if [ ! -e "$GOPATH/bin/2goarray" ]; then
+if [ ! -e "${GOPATH}/bin/2goarray" ]; then
     echo "Installing 2goarray..."
-    go get github.com/cratonica/2goarray
-    if [ $? -ne 0 ]; then
+    if ! go get github.com/cratonica/2goarray; then
         echo Failure executing go get github.com/cratonica/2goarray
         exit
     fi
@@ -20,17 +19,16 @@ if [ -z "$1" ]; then
 fi
 
 if [ ! -f "$1" ]; then
-    echo $1 is not a valid file
+    echo "${1} is not a valid file"
     exit
 fi    
 
 OUTPUT=iconunix.go
-echo Generating $OUTPUT
-echo "//+build linux darwin" > $OUTPUT
-echo >> $OUTPUT
-cat "$1" | $GOPATH/bin/2goarray DefaultBanner agent >> $OUTPUT
-if [ $? -ne 0 ]; then
-    echo Failure generating $OUTPUT
+echo "Generating ${OUTPUT}"
+echo "//+build linux darwin" > "${OUTPUT}"
+echo >> "${OUTPUT}"
+if ! "${GOPATH}"/bin/2goarray DefaultBanner agent < "${1}" >> "${OUTPUT}"; then
+    echo Failure generating "${OUTPUT}"
     exit
 fi
 echo Finished

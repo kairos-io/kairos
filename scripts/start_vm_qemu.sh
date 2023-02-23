@@ -6,12 +6,12 @@ fi
 
 [[ -n "${ENABLE_KVM}" ]] && KVM=(-enable-kvm)
 
-[[ -n ${ENABLE_SPICE} ]] && SPICE=(-vga qxl -spice port=5900,disable-ticketing)
+[[ -n ${ENABLE_SPICE} ]] && SPICE=(-vga qxl -spice "port=5900,disable-ticketing")
 
-[[ -n ${PORT_FORWARD} ]] && PORT_FORWARD=(-net nic -net user,hostfwd=tcp::${PORT_FORWARD}-:22)
+[[ -n ${PORT_FORWARD} ]] && PORT_FORWARD=(-net nic -net "user,hostfwd=tcp::${PORT_FORWARD}-:22")
 
 qemu-system-x86_64 \
-    -m ${MEMORY:=2096} \
+    -m "${MEMORY:=2096}" \
     -smp cores=2 \
     -nographic \
     "${KVM[@]}" \
@@ -23,4 +23,4 @@ qemu-system-x86_64 \
     -device virtio-serial \
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
     -drive if=virtio,media=disk,file=disk.img \
-    -drive if=ide,media=cdrom,file=${1:-kairos.iso}
+    -drive if=ide,media=cdrom,file="${1:-kairos.iso}"
