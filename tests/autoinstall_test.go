@@ -26,7 +26,7 @@ var stateContains = func(query string, expected ...string) {
 	}
 	out, err := Sudo(fmt.Sprintf("kairos-agent state get %s", query))
 	ExpectWithOffset(1, err).ToNot(HaveOccurred())
-	ExpectWithOffset(1, out).To(Or(or...))
+	ExpectWithOffset(1, strings.ToLower(out)).To(Or(or...))
 }
 
 var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
@@ -203,9 +203,9 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			stateAssert("oem.read_only", "false")
 			stateAssert("persistent.read_only", "false")
 			stateAssert("state.read_only", "true")
-			stateContains("system.os.vendor", "alpine", "opensuse", "ubuntu", "debian")
+			stateContains("system.os.name", "alpine", "opensuse", "ubuntu", "debian")
 			stateContains("kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
-			stateAssert("kairos.version", currentVersion)
+			stateAssert("kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
 		})
 	})
 })
