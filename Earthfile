@@ -447,7 +447,6 @@ datasource-iso:
   ARG OSBUILDER_IMAGE
   ARG CLOUD_CONFIG
   FROM $OSBUILDER_IMAGE
-  RUN zypper in -y mkisofs
   WORKDIR /build
   RUN touch meta-data
   COPY ${CLOUD_CONFIG} user-data

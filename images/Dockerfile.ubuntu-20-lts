@@ -26,6 +26,7 @@ RUN apt-get update \
     file \
     fuse \
     gawk \
+    gdisk \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     grub-pc-bin \

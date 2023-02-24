@@ -192,8 +192,8 @@ func Scan(opts ...Option) (c *Config, err error) {
 
 	if c.HasConfigURL() {
 		err = c.fetchRemoteConfig()
-		if err != nil {
-			return c, err
+		if !o.NoLogs && err != nil {
+			fmt.Printf("WARNING: Couldn't fetch config_url: %s\n", err.Error())
 		}
 	}
 
