@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -63,27 +63,33 @@ func displayInfo(agentConfig *Config) {
 }
 
 func ManualInstall(c string, options map[string]string, strictValidations bool) error {
-	dat, err := os.ReadFile(c)
+	if _, err := url.Parse(c); err == nil {
+		f, err := os.CreateTemp(os.TempDir(), "kairos-install-*.yaml")
+		if err != nil {
+			return nil
+		}
+
+		cfg := config.Config{
+			ConfigURL: c,
+		}
+		if err = yaml.NewEncoder(f).Encode(cfg); err != nil {
+			return err
+		}
+
+		c = f.Name()
+
+		defer os.RemoveAll(f.Name())
+	}
+
+	cc, err := config.Scan(config.Directories(c), config.MergeBootLine, config.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}
-
-	dir, err := os.MkdirTemp("", "kairos-install")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(dir)
-
-	if err := os.WriteFile(filepath.Join(dir, "config.yaml"), dat, 0600); err != nil {
-		return err
-	}
-
-	cc, err := config.Scan(config.Directories(dir), config.MergeBootLine, config.StrictValidation(strictValidations))
-	if err != nil {
-		return err
-	}
-
 	options["cc"] = cc.String()
+
+	if options["device"] == "" {
+		options["device"] = cc.Install.Device
+	}
 
 	return RunInstall(options)
 }
