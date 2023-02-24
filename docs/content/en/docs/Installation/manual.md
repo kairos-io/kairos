@@ -18,7 +18,7 @@ To install manually, follow the [quickstart](/docs/getting-started). When the QR
 
 ## Installation
 
-To start the installation, run from the console the following command:
+To start the installation, run the following command from the console:
 
 ```bash
 sudo kairos-agent manual-install --device "auto" $CONFIG
