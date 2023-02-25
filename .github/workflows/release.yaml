@@ -102,6 +102,7 @@ jobs:
           COSIGN_EXPERIMENTAL: 1
         run: |
           export TAG=${GITHUB_REF##*/}
+          sudo chmod -R 777 release
           cosign sign-blob --yes --output-certificate=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.pem --output-signature=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.sig release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256
       - name: Release
         uses: softprops/action-gh-release@v1
