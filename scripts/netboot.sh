@@ -5,13 +5,13 @@ ISO=$1
 OUTPUT_NAME=$2
 VERSION=$3
 
-isoinfo -x /rootfs.squashfs -R -i $ISO > $OUTPUT_NAME.squashfs
-isoinfo -x /boot/kernel -R -i $ISO > $OUTPUT_NAME-kernel
-isoinfo -x /boot/initrd -R -i $ISO > $OUTPUT_NAME-initrd
+isoinfo -x /rootfs.squashfs -R -i "${ISO}" > "${OUTPUT_NAME}.squashfs"
+isoinfo -x /boot/kernel -R -i "${ISO}" > "${OUTPUT_NAME}-kernel"
+isoinfo -x /boot/initrd -R -i "${ISO}" > "${OUTPUT_NAME}-initrd"
 
 RELEASE_URL=${RELEASE_URL:-https://github.com/kairos-io/kairos/releases/download}
 
-cat > $OUTPUT_NAME.ipxe << EOF
+cat > "${OUTPUT_NAME}.ipxe" << EOF
 #!ipxe
 set version ${VERSION}
 set url ${RELEASE_URL}/\${version}
