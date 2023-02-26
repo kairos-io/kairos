@@ -10,6 +10,8 @@ import (
 	"github.com/jaypipes/ghw"
 	"github.com/jaypipes/ghw/pkg/block"
 	"github.com/kairos-io/kairos/pkg/machine"
+	"github.com/kairos-io/kairos/pkg/utils"
+	"github.com/zcalusic/sysinfo"
 	"gopkg.in/yaml.v3"
 )
 
@@ -35,13 +37,20 @@ type PartitionState struct {
 	UUID       string `yaml:"uuid" json:"uuid"` // This would be volume UUID on macOS, PartUUID on linux, empty on Windows
 }
 
+type Kairos struct {
+	Flavor  string `yaml:"flavor" json:"flavor"`
+	Version string `yaml:"version" json:"version"`
+}
+
 type Runtime struct {
-	UUID       string         `yaml:"uuid" json:"uuid"`
-	Persistent PartitionState `yaml:"persistent" json:"persistent"`
-	Recovery   PartitionState `yaml:"recovery" json:"recovery"`
-	OEM        PartitionState `yaml:"oem" json:"oem"`
-	State      PartitionState `yaml:"state" json:"state"`
-	BootState  Boot           `yaml:"boot" json:"boot"`
+	UUID       string          `yaml:"uuid" json:"uuid"`
+	Persistent PartitionState  `yaml:"persistent" json:"persistent"`
+	Recovery   PartitionState  `yaml:"recovery" json:"recovery"`
+	OEM        PartitionState  `yaml:"oem" json:"oem"`
+	State      PartitionState  `yaml:"state" json:"state"`
+	BootState  Boot            `yaml:"boot" json:"boot"`
+	System     sysinfo.SysInfo `yaml:"system" json:"system"`
+	Kairos     Kairos          `yaml:"kairos" json:"kairos"`
 }
 
 func detectPartition(b *block.Partition) PartitionState {
@@ -100,12 +109,36 @@ func detectRuntimeState(r *Runtime) error {
 	return nil
 }
 
+func detectSystem(r *Runtime) {
+	var si sysinfo.SysInfo
+
+	si.GetSysInfo()
+	r.System = si
+}
+
+func detectKairos(r *Runtime) {
+	k := &Kairos{}
+	flavor, err := utils.OSRelease("FLAVOR")
+	if err == nil {
+		k.Flavor = flavor
+	}
+	v, err := utils.OSRelease("VERSION")
+	if err == nil {
+		k.Version = v
+	}
+	r.Kairos = *k
+}
+
 func NewRuntime() (Runtime, error) {
 	runtime := &Runtime{
 		BootState: detectBoot(),
 		UUID:      machine.UUID(),
 	}
+
+	detectSystem(runtime)
+	detectKairos(runtime)
 	err := detectRuntimeState(runtime)
+
 	return *runtime, err
 }
 
