@@ -48,11 +48,50 @@ stages:
         expand_partition:
           # Size 0 is required to specify all remaining space
           size: 0
-  # ubuntu only
-  initramfs.after:
-    - name: "setupcon initramfs.after"
-      - if: |
-          [[ $(kairos-agent state get system.os.vendor | tr -d '\n') =~ "^ubuntu" ]]
+  initramfs.before:
+    - name: "Setup console-setup in ubuntu" 
+      if: |
+        [[ $(kairos-agent state get system.os.vendor | tr -d '\n') =~ "^ubuntu" ]]
+      files:
+        - path: /etc/default/console-setup
+          content: |
+              ACTIVE_CONSOLES="/dev/tty[1-6]"
+              FONT="default8x16.psf.gz"
+              CHARMAP="UTF-8"
+              CODESET="guess"
+              FONTFACE="default"
+              FONTSIZE="8x16"
+              SCREEN_WIDTH="100"
+          permissions: 0640
       commands:
         - echo "Run setupcon to have fonts working on Ubuntu"
         - setupcon
+    - name: "Custom Elemental configuration for RPI images" 
+      if: |
+        [[ $(kairos-agent state get system.os.vendor | tr -d '\n') =~ 'rpi$'' ]]
+      files:
+        - path: /etc/elemental/config.yaml
+          content: |
+              cosign: false
+              verify: false
+              install:
+                grub-entry-name: "kairos"
+                system:
+                  size: 2000
+                recovery-system:
+                  size: 2000
+              upgrade:
+                grub-entry-name: "kairos"
+                recovery-system:
+                  size: 2000
+                system:
+                  size: 2000
+              reset:
+                grub-entry-name: "kairos"
+                system:
+                  size: 2000
+
+              cloud-init-paths:
+              - /run/initramfs/cos-state
+              # - /run/initramfs/live
+          permissions: 0640
