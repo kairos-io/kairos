@@ -1,0 +1,125 @@
+# Rootfs Kairos OEM configuration file
+#
+# This file is part of Kairos and will get reset during upgrades.
+
+# The boot assessment works in this way:
+# - After we upgrade, we set a grub env sentinel variable indicating that we did run an upgrade
+# - At the first boot, if we did an upgrade, we set another sentinel variable, which indicates we are trying to boot
+# - If we boot fine, we remove both sentinels
+# - If we get back again at the GRUB menu, a failure must have occurred and we select the fallback entry, creating also
+#   sentinels files and a specific cmdline option indicating we failed booting after an upgrade
+
+name: "Boot assessment"
+stages:
+    boot.before:
+    # Remove any grub sentinel and add
+    # System sentinel to /run to indicate if we are booting after a failed upgrade.
+    # This needs to run only on the active partition.
+    # To note, we could similarly enable boot assessment always, also besides upgrades.
+    # In this case it is enough to reset only boot_assessment_tentative here, and set 
+    # enable_boot_assessment to 'yes'.
+    # This can be then customized easily by having a cloud-config file which always enables boot assessment on 
+    # the boot stage.
+    - name: "Remove GRUB sentinels"
+      if: |
+          cat /proc/cmdline | grep -q "active.img"
+      commands:
+      - |
+          mount -o rw,remount /run/initramfs/cos-state
+          grub2-editenv /run/initramfs/cos-state/boot_assessment set enable_boot_assessment=
+          grub2-editenv /run/initramfs/cos-state/boot_assessment set boot_assessment_tentative=
+          mount -o ro,remount /run/initramfs/cos-state
+    - name: "Create upgrade failure sentinel if necessary"
+      if: |
+          cat /proc/cmdline | grep -q "upgrade_failure"
+      files:
+      - path: /run/cos/upgrade_failure
+        content: "1"
+        permissions: 0600
+        owner: 0
+        group: 0
+    after-install:
+    # After install, reset, and upgrade, we install additional GRUB configuration for boot assessment into COS_STATE.
+
+    - &statemount
+      name: "Mount state"
+      commands:
+      - |
+          STATEDIR=/tmp/mnt/STATE
+          STATE=$(blkid -L COS_STATE || true)
+          mkdir -p $STATEDIR || true
+          mount ${STATE} $STATEDIR
+    # Here we hook the boot assessment configuration to 'grubcustom'
+    # we do that selectively in order to just "append" eventual other configuration provided.
+    # XXX: maybe we should just write to /grubcustom and override any other custom grub?
+    - &customhook
+      name: "Hook boot assessment grub configuration"
+      if: |
+           ! grep -q "grub_boot_assessment" /tmp/mnt/STATE/grubcustom
+      commands:
+      - |
+        cat << 'EOF' >> /tmp/mnt/STATE/grubcustom
+        set bootfile="/grub_boot_assessment"
+        search --no-floppy --file --set=bootfile_loc "${bootfile}"
+        if [ "${bootfile_loc}" ]; then
+           source "(${bootfile_loc})${bootfile}"
+        fi
+        EOF
+    # Overrides the active cmdline by adding "rd.emergency=reboot", "rd.shell=0" and "panic=5"
+    # so that any failure in booting initramfs or kernel loading results in a reboot.
+    # It loads then the boot assessment environment and overrides default boot target if
+    # a boot failure is detected.
+    # A boot is considered failed when both sentinel are present ( upgrade triggered, tentative ).
+    # The tentative sentinel is set after an upgrade was triggered.
+    # This configuration is separated so it can be tracked separately from the install hook
+    # 
+    - &bootgrub
+      name: "Add boot assessment grub configuration"
+      files:
+       - path: "/tmp/mnt/STATE/grub_boot_assessment"
+         owner: 0
+         group: 0
+         permsisions: 0600
+         content: |
+            set extra_active_cmdline="rd.emergency=reboot rd.shell=0 panic=5 systemd.crash_reboot systemd.crash_shell=0"
+            set boot_assessment="/boot_assessment"
+            search --no-floppy --file --set=boot_assessment_blk "${boot_assessment}"
+            if [ "${boot_assessment_blk}" ]; then
+              load_env -f "(${boot_assessment_blk})${boot_assessment}"
+            fi
+            if [ "${enable_boot_assessment}" = "yes" -o "${enable_boot_assessment_always}" = "yes" ]; then
+              if [ -z "${selected_entry}" ]; then
+                if [ "${boot_assessment_tentative}" = "yes" ]; then
+                  set default="fallback"
+                  set extra_passive_cmdline="upgrade_failure"
+                else
+                  set boot_assessment_tentative="yes"
+                  save_env -f "(${boot_assessment_blk})${boot_assessment}" boot_assessment_tentative
+                fi
+              fi
+            fi
+    - &stateumount
+      name: "umount state"
+      commands:
+      - |
+          umount /tmp/mnt/STATE
+
+    # Here we do enable boot assessment for the next bootup.
+    # Similarly, we could trigger boot assessment in other cases
+    after-upgrade:
+    - <<: *statemount
+    - name: "Set upgrade sentinel"
+      commands:
+      - |
+          grub2-editenv /tmp/mnt/STATE/boot_assessment set enable_boot_assessment=yes
+    # We do re-install hooks here if needed to track upgrades of boot assessment
+    - <<: *customhook
+    - <<: *bootgrub
+    - <<: *stateumount
+
+    after-reset:
+    - <<: *statemount
+    # Reset completely restores COS_STATE, so we re-inject ourselves
+    - <<: *customhook
+    - <<: *bootgrub
+    - <<: *stateumount
