@@ -19,7 +19,11 @@ func (b GrubOptions) Run(c config.Config) error {
 }
 
 func (b GrubOptions) KRun(kc schema.KConfig) error {
-	err := system.Apply(system.SetGRUBOptions(kc.Install.GrubOptions()))
+	grubOptions, err := kc.GrubOptions()
+	if err != nil {
+		fmt.Println(err)
+	}
+	err = system.Apply(system.SetGRUBOptions(grubOptions))
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -37,7 +41,11 @@ func (b GrubPostInstallOptions) Run(c config.Config) error {
 }
 
 func (b GrubPostInstallOptions) KRun(kc schema.KConfig) error {
-	err := system.Apply(system.SetGRUBOptions(kc.GrubOptions()))
+	grubOptions, err := kc.GrubOptions()
+	if err != nil {
+		fmt.Println(err)
+	}
+	err = system.Apply(system.SetGRUBOptions(grubOptions))
 	if err != nil {
 		fmt.Println(err)
 	}

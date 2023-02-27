@@ -52,6 +52,24 @@ type Config struct {
 	Env                []string          `yaml:"env,omitempty"`
 }
 
+func (c Config) HasEncryptedPartitions() bool {
+	return len(c.Install.Encrypt) > 0
+}
+
+func (c Config) EncryptedPartitions() []string {
+	return c.Install.Encrypt
+}
+
+func (c Config) FOBE() bool {
+	return c.FailOnBundleErrors
+}
+
+type Configuration interface {
+	EncryptedPartitions() []string
+	HasEncryptedPartitions() bool
+	FOBE() bool
+}
+
 type Bundles []Bundle
 
 type Bundle struct {

@@ -80,9 +80,16 @@ func (PowerManagement) Foo() PowerAny {
 	return PowerAny{}
 }
 
-func (is InstallSchema) GrubOptions() map[string]string {
-	var myMap map[string]string
-	data, _ := json.Marshal(is.GrubOptionsSchema)
-	json.Unmarshal(data, &myMap)
-	return myMap
+func (is InstallSchema) GrubOptions() (map[string]string, error) {
+	var grubOptions map[string]string
+	data, err := json.Marshal(is.GrubOptionsSchema)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(data, &grubOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	return grubOptions, nil
 }

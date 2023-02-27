@@ -16,59 +16,15 @@ import (
 type Kcrypt struct{}
 
 func (k Kcrypt) Run(c config.Config) error {
-
-	if len(c.Install.Encrypt) == 0 {
-		return nil
-	}
-
-	machine.Mount("COS_OEM", "/oem") //nolint:errcheck
-	defer func() {
-		machine.Umount("/oem") //nolint:errcheck
-	}()
-
-	kcryptc, err := kcryptconfig.GetConfiguration(kcryptconfig.ConfigScanDirs)
-	if err != nil {
-		fmt.Println("Failed getting kcrypt configuration: ", err.Error())
-		if c.FailOnBundleErrors {
-			return err
-		}
-	}
-
-	for _, p := range c.Install.Encrypt {
-		out, err := utils.SH(fmt.Sprintf("kcrypt encrypt %s", p))
-		if err != nil {
-			fmt.Printf("could not encrypt partition: %s\n", out+err.Error())
-			if c.FailOnBundleErrors {
-				return err
-			}
-			// Give time to show the error
-			time.Sleep(10 * time.Second)
-			return nil // do not error out
-		}
-
-		err = kcryptc.SetMapping(strings.TrimSpace(out))
-		if err != nil {
-			fmt.Println("Failed updating the kcrypt configuration file: ", err.Error())
-			if c.FailOnBundleErrors {
-				return err
-			}
-		}
-	}
-
-	err = kcryptc.WriteMappings(kcryptconfig.MappingsFile)
-	if err != nil {
-		fmt.Println("Failed writing kcrypt partition mappings: ", err.Error())
-		if c.FailOnBundleErrors {
-			return err
-		}
-	}
-
-	return nil
+	return k.run(c)
 }
 
-func (k Kcrypt) KRun(kc schema.KConfig) error {
+func (k Kcrypt) KRun(c schema.KConfig) error {
+	return k.run(c)
+}
 
-	if len(kc.Install.EncryptedPartitions) == 0 {
+func (k Kcrypt) run(c config.Configuration) error {
+	if !c.HasEncryptedPartitions() {
 		return nil
 	}
 
@@ -80,16 +36,16 @@ func (k Kcrypt) KRun(kc schema.KConfig) error {
 	kcryptc, err := kcryptconfig.GetConfiguration(kcryptconfig.ConfigScanDirs)
 	if err != nil {
 		fmt.Println("Failed getting kcrypt configuration: ", err.Error())
-		if kc.FailOnBundleErrors {
+		if c.FOBE() {
 			return err
 		}
 	}
 
-	for _, p := range kc.Install.EncryptedPartitions {
+	for _, p := range c.EncryptedPartitions() {
 		out, err := utils.SH(fmt.Sprintf("kcrypt encrypt %s", p))
 		if err != nil {
 			fmt.Printf("could not encrypt partition: %s\n", out+err.Error())
-			if kc.FailOnBundleErrors {
+			if c.FOBE() {
 				return err
 			}
 			// Give time to show the error
@@ -100,7 +56,7 @@ func (k Kcrypt) KRun(kc schema.KConfig) error {
 		err = kcryptc.SetMapping(strings.TrimSpace(out))
 		if err != nil {
 			fmt.Println("Failed updating the kcrypt configuration file: ", err.Error())
-			if kc.FailOnBundleErrors {
+			if c.FOBE() {
 				return err
 			}
 		}
@@ -109,7 +65,7 @@ func (k Kcrypt) KRun(kc schema.KConfig) error {
 	err = kcryptc.WriteMappings(kcryptconfig.MappingsFile)
 	if err != nil {
 		fmt.Println("Failed writing kcrypt partition mappings: ", err.Error())
-		if kc.FailOnBundleErrors {
+		if c.FOBE() {
 			return err
 		}
 	}

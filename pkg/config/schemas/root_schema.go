@@ -27,6 +27,18 @@ type RootSchema struct {
 	P2P                P2PSchema     `json:"p2p,omitempty" yaml:"p2p,omitempty"`
 }
 
+func (kc KConfig) HasEncryptedPartitions() bool {
+	return len(kc.RootSchema.Install.EncryptedPartitions) > 0
+}
+
+func (kc KConfig) EncryptedPartitions() []string {
+	return kc.RootSchema.Install.EncryptedPartitions
+}
+
+func (kc KConfig) FOBE() bool {
+	return kc.FailOnBundleErrors
+}
+
 type BBundles []BundleSchema
 
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
@@ -38,11 +50,14 @@ type BundleSchema struct {
 	Targets    []string `json:"targets,omitempty"`
 }
 
-func (rs RootSchema) GrubOptions() map[string]string {
-	var myMap map[string]string
+func (rs RootSchema) GrubOptions() (map[string]string, error) {
+	var grubOptions map[string]string
 	data, _ := json.Marshal(rs.GrubOptionsSchema)
-	json.Unmarshal(data, &myMap)
-	return myMap
+	err := json.Unmarshal(data, &grubOptions)
+	if err != nil {
+		return nil, err
+	}
+	return grubOptions, nil
 }
 
 const KDefaultHeader = "#cloud-config"
@@ -53,7 +68,6 @@ type KConfig struct {
 	parsed          interface{}
 	ValidationError error
 	SchemaType      interface{}
-	parsedSchema    interface{}
 	RootSchema
 }
 
@@ -68,12 +82,15 @@ func (kc KConfig) Header() string {
 	return strings.TrimRightFunc(header, unicode.IsSpace)
 }
 
-func (kc KConfig) KBundles() BBundles {
+func (kc KConfig) KBundles() (BBundles, error) {
 	jsonString, _ := json.Marshal(kc.Data()["bundles"])
 	bundles := []BundleSchema{}
-	json.Unmarshal(jsonString, &bundles)
+	err := json.Unmarshal(jsonString, &bundles)
+	if err != nil {
+		return nil, err
+	}
 
-	return bundles
+	return bundles, nil
 }
 
 func (kc KConfig) Options(key string) interface{} {
