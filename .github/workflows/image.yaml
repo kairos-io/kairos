@@ -288,7 +288,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: "opensuse-leap"
+          - flavor: "ubuntu"
     steps:
       - uses: actions/checkout@v3
       - name: Download artifacts
