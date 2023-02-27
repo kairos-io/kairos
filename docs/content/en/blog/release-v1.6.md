@@ -41,7 +41,7 @@ You can see AuroraBoot in action here, with [a full e2e example](https://kairos.
 
 The WebUI got several improvements, we have integrated the documentation inside the web interface, and now can be accessed also offline. The configuration schema is validated and a message is displayed if the configuration is incorrect. You can see how it works here
 
-[Screencast from 2023-02-21 15-21-29.webm](https://user-images.githubusercontent.com/433958/220372220-2e693032-24be-4de4-8539-18cfe8c5fab8.webm)
+[Screencast from 2023-02-21 15-24-59.webm](https://user-images.githubusercontent.com/433958/221510120-ce43eb66-e8c0-4b91-885e-3a213fac896b.webm)
 
 ## Other Improvements in Kairos 1.6.0
 
