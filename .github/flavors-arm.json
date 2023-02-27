@@ -1,0 +1,14 @@
+[
+    {
+       "flavor": "opensuse-leap-arm-rpi",
+       "model": "rpi64"
+    },
+    {
+        "flavor": "opensuse-tumbleweed-arm-rpi",
+        "model": "rpi64"
+    },
+    {
+        "flavor": "alpine-arm-rpi",
+        "model": "rpi64"
+    }
+]
