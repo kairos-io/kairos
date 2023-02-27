@@ -164,7 +164,6 @@ func (kc *KConfig) validate() {
 		kc.ValidationError = err
 		return
 	}
-	// fmt.Println(generatedSchemaJSON)
 
 	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
 	if err != nil {

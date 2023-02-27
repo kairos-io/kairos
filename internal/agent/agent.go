@@ -26,7 +26,6 @@ func Run(opts ...Option) error {
 	os.MkdirAll("/usr/local/.kairos", 0600) //nolint:errcheck
 
 	// Reads config
-	// c, err := config.Scan(config.Directories(o.Dir...))
 	c, err := config.KScan(config.Directories(o.Dir...))
 	if err != nil {
 		return err
