@@ -5,7 +5,6 @@ FROM $BASE_IMAGE
 
 RUN <<EOF
 zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo
-zypper ar -G https://download.opensuse.org/repositories/filesystems/15.4/filesystems.repo
 zypper ref
 EOF
 RUN zypper in -y \
@@ -83,6 +82,4 @@ RUN zypper in -y \
     which \
     wireless-tools \
     wpa_supplicant \
-    zfs \
-    zfs-kmp-default \
     which && zypper cc \

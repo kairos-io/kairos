@@ -6,7 +6,6 @@ FROM $BASE_IMAGE
 RUN <<EOF
 RUN zypper in -y
 zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo
-zypper ar -G https://download.opensuse.org/repositories/filesystems/15.4/filesystems.repo
 zypper ref
 EOF
 RUN zypper in --force-resolution -y \
@@ -67,6 +66,4 @@ RUN zypper in --force-resolution -y \
     tmux \
     vim \
     which \
-    zfs \
-    zfs-kmp-default \
     which && zypper cc

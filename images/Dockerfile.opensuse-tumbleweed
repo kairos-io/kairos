@@ -4,7 +4,6 @@ FROM $BASE_IMAGE
 
 RUN <<EOF
 zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbleweed/utilities.repo
-zypper ar -G https://download.opensuse.org/repositories/filesystems/openSUSE_Tumbleweed/filesystems.repo
 zypper ref
 EOF
 RUN zypper in --force-resolution -y \
@@ -65,7 +64,6 @@ RUN zypper in --force-resolution -y \
     tmux \
     vim \
     e2fsprogs \
-    zfs \
     which && zypper cc
 
 # workaround https://github.com/systemd/systemd/issues/12231
