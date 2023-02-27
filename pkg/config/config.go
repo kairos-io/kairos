@@ -11,7 +11,6 @@ import (
 
 	retry "github.com/avast/retry-go"
 	"github.com/imdario/mergo"
-	"github.com/itchyny/gojq"
 	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/sdk/bundles"
@@ -100,10 +99,6 @@ func (c Config) Unmarshal(o interface{}) error {
 	return yaml.Unmarshal([]byte(c.String()), o)
 }
 
-func (c Config) Data() map[string]interface{} {
-	return c.originalData
-}
-
 func (c Config) String() string {
 	if len(c.originalData) == 0 {
 		dat, err := yaml.Marshal(c)
@@ -117,40 +112,6 @@ func (c Config) String() string {
 		return AddHeader(c.header, string(dat))
 	}
 	return string(dat)
-}
-
-func (c Config) Query(s string) (res string, err error) {
-	s = fmt.Sprintf(".%s", s)
-	jsondata := map[string]interface{}{}
-
-	// c.String() takes the original data map[string]interface{} and Marshals into YAML, then here we unmarshall it again?
-	// we should be able to use c.originalData and copy it to jsondata
-	err = yaml.Unmarshal([]byte(c.String()), &jsondata)
-	if err != nil {
-		return
-	}
-	query, err := gojq.Parse(s)
-	if err != nil {
-		return res, err
-	}
-
-	iter := query.Run(jsondata) // or query.RunWithContext
-	for {
-		v, ok := iter.Next()
-		if !ok {
-			break
-		}
-		if err, ok := v.(error); ok {
-			return res, fmt.Errorf("failed parsing, error: %w", err)
-		}
-
-		dat, err := yaml.Marshal(v)
-		if err != nil {
-			break
-		}
-		res += string(dat)
-	}
-	return
 }
 
 // HasConfigURL returns true if ConfigURL has been set and false if it's empty.
@@ -168,48 +129,10 @@ func allFiles(dir []string) []string {
 	return files
 }
 
-func KScan(opts ...Option) (kc *schema.KConfig, err error) {
-	c, err := Scan(opts...)
+func scan(opts ...Option) (c *Config, kc *schema.KConfig, err error) {
 	o := &Options{}
 	if err := o.Apply(opts...); err != nil {
-		return nil, err
-	}
-
-	content, err := yaml.Marshal(c.originalData)
-	finalYAML := fmt.Sprintf("%s\n%s", c.header, content)
-
-	if !o.NoLogs && err != nil {
-		fmt.Printf("WARNING: %s\n", err.Error())
-	}
-
-	kc, err = schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
-	if err != nil {
-		if !o.NoLogs && !o.StrictValidation {
-			fmt.Printf("WARNING: %s\n", err.Error())
-		}
-
-		if o.StrictValidation {
-			return kc, fmt.Errorf("ERROR: %s", err.Error())
-		}
-	}
-
-	if !kc.IsValid() {
-		if !o.NoLogs && !o.StrictValidation {
-			fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
-		}
-
-		if o.StrictValidation {
-			return kc, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
-		}
-	}
-
-	return kc, nil
-}
-
-func Scan(opts ...Option) (c *Config, err error) {
-	o := &Options{}
-	if err := o.Apply(opts...); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	c = parseConfig(o.ScanDir, o.NoLogs)
@@ -238,7 +161,45 @@ func Scan(opts ...Option) (c *Config, err error) {
 		c.header = DefaultHeader
 	}
 
-	return c, nil
+	content, err := yaml.Marshal(c.originalData)
+	finalYAML := fmt.Sprintf("%s\n%s", c.header, content)
+
+	if !o.NoLogs && err != nil {
+		fmt.Printf("WARNING: %s\n", err.Error())
+	}
+
+	kc, err = schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
+	if err != nil {
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", err.Error())
+		}
+
+		if o.StrictValidation {
+			return c, kc, fmt.Errorf("ERROR: %s", err.Error())
+		}
+	}
+
+	if !kc.IsValid() {
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
+		}
+
+		if o.StrictValidation {
+			return c, kc, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
+		}
+	}
+
+	return c, kc, nil
+}
+
+func KScan(opts ...Option) (kc *schema.KConfig, err error) {
+	_, kc, err = scan(opts...)
+	return kc, err
+}
+
+func Scan(opts ...Option) (c *Config, err error) {
+	c, _, err = scan(opts...)
+	return c, err
 }
 
 func fileSize(f string) float64 {

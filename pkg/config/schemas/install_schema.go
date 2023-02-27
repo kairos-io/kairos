@@ -1,32 +1,25 @@
 package config
 
 import (
+	"encoding/json"
+
 	jsonschemago "github.com/swaggest/jsonschema-go"
 )
 
 // InstallSchema represents the install block in the Kairos configuration. It is used to drive automatic installations without user interaction.
 type InstallSchema struct {
-	_                   struct{}       `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
-	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
-	BindMounts          []string       `json:"bind_mounts,omitempty"`
-	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	Device              string         `json:"device,omitempty" pattern:"^(auto|/|(/[a-zA-Z0-9_-]+)+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\"]"`
-	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
-	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
-	Env                 []interface{}  `json:"env,omitempty"`
+	_                   struct{}      `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
+	Auto                bool          `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
+	BindMounts          []string      `json:"bind_mounts,omitempty"`
+	Bundles             BBundles      `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	Device              string        `json:"device,omitempty" pattern:"^(auto|/|(/[a-zA-Z0-9_-]+)+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\"]"`
+	EphemeralMounts     []string      `json:"ephemeral_mounts,omitempty"`
+	EncryptedPartitions []string      `json:"encrypted_partitions,omitempty"`
+	Env                 []interface{} `json:"env,omitempty"`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
 	SkipEncryptCopyPlugins bool `json:"skip_copy_kcrypt_plugin,omitempty"`
-}
-
-// BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
-type BundleSchema struct {
-	DB         string   `json:"db_path,omitempty"`
-	LocalFile  bool     `json:"local_file,omitempty"`
-	Repository string   `json:"repository,omitempty"`
-	Rootfs     string   `json:"rootfs_path,omitempty"`
-	Targets    []string `json:"targets,omitempty"`
 }
 
 // GrubOptionsSchema represents the grub options block which can be used in different places of the Kairos configuration. It is used to configure grub.
@@ -76,4 +69,20 @@ func (PowerManagement) JSONSchemaOneOf() []interface{} {
 	return []interface{}{
 		NoPowerManagement{}, RebootOnly{}, PowerOffOnly{},
 	}
+}
+
+type PowerAny struct {
+	Reboot   bool
+	Poweroff bool
+}
+
+func (PowerManagement) Foo() PowerAny {
+	return PowerAny{}
+}
+
+func (is InstallSchema) GrubOptions() map[string]string {
+	var myMap map[string]string
+	data, _ := json.Marshal(is.GrubOptionsSchema)
+	json.Unmarshal(data, &myMap)
+	return myMap
 }

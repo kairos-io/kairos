@@ -96,7 +96,7 @@ func Upgrade(version, image string, force, debug, strictValidations bool, dirs [
 		fmt.Printf("Upgrading to image: '%s'\n", img)
 	}
 
-	c, err := config.Scan(config.Directories(dirs...), config.StrictValidation(strictValidations))
+	c, err := config.KScan(config.Directories(dirs...), config.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}

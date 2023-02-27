@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/itchyny/gojq"
+	"github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	jsonschemago "github.com/swaggest/jsonschema-go"
 	"gopkg.in/yaml.v3"
@@ -14,16 +15,34 @@ import (
 
 // RootSchema groups all the different schemas of the Kairos configuration together.
 type RootSchema struct {
-	_                  struct{}       `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
-	Bundles            []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	ConfigURL          string         `json:"config_url,omitempty" description:"URL download configuration from."`
-	Env                []string       `json:"env,omitempty"`
-	FailOnBundleErrors bool           `json:"fail_on_bundles_errors,omitempty"`
-	GrubOptionsSchema  `json:"grub_options,omitempty"`
-	Install            InstallSchema `json:"install,omitempty"`
-	Options            []interface{} `json:"options,omitempty" description:"Various options."`
+	_                  struct{} `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
+	Bundles            BBundles `json:"bundles,omitempty" description:"Add bundles in runtime" yaml:"bundles,omitempty"`
+	ConfigURL          string   `json:"config_url,omitempty" description:"URL download configuration from." yaml:"config_url,omitempty"`
+	Env                []string `json:"env,omitempty" yaml:"env,omitempty"`
+	FailOnBundleErrors bool     `json:"fail_on_bundles_errors,omitempty" yaml:"fail_on_bundles_errors,omitempty"`
+	GrubOptionsSchema  `json:"grub_options,omitempty" yaml:"grub_options,omitempty"`
+	Install            InstallSchema `json:"install,omitempty" yaml:"install,omitempty"`
+	Options            []interface{} `json:"options,omitempty" description:"Various options." yaml:"options,omitempty"`
 	Users              []UserSchema  `json:"users,omitempty" minItems:"1" required:"true"`
-	P2P                P2PSchema     `json:"p2p,omitempty"`
+	P2P                P2PSchema     `json:"p2p,omitempty" yaml:"p2p,omitempty"`
+}
+
+type BBundles []BundleSchema
+
+// BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
+type BundleSchema struct {
+	DB         string   `json:"db_path,omitempty"`
+	LocalFile  bool     `json:"local_file,omitempty"`
+	Repository string   `json:"repository,omitempty"`
+	Rootfs     string   `json:"rootfs_path,omitempty"`
+	Targets    []string `json:"targets,omitempty"`
+}
+
+func (rs RootSchema) GrubOptions() map[string]string {
+	var myMap map[string]string
+	data, _ := json.Marshal(rs.GrubOptionsSchema)
+	json.Unmarshal(data, &myMap)
+	return myMap
 }
 
 const KDefaultHeader = "#cloud-config"
@@ -33,7 +52,9 @@ type KConfig struct {
 	Source          string
 	parsed          interface{}
 	ValidationError error
-	schemaType      interface{}
+	SchemaType      interface{}
+	parsedSchema    interface{}
+	RootSchema
 }
 
 func (kc KConfig) Header() string {
@@ -47,7 +68,7 @@ func (kc KConfig) Header() string {
 	return strings.TrimRightFunc(header, unicode.IsSpace)
 }
 
-func (kc KConfig) Bundles() []BundleSchema {
+func (kc KConfig) KBundles() BBundles {
 	jsonString, _ := json.Marshal(kc.Data()["bundles"])
 	bundles := []BundleSchema{}
 	json.Unmarshal(jsonString, &bundles)
@@ -138,11 +159,12 @@ func GenerateSchema(schemaType interface{}, url string) (string, error) {
 }
 
 func (kc *KConfig) validate() {
-	generatedSchemaJSON, err := GenerateSchema(kc.schemaType, "")
+	generatedSchemaJSON, err := GenerateSchema(kc.SchemaType, "")
 	if err != nil {
 		kc.ValidationError = err
 		return
 	}
+	// fmt.Println(generatedSchemaJSON)
 
 	sch, err := jsonschema.CompileString("schema.json", string(generatedSchemaJSON))
 	if err != nil {
@@ -179,12 +201,39 @@ func (kc *KConfig) HasHeader() bool {
 func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 	kc := &KConfig{
 		Source:     s,
-		schemaType: st,
+		SchemaType: st,
 	}
 
 	err := yaml.Unmarshal([]byte(s), &kc.parsed)
 	if err != nil {
 		return kc, err
 	}
+
+	if _, ok := kc.SchemaType.(RootSchema); ok {
+		err = yaml.Unmarshal([]byte(s), &kc.RootSchema)
+		if err != nil {
+			return kc, err
+		}
+	}
+
 	return kc, nil
+}
+
+func (b BBundles) Options() (res [][]bundles.BundleOption) {
+	for _, bundle := range b {
+		for _, t := range bundle.Targets {
+			opts := []bundles.BundleOption{bundles.WithRepository(bundle.Repository), bundles.WithTarget(t)}
+			if bundle.Rootfs != "" {
+				opts = append(opts, bundles.WithRootFS(bundle.Rootfs))
+			}
+			if bundle.DB != "" {
+				opts = append(opts, bundles.WithDBPath(bundle.DB))
+			}
+			if bundle.LocalFile {
+				opts = append(opts, bundles.WithLocalFile(true))
+			}
+			res = append(res, opts)
+		}
+	}
+	return
 }

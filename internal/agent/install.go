@@ -78,7 +78,7 @@ func ManualInstall(c string, options map[string]string, strictValidations bool) 
 		return err
 	}
 
-	cc, err := config.Scan(config.Directories(dir), config.MergeBootLine, config.StrictValidation(strictValidations))
+	cc, err := config.KScan(config.Directories(dir), config.MergeBootLine, config.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}
@@ -123,8 +123,8 @@ func Install(dir ...string) error {
 
 	// Reads config, and if present and offline is defined,
 	// runs the installation
-	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine, config.NoLogs)
-	if err == nil && cc.Install != nil && cc.Install.Auto {
+	cc, err := config.KScan(config.Directories(dir...), config.MergeBootLine, config.NoLogs)
+	if err == nil && cc.Install.Auto {
 		r["cc"] = cc.String()
 		r["device"] = cc.Install.Device
 		mergeOption(cc.String())

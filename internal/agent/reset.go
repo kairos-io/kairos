@@ -72,7 +72,7 @@ func Reset(dir ...string) error {
 		args = append(args, "--reset-persistent")
 	}
 
-	c, err := config.Scan(config.Directories(dir...))
+	c, err := config.KScan(config.Directories(dir...))
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func Reset(dir ...string) error {
 		os.Exit(1)
 	}
 
-	if err := hook.Run(*c, hook.AfterReset...); err != nil {
+	if err := hook.KRun(*c, hook.AfterReset...); err != nil {
 		return err
 	}
 

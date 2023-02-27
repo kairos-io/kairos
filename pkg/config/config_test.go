@@ -176,8 +176,8 @@ config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab2926857
 			c, err := KScan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
-			Expect(len(c.Bundles())).To(Equal(1))
-			Expect(c.Bundles()[0].Targets[0]).To(Equal("package:utils/edgevpn"))
+			Expect(len(c.KBundles())).To(Equal(1))
+			Expect(c.KBundles()[0].Targets[0]).To(Equal("package:utils/edgevpn"))
 			Expect(c.String()).ToNot(Equal(cc))
 		})
 
@@ -193,8 +193,8 @@ config_url: "https://gist.githubusercontent.com/mudler/7e3d0426fce8bfaaeb2644f83
 			c, err := KScan(Directories(d), NoLogs, StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
-			Expect(len(c.Bundles())).To(Equal(1))
-			Expect(c.Bundles()[0].Targets[0]).To(Equal("package:utils/edgevpn"))
+			Expect(len(c.KBundles())).To(Equal(1))
+			Expect(c.KBundles()[0].Targets[0]).To(Equal("package:utils/edgevpn"))
 			Expect(c.String()).ToNot(Equal(cc))
 
 			headerCheck(c)

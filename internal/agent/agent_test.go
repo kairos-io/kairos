@@ -28,7 +28,6 @@ var _ = Describe("Bootstrap provider", func() {
 			defer os.RemoveAll(f)
 
 			wd, _ := os.Getwd()
-			fmt.Println(wd)
 			os.WriteFile(filepath.Join(wd, "agent-provider-test"), []byte(testProvider), 0655)
 
 			defer os.RemoveAll(filepath.Join(wd, "agent-provider-test"))

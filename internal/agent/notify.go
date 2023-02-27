@@ -12,7 +12,7 @@ import (
 func Notify(event string, dirs []string) error {
 	bus.Manager.Initialize()
 
-	c, err := config.Scan(config.Directories(dirs...))
+	c, err := config.KScan(config.Directories(dirs...))
 	if err != nil {
 		return err
 	}

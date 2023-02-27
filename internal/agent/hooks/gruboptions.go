@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	config "github.com/kairos-io/kairos/pkg/config"
+	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 	"github.com/kairos-io/kairos/sdk/system"
 )
 
@@ -17,10 +18,26 @@ func (b GrubOptions) Run(c config.Config) error {
 	return nil
 }
 
+func (b GrubOptions) KRun(kc schema.KConfig) error {
+	err := system.Apply(system.SetGRUBOptions(kc.Install.GrubOptions()))
+	if err != nil {
+		fmt.Println(err)
+	}
+	return nil
+}
+
 type GrubPostInstallOptions struct{}
 
 func (b GrubPostInstallOptions) Run(c config.Config) error {
 	err := system.Apply(system.SetGRUBOptions(c.GrubOptions))
+	if err != nil {
+		fmt.Println(err)
+	}
+	return nil
+}
+
+func (b GrubPostInstallOptions) KRun(kc schema.KConfig) error {
+	err := system.Apply(system.SetGRUBOptions(kc.GrubOptions()))
 	if err != nil {
 		fmt.Println(err)
 	}

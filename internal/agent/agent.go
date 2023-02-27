@@ -26,14 +26,15 @@ func Run(opts ...Option) error {
 	os.MkdirAll("/usr/local/.kairos", 0600) //nolint:errcheck
 
 	// Reads config
-	c, err := config.Scan(config.Directories(o.Dir...))
+	// c, err := config.Scan(config.Directories(o.Dir...))
+	c, err := config.KScan(config.Directories(o.Dir...))
 	if err != nil {
 		return err
 	}
 
 	utils.SetEnv(c.Env)
 	bf := machine.BootFrom()
-	if c.Install != nil && c.Install.Auto && (bf == machine.NetBoot || bf == machine.LiveCDBoot) {
+	if c.Install.Auto && (bf == machine.NetBoot || bf == machine.LiveCDBoot) {
 		// Don't go ahead if we are asked to install from a booting live medium
 		fmt.Println("Agent run aborted. Installation being performed from live medium")
 		return nil
@@ -65,7 +66,7 @@ func Run(opts ...Option) error {
 
 	if !machine.SentinelExist("firstboot") {
 
-		if err := hook.Run(*c, hook.FirstBoot...); err != nil {
+		if err := hook.KRun(*c, hook.FirstBoot...); err != nil {
 			return err
 		}
 
@@ -77,7 +78,7 @@ func Run(opts ...Option) error {
 		}
 
 		// Re-read config files
-		c, err = config.Scan(config.Directories(o.Dir...))
+		c, err = config.KScan(config.Directories(o.Dir...))
 		if err != nil {
 			return err
 		}

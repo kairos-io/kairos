@@ -2,10 +2,12 @@ package hook
 
 import (
 	config "github.com/kairos-io/kairos/pkg/config"
+	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 )
 
 type Interface interface {
 	Run(c config.Config) error
+	KRun(c schema.KConfig) error
 }
 
 var AfterInstall = []Interface{
@@ -29,6 +31,15 @@ var FirstBoot = []Interface{
 func Run(c config.Config, hooks ...Interface) error {
 	for _, h := range hooks {
 		if err := h.Run(c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func KRun(kc schema.KConfig, hooks ...Interface) error {
+	for _, h := range hooks {
+		if err := h.KRun(kc); err != nil {
 			return err
 		}
 	}
