@@ -20,6 +20,7 @@ type BundleConfig struct {
 	DBPath     string
 	RootPath   string
 	LocalFile  bool
+	Upgrade    bool
 }
 
 // BundleOption defines a configuration option for a bundle.
@@ -68,6 +69,13 @@ func WithTarget(p string) BundleOption {
 func WithLocalFile(p bool) BundleOption {
 	return func(bc *BundleConfig) error {
 		bc.LocalFile = p
+		return nil
+	}
+}
+
+func WithUpgrade(p bool) BundleOption {
+	return func(bc *BundleConfig) error {
+		bc.Upgrade = p
 		return nil
 	}
 }
@@ -212,6 +220,8 @@ type LuetInstaller struct{}
 
 func (l *LuetInstaller) Install(config *BundleConfig) error {
 
+	action := "install"
+
 	t, repo, err := config.extractRepo()
 	if err != nil {
 		return err
@@ -234,16 +244,28 @@ func (l *LuetInstaller) Install(config *BundleConfig) error {
 		return fmt.Errorf("could not add repository: %w - %s", err, out)
 	}
 
+	if config.Upgrade {
+		action = "upgrade"
+
+		out, err = utils.SH(
+			`LUET_CONFIG_FROM_HOST=false luet repo update`,
+		)
+		if err != nil {
+			return fmt.Errorf("could not update repo: %w %s", err, out)
+		}
+	}
+
 	out, err = utils.SH(
 		fmt.Sprintf(
-			`LUET_CONFIG_FROM_HOST=false luet install -y  --system-dbpath %s --system-target %s %s`,
+			`LUET_CONFIG_FROM_HOST=false luet %s -y  --system-dbpath %s --system-target %s %s`,
+			action,
 			config.DBPath,
 			config.RootPath,
 			config.Target,
 		),
 	)
 	if err != nil {
-		return fmt.Errorf("could not install bundle: %w - %s", err, out)
+		return fmt.Errorf("could not %s bundle: %w - %s", action, err, out)
 	}
 
 	// copy bins to /usr/local/bin
