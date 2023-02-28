@@ -1,5 +1,4 @@
 common:
-  - system/base-cloud-config
   - dracut/immutable-rootfs
   - dracut/kcrypt
   - static/grub-config

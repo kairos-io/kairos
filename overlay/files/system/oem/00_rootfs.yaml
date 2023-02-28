@@ -1,0 +1,40 @@
+# Rootfs Kairos OEM configuration file
+#
+# This file is part of Kairos and will get reset during upgrades.
+#
+# Before you change this file manually,
+# consider copying this file to /usr/local/cloud-config or
+# copy the file with a prefix starting by 90, e.g. /oem/91_custom.yaml
+name: "Rootfs Layout Settings"
+stages:
+  rootfs.before:
+    - name: "Pull data from provider"
+      datasource:
+        providers: ["aws", "gcp", "openstack", "cdrom"]
+        path: "/oem"
+  rootfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+      name: "Layout configuration"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
+        OVERLAY: "tmpfs:25%"
+    - if: '[ -f "/run/cos/recovery_mode" ]'
+      # omit the persistent partition on recovery mode
+      name: "Layout configuration"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        VOLUMES: "LABEL=COS_OEM:/oem"
+        OVERLAY: "tmpfs:25%"
+  initramfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+      name: "Persist /etc/machine-id"
+      commands:
+      - |
+        # persist machine-id
+        if [ -s /usr/local/etc/machine-id ]; then
+          cat /usr/local/etc/machine-id > /etc/machine-id
+        else
+          mkdir -p /usr/local/etc
+          cp /etc/machine-id /usr/local/etc
+        fi

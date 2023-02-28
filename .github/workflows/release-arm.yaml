@@ -1,27 +1,42 @@
----
-name: 'Build arm images'
-
+name: Build arm images
 on:
   push:
     tags:
       - '*'
-
 jobs:
+  get-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
+      - id: set-matrix
+        run: |
+          content=`cat ./.github/flavors-arm.json`
+          # the following lines are only required for multi line json
+          # the following lines are only required for multi line json
+          # the following lines are only required for multi line json
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          # end of optional handling for multi line json
+          # end of optional handling for multi line json
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
   docker:
     runs-on: ubuntu-latest
+    needs:
+      - get-matrix
     permissions:
-      id-token: write  # OIDC support
+      id-token: write
       contents: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - flavor: "opensuse-leap-arm-rpi"
-            model: rpi64
-          - flavor: "opensuse-tumbleweed-arm-rpi"
-            model: rpi64
-          - flavor: "alpine-arm-rpi"
-            model: rpi64
+      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
         run: |
@@ -39,7 +54,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
-
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
@@ -68,8 +82,8 @@ jobs:
           cosign sign quay.io/kairos/core-${{ matrix.flavor }}:$TAG
       - name: Export version
         run: |
-             TAG=${GITHUB_REF##*/}
-             echo "VERSION=$TAG" >> $GITHUB_ENV
+          TAG=${GITHUB_REF##*/}
+          echo "VERSION=$TAG" >> $GITHUB_ENV
       - name: Upload Image
         if: startsWith(github.ref, 'refs/tags/')
         run: |

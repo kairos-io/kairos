@@ -1,0 +1,32 @@
+[
+    {
+       "flavor": "opensuse-leap"
+    },
+    {
+       "flavor": "opensuse-tumbleweed"
+    },
+    {
+        "flavor": "ubuntu"
+    },
+    {
+        "flavor": "ubuntu-20-lts"
+    },
+    {
+        "flavor": "ubuntu-22-lts"
+    },
+    {
+        "flavor": "alpine-ubuntu"
+    },
+    {
+        "flavor": "alpine-opensuse-leap"
+    },
+    {
+        "flavor": "fedora"
+    },
+    {
+        "flavor": "debian"
+    },
+    {
+        "flavor": "rockylinux"
+    }
+]

@@ -1,0 +1,18 @@
+# Before you change this file manually,
+# consider copying this file to /usr/local/cloud-config or
+#
+# This file is part of Kairos and will get reset during upgrades.
+# Rootfs Kairos OEM configuration file
+# copy the file with a prefix starting by 90, e.g. /oem/91_custom.yaml
+name: LiveCD Detection
+stages:
+  rootfs.before:
+    - if: |
+        cat /proc/cmdline | grep -q "CDLABEL" || cat /proc/cmdline | grep -q "rd.cos.disable"
+      name: Identify live mode
+      files:
+        - path: /run/cos/live_mode
+          content: '1'
+          permissions: 0600
+          owner: 0
+          group: 0
