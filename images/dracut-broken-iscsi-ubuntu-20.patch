@@ -1,0 +1,28 @@
+diff --git a/module-setup.sh b/module-setup.sh
+index 59ea5e089..fe40547d1 100755
+--- a/module-setup.sh
++++ b/module-setup.sh
+@@ -265,6 +265,23 @@ install() {
+             echo "After=dracut-cmdline.service"
+             echo "Before=dracut-initqueue.service"
+         ) > "${initdir}/$systemdsystemunitdir/iscsid.service.d/dracut.conf"
++
++        # The iscsi deamon does not need to wait for any storage inside initrd
++        mkdir -p "${initdir}/$systemdsystemunitdir/iscsid.socket.d"
++        (
++            echo "[Unit]"
++            echo "DefaultDependencies=no"
++            echo "Conflicts=shutdown.target"
++            echo "Before=shutdown.target sockets.target"
++        ) > "${initdir}/$systemdsystemunitdir/iscsid.socket.d/dracut.conf"
++        mkdir -p "${initdir}/$systemdsystemunitdir/iscsuio.socket.d"
++        (
++            echo "[Unit]"
++            echo "DefaultDependencies=no"
++            echo "Conflicts=shutdown.target"
++            echo "Before=shutdown.target sockets.target"
++        ) > "${initdir}/$systemdsystemunitdir/iscsuio.socket.d/dracut.conf"
++
+     fi
+     inst_dir /var/lib/iscsi
+     dracut_need_initqueue
