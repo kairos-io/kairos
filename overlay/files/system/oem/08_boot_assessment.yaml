@@ -16,9 +16,9 @@ stages:
     # System sentinel to /run to indicate if we are booting after a failed upgrade.
     # This needs to run only on the active partition.
     # To note, we could similarly enable boot assessment always, also besides upgrades.
-    # In this case it is enough to reset only boot_assessment_tentative here, and set 
+    # In this case it is enough to reset only boot_assessment_tentative here, and set
     # enable_boot_assessment to 'yes'.
-    # This can be then customized easily by having a cloud-config file which always enables boot assessment on 
+    # This can be then customized easily by having a cloud-config file which always enables boot assessment on
     # the boot stage.
     - name: "Remove GRUB sentinels"
       if: |
@@ -72,15 +72,14 @@ stages:
     # A boot is considered failed when both sentinel are present ( upgrade triggered, tentative ).
     # The tentative sentinel is set after an upgrade was triggered.
     # This configuration is separated so it can be tracked separately from the install hook
-    # 
     - &bootgrub
       name: "Add boot assessment grub configuration"
       files:
-       - path: "/tmp/mnt/STATE/grub_boot_assessment"
-         owner: 0
-         group: 0
-         permsisions: 0600
-         content: |
+      - path: "/tmp/mnt/STATE/grub_boot_assessment"
+        owner: 0
+        group: 0
+        permsisions: 0600
+        content: |
             set extra_active_cmdline="rd.emergency=reboot rd.shell=0 panic=5 systemd.crash_reboot systemd.crash_shell=0"
             set boot_assessment="/boot_assessment"
             search --no-floppy --file --set=boot_assessment_blk "${boot_assessment}"

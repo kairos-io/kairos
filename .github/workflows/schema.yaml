@@ -14,13 +14,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          ref: master  # change to schematest (or your branch name) if you're testing against a branch
+          ref: master
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
       - name: Install Go
         uses: actions/setup-go@v3
         with:
-          go-version: '^1.18'
+          go-version: ^1.18
       - name: Generate cloud-config Schema
         run: |
           ./earthly.sh +generate-schema
@@ -32,9 +32,9 @@ jobs:
         with:
           token: ${{ secrets.PAT_TOKEN }}
           push-to-fork: ci-robbot/c3os
-          base: master  # change to schematest (or your branch name) if you're testing against a branch
+          base: master
           branch: cloud-config-schema-updates
-          commit-message: ":book: Update Schema"
-          title: ":book: Update Schema"
-          body: "Update latest cloud config schema release"
+          commit-message: ':book: Update Schema'
+          title: ':book: Update Schema'
+          body: Update latest cloud config schema release
           signoff: true

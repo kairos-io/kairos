@@ -8,21 +8,21 @@
 name: "Recovery partition boot setup"
 stages:
    rootfs.before:
-     - if: |
-            [ -n "$(blkid -L COS_SYSTEM || true)" ] || cat /proc/cmdline | grep -q "COS_RECOVERY"
-       name: "Identify recovery mode"
-       files:
-       - path: /run/cos/recovery_mode
-         content: "1"
-         permissions: 0600
-         owner: 0
-         group: 0
+   - if: |
+         [ -n "$(blkid -L COS_SYSTEM || true)" ] || cat /proc/cmdline | grep -q "COS_RECOVERY"
+     name: "Identify recovery mode"
+     files:
+     - path: /run/cos/recovery_mode
+       content: "1"
+       permissions: 0600
+       owner: 0
+       group: 0
    boot:
-     - name: "Recovery"
-       if: '[ -f "/run/cos/recovery_mode" ]'
-       hostname: "cos-recovery"
-       commands:
-       - |
+   - name: "Recovery"
+     if: '[ -f "/run/cos/recovery_mode" ]'
+     hostname: "cos-recovery"
+     commands:
+     - |
             source /etc/os-release
             echo >> /etc/issue
             echo "You are booting from recovery mode. Run 'cos-reset' to reset the system to $VERSION" >> /etc/issue

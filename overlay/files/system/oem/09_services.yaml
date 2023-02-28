@@ -4,9 +4,9 @@
 
 name: "Default config"
 stages:
-   initramfs:
-     - name: "Default systemd config"
-       if: '[ -e "/sbin/systemctl" ] || [ -e "/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
-       systemctl:
-        enable:
-        - systemd-timesyncd
+  initramfs:
+  - name: "Default systemd config"
+    if: '[ -e "/sbin/systemctl" ] || [ -e "/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+    systemctl:
+      enable:
+      - systemd-timesyncd
