@@ -229,11 +229,12 @@ framework:
     COPY . /build
 
     # Copy flavor-specific overlay files
-    IF [[ "$FLAVOR" =~ "alpine" ]]
+    IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
         COPY overlay/files-alpine/ /
     END
     
     IF [ "$FLAVOR" = "alpine-arm-rpi" ]
+        COPY overlay/files-alpine/ /
         COPY overlay/files-opensuse-arm-rpi/ /
     ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
         COPY overlay/files-opensuse-arm-rpi/ /
