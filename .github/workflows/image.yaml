@@ -18,15 +18,8 @@ jobs:
           git fetch --prune --unshallow
       - id: set-matrix
         run: |
-          content=`cat ./.github/flavors.json`
-          # the following lines are only required for multi line json
-          # the following lines are only required for multi line json
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          # end of optional handling for multi line json
-          # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
+          content=`jq -c "{include: map( .flavor)}" .github/flavors.json`
+          echo "::set-output name=matrix::$content"
   build:
     runs-on: ubuntu-latest
     needs:
@@ -103,6 +96,7 @@ jobs:
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
   build-framework:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     needs:
       - get-matrix
     runs-on: ubuntu-latest
