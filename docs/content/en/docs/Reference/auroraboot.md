@@ -501,6 +501,10 @@ docker run -v $PWD/config.yaml:/config.yaml \
              --set "state_dir=/tmp/auroraboot"
 ```
 
+### Prepare ISO for Airgap installations
+
+See the [Airgap example](/docs/examples/airgap)in the [examples section](/docs/examples).
+
 ### Netboot with core images from Github releases
 
 ```bash
