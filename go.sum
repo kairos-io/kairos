@@ -146,6 +146,8 @@ github.com/kairos-io/kcrypt v0.5.1 h1:aKuhmfB/7/UamJN8XL5Ky49FXgcju3KXHPrh7DzoES
 github.com/kairos-io/kcrypt v0.5.1/go.mod h1:RGgYNj0S2G42eJuDYjIjaSshp+zkgADWQPtIMB89V6o=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 h1:qq2nCpSrXrmvDGRxW0ruW9BVEV1CN2a9YDOExdt+U0o=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329/go.mod h1:2VPVQDR4wO7KXHwP+DAypEy67rXf+okUx2zjgpCxZw4=
+github.com/kendru/darwin/go/depgraph v0.0.0-20221105232959-877d6a81060c h1:eKb4PqwAMhlqwXw0W3atpKaYaPGlXE/Fwh+xpCEYaPk=
+github.com/kendru/darwin/go/depgraph v0.0.0-20221105232959-877d6a81060c/go.mod h1:VOfm8h1NySetVlpHDSnbpCMsvCgYaU+YDn4XezUy2+4=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/cpuid/v2 v2.0.9/go.mod h1:FInQzS24/EEf25PyTYn52gqo7WaD8xa0213Md/qVLRg=
@@ -154,6 +156,9 @@ github.com/klauspost/cpuid/v2 v2.0.12/go.mod h1:g2LTdtYhdyuGPqyWyv7qRAmj1WBqxuOb
 github.com/klauspost/cpuid/v2 v2.2.0 h1:4ZexSFt8agMNzNisrsilL6RClWDC5YJnLHNIfTy4iuc=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
+github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
+github.com/kr/pretty v0.2.1 h1:Fmg33tUaq4/8ym9TJN1x7sLJnHVwhP33CNkpYV/7rwI=
+github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
@@ -261,6 +266,8 @@ github.com/sergi/go-diff v1.2.0 h1:XU+rvMAioB0UC3q1MFrIQy4Vo5/4VsRDQQXHsEya6xQ=
 github.com/sergi/go-diff v1.2.0/go.mod h1:STckp+ISIX8hZLjrqAeVduY0gWCT9IjLuqbuNXdaHfM=
 github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e h1:MRM5ITcdelLK2j1vwZ3Je0FKVCfqOLp5zO6trqMLYs0=
 github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e/go.mod h1:XV66xRDqSt+GTGFMVlhk3ULuV0y9ZmzeVGR4mloJI3M=
+github.com/spectrocloud-labs/herd v0.3.0 h1:n/VmHC/3NKfteYhiBonlFtohMRiMGuc6in0krqkyWMw=
+github.com/spectrocloud-labs/herd v0.3.0/go.mod h1:RHPSzrH+Jd05+ewEpqk8ZgBgTsnHN8erkxwRdQAiw3Q=
 github.com/spectrocloud/peg v0.0.0-20230210110137-1780ceedb1e5 h1:FpiQEFnh1nLRqjelPEOJtppLiL2vj1cQk2p7X8KHgPE=
 github.com/spectrocloud/peg v0.0.0-20230210110137-1780ceedb1e5/go.mod h1:YMaL3lRGnHWV5lfAorzH1dTwc5BL7gU0ILLYbS6elPw=
 github.com/spf13/cobra v0.0.3/go.mod h1:1l0Ry5zgKvJasoi3XT1TypsSe7PqH0Sj9dhYf7v3XqQ=
@@ -303,6 +310,8 @@ github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 h1:BHyfKlQyqbsFN5p3Ifn
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
+github.com/zcalusic/sysinfo v0.9.5 h1:ivoHyj9aIAYkwzo1+8QgJ5s4oeE6Etx9FmZtqa4wJjQ=
+github.com/zcalusic/sysinfo v0.9.5/go.mod h1:Z/gPVufBrFc8X5sef3m6kkw3r3nlNFp+I6bvASfvBZQ=
 go.uber.org/atomic v1.6.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=
 go.uber.org/atomic v1.7.0/go.mod h1:fEN4uk6kAWBTFdckzkM89CLk9XfWZrxpCo0nPH17wJc=
 go.uber.org/atomic v1.10.0 h1:9qC72Qh0+3MqyJbAn8YU5xVq1frD8bn3JtD2oXtafVQ=

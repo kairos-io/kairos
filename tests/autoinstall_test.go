@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/types"
 	. "github.com/spectrocloud/peg/matcher"
 )
 
@@ -16,6 +17,16 @@ var stateAssert = func(query, expected string) {
 	out, err := Sudo(fmt.Sprintf("kairos-agent state get %s", query))
 	ExpectWithOffset(1, err).ToNot(HaveOccurred())
 	ExpectWithOffset(1, out).To(ContainSubstring(expected))
+}
+
+var stateContains = func(query string, expected ...string) {
+	or := []types.GomegaMatcher{}
+	for _, e := range expected {
+		or = append(or, ContainSubstring(e))
+	}
+	out, err := Sudo(fmt.Sprintf("kairos-agent state get %s", query))
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	ExpectWithOffset(1, strings.ToLower(out)).To(Or(or...))
 }
 
 var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
@@ -175,6 +186,8 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			fmt.Println(out)
 			Expect(out).To(ContainSubstring("boot: active_boot"))
+			currentVersion, err := Machine.Command("source /etc/os-release; echo $VERSION")
+			Expect(err).ToNot(HaveOccurred())
 
 			stateAssert("oem.mounted", "true")
 			stateAssert("oem.found", "true")
@@ -190,6 +203,9 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			stateAssert("oem.read_only", "false")
 			stateAssert("persistent.read_only", "false")
 			stateAssert("state.read_only", "true")
+			stateContains("system.os.name", "alpine", "opensuse", "ubuntu", "debian")
+			stateContains("kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
+			stateAssert("kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
 		})
 	})
 })

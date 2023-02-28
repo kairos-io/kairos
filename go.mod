@@ -25,10 +25,12 @@ require (
 	github.com/pterm/pterm v0.12.54
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
+	github.com/spectrocloud-labs/herd v0.3.0
 	github.com/spectrocloud/peg v0.0.0-20230210110137-1780ceedb1e5
 	github.com/swaggest/jsonschema-go v0.3.47
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/urfave/cli/v2 v2.24.4
+	github.com/zcalusic/sysinfo v0.9.5
 	golang.org/x/net v0.7.0
 	golang.org/x/oauth2 v0.5.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
@@ -73,6 +75,8 @@ require (
 	github.com/jaypipes/pcidb v1.0.0 // indirect
 	github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240 // indirect
 	github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 // indirect
+	github.com/kendru/darwin/go/depgraph v0.0.0-20221105232959-877d6a81060c // indirect
+	github.com/kr/pretty v0.2.1 // indirect
 	github.com/labstack/gommon v0.4.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.5 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
