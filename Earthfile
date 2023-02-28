@@ -228,22 +228,6 @@ framework:
 
     COPY . /build
 
-    # Copy flavor-specific overlay files
-    IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
-        COPY overlay/files-alpine/ /
-    END
-    
-    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
-        COPY overlay/files-alpine/ /
-        COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
-        COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
-        COPY overlay/files-fedora/ /
-    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
-        COPY overlay/files-ubuntu/ /
-    END
-
     RUN go run -ldflags "${LDFLAGS}" ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
 
     # Copy kairos binaries
@@ -251,7 +235,25 @@ framework:
     COPY +luet/luet /framework/usr/bin/luet
 
     RUN luet cleanup --system-target /framework
+
+    # Copy overlay files
     COPY overlay/files /framework
+    # Copy flavor-specific overlay files
+    IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
+        COPY overlay/files-alpine/ /framework
+    END
+    
+    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
+        COPY overlay/files-alpine/ /framework
+        COPY overlay/files-opensuse-arm-rpi/ /framework
+    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
+        COPY overlay/files-opensuse-arm-rpi/ /framework
+    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+        COPY overlay/files-fedora/ /framework
+    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+        COPY overlay/files-ubuntu/ /framework
+    END
+
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
     SAVE ARTIFACT --keep-own /framework/ framework
