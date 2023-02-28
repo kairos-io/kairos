@@ -1,5 +1,4 @@
 common:
-  - system/base-cloud-config
   - dracut/immucore
   - dracut/kcrypt
   - static/grub-config

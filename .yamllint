@@ -13,3 +13,9 @@ rules:
   #                 - item
   indentation:
     indent-sequences: whatever
+
+  truthy:
+    check-keys: false
+
+  document-start:
+    present: false

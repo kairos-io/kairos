@@ -8,7 +8,8 @@ stages:
         - rc-service qemu-guest-agent start
     - name: "Enable QEMU"
       if: |
-          grep -iE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name && ( [ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] )
+          grep -iE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name && \
+          ( [ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] )
       commands:
         - systemctl start qemu-guest-agent
     - name: "Enable VBOX"
@@ -18,6 +19,7 @@ stages:
         - rc-service open-vm-tools start
     - name: "Enable V"
       if: |
-          grep -iE "Virtualbox" /sys/class/dmi/id/product_name && ( [ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] )
+          grep -iE "Virtualbox" /sys/class/dmi/id/product_name && \
+          ( [ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] )
       commands:
         - systemctl start vmtoolsd
