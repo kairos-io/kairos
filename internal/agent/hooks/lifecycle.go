@@ -19,12 +19,13 @@ func (s Lifecycle) Run(c config.Config) error {
 	return nil
 }
 
+// KRun is a temporary function that does the same as Run. It will be removed as soon as the transition from config.Config to schema.KConfig is finished.
 func (s Lifecycle) KRun(c schema.KConfig) error {
-	if c.Install.Foo().Reboot {
+	if c.Install.Power().Reboot {
 		utils.Reboot()
 	}
 
-	if c.Install.Foo().Poweroff {
+	if c.Install.Power().Poweroff {
 		utils.PowerOFF()
 	}
 	return nil

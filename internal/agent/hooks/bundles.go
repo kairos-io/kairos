@@ -30,6 +30,7 @@ func (b BundleOption) Run(c config.Config) error {
 	return nil
 }
 
+// KRun is a temporary function that does the same as Run. It will be removed as soon as the transition from config.Config to schema.KConfig is finished.
 func (b BundleOption) KRun(kc schema.KConfig) error {
 
 	machine.Mount("COS_PERSISTENT", "/usr/local") //nolint:errcheck
@@ -62,6 +63,7 @@ func (b BundlePostInstall) Run(c config.Config) error {
 	return nil
 }
 
+// KRun is a temporary function that does the same as Run. It will be removed as soon as the transition from config.Config to schema.KConfig is finished.
 func (b BundlePostInstall) KRun(kc schema.KConfig) error {
 	opts := kc.Bundles.Options()
 	err := bundles.RunBundles(opts...)

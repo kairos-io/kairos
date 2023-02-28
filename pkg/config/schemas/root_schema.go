@@ -27,14 +27,17 @@ type RootSchema struct {
 	P2P                P2PSchema     `json:"p2p,omitempty" yaml:"p2p,omitempty"`
 }
 
+// HasEncryptedPartitions is a temporary function introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
 func (kc KConfig) HasEncryptedPartitions() bool {
 	return len(kc.RootSchema.Install.EncryptedPartitions) > 0
 }
 
+// EncryptedPartitions is a temporary function introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
 func (kc KConfig) EncryptedPartitions() []string {
 	return kc.RootSchema.Install.EncryptedPartitions
 }
 
+// FOBE is a temporary function introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
 func (kc KConfig) FOBE() bool {
 	return kc.FailOnBundleErrors
 }
@@ -50,6 +53,7 @@ type BundleSchema struct {
 	Targets    []string `json:"targets,omitempty"`
 }
 
+// GrubOptions returns a map with all the grub options from the root schema
 func (rs RootSchema) GrubOptions() (map[string]string, error) {
 	var grubOptions map[string]string
 	data, _ := json.Marshal(rs.GrubOptionsSchema)
@@ -71,6 +75,7 @@ type KConfig struct {
 	RootSchema
 }
 
+// Header returns the parsed header of a config file or the default header if none.
 func (kc KConfig) Header() string {
 	if !kc.HasHeader() {
 		return KDefaultHeader
@@ -82,6 +87,7 @@ func (kc KConfig) Header() string {
 	return strings.TrimRightFunc(header, unicode.IsSpace)
 }
 
+// KBundles is a temporary function while transitioning from Config to KConfig. It will be removed or at least renamed when the transition is finished.
 func (kc KConfig) KBundles() (BBundles, error) {
 	jsonString, _ := json.Marshal(kc.Data()["bundles"])
 	bundles := []BundleSchema{}
@@ -93,12 +99,14 @@ func (kc KConfig) KBundles() (BBundles, error) {
 	return bundles, nil
 }
 
+// Options returns the options parsed from a KConfig
 func (kc KConfig) Options(key string) interface{} {
 	options := kc.Data()["options"]
 
 	return options.(map[string]interface{})[key]
 }
 
+// String returns the parsed config file in its original format.
 func (kc KConfig) String() string {
 	if len(kc.parsed.(map[string]interface{})) == 0 {
 		dat, err := yaml.Marshal(kc)
@@ -111,14 +119,17 @@ func (kc KConfig) String() string {
 	return fmt.Sprintf("%s\n%s", kc.Header(), string(dat))
 }
 
+// Unmarshal returns the unmarshaled version of the cloud config source.
 func (kc KConfig) Unmarshal(o interface{}) error {
 	return yaml.Unmarshal([]byte(kc.String()), o)
 }
 
+// Data returns a map from the parsed data.
 func (kc KConfig) Data() map[string]interface{} {
 	return kc.parsed.(map[string]interface{})
 }
 
+// Query finds a key in teh configuration.
 func (kc KConfig) Query(s string) (res string, err error) {
 	s = fmt.Sprintf(".%s", s)
 	jsondata := map[string]interface{}{}
@@ -235,6 +246,7 @@ func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 	return kc, nil
 }
 
+// Options loops through the defined bundles and returns their options.
 func (b BBundles) Options() (res [][]bundles.BundleOption) {
 	for _, bundle := range b {
 		for _, t := range bundle.Targets {

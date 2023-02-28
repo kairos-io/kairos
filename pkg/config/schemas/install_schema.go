@@ -76,7 +76,8 @@ type PowerAny struct {
 	Poweroff bool
 }
 
-func (PowerManagement) Foo() PowerAny {
+// Power still needs to be manually tested, it was just added to make the access to the Power struct easy, but probably is not doing what's expected.
+func (PowerManagement) Power() PowerAny {
 	return PowerAny{}
 }
 

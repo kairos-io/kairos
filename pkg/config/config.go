@@ -52,18 +52,22 @@ type Config struct {
 	Env                []string          `yaml:"env,omitempty"`
 }
 
+// HasEncryptedPartitions is a temporary function introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
 func (c Config) HasEncryptedPartitions() bool {
 	return len(c.Install.Encrypt) > 0
 }
 
+// EncryptedPartitions is a temporary function introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
 func (c Config) EncryptedPartitions() []string {
 	return c.Install.Encrypt
 }
 
+// FOBE is a temporary function introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
 func (c Config) FOBE() bool {
 	return c.FailOnBundleErrors
 }
 
+// Configuration is a temporary interface introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
 type Configuration interface {
 	EncryptedPartitions() []string
 	HasEncryptedPartitions() bool
@@ -210,11 +214,13 @@ func scan(opts ...Option) (c *Config, kc *schema.KConfig, err error) {
 	return c, kc, nil
 }
 
+// KScan is a temporary function that does the same as Scan. It will be removed as soon as the transition from config.Config to schema.KConfig is finished.
 func KScan(opts ...Option) (kc *schema.KConfig, err error) {
 	_, kc, err = scan(opts...)
 	return kc, err
 }
 
+// Scan is used to scan cloud config yaml files into a Config type.
 func Scan(opts ...Option) (c *Config, err error) {
 	c, _, err = scan(opts...)
 	return c, err

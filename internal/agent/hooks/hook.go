@@ -37,6 +37,7 @@ func Run(c config.Config, hooks ...Interface) error {
 	return nil
 }
 
+// KRun is a temporary function that does the same as Run. It will be removed as soon as the transition from config.Config to schema.KConfig is finished.
 func KRun(kc schema.KConfig, hooks ...Interface) error {
 	for _, h := range hooks {
 		if err := h.KRun(kc); err != nil {
