@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/itchyny/gojq"
@@ -53,16 +54,48 @@ type Runtime struct {
 	Kairos     Kairos          `yaml:"kairos" json:"kairos"`
 }
 
+type FndMnt struct {
+	Filesystems []struct {
+		Target    string `json:"target,omitempty"`
+		FsOptions string `json:"fs-options,omitempty"`
+	} `json:"filesystems,omitempty"`
+}
+
 func detectPartition(b *block.Partition) PartitionState {
+	// If mountpoint seems empty, try to get the mountpoint of the partition label also the RO status
+	// This is a current shortcoming of ghw which only identifies mountpoints via device, not by label/uuid/anything else
+	mountpoint := b.MountPoint
+	readOnly := b.IsReadOnly
+	if b.MountPoint == "" && b.Label != "" {
+		out, err := utils.SH(fmt.Sprintf("findmnt /dev/disk/by-label/%s -f -J -o TARGET,FS-OPTIONS", b.Label))
+		fmt.Println(out)
+		mnt := &FndMnt{}
+		if err == nil {
+			err = json.Unmarshal([]byte(out), mnt)
+			// This should not happen, if there were no targets, the command would have returned an error, but you never know...
+			if err == nil && len(mnt.Filesystems) == 1 {
+				mountpoint = mnt.Filesystems[0].Target
+				// Don't assume its ro or rw by default, check both. One should match
+				regexRW := regexp.MustCompile("^rw,|^rw$|,rw,|,rw$")
+				regexRO := regexp.MustCompile("^ro,|^ro$|,ro,|,ro$")
+				if regexRW.Match([]byte(mnt.Filesystems[0].FsOptions)) {
+					readOnly = false
+				}
+				if regexRO.Match([]byte(mnt.Filesystems[0].FsOptions)) {
+					readOnly = true
+				}
+			}
+		}
+	}
 	return PartitionState{
 		Type:       b.Type,
-		IsReadOnly: b.IsReadOnly,
+		IsReadOnly: readOnly,
 		UUID:       b.UUID,
 		Name:       fmt.Sprintf("/dev/%s", b.Name),
 		SizeBytes:  b.SizeBytes,
 		Label:      b.Label,
-		MountPoint: b.MountPoint,
-		Mounted:    b.MountPoint != "",
+		MountPoint: mountpoint,
+		Mounted:    mountpoint != "",
 		Found:      true,
 	}
 }
@@ -73,6 +106,7 @@ func detectBoot() Boot {
 		return Unknown
 	}
 	cmdlineS := string(cmdline)
+	fmt.Println(cmdlineS)
 	switch {
 	case strings.Contains(cmdlineS, "COS_ACTIVE"):
 		return Active
@@ -80,7 +114,7 @@ func detectBoot() Boot {
 		return Passive
 	case strings.Contains(cmdlineS, "COS_RECOVERY"), strings.Contains(cmdlineS, "COS_SYSTEM"):
 		return Recovery
-	case strings.Contains(cmdlineS, "live:LABEL"), strings.Contains(cmdlineS, "live:CDLABEL"):
+	case strings.Contains(cmdlineS, "live:LABEL"), strings.Contains(cmdlineS, "live:CDLABEL"), strings.Contains(cmdlineS, "netboot"):
 		return LiveCD
 	default:
 		return Unknown
@@ -89,6 +123,8 @@ func detectBoot() Boot {
 
 func detectRuntimeState(r *Runtime) error {
 	blockDevices, err := block.New(ghw.WithDisableTools(), ghw.WithDisableWarnings())
+	// ghw currently only detects if partitions are mounted via the device
+	// If we mount them via label, then its set as not mounted.
 	if err != nil {
 		return err
 	}

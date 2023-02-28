@@ -139,13 +139,14 @@ RUN mkdir -p /etc/luet/repos.conf.d && \
 
 RUN luet install -y \
         system/base-cloud-config \
-        dracut/immutable-rootfs \
+        dracut/immucore \
         dracut/network \
         static/grub-config \
         system/suc-upgrade \
         system/shim \
         system/grub2-efi \
         system/elemental-cli \
+        system/immucore \
         init-svc/openrc
         # use init-svc/systemd for systemd based distros
 
@@ -160,9 +161,7 @@ RUN luet install -y distro-kernels/opensuse-leap distro-initrd/opensuse-leap
     ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
 
 # On systemd would be:
-	#RUN systemctl enable cos-setup-rootfs.service && \
-	#    systemctl enable cos-setup-initramfs.service && \
-	#    systemctl enable cos-setup-reconcile.timer && \
+	#RUN systemctl enable cos-setup-reconcile.timer && \
 	#    systemctl enable cos-setup-fs.service && \
 	#    systemctl enable cos-setup-boot.service && \
 	#    systemctl enable cos-setup-network.service
