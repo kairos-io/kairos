@@ -288,6 +288,7 @@ jobs:
                 mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
               [registry."registry.docker-mirror.svc.cluster.local:5000"]
                 insecure = true
+                http = true
           EOF
 
           earthly -P +prepare-bundles-tests
@@ -337,6 +338,7 @@ jobs:
                   mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
                 [registry."registry.docker-mirror.svc.cluster.local:5000"]
                   insecure = true
+                  http = true
             EOF
             earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             earthly -P +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
