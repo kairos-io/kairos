@@ -136,7 +136,6 @@ jobs:
           name: ${{ matrix.flavor }}-vbox.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
-
   # This job is used to download the latest release and then used by the upgrade-latest-* jobs
   latest-release:
     runs-on: ubuntu-latest
@@ -154,7 +153,6 @@ jobs:
         name: latest-release.zip
         path: last-release
         if-no-files-found: error
-
   qemu-acceptance-tests:
     needs:
     - build
@@ -186,13 +184,13 @@ jobs:
         name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
             ls -liah
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
             sed  '/build.*/d' .earthlyignore
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
-
   qemu-bundles-tests:
     needs:
     - build
@@ -214,6 +212,7 @@ jobs:
         KVM: true
       run: |
             ls -liah
+            sed -i '/build.*/d' .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
@@ -376,7 +375,6 @@ jobs:
         name: ${{ matrix.flavor }}-upgrade-test.logs.zip
         path: tests/**/logs/*
         if-no-files-found: warn
-
   upgrade-latest-with-cli-test:
     needs:
     - build
