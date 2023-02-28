@@ -17,9 +17,7 @@ var AfterInstall = []Interface{
 	&Lifecycle{}, // Handles poweroff/reboot by config options
 }
 
-var AfterReset = []Interface{
-	&Kcrypt{},
-}
+var AfterReset = []Interface{}
 
 var FirstBoot = []Interface{
 	&BundlePostInstall{},
