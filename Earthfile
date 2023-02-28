@@ -505,13 +505,15 @@ run-qemu-datasource-tests:
 
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
     COPY . .
-    RUN ls -liah
+    RUN ls -liah /test/build
     IF [ -e /test/build/kairos.iso ]
         ENV ISO=/test/build/kairos.iso
     ELSE
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/test/kairos.iso
     END
+
+    RUN echo "Using iso from $ISO"
 
     IF [ ! -e /test/build/datasource.iso ]
         COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso

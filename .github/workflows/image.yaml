@@ -188,7 +188,7 @@ jobs:
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
-            sed  '/build.*/d' .earthlyignore
+            ls -liah build/
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
   qemu-bundles-tests:
