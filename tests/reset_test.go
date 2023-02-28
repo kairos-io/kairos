@@ -1,7 +1,6 @@
 package mos_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,62 +11,30 @@ import (
 )
 
 var _ = Describe("kairos reset test", Label("reset-test"), func() {
+	var vm VM
 	BeforeEach(func() {
 		if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
 			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
 		}
 
-		EventuallyConnects(1200)
+		_, vm = startVM()
+		vm.EventuallyConnects(1200)
 	})
 
-	Context("live cd", func() {
-		It("has default service active", func() {
-			if isFlavor("alpine") {
-				out, _ := Machine.Command("sudo rc-status")
-				Expect(out).Should(ContainSubstring("kairos"))
-				Expect(out).Should(ContainSubstring("kairos-agent"))
-				fmt.Println(out)
-			} else {
-				// Eventually(func() string {
-				// 	out, _ := Machine.Command("sudo systemctl status kairososososos-agent")
-				// 	return out
-				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
+	AfterEach(func() {
+		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
+	})
 
-				out, _ := Machine.Command("sudo systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"))
-				fmt.Println(out)
-			}
-
-			out, _ := Machine.Command("ls -liah /oem")
-			fmt.Println(out)
-			//	Expect(out).To(ContainSubstring("userdata.yaml"))
-			out, _ = Machine.Command("cat /oem/userdata")
-			fmt.Println(out)
-			out, _ = Machine.Command("sudo ps aux")
-			fmt.Println(out)
-
-			out, _ = Machine.Command("sudo lsblk")
-			fmt.Println(out)
-
+	Context("auto installs, reboots and passes functional tests", func() {
+		BeforeEach(func() {
+			expectDefaultService(vm)
+			expectStartedInstallation(vm)
+			expectRebootedToActive(vm)
 		})
-	})
 
-	Context("auto installs", func() {
-		It("to disk with custom config", func() {
-			Eventually(func() string {
-				out, _ := Machine.Command("sudo ps aux")
-				return out
-			}, 30*time.Minute, 1*time.Second).Should(
-				Or(
-					ContainSubstring("elemental install"),
-				))
-		})
-	})
-
-	Context("reboots and passes functional tests", func() {
 		It("has grubenv file", func() {
 			Eventually(func() string {
-				out, _ := Machine.Command("sudo cat /oem/grubenv")
+				out, _ := vm.Sudo("cat /oem/grubenv")
 				return out
 			}, 40*time.Minute, 1*time.Second).Should(
 				Or(
@@ -76,29 +43,29 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 		})
 
 		It("resets", func() {
-			_, err := Sudo("touch /usr/local/test")
+			_, err := vm.Sudo("touch /usr/local/test")
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = Sudo("touch /oem/test")
+			_, err = vm.Sudo("touch /oem/test")
 			Expect(err).ToNot(HaveOccurred())
 
-			HasFile("/oem/test")
-			HasFile("/usr/local/test")
+			vm.HasFile("/oem/test")
+			vm.HasFile("/usr/local/test")
 
-			_, err = Sudo("grub2-editenv /oem/grubenv set next_entry=statereset")
+			_, err = vm.Sudo("grub2-editenv /oem/grubenv set next_entry=statereset")
 			Expect(err).ToNot(HaveOccurred())
 
-			Reboot()
+			vm.Reboot()
 
 			Eventually(func() string {
-				out, _ := Sudo("if [ -f /usr/local/test ]; then echo ok; else echo wrong; fi")
+				out, _ := vm.Sudo("if [ -f /usr/local/test ]; then echo ok; else echo wrong; fi")
 				return out
 			}, 40*time.Minute, 1*time.Second).Should(
 				Or(
 					ContainSubstring("wrong"),
 				))
 			Eventually(func() string {
-				out, _ := Sudo("if [ -f /oem/test ]; then echo ok; else echo wrong; fi")
+				out, _ := vm.Sudo("if [ -f /oem/test ]; then echo ok; else echo wrong; fi")
 				return out
 			}, 40*time.Minute, 1*time.Second).Should(
 				Or(
