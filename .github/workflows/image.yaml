@@ -4,9 +4,27 @@ on:
     branches:
       - master
   pull_request: null
+  workflow_dispatch:
+    inputs:
+      immucore_dev:
+        description: 'Build workflow with immucore from a given branch'
+        required: false
+        type: choice
+        options:
+          - true
+          - false
+        default: 'false'
+      immucore_dev_branch:
+        description: 'Branch to build immucore from'
+        required: false
+        type: string
+        default: 'master'
+
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
+env:
+  EARTHLY_BUILD_ARGS: 'IMMUCORE_DEV=${{ inputs.immucore_dev }},IMMUCORE_DEV_BRANCH=${{ inputs.immucore_dev_branch }}'
 jobs:
   get-matrix:
     runs-on: ubuntu-latest
