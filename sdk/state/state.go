@@ -106,7 +106,6 @@ func detectBoot() Boot {
 		return Unknown
 	}
 	cmdlineS := string(cmdline)
-	fmt.Println(cmdlineS)
 	switch {
 	case strings.Contains(cmdlineS, "COS_ACTIVE"):
 		return Active
