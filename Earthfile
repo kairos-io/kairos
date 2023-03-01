@@ -196,6 +196,21 @@ lint:
     BUILD +shellcheck-lint
     BUILD +yamllint
 
+syft:
+    FROM anchore/syft:latest
+    SAVE ARTIFACT /syft syft
+
+image-sbom:
+    FROM +docker
+    WORKDIR /build
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    COPY +syft/syft /usr/bin/syft
+    RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
+    SAVE ARTIFACT /build/sbom.syft.json sbom.syft.json AS LOCAL core-${FLAVOR}-${VERSION}-sbom.syft.json
+    SAVE ARTIFACT /build/sbom.spdx.json sbom.spdx.json AS LOCAL core-${FLAVOR}-${VERSION}-sbom.spdx.json
+
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
     SAVE ARTIFACT /usr/bin/luet /luet
