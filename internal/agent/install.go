@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -63,25 +64,15 @@ func displayInfo(agentConfig *Config) {
 }
 
 func ManualInstall(c string, options map[string]string, strictValidations bool) error {
-	if _, err := url.Parse(c); err == nil {
-		f, err := os.CreateTemp(os.TempDir(), "kairos-install-*.yaml")
-		if err != nil {
-			return nil
-		}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-		cfg := config.Config{
-			ConfigURL: c,
-		}
-		if err = yaml.NewEncoder(f).Encode(cfg); err != nil {
-			return err
-		}
-
-		c = f.Name()
-
-		defer os.RemoveAll(f.Name())
+	source, err := prepareConfiguration(ctx, c)
+	if err != nil {
+		return err
 	}
 
-	cc, err := config.Scan(config.Directories(c), config.MergeBootLine, config.StrictValidation(strictValidations))
+	cc, err := config.Scan(config.Directories(source), config.MergeBootLine, config.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}
@@ -330,4 +321,32 @@ func ensureDataSourceReady() {
 			fmt.Println("userdata configuration has not yet completed. (waiting for /run/.userdata_load to be deleted)")
 		}
 	}
+}
+
+func prepareConfiguration(ctx context.Context, source string) (string, error) {
+	// if the source is not an url it is already a configuration path
+	if u, err := url.Parse(source); err != nil || u.Scheme == "" {
+		return source, nil
+	}
+
+	// create a configuration file with the source referenced
+	f, err := os.CreateTemp(os.TempDir(), "kairos-install-*.yaml")
+	if err != nil {
+		return "", err
+	}
+
+	// defer cleanup until after parent is done
+	go func() {
+		<-ctx.Done()
+		_ = os.RemoveAll(f.Name())
+	}()
+
+	cfg := config.Config{
+		ConfigURL: source,
+	}
+	if err = yaml.NewEncoder(f).Encode(cfg); err != nil {
+		return "", err
+	}
+
+	return f.Name(), nil
 }
