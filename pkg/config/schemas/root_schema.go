@@ -16,15 +16,15 @@ import (
 // RootSchema groups all the different schemas of the Kairos configuration together.
 type RootSchema struct {
 	_                  struct{} `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
-	Bundles            BBundles `json:"bundles,omitempty" description:"Add bundles in runtime" yaml:"bundles,omitempty" yaml:"bundles,omitempty"`
-	ConfigURL          string   `json:"config_url,omitempty" description:"URL download configuration from." yaml:"config_url,omitempty" yaml:"config_url,omitempty"`
-	Env                []string `json:"env,omitempty" yaml:"env,omitempty" yaml:"env,omitempty"`
-	FailOnBundleErrors bool     `json:"fail_on_bundles_errors,omitempty" yaml:"fail_on_bundles_errors,omitempty" yaml:"fail_on_bundles_errors,omitempty"`
-	GrubOptionsSchema  `json:"grub_options,omitempty" yaml:"grub_options,omitempty" yaml:"grub_options,omitempty"`
-	Install            InstallSchema `json:"install,omitempty" yaml:"install,omitempty" yaml:"install,omitempty"`
-	Options            []interface{} `json:"options,omitempty" description:"Various options." yaml:"options,omitempty" yaml:"options,omitempty"`
+	Bundles            BBundles `json:"bundles,omitempty" description:"Add bundles in runtime" yaml:"bundles,omitempty"`
+	ConfigURL          string   `json:"config_url,omitempty" description:"URL download configuration from." yaml:"config_url,omitempty"`
+	Env                []string `json:"env,omitempty" yaml:"env,omitempty"`
+	FailOnBundleErrors bool     `json:"fail_on_bundles_errors,omitempty" yaml:"fail_on_bundles_errors,omitempty"`
+	GrubOptionsSchema  `json:"grub_options,omitempty" yaml:"grub_options,omitempty"`
+	Install            InstallSchema `json:"install,omitempty" yaml:"install,omitempty"`
+	Options            []interface{} `json:"options,omitempty" description:"Various options." yaml:"options,omitempty"`
 	Users              []UserSchema  `json:"users,omitempty" minItems:"1" required:"true" yaml:"users,omitempty"`
-	P2P                P2PSchema     `json:"p2p,omitempty" yaml:"p2p,omitempty" yaml:"p2p,omitempty"`
+	P2P                P2PSchema     `json:"p2p,omitempty" yaml:"p2p,omitempty"`
 }
 
 // HasEncryptedPartitions is a temporary function introduced to bridge the gap between Config and KConfg. It will be removed as soon as the transition is finished.
@@ -46,14 +46,14 @@ type BBundles []BundleSchema
 
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
 type BundleSchema struct {
-	DB         string   `json:"db_path,omitempty" yaml:"db_path,omitempty" yaml:"db_path,omitempty"`
-	LocalFile  bool     `json:"local_file,omitempty" yaml:"local_file,omitempty" yaml:"local_file,omitempty"`
-	Repository string   `json:"repository,omitempty" yaml:"repository,omitempty" yaml:"repository,omitempty"`
-	Rootfs     string   `json:"rootfs_path,omitempty" yaml:"rootfs_path,omitempty" yaml:"rootfs_path,omitempty"`
-	Targets    []string `json:"targets,omitempty" yaml:"targets,omitempty" yaml:"targets,omitempty"`
+	DB         string   `json:"db_path,omitempty" yaml:"db_path,omitempty"`
+	LocalFile  bool     `json:"local_file,omitempty" yaml:"local_file,omitempty"`
+	Repository string   `json:"repository,omitempty" yaml:"repository,omitempty"`
+	Rootfs     string   `json:"rootfs_path,omitempty" yaml:"rootfs_path,omitempty"`
+	Targets    []string `json:"targets,omitempty" yaml:"targets,omitempty"`
 }
 
-// GrubOptions returns a map with all the grub options from the root schema
+// GrubOptions returns a map with all the grub options from the root schema.
 func (rs RootSchema) GrubOptions() (map[string]string, error) {
 	var grubOptions map[string]string
 	data, _ := json.Marshal(rs.GrubOptionsSchema)
@@ -99,7 +99,7 @@ func (kc KConfig) KBundles() (BBundles, error) {
 	return bundles, nil
 }
 
-// Options returns the options parsed from a KConfig
+// Options returns the options parsed from a KConfig.
 func (kc KConfig) Options(key string) interface{} {
 	options := kc.Data()["options"]
 
@@ -129,7 +129,7 @@ func (kc KConfig) Data() map[string]interface{} {
 	return kc.parsed.(map[string]interface{})
 }
 
-// Query finds a key in teh configuration.
+// Query finds a key in the configuration.
 func (kc KConfig) Query(s string) (res string, err error) {
 	s = fmt.Sprintf(".%s", s)
 	jsondata := map[string]interface{}{}
@@ -250,6 +250,12 @@ func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 func (b BBundles) Options() (res [][]bundles.BundleOption) {
 	for _, bundle := range b {
 		for _, t := range bundle.Targets {
+			fmt.Println("Options()")
+			fmt.Println("db: ", bundle.DB)
+			fmt.Println("targets: ", bundle.Targets)
+			fmt.Println("local_file: ", bundle.LocalFile)
+			fmt.Println("repository: ", bundle.Repository)
+			fmt.Println("rootfs: ", bundle.Rootfs)
 			opts := []bundles.BundleOption{bundles.WithRepository(bundle.Repository), bundles.WithTarget(t)}
 			if bundle.Rootfs != "" {
 				opts = append(opts, bundles.WithRootFS(bundle.Rootfs))
