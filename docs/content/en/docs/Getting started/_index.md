@@ -49,10 +49,10 @@ This feature will be available in Kairos version `1.5.0` and in all future relea
 
 {{% /alert %}}
 
-Our ISO releases have a sha256 files to checksum the validity of the artifacts. At the same time our sha256 files are signed automatically in the CI during the 
-release workflow to verify that they haven't been tampered with, adding an extra step on the supply chain. 
+Our ISO releases have sha256 files to checksum the validity of the artifacts. At the same time, our sha256 files are signed automatically in the CI during the 
+release workflow to verify that they haven't been tampered with, adding an extra step to the supply chain. 
 
-It is recommended that before starting any installation the whole security chain is validated by verifying our sha256 signature and validate the checksum matches with the download artifacts.
+It is recommended that before starting any installation the whole security chain is validated by verifying our sha256 signature and validating that the checksum matches with the download artifacts.
 
 
 To validate the whole chain you would need:
