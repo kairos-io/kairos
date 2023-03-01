@@ -492,7 +492,6 @@ Build the custom ISO with the cloud config:
 ```bash
 docker run -v $PWD/config.yaml:/config.yaml \
              -v $PWD/build:/tmp/auroraboot \
-             -v /var/run/docker.sock:/var/run/docker.sock \
              --rm -ti quay.io/kairos/auroraboot \
              --set container_image=quay.io/kairos/core-rockylinux:v1.5.0 \
              --set "disable_http_server=true" \
@@ -500,6 +499,34 @@ docker run -v $PWD/config.yaml:/config.yaml \
              --cloud-config /config.yaml \
              --set "state_dir=/tmp/auroraboot"
 ```
+
+### Override GRUB config file
+
+It is possible to override the default GRUB config file of the ISO by creating a directory that
+contains the files that we want to add or replace in it.
+
+For example, to override the GRUB config file:
+
+```bash
+mkdir -p data/boot/grub2
+# You can replace this step with your own grub config. This GRUB configuration is the boot menu of the ISO
+wget https://raw.githubusercontent.com/kairos-io/kairos/master/overlay/files-iso/boot/grub2/grub.cfg -O data/boot/grub2/grub.cfg
+
+docker run -v $PWD/config.yaml:/config.yaml \
+             -v $PWD/data:/tmp/data \
+             -v $PWD/build:/tmp/auroraboot \
+             --rm -ti quay.io/kairos/auroraboot \
+             --set container_image=quay.io/kairos/core-rockylinux:v1.5.0 \
+             --set "disable_http_server=true" \
+             --set "disable_netboot=true" \
+             --cloud-config /config.yaml \
+             --set "state_dir=/tmp/auroraboot" \
+             --set "iso.data=/tmp/data"
+```
+
+### Prepare ISO for Airgap installations
+
+See the [Airgap example](/docs/examples/airgap) in the [examples section](/docs/examples).
 
 ### Netboot with core images from Github releases
 
