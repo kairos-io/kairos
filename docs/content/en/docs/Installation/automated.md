@@ -110,7 +110,6 @@ total 778M
 34648526 drwxr-xr-x 5 root root 4.0K Feb  8 16:38 ..
 34648529 -rw-r--r-- 1 root root  253 Feb  8 16:38 config.yaml
 34649370 -rw-r--r-- 1 root root 389M Feb  8 16:38 kairos.iso
-34649372 -rw-r--r-- 1 root root 389M Feb  8 16:39 kairos.iso.custom.iso
 34649371 -rw-r--r-- 1 root root   76 Feb  8 16:39 kairos.iso.sha256
 ```
 {{% /tab %}}
@@ -137,6 +136,8 @@ $ docker run -v $PWD:/cOS -v /var/run/docker.sock:/var/run/docker.sock -i --rm q
 This will create a new ISO with your specified cloud configuration embedded in it. You can then use this ISO to boot your machine and automatically install Kairos with your desired settings.
 
 You can as well modify the image in this step and add additional packages before deployment. See [customizing the system image](/docs/advanced/customizing).
+
+Check out the [AuroraBoot documentation](/docs/reference/auroraboot) and the [examples](/docs/examples) for learn more on how to generate customized images for installation.
 
 ### Kubernetes
 
