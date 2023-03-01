@@ -190,7 +190,6 @@ func expectDefaultService(vm VM) {
 		if isFlavor("alpine") {
 			out, err := vm.Sudo("rc-status")
 			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("kairos"))
 			Expect(out).Should(ContainSubstring("kairos-agent"))
 		} else {
 			// Our systemd unit is of type "oneoff" like it should be:
