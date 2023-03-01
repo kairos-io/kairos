@@ -43,7 +43,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 		})
 
 		It("can upgrade to current image", func() {
-			currentVersion, err := vm.Sudo("source /etc/os-release; echo $VERSION")
+			currentVersion, err := vm.Sudo(". /etc/os-release; echo $VERSION")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(currentVersion).To(ContainSubstring("v"))
 			_, err = vm.Sudo("kairos-agent")
@@ -63,13 +63,13 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			vm.Reboot()
 
 			Eventually(func() error {
-				_, err := vm.Sudo("source /etc/os-release; echo $VERSION")
+				_, err := vm.Sudo(". /etc/os-release; echo $VERSION")
 				return err
 			}, 10*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
 
 			var v string
 			Eventually(func() string {
-				v, _ = vm.Sudo("source /etc/os-release; echo $VERSION")
+				v, _ = vm.Sudo(". /etc/os-release; echo $VERSION")
 				return v
 				// TODO: Add regex semver check here
 			}, 30*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
