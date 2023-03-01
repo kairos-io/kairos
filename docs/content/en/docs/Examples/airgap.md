@@ -112,7 +112,7 @@ docker run -v $PWD/config.yaml:/config.yaml \
 
 The resulting ISO should be available at: `build/iso/kairos.iso`
 
-This example is also available in the [Auroraboot repository](https://github.com/kairos-io/AuroraBoot/tree/master/examples/airgap) in the `examples/airgap` directory, where you can run `build_docker.sh` to reproduce the example.
+This example is also available in the [AuroraBoot repository](https://github.com/kairos-io/AuroraBoot/tree/master/examples/airgap) in the `examples/airgap` directory, where you can run `build_docker.sh` to reproduce the example.
 
 ## See also
 
