@@ -250,12 +250,6 @@ func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 func (b BBundles) Options() (res [][]bundles.BundleOption) {
 	for _, bundle := range b {
 		for _, t := range bundle.Targets {
-			fmt.Println("Options()")
-			fmt.Println("db: ", bundle.DB)
-			fmt.Println("targets: ", bundle.Targets)
-			fmt.Println("local_file: ", bundle.LocalFile)
-			fmt.Println("repository: ", bundle.Repository)
-			fmt.Println("rootfs: ", bundle.Rootfs)
 			opts := []bundles.BundleOption{bundles.WithRepository(bundle.Repository), bundles.WithTarget(t)}
 			if bundle.Rootfs != "" {
 				opts = append(opts, bundles.WithRootFS(bundle.Rootfs))
