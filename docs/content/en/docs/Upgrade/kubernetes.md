@@ -128,7 +128,7 @@ spec:
 
 ## Upgrade from c3os to Kairos
 
-If you have already a `c3os` deployment, upgrading to Kairos requires changing every instance of `c3os` to `kairos` in the configuration file. This can be either done manually or with Kubernetes before rolling the upgrade.  Consider customize the upgrade plan, for instance:
+If you already have a `c3os` deployment, upgrading to Kairos requires changing every instance of `c3os` to `kairos` in the configuration file. This can be either done manually or with Kubernetes before rolling the upgrade.  Consider customizing the upgrade plan, for instance:
 
 ```yaml
 ---
