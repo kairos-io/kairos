@@ -36,12 +36,14 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
 all:
   BUILD +docker
+  BUILD +image-sbom
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
 
 all-arm:
   BUILD --platform=linux/arm64 +docker
+  BUILD +image-sbom
   BUILD +arm-image
 
 go-deps:
