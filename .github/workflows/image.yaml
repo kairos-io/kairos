@@ -68,6 +68,13 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v3
         with:
+          name: kairos-${{ matrix.flavor }}.sbom.zip
+          path: |
+            *.syft.json
+            *.spdx.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v3
+        with:
           name: kairos-${{ matrix.flavor }}.initrd.zip
           path: |
             *-initrd
