@@ -141,7 +141,6 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:master
         run: |
           earthly --ci --push +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
       - name: Push to quay
@@ -150,7 +149,6 @@ jobs:
           IMAGE: "quay.io/kairos/framework:master_${{ matrix.flavor }}"
           COSIGN_YES: true
         run: |
-          docker push "$IMAGE"
           cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
       - name: Build framework image 🔧
         if: ${{ github.event_name == 'push' && github.ref != 'refs/heads/master' }}
