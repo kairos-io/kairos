@@ -77,10 +77,11 @@ jobs:
       - name: Sign image
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
-          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}:latest"
+          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}"
+          TAG: "latest"
           COSIGN_YES: true
         run: |
-          cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Upload results
         uses: actions/upload-artifact@v3
         with:
