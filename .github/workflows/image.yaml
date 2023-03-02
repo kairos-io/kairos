@@ -185,7 +185,7 @@ jobs:
           go-version: ^1.16
       - run: |
           ls -liah
-          gsed -i '/build.*/d' .earthlyignore
+          rm .earthlyignore
           export ISO=$PWD/$(ls *.iso)
           export GOPATH="/Users/runner/go"
           export PATH=$PATH:$GOPATH/bin
@@ -231,21 +231,22 @@ jobs:
           - flavor: "ubuntu-20-lts"
           - flavor: "ubuntu-22-lts"
     steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-      - run: |
-          ls -liah
-          export ISO=$PWD/$(ls *.iso)
-          mkdir build
-          mv $ISO build/kairos.iso
-          sed  '/build.*/d' .earthlyignore
-          ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-          ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+    - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: kairos-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            rm .earthlyignore
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/kairos.iso
+            ls -liah build/
+            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
   qemu-bundles-tests:
     needs:
       - build
@@ -267,6 +268,7 @@ jobs:
           KVM: true
         run: |
           ls -liah
+          rm .earthlyignore
           export ISO=$PWD/$(ls *.iso)
           mkdir build
           mv $ISO build/kairos.iso
@@ -316,7 +318,7 @@ jobs:
           KVM: true
         run: |
             ls -liah
-            sed -i '/build.*/d' .earthlyignore
+            rm .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
@@ -413,7 +415,7 @@ jobs:
           df -h
       - run: |
           ls -liah
-          sed -i '/build.*/d' .earthlyignore
+          rm .earthlyignore
           export ISO=$PWD/$(ls *.iso)
           sudo mkdir build
           sudo mv $ISO build/
@@ -484,7 +486,7 @@ jobs:
           df -h
       - run: |
           ls -liah
-          sed -i '/build.*/d' .earthlyignore
+          rm .earthlyignore
           export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
           sudo mkdir build
           sudo mv $ISO build/
