@@ -159,13 +159,17 @@ export PORT=$(kubectl get svc kairos-challenger-escrow-service -o json | jq '.sp
 
 ### Register a node
 
-You can get a node TPM hash by running `/system/discovery/kcrypt-discovery-challenger` as root from the LiveCD and add via kubectl the node with its tpmhash (the hash returned by running the command):  
+In order to register a node on the KMS, the TPM hash of the node needs to be retrieved first.
+You can get a node TPM hash by running `/system/discovery/kcrypt-discovery-challenger` as root from the LiveCD:
   
 ```
 kairos@localhost:~> ID=$(sudo /system/discovery/kcrypt-discovery-challenger)
 kairos@localhost:~> echo $ID
 7441c78f1976fb23e6a5c68f0be35be8375b135dcb36fb03cecc60f39c7660bd
 ```
+
+This is the hash you should use in the definition of the `SealedVolume` in the
+examples below.
 
 ### Scenario: Automatically generated keys
 
@@ -174,9 +178,11 @@ kairos@localhost:~> echo $ID
 The TPM chip generates unique RSA keys for each machine during installation, which are used to encrypt a generated secret. These keys can only be accessed by the TPM and not by the KMS, thus ensuring that both the KMS and the TPM chip are required to boot the machine. As a result, even if the machine or its disks are stolen, the drive remains sealed and encrypted.
 Deployment using this method, will store the encrypted key used to boot into the KMS, and the keypair used to encrypt it in the TPM chip of the machine during installation. This means that, only the TPM chip can decode the passphrase, and the passphrase is stored in the KMS such as it can't be decrypted by it. As such, nodes can boot only with the KMS, and the disk can be decrypted only by the node.
 
-To register a node to kubernetes, use the TPM hash retrieved before:  
+To register a node to kubernetes, use the TPM hash retrieved before (see section ["Register a node"](#register-a-node))
+and replace it in this example command:
   
-```yaml
+```bash
+cat <<EOF | kubectl apply -f -
 apiVersion: keyserver.kairos.io/v1alpha1
 kind: SealedVolume
 metadata:
@@ -187,7 +193,10 @@ spec:
   partitions:
     - label: COS_PERSISTENT
   quarantined: false
+EOF
 ```
+
+This command will register the node on the KMS.
 
 A node can use the following during deployment, specifying the address of the challenger server:
  
@@ -223,9 +232,10 @@ users:
 
 In this scenario the Kubernetes administrator knows the passphrase of the nodes, and sets explicitly during configuration the passphrase for each partitions of the nodes. This scenario is suitable for cases when the passphrase needs to be carried over, and not to be tied specifically to the TPM chip.  
 The TPM chip is still used for authentication a machine. The discovery-challenger needs still to know the TPM hash of each of the nodes before installation.  
-To register a node to kubernetes, use the TPM hash retrieved before, and specify a passphrase with a secret reference for the partition:  
- 
-```yaml
+To register a node to kubernetes, replace the `TPMHash` in the following example with the TPM hash retrieved before, and specify a passphrase with a secret reference for the partition:
+
+```bash
+cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -248,6 +258,7 @@ spec:
        name: mysecret
        path: pass
   quarantined: false
+EOF
 ```
 
 The node doesn't need any specific configuration beside the kcrypt challenger, so for instance:

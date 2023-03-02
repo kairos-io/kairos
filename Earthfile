@@ -31,14 +31,19 @@ ARG RENOVATE_VERSION=34
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
 
+ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
+
+
 all:
   BUILD +docker
+  BUILD +image-sbom
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
 
 all-arm:
   BUILD --platform=linux/arm64 +docker
+  BUILD +image-sbom
   BUILD +arm-image
 
 go-deps:
@@ -99,8 +104,7 @@ BUILD_GOLANG:
     ARG CGO_ENABLED
     ARG BIN
     ARG SRC
-    COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
+
     ENV CGO_ENABLED=${CGO_ENABLED}
     ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
     RUN echo "Building ${BIN} from ${SRC} using ${VERSION}"
@@ -194,6 +198,21 @@ lint:
     BUILD +shellcheck-lint
     BUILD +yamllint
 
+syft:
+    FROM anchore/syft:latest
+    SAVE ARTIFACT /syft syft
+
+image-sbom:
+    FROM +docker
+    WORKDIR /build
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    COPY +syft/syft /usr/bin/syft
+    RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
+    SAVE ARTIFACT /build/sbom.syft.json sbom.syft.json AS LOCAL core-${FLAVOR}-${VERSION}-sbom.syft.json
+    SAVE ARTIFACT /build/sbom.spdx.json sbom.spdx.json AS LOCAL core-${FLAVOR}-${VERSION}-sbom.spdx.json
+
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
     SAVE ARTIFACT /usr/bin/luet /luet
@@ -207,9 +226,8 @@ framework:
     ARG REPOSITORIES_FILE
     ARG COSIGN_EXPERIMENTAL
     ARG COSIGN_REPOSITORY
-    ARG WITH_KERNEL
-    COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    ARG VERSION
     ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
 
     FROM golang:alpine
@@ -234,18 +252,42 @@ framework:
     COPY +luet/luet /framework/usr/bin/luet
 
     RUN luet cleanup --system-target /framework
+
+    # Copy overlay files
     COPY overlay/files /framework
+    # Copy flavor-specific overlay files
+    IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
+        COPY overlay/files-alpine/ /framework
+    END
+    
+    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
+        COPY overlay/files-alpine/ /framework
+        COPY overlay/files-opensuse-arm-rpi/ /framework
+    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
+        COPY overlay/files-opensuse-arm-rpi/ /framework
+    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+        COPY overlay/files-fedora/ /framework
+    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+        COPY overlay/files-ubuntu/ /framework
+    END
+
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
     SAVE ARTIFACT --keep-own /framework/ framework
 
+build-framework-image:
+   COPY +version/VERSION ./
+   ARG VERSION=$(cat VERSION)
+   ARG FLAVOR
+   BUILD +framework-image --VERSION=$VERSION --FLAVOR=$FLAVOR
+
 framework-image:
     FROM scratch
+    ARG VERSION
     ARG IMG
-    ARG WITH_KERNEL
     ARG FLAVOR
-    COPY (+framework/framework --FLAVOR=$FLAVOR --WITH_KERNEL=$WITH_KERNEL) /
-    SAVE IMAGE $IMG
+    COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
 docker:
     ARG FLAVOR
@@ -274,26 +316,12 @@ docker:
     ARG OS_LABEL=latest
 
     # Includes overlay/files
-    COPY +framework/framework /
+    COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION) /
 
     DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
-    # Copy flavor-specific overlay files
-    IF [[ "$FLAVOR" =~ "alpine" ]]
-        COPY overlay/files-alpine/ /
-    END
-    
-    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
-        COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
-        COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
-        COPY overlay/files-fedora/ /
-    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
-        COPY overlay/files-ubuntu/ /
-    END
 
     # Enable services
     IF [ -f /sbin/openrc ]
@@ -304,13 +332,11 @@ docker:
       ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
     # Otherwise we assume systemd
     ELSE
-        RUN ls -liah /etc/systemd/system
-	RUN systemctl enable cos-setup-rootfs.service && \
-	    systemctl enable cos-setup-initramfs.service && \
-	    systemctl enable cos-setup-reconcile.timer && \
-	    systemctl enable cos-setup-fs.service && \
-	    systemctl enable cos-setup-boot.service && \
-	    systemctl enable cos-setup-network.service
+      RUN ls -liah /etc/systemd/system
+      RUN systemctl enable cos-setup-reconcile.timer && \
+          systemctl enable cos-setup-fs.service && \
+          systemctl enable cos-setup-boot.service && \
+          systemctl enable cos-setup-network.service
     END
 
     IF [ "$FLAVOR" = "debian" ]
