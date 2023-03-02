@@ -134,7 +134,7 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - uses: earthly/actions-setup@afedd8a45417afde5088c8225bf642c686288e25
+      - uses: earthly/actions-setup@cce953f2ea75f5ff76f6483a788bac66a733de3a
         with:
           version: "latest"
       - name: Build framework image 🔧
