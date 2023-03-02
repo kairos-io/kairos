@@ -189,7 +189,6 @@ jobs:
           export ISO=$PWD/$(ls *.iso)
           export GOPATH="/Users/runner/go"
           export PATH=$PATH:$GOPATH/bin
-          export CLOUD_INIT=$PWD/config.yaml
           export CREATE_VM=true
           export FLAVOR=${{ matrix.flavor }}
           ./.github/run_test.sh "install-test"

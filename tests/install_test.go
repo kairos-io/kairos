@@ -18,7 +18,7 @@ var stateAssertVM = func(vm VM, query, expected string) {
 	ExpectWithOffset(1, out).To(ContainSubstring(expected))
 }
 
-func testInstall(cloudConfig string, vm VM) { //, actual interface{}, m types.GomegaMatcher) {
+func testInstall(cloudConfig string, vm VM) string { //, actual interface{}, m types.GomegaMatcher) {
 	stateAssertVM(vm, "persistent.found", "false")
 
 	t, err := os.CreateTemp("", "test")
@@ -31,13 +31,20 @@ func testInstall(cloudConfig string, vm VM) { //, actual interface{}, m types.Go
 	err = vm.Scp(t.Name(), "/tmp/config.yaml", "0770")
 	Expect(err).ToNot(HaveOccurred())
 
-	out, err := vm.Sudo(`kairos-agent manual-install --device "auto" /tmp/config.yaml`)
-	Expect(err).ToNot(HaveOccurred(), out)
-	Expect(out).Should(ContainSubstring("Running after-install hook"))
-	vm.Sudo("sync")
+	var out string
+	By("installing kairos", func() {
+		out, err = vm.Sudo(`kairos-agent manual-install --device "auto" /tmp/config.yaml`)
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).Should(ContainSubstring("Running after-install hook"))
+		vm.Sudo("sync")
+	})
 
-	vm.Reboot()
-	vm.EventuallyConnects(1200)
+	By("waiting for VM to reboot", func() {
+		vm.Reboot()
+		vm.EventuallyConnects(1200)
+	})
+
+	return out
 }
 
 func eventuallyAssert(vm VM, cmd string, m types.GomegaMatcher) {
@@ -62,7 +69,7 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	Context("install", func() {
 		It("cloud-config syntax mixed with extended syntax", func() {
-			testInstall(`#cloud-config
+			_ = testInstall(`#cloud-config
 install:
   bind_mounts:
   - /mnt/bind1
@@ -109,14 +116,38 @@ bundles:
 			stateAssertVM(vm, "persistent.found", "true")
 		})
 
-		It("with config_url", func() {
+		Context("with config_url", func() {
+			It("succeeds when config_url is accessible", func() {
+				testInstall(`#cloud-config
+config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae331e5c0/raw/01137c458ad62cfcdfb201cae2f8814db702c6f9/testgist.yaml"
+users:
+- name: "kairos"
+  passwd: "kairos"
+`, vm)
 
-			testInstall(`config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae331e5c0/raw/01137c458ad62cfcdfb201cae2f8814db702c6f9/testgist.yaml"`, vm)
+				Eventually(func() string {
+					out, err := vm.Sudo("kairos-agent state")
+					Expect(err).ToNot(HaveOccurred())
+					return out
+				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("boot: active_boot"))
+			})
 
-			Eventually(func() string {
-				out, _ := vm.Sudo("/usr/local/bin/usr/bin/edgevpn --help | grep peer")
-				return out
-			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("peerguard"))
+			It("succeeds when config_url is not accessible (and prints a warning)", func() {
+				out := testInstall(`#cloud-config
+config_url: "https://thisurldoesntexist.org"
+users:
+- name: "kairos"
+  passwd: "kairos"
+`, vm)
+				Expect(out).ToNot(ContainSubstring("kairos-agent.service: Failed with result"))
+				Expect(out).To(ContainSubstring("WARNING: Couldn't fetch config_url: could not merge configs"))
+
+				Eventually(func() string {
+					out, err := vm.Sudo("kairos-agent state")
+					Expect(err).ToNot(HaveOccurred())
+					return out
+				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("boot: active_boot"))
+			})
 		})
 	})
 })
