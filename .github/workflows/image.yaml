@@ -86,6 +86,13 @@ jobs:
           if-no-files-found: error
       - uses: actions/upload-artifact@v3
         with:
+          name: kairos-${{ matrix.flavor }}.sbom.zip
+          path: |
+            *.syft.json
+            *.spdx.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v3
+        with:
           name: kairos-${{ matrix.flavor }}.initrd.zip
           path: |
             *-initrd
@@ -144,9 +151,9 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - uses: earthly/actions/setup-earthly@v1
+      - uses: earthly/actions-setup@afedd8a45417afde5088c8225bf642c686288e25
         with:
-          version: v0.7.0
+          version: "latest"
       - name: Build framework image 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
@@ -234,19 +241,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine-opensuse-leap
-            port: 50001
-          - flavor: opensuse-leap
-            port: 50002
-          - flavor: opensuse-tumbleweed
-            port: 50003
-          - flavor: ubuntu
-            port: 50004
-          - flavor: debian
-            port: 50005
-          - flavor: ubuntu-20-lts
-            port: 50006
-          - flavor: ubuntu-22-lts
+          - flavor: "alpine-opensuse-leap"
+          - flavor: "opensuse-leap"
+          - flavor: "opensuse-tumbleweed"
+          - flavor: "ubuntu"
+          - flavor: "debian"
+          - flavor: "ubuntu-20-lts"
+          - flavor: "ubuntu-22-lts"
     steps:
       - uses: actions/checkout@v3
       - run: |

@@ -12,108 +12,74 @@ import (
 )
 
 var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
+	var vm VM
+
 	BeforeEach(func() {
 		if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
 			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
 		}
-
-		EventuallyConnects(1200)
+		_, vm = startVM()
+		vm.EventuallyConnects(1200)
 	})
 
 	AfterEach(func() {
-		if CurrentGinkgoTestDescription().Failed {
-			gatherLogs()
-		}
-	})
-
-	Context("live cd", func() {
-		It("has default service active", func() {
-			if isFlavor("alpine") {
-				out, _ := Sudo("rc-status")
-				Expect(out).Should(ContainSubstring("kairos"))
-				Expect(out).Should(ContainSubstring("kairos-agent"))
-				fmt.Println(out)
-			} else {
-				// Eventually(func() string {
-				// 	out, _ := machine.Command("sudo systemctl status kairososososos-agent")
-				// 	return out
-				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
-
-				out, _ := Machine.Command("sudo systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"))
-				fmt.Println(out)
-			}
-
-			// Debug output
-			out, _ := Sudo("ls -liah /oem")
-			fmt.Println(out)
-			//	Expect(out).To(ContainSubstring("userdata.yaml"))
-			out, _ = Sudo("cat /oem/userdata")
-			fmt.Println(out)
-			out, _ = Sudo("sudo ps aux")
-			fmt.Println(out)
-
-			out, _ = Sudo("sudo lsblk")
-			fmt.Println(out)
-
-		})
-	})
-
-	Context("auto installs", func() {
-		It("to disk with custom config", func() {
-			Eventually(func() string {
-				out, _ := Sudo("ps aux")
-				return out
-			}, 30*time.Minute, 1*time.Second).Should(
-				Or(
-					ContainSubstring("elemental install"),
-				))
-		})
+		vm.Destroy(nil)
 	})
 
 	Context("reboots and passes functional tests", func() {
-
-		It("has grubenv file", func() {
-			By("checking after-install hook triggered")
-
-			Eventually(func() string {
-				out, _ := Sudo("sudo cat /oem/grubenv")
-				return out
-			}, 40*time.Minute, 1*time.Second).Should(
-				Or(
-					ContainSubstring("foobarzz"),
-				))
+		BeforeEach(func() {
+			expectDefaultService(vm)
+			expectStartedInstallation(vm)
+			expectRebootedToActive(vm)
 		})
 
-		It("has custom cmdline", func() {
-			By("waiting reboot and checking cmdline is present")
-			Eventually(func() string {
-				out, _ := Sudo("sudo cat /proc/cmdline")
-				return out
-			}, 30*time.Minute, 1*time.Second).Should(
-				Or(
-					ContainSubstring("foobarzz"),
-				))
-		})
+		It("passes tests", func() {
+			By("checking the grubenv file", func() {
+				By("checking after-install hook triggered")
 
-		It("has kubo extension", func() {
-			// Eventually(func() string {
-			// 	out, _ := Sudo("systemd-sysext")
-			// 	return out
-			// }, 40*time.Minute, 1*time.Second).Should(
-			// 	Or(
-			// 		ContainSubstring("kubo"),
-			// 	))
-			syset, err := Sudo("systemd-sysext")
-			ls, _ := Sudo("ls -liah /usr/local/lib/extensions")
-			fmt.Println("LS:", ls)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(syset).To(ContainSubstring("kubo"))
+				Eventually(func() string {
+					out, _ := vm.Sudo("cat /oem/grubenv")
+					return out
+				}, 40*time.Minute, 1*time.Second).Should(
+					Or(
+						ContainSubstring("foobarzz"),
+					))
+			})
 
-			ipfsV, err := Sudo("ipfs version")
-			Expect(err).ToNot(HaveOccurred())
+			By("checking if it has custom cmdline", func() {
+				By("waiting reboot and checking cmdline is present")
+				Eventually(func() string {
+					out, _ := vm.Sudo("cat /proc/cmdline")
+					return out
+				}, 30*time.Minute, 1*time.Second).Should(
+					Or(
+						ContainSubstring("foobarzz"),
+					))
+			})
 
-			Expect(ipfsV).To(ContainSubstring("0.15.0"))
+			By("checking if it has kubo extension", func() {
+				Eventually(func() string {
+					out, _ := vm.Sudo("systemd-sysext")
+					return out
+				}, 20*time.Minute, 3*time.Second).Should(ContainSubstring("kubo"), func() string {
+					// Debug output in case of an error
+					result := ""
+					out, _ := vm.Sudo("cat /etc/os-release")
+					result = result + fmt.Sprintf("os-release:\n%s\n", out)
+
+					out, _ = vm.Sudo("cat /usr/local/lib/extensions/kubo/usr/lib/extension-release.d/extension-release.kubo")
+					result = result + fmt.Sprintf("extension-release.kubo:\n%s\n", out)
+
+					out, _ = vm.Sudo("systemd-sysext status")
+					result = result + fmt.Sprintf("systemd-sysext status:\n%s\n", out)
+
+					return result
+				})
+
+				ipfsV, err := vm.Sudo("ipfs version")
+				Expect(err).ToNot(HaveOccurred(), ipfsV)
+				Expect(ipfsV).To(ContainSubstring("0.15.0"))
+			})
 		})
 	})
 })

@@ -92,3 +92,9 @@ jobs:
           sudo luet util pack quay.io/kairos/core-${{ matrix.flavor }}:$VERSION.img build.tar image.tar
           sudo -E docker load -i image.tar
           sudo -E docker push quay.io/kairos/core-${{ matrix.flavor }}:$VERSION.img
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            build/*.json
