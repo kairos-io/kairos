@@ -139,7 +139,7 @@ jobs:
   build-framework:
     needs:
       - get-matrix
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       id-token: write
     strategy:
@@ -168,6 +168,18 @@ jobs:
         env:
           FLAVOR: ${{ matrix.flavor }}
         run: |
+          # Configure earthly to use the docker mirror in CI
+          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+          mkdir -p ~/.earthly/
+          cat << EOF > ~/.earthly/config.yml
+          global:
+            buildkit_additional_config: |
+              [registry."docker.io"]
+                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+              [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                insecure = true
+                http = true
+          EOF
           earthly --push +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
@@ -179,11 +191,22 @@ jobs:
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Build framework image 🔧
-        if: ${{ github.event_name == 'push' && github.ref != 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:master
         run: |
+          # Configure earthly to use the docker mirror in CI
+          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+          mkdir -p ~/.earthly/ || true
+          cat << EOF > ~/.earthly/config.yml
+          global:
+            buildkit_additional_config: |
+              [registry."docker.io"]
+                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+              [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                insecure = true
+                http = true
+          EOF
           earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
           docker tag quay.io/kairos/framework:master_${{ matrix.flavor }} ttl.sh/kairos-framework-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/kairos-framework-${{ matrix.flavor }}-${{ github.sha }}:8h
