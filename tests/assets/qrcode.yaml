@@ -1,3 +1,5 @@
+#cloud-config
+
 stages:
  initramfs:
  - name: "Set user and password"
