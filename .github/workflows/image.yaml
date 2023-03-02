@@ -119,11 +119,12 @@ jobs:
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
-          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}:latest"
+          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}"
+          TAG: "latest"
           COSIGN_YES: true
         run: |
-          docker push "$IMAGE"
-          cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
+          docker push "$IMAGE:$TAG"
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Push to testing
         run: |
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
@@ -164,10 +165,11 @@ jobs:
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
-          IMAGE: "quay.io/kairos/framework:master_${{ matrix.flavor }}"
+          IMAGE: "quay.io/kairos/framework"
+          TAG: "master_${{ matrix.flavor }}"
           COSIGN_YES: true
         run: |
-          cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Build framework image 🔧
         if: ${{ github.event_name == 'push' && github.ref != 'refs/heads/master' }}
         env:
