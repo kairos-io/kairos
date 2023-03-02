@@ -339,6 +339,18 @@ docker:
           systemctl enable cos-setup-network.service
     END
 
+    # TEST IMMUCORE FROM BRANCH
+    ARG IMMUCORE_DEV
+    ARG IMMUCORE_DEV_BRANCH=master
+    IF [ "$IMMUCORE_DEV" = "true" ]
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+build-immucore/immucore /usr/bin/immucore
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/28immucore usr/lib/dracut/modules.d/28immucore
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/02-kairos-setup-initramfs.conf /etc/dracut.conf.d/02-kairos-setup-initramfs.conf
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/50-kairos-initrd.conf /etc/dracut.conf.d/50-kairos-initrd.conf
+    END
+    # END
+
     IF [ "$FLAVOR" = "debian" ]
 	    RUN rm -rf /boot/initrd.img-*
     END
