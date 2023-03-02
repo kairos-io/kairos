@@ -34,6 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
