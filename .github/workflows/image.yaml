@@ -169,6 +169,7 @@ jobs:
           TAG: "master_${{ matrix.flavor }}"
           COSIGN_YES: true
         run: |
+          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Build framework image 🔧
         if: ${{ github.event_name == 'push' && github.ref != 'refs/heads/master' }}

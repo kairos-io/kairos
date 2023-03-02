@@ -81,6 +81,7 @@ jobs:
           TAG: "latest"
           COSIGN_YES: true
         run: |
+          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Upload results
         uses: actions/upload-artifact@v3

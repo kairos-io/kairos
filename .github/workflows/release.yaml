@@ -60,6 +60,7 @@ jobs:
         run: |
           export TAG=${GITHUB_REF##*/}
           export IMAGE="quay.io/kairos/framework"
+          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
 
   build:
