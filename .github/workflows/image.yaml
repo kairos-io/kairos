@@ -119,10 +119,11 @@ jobs:
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
-          COSIGN_EXPERIMENTAL: 1
+          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}:latest"
+          COSIGN_YES: true
         run: |
-          docker push quay.io/kairos/core-${{ matrix.flavor }}:latest
-          cosign sign quay.io/kairos/core-${{ matrix.flavor }}:latest
+          docker push "$IMAGE"
+          cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
       - name: Push to testing
         run: |
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
@@ -151,22 +152,22 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - uses: earthly/actions-setup@afedd8a45417afde5088c8225bf642c686288e25
+      - uses: earthly/actions-setup@cce953f2ea75f5ff76f6483a788bac66a733de3a
         with:
           version: "latest"
       - name: Build framework image 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:master
         run: |
-          earthly --ci --push +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
+          earthly --push +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
-          COSIGN_EXPERIMENTAL: 1
+          IMAGE: "quay.io/kairos/framework:master_${{ matrix.flavor }}"
+          COSIGN_YES: true
         run: |
-          cosign sign quay.io/kairos/framework:master_${{ matrix.flavor }}
+          cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
       - name: Build framework image 🔧
         if: ${{ github.event_name == 'push' && github.ref != 'refs/heads/master' }}
         env:
@@ -202,11 +203,10 @@ jobs:
           go-version: ^1.16
       - run: |
           ls -liah
-          gsed -i '/build.*/d' .earthlyignore
+          rm .earthlyignore
           export ISO=$PWD/$(ls *.iso)
           export GOPATH="/Users/runner/go"
           export PATH=$PATH:$GOPATH/bin
-          export CLOUD_INIT=$PWD/config.yaml
           export CREATE_VM=true
           export FLAVOR=${{ matrix.flavor }}
           ./.github/run_test.sh "install-test"
@@ -249,21 +249,22 @@ jobs:
           - flavor: "ubuntu-20-lts"
           - flavor: "ubuntu-22-lts"
     steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-      - run: |
-          ls -liah
-          export ISO=$PWD/$(ls *.iso)
-          mkdir build
-          mv $ISO build/kairos.iso
-          sed  '/build.*/d' .earthlyignore
-          ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-          ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+    - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: kairos-${{ matrix.flavor }}.iso.zip
+    - run: |
+            ls -liah
+            rm .earthlyignore
+            export ISO=$PWD/$(ls *.iso)
+            mkdir build
+            mv $ISO build/kairos.iso
+            ls -liah build/
+            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
   qemu-bundles-tests:
     needs:
       - build
@@ -285,6 +286,7 @@ jobs:
           KVM: true
         run: |
           ls -liah
+          rm .earthlyignore
           export ISO=$PWD/$(ls *.iso)
           mkdir build
           mv $ISO build/kairos.iso
@@ -334,7 +336,7 @@ jobs:
           KVM: true
         run: |
             ls -liah
-            sed -i '/build.*/d' .earthlyignore
+            rm .earthlyignore
             export ISO=$PWD/$(ls *.iso)
             mkdir build
             mv $ISO build/kairos.iso
@@ -431,7 +433,7 @@ jobs:
           df -h
       - run: |
           ls -liah
-          sed -i '/build.*/d' .earthlyignore
+          rm .earthlyignore
           export ISO=$PWD/$(ls *.iso)
           sudo mkdir build
           sudo mv $ISO build/
@@ -502,7 +504,7 @@ jobs:
           df -h
       - run: |
           ls -liah
-          sed -i '/build.*/d' .earthlyignore
+          rm .earthlyignore
           export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
           sudo mkdir build
           sudo mv $ISO build/
