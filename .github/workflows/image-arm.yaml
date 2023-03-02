@@ -74,6 +74,19 @@ jobs:
           export IMAGE_NAME=kairos-$FLAVOR-$TAG.img
           export IMAGE=quay.io/kairos/core-$FLAVOR:$TAG
           docker push quay.io/kairos/core-$FLAVOR:$TAG
+      - name: Prepare sarif files  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/kairos/core-$FLAVOR:latest
+          MODEL: ${{ matrix.model }}
+        run: |
+          mkdir sarif
+          mv build/*.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}
       - name: Sign image
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:

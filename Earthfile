@@ -37,6 +37,7 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 all:
   BUILD +docker
   BUILD +image-sbom
+  BUILD +trivy-scan
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
@@ -44,6 +45,7 @@ all:
 all-arm:
   BUILD --platform=linux/arm64 +docker
   BUILD +image-sbom
+  BUILD +trivy-scan
   BUILD +arm-image
 
 go-deps:
@@ -498,13 +500,24 @@ datasource-iso:
 ###
 trivy:
     FROM aquasec/trivy
+    SAVE ARTIFACT /contrib contrib
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
-    ARG SEVERITY=CRITICAL
     FROM +docker
     COPY +trivy/trivy /trivy
-    RUN /trivy filesystem --severity $SEVERITY --exit-code 1 --no-progress /
+    COPY +trivy/contrib /contrib
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    ARG VARIANT
+    WORKDIR /build
+    RUN /trivy filesystem --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem -f json -o results.json --no-progress /
+    SAVE ARTIFACT /build/report.sarif report.sartif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
+    SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.html
+    SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.json
 
 linux-bench:
     ARG GO_VERSION
