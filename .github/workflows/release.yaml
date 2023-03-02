@@ -118,22 +118,6 @@ jobs:
         with:
           files: |
             release/*
-      - run: |
-          sudo mv release/*.iso ./
-          sudo mv release/*.sha256 ./
-          sudo mv release/*.sha256.pem ./
-          sudo mv release/*.sha256.sig ./
-      - uses: actions/upload-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-          path: |
-            *.iso
-            *.sha256
-            *.sha256.pem
-            *.sha256.sig
-          if-no-files-found: error
-
-
 # build-vm-images:
 #   needs: build
 #   runs-on: macos-12

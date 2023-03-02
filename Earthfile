@@ -36,12 +36,14 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
 all:
   BUILD +docker
+  BUILD +image-sbom
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
 
 all-arm:
   BUILD --platform=linux/arm64 +docker
+  BUILD +image-sbom
   BUILD +arm-image
 
 go-deps:
@@ -195,6 +197,21 @@ lint:
     BUILD +renovate-validate
     BUILD +shellcheck-lint
     BUILD +yamllint
+
+syft:
+    FROM anchore/syft:latest
+    SAVE ARTIFACT /syft syft
+
+image-sbom:
+    FROM +docker
+    WORKDIR /build
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    COPY +syft/syft /usr/bin/syft
+    RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
+    SAVE ARTIFACT /build/sbom.syft.json sbom.syft.json AS LOCAL core-${FLAVOR}-${VERSION}-sbom.syft.json
+    SAVE ARTIFACT /build/sbom.spdx.json sbom.spdx.json AS LOCAL core-${FLAVOR}-${VERSION}-sbom.spdx.json
 
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
