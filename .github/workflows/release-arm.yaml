@@ -99,3 +99,16 @@ jobs:
         with:
           files: |
             build/*.json
+      - name: Prepare sarif files  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/kairos/core-$FLAVOR:latest
+          MODEL: ${{ matrix.model }}
+        run: |
+          mkdir sarif
+          mv release/*.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}

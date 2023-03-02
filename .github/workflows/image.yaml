@@ -77,6 +77,13 @@ jobs:
           ./earthly.sh +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
+          mkdir sarif
+          mv *.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}
       - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
