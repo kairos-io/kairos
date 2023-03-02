@@ -142,7 +142,7 @@ jobs:
         env:
           FLAVOR: ${{ matrix.flavor }}
         run: |
-          earthly --ci --push +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
+          earthly --push +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:

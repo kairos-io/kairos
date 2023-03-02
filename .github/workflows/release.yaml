@@ -52,7 +52,7 @@ jobs:
           IMAGE: quay.io/kairos/framework
         run: |
           export TAG=${GITHUB_REF##*/}
-          earthly --ci --push +build-framework-image --FLAVOR=${FLAVOR}
+          earthly --push +build-framework-image --FLAVOR=${FLAVOR}
       - name: Push to quay
         env:
           COSIGN_YES: true
