@@ -54,13 +54,13 @@ jobs:
           export TAG=${GITHUB_REF##*/}
           earthly --ci --push +build-framework-image --FLAVOR=${FLAVOR}
       - name: Push to quay
-        if: startsWith(github.ref, 'refs/tags/')
         env:
-          COSIGN_EXPERIMENTAL: 1
-          IMAGE: quay.io/kairos/framework
+          COSIGN_YES: true
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
-          cosign sign ${IMAGE}:$TAG_${{ matrix.flavor }}
+          TAG=${GITHUB_REF##*/}
+          export IMAGE="quay.io/kairos/framework:$TAG"
+          cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
 
   build:
     runs-on: ubuntu-latest
@@ -95,17 +95,18 @@ jobs:
           ./earthly.sh +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
           sudo mv build release
       - name: Push to quay
-        if: startsWith(github.ref, 'refs/tags/')
         env:
-          COSIGN_EXPERIMENTAL: 1
+          COSIGN_YES: true
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           TAG=${GITHUB_REF##*/}
-          docker push quay.io/kairos/core-${{ matrix.flavor }}:$TAG
-          cosign sign quay.io/kairos/core-${{ matrix.flavor }}:$TAG
+          export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}:$TAG"
+          docker push "$IMAGE"
+          cosign sign $(docker images "$IMAGE" --format  "{{.Digest}}")
       - name: Sign ISO sha files
-        if: startsWith(github.ref, 'refs/tags/')
         env:
-          COSIGN_EXPERIMENTAL: 1
+          COSIGN_YES: true
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           export TAG=${GITHUB_REF##*/}
           sudo chmod -R 777 release
