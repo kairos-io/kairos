@@ -509,7 +509,7 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - run: |
-          ./earthly.sh +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
+          ./earthly.sh +run-qemu-test --PREBUILT_ISO=$(ls kairos-${{matrix.flavor}}-*.iso) \
             --FLAVOR=${{ matrix.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
             --TEST_SUITE=upgrade-latest-with-cli

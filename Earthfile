@@ -638,7 +638,6 @@ run-qemu-test:
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/build/kairos.iso
     END
-    RUN pwd && ls -l && ls -l build
     RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 ###
