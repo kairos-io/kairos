@@ -10,3 +10,7 @@ stages:
     systemctl:
       enable:
       - systemd-timesyncd
+  - name: "Generate host keys"
+    # Make sure the host always has available keys
+    commands:
+    - ssh-keygen -A
