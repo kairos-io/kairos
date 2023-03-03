@@ -560,7 +560,6 @@ run-qemu-datasource-tests:
 
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
     COPY . .
-    RUN ls -liah /test/build
     IF [ -n "$PREBUILT_ISO" ]
         ENV ISO=$PREBUILT_ISO
     ELSE
@@ -622,6 +621,7 @@ run-qemu-test:
     RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
+    ARG PREBUILT_ISO
     ARG CONTAINER_IMAGE
     ENV CONTAINER_IMAGE=$CONTAINER_IMAGE
     ENV FLAVOR=$FLAVOR
@@ -632,8 +632,8 @@ run-qemu-test:
     ENV GOPATH="/go"
 
     COPY . .
-    IF [ -e /build/kairos.iso ]
-        ENV ISO=/build/kairos.iso
+    IF [ -n "$PREBUILT_ISO" ]
+        ENV ISO=$PREBUILT_ISO
     ELSE
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/build/kairos.iso

@@ -232,8 +232,6 @@ jobs:
         with:
           go-version: ^1.16
       - run: |
-          ls -liah
-          rm .earthlyignore
           export ISO=$PWD/$(ls *.iso)
           export GOPATH="/Users/runner/go"
           export PATH=$PATH:$GOPATH/bin
@@ -287,14 +285,8 @@ jobs:
       with:
         name: kairos-${{ matrix.flavor }}.iso.zip
     - run: |
-            ls -liah
-            rm .earthlyignore
-            export ISO=$PWD/$(ls *.iso)
-            mkdir build
-            mv $ISO build/kairos.iso
-            ls -liah build/
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            ./earthly.sh +run-qemu-datasource-tests --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+            ./earthly.sh +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
   qemu-bundles-tests:
     needs:
       - build
@@ -359,12 +351,6 @@ jobs:
       - env:
           KVM: true
         run: |
-            ls -liah
-            rm .earthlyignore
-            export ISO=$PWD/$(ls *.iso)
-            mkdir build
-            mv $ISO build/kairos.iso
-
             # Get earthly with luet
             curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
             chmod +x luet
@@ -386,7 +372,7 @@ jobs:
                   http = true
             EOF
             earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            earthly -P +run-qemu-datasource-tests --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
+            earthly -P +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
 
   qemu-netboot-tests:
     needs:
@@ -456,12 +442,8 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - run: |
-          ls -liah
-          rm .earthlyignore
-          export ISO=$PWD/$(ls *.iso)
-          sudo mkdir build
-          sudo mv $ISO build/
-          ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} \
+          ./earthly.sh +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
+            --FLAVOR=${{ matrix.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
             --TEST_SUITE=upgrade-with-cli
       - uses: actions/upload-artifact@v3
@@ -527,14 +509,10 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - run: |
-          ls -liah
-          rm .earthlyignore
-          export ISO=$PWD/$(ls kairos-${{matrix.flavor}}-*.iso)
-          sudo mkdir build
-          sudo mv $ISO build/
-          ./earthly.sh +run-qemu-test --FLAVOR=${{ matrix.flavor }} \
-                        --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
-                        --TEST_SUITE=upgrade-latest-with-cli
+          ./earthly.sh +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
+            --FLAVOR=${{ matrix.flavor }} \
+            --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
+            --TEST_SUITE=upgrade-latest-with-cli
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
