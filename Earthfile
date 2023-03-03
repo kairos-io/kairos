@@ -561,7 +561,7 @@ run-qemu-datasource-tests:
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
     COPY . .
     IF [ -n "$PREBUILT_ISO" ]
-        ENV ISO=$PREBUILT_ISO
+        ENV ISO=/test/$PREBUILT_ISO
     ELSE
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/test/kairos.iso
@@ -633,7 +633,7 @@ run-qemu-test:
 
     COPY . .
     IF [ -n "$PREBUILT_ISO" ]
-        ENV ISO=$PREBUILT_ISO
+        ENV ISO=/build/$PREBUILT_ISO
     ELSE
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/build/kairos.iso
