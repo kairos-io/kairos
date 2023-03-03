@@ -84,7 +84,7 @@ jobs:
           MODEL: ${{ matrix.model }}
         run: |
           mkdir sarif
-          mv build/*.sarif sarif/
+          sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
         with:
