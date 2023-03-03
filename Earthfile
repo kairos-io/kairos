@@ -548,6 +548,7 @@ run-qemu-datasource-tests:
     RUN apt install -y qemu-system-x86 qemu-utils golang git
     WORKDIR /test
     ARG FLAVOR
+    ARG PREBUILT_ISO
     ARG TEST_SUITE=autoinstall-test
     ENV FLAVOR=$FLAVOR
     ENV SSH_PORT=60023
@@ -560,8 +561,8 @@ run-qemu-datasource-tests:
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
     COPY . .
     RUN ls -liah /test/build
-    IF [ -e /test/build/kairos.iso ]
-        ENV ISO=/test/build/kairos.iso
+    IF [ -n "$PREBUILT_ISO" ]
+        ENV ISO=$PREBUILT_ISO
     ELSE
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/test/kairos.iso
@@ -707,7 +708,8 @@ prepare-bundles-tests:
 
 run-qemu-bundles-tests:
     ARG FLAVOR
-    BUILD +run-qemu-datasource-tests --CLOUD_CONFIG=./bundles-config.yaml --TEST_SUITE="bundles-test" --FLAVOR=$FLAVOR
+    ARG PREBUILT_ISO
+    BUILD +run-qemu-datasource-tests --PREBUILT_ISO=$PREBUILT_ISO --CLOUD_CONFIG=./bundles-config.yaml --TEST_SUITE="bundles-test" --FLAVOR=$FLAVOR
 
 ###
 ### Examples
