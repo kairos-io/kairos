@@ -24,7 +24,7 @@ concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 env:
-  EARTHLY_BUILD_ARGS: 'IMMUCORE_DEV=${{ inputs.immucore_dev }},IMMUCORE_DEV_BRANCH=${{ inputs.immucore_dev_branch }}'
+  EARTHLY_BUILD_ARGS: 'IMMUCORE_DEV=true,IMMUCORE_DEV_BRANCH=stages_cd'
 jobs:
   get-matrix:
     runs-on: ubuntu-latest
