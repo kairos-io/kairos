@@ -315,12 +315,6 @@ jobs:
       - env:
           KVM: true
         run: |
-          ls -liah
-          rm .earthlyignore
-          export ISO=$PWD/$(ls *.iso)
-          mkdir build
-          mv $ISO build/kairos.iso
-
           # Get earthly with luet
           curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
           chmod +x luet
@@ -343,7 +337,7 @@ jobs:
           EOF
 
           earthly -P +prepare-bundles-tests
-          earthly -P +run-qemu-bundles-tests --FLAVOR=${{ matrix.flavor }}
+          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }}
   qemu-reset-tests:
     needs:
       - build
