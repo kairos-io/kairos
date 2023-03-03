@@ -1,5 +1,10 @@
 name: "Default network configuration"
 stages:
+  boot:
+    - name: "Restart network"
+      commands:
+       	- systemctl daemon-reload
+       	- systemctl restart systemd-networkd
   initramfs:
     - name: "Setup network"
       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
