@@ -89,6 +89,9 @@ func gatherLogs(vm VM) {
 			"/run/blkid",
 			"/run/events.json",
 			"/run/cmdline",
+			"/run/immucore/immucore.log",
+			"/run/immucore/initramfs_stage.log",
+			"/run/immucore/rootfs_stage.log",
 		})
 }
 
@@ -138,7 +141,6 @@ func startVM() (context.Context, VM) {
 		types.WithStateDir(stateDir),
 		types.WithDataSource(os.Getenv("DATASOURCE")),
 	}
-
 	if os.Getenv("KVM") != "" {
 		opts = append(opts, func(m *types.MachineConfig) error {
 			m.Args = append(m.Args,
