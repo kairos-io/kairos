@@ -1,10 +1,5 @@
 name: "Default network configuration"
 stages:
-  boot:
-    - name: "Restart network"
-      commands:
-       	- systemctl daemon-reload
-       	- systemctl restart systemd-networkd
   initramfs:
     - name: "Setup network"
       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
@@ -18,6 +13,13 @@ stages:
       commands:
         - rm /etc/resolv.conf
         - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+  initramfs.after:
+    - name: "Restart network"
+      commands:
+        - systemctl daemon-reload
+        - systemctl restart systemd-networkd
+        - |
+          ip link | awk -F: '$0 !~ "NO-CARRIER|lo|vir|wl|usb|^[^0-9]"{print $2;getline}'| while read line; do /sbin/dhclient -4 $line; done
 #     dns:
 #      path: /etc/resolv.conf
 #      nameservers:
