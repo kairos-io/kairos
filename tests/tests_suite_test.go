@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -89,6 +90,9 @@ func gatherLogs(vm VM) {
 			"/run/blkid",
 			"/run/events.json",
 			"/run/cmdline",
+			"/run/immucore.log",
+			"/run/immucore_initramfs.log",
+			"/run/immucore_rootfs.log",
 		})
 }
 
@@ -126,19 +130,27 @@ func startVM() (context.Context, VM) {
 		types.WithID(vmName),
 		types.WithSSHUser(user()),
 		types.WithSSHPass(pass()),
+		func(m *types.MachineConfig) error {
+			m.Args = append(m.Args,
+				"-chardev", fmt.Sprintf("stdio,mux=on,id=char0,logfile=%s,signal=off", path.Join(stateDir, "serial.log")),
+				"-serial", "chardev:char0",
+				"-mon", "chardev=char0",
+			)
+			return nil
+		},
 		types.OnFailure(func(p *process.Process) {
 			out, _ := os.ReadFile(p.StdoutPath())
 			err, _ := os.ReadFile(p.StderrPath())
 			status, _ := p.ExitCode()
+			serial, _ := os.ReadFile(path.Join(stateDir, "serial.log"))
 
 			// We are explicitly killing the qemu process. We don't treat that as an error
 			// but we just print the output just in case.
-			fmt.Printf("\nVM Aborted: %s %s Exit status: %s\n", out, err, status)
+			fmt.Printf("\nVM Aborted: %s %s Exit status: %s Serial Output: %s\n", out, err, status, serial)
 		}),
 		types.WithStateDir(stateDir),
 		types.WithDataSource(os.Getenv("DATASOURCE")),
 	}
-
 	if os.Getenv("KVM") != "" {
 		opts = append(opts, func(m *types.MachineConfig) error {
 			m.Args = append(m.Args,

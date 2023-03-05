@@ -71,7 +71,9 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 			By("checking Auto assessment", func() {
 				// Auto assessment was installed
-				out, _ := vm.Sudo("cat /run/initramfs/cos-state/grubcustom")
+				out, _ := vm.Sudo("ls -ltra /run/initramfs/cos-state/")
+				fmt.Println(out)
+				out, _ = vm.Sudo("cat /run/initramfs/cos-state/grubcustom")
 				Expect(out).To(ContainSubstring("bootfile_loc"))
 
 				out, _ = vm.Sudo("cat /run/initramfs/cos-state/grub_boot_assessment")

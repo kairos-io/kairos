@@ -287,6 +287,20 @@ jobs:
     - run: |
             ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             ./earthly.sh +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+    - name: Upload logs
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: ${{ matrix.flavor }}-acceptance.logs.zip
+        path: tests/**/logs/*
+        if-no-files-found: warn
+    - name: Upload logs
+      uses: actions/upload-artifact@v3
+      if: failure()
+      with:
+        name: ${{ matrix.flavor }}-acceptance2.logs.zip
+        path: tests/logs/*
+        if-no-files-found: warn
   qemu-bundles-tests:
     needs:
       - build
