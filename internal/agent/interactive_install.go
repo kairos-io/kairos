@@ -8,6 +8,7 @@ import (
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	config "github.com/kairos-io/kairos/pkg/config"
+	schemas "github.com/kairos-io/kairos/pkg/config/schemas"
 
 	events "github.com/kairos-io/kairos/sdk/bus"
 	"github.com/kairos-io/kairos/sdk/unstructured"
@@ -224,8 +225,12 @@ func InteractiveInstall(spawnShell bool) error {
 	}
 
 	c := &config.Config{
-		Install: &config.Install{
-			Device: device,
+		KConfig: schemas.KConfig{
+			RootSchema: schemas.RootSchema{
+				Install: schemas.InstallSchema{
+					Device: device,
+				},
+			},
 		},
 	}
 

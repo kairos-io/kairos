@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	jsonschemago "github.com/swaggest/jsonschema-go"
 	"gopkg.in/yaml.v3"
@@ -17,7 +18,7 @@ type RootSchema struct {
 	Env                []string       `json:"env,omitempty"`
 	FailOnBundleErrors bool           `json:"fail_on_bundles_errors,omitempty"`
 	GrubOptionsSchema  `json:"grub_options,omitempty"`
-	Install            InstallSchema `json:"install,omitempty"`
+	Install            InstallSchema `json:"install,omitempty" yaml:"install,omitempty"`
 	Options            []interface{} `json:"options,omitempty" description:"Various options."`
 	Users              []UserSchema  `json:"users,omitempty" minItems:"1" required:"true"`
 	P2P                P2PSchema     `json:"p2p,omitempty"`
@@ -29,6 +30,28 @@ type KConfig struct {
 	parsed          interface{}
 	ValidationError error
 	schemaType      interface{}
+	RootSchema
+}
+
+type Bundles []BundleSchema
+
+func (b Bundles) Options() (res [][]bundles.BundleOption) {
+	for _, bundle := range b {
+		for _, t := range bundle.Targets {
+			opts := []bundles.BundleOption{bundles.WithRepository(bundle.Repository), bundles.WithTarget(t)}
+			if bundle.Rootfs != "" {
+				opts = append(opts, bundles.WithRootFS(bundle.Rootfs))
+			}
+			if bundle.DB != "" {
+				opts = append(opts, bundles.WithDBPath(bundle.DB))
+			}
+			if bundle.LocalFile {
+				opts = append(opts, bundles.WithLocalFile(true))
+			}
+			res = append(res, opts)
+		}
+	}
+	return
 }
 
 // GenerateSchema takes the given schema type and builds a JSON Schema out of it

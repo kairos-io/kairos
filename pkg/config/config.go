@@ -14,7 +14,6 @@ import (
 	"github.com/itchyny/gojq"
 	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 	"github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/sdk/bundles"
 	"github.com/kairos-io/kairos/sdk/unstructured"
 	yip "github.com/mudler/yip/pkg/schema"
 
@@ -26,42 +25,17 @@ const (
 	FilePrefix                = "file://"
 )
 
-type Install struct {
-	Auto                   bool              `yaml:"auto,omitempty"`
-	Reboot                 bool              `yaml:"reboot,omitempty"`
-	Device                 string            `yaml:"device,omitempty"`
-	Poweroff               bool              `yaml:"poweroff,omitempty"`
-	GrubOptions            map[string]string `yaml:"grub_options,omitempty"`
-	Bundles                Bundles           `yaml:"bundles,omitempty"`
-	Encrypt                []string          `yaml:"encrypted_partitions,omitempty"`
-	SkipEncryptCopyPlugins bool              `yaml:"skip_copy_kcrypt_plugin,omitempty"`
-	Env                    []string          `yaml:"env,omitempty"`
-	Image                  string            `yaml:"image,omitempty"`
-	EphemeralMounts        []string          `yaml:"ephemeral_mounts,omitempty"`
-	BindMounts             []string          `yaml:"bind_mounts,omitempty"`
-}
-
 type Config struct {
-	Install *Install `yaml:"install,omitempty"`
 	//cloudFileContent string
 	originalData       map[string]interface{}
 	header             string
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
 	FailOnBundleErrors bool              `yaml:"fail_on_bundles_errors,omitempty"`
-	Bundles            Bundles           `yaml:"bundles,omitempty"`
+	Bundles            schema.Bundles    `yaml:"bundles,omitempty"`
 	GrubOptions        map[string]string `yaml:"grub_options,omitempty"`
 	Env                []string          `yaml:"env,omitempty"`
-}
-
-type Bundles []Bundle
-
-type Bundle struct {
-	Repository string   `yaml:"repository,omitempty"`
-	Rootfs     string   `yaml:"rootfs_path,omitempty"`
-	DB         string   `yaml:"db_path,omitempty"`
-	LocalFile  bool     `yaml:"local_file,omitempty"`
-	Targets    []string `yaml:"targets,omitempty"`
+	schema.KConfig
 }
 
 const DefaultHeader = "#cloud-config"
@@ -76,25 +50,6 @@ func HasHeader(userdata, head string) (bool, string) {
 		return head == header, header
 	}
 	return (header == DefaultHeader) || (header == "#kairos-config") || (header == "#node-config"), header
-}
-
-func (b Bundles) Options() (res [][]bundles.BundleOption) {
-	for _, bundle := range b {
-		for _, t := range bundle.Targets {
-			opts := []bundles.BundleOption{bundles.WithRepository(bundle.Repository), bundles.WithTarget(t)}
-			if bundle.Rootfs != "" {
-				opts = append(opts, bundles.WithRootFS(bundle.Rootfs))
-			}
-			if bundle.DB != "" {
-				opts = append(opts, bundles.WithDBPath(bundle.DB))
-			}
-			if bundle.LocalFile {
-				opts = append(opts, bundles.WithLocalFile(true))
-			}
-			res = append(res, opts)
-		}
-	}
-	return
 }
 
 func (c Config) Unmarshal(o interface{}) error {
@@ -207,6 +162,7 @@ func Scan(opts ...Option) (c *Config, err error) {
 	}
 
 	kc, err := schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
+	c.KConfig = *kc
 	if err != nil {
 		if !o.NoLogs && !o.StrictValidation {
 			fmt.Printf("WARNING: %s\n", err.Error())
@@ -217,13 +173,13 @@ func Scan(opts ...Option) (c *Config, err error) {
 		}
 	}
 
-	if !kc.IsValid() {
+	if !c.IsValid() {
 		if !o.NoLogs && !o.StrictValidation {
-			fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
+			fmt.Printf("WARNING: %s\n", c.ValidationError.Error())
 		}
 
 		if o.StrictValidation {
-			return c, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
+			return c, fmt.Errorf("ERROR: %s", c.ValidationError.Error())
 		}
 	}
 

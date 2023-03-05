@@ -6,27 +6,31 @@ import (
 
 // InstallSchema represents the install block in the Kairos configuration. It is used to drive automatic installations without user interaction.
 type InstallSchema struct {
-	_                   struct{}       `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
-	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
-	BindMounts          []string       `json:"bind_mounts,omitempty"`
-	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	Device              string         `json:"device,omitempty" pattern:"^(auto|/|(/[a-zA-Z0-9_-]+)+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\"]"`
-	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
-	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
-	Env                 []interface{}  `json:"env,omitempty"`
-	GrubOptionsSchema   `json:"grub_options,omitempty"`
-	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
+	_                   struct{} `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
+	Auto                bool     `json:"auto,omitempty" description:"Set to true when installing without Pairing" yaml:"auto,omitempty"`
+	BindMounts          []string `json:"bind_mounts,omitempty" yaml:"bind_mounts,omitempty" yaml:"bind_mounts,omitempty"`
+	Bundles             Bundles  `json:"bundles,omitempty" description:"Add bundles in runtime" yaml:"bundles,omitempty"`
+	Device              string   `json:"device,omitempty" pattern:"^(auto|/|(/[a-zA-Z0-9_-]+)+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\"]" yaml:"device,omitempty"`
+	EphemeralMounts     []string `json:"ephemeral_mounts,omitempty" yaml:"ephemeral_mounts,omitempty"`
+	EncryptedPartitions []string `json:"encrypted_partitions,omitempty" yaml:"encrypted_partitions,omitempty"`
+	Env                 []string `json:"env,omitempty" yaml:"env,omitempty"`
+
+	// TODO: merge these two
+	GrubOptions       map[string]string `yaml:"grub_options,omitempty"`
+	GrubOptionsSchema `json:"grub_options,omitempty"`
+
+	Image string `json:"image,omitempty" description:"Use a different container image for the installation" yaml:"image,omitempty"`
 	PowerManagement
-	SkipEncryptCopyPlugins bool `json:"skip_copy_kcrypt_plugin,omitempty"`
+	SkipEncryptCopyPlugins bool `json:"skip_copy_kcrypt_plugin,omitempty" yaml:"skip_copy_kcrypt_plugin,omitempty"`
 }
 
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
 type BundleSchema struct {
-	DB         string   `json:"db_path,omitempty"`
-	LocalFile  bool     `json:"local_file,omitempty"`
-	Repository string   `json:"repository,omitempty"`
-	Rootfs     string   `json:"rootfs_path,omitempty"`
-	Targets    []string `json:"targets,omitempty"`
+	DB         string   `json:"db_path,omitempty" yaml:"db_path,omitempty"`
+	LocalFile  bool     `json:"local_file,omitempty" yaml:"local_file,omitempty"`
+	Repository string   `json:"repository,omitempty" yaml:"repository,omitempty"`
+	Rootfs     string   `json:"rootfs_path,omitempty" yaml:"rootfs_path,omitempty"`
+	Targets    []string `json:"targets,omitempty" yaml:"targets,omitempty"`
 }
 
 // GrubOptionsSchema represents the grub options block which can be used in different places of the Kairos configuration. It is used to configure grub.
@@ -43,6 +47,8 @@ type GrubOptionsSchema struct {
 
 // PowerManagement is a meta structure to hold the different rules for managing power, which are not compatible between each other.
 type PowerManagement struct {
+	Reboot   bool `yaml:"reboot,omitempty"`
+	Poweroff bool `yaml:"poweroff,omitempty"`
 }
 
 // NoPowerManagement is a meta structure used when the user does not define any power management options or when the user does not want to reboot or poweroff the machine.

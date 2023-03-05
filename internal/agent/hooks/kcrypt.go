@@ -16,7 +16,7 @@ type Kcrypt struct{}
 
 func (k Kcrypt) Run(c config.Config) error {
 
-	if len(c.Install.Encrypt) == 0 {
+	if len(c.Install.EncryptedPartitions) == 0 {
 		return nil
 	}
 
@@ -33,7 +33,7 @@ func (k Kcrypt) Run(c config.Config) error {
 		}
 	}
 
-	for _, p := range c.Install.Encrypt {
+	for _, p := range c.Install.EncryptedPartitions {
 		out, err := utils.SH(fmt.Sprintf("kcrypt encrypt %s", p))
 		if err != nil {
 			fmt.Printf("could not encrypt partition: %s\n", out+err.Error())

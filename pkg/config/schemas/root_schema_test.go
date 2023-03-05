@@ -1,11 +1,9 @@
 package config_test
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
-	. "github.com/kairos-io/kairos/pkg/config"
 	. "github.com/kairos-io/kairos/pkg/config/schemas"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -49,23 +47,6 @@ func structContainsField(f, t string, str interface{}) bool {
 	return false
 }
 
-func structFieldsContainedInOtherStruct(left, right interface{}) {
-	leftValues := reflect.ValueOf(left)
-	leftTypes := leftValues.Type()
-
-	for i := 0; i < leftValues.NumField(); i++ {
-		leftTagName := getTagName(leftTypes.Field(i).Tag.Get("yaml"))
-		leftFieldName := leftTypes.Field(i).Name
-		if leftTypes.Field(i).IsExported() {
-			It(fmt.Sprintf("Checks that the new schema contians the field %s", leftFieldName), func() {
-				Expect(
-					structContainsField(leftFieldName, leftTagName, right),
-				).To(BeTrue())
-			})
-		}
-	}
-}
-
 var _ = Describe("Schema", func() {
 	Context("NewConfigFromYAML", func() {
 		var config *KConfig
@@ -74,16 +55,6 @@ var _ = Describe("Schema", func() {
 
 		JustBeforeEach(func() {
 			config, err = NewConfigFromYAML(yaml, RootSchema{})
-		})
-
-		Context("While the new Schema is not the single source of truth", func() {
-			structFieldsContainedInOtherStruct(Config{}, RootSchema{})
-		})
-		Context("While the new InstallSchema is not the single source of truth", func() {
-			structFieldsContainedInOtherStruct(Install{}, InstallSchema{})
-		})
-		Context("While the new BundleSchema is not the single source of truth", func() {
-			structFieldsContainedInOtherStruct(Bundle{}, BundleSchema{})
 		})
 
 		Context("With invalid YAML syntax", func() {

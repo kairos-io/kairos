@@ -33,7 +33,7 @@ func Run(opts ...Option) error {
 
 	utils.SetEnv(c.Env)
 	bf := machine.BootFrom()
-	if c.Install != nil && c.Install.Auto && (bf == machine.NetBoot || bf == machine.LiveCDBoot) {
+	if c.Install.Auto && (bf == machine.NetBoot || bf == machine.LiveCDBoot) {
 		// Don't go ahead if we are asked to install from a booting live medium
 		fmt.Println("Agent run aborted. Installation being performed from live medium")
 		return nil

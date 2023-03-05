@@ -124,7 +124,7 @@ grub_options:
   extra_passive_cmdline: "config_url=http://"
   default_menu_entry: "foobar"
 env:
-  - foo=barevice: /dev/sda`
+  - foo=barevice`
 		})
 
 		It("succeedes", func() {
