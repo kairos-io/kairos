@@ -67,7 +67,6 @@ RUN zypper in -y \
     sysconfig-netconfig \
     systemd \
     systemd-network \
-    systemd-sysvinit \
     sysvinit-tools \
     tar \
     timezone \
