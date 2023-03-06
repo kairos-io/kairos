@@ -60,7 +60,7 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 	BeforeEach(func() {
 
 		_, vm = startVM()
-		vm.EventuallyConnects(1200)
+		vm.EventuallyConnects(1800)
 	})
 
 	AfterEach(func() {

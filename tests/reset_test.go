@@ -18,7 +18,7 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 		}
 
 		_, vm = startVM()
-		vm.EventuallyConnects(1200)
+		vm.EventuallyConnects(1800)
 	})
 
 	AfterEach(func() {
