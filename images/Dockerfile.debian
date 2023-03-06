@@ -74,6 +74,7 @@ RUN apt-get update \
     squashfs-tools \
     sudo \
     systemd \
+    systemd-resolved \
     systemd-sysv \
     systemd-timesyncd \
     tar \
