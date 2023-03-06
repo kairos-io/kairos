@@ -2,14 +2,13 @@ package mos_test
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	. "github.com/spectrocloud/peg/matcher"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 var stateContains = func(vm VM, query string, expected ...string) {
@@ -36,6 +35,8 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
+			f, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			fmt.Fprint(GinkgoWriter, string(f))
 			gatherLogs(vm)
 		}
 
@@ -71,9 +72,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 			By("checking Auto assessment", func() {
 				// Auto assessment was installed
-				out, _ := vm.Sudo("ls -ltra /run/initramfs/cos-state/")
-				fmt.Println(out)
-				out, _ = vm.Sudo("cat /run/initramfs/cos-state/grubcustom")
+				out, _ := vm.Sudo("cat /run/initramfs/cos-state/grubcustom")
 				Expect(out).To(ContainSubstring("bootfile_loc"))
 
 				out, _ = vm.Sudo("cat /run/initramfs/cos-state/grub_boot_assessment")
