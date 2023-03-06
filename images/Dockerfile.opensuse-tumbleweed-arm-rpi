@@ -46,7 +46,6 @@ RUN zypper in -y \
     multipath-tools \
     nano \
     nethogs \
-    nfs-utils \
     open-iscsi \
     open-vm-tools \
     openssh \
@@ -67,7 +66,6 @@ RUN zypper in -y \
     sysconfig-netconfig \
     systemd \
     systemd-network \
-    systemd-sysvinit \
     sysvinit-tools \
     tar \
     timezone \
