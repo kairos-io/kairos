@@ -132,6 +132,12 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				Expect(out).ToNot(ContainSubstring("videotest"))
 			})
 
+			By("checking that networking is functional", func() {
+				out, err := vm.Sudo(`curl google.it`)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(out).To(ContainSubstring("Moved"))
+			})
+
 			By("checking corresponding state", func() {
 				out, err := vm.Sudo("kairos-agent state")
 				Expect(err).ToNot(HaveOccurred())
