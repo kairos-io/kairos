@@ -15,12 +15,13 @@ stages:
         - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
 # This change ensures any network config files updated during initramfs are read into systemd-networkd and the stack is restarted. This fixes issues with the DHCP IP address getting dropped under certain circumstances in Equinix Metal. Also fixes dynamically defined network bonding not coming up properly until the daemon-reload and restart commands are issued. See also: https://github.com/kairos-io/kairos/pull/1030
   initramfs.after:
-    - name: "Restart network"
+    - name: "Restart network stack when booting in live mode"
+      if: '[ -f /run/cos/live_mode ]'
       commands:
         - systemctl daemon-reload
         - systemctl restart systemd-networkd
         - |
-          if [ -f /run/cos/live_mode ]; then ip link | awk -F: '$0 !~ "NO-CARRIER|lo|vir|wl|usb|^[^0-9]"{print $2;getline}'| while read line; do /sbin/dhclient -4 $line; done; fi
+          ip link | awk -F: '$0 !~ "NO-CARRIER|lo|vir|wl|usb|^[^0-9]"{print $2;getline}'| while read line; do /sbin/dhclient -4 $line; done
 #     dns:
 #      path: /etc/resolv.conf
 #      nameservers:
