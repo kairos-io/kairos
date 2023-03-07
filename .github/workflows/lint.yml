@@ -9,8 +9,6 @@ on:
     paths:
       - '!docs/**'
       - '.github/**'
-    paths-ignore:
-      - 'docs/**'
 jobs:
   lint:
     runs-on: ubuntu-latest
