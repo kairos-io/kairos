@@ -5,7 +5,9 @@ on:
       - master
     paths:
       - '!docs/**'
-  pull_request: null
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
   workflow_dispatch:
     inputs:
       immucore_dev:
