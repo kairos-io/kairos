@@ -352,7 +352,8 @@ cloud_config: |
 | `state_dir` | Specify a directory that will be used by auroraboot to download artifacts and reuse the same to cache artifacts. |
 | `listen_addr` | Default http binding port for offline ISO generation. |
 | `cloud_config` | Cloud config path to use for the machines. A URL can be specified, use `-` to pass-by the cloud-config from _STDIN_ |
-
+| `iso.data` | Defines a path to be embedded into the resulting iso. When booting, the files will be accessible at `/run/initramfs/live` |
+| `netboot.cmdlin` | Override the automatically generated cmdline with a custom one to use during netboot. `config_url` and `rootfs`  are automatically constructed. A reasonable value can be `netboot.cmdline=rd.neednet=1 ip=dhcp rd.cos.disable netboot nodepair.enable console=tty0` |
 
 To use the configuration file with AuroraBoot, run AuroraBoot specifying the file or URL of the config as first argument:
 
@@ -478,7 +479,7 @@ docker run -v $PWD/config.yaml:/config.yaml \
              -v $PWD/build:/tmp/auroraboot \
              -v /var/run/docker.sock:/var/run/docker.sock \
              --rm -ti quay.io/kairos/auroraboot \
-             --set container_image=<IMAGE> \
+             --set container_image=docker://<IMAGE> \
              --set "disable_http_server=true" \
              --set "disable_netboot=true" \
              --cloud-config /config.yaml \

@@ -44,3 +44,4 @@ This folder contains examples for Kairos configurations.
 - The `auroraboot` folder contains cloud config examples that can be used with [AuroraBoot](https://kairos.io/docs/reference/auroraboot)
 - The `bundle` folder contains a [live layer bundle example](https://kairos.io/docs/advanced/livelayering/)
 - The `plans` folder contains plans that can be used with the `system-upgrade-controller` to upgrade a system or apply changes with Kubernetes, [see the documentation here](https://kairos.io/docs/upgrade/kubernetes/).
+- The `byoi` folder contains example on how to build Kairos derivatives from scratch [see the documentation here](https://kairos.io/docs/reference/build-from-scratch/).
