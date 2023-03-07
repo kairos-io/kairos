@@ -20,6 +20,9 @@ stages:
       commands:
         - systemctl daemon-reload
         - systemctl restart systemd-networkd
+  before-install:
+    - name: "Force DHCP refresh before installing to disk"
+      commands:
         - |
           ip link | awk -F: '$0 !~ "NO-CARRIER|lo|vir|wl|usb|^[^0-9]"{print $2;getline}'| while read line; do /sbin/dhclient -4 $line; done
 #     dns:
