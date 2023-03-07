@@ -6,6 +6,9 @@ on:
     paths:
       - '!docs/**'
   pull_request:
+    paths:
+      - '!docs/**'
+      - '.github/**'
     paths-ignore:
       - 'docs/**'
 jobs:
