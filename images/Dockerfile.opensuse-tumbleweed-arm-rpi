@@ -3,6 +3,7 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
+RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && zypper ref
 RUN zypper in -y \
     bash-completion \
     bcm43xx-firmware \
