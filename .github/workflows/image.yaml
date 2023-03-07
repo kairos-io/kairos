@@ -3,6 +3,8 @@ on:
   push:
     branches:
       - master
+    paths:
+      - !docs/**
   pull_request: null
   workflow_dispatch:
     inputs:
