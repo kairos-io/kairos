@@ -79,16 +79,8 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
         run: |
-          ./earthly.sh +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          ./earthly.sh +iso --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
-          sudo rm -rf build
-          mkdir sarif
-          mv *.sarif sarif/
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'sarif'
-          category: ${{ matrix.flavor }}
       - uses: actions/upload-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
@@ -115,7 +107,7 @@ jobs:
         name: kairos-${{ matrix.flavor }}.iso.zip
     - name: Install deps
       run: |
-        apt install -y qemu-system-x86 qemu-utils golang git
+        sudo apt install -y qemu-system-x86 qemu-utils golang git
     - run: |
         ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
         PREBUILT_ISO=$(ls *.iso) FLAVOR=${{ matrix.flavor }} USE_QEMU=true CREATE_VM=true CLOUD_CONFIG="./tests/assets/autoinstall.yaml" DATASOURCE=build/datasource.iso CLOUD_INIT="./tests/assets/autoinstall.yaml" ginkgo -v --label-filter "autoinstall-test" --fail-fast -r ./tests/

@@ -105,9 +105,10 @@ func startVM() (context.Context, VM) {
 	var sshPort, spicePort int
 
 	vmName := uuid.New().String()
-
-	stateDir, err := os.MkdirTemp("", "")
+	dir, _ := os.Getwd()
+	stateDir, err := os.MkdirTemp(dir, "")
 	Expect(err).ToNot(HaveOccurred())
+	fmt.Println(stateDir)
 
 	sshPort, err = getFreePort()
 	Expect(err).ToNot(HaveOccurred())
