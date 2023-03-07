@@ -6,6 +6,8 @@ on:
     paths:
       - '!docs/**'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
 jobs:
   lint:
     runs-on: ubuntu-latest
