@@ -7,46 +7,43 @@ description: >
 ---
 
 {{% alert title="Note" %}}
+By default, Core and Standard Kairos images are pre-configured, optimized and maintained by the Kairos team, meeting most use cases. However, if you're an advanced user interested in creating your own derivative or building new flavors for Kairos core images, this section is reserved just for you.
 
-This section is reserved for experienced users and advanced use-cases, for instance when building new flavors for Kairos core images or creating your own derivative. 
-For most use cases Core and Standard Kairos images are enough, pre-configured, optimized images built following the approach described below, which are pre-built and maintained by the Kairos team.
-
-This process is still a work in progress. You can track our development efforts in the [factory epic](https://github.com/kairos-io/kairos/issues/116). Altough the state is already usable for general consumption, there are features like [conformance tests](https://github.com/kairos-io/kairos/issues/958) to allow users to run tests against images built with this process allowing to verify the correctness of the image built.
+While the process of building these images is still a work in progress, it's already usable for general consumption. You can follow our development efforts in the [factory epic](https://github.com/kairos-io/kairos/issues/116). For instance, we are currently working on adding features like [conformance tests](https://github.com/kairos-io/kairos/issues/958) to enable users to test images built with this process, ensuring their correctness before attempting to boot the system.
 {{% /alert %}}
 
-Kairos allows to "bring any distribution" meaning that any base OS image can be used as a source to create a Kairos based distribution, given it satisfies the Kairos model and contract. Every OS will be treated only as a collection of packages - upgrades - and operations are demanded to the Kairos components, which abstracts the management model.
+Kairos enables the creation of a distribution based on any base OS image that satisfies the Kairos model and contract. Essentially, every OS is treated solely as a collection of packages, and upgrades and operations are managed by Kairos components, which abstract the management model.
 
-Practically, that means that upgrades are not carried by the package manager of the OS, instead, the `kairos-agent` will take care of upgrading via container images. Upgrades, and installation are all delivered uniquely by container images. Container images are overlayed at boot, so there is no additional runtime overhead, as no container engine is required in order to boot the OS.
+In practical terms, upgrades are not carried out by the package manager of the OS. Instead, the `kairos-agent` handles upgrades through container images. All installation and upgrades are delivered exclusively through container images. These images are overlayed at boot time, which means there is no additional runtime overhead, as no container engine is required for booting the OS.
 
-The Kairos framework is an abstract layer between the OS and the management interface, which follows an atomic A/B approach - this can be controlled directly by Kubernetes, manually via CLI or with a declarative model. 
+The Kairos framework is an abstract layer between the OS and the management interface. It follows an atomic A/B approach, which can be controlled through Kubernetes, the CLI, or a declarative model.
 
-The Kairos contract is simple: the OS container image need to have everything needed in order to boot, that goes from the kernel up to the init system.
+The Kairos contract is straightforward: the OS container image must include everything required for booting, from the kernel to the init system.
 
-The contract has few advantages:
+The contract has several advantages:
 
-- Delegates package maintenance, CVE, and security fixes to the OS layer
-- Upgrades to the container images can be issued easily by chaining Dockerfiles, or committing changes to the image manually
-- Clearly separation of concerns: the OS provides the booting bits and packages in order for the OS to function. Kairos provides the operational framework to handle the lifecycle of the node, and the immutability interface.
-- Allows long term support and maintenance: each framework image allows to convert any OS to the given Kairos framework version, allowing to potentially maintain for how long the base OS support model adheres to.
+- Delegation of package maintenance, CVE, and security fixes to the OS layer
+- Easy issuance of upgrades to container images by chaining Dockerfiles or manually committing changes to the image. See also [Customizing](/docs/advanzed/customizing).
+- Clear separation of concerns: the OS provides the booting bits and packages necessary for the OS to function, while Kairos provides the operational framework for handling the node's lifecycle and immutability interface.
+- Support for long-term maintenance: each framework image allows conversion of any OS to the given Kairos framework version, potentially enabling maintenance for as long as the base OS support model allows.
 
-In this document we will outline the steps in order to use any base image and make it fully bootable with the Kairos framework.
-
-The steps involves roughly:
+This document outlines the steps for making any base image fully bootable with the Kairos framework. The steps include:
 
 - Building a container image
-  - Selecting a base image from the supported OS family (however, it should work with any distro)
-  - Install the required packages from the package manager of the chosen OS
-  - Build the initramfs
-- Build an offline bootable ISO or Netboot the container image
+  - Selecting a base image from the supported OS family (although it should work with any distro)
+  - Installing the required packages from the package manager of the chosen OS
+  - Building the initramfs
+- Building an offline bootable ISO or netbooting the container image.
 
 ## Prerequisites
 
-- Docker or a container engine installed locally
-- Note, the steps below are tested on Linux, but should work as well in other environments. Please open up issues and help us improve the Documentation!
+To follow the steps below, you'll need to have Docker or a container engine installed on your local machine. Additionally, note that the steps have been tested on Linux but should also work in other environments. If you encounter any issues, please feel free to open up issues and help us improve the Documentation!
 
 ## Build a container image
 
-Create a directory, and write a simple `Dockerfile` containing what we want in the derivative:
+To build the container image, follow these steps:
+
+1. Create a new directory for the image and write a Dockerfile inside it. The Dockerfile will contain the instructions for building the image:
 
 ```Dockerfile
 FROM fedora:36
@@ -118,13 +115,13 @@ RUN kernel=$(ls /lib/modules | head -n1) && \
 RUN rm -rf /boot/initramfs-*
 ```
 
+In the Dockerfile, note the following:
 
-Few things we can notice in the Dockerfile:
-- We base our image on `fedora`. Similarly we could have based our image on other distributions. See [the Kairos official images](https://github.com/kairos-io/kairos/tree/master/images) for an example
-- We install a set of packages. Few of them are actually required, such as: `rsync`, `grub`, `systemd`, `kernel`, and we generate finally the initramfs inside the image
-- We copy the Kairos framework images file to the root of the container. Choose the framework image that match closely with your setup. The framework images are published here: https://quay.io/repository/kairos/framework?tab=tags
+- The base image we're using is fedora. However, you could also base your image on other distributions. See [the Kairos official images](https://github.com/kairos-io/kairos/tree/master/images) for an example.
+- We're installing a set of packages, including `rsync`, `grub`, `systemd`, `kernel`, and we're generating the initramfs inside the image.
+- We're copying the Kairos framework image file to the root of the container. Choose the framework image that closely matches your setup. You can find the framework images published here: https://quay.io/repository/kairos/framework?tab=tags
 
-Now build the image with:
+3. Now build the image with:
 
 ```bash
 docker build -t test-byoi .
@@ -132,7 +129,7 @@ docker build -t test-byoi .
 
 ## Build bootable assets
 
-After building the container image, we can directly proceed to create either an ISO or netboot it with [AuroraBoot](/docs/reference/auroraboot):
+Once the container image is built, we can proceed directly to creating an ISO or netboot it using [AuroraBoot](/docs/reference/auroraboot). We can use AuroraBoot to handle the ISO build process and even attach a default cloud config if desired. Here's an example for both scenarios:
 
 {{< tabpane text=true  >}}
 {{% tab header="ISO" %}}
@@ -156,9 +153,8 @@ docker run -v $PWD/build:/tmp/auroraboot \
 # 35142521 -rw-r--r-- 1 root root    0 Mar  7 15:45 config.yaml
 # 35138094 -rw-r--r-- 1 root root 449M Mar  7 15:46 kairos.iso
 ```
-The ISO is available at `build/iso/kairos.iso`, ready to be flashed to an USB stick with `BalenaEtcher` or `dd`.
 
-You can use QEMU to test the ISO:
+This will generate an ISO named kairos.iso which will be located at `build/iso/`. You can use either `BalenaEtcher` or `dd` to flash this ISO to a USB stick. Additionally, QEMU can be used to test the ISO:
 
 ```bash
 qemu-system-x86_64 -m 2048 -drive if=virtio,media=disk,file=build/iso/kairos.iso
@@ -168,7 +164,7 @@ qemu-system-x86_64 -m 2048 -drive if=virtio,media=disk,file=build/iso/kairos.iso
 
 {{% tab header="Netboot" %}}
 
-We can use [AuroraBoot](/docs/reference/auroraboot) to handle the the netboot process, or see [Netboot](/docs/installation/netboot):
+To netboot, we can also use [AuroraBoot](/docs/reference/auroraboot) to handle the process, or refer to [Netboot](/docs/installation/netboot). Here's an example:
 
 ```bash
 docker run -v --net host \
@@ -182,5 +178,4 @@ docker run -v --net host \
 {{% /tab %}}
 {{< /tabpane >}}
 
-
-This example is also available in the [Kairos repository](https://github.com/kairos-io/kairos/tree/master/examples/byoi/fedora) in the `examples/byoi/fedora` directory, where you can run `build.sh` to reproduce the example.
+This example is available in the `examples/byoi/fedora` directory of the [Kairos repository](https://github.com/kairos-io/kairos/tree/master/examples/byoi/fedora), where you can run `build.sh` to reproduce it.
