@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - '!docs/**'
-      - '.github/**'
+      - '!.github/**'
 jobs:
   lint:
     runs-on: ubuntu-latest
