@@ -6,7 +6,7 @@ set -ex
 docker build -t test-byoi .
 
 # Create an ISO
-docker run -v $PWD/build:/tmp/auroraboot \
+docker run -v "$PWD"/build:/tmp/auroraboot \
              -v /var/run/docker.sock:/var/run/docker.sock \
              --rm -ti quay.io/kairos/auroraboot:v0.2.2 \
              --set container_image=docker://test-byoi \

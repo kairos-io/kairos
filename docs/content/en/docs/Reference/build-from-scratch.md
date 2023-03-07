@@ -137,7 +137,7 @@ Once the container image is built, we can proceed directly to creating an ISO or
 We can use [AuroraBoot](/docs/reference/auroraboot) to handle the the ISO build process and optionally attach it a default cloud config, for example:
 
 ```bash
-docker run -v $PWD/build:/tmp/auroraboot \
+docker run -v "$PWD"/build:/tmp/auroraboot \
              -v /var/run/docker.sock:/var/run/docker.sock \
              --rm -ti quay.io/kairos/auroraboot:v0.2.2 \
              --set container_image=docker://test-byoi \
