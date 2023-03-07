@@ -13,13 +13,13 @@ stages:
       commands:
         - rm /etc/resolv.conf
         - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
-  initramfs.after:
+  boot.after:
     - name: "Restart network"
       commands:
         - systemctl daemon-reload
         - systemctl restart systemd-networkd
         - |
-          ip link | awk -F: '$0 !~ "NO-CARRIER|lo|vir|wl|usb|^[^0-9]"{print $2;getline}'| while read line; do /sbin/dhclient -4 $line; done
+          if [ -f /run/cos/live_mode ]; then ip link | awk -F: '$0 !~ "NO-CARRIER|lo|vir|wl|usb|^[^0-9]"{print $2;getline}'| while read line; do /sbin/dhclient -4 $line; done; fi
 #     dns:
 #      path: /etc/resolv.conf
 #      nameservers:
