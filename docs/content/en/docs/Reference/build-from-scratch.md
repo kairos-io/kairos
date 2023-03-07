@@ -23,7 +23,7 @@ The Kairos contract is straightforward: the OS container image must include ever
 The contract has several advantages:
 
 - Delegation of package maintenance, CVE, and security fixes to the OS layer
-- Easy issuance of upgrades to container images by chaining Dockerfiles or manually committing changes to the image. See also [Customizing](/docs/advanzed/customizing).
+- Easy issuance of upgrades to container images by chaining Dockerfiles or manually committing changes to the image. See also [Customizing](/docs/advanced/customizing).
 - Clear separation of concerns: the OS provides the booting bits and packages necessary for the OS to function, while Kairos provides the operational framework for handling the node's lifecycle and immutability interface.
 - Support for long-term maintenance: each framework image allows conversion of any OS to the given Kairos framework version, potentially enabling maintenance for as long as the base OS support model allows.
 
