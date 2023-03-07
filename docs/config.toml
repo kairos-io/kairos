@@ -110,6 +110,7 @@ algolia_docsearch = false
 offlineSearch = true
 
 [params.softwareVersions]
+# artificial change to test workflow exclusion
 k3s = "1.24.3+k3s1"
 kairos = "1.6.0"
 # User interface configuration
