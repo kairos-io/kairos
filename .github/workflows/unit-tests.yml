@@ -7,8 +7,8 @@ on:
       - '!docs/**'
   pull_request:
     paths:
+      - '**'
       - '!docs/**'
-      - '!.github/**'
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
