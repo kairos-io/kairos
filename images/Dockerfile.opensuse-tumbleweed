@@ -2,7 +2,7 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbleweed/utilities.repo && \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && \
     zypper ref
 
 RUN zypper in --force-resolution -y \
