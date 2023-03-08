@@ -9,6 +9,7 @@ on:
     paths:
       - '!docs/**'
       - 'tests/**'
+      - 'pkg/**'
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
