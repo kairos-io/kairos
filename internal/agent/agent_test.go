@@ -33,8 +33,7 @@ var _ = Describe("Bootstrap provider", func() {
 
 			defer os.RemoveAll(filepath.Join(wd, "agent-provider-test"))
 
-			err = os.WriteFile(filepath.Join(f, "test.config.yaml"), []byte(`
-doo: bar`), 0655)
+			err = os.WriteFile(filepath.Join(f, "test.config.yaml"), []byte(`{"users": [{"name": "kairos"}]}`), 0655)
 			Expect(err).ToNot(HaveOccurred())
 
 			bus.Manager.Initialize()
@@ -47,7 +46,7 @@ doo: bar`), 0655)
 
 			fmt.Println(string(dat))
 			Expect(string(dat)).To(ContainSubstring("Received"), string(dat))
-			Expect(string(dat)).To(ContainSubstring("doo: bar"), string(dat))
+			Expect(string(dat)).To(ContainSubstring(`- name: kairos`), string(dat))
 		})
 	})
 })
