@@ -4,6 +4,7 @@ on:
     branches:
       - master
     paths:
+      - '**'
       - '!docs/**'
   pull_request:
     paths:
