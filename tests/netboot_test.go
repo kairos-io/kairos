@@ -19,5 +19,6 @@ var _ = Describe("kairos netboot test", Label("netboot-test"), func() {
 
 	It("eventually boots", func() {
 		vm.EventuallyConnects(1200)
+		stateAssertVM(vm, "boot", "livecd_boot")
 	})
 })
