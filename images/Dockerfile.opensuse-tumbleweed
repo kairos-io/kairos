@@ -2,10 +2,9 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
-RUN <<EOF
-zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbleweed/utilities.repo
-zypper ref
-EOF
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbleweed/utilities.repo && \
+    zypper ref
+
 RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
