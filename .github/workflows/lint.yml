@@ -14,7 +14,7 @@ on:
       - 'internal/**'
       - 'images/**'
       - 'overlay/**'
-      - 'skd/**'
+      - 'sdk/**'
 jobs:
   lint:
     runs-on: ubuntu-latest

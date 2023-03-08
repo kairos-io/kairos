@@ -14,7 +14,7 @@ on:
       - 'internal/**'
       - 'images/**'
       - 'overlay/**'
-      - 'skd/**'
+      - 'sdk/**'
   workflow_dispatch:
     inputs:
       immucore_dev:
