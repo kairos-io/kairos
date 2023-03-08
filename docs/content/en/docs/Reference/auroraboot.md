@@ -195,8 +195,8 @@ ls
 
 Build the ISO:
 ```bash
-docker run -v $PWD/config.yaml:/config.yaml \
-                    -v $PWD/build:/tmp/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml \
+                    -v "$PWD"/build:/tmp/auroraboot \
                     --rm -ti quay.io/kairos/auroraboot \
                     --set container_image=quay.io/kairos/core-rockylinux:v1.5.0 \
                     --set "disable_http_server=true" \
@@ -228,7 +228,7 @@ ls
 
 Build the ISO:
 ```bash
-docker run -v $PWD/build:/tmp/auroraboot -v /var/run/docker.sock:/var/run/docker.sock --rm -ti quay.io/kairos/auroraboot \
+docker run -v "$PWD"/build:/tmp/auroraboot -v /var/run/docker.sock:/var/run/docker.sock --rm -ti quay.io/kairos/auroraboot \
                     --set "artifact_version=v1.5.1-k3sv1.21.14+k3s1" \
                     --set "release_version=v1.5.1" \
                     --set "flavor=opensuse-leap" \
@@ -352,12 +352,13 @@ cloud_config: |
 | `state_dir` | Specify a directory that will be used by auroraboot to download artifacts and reuse the same to cache artifacts. |
 | `listen_addr` | Default http binding port for offline ISO generation. |
 | `cloud_config` | Cloud config path to use for the machines. A URL can be specified, use `-` to pass-by the cloud-config from _STDIN_ |
-
+| `iso.data` | Defines a path to be embedded into the resulting iso. When booting, the files will be accessible at `/run/initramfs/live` |
+| `netboot.cmdlin` | Override the automatically generated cmdline with a custom one to use during netboot. `config_url` and `rootfs`  are automatically constructed. A reasonable value can be `netboot.cmdline=rd.neednet=1 ip=dhcp rd.cos.disable netboot nodepair.enable console=tty0` |
 
 To use the configuration file with AuroraBoot, run AuroraBoot specifying the file or URL of the config as first argument:
 
 ```bash
-docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host quay.io/kairos/auroraboot /config.yaml
+docker run --rm -ti -v "$PWD"/config.yaml:/config.yaml --net host quay.io/kairos/auroraboot /config.yaml
 ```
 
 The CLI options can be used in place of specifying a file, and to set fields of it. Any field of the YAML file, excluding `cloud_config` can be configured with the `--set` for instance, to disable netboot we can run AuroraBoot with:
@@ -369,7 +370,7 @@ docker run --rm -ti --net host quay.io/kairos/auroraboot ....  --set "disable_ne
 To specify a cloud config file instead, use `--cloud-config` (can be also url):
 
 ```bash
-docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host quay.io/kairos/auroraboot .... --cloud-config /config.yaml
+docker run --rm -ti -v "$PWD"/config.yaml:/config.yaml --net host quay.io/kairos/auroraboot .... --cloud-config /config.yaml
 ```
 
 Both the config file and the cloud-config file can be a URL.
@@ -399,7 +400,7 @@ users:
 We would then set the user to `mudler` and the password to `foobar` when running AuroraBoot like the following:
 
 ```bash
-docker run --rm -ti -v $PWD/config.yaml:/config.yaml --net host \
+docker run --rm -ti -v "$PWD"/config.yaml:/config.yaml --net host \
                                 quay.io/kairos/auroraboot \
                                 --cloud-config /config.yaml \
                                 --set "github.user=mudler" \
@@ -474,11 +475,11 @@ docker pull <IMAGE>
 Build the custom ISO with the cloud config:
 
 ```bash
-docker run -v $PWD/config.yaml:/config.yaml \
-             -v $PWD/build:/tmp/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml \
+             -v "$PWD"/build:/tmp/auroraboot \
              -v /var/run/docker.sock:/var/run/docker.sock \
              --rm -ti quay.io/kairos/auroraboot \
-             --set container_image=<IMAGE> \
+             --set container_image=docker://<IMAGE> \
              --set "disable_http_server=true" \
              --set "disable_netboot=true" \
              --cloud-config /config.yaml \
@@ -490,8 +491,8 @@ docker run -v $PWD/config.yaml:/config.yaml \
 Build the custom ISO with the cloud config:
 
 ```bash
-docker run -v $PWD/config.yaml:/config.yaml \
-             -v $PWD/build:/tmp/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml \
+             -v "$PWD"/build:/tmp/auroraboot \
              --rm -ti quay.io/kairos/auroraboot \
              --set container_image=quay.io/kairos/core-rockylinux:v1.5.0 \
              --set "disable_http_server=true" \
@@ -512,9 +513,9 @@ mkdir -p data/boot/grub2
 # You can replace this step with your own grub config. This GRUB configuration is the boot menu of the ISO
 wget https://raw.githubusercontent.com/kairos-io/kairos/master/overlay/files-iso/boot/grub2/grub.cfg -O data/boot/grub2/grub.cfg
 
-docker run -v $PWD/config.yaml:/config.yaml \
-             -v $PWD/data:/tmp/data \
-             -v $PWD/build:/tmp/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml \
+             -v "$PWD"/data:/tmp/data \
+             -v "$PWD"/build:/tmp/auroraboot \
              --rm -ti quay.io/kairos/auroraboot \
              --set container_image=quay.io/kairos/core-rockylinux:v1.5.0 \
              --set "disable_http_server=true" \
@@ -531,7 +532,7 @@ See the [Airgap example](/docs/examples/airgap) in the [examples section](/docs/
 ### Netboot with core images from Github releases
 
 ```bash
-docker run -v $PWD/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/auroraboot \
         --set "artifact_version=v1.5.0" \
         --set "release_version=v1.5.0" \
         --set "flavor=rockylinux" \
@@ -542,7 +543,7 @@ docker run -v $PWD/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/a
 ### Netboot with k3s images from Github releases
 
 ```bash
-docker run -v $PWD/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/auroraboot \
         --set "artifact_version=v1.5.1-k3sv1.21.14+k3s1" \
         --set "release_version=v1.5.1" \
         --set "flavor=opensuse-leap" \
@@ -553,7 +554,7 @@ docker run -v $PWD/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/a
 ### Netboot from container images
 
 ```bash
-docker run -v $PWD/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/auroraboot \
+docker run -v "$PWD"/config.yaml:/config.yaml --rm -ti --net host quay.io/kairos/auroraboot \
         --set container_image=quay.io/kairos/core-rockylinux:v1.5.0
         --cloud-config /config.yaml
 ```
@@ -584,5 +585,5 @@ cloud_config: |
 And then run:
 
 ```bash
-docker run -v $PWD/aurora.yaml:/aurora.yaml --rm -ti --net host quay.io/kairos/auroraboot /aurora.yaml
+docker run -v "$PWD"/aurora.yaml:/aurora.yaml --rm -ti --net host quay.io/kairos/auroraboot /aurora.yaml
 ```
