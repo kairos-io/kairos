@@ -28,13 +28,19 @@ Once the installation is complete, you can begin using your Kubernetes cluster.
 ## Download
 
 1. Visit the Kairos [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases)
-1. Select the latest release and download the assets of your flavor. For example, pick the [kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso) ISO file for the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v1.0.0` is the Kairos one to deploy on a VM.
+1. Select the latest release and download the assets of your flavor. For example,
+   pick the [kairos-opensuse-v{{<kairosVersion>}}-k3sv{{<k3sVersion>}}.iso](https://github.com/kairos-io/provider-kairos/releases/download/v/kairos-opensuse-v{{<kairosVersion>}}-k3sv{{<k3sVersion>}}.iso)
+   ISO file for the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v{{< kairosVersion >}}` is the Kairos one to deploy on a VM.
 1. You can also use [netboot](/docs/installation/netboot) to boot Kairos over the network
 
 {{% alert title="Note" %}}
-The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship **without** K3s and P2P full-mesh functionalities; Core images can be used as a generic installer to [deploy container images](/docs/examples/core).
+The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos
+core images that ship **without** K3s and P2P full-mesh functionalities; Core images can be used as a
+generic installer to [deploy container images](/docs/examples/core).
 
-The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) **contains** already k3s and P2P full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
+The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases)
+**contains** already k3s and P2P full-mesh instead. These options need to be explicitly enabled.
+In follow-up releases, _k3s-only_ artifacts will also be available.
 
 See [Image Matrix Support](/docs/reference/image_matrix) for additional supported images and kernels.
 
@@ -140,7 +146,7 @@ Here are some additional helpful tips depending on the physical/virtual machine 
       virt-install --name my-first-kairos-vm \
                   --vcpus 1 \
                   --memory 1024 \
-                  --cdrom /path/to/kairos-opensuse-v1.3.2-k3sv1.20.15+k3s1.iso \
+                  --cdrom /path/to/kairos-opensuse-v{{<kairosVersion>}}-k3sv{{k3sVersion}}.iso \
                   --disk size=30 \
                   --os-variant opensuse-factory \
                   --virt-type kvm
@@ -154,11 +160,15 @@ Here are some additional helpful tips depending on the physical/virtual machine 
   {{% /tab %}}
 {{< /tabpane >}}
 
-After booting you'll be greeted with a GRUB boot menu with multiple options. The option you choose will depend on how you plan to install Kairos:
+After booting you'll be greeted with a GRUB boot menu with multiple options.
+The option you choose will depend on how you plan to install Kairos:
 
-- The first entry will boot into installation with a QR code or [WebUI](/docs/installation/webui), which we'll cover in the next step.
-- The second entry will boot into [Manual installation mode](/docs/installation/manual), where you can install Kairos manually using the console.
-- The third boot option boots into [Interactive installation mode](/docs/installation/interactive), where you can use the terminal host to drive the installation and skip the Configuration and Provisioning step.
+- The first entry will boot into installation with a QR code or [WebUI](/docs/installation/webui),
+  which we'll cover in the next step.
+- The second entry will boot into [Manual installation mode](/docs/installation/manual),
+  where you can install Kairos manually using the console.
+- The third boot option boots into [Interactive installation mode](/docs/installation/interactive),
+  where you can use the terminal host to drive the installation and skip the Configuration and Provisioning step.
 
 To begin the installation process, select the first entry and let the machine boot. Eventually, a QR code will be printed on the screen. Follow the next step in the documentation to complete the installation.
 

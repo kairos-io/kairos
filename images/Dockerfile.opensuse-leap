@@ -1,8 +1,12 @@
+# syntax=docker/dockerfile:1.4
 ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM $BASE_IMAGE
 
-RUN zypper in -y \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && \
+    zypper ref
+
+RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
     coreutils \
@@ -60,4 +64,4 @@ RUN zypper in -y \
     tmux \
     vim \
     which \
-    && zypper cc
+    which && zypper cc

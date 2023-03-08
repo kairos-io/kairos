@@ -77,8 +77,15 @@ RUN apk --no-cache add  \
       wireguard-tools \
       wpa_supplicant \
       xfsprogs \
-      xz
-      
+      xz \
+      open-vm-tools \
+      open-vm-tools-deploypkg \
+      open-vm-tools-guestinfo \
+      open-vm-tools-static \
+      open-vm-tools-vmbackup \
+      zfs \
+      zfs-lts
+
 RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
     rc-update add acpid boot && \

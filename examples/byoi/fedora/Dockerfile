@@ -3,15 +3,8 @@ ARG BASE_IMAGE=fedora:36
 FROM $BASE_IMAGE
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
-RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-2$(rpm --eval "%{dist}").noarch.rpm"
+
 RUN dnf install -y \
-    NetworkManager \
-    squashfs-tools \
-    dracut-live \
-    livecd-tools \
-    dracut-squash \
-    dracut-network \
-    efibootmgr \
     audit \
     coreutils \
     curl \
@@ -41,23 +34,30 @@ RUN dnf install -y \
     polkit \
     rsync \
     shim-x64 \
-    squashfs-tools \
+    squashfs-tools \ 
     sudo \
     systemd \
     systemd-networkd \
     systemd-resolved \
     tar \
     which \
-    kernel kernel-modules kernel-modules-extra \
-    zfs \
-    rsync && dnf clean all
+    && dnf clean all
 
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
-RUN systemctl enable getty@tty1.service
-RUN systemctl enable getty@tty2.service
-RUN systemctl enable getty@tty3.service
 
-RUN systemctl enable systemd-networkd
-RUN systemctl enable systemd-resolved
-RUN systemctl enable sshd
+COPY --from=quay.io/kairos/framework:master_fedora / /
+
+# Activate Kairos services
+RUN systemctl enable cos-setup-reconcile.timer && \
+          systemctl enable cos-setup-fs.service && \
+          systemctl enable cos-setup-boot.service && \
+          systemctl enable cos-setup-network.service
+
+## Generate initrd
+RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
+            ln -sf "${kernel#/boot/}" /boot/vmlinuz
+RUN kernel=$(ls /lib/modules | head -n1) && \
+            dracut -v -N -f "/boot/initrd-${kernel}" "${kernel}" && \
+            ln -sf "initrd-${kernel}" /boot/initrd && depmod -a "${kernel}"
+RUN rm -rf /boot/initramfs-*

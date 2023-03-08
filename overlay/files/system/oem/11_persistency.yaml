@@ -17,6 +17,7 @@ stages:
           /etc/ssh
           /etc/ssl/certs
           /etc/iscsi
+          /etc/zfs
           /etc/cni
           /etc/kubernetes
           /home

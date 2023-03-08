@@ -3,8 +3,12 @@ on:
   push:
     branches:
       - master
+    paths:
+      - '!docs/**'
   pull_request:
-
+    paths:
+      - '**'
+      - '!docs/**'
 jobs:
   unit-tests:
     runs-on: ubuntu-latest

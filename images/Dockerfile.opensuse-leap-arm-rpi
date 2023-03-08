@@ -3,6 +3,9 @@ ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM $BASE_IMAGE
 
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && \
+    zypper ref
+
 RUN zypper in -y \
     bash-completion \
     bcm43xx-firmware \
@@ -78,4 +81,4 @@ RUN zypper in -y \
     which \
     wireless-tools \
     wpa_supplicant \
-    && zypper cc
+    which && zypper cc \

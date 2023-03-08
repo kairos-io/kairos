@@ -361,7 +361,7 @@ Starts kairos in pairing mode.
 
 It will print out a QR code which can be used with "kairos register" to send over a configuration and bootstraping a kairos node.
 
-See also https://kairos.io/installation/device_pairing/ for documentation.
+See also https://kairos.io/docs/installation/qrcode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},

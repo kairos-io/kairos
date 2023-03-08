@@ -1,15 +1,20 @@
 name: "Default network configuration"
 stages:
   initramfs:
-    - name: "Setup network"
+    - name: "Disable NetworkManager and wicked"
+      if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+      systemctl:
+        disable:
+          - NetworkManager
+          - wicked
+    - name: "Enable systemd-network and systemd-resolved"
       if: '[ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
       systemctl:
         enable:
           - systemd-networkd
           - systemd-resolved
-        disable:
-          - NetworkManager
-          - wicked
+    - name: "Link /etc/resolv.conf to systemd resolv.conf"
+      if: '([ -e "/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]) && [ -f /etc/hosts ]'
       commands:
         - rm /etc/resolv.conf
         - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
