@@ -3,8 +3,12 @@ on:
   push:
     branches:
       - master
+    paths:
+      - '!docs/**'
   pull_request:
-
+    paths:
+      - '!docs/**'
+      - '!.github/**'
 jobs:
   lint:
     runs-on: ubuntu-latest

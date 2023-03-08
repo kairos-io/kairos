@@ -3,7 +3,12 @@ on:
   push:
     branches:
       - master
-  pull_request: null
+    paths:
+      - '!docs/**'
+  pull_request:
+    paths:
+      - '!docs/**'
+      - '!.github/**'
   workflow_dispatch:
     inputs:
       immucore_dev:
