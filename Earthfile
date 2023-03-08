@@ -38,6 +38,7 @@ all:
   BUILD +docker
   BUILD +image-sbom
   BUILD +trivy-scan
+  BUILD +grype-scan
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
@@ -46,6 +47,7 @@ all-arm:
   BUILD --platform=linux/arm64 +docker
   BUILD +image-sbom
   BUILD +trivy-scan
+  BUILD +grype-scan
   BUILD +arm-image
 
 go-deps:
@@ -520,6 +522,23 @@ trivy-scan:
     SAVE ARTIFACT /build/report.sarif report.sartif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.json
+
+grype:
+    FROM anchore/grype
+    SAVE ARTIFACT /grype /grype
+
+grype-scan:
+    FROM +docker
+    COPY +grype/grype /grype
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    ARG VARIANT
+    WORKDIR /build
+    RUN /grype dir:/ --output sarif --file report.sarif
+    RUN /grype dir:/ --output json --file report.json
+    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.sarif
+    SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.json
 
 linux-bench:
     ARG GO_VERSION

@@ -58,6 +58,13 @@ The artifacts can be found in the `build` directory.
 
 {{% /alert %}}
 
+### Framework images
+
+Kairos releases contains also the __framework__ assets that can be used to [build Kairos images from Scratch](/docs/reference/build-from-scratch).
+
+Framework images can be found in quay at: https://quay.io/repository/kairos/framework.
+
+Each tag follow the convention: `<version>_<flavor>`.
 
 ## Versioning policy
 
