@@ -3,11 +3,9 @@ ARG BASE_IMAGE=opensuse/leap:15.4
 
 FROM $BASE_IMAGE
 
-RUN <<EOF
-RUN zypper in -y
-zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo
-zypper ref
-EOF
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && \
+    zypper ref
+
 RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \

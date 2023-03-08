@@ -3,11 +3,10 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
-RUN <<EOF
-zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64
-zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbleweed/utilities.repo
-zypper ref
-EOF
+
+RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && \
+    zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Tumbleweed/utilities.repo && \
+    zypper ref
 
 RUN zypper in -y \
     bash-completion \
