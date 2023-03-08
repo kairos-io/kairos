@@ -8,6 +8,14 @@ on:
   pull_request:
     paths:
       - '!docs/**'
+      - '!.github/**'
+      - 'cmd/**'
+      - 'tests/**'
+      - 'pkg/**'
+      - 'internal/**'
+      - 'images/**'
+      - 'overlay/**'
+      - 'skd/**'
   workflow_dispatch:
     inputs:
       immucore_dev:

@@ -9,8 +9,13 @@ on:
     paths:
       - '!docs/**'
       - '!.github/**'
+      - 'cmd/**'
       - 'tests/**'
       - 'pkg/**'
+      - 'internal/**'
+      - 'images/**'
+      - 'overlay/**'
+      - 'skd/**'
 jobs:
   lint:
     runs-on: ubuntu-latest
