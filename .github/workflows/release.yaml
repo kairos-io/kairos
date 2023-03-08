@@ -41,7 +41,7 @@ jobs:
         uses: docker-practice/actions-setup-docker@master
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
-      - uses: earthly/actions-setup@cce953f2ea75f5ff76f6483a788bac66a733de3a
+      - uses: earthly/actions-setup@2181cb2b4a133a5b0353fb2a6e87f88df7419025
         with:
           version: "latest"
       - name: Login to Quay Registry
