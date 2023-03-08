@@ -7,14 +7,8 @@ on:
       - '!docs/**'
   pull_request:
     paths:
+      - '**'
       - '!docs/**'
-      - 'cmd/**'
-      - 'tests/**'
-      - 'pkg/**'
-      - 'internal/**'
-      - 'images/**'
-      - 'overlay/**'
-      - 'sdk/**'
 jobs:
   lint:
     runs-on: ubuntu-latest
