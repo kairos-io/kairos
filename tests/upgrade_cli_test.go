@@ -32,29 +32,33 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 			}
 
 			expectDefaultService(vm)
-
+			By("Copying config file")
 			err := vm.Scp("assets/config.yaml", "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
-
+			By("Manually installing")
 			out, err := vm.Sudo("kairos-agent manual-install --device auto /tmp/config.yaml")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).Should(ContainSubstring("Running after-install hook"))
 			vm.Sudo("sync")
+			By("Rebooting")
 			vm.Reboot()
 		})
 
 		It("can upgrade to current image", func() {
 			currentVersion, err := vm.Sudo(". /etc/os-release; echo $VERSION")
 			Expect(err).ToNot(HaveOccurred())
+			By(fmt.Sprintf("Checking current version: %s", currentVersion))
 			Expect(currentVersion).To(ContainSubstring("v"))
 			_, err = vm.Sudo("kairos-agent")
 			if err == nil {
+				By(fmt.Sprintf("Upgrading to: %s", containerImage))
 				out, err := vm.Sudo("kairos-agent upgrade --force --image " + containerImage)
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
 				Expect(out).To(ContainSubstring(containerImage))
 				fmt.Println(out)
 			} else {
+				By(fmt.Sprintf("Upgrading to: %s", containerImage))
 				out, err := vm.Sudo("kairos upgrade --force --image " + containerImage)
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
