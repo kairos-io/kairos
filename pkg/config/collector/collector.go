@@ -62,8 +62,8 @@ type Config map[string]interface{}
 // it downloads the remote config and merges it with the current one.
 // If the remote config also has config_url defined, it is also fetched
 // recursively until a remote config no longer defines a config_url.
-// The "config_url" value of the final result is not replaced by the value of the
-// remote config.
+// NOTE: The "config_url" value of the final result is the value of the last
+// config file in the chain because we replace values when we merge.
 func (c *Config) MergeConfigURL() error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
@@ -83,7 +83,6 @@ func (c *Config) MergeConfigURL() error {
 	}
 
 	// merge remoteConfig back to "c"
-	// TODO: Fix the original config_url
 	return c.MergeConfig(remoteConfig)
 }
 
@@ -263,6 +262,9 @@ func fetchRemoteConfig(url string) (*Config, error) {
 			resp, err := http.Get(url)
 			if err != nil {
 				return err
+			}
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("unexpected status: %d", resp.StatusCode)
 			}
 			defer resp.Body.Close()
 

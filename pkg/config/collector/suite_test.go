@@ -1,7 +1,7 @@
 package collector_test
 
 import (
-	"fmt"
+	"context"
 	"net"
 	"net/http"
 	"testing"
@@ -15,20 +15,31 @@ func TestConfig(t *testing.T) {
 	RunSpecs(t, "Config Collector Suite")
 }
 
-func startAssetServer(path string) (int, error) {
+type ServerCloseFunc func()
+
+func startAssetServer(path string) (ServerCloseFunc, int, error) {
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return 0, err
+		return nil, 0, err
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
-	server := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: http.FileServer(http.Dir(path))}
 
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	go func() {
 		defer GinkgoRecover()
-		if err := server.ListenAndServe(); err != nil {
+		err := http.Serve(listener, http.FileServer(http.Dir(path)))
+		select {
+		case <-ctx.Done(): // We closed it with the CancelFunc, ignore the error
+			return
+		default: // We didnt' close it, return the error
 			Expect(err).ToNot(HaveOccurred())
 		}
 	}()
 
-	return port, nil
+	stopFunc := func() {
+		cancelFunc()
+		listener.Close()
+	}
+
+	return stopFunc, port, nil
 }

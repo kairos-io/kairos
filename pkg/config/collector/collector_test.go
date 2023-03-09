@@ -1,6 +1,10 @@
 package collector_test
 
 import (
+	"fmt"
+	"os"
+	"path"
+
 	. "github.com/kairos-io/kairos/pkg/config/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -86,9 +90,9 @@ info:
 
 				It("overwrites", func() {
 					Expect(originalConfig.MergeConfig(newConfig)).ToNot(HaveOccurred())
-					surname, isString := (*originalConfig)["name"].(string)
+					name, isString := (*originalConfig)["name"].(string)
 					Expect(isString).To(BeTrue())
-					Expect(surname).To(Equal("Luigi"))
+					Expect(name).To(Equal("Luigi"))
 					Expect(*originalConfig).To(HaveLen(1))
 				})
 			})
@@ -112,15 +116,68 @@ info:
 				Expect(*originalConfig).To(HaveLen(1))
 			})
 		})
+
 		Context("when there is a chain of config_url defined", func() {
+			var closeFunc ServerCloseFunc
+			var port int
+			var err error
+			var tmpDir string
+			var originalConfig *Config
+
 			BeforeEach(func() {
-				serveFiles("tests/assets")
-				err := yaml.Unmarshal([]byte(`
-config_url: Mario
-`), originalConfig)
+				tmpDir, err = os.MkdirTemp("", "config_url_chain")
 				Expect(err).ToNot(HaveOccurred())
+
+				closeFunc, port, err = startAssetServer(tmpDir)
+				Expect(err).ToNot(HaveOccurred())
+
+				originalConfig = &Config{}
+				err = yaml.Unmarshal([]byte(fmt.Sprintf(`---
+config_url: http://127.0.0.1:%d/config1.yaml
+name: Mario
+surname: Bros
+info:
+  job: plumber
+`, port)), originalConfig)
+				Expect(err).ToNot(HaveOccurred())
+
+				os.WriteFile(path.Join(tmpDir, "config1.yaml"), []byte(fmt.Sprintf(`
+---
+config_url: http://127.0.0.1:%d/config2.yaml
+surname: Bras
+`, port)), os.ModePerm)
+
+				os.WriteFile(path.Join(tmpDir, "config2.yaml"), []byte(`
+---
+info:
+  girlfriend: princess
+`), os.ModePerm)
+
 			})
-			It("merges then all together", func() {
+
+			AfterEach(func() {
+				closeFunc()
+				os.RemoveAll(tmpDir)
+			})
+
+			It("merges them all together", func() {
+				err := originalConfig.MergeConfigURL()
+				Expect(err).ToNot(HaveOccurred())
+
+				name, ok := (*originalConfig)["name"].(string)
+				Expect(ok).To(BeTrue())
+				Expect(name).To(Equal("Mario"))
+
+				surname, ok := (*originalConfig)["surname"].(string)
+				Expect(ok).To(BeTrue())
+				Expect(surname).To(Equal("Bras"))
+
+				info, ok := (*originalConfig)["info"].(map[interface{}]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(info["job"]).To(Equal("plumber"))
+				Expect(info["girlfriend"]).To(Equal("princess"))
+
+				Expect(*originalConfig).To(HaveLen(4))
 			})
 		})
 	})
