@@ -89,7 +89,7 @@ func (c *Config) MergeConfigURL() error {
 
 // MergeConfig merges the config passed as parameter back to the receiver Config.
 func (c *Config) MergeConfig(newConfig *Config) error {
-	return mergo.Merge(c, newConfig)
+	return mergo.Merge(c, newConfig, func(c *mergo.Config) { c.Overwrite = true })
 }
 
 func Scan(opts ...Option) (*Config, error) {
@@ -105,7 +105,7 @@ func Scan(opts ...Option) (*Config, error) {
 		d, err := DotToYAML(o.BootCMDLineFile)
 		o.SoftErr(fmt.Errorf("parsing cmdline: %w", err))
 		if err == nil { // best-effort
-			var newYaml map[string]interface{}
+			var newYaml Config
 			err = yaml.Unmarshal(d, &newYaml)
 			o.SoftErr(fmt.Errorf("parsing cmdline as yaml: %w", err))
 
@@ -154,7 +154,7 @@ func parseFiles(dir []string, nologs bool) *Config {
 				continue
 			}
 
-			var newYaml map[string]interface{}
+			var newYaml Config
 			err = yaml.Unmarshal(b, &newYaml)
 			if err != nil && !nologs {
 				fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
