@@ -163,9 +163,11 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - uses: earthly/actions-setup@2181cb2b4a133a5b0353fb2a6e87f88df7419025
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
         with:
-          version: "latest"
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - name: Build framework image 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
@@ -344,17 +346,14 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - env:
           KVM: true
         run: |
-          # Get earthly with luet
-          curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
-          chmod +x luet
-          sudo mv luet /usr/bin/luet
-          sudo mkdir -p /etc/luet/repos.conf.d/
-          sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
-          LUET_NOLOCK=true sudo -E luet install -y utils/earthly
-
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
           mkdir -p ~/.earthly/
@@ -388,17 +387,14 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - env:
           KVM: true
         run: |
-            # Get earthly with luet
-            curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
-            chmod +x luet
-            sudo mv luet /usr/bin/luet
-            sudo mkdir -p /etc/luet/repos.conf.d/
-            sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
-            LUET_NOLOCK=true sudo -E luet install -y utils/earthly
-
             # Configure earthly to use the docker mirror in CI
             # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
             mkdir -p ~/.earthly/
