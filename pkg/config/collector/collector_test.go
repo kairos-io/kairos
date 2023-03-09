@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 
 	. "github.com/kairos-io/kairos/pkg/config/collector"
 	. "github.com/onsi/ginkgo/v2"
@@ -141,23 +142,25 @@ info:
 `, port)), originalConfig)
 				Expect(err).ToNot(HaveOccurred())
 
-				os.WriteFile(path.Join(tmpDir, "config1.yaml"), []byte(fmt.Sprintf(`
+				err := os.WriteFile(path.Join(tmpDir, "config1.yaml"), []byte(fmt.Sprintf(`
 ---
 config_url: http://127.0.0.1:%d/config2.yaml
 surname: Bras
 `, port)), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
 
-				os.WriteFile(path.Join(tmpDir, "config2.yaml"), []byte(`
+				err = os.WriteFile(path.Join(tmpDir, "config2.yaml"), []byte(`
 ---
 info:
   girlfriend: princess
 `), os.ModePerm)
-
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			AfterEach(func() {
 				closeFunc()
-				os.RemoveAll(tmpDir)
+				err := os.RemoveAll(tmpDir)
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("merges them all together", func() {
@@ -178,6 +181,61 @@ info:
 				Expect(info["girlfriend"]).To(Equal("princess"))
 
 				Expect(*originalConfig).To(HaveLen(4))
+			})
+		})
+	})
+
+	Describe("Scan", func() {
+		Context("multiple sources are defined", func() {
+			var tmpDir, tmpDir1, tmpDir2 string
+			var err error
+
+			BeforeEach(func() {
+				tmpDir, err = os.MkdirTemp("", "cmdline")
+				Expect(err).ToNot(HaveOccurred())
+				tmpDir1, err = os.MkdirTemp("", "config1")
+				Expect(err).ToNot(HaveOccurred())
+				tmpDir2, err = os.MkdirTemp("", "config2")
+				Expect(err).ToNot(HaveOccurred())
+
+				err := os.WriteFile(filepath.Join(tmpDir, "cmdline"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = os.WriteFile(path.Join(tmpDir1, "config.yaml"), []byte("name: Mario"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = os.WriteFile(path.Join(tmpDir2, "config.yaml"), []byte("surname: Bros"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err = os.RemoveAll(tmpDir)
+				Expect(err).ToNot(HaveOccurred())
+				err = os.RemoveAll(tmpDir1)
+				Expect(err).ToNot(HaveOccurred())
+				err = os.RemoveAll(tmpDir2)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("merges all the sources accordingly", func() {
+				path := filepath.Join(tmpDir, "cmdline")
+				c, err := Scan(MergeBootLine, WithBootCMDLineFile(path), Directories(tmpDir1, tmpDir2), NoLogs)
+				Expect(err).ToNot(HaveOccurred())
+
+				zz, ok := (*c)["zz"].(map[interface{}]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(zz["foo"]).To(Equal("baa"))
+
+				options, ok := (*c)["options"].(map[interface{}]interface{})
+				Expect(ok).To(BeTrue())
+				Expect(options["foo"]).To(Equal("bar"))
+				Expect(err).ToNot(HaveOccurred())
+
+				name, ok := (*c)["name"].(string)
+				Expect(ok).To(BeTrue())
+				Expect(name).To(Equal("Mario"))
+
+				surname, ok := (*c)["surname"].(string)
+				Expect(ok).To(BeTrue())
+				Expect(surname).To(Equal("Bros"))
 			})
 		})
 	})

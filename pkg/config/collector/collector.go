@@ -26,34 +26,6 @@ var ValidFileHeaders = []string{
 	"#node-config",
 }
 
-type Options struct {
-	ScanDir          []string
-	BootCMDLineFile  string
-	MergeBootCMDLine bool
-	NoLogs           bool
-}
-
-type Option func(o *Options) error
-
-func (o *Options) Apply(opts ...Option) error {
-	for _, oo := range opts {
-		if err := oo(o); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// SoftErr prints a warning if err is no nil and NoLogs is not true.
-// It's use to wrap the same handling happening in multiple places.
-//
-// TODO: Switch to a standard logging library (e.g. verbose, silent mode etc)
-func (o *Options) SoftErr(err error) {
-	if !o.NoLogs && err != nil {
-		fmt.Printf("WARNING: %s\n", err.Error())
-	}
-}
-
 // We don't allow yamls that are plain arrays because is has no use in Kairos
 // and there is no way to merge an array yaml with a "map" yaml.
 type Config map[string]interface{}
@@ -158,7 +130,7 @@ func parseFiles(dir []string, nologs bool) *Config {
 			if err != nil && !nologs {
 				fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
 			}
-			if err := mergo.Merge(&c, newYaml); err != nil {
+			if err := mergo.Merge(c, newYaml); err != nil {
 				fmt.Printf("warning: failed to merge config:\n%s\n", err.Error())
 			}
 		} else {
