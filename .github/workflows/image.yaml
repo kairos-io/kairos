@@ -31,6 +31,7 @@ concurrency:
   cancel-in-progress: true
 env:
   EARTHLY_BUILD_ARGS: 'IMMUCORE_DEV=${{ inputs.immucore_dev }},IMMUCORE_DEV_BRANCH=${{ inputs.immucore_dev_branch }}'
+  FORCE_COLOR: 1
 jobs:
   get-matrix:
     runs-on: ubuntu-latest
@@ -78,12 +79,17 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
         run: |
-          ./earthly.sh +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          earthly +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
           mkdir sarif
@@ -297,12 +303,17 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - run: |
           ls -liah
           export ISO=$PWD/$(ls *.iso)
           mkdir build
           mv $ISO build/kairos.iso
-          ./earthly.sh +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ matrix.flavor }}
+          earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ matrix.flavor }}
   qemu-acceptance-tests:
     needs:
       - build
@@ -326,9 +337,14 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: kairos-${{ matrix.flavor }}.iso.zip
+    - name: Install earthly
+      uses: Luet-lab/luet-install-action@v1
+      with:
+        repository: quay.io/kairos/packages
+        packages: utils/earthly
     - run: |
-            ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            ./earthly.sh +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+            earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
   qemu-bundles-tests:
     needs:
       - build
@@ -425,8 +441,13 @@ jobs:
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - run: |
-          ./earthly.sh +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
+          earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
   upgrade-with-cli-test:
     needs:
       - build
@@ -477,8 +498,13 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - run: |
-          ./earthly.sh +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
+          earthly +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
             --FLAVOR=${{ matrix.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
             --TEST_SUITE=upgrade-with-cli
@@ -544,8 +570,13 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - run: |
-          ./earthly.sh +run-qemu-test --PREBUILT_ISO=$(ls kairos-${{matrix.flavor}}-*.iso) \
+          earthly +run-qemu-test --PREBUILT_ISO=$(ls kairos-${{matrix.flavor}}-*.iso) \
             --FLAVOR=${{ matrix.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
             --TEST_SUITE=upgrade-latest-with-cli
