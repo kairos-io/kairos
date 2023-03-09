@@ -5,7 +5,6 @@ common:
   - system/kcrypt
   - system/kcrypt-challenger
   - system/suc-upgrade
-  - system/shim
   - system/grub2-efi
   - system/elemental-cli
   - system/immucore
@@ -89,9 +88,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230307114142-repository.yaml
+    reference: 20230309233328-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230307114311-repository.yaml
+    reference: 20230310000223-repository.yaml
