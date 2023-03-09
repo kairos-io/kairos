@@ -8,6 +8,8 @@ on:
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
+env:
+  FORCE_COLOR: 1
 
 jobs:
   get-matrix:
@@ -60,12 +62,17 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+          earthly +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
