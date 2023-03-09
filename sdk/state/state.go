@@ -27,15 +27,16 @@ const (
 type Boot string
 
 type PartitionState struct {
-	Mounted    bool   `yaml:"mounted" json:"mounted"`
-	Name       string `yaml:"name" json:"name"`
-	Label      string `yaml:"label" json:"label"`
-	MountPoint string `yaml:"mount_point" json:"mount_point"`
-	SizeBytes  uint64 `yaml:"size_bytes" json:"size_bytes"`
-	Type       string `yaml:"type" json:"type"`
-	IsReadOnly bool   `yaml:"read_only" json:"read_only"`
-	Found      bool   `yaml:"found" json:"found"`
-	UUID       string `yaml:"uuid" json:"uuid"` // This would be volume UUID on macOS, PartUUID on linux, empty on Windows
+	Mounted         bool   `yaml:"mounted" json:"mounted"`
+	Name            string `yaml:"name" json:"name"`
+	Label           string `yaml:"label" json:"label"`
+	FilesystemLabel string `yaml:"filesystemlabel" json:"filesystemlabel"`
+	MountPoint      string `yaml:"mount_point" json:"mount_point"`
+	SizeBytes       uint64 `yaml:"size_bytes" json:"size_bytes"`
+	Type            string `yaml:"type" json:"type"`
+	IsReadOnly      bool   `yaml:"read_only" json:"read_only"`
+	Found           bool   `yaml:"found" json:"found"`
+	UUID            string `yaml:"uuid" json:"uuid"` // This would be volume UUID on macOS, PartUUID on linux, empty on Windows
 }
 
 type Kairos struct {
@@ -66,8 +67,8 @@ func detectPartition(b *block.Partition) PartitionState {
 	// This is a current shortcoming of ghw which only identifies mountpoints via device, not by label/uuid/anything else
 	mountpoint := b.MountPoint
 	readOnly := b.IsReadOnly
-	if b.MountPoint == "" && b.Label != "" {
-		out, err := utils.SH(fmt.Sprintf("findmnt /dev/disk/by-label/%s -f -J -o TARGET,FS-OPTIONS", b.Label))
+	if b.MountPoint == "" && b.FilesystemLabel != "" {
+		out, err := utils.SH(fmt.Sprintf("findmnt /dev/disk/by-label/%s -f -J -o TARGET,FS-OPTIONS", b.FilesystemLabel))
 		fmt.Println(out)
 		mnt := &FndMnt{}
 		if err == nil {
@@ -88,15 +89,16 @@ func detectPartition(b *block.Partition) PartitionState {
 		}
 	}
 	return PartitionState{
-		Type:       b.Type,
-		IsReadOnly: readOnly,
-		UUID:       b.UUID,
-		Name:       fmt.Sprintf("/dev/%s", b.Name),
-		SizeBytes:  b.SizeBytes,
-		Label:      b.Label,
-		MountPoint: mountpoint,
-		Mounted:    mountpoint != "",
-		Found:      true,
+		Type:            b.Type,
+		IsReadOnly:      readOnly,
+		UUID:            b.UUID,
+		Name:            fmt.Sprintf("/dev/%s", b.Name),
+		SizeBytes:       b.SizeBytes,
+		Label:           b.Label,
+		FilesystemLabel: b.FilesystemLabel,
+		MountPoint:      mountpoint,
+		Mounted:         mountpoint != "",
+		Found:           true,
 	}
 }
 
@@ -129,7 +131,7 @@ func detectRuntimeState(r *Runtime) error {
 	}
 	for _, d := range blockDevices.Disks {
 		for _, part := range d.Partitions {
-			switch part.Label {
+			switch part.FilesystemLabel {
 			case "COS_PERSISTENT":
 				r.Persistent = detectPartition(part)
 			case "COS_RECOVERY":

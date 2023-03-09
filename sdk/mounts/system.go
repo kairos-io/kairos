@@ -16,14 +16,14 @@ func PrepareWrite(partition state.PartitionState, mountpath string) error {
 		if err != nil {
 			return err
 		}
-		return machine.Mount(partition.Label, mountpath)
+		return machine.Mount(partition.FilesystemLabel, mountpath)
 	}
 
-	return machine.Mount(partition.Label, mountpath)
+	return machine.Mount(partition.FilesystemLabel, mountpath)
 }
 
 func Mount(partition state.PartitionState, mountpath string) error {
-	return machine.Mount(partition.Label, mountpath)
+	return machine.Mount(partition.FilesystemLabel, mountpath)
 }
 
 func Umount(partition state.PartitionState) error {
