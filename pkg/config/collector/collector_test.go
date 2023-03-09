@@ -71,8 +71,8 @@ info:
 					Expect(isMap).To(BeTrue())
 					Expect(info["name"]).To(Equal("Mario"))
 					Expect(info["surname"]).To(Equal("Bros"))
-					Expect(len(*originalConfig)).To(Equal(1))
-					Expect(len(info)).To(Equal(2))
+					Expect(*originalConfig).To(HaveLen(1))
+					Expect(info).To(HaveLen(2))
 				})
 			})
 
@@ -89,8 +89,38 @@ info:
 					surname, isString := (*originalConfig)["name"].(string)
 					Expect(isString).To(BeTrue())
 					Expect(surname).To(Equal("Luigi"))
-					Expect(len(*originalConfig)).To(Equal(1))
+					Expect(*originalConfig).To(HaveLen(1))
 				})
+			})
+		})
+	})
+
+	Describe("MergeConfigURL", func() {
+		var originalConfig *Config
+		BeforeEach(func() {
+			originalConfig = &Config{}
+		})
+
+		Context("when there is no config_url defined", func() {
+			BeforeEach(func() {
+				err := yaml.Unmarshal([]byte("name: Mario"), originalConfig)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("does nothing", func() {
+				Expect(originalConfig.MergeConfigURL()).ToNot(HaveOccurred())
+				Expect(*originalConfig).To(HaveLen(1))
+			})
+		})
+		Context("when there is a chain of config_url defined", func() {
+			BeforeEach(func() {
+				serveFiles("tests/assets")
+				err := yaml.Unmarshal([]byte(`
+config_url: Mario
+`), originalConfig)
+				Expect(err).ToNot(HaveOccurred())
+			})
+			It("merges then all together", func() {
 			})
 		})
 	})
