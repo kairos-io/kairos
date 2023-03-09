@@ -74,23 +74,18 @@ func Scan(opts ...Option) (*Config, error) {
 
 	if o.MergeBootCMDLine {
 		d, err := DotToYAML(o.BootCMDLineFile)
-		o.SoftErr(fmt.Errorf("parsing cmdline: %w", err))
+		o.SoftErr("parsing cmdline", err)
 		if err == nil { // best-effort
 			var newYaml Config
 			err = yaml.Unmarshal(d, &newYaml)
-			o.SoftErr(fmt.Errorf("parsing cmdline as yaml: %w", err))
+			o.SoftErr("parsing cmdline as yaml", err)
 
-			err := mergo.Merge(result, newYaml)
-			o.SoftErr(fmt.Errorf("merging config: %w", err))
+			err := newYaml.MergeConfigURL()
+			o.SoftErr("merging config url", err)
+			err = result.MergeConfig(&newYaml)
+			o.SoftErr("merging config", err)
 		}
 	}
-
-	// TODO: This is too late, maybe a config_url has already been overwritten
-	// by previous merges.
-	// For every new "source", we should iterate and merge remote configs.
-	// NOTE: It should not replace the original config_url in `result`, only
-	// the rest of the config should be merged.
-	result.MergeConfigURL()
 
 	return result, nil
 }
@@ -130,8 +125,12 @@ func parseFiles(dir []string, nologs bool) *Config {
 			if err != nil && !nologs {
 				fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
 			}
-			if err := mergo.Merge(c, newYaml); err != nil {
-				fmt.Printf("warning: failed to merge config:\n%s\n", err.Error())
+			err = newYaml.MergeConfigURL()
+			if err != nil && !nologs {
+				fmt.Printf("warning: failed to merge config url %s\n", err.Error())
+			}
+			if c.MergeConfig(&newYaml); err != nil {
+				fmt.Printf("warning: failed to merge config:%s\n", err.Error())
 			}
 		} else {
 			if !nologs {
