@@ -16,7 +16,7 @@ import (
 	"github.com/nxadm/tail"
 )
 
-// setup needs edgevpn and k3s installed locally (both k3s and k3s-agent systemd services).
+// Run starts the agent provider emitting the bootstrap event.
 func Run(opts ...Option) error {
 	o := &Options{}
 	if err := o.Apply(opts...); err != nil {
