@@ -558,8 +558,8 @@ grype-scan:
     ARG FLAVOR
     ARG VARIANT
     WORKDIR /build
-    RUN /grype dir:/ --output sarif --file report.sarif
-    RUN /grype dir:/ --output json --file report.json
+    RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
+    RUN /grype dir:/ --output json --add-cpes-if-none --file report.json
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.sarif
     SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.json
 
