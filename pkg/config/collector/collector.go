@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/avast/retry-go"
@@ -124,7 +125,7 @@ func allFiles(dir []string) []string {
 
 // parseFiles returns a list of Configs parsed from files
 func parseFiles(dir []string, nologs bool) []*Config {
-	result := []*Config{}
+	result := Configs{}
 	files := allFiles(dir)
 	for _, f := range files {
 		if fileSize(f) > 1.0 {
@@ -138,6 +139,13 @@ func parseFiles(dir []string, nologs bool) []*Config {
 			if err != nil {
 				if !nologs {
 					fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
+				}
+				continue
+			}
+
+			if !HasValidHeader(string(b)) {
+				if !nologs {
+					fmt.Printf("warning: skipping %s because it has no valid header\n", f)
 				}
 				continue
 			}
@@ -266,34 +274,32 @@ func fetchRemoteConfig(url string) (*Config, error) {
 			}
 
 			return nil
-		},
+		}, retry.Delay(time.Second), retry.Attempts(3),
 	)
 
 	if err != nil {
 		return result, fmt.Errorf("could not fetch remote config: %w", err)
 	}
 
+	if !HasValidHeader(string(body)) {
+		// TODO: Print a warning when we implement proper logging
+		return result, nil
+	}
+
 	if err := yaml.Unmarshal(body, result); err != nil {
 		return result, fmt.Errorf("could not unmarshal remote config to an object: %w", err)
 	}
 
-	// TODO: Filter by header. Ignore if header is not a "valid" one
-	// Look in "ValidFileHeaders"
-	// if exists, header := HasHeader(string(body), ""); exists {
-	// 	result.Header = header
-	// }
-
 	return result, nil
 }
 
-func HasHeader(userdata, head string) (bool, string) {
-	header := strings.SplitN(userdata, "\n", 2)[0]
+func HasValidHeader(data string) bool {
+	header := strings.SplitN(data, "\n", 2)[0]
 
 	// Trim trailing whitespaces
 	header = strings.TrimRightFunc(header, unicode.IsSpace)
 
-	if head != "" {
-		return head == header, header
-	}
-	return (header == DefaultHeader) || (header == "#kairos-config") || (header == "#node-config"), header
+	// NOTE: we also allow "legacy" headers. Should only allow #cloud-config at
+	// some point.
+	return (header == DefaultHeader) || (header == "#kairos-config") || (header == "#node-config")
 }

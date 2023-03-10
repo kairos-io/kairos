@@ -42,9 +42,11 @@ var _ = Describe("Config Collector", func() {
 
 		Context("different keys", func() {
 			BeforeEach(func() {
-				err := yaml.Unmarshal([]byte("name: Mario"), originalConfig)
+				err := yaml.Unmarshal([]byte(`#cloud-config
+name: Mario`), originalConfig)
 				Expect(err).ToNot(HaveOccurred())
-				err = yaml.Unmarshal([]byte("surname: Bros"), newConfig)
+				err = yaml.Unmarshal([]byte(`#cloud-config
+surname: Bros`), newConfig)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -59,12 +61,12 @@ var _ = Describe("Config Collector", func() {
 		Context("same keys", func() {
 			Context("when the key is a map", func() {
 				BeforeEach(func() {
-					err := yaml.Unmarshal([]byte(`---
+					err := yaml.Unmarshal([]byte(`#cloud-config
 info:
   name: Mario
 `), originalConfig)
 					Expect(err).ToNot(HaveOccurred())
-					err = yaml.Unmarshal([]byte(`---
+					err = yaml.Unmarshal([]byte(`#cloud-config
 info:
   surname: Bros
 `), newConfig)
@@ -83,9 +85,9 @@ info:
 
 			Context("when the key is a string", func() {
 				BeforeEach(func() {
-					err := yaml.Unmarshal([]byte("name: Mario"), originalConfig)
+					err := yaml.Unmarshal([]byte("#cloud-config\nname: Mario"), originalConfig)
 					Expect(err).ToNot(HaveOccurred())
-					err = yaml.Unmarshal([]byte("name: Luigi"), newConfig)
+					err = yaml.Unmarshal([]byte("#cloud-config\nname: Luigi"), newConfig)
 					Expect(err).ToNot(HaveOccurred())
 				})
 
@@ -108,7 +110,7 @@ info:
 
 		Context("when there is no config_url defined", func() {
 			BeforeEach(func() {
-				err := yaml.Unmarshal([]byte("name: Mario"), originalConfig)
+				err := yaml.Unmarshal([]byte("#cloud-config\nname: Mario"), originalConfig)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -133,7 +135,7 @@ info:
 				Expect(err).ToNot(HaveOccurred())
 
 				originalConfig = &Config{}
-				err = yaml.Unmarshal([]byte(fmt.Sprintf(`---
+				err = yaml.Unmarshal([]byte(fmt.Sprintf(`#cloud-config
 config_url: http://127.0.0.1:%d/config1.yaml
 name: Mario
 surname: Bros
@@ -142,15 +144,15 @@ info:
 `, port)), originalConfig)
 				Expect(err).ToNot(HaveOccurred())
 
-				err := os.WriteFile(path.Join(tmpDir, "config1.yaml"), []byte(fmt.Sprintf(`
----
+				err := os.WriteFile(path.Join(tmpDir, "config1.yaml"), []byte(fmt.Sprintf(`#cloud-config
+
 config_url: http://127.0.0.1:%d/config2.yaml
 surname: Bras
 `, port)), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = os.WriteFile(path.Join(tmpDir, "config2.yaml"), []byte(`
----
+				err = os.WriteFile(path.Join(tmpDir, "config2.yaml"), []byte(`#cloud-config
+
 info:
   girlfriend: princess
 `), os.ModePerm)
@@ -202,21 +204,21 @@ info:
 
 				tmpDir1, err = os.MkdirTemp("", "config1")
 				Expect(err).ToNot(HaveOccurred())
-				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(fmt.Sprintf(`
----
+				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(fmt.Sprintf(`#cloud-config
+
 config_url: http://127.0.0.1:%d/remote_config_3.yaml
 local_key_1: local_value_1
 `, port)), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
-				err = os.WriteFile(path.Join(serverDir, "remote_config_3.yaml"), []byte(fmt.Sprintf(`
----
+				err = os.WriteFile(path.Join(serverDir, "remote_config_3.yaml"), []byte(fmt.Sprintf(`#cloud-config
+
 config_url: http://127.0.0.1:%d/remote_config_4.yaml
 remote_key_3: remote_value_3
 `, port)), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = os.WriteFile(path.Join(serverDir, "remote_config_4.yaml"), []byte(`
----
+				err = os.WriteFile(path.Join(serverDir, "remote_config_4.yaml"), []byte(`#cloud-config
+
 options:
   remote_option_1: remote_option_value_1
 `), os.ModePerm)
@@ -224,21 +226,21 @@ options:
 
 				tmpDir2, err = os.MkdirTemp("", "config2")
 				Expect(err).ToNot(HaveOccurred())
-				err = os.WriteFile(path.Join(tmpDir2, "local_config_2.yaml"), []byte(fmt.Sprintf(`
----
+				err = os.WriteFile(path.Join(tmpDir2, "local_config_2.yaml"), []byte(fmt.Sprintf(`#cloud-config
+
 config_url: http://127.0.0.1:%d/remote_config_5.yaml
 local_key_2: local_value_2
 `, port)), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
-				err = os.WriteFile(path.Join(serverDir, "remote_config_5.yaml"), []byte(fmt.Sprintf(`
----
+				err = os.WriteFile(path.Join(serverDir, "remote_config_5.yaml"), []byte(fmt.Sprintf(`#cloud-config
+
 config_url: http://127.0.0.1:%d/remote_config_6.yaml
 remote_key_4: remote_value_4
 `, port)), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = os.WriteFile(path.Join(serverDir, "remote_config_6.yaml"), []byte(`
----
+				err = os.WriteFile(path.Join(serverDir, "remote_config_6.yaml"), []byte(`#cloud-config
+
 options:
   remote_option_2: remote_option_value_2
 `), os.ModePerm)
@@ -290,6 +292,75 @@ options:
 				Expect(player["surname"]).To(Equal("Bros"))
 			})
 		})
+
+		Context("when files have invalid or missing headers", func() {
+			var serverDir, tmpDir string
+			var err error
+			var closeFunc ServerCloseFunc
+			var port int
+
+			BeforeEach(func() {
+				// Prepare the cmdline config_url chain
+				serverDir, err = os.MkdirTemp("", "config_url_chain")
+				Expect(err).ToNot(HaveOccurred())
+				closeFunc, port, err = startAssetServer(serverDir)
+				Expect(err).ToNot(HaveOccurred())
+
+				tmpDir, err = os.MkdirTemp("", "config")
+				Expect(err).ToNot(HaveOccurred())
+
+				// Local configs
+				err = os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(fmt.Sprintf(`#cloud-config
+config_url: http://127.0.0.1:%d/remote_config_1.yaml
+local_key_1: local_value_1
+`, port)), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				// missing header
+				err = os.WriteFile(path.Join(tmpDir, "local_config_2.yaml"),
+					[]byte("local_key_2: local_value_2"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Remote config with valid header
+				err := os.WriteFile(path.Join(serverDir, "remote_config_1.yaml"), []byte(fmt.Sprintf(`#cloud-config
+config_url: http://127.0.0.1:%d/remote_config_2.yaml
+remote_key_1: remote_value_1`, port)), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Remote config with invalid header
+				err = os.WriteFile(path.Join(serverDir, "remote_config_2.yaml"), []byte(`#invalid-header
+remote_key_2: remote_value_2`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				closeFunc()
+				err = os.RemoveAll(serverDir)
+				Expect(err).ToNot(HaveOccurred())
+				err = os.RemoveAll(tmpDir)
+			})
+
+			It("ignores them", func() {
+				c, err := Scan(Directories(tmpDir), NoLogs)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect((*c)["local_key_2"]).To(BeNil())
+				Expect((*c)["remote_key_2"]).To(BeNil())
+
+				// sanity check, the rest should be there
+				v, ok := (*c)["config_url"].(string)
+				Expect(ok).To(BeTrue())
+				Expect(v).To(MatchRegexp("remote_config_2.yaml"))
+
+				v, ok = (*c)["local_key_1"].(string)
+				Expect(ok).To(BeTrue())
+				Expect(v).To(Equal("local_value_1"))
+
+				v, ok = (*c)["remote_key_1"].(string)
+				Expect(ok).To(BeTrue())
+				Expect(v).To(Equal("remote_value_1"))
+			})
+		})
 	})
 
 	Describe("String", func() {
@@ -312,16 +383,16 @@ name: Mario
 })
 
 func createRemoteConfigs(serverDir string, port int) string {
-	err := os.WriteFile(path.Join(serverDir, "remote_config_1.yaml"), []byte(fmt.Sprintf(`
----
+	err := os.WriteFile(path.Join(serverDir, "remote_config_1.yaml"), []byte(fmt.Sprintf(`#cloud-config
+
 config_url: http://127.0.0.1:%d/remote_config_2.yaml
 player:
   name: Dimitris
 remote_key_1: remote_value_1
 `, port)), os.ModePerm)
 	Expect(err).ToNot(HaveOccurred())
-	err = os.WriteFile(path.Join(serverDir, "remote_config_2.yaml"), []byte(`
----
+	err = os.WriteFile(path.Join(serverDir, "remote_config_2.yaml"), []byte(`#cloud-config
+
 player:
   surname: Bros
 remote_key_2: remote_value_2
