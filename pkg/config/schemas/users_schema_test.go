@@ -64,7 +64,8 @@ name: "kairos"`
 name: "kairos"
 passwd: "kairos"
 lock_passwd: true
-groups: "admin"
+groups: 
+ - "admin"
 ssh_authorized_keys:
   - github:mudler`
 		})
