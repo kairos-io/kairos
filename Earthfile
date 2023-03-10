@@ -36,7 +36,7 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
 
 all:
-  BUILD +docker
+  BUILD +image
   BUILD +image-sbom
   BUILD +trivy-scan
   BUILD +grype-scan
@@ -45,7 +45,7 @@ all:
   BUILD +ipxe-iso
 
 all-arm:
-  BUILD --platform=linux/arm64 +docker
+  BUILD --platform=linux/arm64 +image
   BUILD +image-sbom
   BUILD +trivy-scan
   BUILD +grype-scan
@@ -208,7 +208,7 @@ syft:
     SAVE ARTIFACT /syft syft
 
 image-sbom:
-    FROM +docker
+    FROM +image
     WORKDIR /build
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
@@ -295,7 +295,7 @@ framework-image:
     COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
-docker:
+base-image:
     ARG FLAVOR
     ARG VARIANT
     IF [ "$BASE_IMAGE" = "" ]
@@ -323,8 +323,6 @@ docker:
 
     # Includes overlay/files
     COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION) /
-
-    DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
@@ -399,10 +397,13 @@ docker:
 
     RUN rm -rf /tmp/*
 
+image:
+    FROM +base-image
+    DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
     SAVE IMAGE $IMAGE
 
-docker-rootfs:
-    FROM +docker
+image-rootfs:
+    FROM +image
     SAVE ARTIFACT --keep-own /. rootfs
 
 ###
@@ -417,7 +418,7 @@ iso:
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
-    COPY --keep-own +docker-rootfs/rootfs /build/image
+    COPY --keep-own +image-rootfs/rootfs /build/image
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
@@ -456,7 +457,7 @@ arm-image:
   ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
   ENV DEFAULT_ACTIVE_SIZE="2000"
-  COPY --platform=linux/arm64 +docker-rootfs/rootfs /build/image
+  COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
     RUN /build-arm-image.sh --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
@@ -514,7 +515,8 @@ trivy:
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
-    FROM +docker
+    # Use base-image so it can read original os-release file
+    FROM +base-image
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
     COPY +version/VERSION ./
@@ -534,7 +536,8 @@ grype:
     SAVE ARTIFACT /grype /grype
 
 grype-scan:
-    FROM +docker
+    # Use base-image so it can read original os-release file
+    FROM +base-image
     COPY +grype/grype /grype
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
@@ -557,7 +560,7 @@ linux-bench:
 # However, some checks are relevant as well at container level.
 # It is good enough for a quick assessment.
 linux-bench-scan:
-    FROM +docker
+    FROM +image
     GIT CLONE https://github.com/aquasecurity/linux-bench /build/linux-bench
     WORKDIR /build/linux-bench
     COPY +linux-bench/linux-bench /build/linux-bench/linux-bench
@@ -808,7 +811,7 @@ temp-image:
 
     ARG TTL_IMAGE = "ttl.sh/${NAME}:${EXPIRATION}"
 
-    FROM +docker
+    FROM +image
     SAVE IMAGE --push $TTL_IMAGE
 
 generate-schema:
