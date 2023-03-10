@@ -6,7 +6,7 @@ author: Mauro Morales ([Twitter](https://twitter.com/mauromrls)) ([GitHub](https
 
 We recently had the opportunity to sponsor two Kubernetes events, [KCD Amsterdam][amsterdam] and [KCD Paris][paris]. This blog post, is a summary about my personal experience attending them.
 
-Let me start by saying, that I'm fairly new to Kubernetes and its community :wave:. I know this project is big and that there are many companies building products and services around it, or have an interest in adopting it. So, I was very curios to see what kind of people I was going to meet and understand how Kairos could help them.
+Let me start by saying, that I'm fairly new to Kubernetes and its community :wave:. I know this project is big and that there are many companies building products and services around it, or have an interest in adopting it. So, I was very curious to see what kind of people I was going to meet and understand how Kairos could help them.
 
 Most attendees that approached us at the Kairos booths, were hearing about Kairos for the first time, and genuinely wanted to know what the project was about. I feel confidet to say this, because we didn't bring fancy prices to give away and yet most of them would happily stay with us for 5, 10 and up to 15 minutes hearing about our features and engaging in conversation.
 
