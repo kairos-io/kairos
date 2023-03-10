@@ -38,7 +38,7 @@ Finally, because the system is read-only, it is more **reliable** and less prone
 _"Right, but how do I manage upgrades?"_
 {{% /alert %}}
 
-Instead of upgrading the system in place, upgrades are typically handled by creating a new, updated image of the operating system and replacing the existing image. This process is commonly referred to as "image-based upgrade". The image can also be delivered to the end system, but this differs depending on the implementation, and there is no building on the node side.
+Instead of upgrading the system in place, upgrades are typically handled by creating a new, updated image of the operating system and replacing the existing image, in an atomic operation. This process is commonly referred to as "image-based upgrade". The image can also be delivered to the end system, but this differs depending on the implementation, and there is no building on the node side.
 
 ![Upgrade](https://user-images.githubusercontent.com/2420543/224147132-50d6808e-0a1c-48d0-8f44-627bd0dfa9f2.png)
 
