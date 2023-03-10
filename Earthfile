@@ -208,7 +208,8 @@ syft:
     SAVE ARTIFACT /syft syft
 
 image-sbom:
-    FROM +image
+    # Use base-image so it can read original os-release file
+    FROM +base-image
     WORKDIR /build
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
@@ -315,11 +316,6 @@ base-image:
     ELSE 
         ARG OS_VERSION=${KAIROS_VERSION}
     END
-    
-    ARG OS_ID
-    ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
-    ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
-    ARG OS_LABEL=latest
 
     # Includes overlay/files
     COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION) /
@@ -399,6 +395,22 @@ base-image:
 
 image:
     FROM +base-image
+    ARG FLAVOR
+    ARG VARIANT
+    ARG KAIROS_VERSION
+    IF [ "$KAIROS_VERSION" = "" ]
+        COPY +version/VERSION ./
+        ARG VERSION=$(cat VERSION)
+        RUN echo "version ${VERSION}"
+        ARG OS_VERSION=${VERSION}
+        RUN rm VERSION
+    ELSE 
+        ARG OS_VERSION=${KAIROS_VERSION}
+    END
+    ARG OS_ID
+    ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
+    ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
+    ARG OS_LABEL=latest
     DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
     SAVE IMAGE $IMAGE
 
