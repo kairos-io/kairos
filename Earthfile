@@ -414,6 +414,8 @@ docker:
         END
     END
 
+    RUN rm -rf /tmp/*
+
     SAVE IMAGE $IMAGE
 
 docker-rootfs:
@@ -537,9 +539,9 @@ trivy-scan:
     ARG FLAVOR
     ARG VARIANT
     WORKDIR /build
-    RUN /trivy filesystem --format sarif -o report.sarif --no-progress /
-    RUN /trivy filesystem --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
-    RUN /trivy filesystem -f json -o results.json --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp -f json -o results.json --no-progress /
     SAVE ARTIFACT /build/report.sarif report.sartif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.json
