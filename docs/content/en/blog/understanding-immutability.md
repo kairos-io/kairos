@@ -6,7 +6,7 @@ description: "In this post we are trying to answer some of the typical questions
 author: Ettore Di Giacinto ([Twitter](https://twitter.com/mudler_it)) ([GitHub](https://github.com/mudler))
 ---
 
-For years, the traditional Linux operating system has been a top pick for its flexibility and ability to be customized. But as great as it is, there are limitations when it comes to security and reliability. That's where immutable Linux operating systems come in - offering a more secure and reliable option, especially in settings where security is paramount.
+For years, the traditional Linux operating system has been a top pick for its flexibility and ability to be customized. But as great as it is, there are use cases in which stricter security rules and higher reliability standards are needed. That's where immutable Linux operating systems come in - offering a more secure and reliable option, especially in settings where security is paramount.
 
 {{< card header="![guardian2](https://user-images.githubusercontent.com/2420543/224127635-9bbe5c83-aad9-48a4-a944-087ed105dc0d.jpeg)" subtitle="_Guardian, fierce and protective, defending a treasure hoard, dark and mysterious dungeon environment, flickering torchlight lighting, monochrome photography style, 64K UHD quality._ Author: _Stable diffusion_"
          >}}
