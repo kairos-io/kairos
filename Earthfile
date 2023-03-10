@@ -414,6 +414,8 @@ docker:
         END
     END
 
+    RUN rm -rf /tmp/*
+
     SAVE IMAGE $IMAGE
 
 docker-rootfs:
