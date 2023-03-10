@@ -26,6 +26,8 @@ var ValidFileHeaders = []string{
 	"#node-config",
 }
 
+type Configs []*Config
+
 // We don't allow yamls that are plain arrays because is has no use in Kairos
 // and there is no way to merge an array yaml with a "map" yaml.
 type Config map[string]interface{}
@@ -63,27 +65,41 @@ func (c *Config) MergeConfig(newConfig *Config) error {
 	return mergo.Merge(c, newConfig, func(c *mergo.Config) { c.Overwrite = true })
 }
 
-func Scan(opts ...Option) (*Config, error) {
+func (cs Configs) Merge() (*Config, error) {
 	result := &Config{}
-	o := &Options{}
-	if err := o.Apply(opts...); err != nil {
-		return result, err
+
+	for _, c := range cs {
+		if err := c.MergeConfigURL(); err != nil {
+			return result, err
+		}
+
+		if err := result.MergeConfig(c); err != nil {
+			return result, err
+		}
 	}
 
-	result = parseFiles(o.ScanDir, o.NoLogs)
+	return result, nil
+}
+
+func Scan(opts ...Option) (*Config, error) {
+	configs := Configs{}
+
+	o := &Options{}
+	if err := o.Apply(opts...); err != nil {
+		return nil, err
+	}
+
+	configs = append(configs, parseFiles(o.ScanDir, o.NoLogs)...)
 
 	if o.MergeBootCMDLine {
 		cConfig, err := ParseCmdLine(o.BootCMDLineFile)
 		o.SoftErr("parsing cmdline", err)
 		if err == nil { // best-effort
-			err := cConfig.MergeConfigURL()
-			o.SoftErr("merging config url", err)
-			err = result.MergeConfig(cConfig)
-			o.SoftErr("merging config", err)
+			configs = append(configs, cConfig)
 		}
 	}
 
-	return result, nil
+	return configs.Merge()
 }
 
 func allFiles(dir []string) []string {
@@ -96,10 +112,10 @@ func allFiles(dir []string) []string {
 	return files
 }
 
-// parseFiles merges all config back in one structure.
-func parseFiles(dir []string, nologs bool) *Config {
+// parseFiles returns a list of Configs parsed from files
+func parseFiles(dir []string, nologs bool) []*Config {
+	result := []*Config{}
 	files := allFiles(dir)
-	c := &Config{}
 	for _, f := range files {
 		if fileSize(f) > 1.0 {
 			if !nologs {
@@ -116,18 +132,12 @@ func parseFiles(dir []string, nologs bool) *Config {
 				continue
 			}
 
-			var newYaml Config
-			err = yaml.Unmarshal(b, &newYaml)
+			var newConfig Config
+			err = yaml.Unmarshal(b, &newConfig)
 			if err != nil && !nologs {
 				fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
 			}
-			err = newYaml.MergeConfigURL()
-			if err != nil && !nologs {
-				fmt.Printf("warning: failed to merge config url %s\n", err.Error())
-			}
-			if c.MergeConfig(&newYaml); err != nil {
-				fmt.Printf("warning: failed to merge config:%s\n", err.Error())
-			}
+			result = append(result, &newConfig)
 		} else {
 			if !nologs {
 				fmt.Printf("warning: skipping %s (extension).\n", f)
@@ -135,7 +145,7 @@ func parseFiles(dir []string, nologs bool) *Config {
 		}
 	}
 
-	return c
+	return result
 }
 
 func fileSize(f string) float64 {
