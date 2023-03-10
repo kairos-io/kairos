@@ -2,7 +2,7 @@
 title: "Understanding Immutable Linux OS: Benefits, Architecture, and Challenges"
 date: 2023-03-09
 linkTitle: "Understanding Immutable Linux OS: Benefits, Architecture, and Challenges"
-description: "In this post we are trying to answer to some of the typical questions that helps understanding Immutable OSes principles and we will dive a bit in what solutions are out there, and what are the challenges in the field"
+description: "In this post we are trying to answer some of the typical questions that help understanding Immutable OSes principles and we will dive a bit in what solutions are out there, and what are the challenges in the field"
 author: Ettore Di Giacinto ([Twitter](https://twitter.com/mudler_it)) ([GitHub](https://github.com/mudler))
 ---
 
