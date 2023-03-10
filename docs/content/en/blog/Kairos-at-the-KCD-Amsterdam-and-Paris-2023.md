@@ -16,7 +16,7 @@ When you're in the trenches building a product, talking to users or potential us
 
 While I didn't get to attend any of the talks, I saw some really interesting topics, some of them from fantastic organizations like CERN! However, what I did do a bit, was to speak to some of the folks in the other booths, just to see what they were up to :mag: and most importantly to see if there were chances our different projects could leverage each other out :raised_hands:.
 
-Last but not least, let me thank everyone :bow: who attended our booth for your valuable time and feedback. I think every one of my colleagues will agree that we're committed to building a great product, that solves real world problems and we plan to use that feedback accordingly. We have a passion for open-source and we understand that means much more than just great engineering and best practices, it also means being there for you, the community.
+Last but not least, let me thank everyone :bow: who attended our booth for your valuable time and feedback. I think every one of my colleagues will agree that we're committed to building a great product, that solves real world problems and we plan to use that feedback accordingly. We have a passion for open-source and we understand that this means much more than just great engineering and best practices. It also means being there for you, the community.
 
 [amsterdam]: https://community.cncf.io/events/details/cncf-kcd-netherlands-presents-kubernetes-community-days-amsterdam-2023/
 [paris]: https://community.cncf.io/events/details/cncf-kcd-france-presents-kubernetes-community-days-france-2023/
