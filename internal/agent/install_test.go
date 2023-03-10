@@ -2,10 +2,10 @@ package agent
 
 import (
 	"context"
+	"os"
+
 	"github.com/kairos-io/kairos/pkg/config"
 	"gopkg.in/yaml.v3"
-	"os"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -47,8 +47,3 @@ var _ = Describe("prepareConfiguration", func() {
 		Expect(os.IsNotExist(err))
 	})
 })
-
-func TestPrepareConfiguration(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "prepareConfiguration Suite")
-}
