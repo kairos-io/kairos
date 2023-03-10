@@ -73,16 +73,12 @@ func Scan(opts ...Option) (*Config, error) {
 	result = parseFiles(o.ScanDir, o.NoLogs)
 
 	if o.MergeBootCMDLine {
-		d, err := DotToYAML(o.BootCMDLineFile)
+		cConfig, err := ParseCmdLine(o.BootCMDLineFile)
 		o.SoftErr("parsing cmdline", err)
 		if err == nil { // best-effort
-			var newYaml Config
-			err = yaml.Unmarshal(d, &newYaml)
-			o.SoftErr("parsing cmdline as yaml", err)
-
-			err := newYaml.MergeConfigURL()
+			err := cConfig.MergeConfigURL()
 			o.SoftErr("merging config url", err)
-			err = result.MergeConfig(&newYaml)
+			err = result.MergeConfig(cConfig)
 			o.SoftErr("merging config", err)
 		}
 	}
@@ -179,25 +175,30 @@ func listFiles(dir string) ([]string, error) {
 	return content, err
 }
 
-// DotToYAML reads options from the kernel cmdline and returns an
-// equivalent YAML.
-func DotToYAML(file string) ([]byte, error) {
+// ParseCmdLine reads options from the kernel cmdline and returns the equivalent
+// Config.
+func ParseCmdLine(file string) (*Config, error) {
+	result := &Config{}
+
 	if file == "" {
 		file = "/proc/cmdline"
 	}
 	dat, err := os.ReadFile(file)
 	if err != nil {
-		return []byte{}, err
+		return result, err
 	}
 
-	v := stringToMap(string(dat))
+	d, err := unstructured.ToYAML(stringToConfig(string(dat)))
+	if err != nil {
+		return result, err
+	}
+	err = yaml.Unmarshal(d, &result)
 
-	// TODO: Stick to map[string]interface{}? No need to call ToYAML.
-	return unstructured.ToYAML(v)
+	return result, err
 }
 
-func stringToMap(s string) map[string]interface{} {
-	v := map[string]interface{}{}
+func stringToConfig(s string) Config {
+	v := Config{}
 
 	splitted, _ := shlex.Split(s)
 	for _, item := range splitted {
