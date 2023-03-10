@@ -14,6 +14,7 @@ defaultContentLanguage = "en"
 defaultContentLanguageInSubdir = false
 # Useful when translating.
 enableMissingTranslationPlaceholders = true
+enableEmoji = true
 
 disableKinds = ["taxonomy", "taxonomyTerm"]
 
