@@ -65,6 +65,16 @@ func (c *Config) MergeConfig(newConfig *Config) error {
 	return mergo.Merge(c, newConfig, func(c *mergo.Config) { c.Overwrite = true })
 }
 
+// String returns a string which is a Yaml representation of the Config
+func (c *Config) String() (string, error) {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s\n\n%s", DefaultHeader, string(data)), nil
+}
+
 func (cs Configs) Merge() (*Config, error) {
 	result := &Config{}
 

@@ -291,6 +291,24 @@ options:
 			})
 		})
 	})
+
+	Describe("String", func() {
+		var conf *Config
+		BeforeEach(func() {
+			conf = &Config{}
+			err := yaml.Unmarshal([]byte("name: Mario"), conf)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("returns the YAML string representation of the Config", func() {
+			s, err := conf.String()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(s).To(Equal(`#cloud-config
+
+name: Mario
+`), s)
+		})
+	})
 })
 
 func createRemoteConfigs(serverDir string, port int) string {
