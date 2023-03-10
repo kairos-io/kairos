@@ -27,7 +27,7 @@ require (
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
-	github.com/swaggest/jsonschema-go v0.3.47
+	github.com/swaggest/jsonschema-go v0.3.48
 	github.com/twpayne/go-vfs v1.7.2
 	github.com/urfave/cli/v2 v2.24.4
 	github.com/zcalusic/sysinfo v0.9.5
