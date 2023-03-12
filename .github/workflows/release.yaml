@@ -58,7 +58,7 @@ jobs:
           COSIGN_YES: true
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
+          export TAG=${GITHUB_REF##*/}_${{ matrix.flavor }}
           export IMAGE="quay.io/kairos/framework"
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
