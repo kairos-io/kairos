@@ -427,11 +427,17 @@ iso:
     ARG ISO_NAME=${OS_ID}
     ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
+    ARG TARGETARCH
+    IF [ "$TARGETARCH" = "arm64" ]
+        ARG ISO_ARCH="arm64"
+    ELSE
+        ARG ISO_ARCH="x86_64"
+    END
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
     COPY --keep-own +image-rootfs/rootfs /build/image
-    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --arch $ISO_ARCH --squash-no-compression --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
