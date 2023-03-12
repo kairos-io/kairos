@@ -62,18 +62,13 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          earthly -P +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+          ./earthly.sh -P +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
