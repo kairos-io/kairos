@@ -63,6 +63,17 @@ func displayInfo(agentConfig *Config) {
 	}
 }
 
+func mergeOption(cloudConfig string, r map[string]string) {
+	c := &config.Config{}
+	yaml.Unmarshal([]byte(cloudConfig), c) //nolint:errcheck
+	for k, v := range c.Options {
+		if k == "cc" {
+			continue
+		}
+		r[k] = v
+	}
+}
+
 func ManualInstall(c string, options map[string]string, strictValidations bool) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -77,6 +88,10 @@ func ManualInstall(c string, options map[string]string, strictValidations bool) 
 		return err
 	}
 	options["cc"] = cc.String()
+	// unlike Install device is already set
+	// options["device"] = cc.Install.Device
+
+	mergeOption(cc.String(), options)
 
 	if options["device"] == "" {
 		options["device"] = cc.Install.Device
@@ -96,19 +111,10 @@ func Install(dir ...string) error {
 	tk := ""
 	r := map[string]string{}
 
-	mergeOption := func(cloudConfig string) {
-		c := &config.Config{}
-		yaml.Unmarshal([]byte(cloudConfig), c) //nolint:errcheck
-		for k, v := range c.Options {
-			if k == "cc" {
-				continue
-			}
-			r[k] = v
-		}
-	}
 	bus.Manager.Response(events.EventChallenge, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		tk = r.Data
 	})
+
 	bus.Manager.Response(events.EventInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
 		err := json.Unmarshal([]byte(resp.Data), &r)
 		if err != nil {
@@ -124,7 +130,7 @@ func Install(dir ...string) error {
 	if err == nil && cc.Install != nil && cc.Install.Auto {
 		r["cc"] = cc.String()
 		r["device"] = cc.Install.Device
-		mergeOption(cc.String())
+		mergeOption(cc.String(), r)
 
 		err = RunInstall(r)
 		if err != nil {
@@ -151,8 +157,8 @@ func Install(dir ...string) error {
 	cmd.ClearScreen()
 	cmd.PrintBranding(DefaultBanner)
 
-	// If there are no providers registered, we enter a shell for manual installation and print information about
-	// the webUI
+	// If there are no providers registered, we enter a shell for manual installation
+	// and print information about the webUI
 	if !bus.Manager.HasRegisteredPlugins() {
 		displayInfo(agentConfig)
 		return utils.Shell().Run()
@@ -185,12 +191,14 @@ func Install(dir ...string) error {
 	cloudConfig, exists := r["cc"]
 
 	// merge any options defined in it
-	mergeOption(cloudConfig)
+	mergeOption(cloudConfig, r)
 
-	// now merge cloud config from system and the one received from the agent-provider
+	// now merge cloud config from system and
+	// the one received from the agent-provider
 	ccData := map[string]interface{}{}
 
-	// make sure the config we write has at least the #cloud-config header, if any other was defined beforeahead
+	// make sure the config we write has at least the #cloud-config header,
+	// if any other was defined beforeahead
 	header := "#cloud-config"
 	if hasHeader, head := config.HasHeader(cc.String(), ""); hasHeader {
 		header = head
