@@ -3,19 +3,19 @@ verify: false
 install:
   grub-entry-name: "kairos"
   system:
-    size: 2000
+    size: 2100
   recovery-system:
-    size: 2000
+    size: 2100
 upgrade:
   grub-entry-name: "kairos"
   recovery-system:
-    size: 2000
+    size: 2100
   system:
-    size: 2000
+    size: 2100
 reset:
   grub-entry-name: "kairos"
   system:
-    size: 2000
+    size: 2100
 
 cloud-init-paths:
 - /run/initramfs/cos-state

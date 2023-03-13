@@ -465,10 +465,10 @@ arm-image:
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
   WORKDIR /build
-  ENV STATE_SIZE="6200"
+  ENV STATE_SIZE="6600"
   ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
-  ENV DEFAULT_ACTIVE_SIZE="2000"
+  ENV DEFAULT_ACTIVE_SIZE="2200"
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
