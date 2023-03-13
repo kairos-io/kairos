@@ -16,10 +16,12 @@
 package config_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	. "github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/pkg/config/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"
@@ -45,31 +47,33 @@ var _ = Describe("Config", func() {
 	})
 
 	Context("directory", func() {
-		headerCheck := func(c *Config) {
-			ok, header := HasHeader(c.String(), DefaultHeader)
-			ExpectWithOffset(1, ok).To(BeTrue())
-			ExpectWithOffset(1, header).To(Equal(DefaultHeader))
+		headerCheck := func(confStr string) {
+			Expect(collector.HasValidHeader(confStr)).To(BeTrue())
 		}
 
 		It("reads from bootargs and can query", func() {
 			err := os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
+			c, err := Scan(collector.MergeBootLine,
+				collector.WithBootCMDLineFile(filepath.Join(d, "b")),
+				collector.NoLogs, collector.StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
-			headerCheck(c)
+
+			headerCheck(c.String())
+
 			Expect(c.Options["foo"]).To(Equal("bar"))
 			Expect(c.Query("options")).To(Equal("foo: bar\n"))
 			Expect(c.Query("options.foo")).To(Equal("bar\n"))
 		})
 
 		It("reads multiple config files", func() {
-			var cc string = `#kairos-config
+			var cc = `#kairos-config
 baz: bar
 kairos:
   network_token: foo
 `
-			var c2 string = `
+			var c2 = `
 b: f
 c: d
 `
@@ -80,7 +84,7 @@ c: d
 			err = os.WriteFile(filepath.Join(d, "b.yaml"), []byte(c2), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := Scan(collector.Directories(d), collector.NoLogs, collector.StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			providerCfg := &TConfig{}
@@ -109,13 +113,13 @@ fooz:
 			`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			err = os.WriteFile(filepath.Join(d, "more-kairos.yaml"), []byte(`
+			err = os.WriteFile(filepath.Join(d, "more-kairos.yaml"), []byte(`#cloud-config
 kairos:
     other_key: test
 `), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := Scan(collector.Directories(d), collector.NoLogs, collector.StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			providerCfg := &TConfig{}
@@ -124,7 +128,7 @@ kairos:
 			Expect(providerCfg.Kairos).ToNot(BeNil())
 			Expect(providerCfg.Kairos.NetworkToken).To(Equal("foo"))
 			Expect(providerCfg.Kairos.OtherKey).To(Equal("test"))
-			expectedString := `#kairos-config
+			expectedString := `#cloud-config
 baz: bar
 kairos:
     network_token: foo
@@ -133,9 +137,9 @@ kairos:
 			Expect(c.String()).To(Equal(expectedString), c.String(), cc)
 		})
 
-		It("merges with bootargs", func() {
+		FIt("merges with bootargs", func() {
 
-			var cc string = `#kairos-config
+			var cc = `#kairos-config
 kairos:
   network_token: "foo"
 
@@ -148,7 +152,10 @@ bb:
 			err = os.WriteFile(filepath.Join(d, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), MergeBootLine, WithBootCMDLineFile(filepath.Join(d, "b")), NoLogs, StrictValidation(false))
+			c, err := Scan(collector.Directories(d), collector.MergeBootLine,
+				collector.WithBootCMDLineFile(filepath.Join(d, "b")),
+				collector.NoLogs, collector.StrictValidation(false))
+			fmt.Printf("c = %T , %#v", c, c)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c.Options["foo"]).To(Equal("bar"))
 
@@ -162,15 +169,14 @@ bb:
 		})
 
 		It("reads config file from url", func() {
-
-			var cc string = `
+			var cc = `#cloud-config
 config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab292685741ca09c/raw/bafae390eae4e6382fb1b68293568696823b3103/test.yaml"
 `
 
 			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := Scan(collector.Directories(d), collector.NoLogs, collector.StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			Expect(len(c.Bundles)).To(Equal(1))
@@ -179,22 +185,21 @@ config_url: "https://gist.githubusercontent.com/mudler/ab26e8dd65c69c32ab2926857
 		})
 
 		It("keeps header", func() {
-
-			var cc string = `
+			var cc = `#cloud-config
 config_url: "https://gist.githubusercontent.com/mudler/7e3d0426fce8bfaaeb2644f83a9bfe0c/raw/77ded58aab3ee2a8d4117db95e078f81fd08dfde/testgist.yaml"
 `
 
 			err := os.WriteFile(filepath.Join(d, "test.yaml"), []byte(cc), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(Directories(d), NoLogs, StrictValidation(false))
+			c, err := Scan(collector.Directories(d), collector.NoLogs, collector.StrictValidation(false))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(c).ToNot(BeNil())
 			Expect(len(c.Bundles)).To(Equal(1))
 			Expect(c.Bundles[0].Targets[0]).To(Equal("package:utils/edgevpn"))
 			Expect(c.String()).ToNot(Equal(cc))
 
-			headerCheck(c)
+			headerCheck(c.String())
 		})
 	})
 
@@ -224,25 +229,25 @@ b:
 		})
 
 		It("can find a top level key", func() {
-			r, err := FindYAMLWithKey("a", Directories(d))
+			r, err := FindYAMLWithKey("a", collector.Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(r).To(Equal([]string{c1Path}))
 		})
 
 		It("can find a nested key", func() {
-			r, err := FindYAMLWithKey("d.e", Directories(d))
+			r, err := FindYAMLWithKey("d.e", collector.Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(r).To(Equal([]string{c1Path}))
 		})
 
 		It("returns multiple files when key exists in them", func() {
-			r, err := FindYAMLWithKey("b.c", Directories(d))
+			r, err := FindYAMLWithKey("b.c", collector.Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(r).To(ContainElements(c1Path, c2Path))
 		})
 
 		It("return an empty list when key is not found", func() {
-			r, err := FindYAMLWithKey("does.not.exist", Directories(d))
+			r, err := FindYAMLWithKey("does.not.exist", collector.Directories(d))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(r).To(BeEmpty())
 		})

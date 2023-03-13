@@ -15,6 +15,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/google/shlex"
 	"github.com/imdario/mergo"
+	"github.com/itchyny/gojq"
 	"github.com/kairos-io/kairos/sdk/unstructured"
 	"gopkg.in/yaml.v1"
 )
@@ -92,13 +93,8 @@ func (cs Configs) Merge() (*Config, error) {
 	return result, nil
 }
 
-func Scan(opts ...Option) (*Config, error) {
+func Scan(o *Options) (*Config, error) {
 	configs := Configs{}
-
-	o := &Options{}
-	if err := o.Apply(opts...); err != nil {
-		return nil, err
-	}
 
 	configs = append(configs, parseFiles(o.ScanDir, o.NoLogs)...)
 
@@ -124,7 +120,7 @@ func allFiles(dir []string) []string {
 }
 
 // parseFiles returns a list of Configs parsed from files
-func parseFiles(dir []string, nologs bool) []*Config {
+func parseFiles(dir []string, nologs bool) Configs {
 	result := Configs{}
 	files := allFiles(dir)
 	for _, f := range files {
@@ -302,4 +298,72 @@ func HasValidHeader(data string) bool {
 	// NOTE: we also allow "legacy" headers. Should only allow #cloud-config at
 	// some point.
 	return (header == DefaultHeader) || (header == "#kairos-config") || (header == "#node-config")
+}
+
+func (c Config) Query(s string) (res string, err error) {
+	s = fmt.Sprintf(".%s", s)
+
+	var dat map[string]interface{}
+
+	yamlStr, err := c.String()
+	if err != nil {
+		panic(err)
+	}
+	if err := yaml.Unmarshal([]byte(yamlStr), &dat); err != nil {
+		panic(err)
+	}
+
+	query, err := gojq.Parse(s)
+	if err != nil {
+		return res, err
+	}
+
+	iter := query.Run(dat) // or query.RunWithContext
+	for {
+		v, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err, ok := v.(error); ok {
+			return res, fmt.Errorf("failed parsing, error: %w", err)
+		}
+
+		dat, err := yaml.Marshal(v)
+		if err != nil {
+			break
+		}
+		res += string(dat)
+	}
+	return
+}
+
+// TODO check if doing the right thing ... also checking remote files and cmdline
+func FindYAMLWithKey(s string, opts ...Option) ([]string, error) {
+	o := &Options{}
+
+	result := []string{}
+	if err := o.Apply(opts...); err != nil {
+		return result, err
+	}
+
+	files := allFiles(o.ScanDir)
+
+	for _, f := range files {
+		dat, err := os.ReadFile(f)
+		if err != nil {
+			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+		}
+
+		found, err := unstructured.YAMLHasKey(s, dat)
+		if err != nil {
+			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
+		}
+
+		if found {
+			result = append(result, f)
+		}
+
+	}
+
+	return result, nil
 }
