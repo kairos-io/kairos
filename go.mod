@@ -23,7 +23,7 @@ require (
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.9.1
 	github.com/onsi/gomega v1.27.4
-	github.com/pterm/pterm v0.12.54
+	github.com/pterm/pterm v0.12.55
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
@@ -122,7 +122,7 @@ require (
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
-	github.com/rivo/uniseg v0.4.3 // indirect
+	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/satori/go.uuid v1.2.1-0.20180404165556-75cca531ea76 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
