@@ -526,6 +526,8 @@ github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKs
 github.com/swaggest/assertjson v1.7.0 h1:SKw5Rn0LQs6UvmGrIdaKQbMR1R3ncXm5KNon+QJ7jtw=
 github.com/swaggest/jsonschema-go v0.3.47 h1:rS8BY1nvWZ5FMdcZnqPnh9Wkdrtx40SEXtRroG5IPe4=
 github.com/swaggest/jsonschema-go v0.3.47/go.mod h1:pW2jvwFFD2cQ0jv51bAo8+RLmma7yaUOIcH8s54EfJw=
+github.com/swaggest/jsonschema-go v0.3.48 h1:zscQIIh2DlUaPTgCntPOq9s9a5QQTeWcs2QTE6P7nEY=
+github.com/swaggest/jsonschema-go v0.3.48/go.mod h1:67EkOWKuBlpuvfZW1djhCD4ZSGNdXUjrTEWe16S5uEg=
 github.com/swaggest/refl v1.1.0 h1:a+9a75Kv6ciMozPjVbOfcVTEQe81t2R3emvaD9oGQGc=
 github.com/swaggest/refl v1.1.0/go.mod h1:g3Qa6ki0A/L2yxiuUpT+cuBURuRaltF5SDQpg1kMZSY=
 github.com/tj/assert v0.0.0-20171129193455-018094318fb0/go.mod h1:mZ9/Rh9oLWpLLDRpvE+3b7gP/C2YyLFYxNmcLnPTMe0=
