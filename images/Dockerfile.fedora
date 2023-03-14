@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=fedora:36
+ARG BASE_IMAGE=fedora:39
 
 FROM $BASE_IMAGE
 
