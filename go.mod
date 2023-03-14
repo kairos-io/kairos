@@ -29,7 +29,7 @@ require (
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
 	github.com/swaggest/jsonschema-go v0.3.47
 	github.com/twpayne/go-vfs v1.7.2
-	github.com/urfave/cli/v2 v2.24.4
+	github.com/urfave/cli/v2 v2.25.0
 	github.com/zcalusic/sysinfo v0.9.5
 	golang.org/x/net v0.8.0
 	golang.org/x/oauth2 v0.6.0
