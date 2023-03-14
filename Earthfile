@@ -9,7 +9,7 @@ ARG LUET_VERSION=0.34.0
 ARG OS_ID=kairos
 ARG REPOSITORIES_FILE=framework-profile.yaml
 # renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.37.3
+ARG TRIVY_VERSION=0.38.3
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
 IF [ "$FLAVOR" = "ubuntu" ]
@@ -20,7 +20,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.5.2
+ARG OSBUILDER_VERSION=v0.5.3
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.47.3
 # renovate: datasource=docker depName=golang
@@ -28,7 +28,7 @@ ARG GO_VERSION=1.18
 # renovate: datasource=docker depName=hadolint/hadolint versioning=docker
 ARG HADOLINT_VERSION=2.12.0-alpine
 # renovate: datasource=docker depName=renovate/renovate versioning=docker
-ARG RENOVATE_VERSION=34
+ARG RENOVATE_VERSION=35
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
 
