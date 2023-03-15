@@ -23,7 +23,7 @@ require (
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.9.1
 	github.com/onsi/gomega v1.27.4
-	github.com/pterm/pterm v0.12.55
+	github.com/pterm/pterm v0.12.56
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
