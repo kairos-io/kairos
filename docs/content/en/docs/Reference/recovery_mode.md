@@ -9,7 +9,7 @@ description: >
 The Kairos recovery mode can be used to recover a damaged system or to regain access remotely (with assistance) to a machine which has been lost access to. The recovery mode is accessible only from the GRUB menu, from both the LiveCD, and an installed system.
 
 {{% alert title="Note" %}}
-On installed system, there are two recovery modes available during boot. Below describes only how the Kairos remote recovery works. The manual recovery entry has nothing special from the standard Elemental-toolkit recovery mode. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote access.
+On installed system, there are two recovery modes available during boot. Below describes only how the Kairos remote recovery works. It can be used to reset the A/B partitions (with the user/pass used during setup) and perform any other operation without remote access.
 {{% /alert %}}
 
 ## Boot into recovery mode

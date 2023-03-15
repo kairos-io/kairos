@@ -61,8 +61,6 @@ kairos:
   device: ""
   poweroff: false
 
-# Cloud init syntax to setup users.
-# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/
 stages:
   network:
     - name: "Setup users"
@@ -90,8 +88,6 @@ kairos:
   device: ""
   poweroff: false
 
-# Cloud init syntax to setup users.
-# See https://rancher.github.io/elemental-toolkit/docs/reference/cloud_init/
 stages:
   network:
     - name: "Setup users"

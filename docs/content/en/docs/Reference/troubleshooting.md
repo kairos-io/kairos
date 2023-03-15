@@ -42,4 +42,3 @@ On all nodes, which are deployed with the P2P full-mesh feature of the cluster, 
 ## See also
 
 - [Dracut debug docs](https://fedoraproject.org/wiki/How_to_debug_Dracut_problems)
-- [Elemental troubleshooting docs](https://rancher.github.io/elemental-toolkit/docs/reference/troubleshooting/)
