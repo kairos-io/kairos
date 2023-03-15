@@ -37,6 +37,19 @@ AuroraBoot can be useful to:
 - `ProxyDHCP` supported by the `DHCP` network attempting to netboot (see also [pixiecore architecture](https://github.com/danderson/netboot/blob/master/pixiecore/README.booting.md#step-1-dhcpproxydhcp)).
    There should be an already running `DHCP` server on your network. AuroraBoot doesn't take over the `DHCP` server, neither require you to do any specific configuration, however a `DHCP` server which is compliant to `ProxyDHCP` requests should be present in the same network running **AuroraBoot** and the machines to boot.
 
+## MacOS
+
+Unfortunately for macOS systems we cannot run the netboot trough docker as its being run inside a VM, so it cant see the host network.
+Building ISO still works as long as you mount the container `/tmp` disk to a local dir so its exported there.
+
+For netboot, we recommend that you run the AuroraBoot binary directly by grabbing it from the [releases page](https://github.com/kairos-io/AuroraBoot/releases).
+This requires just one dependency that you can install via [brew](https://brew.sh/) with `brew install xorriso`
+
+## Windows
+
+Netboot in windows is not supported, only iso creation via the docker image.
+
+
 ## Overview
 
 To run AuroraBoot, simply use `docker` or the container engine of your choice (such as `podman`, ...). AuroraBoot images are published in [quay](https://quay.io/repository/kairos/auroraboot) and the source code is available [in GitHub](https://github.com/kairos-io/AuroraBoot).
@@ -129,7 +142,7 @@ To specify a cloud config, you can set it with `--cloud-config`. See the section
 
 Generic hardware based netbooting is out of scope for this document. 
 
-Nodes needs to be configured to boot over network, and after AuroraBoot is started should be ready to accept a connection, a typical output of a successfull run is:
+Nodes need to be configured to boot over network, and after AuroraBoot is started should be ready to accept a connection, a typical output of a successfull run is:
 
 ```bash                                                                                                                                                                      
 2023/02/08 14:27:30 DHCP: Offering to boot 08:00:27:54:1a:d1                                                                                                                                                       
