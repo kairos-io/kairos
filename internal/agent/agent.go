@@ -7,7 +7,7 @@ import (
 
 	"github.com/kairos-io/kairos/pkg/utils"
 
-	events "github.com/kairos-io/kairos/sdk/bus"
+	events "github.com/kairos-io/kairos-sdk/bus"
 
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"

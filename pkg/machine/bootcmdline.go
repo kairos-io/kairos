@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/google/shlex"
-	"github.com/kairos-io/kairos/sdk/unstructured"
+	"github.com/kairos-io/kairos-sdk/unstructured"
 )
 
 func DotToYAML(file string) ([]byte, error) {

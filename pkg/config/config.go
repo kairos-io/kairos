@@ -12,10 +12,10 @@ import (
 	retry "github.com/avast/retry-go"
 	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
+	"github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/unstructured"
 	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 	"github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/sdk/bundles"
-	"github.com/kairos-io/kairos/sdk/unstructured"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v3"
