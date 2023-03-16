@@ -159,7 +159,7 @@ no = 'Oh snap! Sorry to hear that. Please <a href="https://github.com/kairos-io/
 	icon = "fab fa-slack"
         desc = "Join us on Slack!"
 [[params.links.user]]
-        name = "Mailing list"
+        name = "Newsletter"
         url = "https://kairoslinux.substack.com/"
 	icon = "fa fa-envelope"
         desc = "Subscribe to mailing list!"
