@@ -33,7 +33,6 @@ Next, we generate a new token that we will use to connect to the cluster later.
 
 ```bash
 docker run -ti --rm quay.io/mudler/edgevpn -b -g
-# b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MDAwCiAgICBrZXk6IEVLT0ExYVpXZFpPbUtFMXVvOTh1ZFEyQU15NnNSSDZkT3k5WUFTSGNON3oKICAgIGxlbmd0aDogNDMKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTAwMAogICAga2V5OiBINkRXNk1lZkk2akcyYk4wajYyYXFNWFRzeWdDeTFjdXl0dDE5NkFBNnE5CiAgICBsZW5ndGg6IDQzCnJvb206IE9KY0NoQ1BvNTFzTzhsd0lWZWdYUzlqbGY1dXprMkFia0xXT0tEUDJKaWcKcmVuZGV6dm91czogSHBROEJ3cnBmd2s2YnI2OUs2TWVYZXhPZWhxTXJybEx2dklRSHF2QzhjbwptZG5zOiByWWdIRzVQRWZ3Q0xpZUlWY0tSQzlTTUtxd3hkamtvaHNaclVtTGxYUTlaCm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
 ```
 
 In order for `entangle` to use the token, we can define a `Entanglement` to expose ssh in the mesh network like the following:
@@ -67,7 +66,7 @@ If you have already a kubernetes cluster, you can install the [Entangle](/docs/r
 
 {{% /alert %}}
 
-This entanglement will expose the port `22` in the node over the mesh network with the `ssh` service UUID so we can later connect to it. Replace the generated token in the `network_token` field in the Secret (check out the [documentation](/docs/reference/entangle) for advanced usage).
+This entanglement will expose the port `22` in the node over the mesh network with the `ssh` service UUID so we can later connect to it. Replace `___GENERATED TOKEN HERE___` with the token you previously generated with the `docker` command (check out the [documentation](/docs/reference/entangle) for advanced usage).
 
 In order to deploy the `Entanglement` automatically, we can add it to the `k3s` manifests folder in the cloud config file:
 
@@ -143,7 +142,7 @@ write_files:
         namespace: kube-system
       type: Opaque
       stringData:
-        network_token: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MDAwCiAgICBrZXk6IER5NVRhdksxYzVGcE41YnVIZVhTWTRWejNEbDRRWFdHbnlIYzc5TzlPNGwKICAgIGxlbmd0aDogNDMKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTAwMAogICAga2V5OiBKNUZNMUpDVjNoN28wSXRtb3pPN3ZVcURrMVN0c3RNSTVBSm1XUGFSUUlNCiAgICBsZW5ndGg6IDQzCnJvb206IGU0TTNzZGQ5QzBCT2RCZkxvenBmaGNZZlFiNzQ3cnlBaVM5dWwyaXdPQ2kKcmVuZGV6dm91czogMFJuUTNEWWRCcmM5ekF0Rjl5djdxUU13WVYxTlJ4bW9CS1paN1l4MVdWRgptZG5zOiB0QktoMFJiNG04cXgzRTFJWTBJRDhpZGx6ZU1DU1lBOUR0MkF5TGRsQmUzCm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
+        network_token: ___GENERATED TOKEN HERE___
       ---
       apiVersion: entangle.kairos.io/v1alpha1
       kind: Entanglement
@@ -209,7 +208,7 @@ write_files:
         namespace: kube-system
       type: Opaque
       stringData:
-        network_token: b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MDAwCiAgICBrZXk6IER5NVRhdksxYzVGcE41YnVIZVhTWTRWejNEbDRRWFdHbnlIYzc5TzlPNGwKICAgIGxlbmd0aDogNDMKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTAwMAogICAga2V5OiBKNUZNMUpDVjNoN28wSXRtb3pPN3ZVcURrMVN0c3RNSTVBSm1XUGFSUUlNCiAgICBsZW5ndGg6IDQzCnJvb206IGU0TTNzZGQ5QzBCT2RCZkxvenBmaGNZZlFiNzQ3cnlBaVM5dWwyaXdPQ2kKcmVuZGV6dm91czogMFJuUTNEWWRCcmM5ekF0Rjl5djdxUU13WVYxTlJ4bW9CS1paN1l4MVdWRgptZG5zOiB0QktoMFJiNG04cXgzRTFJWTBJRDhpZGx6ZU1DU1lBOUR0MkF5TGRsQmUzCm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg==
+        network_token: ___GENERATED TOKEN HERE___
       ---
       apiVersion: entangle.kairos.io/v1alpha1
       kind: Entanglement
@@ -233,7 +232,7 @@ In one terminal, run the following command (it will run in the foreground):
 
 ```bash
 # Run in a terminal (it is foreground)
-export EDGEVPNTOKEN="b3RwOgogIGRodDoKICAgIGludGVydmFsOiA5MDAwCiAgICBrZXk6IER5NVRhdksxYzVGcE41YnVIZVhTWTRWejNEbDRRWFdHbnlIYzc5TzlPNGwKICAgIGxlbmd0aDogNDMKICBjcnlwdG86CiAgICBpbnRlcnZhbDogOTAwMAogICAga2V5OiBKNUZNMUpDVjNoN28wSXRtb3pPN3ZVcURrMVN0c3RNSTVBSm1XUGFSUUlNCiAgICBsZW5ndGg6IDQzCnJvb206IGU0TTNzZGQ5QzBCT2RCZkxvenBmaGNZZlFiNzQ3cnlBaVM5dWwyaXdPQ2kKcmVuZGV6dm91czogMFJuUTNEWWRCcmM5ekF0Rjl5djdxUU13WVYxTlJ4bW9CS1paN1l4MVdWRgptZG5zOiB0QktoMFJiNG04cXgzRTFJWTBJRDhpZGx6ZU1DU1lBOUR0MkF5TGRsQmUzCm1heF9tZXNzYWdlX3NpemU6IDIwOTcxNTIwCg=="
+export EDGEVPNTOKEN="___GENERATED TOKEN HERE___"
 docker run -e "EDGEVPNTOKEN=$EDGEVPNTOKEN" --net host quay.io/mudler/edgevpn service-connect ssh 127.0.0.1:2222
 ```
 
