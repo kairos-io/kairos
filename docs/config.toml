@@ -162,4 +162,4 @@ no = 'Oh snap! Sorry to hear that. Please <a href="https://github.com/kairos-io/
         name = "Newsletter"
         url = "https://kairoslinux.substack.com/"
 	icon = "fa fa-envelope"
-        desc = "Subscribe to the newsletter!"
+        desc = "Subscribe to our newsletter!"
