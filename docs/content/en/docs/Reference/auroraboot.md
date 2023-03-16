@@ -39,7 +39,7 @@ AuroraBoot can be useful to:
 
 ## MacOS
 
-Unfortunately for macOS systems we cannot run the netboot trough docker as its being run inside a VM, so it cant see the host network.
+Unfortunately for macOS systems we cannot run the netboot through docker as its being run inside a VM, so it can't see the host network.
 Building ISO still works as long as you mount the container `/tmp` disk to a local dir so its exported there.
 
 For netboot, we recommend that you run the AuroraBoot binary directly by grabbing it from the [releases page](https://github.com/kairos-io/AuroraBoot/releases).
