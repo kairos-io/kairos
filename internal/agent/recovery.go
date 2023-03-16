@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	events "github.com/kairos-io/kairos-sdk/bus"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	"github.com/kairos-io/kairos/pkg/utils"
-	events "github.com/kairos-io/kairos/sdk/bus"
 
 	machine "github.com/kairos-io/kairos/pkg/machine"
 	qr "github.com/mudler/go-nodepair/qrcode"

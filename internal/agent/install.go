@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	events "github.com/kairos-io/kairos/sdk/bus"
+	events "github.com/kairos-io/kairos-sdk/bus"
 
 	config "github.com/kairos-io/kairos/pkg/config"
 

@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
+	sdk "github.com/kairos-io/kairos-sdk/bus"
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	"github.com/kairos-io/kairos/pkg/config"
 	"github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
-	sdk "github.com/kairos-io/kairos/sdk/bus"
 
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"

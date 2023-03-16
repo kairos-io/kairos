@@ -9,12 +9,12 @@ import (
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/webui"
 
+	bundles "github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/state"
 	"github.com/kairos-io/kairos/internal/common"
 	"github.com/kairos-io/kairos/pkg/config"
 	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
-	bundles "github.com/kairos-io/kairos/sdk/bundles"
-	"github.com/kairos-io/kairos/sdk/state"
 
 	"github.com/urfave/cli/v2"
 )
