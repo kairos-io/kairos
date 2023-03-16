@@ -39,8 +39,21 @@ AuroraBoot can be useful to:
 
 ## MacOS
 
-Unfortunately for macOS systems we cannot run the netboot through docker as its being run inside a VM, so it can't see the host network.
-Building ISO still works as long as you mount the container `/tmp` disk to a local dir so its exported there.
+Unfortunately for macOS systems we cannot run the netboot through docker as it's run inside a VM, as it can't see the host network.
+Building ISOs still works as long as you mount the container `/tmp` disk to a local dir so its exported there like so:
+
+```bash
+docker run --rm -ti -v ${PWD}:/tmp quay.io/kairos/auroraboot \ 
+                    --set "artifact_version=v1.5.1" \
+                    --set "release_version=v1.5.1" \
+                    --set "flavor=opensuse-leap" \
+                    --set "repository=kairos-io/kairos" \
+                    --set "disable_http_server=true" \
+                    --set "disable_netboot=true" \
+                    --cloud-config /config.yaml
+```
+
+This will build the ISO and put the generated artifacts in the current dir under the `${PWD}/iso` dir.
 
 For netboot, we recommend that you run the AuroraBoot binary directly by grabbing it from the [releases page](https://github.com/kairos-io/AuroraBoot/releases).
 This requires just one dependency that you can install via [brew](https://brew.sh/) with `brew install xorriso`
