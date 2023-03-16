@@ -122,3 +122,9 @@ To optionally change the behavior of the reset process (such as cleaning up also
 - **Note**: `--reset-oem` resets the system pruning all the configurations.
 - `system.uri` allows to reset using another image or a directory.
   `string` can be among the following: `dir:/path/to/dir`, `oci:<image>`, `docker:<image>`, `channel:<luet package>` or `file:/path/to/file`.
+
+### Cleaning up state directories
+
+An alternative way and manual of resetting your system is possible by deleting the state paths. You can achieve this by deleting the contents of the `/usr/local` directory. It's recommended that you do this while in recovery mode with all services turned off.
+
+Please note that within `/usr/local`, there are two important folders to keep in mind. The first is `/usr/local/.kairos`, which contains sentinel files that will trigger a complete deployment from scratch when deleted. However, your data will be preserved. The second folder is `/usr/local/`.state, which contains the bind-mounted data for the system. By deleting these two folders, you can achieve a pristine environment while leaving all other contents of `/usr/local` untouched.
