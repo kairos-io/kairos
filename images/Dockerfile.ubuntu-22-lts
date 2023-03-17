@@ -73,8 +73,7 @@ RUN apt-get update \
     xz-utils \
     zerofree \
     console-data \
-    zfsutils-linux \
-    linux-image-generic-hwe-22.04 && apt-get clean && rm -rf /var/lib/apt/lists/*
+    zfsutils-linux && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
