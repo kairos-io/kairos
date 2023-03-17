@@ -13,7 +13,7 @@ require (
 	github.com/itchyny/gojq v0.12.12
 	github.com/jaypipes/ghw v0.10.0
 	github.com/joho/godotenv v1.5.1
-	github.com/kairos-io/kairos-sdk v0.0.1
+	github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd
 	github.com/kairos-io/kcrypt v0.5.1
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/mudler/go-nodepair v0.0.0-20221223092639-ba399a66fdfb
@@ -23,7 +23,7 @@ require (
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.9.1
 	github.com/onsi/gomega v1.27.4
-	github.com/pterm/pterm v0.12.55
+	github.com/pterm/pterm v0.12.56
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73

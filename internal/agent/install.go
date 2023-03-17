@@ -13,16 +13,12 @@ import (
 	"time"
 
 	events "github.com/kairos-io/kairos-sdk/bus"
-
-	config "github.com/kairos-io/kairos/pkg/config"
-
+	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos-sdk/utils"
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
-
 	"github.com/kairos-io/kairos/internal/cmd"
-	"github.com/kairos-io/kairos/pkg/utils"
-
-	machine "github.com/kairos-io/kairos/pkg/machine"
+	config "github.com/kairos-io/kairos/pkg/config"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"
