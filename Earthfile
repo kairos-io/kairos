@@ -61,28 +61,12 @@ go-deps:
     SAVE ARTIFACT go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum AS LOCAL go.sum
 
-
-ginkgo:
+test:
     FROM +go-deps
     WORKDIR /build
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-
-test:
-    FROM +ginkgo
-    WORKDIR /build
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     COPY +luet/luet /usr/bin/luet
     COPY . .
-    ENV ACK_GINKGO_DEPRECATIONS=2.5.1
-    RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
 OSRELEASE:
@@ -583,7 +567,7 @@ linux-bench-scan:
 ###
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
-    FROM +ginkgo
+    FROM +go-deps
     RUN apt install -y qemu-system-x86 qemu-utils golang git
     WORKDIR /test
     ARG FLAVOR
@@ -594,8 +578,6 @@ run-qemu-datasource-tests:
     ENV CREATE_VM=true
     ARG CLOUD_CONFIG="./tests/assets/autoinstall.yaml"
     ENV USE_QEMU=true
-
-    ENV GOPATH="/go"
 
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
     COPY . .
@@ -616,11 +598,11 @@ run-qemu-datasource-tests:
     END
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
-    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 
 run-qemu-netboot-test:
-    FROM +ginkgo
+    FROM +go-deps
     COPY . /test
     WORKDIR /test
 
@@ -645,18 +627,17 @@ run-qemu-netboot-test:
     ENV CREATE_VM=true
     ENV USE_QEMU=true
     ARG TEST_SUITE=netboot-test
-    ENV GOPATH="/go"
 
 
     # TODO: use --pull or something to cache the python image in Earthly
     WITH DOCKER
         RUN docker run -d -v $PWD/build:/build --workdir=/build \
             --net=host -it python:3.11.0-bullseye python3 -m http.server 80 && \
-            PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+            go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
     END
 
 run-qemu-test:
-    FROM +ginkgo
+    FROM +go-deps
     RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
@@ -668,8 +649,6 @@ run-qemu-test:
     ENV CREATE_VM=true
     ENV USE_QEMU=true
 
-    ENV GOPATH="/go"
-
     COPY . .
     IF [ -n "$PREBUILT_ISO" ]
         ENV ISO=/build/$PREBUILT_ISO
@@ -677,7 +656,7 @@ run-qemu-test:
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/build/kairos.iso
     END
-    RUN PATH=$PATH:$GOPATH/bin ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 ###
 ### Artifacts targets
