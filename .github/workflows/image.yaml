@@ -251,7 +251,7 @@ jobs:
           export PATH=$PATH:$GOPATH/bin
           export CREATE_VM=true
           export FLAVOR=${{ matrix.flavor }}
-          ./.github/run_test.sh "install-test"
+          go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "install-test" --fail-fast -r ./tests/
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
