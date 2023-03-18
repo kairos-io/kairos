@@ -5,14 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/pkg/utils"
-
 	events "github.com/kairos-io/kairos-sdk/bus"
-
+	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos-sdk/utils"
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
 	config "github.com/kairos-io/kairos/pkg/config"
-	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/nxadm/tail"
 )
 

@@ -14,7 +14,7 @@ import (
 
 	"github.com/erikgeiser/promptkit/textinput"
 	"github.com/jaypipes/ghw"
-	"github.com/kairos-io/kairos/pkg/utils"
+	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/mudler/go-pluggable"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pterm/pterm"

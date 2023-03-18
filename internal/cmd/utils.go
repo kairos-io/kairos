@@ -6,7 +6,7 @@ import (
 
 	"github.com/kairos-io/kairos/internal/kairos"
 
-	"github.com/kairos-io/kairos/pkg/utils"
+	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/pterm/pterm"
 )
 
