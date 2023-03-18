@@ -1,0 +1,21 @@
+extends: default
+
+rules:
+  # 80 chars should be enough, but don't fail if a line is longer
+  line-length:
+    max: 150
+    level: warning
+
+  # accept both     key:
+  #                   - item
+  #
+  # and             key:
+  #                 - item
+  indentation:
+    indent-sequences: whatever
+
+  truthy:
+    check-keys: false
+
+  document-start:
+    present: false

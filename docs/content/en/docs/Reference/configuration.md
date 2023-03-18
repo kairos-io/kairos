@@ -50,6 +50,13 @@ install:
   # Environmental variable to set to the installer calls
   env:
   - foo=bar
+  # custom user mounts
+  # bind mounts, can be read and modified, changes persist reboots
+  bind_mounts:
+  - /mnt/bind1
+  - /mnt/bind2
+  # ephemeral mounts, can be read and modified, changed are discarded at reboot
+  ephemeral_mounts:
 
 k3s:
   # Additional env/args for k3s server instances
@@ -272,6 +279,42 @@ EOF
 # INFO[2022-11-18T08:53:45Z] Stage 'test'. Defined stages: 1. Errors: false
 # INFO[2022-11-18T08:53:45Z] Done executing stage 'test'
 ```
+
+### Validate Your Cloud Config
+
+{{% alert title="Note" %}}
+
+Validation of configuration is available on Kairos [v1.6.0-rc1](https://github.com/kairos-io/kairos/releases/tag/v1.6.0-rc1) and later. If you're interested in the validation rules or want to build a tool based on it, you can access them online via `https://kairos.io/RELEASE/cloud-config.json` e.g. [v1.6.0 cloud-config.json](https://kairos.io/v1.6.0/cloud-config.json)
+
+{{% /alert %}}
+
+You have two options to validate your Cloud Config, one is with the Kairos command line, and the other with the Web UI.
+
+#### Configuration Validation via the Kairos Command Line
+
+To validate a configuration using the command line, we have introduced the `validate` command. As an argument you need to pass a URL or local file to be validated, e.g.:
+
+If you had the following `cloud-config.yaml` in the current working directory
+
+```yaml
+#cloud-config
+users:
+  - name: 007
+```
+
+You could validate it as follows
+
+```sh
+kairos validate ./cloud-config.yaml
+jsonschema: '/users/0/name' does not validate with file:///home/mauro/workspace/kairos/schema.json#/properties/users/items/$ref/properties/name/type: expected string, but got number
+```
+
+#### Configuration Validation via Web UI
+
+The validation in the Web UI is automatic, all you need to do is copy/paste or type your configuration on the input.
+
+![Schema Validation Preview](/images/schema-validation-preview.gif)
+
 
 ### Using templates
 

@@ -1,0 +1,16 @@
+# Rootfs Kairos OEM configuration file
+#
+# This file is part of Kairos and will get reset during upgrades.
+
+name: "Default config"
+stages:
+  initramfs:
+  - name: "Default systemd config"
+    if: '[ -e "/sbin/systemctl" ] || [ -e "/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+    systemctl:
+      enable:
+      - systemd-timesyncd
+  - name: "Generate host keys"
+    # Make sure the host always has available keys
+    commands:
+    - ssh-keygen -A

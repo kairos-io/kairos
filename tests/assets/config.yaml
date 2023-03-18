@@ -1,4 +1,4 @@
-#node-config
+#cloud-config
 
 stages:
    initramfs:

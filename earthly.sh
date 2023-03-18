@@ -1,3 +1,3 @@
 #!/bin/bash
 
-docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock --rm -t -v $(pwd):/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.6.21 --allow-privileged $@
+docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.2 --allow-privileged "$@"

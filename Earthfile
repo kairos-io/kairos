@@ -1,13 +1,15 @@
 VERSION 0.6
 FROM alpine
 ARG VARIANT=core # core, lite, framework
-ARG FLAVOR=opensuse
+ARG FLAVOR=opensuse-leap
 ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
-ARG LUET_VERSION=0.33.0
+# renovate: datasource=docker depName=quay.io/luet/base
+ARG LUET_VERSION=0.34.0
 ARG OS_ID=kairos
 ARG REPOSITORIES_FILE=framework-profile.yaml
-
+# renovate: datasource=docker depName=aquasec/trivy
+ARG TRIVY_VERSION=0.38.3
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
 IF [ "$FLAVOR" = "ubuntu" ]
@@ -17,18 +19,36 @@ ELSE
 END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
-ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:v0.3.3
+# renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
+ARG OSBUILDER_VERSION=v0.5.3
+ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.47.3
+# renovate: datasource=docker depName=golang
 ARG GO_VERSION=1.18
+# renovate: datasource=docker depName=hadolint/hadolint versioning=docker
+ARG HADOLINT_VERSION=2.12.0-alpine
+# renovate: datasource=docker depName=renovate/renovate versioning=docker
+ARG RENOVATE_VERSION=35
+# renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
+ARG SHELLCHECK_VERSION=v0.9.0
+
+ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
+
 
 all:
-  BUILD +docker
+  BUILD +image
+  BUILD +image-sbom
+  BUILD +trivy-scan
+  BUILD +grype-scan
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
 
 all-arm:
-  BUILD --platform=linux/arm64 +docker
+  BUILD --platform=linux/arm64 +image
+  BUILD +image-sbom
+  BUILD +trivy-scan
+  BUILD +grype-scan
   BUILD +arm-image
 
 go-deps:
@@ -36,7 +56,6 @@ go-deps:
     FROM golang:$GO_VERSION
     WORKDIR /build
     COPY go.mod go.sum ./
-    COPY sdk sdk
     RUN go mod download
     RUN apt-get update && apt-get install -y upx
     SAVE ARTIFACT go.mod AS LOCAL go.mod
@@ -45,15 +64,9 @@ go-deps:
 test:
     FROM +go-deps
     WORKDIR /build
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
     COPY +luet/luet /usr/bin/luet
     COPY . .
-    ENV ACK_GINKGO_DEPRECATIONS=2.5.1
-    RUN ginkgo run --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
 OSRELEASE:
@@ -79,8 +92,7 @@ BUILD_GOLANG:
     ARG CGO_ENABLED
     ARG BIN
     ARG SRC
-    COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
+
     ENV CGO_ENABLED=${CGO_ENABLED}
     ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
     RUN echo "Building ${BIN} from ${SRC} using ${VERSION}"
@@ -113,6 +125,7 @@ version:
 build-kairos-agent:
     FROM +go-deps
     COPY +webui-deps/node_modules ./internal/webui/public/node_modules
+    COPY +docs/public/local ./internal/webui/public/local
     DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
 
 build:
@@ -130,7 +143,7 @@ dist:
     RUN goreleaser build --rm-dist --skip-validate --snapshot
     SAVE ARTIFACT /build/dist/* AS LOCAL dist/
 
-lint:
+golint:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
     ARG GOLINT_VERSION
@@ -138,6 +151,57 @@ lint:
     WORKDIR /build
     COPY . .
     RUN golangci-lint run
+
+hadolint:
+    ARG HADOLINT_VERSION
+    FROM hadolint/hadolint:$HADOLINT_VERSION
+    WORKDIR /images
+    COPY images .
+    RUN ls
+    RUN find . -name "Dockerfile*" -print | xargs -r -n1 hadolint
+
+renovate-validate:
+    ARG RENOVATE_VERSION
+    FROM renovate/renovate:$RENOVATE_VERSION
+    WORKDIR /usr/src/app
+    COPY renovate.json .
+    RUN renovate-config-validator
+
+shellcheck-lint:
+    ARG SHELLCHECK_VERSION
+    FROM koalaman/shellcheck-alpine:$SHELLCHECK_VERSION
+    WORKDIR /mnt
+    COPY . .
+    RUN find . -name "*.sh" -print | xargs -r -n1 shellcheck
+
+yamllint:
+    FROM cytopia/yamllint
+    COPY . .
+    RUN yamllint .github/workflows/ overlay/
+
+lint:
+    BUILD +golint
+    BUILD +hadolint
+    BUILD +renovate-validate
+    BUILD +shellcheck-lint
+    BUILD +yamllint
+
+syft:
+    FROM anchore/syft:latest
+    SAVE ARTIFACT /syft syft
+
+image-sbom:
+    # Use base-image so it can read original os-release file
+    FROM +base-image
+    WORKDIR /build
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    ARG VARIANT
+    COPY +syft/syft /usr/bin/syft
+    RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
+    SAVE ARTIFACT /build/sbom.syft.json sbom.syft.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-sbom.syft.json
+    SAVE ARTIFACT /build/sbom.spdx.json sbom.spdx.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-sbom.spdx.json
 
 luet:
     FROM quay.io/luet/base:$LUET_VERSION
@@ -152,9 +216,8 @@ framework:
     ARG REPOSITORIES_FILE
     ARG COSIGN_EXPERIMENTAL
     ARG COSIGN_REPOSITORY
-    ARG WITH_KERNEL
-    COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    ARG VERSION
     ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
 
     FROM golang:alpine
@@ -174,23 +237,49 @@ framework:
 
     RUN go run -ldflags "${LDFLAGS}" ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
 
+    # Copy kairos binaries
+    COPY +build-kairos-agent/kairos-agent /framework/usr/bin/kairos-agent
     COPY +luet/luet /framework/usr/bin/luet
 
     RUN luet cleanup --system-target /framework
+
+    # Copy overlay files
     COPY overlay/files /framework
+    # Copy flavor-specific overlay files
+    IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
+        COPY overlay/files-alpine/ /framework
+    END
+    
+    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
+        COPY overlay/files-alpine/ /framework
+        COPY overlay/files-opensuse-arm-rpi/ /framework
+    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
+        COPY overlay/files-opensuse-arm-rpi/ /framework
+    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+        COPY overlay/files-fedora/ /framework
+    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+        COPY overlay/files-ubuntu/ /framework
+    END
+
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
-    SAVE ARTIFACT /framework/ framework
+    SAVE ARTIFACT --keep-own /framework/ framework
+
+build-framework-image:
+   COPY +version/VERSION ./
+   ARG VERSION=$(cat VERSION)
+   ARG FLAVOR
+   BUILD +framework-image --VERSION=$VERSION --FLAVOR=$FLAVOR
 
 framework-image:
     FROM scratch
+    ARG VERSION
     ARG IMG
-    ARG WITH_KERNEL
     ARG FLAVOR
-    COPY (+framework/framework --FLAVOR=$FLAVOR --WITH_KERNEL=$WITH_KERNEL) /
-    SAVE IMAGE $IMG
+    COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
-docker:
+base-image:
     ARG FLAVOR
     ARG VARIANT
     IF [ "$BASE_IMAGE" = "" ]
@@ -210,36 +299,15 @@ docker:
     ELSE 
         ARG OS_VERSION=${KAIROS_VERSION}
     END
-    
-    ARG OS_ID
-    ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
-    ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
-    ARG OS_LABEL=latest
 
     # Includes overlay/files
-    COPY +framework/framework /
-
-    DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
+    COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION) /
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
-    # Copy flavor-specific overlay files
-    IF [[ "$FLAVOR" =~ "alpine" ]]
-        COPY overlay/files-alpine/ /
-    END
-    
-    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
-        COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "opensuse-arm-rpi" ]
-        COPY overlay/files-opensuse-arm-rpi/ /
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
-        COPY overlay/files-fedora/ /
-    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
-        COPY overlay/files-ubuntu/ /
-    END
+    # Avoid to accidentally push keys generated by package managers
+    RUN rm -rf /etc/ssh/ssh_host_*
 
-    # Copy kairos binaries
-    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
     # Enable services
     IF [ -f /sbin/openrc ]
      RUN mkdir -p /etc/runlevels/default && \
@@ -249,20 +317,32 @@ docker:
       ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
     # Otherwise we assume systemd
     ELSE
-        RUN ls -liah /etc/systemd/system
-	RUN systemctl enable cos-setup-rootfs.service && \
-	    systemctl enable cos-setup-initramfs.service && \
-	    systemctl enable cos-setup-reconcile.timer && \
-	    systemctl enable cos-setup-fs.service && \
-	    systemctl enable cos-setup-boot.service && \
-	    systemctl enable cos-setup-network.service
+      RUN ls -liah /etc/systemd/system
+      RUN systemctl enable cos-setup-reconcile.timer && \
+          systemctl enable cos-setup-fs.service && \
+          systemctl enable cos-setup-boot.service && \
+          systemctl enable cos-setup-network.service
     END
+
+    # TEST IMMUCORE FROM BRANCH
+    ARG IMMUCORE_DEV
+    ARG IMMUCORE_DEV_BRANCH=master
+    IF [ "$IMMUCORE_DEV" = "true" ]
+        RUN rm -Rf /usr/lib/dracut/modules.d/28immucore
+        RUN rm /etc/dracut.conf.d/10-immucore.conf
+        RUN rm /etc/dracut.conf.d/02-kairos-setup-initramfs.conf || exit 0
+        RUN rm /etc/dracut.conf.d/50-kairos-initrd.conf || exit 0
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+build-immucore/immucore /usr/bin/immucore
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
+    END
+    # END
 
     IF [ "$FLAVOR" = "debian" ]
 	    RUN rm -rf /boot/initrd.img-*
     END
     # Regenerate initrd if necessary
-    IF [ "$FLAVOR" = "opensuse" ] || [ "$FLAVOR" = "opensuse-arm-rpi" ] || [ "$FLAVOR" = "tumbleweed-arm-rpi" ]
+    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed" ]
      RUN mkinitrd
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
      RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
@@ -294,11 +374,32 @@ docker:
         END
     END
 
+    RUN rm -rf /tmp/*
+
+image:
+    FROM +base-image
+    ARG FLAVOR
+    ARG VARIANT
+    ARG KAIROS_VERSION
+    IF [ "$KAIROS_VERSION" = "" ]
+        COPY +version/VERSION ./
+        ARG VERSION=$(cat VERSION)
+        RUN echo "version ${VERSION}"
+        ARG OS_VERSION=${VERSION}
+        RUN rm VERSION
+    ELSE 
+        ARG OS_VERSION=${KAIROS_VERSION}
+    END
+    ARG OS_ID
+    ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
+    ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
+    ARG OS_LABEL=latest
+    DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
     SAVE IMAGE $IMAGE
 
-docker-rootfs:
-    FROM +docker
-    SAVE ARTIFACT /. rootfs
+image-rootfs:
+    FROM +image
+    SAVE ARTIFACT --keep-own /. rootfs
 
 ###
 ### Artifacts targets (ISO, netboot, ARM)
@@ -312,8 +413,8 @@ iso:
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
-    COPY +docker-rootfs/rootfs /build/image
-    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
+    COPY --keep-own +image-rootfs/rootfs /build/image
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
@@ -351,7 +452,7 @@ arm-image:
   ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
   ENV DEFAULT_ACTIVE_SIZE="2000"
-  COPY --platform=linux/arm64 +docker-rootfs/rootfs /build/image
+  COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
     RUN /build-arm-image.sh --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
@@ -392,7 +493,6 @@ datasource-iso:
   ARG OSBUILDER_IMAGE
   ARG CLOUD_CONFIG
   FROM $OSBUILDER_IMAGE
-  RUN zypper in -y mkisofs
   WORKDIR /build
   RUN touch meta-data
   COPY ${CLOUD_CONFIG} user-data
@@ -404,14 +504,45 @@ datasource-iso:
 ### Security target scan
 ###
 trivy:
-    FROM aquasec/trivy
+    ARG TRIVY_VERSION
+    FROM aquasec/trivy:$TRIVY_VERSION
+    SAVE ARTIFACT /contrib contrib
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
-    ARG SEVERITY=CRITICAL
-    FROM +docker
+    # Use base-image so it can read original os-release file
+    FROM +base-image
     COPY +trivy/trivy /trivy
-    RUN /trivy filesystem --severity $SEVERITY --exit-code 1 --no-progress /
+    COPY +trivy/contrib /contrib
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    ARG VARIANT
+    WORKDIR /build
+    RUN /trivy filesystem --skip-dirs /tmp --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp -f json -o results.json --no-progress /
+    SAVE ARTIFACT /build/report.sarif report.sartif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
+    SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.html
+    SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.json
+
+grype:
+    FROM anchore/grype
+    SAVE ARTIFACT /grype /grype
+
+grype-scan:
+    # Use base-image so it can read original os-release file
+    FROM +base-image
+    COPY +grype/grype /grype
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG FLAVOR
+    ARG VARIANT
+    WORKDIR /build
+    RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
+    RUN /grype dir:/ --output json --add-cpes-if-none --file report.json
+    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.sarif
+    SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.json
 
 linux-bench:
     ARG GO_VERSION
@@ -424,7 +555,7 @@ linux-bench:
 # However, some checks are relevant as well at container level.
 # It is good enough for a quick assessment.
 linux-bench-scan:
-    FROM +docker
+    FROM +image
     GIT CLONE https://github.com/aquasecurity/linux-bench /build/linux-bench
     WORKDIR /build/linux-bench
     COPY +linux-bench/linux-bench /build/linux-bench/linux-bench
@@ -436,28 +567,28 @@ linux-bench-scan:
 ###
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
-    FROM opensuse/leap
+    FROM +go-deps
+    RUN apt install -y qemu-system-x86 qemu-utils golang git
     WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
     ARG FLAVOR
+    ARG PREBUILT_ISO
     ARG TEST_SUITE=autoinstall-test
     ENV FLAVOR=$FLAVOR
-    ENV SSH_PORT=60022
+    ENV SSH_PORT=60023
     ENV CREATE_VM=true
     ARG CLOUD_CONFIG="./tests/assets/autoinstall.yaml"
     ENV USE_QEMU=true
 
-    ENV GOPATH="/go"
-
     ENV CLOUD_CONFIG=$CLOUD_CONFIG
     COPY . .
-    RUN ls -liah
-    IF [ -e /test/build/kairos.iso ]
-        ENV ISO=/test/build/kairos.iso
+    IF [ -n "$PREBUILT_ISO" ]
+        ENV ISO=/test/$PREBUILT_ISO
     ELSE
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/test/kairos.iso
     END
+
+    RUN echo "Using iso from $ISO"
 
     IF [ ! -e /test/build/datasource.iso ]
         COPY ( +datasource-iso/iso.iso --CLOUD_CONFIG=$CLOUD_CONFIG) datasource.iso
@@ -465,19 +596,13 @@ run-qemu-datasource-tests:
     ELSE 
         ENV DATASOURCE=/test/build/datasource.iso
     END
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
 
-    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+
 
 run-qemu-netboot-test:
-    FROM ubuntu
-
+    FROM +go-deps
     COPY . /test
     WORKDIR /test
 
@@ -486,7 +611,7 @@ run-qemu-netboot-test:
     ARG VERSION=$(cat VERSION)
 
     RUN apt update
-    RUN apt install -y qemu qemu-utils qemu-system golang git
+    RUN apt install -y qemu qemu-utils qemu-system git && apt clean
 
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
@@ -502,22 +627,21 @@ run-qemu-netboot-test:
     ENV CREATE_VM=true
     ENV USE_QEMU=true
     ARG TEST_SUITE=netboot-test
-    ENV GOPATH="/go"
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+
 
     # TODO: use --pull or something to cache the python image in Earthly
     WITH DOCKER
         RUN docker run -d -v $PWD/build:/build --workdir=/build \
             --net=host -it python:3.11.0-bullseye python3 -m http.server 80 && \
-            PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+            go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
     END
 
 run-qemu-test:
-    FROM opensuse/leap
-    WORKDIR /test
-    RUN zypper in -y qemu-x86 qemu-arm qemu-tools go git
+    FROM +go-deps
+    RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
+    ARG PREBUILT_ISO
     ARG CONTAINER_IMAGE
     ENV CONTAINER_IMAGE=$CONTAINER_IMAGE
     ENV FLAVOR=$FLAVOR
@@ -525,20 +649,14 @@ run-qemu-test:
     ENV CREATE_VM=true
     ENV USE_QEMU=true
 
-    ENV GOPATH="/go"
-
-
     COPY . .
-    RUN go get github.com/onsi/gomega/...
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/internal@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/generators@v2.1.4
-    RUN go get github.com/onsi/ginkgo/v2/ginkgo/labels@v2.1.4
-    RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
-
-    ARG ISO=$(ls /test/build/*.iso)
-    ENV ISO=$ISO
-
-    RUN PATH=$PATH:$GOPATH/bin ginkgo --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
+    IF [ -n "$PREBUILT_ISO" ]
+        ENV ISO=/build/$PREBUILT_ISO
+    ELSE
+        COPY +iso/kairos.iso kairos.iso
+        ENV ISO=/build/kairos.iso
+    END
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 ###
 ### Artifacts targets
@@ -607,7 +725,8 @@ prepare-bundles-tests:
 
 run-qemu-bundles-tests:
     ARG FLAVOR
-    BUILD +run-qemu-datasource-tests --CLOUD_CONFIG=./bundles-config.yaml --TEST_SUITE="bundles-test" --FLAVOR=$FLAVOR
+    ARG PREBUILT_ISO
+    BUILD +run-qemu-datasource-tests --PREBUILT_ISO=$PREBUILT_ISO --CLOUD_CONFIG=./bundles-config.yaml --TEST_SUITE="bundles-test" --FLAVOR=$FLAVOR
 
 ###
 ### Examples
@@ -630,8 +749,68 @@ examples-bundle-config:
     SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml
 
 webui-deps:
-    FROM node:18-alpine
+    FROM node:19-alpine
     COPY . .
     WORKDIR ./internal/webui/public
     RUN npm install
     SAVE ARTIFACT node_modules /node_modules AS LOCAL internal/webui/public/node_modules
+
+docs:
+    FROM node:19-bullseye
+    ARG TARGETARCH
+
+    # Install dependencies
+    RUN apt install git
+    # renovate: datasource=github-releases depName=gohugoio/hugo
+    ARG HUGO_VERSION="0.110.0"
+    RUN wget --quiet "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${TARGETARCH}.tar.gz" && \
+        tar xzf hugo_extended_${HUGO_VERSION}_linux-${TARGETARCH}.tar.gz && \
+        rm -r hugo_extended_${HUGO_VERSION}_linux-${TARGETARCH}.tar.gz && \
+        mv hugo /usr/bin
+
+    COPY . .
+    WORKDIR ./docs
+    
+    RUN npm install postcss-cli
+    RUN npm run prepare
+
+    RUN HUGO_ENV="production" /usr/bin/hugo --gc -b "/local/" -d "public/local"
+    SAVE ARTIFACT public /public AS LOCAL docs/public
+
+## ./earthly.sh --push +temp-image --FLAVOR=ubuntu
+## all same flags than the `docker` target plus 
+## - the EXPIRATION time, defaults to 24h
+## - the NAME of the image in ttl.sh, defaults to the branch name + short sha
+## the push flag is optional
+## 
+## you will have access to an image in ttl.sh e.g. ttl.sh/add-earthly-target-to-build-temp-images-339dfc7:24h
+temp-image:
+    FROM alpine 
+    RUN apk add git
+    COPY . ./
+
+    IF [ "$EXPIRATION" = "" ]
+        ARG EXPIRATION="24h"
+    END
+
+    ARG BRANCH=$(git symbolic-ref --short HEAD)
+    ARG SHA=$(git rev-parse --short HEAD)
+    IF [ "$NAME" = "" ]
+        ARG NAME="${BRANCH}-${SHA}"
+    END
+
+    ARG TTL_IMAGE = "ttl.sh/${NAME}:${EXPIRATION}"
+
+    FROM +image
+    SAVE IMAGE --push $TTL_IMAGE
+
+generate-schema:
+    FROM alpine
+    COPY . ./
+    COPY +version/VERSION ./
+    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    ARG RELEASE_VERSION=$(cat VERSION)
+    RUN mkdir "docs/static/$RELEASE_VERSION"
+    ARG SCHEMA_FILE="docs/static/$RELEASE_VERSION/cloud-config.json"
+    RUN kairos-agent print-schema > $SCHEMA_FILE 
+    SAVE ARTIFACT ./docs/static/* AS LOCAL docs/static/

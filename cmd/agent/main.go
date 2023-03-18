@@ -9,19 +9,19 @@ import (
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/webui"
 
+	bundles "github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/state"
 	"github.com/kairos-io/kairos/internal/common"
 	"github.com/kairos-io/kairos/pkg/config"
 	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/kairos-io/kairos/pkg/utils"
-	bundles "github.com/kairos-io/kairos/sdk/bundles"
-	"github.com/kairos-io/kairos/sdk/state"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var configScanDir = []string{"/oem", "/usr/local/cloud-config", "/run/initramfs/live"}
 
-var cmds = []cli.Command{
+var cmds = []*cli.Command{
 	{
 		Name: "upgrade",
 		Flags: []cli.Flag{
@@ -52,7 +52,7 @@ $ kairos upgrade list-releases
 See https://kairos.io/docs/upgrade/manual/ for documentation.
 
 `,
-		Subcommands: []cli.Command{
+		Subcommands: []*cli.Command{
 			{
 				Flags: []cli.Flag{
 					&cli.StringFlag{
@@ -75,12 +75,11 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 		},
 
 		Action: func(c *cli.Context) error {
-			args := c.Args()
 			var v string
-			if len(args) == 1 {
-				v = args[0]
+			if c.Args().Len() == 1 {
+				v = c.Args().First()
 			}
-			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"), configScanDir)
+			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"), c.Bool("strict-validation"), configScanDir)
 		},
 	},
 
@@ -95,12 +94,11 @@ Sends a generic event payload with the configuration found in the scanned direct
 		Flags:   []cli.Flag{},
 		Action: func(c *cli.Context) error {
 			dirs := []string{"/oem", "/usr/local/cloud-config"}
-			args := c.Args()
-			if len(args) > 1 {
-				dirs = args[1:]
+			if c.Args().Len() > 1 {
+				dirs = c.Args().Slice()[1:]
 			}
 
-			return agent.Notify(args[0], dirs)
+			return agent.Notify(c.Args().First(), dirs)
 		},
 	},
 
@@ -126,9 +124,8 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 		},
 		Action: func(c *cli.Context) error {
 			dirs := []string{"/oem", "/usr/local/cloud-config"}
-			args := c.Args()
-			if len(args) > 0 {
-				dirs = args
+			if c.Args().Present() {
+				dirs = c.Args().Slice()
 			}
 
 			opts := []agent.Option{
@@ -160,19 +157,18 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 		Aliases: []string{"i"},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:   "repository",
-				EnvVar: "REPOSITORY",
-				Value:  "docker://quay.io/kairos/packages",
+				Name:    "repository",
+				EnvVars: []string{"REPOSITORY"},
+				Value:   "docker://quay.io/kairos/packages",
 			},
 		},
 		UsageText: "Install a bundle manually in the node",
 		Action: func(c *cli.Context) error {
-			args := c.Args()
-			if len(args) != 1 {
+			if c.Args().Len() != 1 {
 				return fmt.Errorf("bundle name required")
 			}
 
-			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRepository(c.String("repository")), bundles.WithTarget(args[0])})
+			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRepository(c.String("repository")), bundles.WithTarget(c.Args().First())})
 		},
 	},
 	{
@@ -209,7 +205,7 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 			fmt.Print(runtime)
 			return err
 		},
-		Subcommands: []cli.Command{
+		Subcommands: []*cli.Command{
 			{
 				Name:        "show",
 				Usage:       "Shows the machine configuration",
@@ -241,7 +237,7 @@ enabled: true`,
 				Description: "It allows to navigate the YAML config file by searching with 'yq' style keywords as `config get k3s` to retrieve the k3s config block",
 				Aliases:     []string{"g"},
 				Action: func(c *cli.Context) error {
-					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs)
+					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs, config.StrictValidation(c.Bool("strict-validation")))
 					if err != nil {
 						return err
 					}
@@ -270,7 +266,7 @@ enabled: true`,
 			fmt.Print(runtime)
 			return err
 		},
-		Subcommands: []cli.Command{
+		Subcommands: []*cli.Command{
 			{
 				Name:        "apply",
 				Usage:       "Applies a machine state",
@@ -352,7 +348,8 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 			if c.Bool("reboot") {
 				options["reboot"] = "true"
 			}
-			return agent.ManualInstall(config, options)
+
+			return agent.ManualInstall(config, options, c.Bool("strict-validation"))
 		},
 	},
 
@@ -364,7 +361,7 @@ Starts kairos in pairing mode.
 
 It will print out a QR code which can be used with "kairos register" to send over a configuration and bootstraping a kairos node.
 
-See also https://kairos.io/installation/device_pairing/ for documentation.
+See also https://kairos.io/docs/installation/qrcode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can be started manually`,
 		Aliases: []string{"i"},
@@ -406,16 +403,55 @@ See also https://kairos.io/after_install/reset_mode/ for documentation.
 
 This command is meant to be used from the boot GRUB menu, but can likely be used standalone`,
 	},
+	{
+		Name: "validate",
+		Action: func(c *cli.Context) error {
+			config := c.Args().First()
+			return agent.Validate(config)
+		},
+		Usage: "Validates a cloud config file",
+		Description: `
+The validate command expects a configuration file as its only argument. Local files and URLs are accepted.
+		`,
+	},
+	{
+		Name: "print-schema",
+		Action: func(c *cli.Context) error {
+
+			json, err := agent.JSONSchema(common.VERSION)
+
+			if err != nil {
+				return err
+			}
+
+			fmt.Println(json)
+
+			return nil
+		},
+		Usage:       "Print out Kairos' Cloud Configuration JSON Schema",
+		Description: `Prints out Kairos' Cloud Configuration JSON Schema`,
+	},
 }
 
 func main() {
 	bus.Manager.Initialize()
 
 	app := &cli.App{
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "strict-validation",
+				Usage:   "Fail instead of warn on validation errors.",
+				EnvVars: []string{"STRICT_VALIDATIONS"},
+			},
+		},
 		Name:    "kairos-agent",
 		Version: common.VERSION,
-		Author:  "Ettore Di Giacinto",
-		Usage:   "kairos agent start",
+		Authors: []*cli.Author{
+			{
+				Name: "Ettore Di Giacinto",
+			},
+		},
+		Usage: "kairos agent start",
 		Description: `
 The kairos agent is a component to abstract away node ops, providing a common feature-set across kairos variants.
 `,

@@ -1,7 +1,6 @@
 ARG BASE_IMAGE=rockylinux:9
 
 FROM $BASE_IMAGE
-ARG K3S_VERSION
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 
@@ -10,34 +9,47 @@ RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
     NetworkManager \
-    squashfs-tools \ 
+    squashfs-tools \
     dracut-live \
     livecd-tools \
     dracut-squash \
     dracut-network \
     efibootmgr \
     audit \
-    sudo \
-    systemd \
-    parted \
-    dracut \
-    e2fsprogs \
-    dosfstools \
     device-mapper \
-    grub2 \
-    which \
-    nano \
+    dosfstools \
+    dracut \
+    dracut-live \
+    dracut-network \
+    dracut-squash \
+    e2fsprogs \
+    efibootmgr \
     gawk \
-    tar \
-    openssh-server \
-    shim-x64 \
-    grub2-pc \
+    grub2 \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
+    grub2-pc \
+    kernel \
+    kernel-modules \
+    kernel-modules-extra \
+    livecd-tools \
+    nano \
+    NetworkManager \
+    openssh-server \
+    parted \
+    polkit \
+    rsync \
+    shim-x64 \
+    squashfs-tools \ 
+    sudo \
+    systemd \
     systemd-networkd \
-    kernel kernel-modules kernel-modules-extra \
-    systemd-timesyncd \
     systemd-resolved \
+    systemd-timesyncd \
+    tar \
+    which \
+    epel-release \
+    https://zfsonlinux.org/epel/zfs-release-2-2.el9.noarch.rpm \
     rsync && dnf clean all
 
 RUN mkdir -p /run/lock

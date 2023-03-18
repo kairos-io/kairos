@@ -1,0 +1,67 @@
+# syntax=docker/dockerfile:1.4
+ARG BASE_IMAGE=opensuse/leap:15.4
+
+FROM $BASE_IMAGE
+
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && \
+    zypper ref
+
+RUN zypper in --force-resolution -y \
+    bash-completion \
+    conntrack-tools \
+    coreutils \
+    cryptsetup \
+    curl \
+    device-mapper \
+    dhcp-client \
+    dosfstools \
+    dracut \
+    e2fsprogs \
+    fail2ban \
+    findutils \
+    gawk \
+    gptfdisk \
+    grub2-i386-pc \
+    grub2-x86_64-efi \
+    haveged \
+    htop \
+    iproute2 \
+    iptables \
+    iputils \
+    issue-generator \
+    jq \
+    kernel-default \
+    kernel-firmware-all \
+    less \
+    lldpd \
+    logrotate \
+    lsscsi \
+    lvm2 \
+    mdadm \
+    multipath-tools \
+    nano \
+    nethogs \
+    nfs-utils \
+    open-iscsi \
+    open-vm-tools \
+    openssh \
+    parted \
+    pigz \
+    policycoreutils \
+    polkit \
+    procps \
+    qemu-guest-agent \
+    rng-tools \
+    rsync \
+    squashfs \
+    strace \
+    sudo \
+    systemd \
+    systemd-network \
+    systemd-sysvinit \
+    tar \
+    timezone \
+    tmux \
+    vim \
+    which \
+    && zypper cc

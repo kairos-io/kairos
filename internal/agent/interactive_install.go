@@ -9,8 +9,8 @@ import (
 	"github.com/kairos-io/kairos/internal/cmd"
 	config "github.com/kairos-io/kairos/pkg/config"
 
-	events "github.com/kairos-io/kairos/sdk/bus"
-	"github.com/kairos-io/kairos/sdk/unstructured"
+	events "github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos-sdk/unstructured"
 
 	"github.com/erikgeiser/promptkit/textinput"
 	"github.com/jaypipes/ghw"
@@ -30,7 +30,7 @@ func prompt(prompt, initialValue, placeHolder string, canBeEmpty, hidden bool) (
 	input.InitialValue = initialValue
 	input.Placeholder = placeHolder
 	if canBeEmpty {
-		input.Validate = func(s string) bool { return true }
+		input.Validate = func(s string) error { return nil }
 	}
 	input.Hidden = hidden
 

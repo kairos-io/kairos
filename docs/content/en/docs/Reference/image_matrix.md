@@ -23,18 +23,21 @@ Below is a list of the available images and their locations on the quay.io regis
 
 Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pinned to Ubuntu 20:04, openSUSE to openSUSE leap 15.4, etc.).
 
-| **Flavor/Variant**                                  	| **Core (no k3s)**                                       	| **Standard(k3s)**                           	|
-|-----------------------------------------------------	|---------------------------------------------------------	|-----------------------------------------------------------	|
-| **openSUSE based**                                  	| https://quay.io/repository/kairos/core-opensuse         	| https://quay.io/repository/kairos/kairos-opensuse         	|
-| **Fedora based**                                  	| https://quay.io/repository/kairos/core-fedora         	| https://quay.io/repository/kairos/kairos-fedora         	|
-| **Debian based**                                  	| https://quay.io/repository/kairos/core-debian         	| https://quay.io/repository/kairos/kairos-debian         	|
-| **Ubuntu based (rolling)** **                                   	| https://quay.io/repository/kairos/core-ubuntu           	| https://quay.io/repository/kairos/kairos-ubuntu           	|
-| **Ubuntu based (22 LTS)** **                                    	| https://quay.io/repository/kairos/core-ubuntu-22-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	|
-| **Ubuntu based (20 LTS)** **                                   	| https://quay.io/repository/kairos/core-ubuntu-20-lts           	| https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	|
-| **Alpine Linux based (openSUSE kernel)**                              	| https://quay.io/repository/kairos/core-alpine-opensuse-leap           	| https://quay.io/repository/kairos/kairos-alpine-opensuse-leap           	|
-| **Alpine Linux based (Ubuntu kernel)**                              	| https://quay.io/repository/kairos/core-alpine-ubuntu           	| https://quay.io/repository/kairos/kairos-alpine-ubuntu           	|
-| **openSUSE based (RaspberryPi 3 and 4, arm64)**     	| https://quay.io/repository/kairos/core-opensuse-arm-rpi 	| https://quay.io/repository/kairos/kairos-opensuse-arm-rpi 	|
-| **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	| https://quay.io/repository/kairos/core-alpine-arm-rpi   	| https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	|
+| **Flavor/Variant**                                  	                   | **Core (no k3s)**                                       	               | **Standard(k3s)**                           	                             |
+|--------------------------------------------------------------------------|-------------------------------------------------------------------------|---------------------------------------------------------------------------|
+| **Alpine Linux based (openSUSE kernel)**                              	 | https://quay.io/repository/kairos/core-alpine-opensuse-leap           	 | https://quay.io/repository/kairos/kairos-alpine-opensuse-leap           	 |
+| **Alpine Linux based (Ubuntu kernel)**                              	   | https://quay.io/repository/kairos/core-alpine-ubuntu           	       | https://quay.io/repository/kairos/kairos-alpine-ubuntu           	       |
+| **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	                   | https://quay.io/repository/kairos/core-alpine-arm-rpi   	               | https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	               |
+| **Debian based**                                  	                     | https://quay.io/repository/kairos/core-debian         	                 | https://quay.io/repository/kairos/kairos-debian         	                 |
+| **Fedora based**                                  	                     | https://quay.io/repository/kairos/core-fedora         	                 | https://quay.io/repository/kairos/kairos-fedora         	                 |
+| **openSUSE Leap based**                                  	               | https://quay.io/repository/kairos/core-opensuse-leap         	         | https://quay.io/repository/kairos/kairos-opensuse-leap         	         |
+| **openSUSE Leap based (RaspberryPi 3 and 4, arm64)**     	               | https://quay.io/repository/kairos/core-opensuse-leap-arm-rpi 	         | https://quay.io/repository/kairos/kairos-opensuse-leap-arm-rpi 	         |
+| **openSUSE Tumbleweed based**                                  	         | https://quay.io/repository/kairos/core-tumbleweed-leap         	       | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed         	   |
+| **openSUSE Tumbleweed based (RaspberryPi 3 and 4, arm64)**     	         | https://quay.io/repository/kairos/core-opensuse-tumbleweed-arm-rpi 	   | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed-arm-rpi 	   |
+| **Ubuntu based (rolling)** **                                   	       | https://quay.io/repository/kairos/core-ubuntu           	               | https://quay.io/repository/kairos/kairos-ubuntu           	               |
+| **Ubuntu based (22 LTS)** **                                    	       | https://quay.io/repository/kairos/core-ubuntu-22-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	       |
+| **Ubuntu based (20 LTS)** **                                   	         | https://quay.io/repository/kairos/core-ubuntu-20-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	       |
+| **Rocky Linux based**                                                    | https://quay.io/repository/kairos/core-rockylinux                       | https://quay.io/repository/kairos/kairos-rockylinux                       |
 
 {{% alert title="Note" color="info" %}}
 
@@ -55,6 +58,13 @@ The artifacts can be found in the `build` directory.
 
 {{% /alert %}}
 
+### Framework images
+
+Kairos releases contains also the __framework__ assets that can be used to [build Kairos images from Scratch](/docs/reference/build-from-scratch).
+
+Framework images can be found in quay at: https://quay.io/repository/kairos/framework.
+
+Each tag follow the convention: `<version>_<flavor>`.
 
 ## Versioning policy
 

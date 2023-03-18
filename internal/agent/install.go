@@ -1,16 +1,18 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 	"time"
 
-	events "github.com/kairos-io/kairos/sdk/bus"
+	events "github.com/kairos-io/kairos-sdk/bus"
 
 	config "github.com/kairos-io/kairos/pkg/config"
 
@@ -61,12 +63,39 @@ func displayInfo(agentConfig *Config) {
 	}
 }
 
-func ManualInstall(config string, options map[string]string) error {
-	dat, err := os.ReadFile(config)
+func mergeOption(cloudConfig string, r map[string]string) {
+	c := &config.Config{}
+	yaml.Unmarshal([]byte(cloudConfig), c) //nolint:errcheck
+	for k, v := range c.Options {
+		if k == "cc" {
+			continue
+		}
+		r[k] = v
+	}
+}
+
+func ManualInstall(c string, options map[string]string, strictValidations bool) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	source, err := prepareConfiguration(ctx, c)
 	if err != nil {
 		return err
 	}
-	options["cc"] = string(dat)
+
+	cc, err := config.Scan(config.Directories(source), config.MergeBootLine, config.StrictValidation(strictValidations))
+	if err != nil {
+		return err
+	}
+	options["cc"] = cc.String()
+	// unlike Install device is already set
+	// options["device"] = cc.Install.Device
+
+	mergeOption(cc.String(), options)
+
+	if options["device"] == "" {
+		options["device"] = cc.Install.Device
+	}
 
 	return RunInstall(options)
 }
@@ -82,19 +111,10 @@ func Install(dir ...string) error {
 	tk := ""
 	r := map[string]string{}
 
-	mergeOption := func(cloudConfig string) {
-		c := &config.Config{}
-		yaml.Unmarshal([]byte(cloudConfig), c) //nolint:errcheck
-		for k, v := range c.Options {
-			if k == "cc" {
-				continue
-			}
-			r[k] = v
-		}
-	}
 	bus.Manager.Response(events.EventChallenge, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		tk = r.Data
 	})
+
 	bus.Manager.Response(events.EventInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
 		err := json.Unmarshal([]byte(resp.Data), &r)
 		if err != nil {
@@ -102,12 +122,7 @@ func Install(dir ...string) error {
 		}
 	})
 
-	// Try to pull userdata once more. best-effort
-	if _, err := os.Stat("/oem/userdata"); err != nil {
-		if err := machine.ExecuteCloudConfig("/system/oem/00_datasource.yaml", "rootfs.before"); err != nil {
-			fmt.Println("Warning: Failed pulling from datasources")
-		}
-	}
+	ensureDataSourceReady()
 
 	// Reads config, and if present and offline is defined,
 	// runs the installation
@@ -115,7 +130,7 @@ func Install(dir ...string) error {
 	if err == nil && cc.Install != nil && cc.Install.Auto {
 		r["cc"] = cc.String()
 		r["device"] = cc.Install.Device
-		mergeOption(cc.String())
+		mergeOption(cc.String(), r)
 
 		err = RunInstall(r)
 		if err != nil {
@@ -142,8 +157,8 @@ func Install(dir ...string) error {
 	cmd.ClearScreen()
 	cmd.PrintBranding(DefaultBanner)
 
-	// If there are no providers registered, we enter a shell for manual installation and print information about
-	// the webUI
+	// If there are no providers registered, we enter a shell for manual installation
+	// and print information about the webUI
 	if !bus.Manager.HasRegisteredPlugins() {
 		displayInfo(agentConfig)
 		return utils.Shell().Run()
@@ -176,12 +191,14 @@ func Install(dir ...string) error {
 	cloudConfig, exists := r["cc"]
 
 	// merge any options defined in it
-	mergeOption(cloudConfig)
+	mergeOption(cloudConfig, r)
 
-	// now merge cloud config from system and the one received from the agent-provider
+	// now merge cloud config from system and
+	// the one received from the agent-provider
 	ccData := map[string]interface{}{}
 
-	// make sure the config we write has at least the #cloud-config header, if any other was defined beforeahead
+	// make sure the config we write has at least the #cloud-config header,
+	// if any other was defined beforeahead
 	header := "#cloud-config"
 	if hasHeader, head := config.HasHeader(cc.String(), ""); hasHeader {
 		header = head
@@ -286,9 +303,58 @@ func RunInstall(options map[string]string) error {
 		os.Exit(1)
 	}
 
-	if err := hook.Run(*c, hook.All...); err != nil {
+	if err := hook.Run(*c, hook.AfterInstall...); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func ensureDataSourceReady() {
+	timeout := time.NewTimer(5 * time.Minute)
+	ticker := time.NewTicker(500 * time.Millisecond)
+
+	defer timeout.Stop()
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout.C:
+			fmt.Println("userdata configuration failed to load after 5m, ignoring.")
+			return
+		case <-ticker.C:
+			if _, err := os.Stat("/run/.userdata_load"); os.IsNotExist(err) {
+				return
+			}
+			fmt.Println("userdata configuration has not yet completed. (waiting for /run/.userdata_load to be deleted)")
+		}
+	}
+}
+
+func prepareConfiguration(ctx context.Context, source string) (string, error) {
+	// if the source is not an url it is already a configuration path
+	if u, err := url.Parse(source); err != nil || u.Scheme == "" {
+		return source, nil
+	}
+
+	// create a configuration file with the source referenced
+	f, err := os.CreateTemp(os.TempDir(), "kairos-install-*.yaml")
+	if err != nil {
+		return "", err
+	}
+
+	// defer cleanup until after parent is done
+	go func() {
+		<-ctx.Done()
+		_ = os.RemoveAll(f.Name())
+	}()
+
+	cfg := config.Config{
+		ConfigURL: source,
+	}
+	if err = yaml.NewEncoder(f).Encode(cfg); err != nil {
+		return "", err
+	}
+
+	return f.Name(), nil
 }

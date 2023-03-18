@@ -233,14 +233,14 @@ workflows:
         matrix:
           parameters:
             image: ["quay.io/kairos/core"]
-            flavor: ["opensuse-arm-rpi", "alpine-arm-rpi"]
+            flavor: ["opensuse-tumbleweed-arm-rpi", "opensuse-leap-arm-rpi", "alpine-arm-rpi"]
             model: ["rpi64"]
             release: ["no"]
     - build-framework:
         matrix:
           parameters:
             image: ["quay.io/kairos/framework"]
-            flavor: ["opensuse"]
+            flavor: ["opensuse-leap"]
             release: ["no"]
     # - run-datasource-test:
     #     matrix:

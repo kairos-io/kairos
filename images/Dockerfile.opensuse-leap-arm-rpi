@@ -1,0 +1,84 @@
+
+ARG BASE_IMAGE=opensuse/leap:15.4
+
+FROM $BASE_IMAGE
+
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && \
+    zypper ref
+
+RUN zypper in -y \
+    bash-completion \
+    bcm43xx-firmware \
+    conntrack-tools \
+    coreutils \
+    curl \
+    device-mapper \
+    dhcp-client \
+    dosfstools \
+    dracut \
+    e2fsprogs \
+    fail2ban \
+    findutils \
+    gawk \
+    gptfdisk \
+    grub2-arm64-efi \
+    grub2-i386-pc \
+    grub2-x86_64-efi \
+    haveged \
+    htop \
+    iproute2 \
+    iptables \
+    iputils \
+    issue-generator \
+    iw \
+    jq \
+    kernel-default \
+    kernel-firmware-ath10k \
+    kernel-firmware-ath11k \
+    kernel-firmware-atheros \
+    kernel-firmware-bluetooth \
+    kernel-firmware-brcm \
+    kernel-firmware-iwlwifi \
+    kernel-firmware-network \
+    kernel-firmware-realtek \
+    kernel-firmware-serial \
+    kernel-firmware-usb-network \
+    less \
+    logrotate \
+    lsscsi \
+    lvm2 \
+    mdadm \
+    multipath-tools \
+    nano \
+    nethogs \
+    nfs-utils \
+    open-iscsi \
+    open-vm-tools \
+    openssh \
+    parted \
+    pigz \
+    policycoreutils \
+    polkit \
+    procps \
+    raspberrypi-eeprom \
+    raspberrypi-firmware \
+    raspberrypi-firmware-dt \
+    rng-tools \
+    rsync \
+    squashfs \
+    strace \
+    sudo \
+    sysconfig \
+    sysconfig-netconfig \
+    systemd \
+    systemd-network \
+    systemd-sysvinit \
+    sysvinit-tools \
+    tar \
+    timezone \
+    tmux \
+    vim \
+    which \
+    wireless-tools \
+    wpa_supplicant \
+    which && zypper cc \

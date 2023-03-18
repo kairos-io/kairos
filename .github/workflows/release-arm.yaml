@@ -1,25 +1,44 @@
----
-name: 'Build arm images'
-
+name: Build arm images
 on:
   push:
     tags:
       - '*'
-
 jobs:
+  get-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
+      - id: set-matrix
+        run: |
+          content=`cat ./.github/flavors-arm.json`
+          # the following lines are only required for multi line json
+          # the following lines are only required for multi line json
+          # the following lines are only required for multi line json
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          # end of optional handling for multi line json
+          # end of optional handling for multi line json
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
   docker:
     runs-on: ubuntu-latest
+    needs:
+      - get-matrix
     permissions:
       id-token: write  # OIDC support
       contents: write
+      actions: read
+      security-events: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - flavor: "opensuse-arm-rpi"
-            model: rpi64
-          - flavor: "alpine-arm-rpi"
-            model: rpi64
+      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
         run: |
@@ -37,7 +56,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
-
       - name: Login to DockerHub
         uses: docker/login-action@v2
         with:
@@ -58,16 +76,17 @@ jobs:
           export TAG=${GITHUB_REF##*/}
           docker push quay.io/kairos/core-$FLAVOR:$TAG
       - name: Sign image
-        if: startsWith(github.ref, 'refs/tags/')
         env:
-          COSIGN_EXPERIMENTAL: 1
-        run: | 
-          TAG=${GITHUB_REF##*/}
-          cosign sign quay.io/kairos/core-${{ matrix.flavor }}:$TAG
+          COSIGN_YES: true
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          export TAG=${GITHUB_REF##*/}
+          export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}"
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Export version
         run: |
-             TAG=${GITHUB_REF##*/}
-             echo "VERSION=$TAG" >> $GITHUB_ENV
+          TAG=${GITHUB_REF##*/}
+          echo "VERSION=$TAG" >> $GITHUB_ENV
       - name: Upload Image
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -76,3 +95,22 @@ jobs:
           sudo luet util pack quay.io/kairos/core-${{ matrix.flavor }}:$VERSION.img build.tar image.tar
           sudo -E docker load -i image.tar
           sudo -E docker push quay.io/kairos/core-${{ matrix.flavor }}:$VERSION.img
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            build/*.json
+      - name: Prepare sarif files  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/kairos/core-$FLAVOR:latest
+          MODEL: ${{ matrix.model }}
+        run: |
+          mkdir sarif
+          sudo mv release/*.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}

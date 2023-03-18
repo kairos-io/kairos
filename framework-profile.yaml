@@ -1,13 +1,13 @@
 common:
-  - system/base-cloud-config
-  - dracut/immutable-rootfs
+  - dracut/immucore
   - dracut/kcrypt
   - static/grub-config
   - system/kcrypt
+  - system/kcrypt-challenger
   - system/suc-upgrade
-  - system/shim
   - system/grub2-efi
   - system/elemental-cli
+  - system/immucore
 flavors:
   debian:
     - systemd-base
@@ -27,11 +27,19 @@ flavors:
   rockylinux:
     - systemd-base
     - dracut-network-legacy-compat
-  opensuse:
+  opensuse-tumbleweed:
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
-  opensuse-arm-rpi:
+  opensuse-tumbleweed-arm-rpi:
+    - systemd-base
+    - systemd-latest
+    - dracut-network-legacy
+  opensuse-leap:
+    - systemd-base
+    - systemd-latest
+    - dracut-network-legacy
+  opensuse-leap-arm-rpi:
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
@@ -69,7 +77,6 @@ ubuntu-kernel:
 systemd-latest:
   packages:
     - dracut/sysext
-    - dracut/systemd-resolved
 repositories:
   - &kairos
     name: "kairos"
@@ -81,9 +88,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230118202026-repository.yaml
+    reference: 20230317091453-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230118202934-repository.yaml
+    reference: 20230317091805-repository.yaml

@@ -1,0 +1,72 @@
+ARG BASE_IMAGE=opensuse/tumbleweed
+
+FROM $BASE_IMAGE
+
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && \
+    zypper ref
+
+RUN zypper in --force-resolution -y \
+    bash-completion \
+    conntrack-tools \
+    coreutils \
+    cryptsetup \
+    curl \
+    device-mapper \
+    dhcp-client \
+    dosfstools \
+    dracut \
+    e2fsprogs \
+    fail2ban \
+    findutils \
+    gawk \
+    gptfdisk \
+    grub2-i386-pc \
+    grub2-x86_64-efi \
+    haveged \
+    htop \
+    iproute2 \
+    iptables \
+    iputils \
+    issue-generator \
+    jq \
+    kernel-default \
+    kernel-firmware-all \
+    less \
+    logrotate \
+    lsscsi \
+    lvm2 \
+    mdadm \
+    multipath-tools \
+    nano \
+    nethogs \
+    nfs-utils \
+    open-iscsi \
+    open-vm-tools \
+    openssh \
+    parted \
+    patch \
+    pigz \
+    policycoreutils \
+    polkit \
+    procps \
+    qemu-guest-agent \
+    rng-tools \
+    rsync \
+    squashfs \
+    strace \
+    sudo \
+    systemd \
+    systemd-network \
+    systemd-sysvinit \
+    tar \
+    timezone \
+    tmux \
+    vim \
+    e2fsprogs \
+    which && zypper cc
+
+# workaround https://github.com/systemd/systemd/issues/12231
+# see also: https://github.com/OSInside/kiwi/issues/1015
+# TODO: backport patch into packages
+COPY images/dracut-missing-overlay-dirs.patch /
+RUN cd /usr/lib/dracut/modules.d/90dmsquash-live && patch < /dracut-missing-overlay-dirs.patch && rm -rf /dracut-missing-overlay-dirs.patch

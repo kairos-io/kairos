@@ -12,7 +12,7 @@ If you prefer video format, you can also watch our [Introduction to Kairos video
 
 Ready to launch your Kubernetes cluster with ease? With Kairos, deployment is a breeze! Simply download the pre-packaged artifacts, boot up on a VM or bare metal, and let Kairos handle the rest. Whether you're a Linux or Windows user, our quickstart guide will have you up and running in no time. Kairos can build a Kubernetes cluster for you with just a few simple steps!
 
-The goal of this quickstart is to help you quickly and easily deploy a Kubernetes cluster using Kairos releases. With Kairos, you can easily build a k3s cluster in a VM, or a baremetal using our pre-packaged artifacts, even if you don't already have a cluster. This process can also be used on bare metal hosts with some configuration adjustments. Check out our documentation further for more detailed instructions and examples.
+The goal of this quickstart is to help you quickly and easily deploy a Kubernetes cluster using Kairos releases. With Kairos, you can easily build a k3s cluster in a VM, or a baremetal using our pre-packaged artifacts, even if you don't already have a cluster. This process can also be used on bare metal hosts with some configuration adjustments. Check out our documentation further for more detailed instructions and [examples](/docs/examples).
 
 To create a Kubernetes cluster with Kairos, the only thing needed is one or more machines that will become the Kubernetes nodes. No previously existing clusters is needed.
 
@@ -24,20 +24,92 @@ Once the installation is complete, you can begin using your Kubernetes cluster.
 - A Linux or a Windows machine where to run the Kairos CLI (optional, we will see)
 - A `cloud-init` configuration file (example below)
 - At least 30+ Gb of available disk space.
+
 ## Download
 
 1. Visit the Kairos [release page on GitHub](https://github.com/kairos-io/provider-kairos/releases)
-1. Select the latest release and download the assets of your flavor. For example, pick the [kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso](https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-opensuse-v1.0.0-k3sv1.24.3+k3s1.iso) ISO file for the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v1.0.0` is the Kairos one to deploy on a VM.
+1. Select the latest release and download the assets of your flavor. For example,
+   pick the [kairos-opensuse-v{{<kairosVersion>}}-k3sv{{<k3sVersion>}}.iso](https://github.com/kairos-io/provider-kairos/releases/download/v/kairos-opensuse-v{{<kairosVersion>}}-k3sv{{<k3sVersion>}}.iso)
+   ISO file for the openSUSE based version, where `v1.24.3+k3s1` in the name is the `k3s` version and `v{{< kairosVersion >}}` is the Kairos one to deploy on a VM.
 1. You can also use [netboot](/docs/installation/netboot) to boot Kairos over the network
 
 {{% alert title="Note" %}}
-The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos core images that ship **without** K3s and P2P full-mesh functionalities; however, further extensions can be installed dynamically in runtime by using the Kairos bundles mechanism.
+The releases in the [kairos-io/kairos](https://github.com/kairos-io/kairos/releases) repository are the Kairos
+core images that ship **without** K3s and P2P full-mesh functionalities; Core images can be used as a
+generic installer to [deploy container images](/docs/examples/core).
 
-The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases) ship **with** k3s and P2P full-mesh instead. These options need to be explicitly enabled. In follow-up releases, _k3s-only_ artifacts will also be available.
+The releases in [kairos-io/provider-kairos](https://github.com/kairos-io/provider-kairos/releases)
+**contains** already k3s and P2P full-mesh instead. These options need to be explicitly enabled.
+In follow-up releases, _k3s-only_ artifacts will also be available.
 
 See [Image Matrix Support](/docs/reference/image_matrix) for additional supported images and kernels.
 
 {{% /alert %}}
+
+
+## Checking artifacts signatures
+
+{{% alert title="Note" color="warning" %}}
+
+This feature will be available in Kairos version `1.5.0` and in all future releases.
+
+{{% /alert %}}
+
+Our ISO releases have sha256 files to checksum the validity of the artifacts. At the same time, our sha256 files are signed automatically in the CI during the 
+release workflow to verify that they haven't been tampered with, adding an extra step to the supply chain. 
+
+It is recommended that before starting any installation the whole security chain is validated by verifying our sha256 signature and validating that the checksum matches with the download artifacts.
+
+
+To validate the whole chain you would need:
+
+1. `sha256sum` which is usually installed by default on most linux distributions.
+2. `cosign` to verify the signatures of the sha256 file. You can install cosign via their [installation docs](https://docs.sigstore.dev/cosign/installation/)
+3. ISO, sha256, certificate and signature files for the release/flavor that you want to verify. All the artifacts are available on the [kairos release page](https://github.com/kairos-io/kairos/releases)
+
+
+In this example we will use the `v1.5.1` version and `opensuse-leap` flavor
+
+First we check that we have all needed files:
+
+```bash
+$ ls      
+kairos-opensuse-leap-v1.5.1.iso         kairos-opensuse-leap-v1.5.1.iso.sha256.pem
+kairos-opensuse-leap-v1.5.1.iso.sha256  kairos-opensuse-leap-v1.5.1.iso.sha256.sig
+```
+
+We first verify that the sha256 checksums haven't been tampered with:
+
+```bash
+$ COSIGN_EXPERIMENTAL=1 cosign verify-blob --cert kairos-opensuse-leap-v1.5.1.iso.sha256.pem --signature kairos-opensuse-leap-v1.5.1.iso.sha256.sig kairos-opensuse-leap-v1.5.1.iso.sha256 
+tlog entry verified with uuid: 51ef927a43557386ad7912802607aa421566772524319703a99f8331f0bb778f index: 11977200
+Verified OK
+```
+
+Once we see that `Verified OK` we can be sure that the file hasn't been tampered with, and we can continue verifying the iso checksum.
+
+For an example of a failure validation see below:
+
+```bash
+$ COSIGN_EXPERIMENTAL=1 cosign verify-blob --enforce-sct --cert kairos-opensuse-leap-v1.5.1.iso.sha256.pem --signature kairos-opensuse-leap-v1.5.1.iso.sha256.sig kairos-opensuse-leap-v1.5.1.iso.sha256.modified
+Error: verifying blob [kairos-opensuse-leap-v1.5.1.iso.sha256.modified]: invalid signature when validating ASN.1 encoded signature
+main.go:62: error during command execution: verifying blob [kairos-opensuse-leap-v1.5.1.iso.sha256.modified]: invalid signature when validating ASN.1 encoded signature
+```
+{{% alert title="Info" %}}
+We use `COSIGN_EXPERIMENTAL=1` to verify the blob using the keyless method. That means that only ephemeral keys are created to sign, and it relays on using
+OIDC Identity Tokens to authenticate so not even Kairos developers have access to the private keys and can modify an existing signature. All signatures are done
+via the CI with no external access to the signing process. For more information about keyless signing please check the [cosign docs](https://github.com/sigstore/cosign/blob/main/KEYLESS.md)
+{{% /alert %}}
+
+
+Now we can verify that the integrity of the ISO hasnt been compromise:
+
+```bash
+$ sha256sum -c kairos-opensuse-leap-v1.5.1.iso.sha256 
+kairos-opensuse-leap-v1.5.1.iso: OK
+```
+
+Once we reached this point, we can be sure that from the ISO hasn't been tampered with since it was created by our release workflow.
 
 ## Booting
 
@@ -74,17 +146,13 @@ Here are some additional helpful tips depending on the physical/virtual machine 
       virt-install --name my-first-kairos-vm \
                   --vcpus 1 \
                   --memory 1024 \
-                  --cdrom /path/to/kairos-opensuse-v1.3.2-k3sv1.20.15+k3s1.iso \
+                  --cdrom /path/to/kairos-opensuse-v{{<kairosVersion>}}-k3sv{{k3sVersion}}.iso \
                   --disk size=30 \
                   --os-variant opensuse-factory \
                   --virt-type kvm
 
     {{< / highlight >}}
-    <br/>
-
-    Immediately after open a viewer so you can interact with the boot menu
-    <br/>
-
+    Immediately after open a viewer so you can interact with the boot menu:
     {{< highlight bash >}}
     virt-viewer my-first-kairos-vm
     {{< / highlight >}}
@@ -92,11 +160,15 @@ Here are some additional helpful tips depending on the physical/virtual machine 
   {{% /tab %}}
 {{< /tabpane >}}
 
-After booting you'll be greeted with a GRUB boot menu with multiple options. The option you choose will depend on how you plan to install Kairos:
+After booting you'll be greeted with a GRUB boot menu with multiple options.
+The option you choose will depend on how you plan to install Kairos:
 
-- The first entry will boot into installation with a QR code, which we'll cover in the next step.
-- The second entry will boot into [Manual installation mode](/docs/installation/manual), where you can install Kairos manually using the console.
-- The third boot option boots into [Interactive installation mode](/docs/installation/interactive), where you can use the terminal host to drive the installation and skip the Configuration and Provisioning step.
+- The first entry will boot into installation with a QR code or [WebUI](/docs/installation/webui),
+  which we'll cover in the next step.
+- The second entry will boot into [Manual installation mode](/docs/installation/manual),
+  where you can install Kairos manually using the console.
+- The third boot option boots into [Interactive installation mode](/docs/installation/interactive),
+  where you can use the terminal host to drive the installation and skip the Configuration and Provisioning step.
 
 To begin the installation process, select the first entry and let the machine boot. Eventually, a QR code will be printed on the screen. Follow the next step in the documentation to complete the installation.
 
@@ -106,6 +178,7 @@ To begin the installation process, select the first entry and let the machine bo
 
 After booting up the ISO, the machine will wait for you to provide configuration details before continuing with the installation process. There are different ways to provide these details:
 
+- Use the [WebUI](/docs/installation/webui) to continue the installation.
 - Serve the configuration via QR code.
 - Connect to the machine via [SSH](/docs/installation/manual) and start the installation process with a configuration file ( with `kairos-agent manual-install <config>`).
 - [Use a datasource iso, or a generating a custom one](/docs/installation/automated)
@@ -162,6 +235,13 @@ To trigger the installation process via QR code, you need to use the Kairos CLI.
 
 ```bash
 curl -L https://github.com/kairos-io/provider-kairos/releases/download/v1.0.0/kairos-cli-v1.0.0-Linux-x86_64.tar.gz -o - | tar -xvzf - -C .
+```
+
+```bash
+# optionally, install the CLI locally
+mv kairos-cli /usr/local/bin/kairos
+chmod +x /usr/local/bin/kairos
+
 ```
 
 The CLI allows to register a node with a screenshot, an image, or a token. During pairing, the configuration is sent over, and the node will continue the installation process.
@@ -228,12 +308,13 @@ There are other ways to install Kairos:
 - [Manual login and installation](/docs/installation/manual)
 - [Create decentralized clusters](/docs/installation/p2p)
 - [Take over installation](/docs/installation/takeover)
+- [Installation via network](/docs/installation/netboot)
 - [Raspberry Pi](/docs/installation/raspberry)
-- [Netboot (TODO)]()
 - [CAPI Lifecycle Management (TODO)]()
 
 ## What's Next?
 
 - [Upgrade nodes with Kubernetes](/docs/upgrade/kubernetes)
 - [Upgrade nodes manually](/docs/upgrade/manual)
+- [Encrypt partitions](/docs/advanced/partition_encryption)
 - [Immutable architecture](/docs/architecture/immutable)

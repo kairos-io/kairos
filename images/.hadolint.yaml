@@ -1,0 +1,18 @@
+---
+ignored:
+  # Use WORKDIR to switch to a directory: https://github.com/hadolint/hadolint/wiki/DL3003
+  - DL3003
+  # Always tag the version of an image explicitly: https://github.com/hadolint/hadolint/wiki/DL3006
+  - DL3006
+  # Pin versions in apt get install: https://github.com/hadolint/hadolint/wiki/DL3008
+  - DL3008
+  # Pin versions in apk add: https://github.com/hadolint/hadolint/wiki/DL3018
+  - DL3018
+  # Specify version with zypper install -y <package>[=]<version>: https://github.com/hadolint/hadolint/wiki/DL3037
+  - DL3037
+  # dnf clean all missing after dnf command: https://github.com/hadolint/hadolint/wiki/DL3040
+  - DL3040
+  # Specify version with dnf install -y <package>-<version>: https://github.com/hadolint/hadolint/wiki/DL3041
+  - DL3041
+  # Multiple consecutive RUN instructions. Consider consolidation: https://github.com/hadolint/hadolint/wiki/DL3059
+  - DL3059

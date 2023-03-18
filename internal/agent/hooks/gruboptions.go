@@ -3,8 +3,8 @@ package hook
 import (
 	"fmt"
 
+	"github.com/kairos-io/kairos-sdk/system"
 	config "github.com/kairos-io/kairos/pkg/config"
-	"github.com/kairos-io/kairos/sdk/system"
 )
 
 type GrubOptions struct{}

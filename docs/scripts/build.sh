@@ -5,8 +5,9 @@ BASE_URL="${BASE_URL:-https://kairos.io}"
 
 binpath="${ROOT_DIR}/bin"
 publicpath="${ROOT_DIR}/public"
+export PATH=$PATH:$binpath
 
-if [ ! -e "${binpath}/hugo" ];
+if [ -z "$(type -P hugo)" ];
 then
     [[ ! -d "${binpath}" ]] && mkdir -p "${binpath}"
     wget https://github.com/gohugoio/hugo/releases/download/v"${HUGO_VERSION}"/hugo_extended_"${HUGO_VERSION}"_"${HUGO_PLATFORM}".tar.gz -O "$binpath"/hugo.tar.gz
@@ -20,6 +21,6 @@ rm -rf "${publicpath}" || true
 
 npm install --save-dev autoprefixer postcss-cli postcss
 
-HUGO_ENV="production" "${binpath}/hugo" --gc -b "${BASE_URL}" -d "${publicpath}"
+HUGO_ENV="production" hugo --gc -b "${BASE_URL}" -d "${publicpath}"
 
-cp -rf CNAME $publicpath
+cp -rf CNAME "${publicpath}"

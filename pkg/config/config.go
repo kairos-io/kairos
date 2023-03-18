@@ -12,26 +12,33 @@ import (
 	retry "github.com/avast/retry-go"
 	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
+	"github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/unstructured"
+	schema "github.com/kairos-io/kairos/pkg/config/schemas"
 	"github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/sdk/bundles"
-	"github.com/kairos-io/kairos/sdk/unstructured"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v3"
 )
 
-const DefaultWebUIListenAddress = ":8080"
+const (
+	DefaultWebUIListenAddress = ":8080"
+	FilePrefix                = "file://"
+)
 
 type Install struct {
-	Auto        bool              `yaml:"auto,omitempty"`
-	Reboot      bool              `yaml:"reboot,omitempty"`
-	Device      string            `yaml:"device,omitempty"`
-	Poweroff    bool              `yaml:"poweroff,omitempty"`
-	GrubOptions map[string]string `yaml:"grub_options,omitempty"`
-	Bundles     Bundles           `yaml:"bundles,omitempty"`
-	Encrypt     []string          `yaml:"encrypted_partitions,omitempty"`
-	Env         []string          `yaml:"env,omitempty"`
-	Image       string            `yaml:"image,omitempty"`
+	Auto                   bool              `yaml:"auto,omitempty"`
+	Reboot                 bool              `yaml:"reboot,omitempty"`
+	Device                 string            `yaml:"device,omitempty"`
+	Poweroff               bool              `yaml:"poweroff,omitempty"`
+	GrubOptions            map[string]string `yaml:"grub_options,omitempty"`
+	Bundles                Bundles           `yaml:"bundles,omitempty"`
+	Encrypt                []string          `yaml:"encrypted_partitions,omitempty"`
+	SkipEncryptCopyPlugins bool              `yaml:"skip_copy_kcrypt_plugin,omitempty"`
+	Env                    []string          `yaml:"env,omitempty"`
+	Image                  string            `yaml:"image,omitempty"`
+	EphemeralMounts        []string          `yaml:"ephemeral_mounts,omitempty"`
+	BindMounts             []string          `yaml:"bind_mounts,omitempty"`
 }
 
 type Config struct {
@@ -50,11 +57,11 @@ type Config struct {
 type Bundles []Bundle
 
 type Bundle struct {
-	Repository string `yaml:"repository,omitempty"`
-	Rootfs     string `yaml:"rootfs_path,omitempty"`
-	DB         string `yaml:"db_path,omitempty"`
-
-	Targets []string `yaml:"targets,omitempty"`
+	Repository string   `yaml:"repository,omitempty"`
+	Rootfs     string   `yaml:"rootfs_path,omitempty"`
+	DB         string   `yaml:"db_path,omitempty"`
+	LocalFile  bool     `yaml:"local_file,omitempty"`
+	Targets    []string `yaml:"targets,omitempty"`
 }
 
 const DefaultHeader = "#cloud-config"
@@ -80,6 +87,9 @@ func (b Bundles) Options() (res [][]bundles.BundleOption) {
 			}
 			if bundle.DB != "" {
 				opts = append(opts, bundles.WithDBPath(bundle.DB))
+			}
+			if bundle.LocalFile {
+				opts = append(opts, bundles.WithLocalFile(true))
 			}
 			res = append(res, opts)
 		}
@@ -114,6 +124,8 @@ func (c Config) Query(s string) (res string, err error) {
 	s = fmt.Sprintf(".%s", s)
 	jsondata := map[string]interface{}{}
 
+	// c.String() takes the original data map[string]interface{} and Marshals into YAML, then here we unmarshall it again?
+	// we should be able to use c.originalData and copy it to jsondata
 	err = yaml.Unmarshal([]byte(c.String()), &jsondata)
 	if err != nil {
 		return
@@ -140,6 +152,11 @@ func (c Config) Query(s string) (res string, err error) {
 		res += string(dat)
 	}
 	return
+}
+
+// HasConfigURL returns true if ConfigURL has been set and false if it's empty.
+func (c Config) HasConfigURL() bool {
+	return c.ConfigURL != ""
 }
 
 func allFiles(dir []string) []string {
@@ -173,40 +190,41 @@ func Scan(opts ...Option) (c *Config, err error) {
 		}
 	}
 
-	if c.ConfigURL != "" {
-		var body []byte
-
-		err := retry.Do(
-			func() error {
-				resp, err := http.Get(c.ConfigURL)
-				if err != nil {
-					return err
-				}
-				defer resp.Body.Close()
-
-				body, err = io.ReadAll(resp.Body)
-				if err != nil {
-					return err
-				}
-
-				return nil
-			},
-		)
-
-		if err != nil {
-			return c, fmt.Errorf("could not merge configs: %w", err)
-		}
-
-		yaml.Unmarshal(body, c)               //nolint:errcheck
-		yaml.Unmarshal(body, &c.originalData) //nolint:errcheck
-
-		if exists, header := HasHeader(string(body), ""); exists {
-			c.header = header
+	if c.HasConfigURL() {
+		err = c.fetchRemoteConfig()
+		if !o.NoLogs && err != nil {
+			fmt.Printf("WARNING: Couldn't fetch config_url: %s\n", err.Error())
 		}
 	}
 
 	if c.header == "" {
 		c.header = DefaultHeader
+	}
+
+	finalYAML, err := yaml.Marshal(c.originalData)
+	if !o.NoLogs && err != nil {
+		fmt.Printf("WARNING: %s\n", err.Error())
+	}
+
+	kc, err := schema.NewConfigFromYAML(string(finalYAML), schema.RootSchema{})
+	if err != nil {
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", err.Error())
+		}
+
+		if o.StrictValidation {
+			return c, fmt.Errorf("ERROR: %s", err.Error())
+		}
+	}
+
+	if !kc.IsValid() {
+		if !o.NoLogs && !o.StrictValidation {
+			fmt.Printf("WARNING: %s\n", kc.ValidationError.Error())
+		}
+
+		if o.StrictValidation {
+			return c, fmt.Errorf("ERROR: %s", kc.ValidationError.Error())
+		}
 	}
 
 	return c, nil
@@ -346,7 +364,10 @@ func parseConfig(dir []string, nologs bool) *Config {
 				continue
 			}
 
-			yaml.Unmarshal(b, c) //nolint:errcheck
+			err = yaml.Unmarshal(b, c)
+			if err != nil && !nologs {
+				fmt.Printf("warning: failed to merge config:\n%s\n", err.Error())
+			}
 
 			var newYaml map[string]interface{}
 			yaml.Unmarshal(b, &newYaml) //nolint:errcheck
@@ -366,4 +387,38 @@ func parseConfig(dir []string, nologs bool) *Config {
 	}
 
 	return c
+}
+
+func (c *Config) fetchRemoteConfig() error {
+	var body []byte
+
+	err := retry.Do(
+		func() error {
+			resp, err := http.Get(c.ConfigURL)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			body, err = io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+
+			return nil
+		},
+	)
+
+	if err != nil {
+		return fmt.Errorf("could not merge configs: %w", err)
+	}
+
+	yaml.Unmarshal(body, c)               //nolint:errcheck
+	yaml.Unmarshal(body, &c.originalData) //nolint:errcheck
+
+	if exists, header := HasHeader(string(body), ""); exists {
+		c.header = header
+	}
+
+	return nil
 }

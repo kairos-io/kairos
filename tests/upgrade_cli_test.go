@@ -10,80 +10,72 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
+// test ci
 var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 
 	containerImage := os.Getenv("CONTAINER_IMAGE")
 
+	var vm VM
 	BeforeEach(func() {
-		EventuallyConnects(1200)
+		_, vm = startVM()
+		vm.EventuallyConnects(1200)
 	})
 
-	Context("live cd", func() {
+	AfterEach(func() {
+		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
+	})
 
-		It("has default service active", func() {
+	Context("upgrades", func() {
+		BeforeEach(func() {
 			if containerImage == "" {
 				Fail("CONTAINER_IMAGE needs to be set")
 			}
 
-			if isFlavor("alpine") {
-				out, _ := Sudo("rc-status")
-				Expect(out).Should(ContainSubstring("kairos"))
-				Expect(out).Should(ContainSubstring("kairos-agent"))
-			} else {
-				// Eventually(func() string {
-				// 	out, _ := Machine.Command("sudo systemctl status kairos-agent")
-				// 	return out
-				// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
-
-				out, _ := Sudo("systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled"))
-			}
-		})
-	})
-
-	Context("install", func() {
-		It("to disk with custom config", func() {
-			err := Machine.SendFile("assets/config.yaml", "/tmp/config.yaml", "0770")
+			expectDefaultService(vm)
+			By("Copying config file")
+			err := vm.Scp("assets/config.yaml", "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
-
-			out, _ := Sudo("kairos-agent manual-install --device auto /tmp/config.yaml")
+			By("Manually installing")
+			out, err := vm.Sudo("kairos-agent manual-install --device auto /tmp/config.yaml")
+			Expect(err).ToNot(HaveOccurred())
 			Expect(out).Should(ContainSubstring("Running after-install hook"))
-			fmt.Println(out)
-			Sudo("sync")
-			detachAndReboot()
+			vm.Sudo("sync")
+			By("Rebooting")
+			vm.Reboot()
 		})
-	})
 
-	Context("upgrades", func() {
 		It("can upgrade to current image", func() {
-
-			currentVersion, err := Machine.Command("source /etc/os-release; echo $VERSION")
+			currentVersion, err := vm.Sudo(". /etc/os-release; echo $VERSION")
 			Expect(err).ToNot(HaveOccurred())
+			By(fmt.Sprintf("Checking current version: %s", currentVersion))
 			Expect(currentVersion).To(ContainSubstring("v"))
-			_, err = Sudo("kairos-agent")
+			_, err = vm.Sudo("kairos-agent")
 			if err == nil {
-				out, err := Sudo("kairos-agent upgrade --force --image " + containerImage)
+				By(fmt.Sprintf("Upgrading to: %s", containerImage))
+				out, err := vm.Sudo("kairos-agent upgrade --force --image " + containerImage)
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
 				Expect(out).To(ContainSubstring(containerImage))
 				fmt.Println(out)
 			} else {
-				out, err := Sudo("kairos upgrade --force --image " + containerImage)
+				By(fmt.Sprintf("Upgrading to: %s", containerImage))
+				out, err := vm.Sudo("kairos upgrade --force --image " + containerImage)
 				Expect(err).ToNot(HaveOccurred(), string(out))
 				Expect(out).To(ContainSubstring("Upgrade completed"))
 				Expect(out).To(ContainSubstring(containerImage))
 				fmt.Println(out)
 			}
-			Reboot()
+
+			vm.Reboot()
 
 			Eventually(func() error {
-				_, err := Machine.Command("source /etc/os-release; echo $VERSION")
+				_, err := vm.Sudo(". /etc/os-release; echo $VERSION")
 				return err
 			}, 10*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
 
 			var v string
 			Eventually(func() string {
-				v, _ = Machine.Command("source /etc/os-release; echo $VERSION")
+				v, _ = vm.Sudo(". /etc/os-release; echo $VERSION")
 				return v
 				// TODO: Add regex semver check here
 			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v"), v)

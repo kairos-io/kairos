@@ -8,13 +8,13 @@ theme = ["docsy"]
 
 # Will give values to .Lastmod etc.
 enableGitInfo = true
-prism_syntax_highlighting = true
 # Language settings
 contentDir = "content/en"
 defaultContentLanguage = "en"
 defaultContentLanguageInSubdir = false
 # Useful when translating.
 enableMissingTranslationPlaceholders = true
+enableEmoji = true
 
 disableKinds = ["taxonomy", "taxonomyTerm"]
 
@@ -77,12 +77,14 @@ weight = 1
       unsafe = true
   [markup.highlight]
       # See a complete list of available styles at https://xyproto.github.io/splash/docs/all.html
-      style = "dracula"
+      style = "tango"
 # Everything below this are Site Params
 
 [params]
 copyright = "Kairos authors"
 privacy_policy = "https://policies.google.com/privacy"
+
+prism_syntax_highlighting = true
 
 # First one is picked as the Twitter card image if not set on page.
 # images = ["images/project-illustration.png"]
@@ -108,6 +110,9 @@ algolia_docsearch = false
 # Enable Lunr.js offline search
 offlineSearch = true
 
+[params.softwareVersions]
+k3s = "1.24.3+k3s1"
+kairos = "1.6.0"
 # User interface configuration
 [params.ui]
 # Enable to show the side bar menu in its compact state.
@@ -115,7 +120,7 @@ sidebar_menu_compact = false
 #  Set to true to disable breadcrumb navigation.
 breadcrumb_disable = true
 #  Set to true to hide the sidebar search box (the top nav search box will still be displayed if search is enabled)
-sidebar_search_disable = false
+sidebar_search_disable = true
 #  Set to false if you don't want to display a logo (/assets/icons/logo.svg) in the top nav bar
 navbar_logo = true
 # Set to true to disable the About link in the site footer
@@ -157,3 +162,8 @@ no = 'Oh snap! Sorry to hear that. Please <a href="https://github.com/kairos-io/
         url = "https://join.slack.com/t/spectrocloudcommunity/shared_invite/zt-1k7wsz840-ugSsPKzZCP5gkasJ0kNpqw"
 	icon = "fab fa-slack"
         desc = "Join us on Slack!"
+[[params.links.user]]
+        name = "Newsletter"
+        url = "https://kairoslinux.substack.com/"
+	icon = "fa fa-envelope"
+        desc = "Subscribe to the newsletter!"

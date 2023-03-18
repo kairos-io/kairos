@@ -1,17 +1,17 @@
 name: "Start reset on tty1"
 stages:
-    initramfs:
-     - name: "Starts kairos-reset"
-       if: |
-         cat /proc/cmdline | grep -q "kairos.reset"
-       commands:
-       - systemctl disable getty@tty1
-       - systemctl enable kairos-reset
+  initramfs:
+    - name: "Starts kairos-reset"
+      if: |
+        cat /proc/cmdline | grep -q "kairos.reset"
+      commands:
+        - systemctl disable getty@tty1
+        - systemctl enable kairos-reset
     # Starts installer on boot in Alpine and openRC based
-     - name: "Starts kairos-reset with openRC-based systems"
-       if: |
-         [ -f "/etc/inittab" ] && \
-         ( cat /proc/cmdline | grep -q "kairos.reset" )
-       commands:
-       - sed -i -e 's/tty1.*//g' /etc/inittab
-       - echo "tty1::respawn:/usr/bin/kairos-agent reset" >> /etc/inittab
+    - name: "Starts kairos-reset with openRC-based systems"
+      if: |
+        [ -f "/etc/inittab" ] && \
+        ( cat /proc/cmdline | grep -q "kairos.reset" )
+      commands:
+        - sed -i -e 's/tty1.*//g' /etc/inittab
+        - echo "tty1::respawn:/usr/bin/kairos-agent reset" >> /etc/inittab

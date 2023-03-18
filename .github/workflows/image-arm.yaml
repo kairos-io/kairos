@@ -1,28 +1,51 @@
----
 name: 'Push latest ARM images'
 
-on: 
- push:
-   branches:
-     - master
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**'
+      - '!docs/**'
 
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
+env:
+  FORCE_COLOR: 1
 
 jobs:
+  get-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
+    - id: set-matrix
+      run: |
+          content=`cat ./.github/flavors-arm.json`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+
   docker:
+    needs:
+    - get-matrix
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - flavor: "opensuse-arm-rpi"
-            model: rpi64
-          - flavor: "alpine-arm-rpi"
-            model: rpi64
+      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
         run: |
@@ -60,14 +83,28 @@ jobs:
           export IMAGE_NAME=kairos-$FLAVOR-$TAG.img
           export IMAGE=quay.io/kairos/core-$FLAVOR:$TAG
           docker push quay.io/kairos/core-$FLAVOR:$TAG
+      - name: Prepare sarif files  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/kairos/core-$FLAVOR:latest
+          MODEL: ${{ matrix.model }}
+        run: |
+          mkdir sarif
+          sudo mv build/*.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}
       - name: Sign image
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
-          COSIGN_EXPERIMENTAL: 1
-          FLAVOR: ${{ matrix.flavor }}
-        run: | 
-          TAG=latest
-          cosign sign quay.io/kairos/core-$FLAVOR:$TAG
+          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}"
+          TAG: "latest"
+          COSIGN_YES: true
+        run: |
+          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Upload results
         uses: actions/upload-artifact@v3
         with:

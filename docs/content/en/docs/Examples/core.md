@@ -20,7 +20,7 @@ For example, let's say you want to use an image from the provider-kairos reposit
 #cloud-config
 install:
  # Here we specify the image that we want to deploy
- image: "docker:quay.io/kairos/kairos-opensuse:v1.4.0-k3sv1.26.0-k3s1"
+ image: "docker:quay.io/kairos/kairos-opensuse-leap:v1.4.0-k3sv1.26.0-k3s1"
 ```
 
 Once you've chosen your image, you can move on to the installation process by following the steps outlined in our [Installation](/docs/installation) documentation.
@@ -35,7 +35,7 @@ install:
  auto: true
  reboot: true
  # Here we specify the image that we want to deploy
- image: "docker:quay.io/kairos/kairos-opensuse:v1.4.0-k3sv1.26.0-k3s1"
+ image: "docker:quay.io/kairos/kairos-opensuse-leap:v1.4.0-k3sv1.26.0-k3s1"
 
 hostname: "test"
 users:
@@ -52,7 +52,7 @@ k3s:
 
 As you move through the installation process, there are a few key points to keep in mind when configuring your cloud config file:
 
-- We set `install.image` to the container image that we want to deploy. This can be an image from [our support matrix](/docs/reference/image_matrix), a [custom image](/docs/advanced/customizing) or an [image from scratch](/docs/reference/build).
+- We set `install.image` to the container image that we want to deploy. This can be an image from [our support matrix](/docs/reference/image_matrix), a [custom image](/docs/advanced/customizing) or an [image from scratch](/docs/reference/build-from-scratch).
 - After the installation is complete, the configuration in the `k3s` block will take effect. This is because after the installation, the system will boot into the image specified in the `install.image` field, which in the example above is an image with the Kairos K3s provider, as such the configuration in the k3s block will become active.
 
 With these steps, you should now be able to use Kairos core images as an installer to deploy other container images. The process is straightforward and gives you the flexibility to customize your deployments and build custom images as needed.
