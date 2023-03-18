@@ -9,12 +9,12 @@ import (
 	"time"
 
 	sdk "github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos-sdk/utils"
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	"github.com/kairos-io/kairos/pkg/config"
-	"github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/pkg/utils"
 
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"

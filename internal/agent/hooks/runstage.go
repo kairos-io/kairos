@@ -1,8 +1,8 @@
 package hook
 
 import (
+	"github.com/kairos-io/kairos-sdk/utils"
 	config "github.com/kairos-io/kairos/pkg/config"
-	"github.com/kairos-io/kairos/pkg/utils"
 
 	events "github.com/kairos-io/kairos-sdk/bus"
 )

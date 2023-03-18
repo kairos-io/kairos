@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	agent "github.com/kairos-io/kairos/internal/agent"
+	"github.com/kairos-io/kairos/internal/agent"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/webui"
 
-	bundles "github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/machine"
 	"github.com/kairos-io/kairos-sdk/state"
+	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/internal/common"
 	"github.com/kairos-io/kairos/pkg/config"
-	machine "github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/pkg/utils"
 
 	"github.com/urfave/cli/v2"
 )
@@ -64,7 +64,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
 					releases := agent.ListReleases()
-					list := utils.ListOutput(releases, c.String("output"))
+					list := utils.ListToOutput(releases, c.String("output"))
 					for _, i := range list {
 						fmt.Println(i)
 					}
