@@ -3,9 +3,9 @@ package agent
 import (
 	"fmt"
 
+	events "github.com/kairos-io/kairos-sdk/bus"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/pkg/config"
-	events "github.com/kairos-io/kairos/sdk/bus"
 	"github.com/mudler/go-pluggable"
 )
 

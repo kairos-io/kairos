@@ -64,4 +64,4 @@ RUN zypper in --force-resolution -y \
     tmux \
     vim \
     which \
-    which && zypper cc
+    && zypper cc

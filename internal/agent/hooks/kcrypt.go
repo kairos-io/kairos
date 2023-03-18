@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos-sdk/utils"
 	config "github.com/kairos-io/kairos/pkg/config"
-	"github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/pkg/utils"
 
 	kcryptconfig "github.com/kairos-io/kcrypt/pkg/config"
 )

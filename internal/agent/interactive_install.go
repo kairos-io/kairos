@@ -9,12 +9,12 @@ import (
 	"github.com/kairos-io/kairos/internal/cmd"
 	config "github.com/kairos-io/kairos/pkg/config"
 
-	events "github.com/kairos-io/kairos/sdk/bus"
-	"github.com/kairos-io/kairos/sdk/unstructured"
+	events "github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos-sdk/unstructured"
 
 	"github.com/erikgeiser/promptkit/textinput"
 	"github.com/jaypipes/ghw"
-	"github.com/kairos-io/kairos/pkg/utils"
+	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/mudler/go-pluggable"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/pterm/pterm"

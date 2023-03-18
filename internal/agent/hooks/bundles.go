@@ -1,9 +1,9 @@
 package hook
 
 import (
+	"github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/machine"
 	config "github.com/kairos-io/kairos/pkg/config"
-	"github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/sdk/bundles"
 )
 
 type BundleOption struct{}

@@ -13,6 +13,24 @@ How to contribute
 -  **Check good first-issue** - check out [good first issues](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) if you want to contribute to a specific problem
 -  **Read about our code of conduct and governance**: Kairos is an Open source, community-driven project with a [governance](https://github.com/kairos-io/kairos/blob/master/GOVERNANCE.md) and adopts CNCF [Code of conduct](https://github.com/kairos-io/kairos/blob/master/CODE_OF_CONDUCT.md)
 
+Guiding user stories
+--------------------
+
+These "guiding user stories" summarize the scope and ideals of the Kairos project. These are all stories that can grow with context: every new device or OS that Kairos supports can have an implication for each of these stories. We cannot ask every contribution to satisfy them all at once. Instead, we ask that each new feature or capability should fit into at least one guiding user story and that every lower-numbered user story should be satisfied first.
+
+1. I can install k8s on an experimental device.
+2. I can install k8s on an experimental cluster.
+3. I can install using a conservative trust model.
+4. I can upgrade safely.
+5. I can upgrade automatically.
+6. I can ensure OS security updates are installed automatically.
+7. I can secure my data at rest and in flight.
+8. I can install on a production cluster.
+9. I can derive from an OS of my choosing.
+10. I can install on an edge cluster.
+
+This list is always subject to revision, but notice that each story loses meaning without the ones that come before.
+
 Pull request best practices
 ---------------------------
 
