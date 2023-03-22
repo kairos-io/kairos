@@ -36,7 +36,7 @@ stages:
 stages:
   initramfs:
     - files:
-        - path: /etc/systemd/network/config.network
+        - path: /etc/systemd/network/01-man.network
           permissions: 0644
           content: |
             [Match]

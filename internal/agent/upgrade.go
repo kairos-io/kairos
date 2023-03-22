@@ -8,12 +8,12 @@ import (
 	"os/exec"
 	"strings"
 
+	events "github.com/kairos-io/kairos-sdk/bus"
 	"github.com/kairos-io/kairos/pkg/config"
-	events "github.com/kairos-io/kairos/sdk/bus"
 
+	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/pkg/github"
-	"github.com/kairos-io/kairos/pkg/utils"
 	"github.com/mudler/go-pluggable"
 )
 

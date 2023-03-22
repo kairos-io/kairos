@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    paths:
+      - '**'
+      - '!docs/**'
 
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
+env:
+  FORCE_COLOR: 1
 
 jobs:
   get-matrix:

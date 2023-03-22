@@ -22,9 +22,21 @@ Every component is extensible and modular such as it can be customized and repla
 
 ### Internal components
 
-Kairos encompasses several components, some externally, most notably:
+Kairos encompasses several components, external and internal.
 
+Internal:
+- [kairos](https://github.com/kairos-io/kairos) is the main repository, building the `kairos-agent` and containing the image definitions which runs on our CI pipelines.
+- [immucore](https://github.com/kairos-io/immucore) is the immutability management interface.
+- [AuroraBoot](https://github.com/kairos-io/AuroraBoot) is the Kairos Node bootstrapper
+- [elemental-cli](https://github.com/kairos-io/elemental-cli) manages the installation, reset, and upgrade of the Kairos node.
+- [system packages](https://github.com/kairos-io/packages) contains additional packages, cross-distro, partly used in framework images
+- [kcrypt](https://github.com/kairos-io/kcrypt) is the component responsible for encryption and decryption of data at rest
+- [kcrypt-challenger](https://github.com/kairos-io/kcrypt-challenger) is the `kairos` plugin that works with the TPM chip to unlock LUKS partitions
+- [osbuilder](https://github.com/kairos-io/osbuilder) is used to build bootable artifacts from container images
+- [entangle](https://github.com/kairos-io/entangle) a CRD to interconnect Kubernetes clusters
+- [entangle-proxy](https://github.com/kairos-io/entangle-proxy) a CRD to control interconnetted clusters
+
+External:
 - [K3s](https://k3s.io) as a Kubernetes distribution
 - [edgevpn](https://mudler.github.io/edgevpn) (optional) as fabric for the distributed network, node coordination and bootstrap. Provides also embedded DNS capabilities for the cluster. Internally uses [libp2p](https://github.com/libp2p/go-libp2p) for the P2P mesh capabilities.
-- [elemental-toolkit](https://rancher.github.io/elemental-toolkit/docs/) as a fundament to build the Linux derivative. Indeed, any `Elemental` docs applies to `Kairos` as well.
 - [nohang](https://github.com/hakavlad/nohang) A sophisticated low memory handler for Linux.

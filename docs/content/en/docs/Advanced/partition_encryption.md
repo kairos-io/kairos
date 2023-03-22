@@ -295,3 +295,7 @@ users:
 ```bash
 echo '{ "data": "{ \"label\": \"LABEL\" }"}' | sudo -E WSS_SERVER="http://localhost:30000" /system/discovery/kcrypt-discovery-challenger "discovery.password"
 ```
+
+## Notes
+
+If encryption is enabled and `COS_PERSISTENT` is set to be encrypted, every cloud config file in `/usr/local/cloud-config` will be protected and can be used to store sensitive data. However, it's important to keep in mind that although the contents of /usr/local are retained between reboots and upgrades, they will not be preserved during a [resets](/docs/reference/reset).

@@ -14,6 +14,7 @@ defaultContentLanguage = "en"
 defaultContentLanguageInSubdir = false
 # Useful when translating.
 enableMissingTranslationPlaceholders = true
+enableEmoji = true
 
 disableKinds = ["taxonomy", "taxonomyTerm"]
 
@@ -161,3 +162,8 @@ no = 'Oh snap! Sorry to hear that. Please <a href="https://github.com/kairos-io/
         url = "https://join.slack.com/t/spectrocloudcommunity/shared_invite/zt-1k7wsz840-ugSsPKzZCP5gkasJ0kNpqw"
 	icon = "fab fa-slack"
         desc = "Join us on Slack!"
+[[params.links.user]]
+        name = "Newsletter"
+        url = "https://kairoslinux.substack.com/"
+	icon = "fa fa-envelope"
+        desc = "Subscribe to the newsletter!"

@@ -5,18 +5,16 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/pkg/utils"
-
-	events "github.com/kairos-io/kairos/sdk/bus"
-
+	events "github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos-sdk/utils"
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
 	config "github.com/kairos-io/kairos/pkg/config"
-	machine "github.com/kairos-io/kairos/pkg/machine"
 	"github.com/nxadm/tail"
 )
 
-// setup needs edgevpn and k3s installed locally (both k3s and k3s-agent systemd services).
+// Run starts the agent provider emitting the bootstrap event.
 func Run(opts ...Option) error {
 	o := &Options{}
 	if err := o.Apply(opts...); err != nil {

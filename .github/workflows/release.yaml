@@ -58,7 +58,7 @@ jobs:
           COSIGN_YES: true
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
+          export TAG=${GITHUB_REF##*/}_${{ matrix.flavor }}
           export IMAGE="quay.io/kairos/framework"
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
@@ -89,13 +89,18 @@ jobs:
           sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - name: Build  🔧
         if: startsWith(github.ref, 'refs/tags/')
         env:
           FLAVOR: ${{ matrix.flavor }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
+          earthly +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
           sudo mv build release
       - name: Push to quay
         env:

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kairos-io/kairos/sdk/bus"
+	"github.com/kairos-io/kairos-sdk/bus"
 
 	"github.com/mudler/go-pluggable"
 )
