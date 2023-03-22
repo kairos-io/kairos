@@ -63,7 +63,7 @@ On the other hand, immutable OSes simplify managing the OS stack by not exposing
 
 ## Immutable OS: a look at the current landscape
 
-Here are some popular Immutable OS solutions, although this list is not exhaustive, there are much better and updated you can find [on Github](https://github.com/castrojo/awesome-immutable). Each of the solutions was created to tackle its own set of challenges, and they differ in their implementation details depending on their target environments.
+Here are some popular Immutable OS solutions, although this list is not exhaustive. There are much better and updated ones you can find [on Github](https://github.com/castrojo/awesome-immutable). Each of the solutions was created to tackle its own set of challenges, and they differ in their implementation details depending on their target environments.
 
 The following are some of the most popular Immutable OS solutions:
 
