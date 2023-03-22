@@ -68,7 +68,7 @@ Here are some popular Immutable OS solutions, although this list is not exhausti
 The following are some of the most popular Immutable OS solutions:
 
 - CoreOS: A Linux-based operating system designed for containers and cloud computing, which uses an immutable file system called "Container Linux". CoreOS has now merged with Red Hat Enterprise Linux.
-- Project Atomic: A CentOS-based Linux distribution that focuses on container deployment and management, using a layered approach that allows for easy rollbacks.
+- Project Atomic: A CentOS-based Linux distribution, that focuses on container deployment and management, using a layered approach that allows for easy rollbacks.
 - Ubuntu Core: Ubuntu Core is a version of the Ubuntu operating system designed and [engineered for IoT and embedded systems](https://ubuntu.com/core/services/guide/intro-ubuntu-core). It uses snap packages exclusively to create a confined and transaction-based system. It also updates itself and its applications automatically.
 - RancherOS: - A Linux-based operating system that is designed to be minimal, lightweight, and optimized for running containers. RancherOS uses Docker for all system processes, and its file system is mounted read-only, making it immutable.
 - Talos: An open-source Linux distribution designed to run Kubernetes, K3s, or other container orchestration systems. It features a highly secure, API-managed infrastructure with automated and scalable operations and is suitable for cloud, containers, and general-purpose environments.
