@@ -105,7 +105,7 @@ Kairos is a great fit when you want to deploy a Linux system on real hardware at
 - Strong security posture, including [online data encryption at-rest via TPM](/docs/advanced/partition_encryption/), Supply chain verification and Service bill of material
 - Good hardware support
 - Simplified Kubernetes deployment with [self-coordinated K3s](/docs/installation/p2p/)
-- [Flexibility in customization](/docs/advanced/customizing/), including fine-grained control over the OS layer (packages installed, versions), and complete support maintenance level by [building images from scratch](/docs/reference/build-from-scratch).
+- [Flexibility in customization](/docs/advanced/customizing/), including fine-grained control over the OS layer (packages installed, versions), and complete support maintenance level by [building images from scratch](/docs/reference/build-from-scratch)
 - Complete control over your infrastructure
 - A [community-driven](/community/), [open roadmap](https://github.com/orgs/kairos-io/projects/2), office hours, and the opportunity to get involved
 
