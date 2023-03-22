@@ -109,7 +109,7 @@ Kairos is a great fit when you want to deploy a Linux system on real hardware at
 - Complete control over your infrastructure
 - A [community-driven](/community/), [open roadmap](https://github.com/orgs/kairos-io/projects/2), office hours, and the opportunity to get involved
 
-**Maintenance** - One thing you may have noticed when comparing Kairos to other alternatives is that it doesn't tie you to a specific OS. Instead, Kairos is flexible and portable, supporting all the popular Linux distributions, such as Ubuntu, Debian, and Fedora, among others. This unties you from typical vendor lock-in strategies forcing to choose a specific distribution only for the immutability aspect.
+**Maintenance** - One thing you may have noticed when comparing Kairos to other alternatives, is that it doesn't tie you to a specific OS. Instead, Kairos is flexible and portable, supporting all the popular Linux distributions, such as Ubuntu, Debian, and Fedora, among others. This, unties you from typical vendor lock-in strategies, forcing you to choose a specific distribution only for the immutability aspect.
 
 The design shines also for its support for **long-term maintenance**. Each framework image released by Kairos allows the conversion of any OS to the given Kairos version, which could potentially enable maintenance for as long as the base OS support model allows. [You can learn more about it here](/docs/reference/build-from-scratch).
 
