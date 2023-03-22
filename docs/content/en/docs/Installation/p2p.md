@@ -20,6 +20,13 @@ With this feature, users don't need to specify any network settings. They can ju
 
 This makes it easier to deploy and manage Kubernetes clusters at the Edge, saving user's time and effort, allowing them to focus on running and scaling their applications. For more information about how does it work behind the scenes, [check out the architecture section](/docs/architecture/network).
 
+You can find full examples in our [examples section](/docs/examples):
+- [Full end to end example to bootstrap a self-coordinated cluster with Kairos and AuroraBoot](/docs/examples/p2p_e2e/)
+- [Self-coordinated K3s HA cluster with KubeVIP](/docs/examples/multi-node-p2p-ha-kubevip/)
+- [Multi-node, single master setup](/docs/examples/multi-node-p2p/)
+- [Multi-node, HA setup](/docs/examples/multi-node-p2p-ha/)
+- [Single-node setup](/docs/examples/single-node-p2p/)
+
 This feature is currently experimental and can be optionally enabled by adding the following configuration to the node deployment file. If you are not familiar with the installation process, it is suggested to follow the [quickstart](/docs/getting-started):
 
 ```yaml
