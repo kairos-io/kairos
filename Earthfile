@@ -442,10 +442,16 @@ arm-image:
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
   WORKDIR /build
-  ENV STATE_SIZE="6200"
-  ENV RECOVERY_SIZE="4200"
   ENV SIZE="15200"
-  ENV DEFAULT_ACTIVE_SIZE="2000"
+  IF [ "$FLAVOR" = "ubuntu-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-20-lts-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-22-lts-arm-rpi" ]
+    ENV STATE_SIZE="6900"
+    ENV RECOVERY_SIZE="4600"
+    ENV DEFAULT_ACTIVE_SIZE="2300"
+  ELSE
+    ENV STATE_SIZE="6200"
+    ENV RECOVERY_SIZE="4200"
+    ENV DEFAULT_ACTIVE_SIZE="2000"
+  END
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
