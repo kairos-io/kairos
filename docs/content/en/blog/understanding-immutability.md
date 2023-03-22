@@ -135,6 +135,6 @@ Immutable Linux OSes offer a higher degree of reliability, security, and fault t
 
 ## Footnotes
 
-1: (Author note) As I dislike marketing buzzwords, I prefer to describe the Edge as the last-mile of computing. It involves a dedicated hardware that needs to be controlled by the Cloud in some way, such as a small server running Kubernetes, performing measurements and communicating with the Cloud. The term "Edge" is a broad, generic term that encompasses various computing scenarios, such as near-edge and far-edge computing, each with its own specialized deployment solution.
+[^1]: (Author note) As I dislike marketing buzzwords, I prefer to describe the Edge as the last-mile of computing. It involves a dedicated hardware that needs to be controlled by the Cloud in some way, such as a small server running Kubernetes, performing measurements and communicating with the Cloud. The term "Edge" is a broad, generic term that encompasses various computing scenarios, such as near-edge and far-edge computing, each with its own specialized deployment solution.
 
 To put it simply, Kairos can be deployed on bare-metal hardware, and it provides robust support for hardware deployment.
