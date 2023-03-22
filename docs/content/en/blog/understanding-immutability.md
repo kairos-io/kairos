@@ -1,6 +1,6 @@
 ---
 title: "Understanding Immutable Linux OS: Benefits, Architecture, and Challenges"
-date: 2023-03-09
+date: 2023-03-22
 linkTitle: "Understanding Immutable Linux OS: Benefits, Architecture, and Challenges"
 description: "In this post we are trying to answer some of the typical questions that help understanding Immutable OSes principles and we will dive a bit in what solutions are out there, and what are the challenges in the field"
 author: Ettore Di Giacinto ([Twitter](https://twitter.com/mudler_it)) ([GitHub](https://github.com/mudler))
@@ -91,6 +91,7 @@ To simplify the comparison between the different Immutable OS solutions, the fol
 | Red Hat Atomic Host | Red Hat | Transactional Updates | Cloud, optimized for running containers |
 | Fedora Silverblue | Fedora | Transactional Updates | Desktop, Containers |
 | Photon OS | Linux | Immutable File System | Cloud |
+| Kairos | Any Linux distribution | Immutable File System | Cloud, Edge, General purpose |
 
 {{% alert color="info" %}}
 _"So, what's Kairos? What's the challenges that Kairos tries to overcome?"_
