@@ -98,7 +98,7 @@ _"So, what's Kairos? What's the challenges that Kairos tries to overcome?"_
 
 ## How Kairos fits in the ecosystem
 
-Kairos is a great fit when you want to deploy a Linux system on real hardware at the Edge[1] or in a datacenter, whether it's in your cloud on-premises or in the Edge. Specifically, if you're looking for:
+Kairos is a great fit when you want to deploy a Linux system on real hardware at the Edge[^1] or in a datacenter, whether it's in your cloud on-premises or in the Edge. Specifically, if you're looking for:
 
 - Zero-touch configuration and high-scalable deployments. [See how to perform automated installs](/docs/installation/automated/) or [how to create custom appliances](/docs/advanced/build/).
 - A single distribution center of upgrades across your infrastructure using container registries. [See docs](/docs/architecture/container/#benefits)
