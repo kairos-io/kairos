@@ -1,8 +1,6 @@
 name: Build arm images
 on:
   push:
-    branches:
-      - 770-push-arm-images-in-own-repo
     tags:
       - '*'
 jobs:
