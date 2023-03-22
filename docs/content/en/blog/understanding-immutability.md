@@ -8,7 +8,7 @@ author: Ettore Di Giacinto ([Twitter](https://twitter.com/mudler_it)) ([GitHub](
 
 For years, the traditional Linux operating system has been a top pick for its flexibility and ability to be customized. But as great as it is, there are use cases in which stricter security rules and higher reliability standards are needed. That's where immutable Linux operating systems come in - offering a more secure and reliable option, especially in settings where security is paramount.
 
-{{< card header="![guardian2](https://user-images.githubusercontent.com/2420543/224127635-9bbe5c83-aad9-48a4-a944-087ed105dc0d.jpeg)" subtitle="_Guardian, fierce and protective, defending a treasure hoard, dark and mysterious dungeon environment, flickering torchlight lighting, monochrome photography style, 64K UHD quality._ Author: _Stable diffusion_"
+{{< card header="![castle](https://user-images.githubusercontent.com/2420543/226939911-6801ecab-d023-4357-92f2-b782ae086462.png)" subtitle="_An illustration of a fortress surrounded by a moat and guarded by armored knights, with a banner flying the Linux penguin logo, medieval, fortified, secure, trending on Artstation._ Author: _Midjourney AI_"
          >}}
 {{< /card >}}
 
