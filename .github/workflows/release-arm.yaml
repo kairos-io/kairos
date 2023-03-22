@@ -86,9 +86,9 @@ jobs:
         run: |
           curl https://luet.io/install.sh | sudo sh
           sudo tar cvf build.tar build
-          sudo luet util pack quay.io/mauromorales/core-${{ matrix.flavor }}-img:$VERSION build.tar image.tar
+          sudo luet util pack quay.io/kairos/core-${{ matrix.flavor }}-img:$VERSION build.tar image.tar
           sudo -E docker load -i image.tar
-          sudo -E docker push quay.io/mauromorales/core-${{ matrix.flavor }}-img:$VERSION
+          sudo -E docker push quay.io/kairos/core-${{ matrix.flavor }}-img:$VERSION
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
