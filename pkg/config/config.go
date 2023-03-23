@@ -37,8 +37,8 @@ type Install struct {
 
 type Config struct {
 	Install *Install `yaml:"install,omitempty"`
+	collector.Config
 	// TODO: Remove this too?
-	header             string
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
 	FailOnBundleErrors bool              `yaml:"fail_on_bundles_errors,omitempty"`
@@ -95,16 +95,6 @@ func (c Config) HasConfigURL() bool {
 	return c.ConfigURL != ""
 }
 
-func allFiles(dir []string) []string {
-	files := []string{}
-	for _, d := range dir {
-		if f, err := listFiles(d); err == nil {
-			files = append(files, f...)
-		}
-	}
-	return files
-}
-
 func Scan(opts ...collector.Option) (c *Config, err error) {
 	result := &Config{}
 
@@ -118,6 +108,7 @@ func Scan(opts ...collector.Option) (c *Config, err error) {
 		return result, err
 
 	}
+	result.Config = *genericConfig
 	configStr, err := genericConfig.String()
 	if err != nil {
 		return result, err
@@ -150,43 +141,6 @@ func Scan(opts ...collector.Option) (c *Config, err error) {
 	}
 
 	return result, nil
-}
-
-func fileSize(f string) float64 {
-	file, err := os.Open(f)
-	if err != nil {
-		return 0
-	}
-	defer file.Close()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return 0
-	}
-
-	bytes := stat.Size()
-	kilobytes := (bytes / 1024)
-	megabytes := (float64)(kilobytes / 1024) // cast to type float64
-
-	return megabytes
-}
-
-func listFiles(dir string) ([]string, error) {
-	content := []string{}
-
-	err := filepath.Walk(dir,
-		func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil
-			}
-			if !info.IsDir() {
-				content = append(content, path)
-			}
-
-			return nil
-		})
-
-	return content, err
 }
 
 type Stage string

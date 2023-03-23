@@ -15,6 +15,7 @@ import (
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	"github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/pkg/config/collector"
 
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"
@@ -72,7 +73,7 @@ func Reset(dir ...string) error {
 		args = append(args, "--reset-persistent")
 	}
 
-	c, err := config.Scan(config.Directories(dir...))
+	c, err := config.Scan(collector.Directories(dir...))
 	if err != nil {
 		return err
 	}

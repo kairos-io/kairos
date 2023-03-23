@@ -67,7 +67,7 @@ func (c *Config) MergeConfig(newConfig *Config) error {
 	return mergo.Merge(c, newConfig, func(c *mergo.Config) { c.Overwrite = true })
 }
 
-// String returns a string which is a Yaml representation of the Config
+// String returns a string which is a Yaml representation of the Config.
 func (c *Config) String() (string, error) {
 	data, err := yaml.Marshal(c)
 	if err != nil {
@@ -119,7 +119,7 @@ func allFiles(dir []string) []string {
 	return files
 }
 
-// parseFiles returns a list of Configs parsed from files
+// parseFiles returns a list of Configs parsed from files.
 func parseFiles(dir []string, nologs bool) Configs {
 	result := Configs{}
 	files := allFiles(dir)
@@ -337,7 +337,7 @@ func (c Config) Query(s string) (res string, err error) {
 	return
 }
 
-// TODO check if doing the right thing ... also checking remote files and cmdline
+// TODO check if doing the right thing ... also checking remote files and cmdline.
 func FindYAMLWithKey(s string, opts ...Option) ([]string, error) {
 	o := &Options{}
 

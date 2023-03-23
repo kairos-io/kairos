@@ -20,7 +20,7 @@ var NoLogs Option = func(o *Options) error {
 // SoftErr prints a warning if err is no nil and NoLogs is not true.
 // It's use to wrap the same handling happening in multiple places.
 //
-// TODO: Switch to a standard logging library (e.g. verbose, silent mode etc)
+// TODO: Switch to a standard logging library (e.g. verbose, silent mode etc).
 func (o *Options) SoftErr(message string, err error) {
 	if !o.NoLogs && err != nil {
 		fmt.Printf("WARNING: %s, %s\n", message, err.Error())
