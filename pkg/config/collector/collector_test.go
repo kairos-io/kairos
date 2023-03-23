@@ -232,6 +232,9 @@ options:
 config_url: http://127.0.0.1:%d/remote_config_5.yaml
 local_key_2: local_value_2
 `, port)), os.ModePerm)
+				err = os.WriteFile(path.Join(tmpDir2, "local_config_3.yaml"), []byte(`#cloud-config
+local_key_3: local_value_3
+`), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
 				err = os.WriteFile(path.Join(serverDir, "remote_config_5.yaml"), []byte(fmt.Sprintf(`#cloud-config
 
@@ -281,6 +284,8 @@ options:
 				Expect(k).To(Equal("local_value_1"))
 				k = (*c)["local_key_2"].(string)
 				Expect(k).To(Equal("local_value_2"))
+				k = (*c)["local_key_3"].(string)
+				Expect(k).To(Equal("local_value_3"))
 				k = (*c)["remote_key_1"].(string)
 				Expect(k).To(Equal("remote_value_1"))
 				k = (*c)["remote_key_2"].(string)
@@ -401,6 +406,9 @@ name: Mario
 			tmpDir, err = os.MkdirTemp("", "config")
 			Expect(err).ToNot(HaveOccurred())
 
+			err = os.WriteFile(filepath.Join(tmpDir, "b"), []byte(`zz.foo="baa" options.foo=bar`), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
 			err = os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(`#cloud-config
 local_key_1: local_value_1
 some:
@@ -412,7 +420,10 @@ some:
 
 		It("can query for keys", func() {
 			o := &Options{}
-			err := o.Apply(Directories(tmpDir))
+
+			err = o.Apply(MergeBootLine, Directories(tmpDir),
+				WithBootCMDLineFile(filepath.Join(tmpDir, "b")),
+			)
 			Expect(err).ToNot(HaveOccurred())
 
 			c, err := Scan(o)
@@ -421,10 +432,71 @@ some:
 			v, err := c.Query("local_key_1")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(v).To(Equal("local_value_1\n"))
-			// TODO: there's a bug when trying to dig some.other.key, so making the test pass this way for now, since that was not tested before
 			v, err = c.Query("some")
 			Expect(err).ToNot(HaveOccurred())
+			// TODO: there's a bug when trying to dig some.other.key, so making the test pass this way for now, since that was not tested before
 			Expect(v).To(Equal("other:\n  key: 3\n"))
+			Expect(c.Query("options")).To(Equal("foo: bar\n"))
+		})
+	})
+
+	Describe("FindYAMLWithKey", func() {
+		var c1Path, c2Path, tmpDir string
+		var err error
+
+		BeforeEach(func() {
+			var c1 = `
+a: 1
+b:
+  c: foo
+d:
+  e: bar
+`
+
+			var c2 = `
+b:
+  c: foo2
+`
+			tmpDir, err = os.MkdirTemp("", "config")
+			Expect(err).ToNot(HaveOccurred())
+
+			c1Path = filepath.Join(tmpDir, "c1.yaml")
+			c2Path = filepath.Join(tmpDir, "c2.yaml")
+
+			err := os.WriteFile(c1Path, []byte(c1), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = os.WriteFile(c2Path, []byte(c2), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			// closeFunc()
+			err := os.RemoveAll(tmpDir)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("can find a top level key", func() {
+			r, err := FindYAMLWithKey("a", Directories(tmpDir))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(Equal([]string{c1Path}))
+		})
+
+		It("can find a nested key", func() {
+			r, err := FindYAMLWithKey("d.e", Directories(tmpDir))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(Equal([]string{c1Path}))
+		})
+
+		It("returns multiple files when key exists in them", func() {
+			r, err := FindYAMLWithKey("b.c", Directories(tmpDir))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(ContainElements(c1Path, c2Path))
+		})
+
+		It("return an empty list when key is not found", func() {
+			r, err := FindYAMLWithKey("does.not.exist", Directories(tmpDir))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(r).To(BeEmpty())
 		})
 	})
 })

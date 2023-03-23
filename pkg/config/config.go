@@ -10,7 +10,6 @@ import (
 	"github.com/kairos-io/kairos-sdk/bundles"
 	"github.com/kairos-io/kairos/pkg/config/collector"
 	schema "github.com/kairos-io/kairos/pkg/config/schemas"
-	"github.com/kairos-io/kairos/sdk/bundles"
 	yip "github.com/mudler/yip/pkg/schema"
 
 	"gopkg.in/yaml.v3"
