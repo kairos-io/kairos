@@ -16,7 +16,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
-	"github.com/kairos-io/kairos/sdk/unstructured"
+	"github.com/kairos-io/kairos-sdk/unstructured"
 	"gopkg.in/yaml.v1"
 )
 
