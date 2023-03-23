@@ -8,13 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - name: Bump cos 🔧
-        run: |
-          docker run --name=yq -v "${PWD}":/workdir mikefarah/yq
-          docker cp yq:/usr/bin/yq ./
-          export YQ=$PWD/yq
-          sudo -E bash ./.github/bump_repositories.sh
-          rm -rf yq
+        run: earthly +bump-repositories
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v4
         with:
