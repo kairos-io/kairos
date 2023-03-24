@@ -339,34 +339,3 @@ func (c Config) Query(s string) (res string, err error) {
 	}
 	return
 }
-
-// TODO check if doing the right thing ... also checking remote files and cmdline.
-func FindYAMLWithKey(s string, opts ...Option) ([]string, error) {
-	o := &Options{}
-
-	result := []string{}
-	if err := o.Apply(opts...); err != nil {
-		return result, err
-	}
-
-	files := allFiles(o.ScanDir)
-
-	for _, f := range files {
-		dat, err := os.ReadFile(f)
-		if err != nil {
-			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
-		}
-
-		found, err := unstructured.YAMLHasKey(s, dat)
-		if err != nil {
-			fmt.Printf("warning: skipping file '%s' - %s\n", f, err.Error())
-		}
-
-		if found {
-			result = append(result, f)
-		}
-
-	}
-
-	return result, nil
-}

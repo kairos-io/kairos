@@ -439,66 +439,6 @@ some:
 			Expect(c.Query("options")).To(Equal("foo: bar\n"))
 		})
 	})
-
-	Describe("FindYAMLWithKey", func() {
-		var c1Path, c2Path, tmpDir string
-		var err error
-
-		BeforeEach(func() {
-			var c1 = `
-a: 1
-b:
-  c: foo
-d:
-  e: bar
-`
-
-			var c2 = `
-b:
-  c: foo2
-`
-			tmpDir, err = os.MkdirTemp("", "config")
-			Expect(err).ToNot(HaveOccurred())
-
-			c1Path = filepath.Join(tmpDir, "c1.yaml")
-			c2Path = filepath.Join(tmpDir, "c2.yaml")
-
-			err := os.WriteFile(c1Path, []byte(c1), os.ModePerm)
-			Expect(err).ToNot(HaveOccurred())
-			err = os.WriteFile(c2Path, []byte(c2), os.ModePerm)
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		AfterEach(func() {
-			// closeFunc()
-			err := os.RemoveAll(tmpDir)
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		It("can find a top level key", func() {
-			r, err := FindYAMLWithKey("a", Directories(tmpDir))
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r).To(Equal([]string{c1Path}))
-		})
-
-		It("can find a nested key", func() {
-			r, err := FindYAMLWithKey("d.e", Directories(tmpDir))
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r).To(Equal([]string{c1Path}))
-		})
-
-		It("returns multiple files when key exists in them", func() {
-			r, err := FindYAMLWithKey("b.c", Directories(tmpDir))
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r).To(ContainElements(c1Path, c2Path))
-		})
-
-		It("return an empty list when key is not found", func() {
-			r, err := FindYAMLWithKey("does.not.exist", Directories(tmpDir))
-			Expect(err).ToNot(HaveOccurred())
-			Expect(r).To(BeEmpty())
-		})
-	})
 })
 
 func createRemoteConfigs(serverDir string, port int) string {
