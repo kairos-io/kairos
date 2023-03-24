@@ -43,8 +43,8 @@ stages:
         - |
             source /run/cos/cos-layout.env
             source /run/cos/custom-layout.env
-            PERSISTENT_STATE_PATHS="${CUSTOM_BIND_MOUNTS} ${PERSISTENT_STATE_PATHS}"
-            RW_PATHS="${CUSTOM_EPHEMERAL_MOUNTS} ${RW_PATHS}"
+            PERSISTENT_STATE_PATHS="${PERSISTENT_STATE_PATHS} ${CUSTOM_BIND_MOUNTS} "
+            RW_PATHS="${RW_PATHS} ${CUSTOM_EPHEMERAL_MOUNTS}"
             # Remove the existing lines that we are gonna rewrite
             sed -i "/RW_PATHS/d" /run/cos/cos-layout.env
             sed -i "/PERSISTENT_STATE_PATHS/d" /run/cos/cos-layout.env

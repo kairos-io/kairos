@@ -820,3 +820,24 @@ generate-schema:
     ARG SCHEMA_FILE="docs/static/$RELEASE_VERSION/cloud-config.json"
     RUN kairos-agent print-schema > $SCHEMA_FILE 
     SAVE ARTIFACT ./docs/static/* AS LOCAL docs/static/
+
+last-commit-packages:
+    FROM quay.io/skopeo/stable
+    RUN dnf install -y jq
+    WORKDIR build
+    RUN skopeo list-tags docker://quay.io/kairos/packages | jq -rc '.Tags | map(select( (. | contains("-repository.yaml")) )) | sort_by(. | sub("v";"") | sub("-repository.yaml";"") | sub("-";"") | split(".") | map(tonumber) ) | .[-1]' > REPO_AMD64
+    RUN skopeo list-tags docker://quay.io/kairos/packages-arm64 | jq -rc '.Tags | map(select( (. | contains("-repository.yaml")) )) | sort_by(. | sub("v";"") | sub("-repository.yaml";"") | sub("-";"") | split(".") | map(tonumber) ) | .[-1]' > REPO_ARM64
+    SAVE ARTIFACT REPO_AMD64 REPO_AMD64
+    SAVE ARTIFACT REPO_ARM64 REPO_ARM64
+
+bump-repositories:
+    FROM mikefarah/yq
+    WORKDIR build
+    COPY +last-commit-packages/REPO_AMD64 REPO_AMD64
+    COPY +last-commit-packages/REPO_ARM64 REPO_ARM64
+    ARG REPO_AMD64=$(cat REPO_AMD64)
+    ARG REPO_ARM64=$(cat REPO_ARM64)
+    COPY framework-profile.yaml framework-profile.yaml
+    RUN yq eval ".repositories[0] |= . * { \"reference\": \"${REPO_AMD64}\" }" -i framework-profile.yaml
+    RUN yq eval ".repositories[1] |= . * { \"reference\": \"${REPO_ARM64}\" }" -i framework-profile.yaml
+    SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
