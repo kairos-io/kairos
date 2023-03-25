@@ -93,4 +93,4 @@ repositories:
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230323113403-repository.yaml
+    reference: 20230324075000-repository.yaml
