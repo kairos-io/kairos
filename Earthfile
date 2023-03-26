@@ -66,7 +66,7 @@ test:
     WORKDIR /build
     COPY +luet/luet /usr/bin/luet
     COPY . .
-    RUN go run github.com/onsi/ginkgo/v2/ginkgo --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo --fail-fast --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
 OSRELEASE:
