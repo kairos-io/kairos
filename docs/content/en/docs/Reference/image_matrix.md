@@ -23,21 +23,54 @@ Below is a list of the available images and their locations on the quay.io regis
 
 Base images are tagged with specific upstream versions (e.g. Ubuntu 20 LTS is pinned to Ubuntu 20:04, openSUSE to openSUSE leap 15.4, etc.).
 
-| **Flavor/Variant**                                  	                   | **Core (no k3s)**                                       	               | **Standard(k3s)**                           	                             |
-|--------------------------------------------------------------------------|-------------------------------------------------------------------------|---------------------------------------------------------------------------|
-| **Alpine Linux based (openSUSE kernel)**                              	 | https://quay.io/repository/kairos/core-alpine-opensuse-leap           	 | https://quay.io/repository/kairos/kairos-alpine-opensuse-leap           	 |
-| **Alpine Linux based (Ubuntu kernel)**                              	   | https://quay.io/repository/kairos/core-alpine-ubuntu           	       | https://quay.io/repository/kairos/kairos-alpine-ubuntu           	       |
-| **Alpine Linux based (RaspberryPi 3 and 4, arm64)** 	                   | https://quay.io/repository/kairos/core-alpine-arm-rpi   	               | https://quay.io/repository/kairos/kairos-alpine-arm-rpi   	               |
-| **Debian based**                                  	                     | https://quay.io/repository/kairos/core-debian         	                 | https://quay.io/repository/kairos/kairos-debian         	                 |
-| **Fedora based**                                  	                     | https://quay.io/repository/kairos/core-fedora         	                 | https://quay.io/repository/kairos/kairos-fedora         	                 |
-| **openSUSE Leap based**                                  	               | https://quay.io/repository/kairos/core-opensuse-leap         	         | https://quay.io/repository/kairos/kairos-opensuse-leap         	         |
-| **openSUSE Leap based (RaspberryPi 3 and 4, arm64)**     	               | https://quay.io/repository/kairos/core-opensuse-leap-arm-rpi 	         | https://quay.io/repository/kairos/kairos-opensuse-leap-arm-rpi 	         |
-| **openSUSE Tumbleweed based**                                  	         | https://quay.io/repository/kairos/core-tumbleweed-leap         	       | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed         	   |
-| **openSUSE Tumbleweed based (RaspberryPi 3 and 4, arm64)**     	         | https://quay.io/repository/kairos/core-opensuse-tumbleweed-arm-rpi 	   | https://quay.io/repository/kairos/kairos-opensuse-tumbleweed-arm-rpi 	   |
-| **Ubuntu based (rolling)** **                                   	       | https://quay.io/repository/kairos/core-ubuntu           	               | https://quay.io/repository/kairos/kairos-ubuntu           	               |
-| **Ubuntu based (22 LTS)** **                                    	       | https://quay.io/repository/kairos/core-ubuntu-22-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-22-lts           	       |
-| **Ubuntu based (20 LTS)** **                                   	         | https://quay.io/repository/kairos/core-ubuntu-20-lts           	       | https://quay.io/repository/kairos/kairos-ubuntu-20-lts           	       |
-| **Rocky Linux based**                                                    | https://quay.io/repository/kairos/core-rockylinux                       | https://quay.io/repository/kairos/kairos-rockylinux                       |
+| **Flavor/Variant**                       | amd64                                                              | arm64                                                                                                                                                      |
+|------------------------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Alpine Linux based (openSUSE kernel)** | [core][c-alpine-opensuse-leap], [standard][k-alpine-opensuse-leap] | [core][c-alpine-arm-rpi], [core-img][c-alpine-arm-rpi-img], [standard][k-alpine-arm-rpi], [standard-img][k-alpine-arm-rpi-img]                             |
+| **Alpine Linux based (Ubuntu kernel)**   | [core][c-alpine-ubuntu], [standard][k-alpine-ubuntu]               |                                                                                                                                                            |
+| **Debian based**                         | [core][c-debian], [standard][k-debian]                             |                                                                                                                                                            |
+| **Fedora based**                         | [core][c-fedora], [standard][k-fedora]                             |                                                                                                                                                            |
+| **openSUSE Leap based**                  | [core][c-opensuse-leap], [standard][k-opensuse-leap]               | [core][c-opensuse-leap-arm-rpi], [core-img][c-opensuse-leap-arm-rpi-img], [standard][k-opensuse-leap-arm-rpi], [standard-img][k-opensuse-leap-arm-rpi-img] |
+| **openSUSE Tumbleweed based**            | [core][c-opensuse-tumbleweed], [standard][k-opensuse-tumbleweed]   | [core][c-opensuse-tumbleweed-arm-rpi], [standard][k-opensuse-tumbleweed-arm-rpi]                                                                           |
+| **Ubuntu based (rolling)** **            | [core][c-ubuntu], [standard][k-ubuntu]                             |                                                                                                                                                            |
+| **Ubuntu based (22 LTS)** **             | [core][c-ubuntu-22-lts], [standard][k-ubuntu-22-lts]               |                                                                                                                                                            |
+| **Ubuntu based (20 LTS)** **             | [core][c-ubuntu-20-lts], [standard][k-ubuntu-20-lts]               |                                                                                                                                                            |
+| **Rocky Linux based**                    | [core][c-rockylinux], [standard][k-rockylinux]                     |                                                                                                                                                            |
+
+
+[c-alpine-opensuse-leap]: https://quay.io/repository/kairos/core-alpine-opensuse-leap
+[c-alpine-ubuntu]: https://quay.io/repository/kairos/core-alpine-ubuntu
+[c-alpine-arm-rpi]: https://quay.io/repository/kairos/core-alpine-arm-rpi
+[c-alpine-arm-rpi-img]: https://quay.io/repository/kairos/core-alpine-arm-rpi-img
+[c-debian]: https://quay.io/repository/kairos/core-debian
+[c-fedora]: https://quay.io/repository/kairos/core-fedora
+[c-opensuse-leap]: https://quay.io/repository/kairos/core-opensuse-leap
+[c-opensuse-leap-arm-rpi]: https://quay.io/repository/kairos/core-opensuse-leap-arm-rpi
+[c-opensuse-leap-arm-rpi-img]: https://quay.io/repository/kairos/core-opensuse-leap-arm-rpi-img
+[c-opensuse-tumbleweed]: https://quay.io/repository/kairos/core-opensuse-tumbleweed
+[c-opensuse-tumbleweed-arm-rpi]: https://quay.io/repository/kairos/core-opensuse-tumbleweed-arm-rpi
+[c-opensuse-tumbleweed-arm-rpi-img]: https://quay.io/repository/kairos/core-opensuse-tumbleweed-arm-rpi-img
+[c-ubuntu]: https://quay.io/repository/kairos/core-ubuntu
+[c-ubuntu-22-lts]: https://quay.io/repository/kairos/core-ubuntu-22-lts
+[c-ubuntu-20-lts]: https://quay.io/repository/kairos/core-ubuntu-20-lts
+[c-rockylinux]: https://quay.io/repository/kairos/core-rockylinux
+
+[k-alpine-opensuse-leap]: https://quay.io/repository/kairos/kairos-alpine-opensuse-leap
+[k-alpine-ubuntu]: https://quay.io/repository/kairos/kairos-alpine-ubuntu
+[k-alpine-arm-rpi]: https://quay.io/repository/kairos/kairos-alpine-arm-rpi
+[k-alpine-arm-rpi-img]: https://quay.io/repository/kairos/kairos-alpine-arm-rpi-img
+[k-debian]: https://quay.io/repository/kairos/kairos-debian
+[k-fedora]: https://quay.io/repository/kairos/kairos-fedora
+[k-opensuse-leap]: https://quay.io/repository/kairos/kairos-opensuse-leap
+[k-opensuse-leap-arm-rpi]: https://quay.io/repository/kairos/kairos-opensuse-leap-arm-rpi
+[k-opensuse-leap-arm-rpi-img]: https://quay.io/repository/kairos/kairos-opensuse-leap-arm-rpi-img
+[k-opensuse-tumbleweed]: https://quay.io/repository/kairos/kairos-opensuse-tumbleweed
+[k-opensuse-tumbleweed-arm-rpi]: https://quay.io/repository/kairos/kairos-opensuse-tumbleweed-arm-rpi
+[k-opensuse-tumbleweed-arm-rpi-img]: https://quay.io/repository/kairos/kairos-opensuse-tumbleweed-arm-rpi-img
+[k-ubuntu]: https://quay.io/repository/kairos/kairos-ubuntu
+[k-ubuntu-22-lts]: https://quay.io/repository/kairos/kairos-ubuntu-22-lts
+[k-ubuntu-20-lts]: https://quay.io/repository/kairos/kairos-ubuntu-20-lts
+[k-rockylinux]: https://quay.io/repository/kairos/kairos-rockylinux
+
 
 {{% alert title="Note" color="info" %}}
 

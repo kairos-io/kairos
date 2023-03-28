@@ -72,6 +72,70 @@ system-upgrade   apply-os-upgrade-on-kairos-with-1a1a24bcf897bd275730bdd8548-h7f
 
 Done! We should have all the basics to get our first cluster rolling, but there is much more we can do.
 
+## Verify images attestation during upgrades
+
+Container images can be signed during the build phase of a CI/CD pipeline using [Cosign](https://github.com/sigstore/cosign), Kairos signs every artifact as part of the release process.
+
+To ensure that the images used during upgrades match the expected signatures, [Kyverno](https://kyverno.io/) can be used to set up policies. This is done by checking if the signature is present in the OCI registry and if the image was signed using the specified key. The policy rule check fails if either of these conditions is not met.
+
+To learn more about this specific Kyverno feature, you can refer to the [documentation](https://kyverno.io/docs/writing-policies/verify-images/). This allows for the verification of image authenticity directly at the node level prior to upgrading.
+
+A Kyverno policy for `provider-kairos` images might look like the following:
+
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: check-image
+spec:
+  validationFailureAction: Enforce
+  background: false
+  webhookTimeoutSeconds: 30
+  failurePolicy: Fail
+  rules:
+    - name: check-image
+      match:
+        any:
+        - resources:
+            kinds:
+              - Pod
+      verifyImages:
+      - imageReferences:
+        - "quay.io/kairos/kairos-*"
+        attestors:
+        - entries:
+          # See: https://kyverno.io/docs/writing-policies/verify-images/#keyless-signing-and-verification
+          - keyless:
+              subject: "https://github.com/kairos-io/provider-kairos/.github/workflows/release.yaml@refs/tags/*"
+              issuer: "https://token.actions.githubusercontent.com"
+              rekor:
+                url: https://rekor.sigstore.dev
+```
+
+To install Kyverno in a Kairos cluster, you can simply use the community [bundles](/docs/advanced/bundles). For example, you can use the following installation cloud config file:
+
+```yaml
+#cloud-config
+
+hostname: kyverno-{{ trunc 4 .MachineID }}
+
+# Specify the bundle to use
+bundles:
+- targets:
+  - run://quay.io/kairos/community-bundles:system-upgrade-controller_latest
+  - run://quay.io/kairos/community-bundles:cert-manager_latest
+  - run://quay.io/kairos/community-bundles:kyverno_latest
+
+users:
+- name: kairos
+  passwd: kairos
+
+k3s:
+ enabled: true
+```
+
+This configuration file prepare the system with the `cert-manager`, `system-upgrade-controller` and the `kyverno` bundle, enabling `k3s`.
+
 ## Customize the upgrade plan
 
 It is possible to run additional commands before the upgrade takes place into the node, consider the following example:
@@ -128,7 +192,7 @@ spec:
 
 ## Upgrade from c3os to Kairos
 
-If you have already a `c3os` deployment, upgrading to Kairos requires changing every instance of `c3os` to `kairos` in the configuration file. This can be either done manually or with Kubernetes before rolling the upgrade.  Consider customize the upgrade plan, for instance:
+If you already have a `c3os` deployment, upgrading to Kairos requires changing every instance of `c3os` to `kairos` in the configuration file. This can be either done manually or with Kubernetes before rolling the upgrade.  Consider customizing the upgrade plan, for instance:
 
 ```yaml
 ---

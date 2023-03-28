@@ -8,12 +8,12 @@ import (
 	"os/exec"
 	"strings"
 
+	events "github.com/kairos-io/kairos-sdk/bus"
 	"github.com/kairos-io/kairos/pkg/config"
-	events "github.com/kairos-io/kairos/sdk/bus"
 
+	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/pkg/github"
-	"github.com/kairos-io/kairos/pkg/utils"
 	"github.com/mudler/go-pluggable"
 )
 
@@ -41,7 +41,10 @@ func ListReleases() []string {
 	return releases
 }
 
-func Upgrade(version, image string, force, debug, strictValidations bool, dirs []string) error {
+func Upgrade(
+	version, image string, force, debug, strictValidations bool, dirs []string,
+	authUser string, authPass string, authServer string, authType string, registryToken string, identityToken string,
+) error {
 	bus.Manager.Initialize()
 
 	if version == "" && image == "" {
@@ -104,6 +107,14 @@ func Upgrade(version, image string, force, debug, strictValidations bool, dirs [
 	utils.SetEnv(c.Env)
 
 	args := []string{"upgrade", "--system.uri", fmt.Sprintf("docker:%s", img)}
+	args = append(args,
+		"--auth-username", authUser,
+		"--auth-password", authPass,
+		"--auth-server-address", authServer,
+		"--auth-type", authType,
+		"--auth-registry-token", registryToken,
+		"--auth-identity-token", identityToken,
+	)
 
 	if debug {
 		fmt.Printf("Running command: 'elemental %s'", strings.Join(args, " "))

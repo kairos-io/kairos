@@ -72,11 +72,11 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 			_ = testInstall(`#cloud-config
 install:
   bind_mounts:
-  - /mnt/bind1
-  - /mnt/bind2
+  - /var/bind1
+  - /var/bind2
   ephemeral_mounts:
-  - /mnt/ephemeral
-  - /mnt/ephemeral2
+  - /var/ephemeral
+  - /var/ephemeral2
 users:
 - name: "kairos"
   passwd: "kairos"
@@ -102,11 +102,11 @@ bundles:
 			Eventually(func() string {
 				out, _ := vm.Sudo("cat /run/cos/cos-layout.env")
 				return out
-			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("PERSISTENT_STATE_PATHS=\"/mnt/bind1 /mnt/bind2"))
+			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("/var/bind1 /var/bind2"))
 			Eventually(func() string {
 				out, _ := vm.Sudo("cat /run/cos/cos-layout.env")
 				return out
-			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("RW_PATHS=\"/mnt/ephemeral /mnt/ephemeral2"))
+			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("/var/ephemeral /var/ephemeral2"))
 
 			Eventually(func() string {
 				out, _ := vm.Sudo("/usr/local/bin/usr/bin/edgevpn --help | grep peer")

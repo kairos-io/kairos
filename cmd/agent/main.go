@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	agent "github.com/kairos-io/kairos/internal/agent"
+	"github.com/kairos-io/kairos/internal/agent"
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/webui"
 
+	"github.com/kairos-io/kairos-sdk/bundles"
+	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos-sdk/state"
+	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/internal/common"
 	"github.com/kairos-io/kairos/pkg/config"
-	machine "github.com/kairos-io/kairos/pkg/machine"
-	"github.com/kairos-io/kairos/pkg/utils"
-	bundles "github.com/kairos-io/kairos/sdk/bundles"
-	"github.com/kairos-io/kairos/sdk/state"
 
 	"github.com/urfave/cli/v2"
 )
@@ -37,6 +37,12 @@ var cmds = []*cli.Command{
 				Name:  "image",
 				Usage: "Specify an full image reference, e.g.: quay.io/some/image:tag",
 			},
+			&cli.StringFlag{Name: "auth-username", Usage: "Username to authenticate to registry"},
+			&cli.StringFlag{Name: "auth-password", Usage: "Password to authenticate to registry"},
+			&cli.StringFlag{Name: "auth-server-address", Usage: "Authentication server address"},
+			&cli.StringFlag{Name: "auth-type", Usage: "Auth type"},
+			&cli.StringFlag{Name: "auth-registry-token", Usage: "Authentication registry token"},
+			&cli.StringFlag{Name: "auth-identity-token", Usage: "Authentication identity token"},
 		},
 		Description: `
 Manually upgrade a kairos node.
@@ -64,7 +70,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
 					releases := agent.ListReleases()
-					list := utils.ListOutput(releases, c.String("output"))
+					list := utils.ListToOutput(releases, c.String("output"))
 					for _, i := range list {
 						fmt.Println(i)
 					}
@@ -79,7 +85,13 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 			if c.Args().Len() == 1 {
 				v = c.Args().First()
 			}
-			return agent.Upgrade(v, c.String("image"), c.Bool("force"), c.Bool("debug"), c.Bool("strict-validation"), configScanDir)
+
+			return agent.Upgrade(
+				v, c.String("image"), c.Bool("force"), c.Bool("debug"),
+				c.Bool("strict-validation"), configScanDir,
+				c.String("auth-username"), c.String("auth-password"), c.String("auth-server-address"),
+				c.String("auth-type"), c.String("auth-registry-token"), c.String("auth-identity-token"),
+			)
 		},
 	},
 

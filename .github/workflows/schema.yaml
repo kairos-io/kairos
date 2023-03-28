@@ -18,7 +18,7 @@ jobs:
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
           go-version: ^1.18
       - name: Install earthly
