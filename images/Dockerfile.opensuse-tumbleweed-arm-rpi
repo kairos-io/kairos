@@ -18,6 +18,7 @@ RUN zypper in -y \
     dhcp-client \
     dosfstools \
     dracut \
+    dracut-mkinitrd-deprecated \
     e2fsprogs \
     fail2ban \
     findutils \
