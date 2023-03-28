@@ -24,6 +24,21 @@ var _ = Describe("Validate", func() {
 	Context("Validate", func() {
 		var yaml string
 
+		Context("With a really long config string", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+vpn:
+  network_token: "dssdnfjkldashfkjhasdkhfkasjdhfkjhasdjkfhaksjdhfkjashjdkfhioreqwhfuihqweruifhuewrbfhuewrfuyequfhuiehuifheqrihfuiqrehfuirqheiufhreqiuhfuiqheiufhqeuihfuiqrehfiuhqreuifrhiuqehfiuhqeirhfiuewhrfhqwehfriuewhfuihewiuhfruewhrifhwiuehrfiuhweiurfhwueihrfuiwehufhweuihrfuiwerhfuihewruifhewuihfiouwehrfiouhwei"
+`
+			})
+			It("validates", func() {
+				Expect(Validate(yaml)).ToNot(HaveOccurred())
+			})
+		})
+
 		Context("with a valid config", func() {
 			BeforeEach(func() {
 				yaml = `#cloud-config
@@ -32,7 +47,7 @@ users:
     passwd: kairos`
 			})
 
-			It("is successful", func() {
+			It("is successful reading it from file", func() {
 				f, err := ioutil.TempDir("", "tests")
 				Expect(err).ToNot(HaveOccurred())
 				defer os.RemoveAll(f)
@@ -42,6 +57,9 @@ users:
 				Expect(err).ToNot(HaveOccurred())
 				err = Validate(path)
 				Expect(err).ToNot(HaveOccurred())
+			})
+			It("is successful reading it from a string", func() {
+				Expect(Validate(yaml)).ToNot(HaveOccurred())
 			})
 		})
 
