@@ -341,25 +341,20 @@ base-image:
     IF [ "$FLAVOR" = "debian" ]
 	    RUN rm -rf /boot/initrd.img-*
     END
-    # Regenerate initrd if necessary
-    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed" ]
-     RUN mkinitrd
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
-     RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-            ln -sf "${kernel#/boot/}" /boot/vmlinuz
-     RUN kernel=$(ls /lib/modules | head -n1) && \
-            dracut -v -N -f "/boot/initrd-${kernel}" "${kernel}" && \
-            ln -sf "initrd-${kernel}" /boot/initrd
-     RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
-     # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
-     RUN rm -rf /boot/initramfs-*
-    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
-     RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-            ln -sf "${kernel#/boot/}" /boot/vmlinuz
-     RUN kernel=$(ls /lib/modules | head -n1) && \
-            dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
-            ln -sf "initrd-${kernel}" /boot/initrd
-     RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+
+
+    IF [[ "$FLAVOR" =~ ^alpine.* ]] || [[ "$FLAVOR" =~ .*-arm-rpi$ ]]
+        # no dracut on those flavors, do nothing
+    ELSE
+        # Regenerate initrd if necessary
+        RUN --no-cache kernel=$(ls /boot/vmlinuz-* | head -n1) && ln -sf "${kernel#/boot/}" /boot/vmlinuz
+        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
+        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+    END
+
+    IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+        # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
+        RUN rm -rf /boot/initramfs-*
     END
 
     IF [ ! -e "/boot/vmlinuz" ]
