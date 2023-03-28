@@ -28,7 +28,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
 	github.com/swaggest/jsonschema-go v0.3.48
-	github.com/urfave/cli/v2 v2.25.0
+	github.com/urfave/cli/v2 v2.25.1
 	golang.org/x/net v0.8.0
 	golang.org/x/oauth2 v0.6.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
