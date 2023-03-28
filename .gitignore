@@ -25,3 +25,5 @@ node_modules/
 
 # editor and IDE paraphernalia
 .idea
+.envrc
+.go-version
