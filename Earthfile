@@ -66,7 +66,7 @@ test:
     WORKDIR /build
     COPY +luet/luet /usr/bin/luet
     COPY . .
-    RUN go run github.com/onsi/ginkgo/v2/ginkgo --fail-fast --slow-spec-threshold 30s --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
+    RUN go run github.com/onsi/ginkgo/v2/ginkgo --fail-fast --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
     SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
 OSRELEASE:
@@ -92,10 +92,11 @@ BUILD_GOLANG:
     ARG CGO_ENABLED
     ARG BIN
     ARG SRC
+    ARG VERSION
 
     ENV CGO_ENABLED=${CGO_ENABLED}
     ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
-    RUN echo "Building ${BIN} from ${SRC} using ${VERSION}"
+    RUN --no-cache echo "Building ${BIN} from ${SRC} using ${VERSION}"
     RUN echo ${LDFLAGS}
     RUN go build -o ${BIN} -ldflags "${LDFLAGS}" ./cmd/${SRC} && upx ${BIN}
     SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
@@ -126,7 +127,9 @@ build-kairos-agent:
     FROM +go-deps
     COPY +webui-deps/node_modules ./internal/webui/public/node_modules
     COPY +docs/public/local ./internal/webui/public/local
-    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED --VERSION=$VERSION
 
 build:
     BUILD +build-kairos-agent
@@ -341,25 +344,20 @@ base-image:
     IF [ "$FLAVOR" = "debian" ]
 	    RUN rm -rf /boot/initrd.img-*
     END
-    # Regenerate initrd if necessary
-    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed" ]
-     RUN mkinitrd
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
-     RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-            ln -sf "${kernel#/boot/}" /boot/vmlinuz
-     RUN kernel=$(ls /lib/modules | head -n1) && \
-            dracut -v -N -f "/boot/initrd-${kernel}" "${kernel}" && \
-            ln -sf "initrd-${kernel}" /boot/initrd
-     RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
-     # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
-     RUN rm -rf /boot/initramfs-*
-    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
-     RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
-            ln -sf "${kernel#/boot/}" /boot/vmlinuz
-     RUN kernel=$(ls /lib/modules | head -n1) && \
-            dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
-            ln -sf "initrd-${kernel}" /boot/initrd
-     RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+
+
+    IF [[ "$FLAVOR" =~ ^alpine.* ]] || [[ "$FLAVOR" =~ .*-arm-rpi$ ]]
+        # no dracut on those flavors, do nothing
+    ELSE
+        # Regenerate initrd if necessary
+        RUN --no-cache kernel=$(ls /boot/vmlinuz-* | head -n1) && ln -sf "${kernel#/boot/}" /boot/vmlinuz
+        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
+        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+    END
+
+    IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+        # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
+        RUN rm -rf /boot/initramfs-*
     END
 
     IF [ ! -e "/boot/vmlinuz" ]
