@@ -92,10 +92,11 @@ BUILD_GOLANG:
     ARG CGO_ENABLED
     ARG BIN
     ARG SRC
+    ARG VERSION
 
     ENV CGO_ENABLED=${CGO_ENABLED}
     ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
-    RUN echo "Building ${BIN} from ${SRC} using ${VERSION}"
+    RUN --no-cache echo "Building ${BIN} from ${SRC} using ${VERSION}"
     RUN echo ${LDFLAGS}
     RUN go build -o ${BIN} -ldflags "${LDFLAGS}" ./cmd/${SRC} && upx ${BIN}
     SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
@@ -126,7 +127,9 @@ build-kairos-agent:
     FROM +go-deps
     COPY +webui-deps/node_modules ./internal/webui/public/node_modules
     COPY +docs/public/local ./internal/webui/public/local
-    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED --VERSION=$VERSION
 
 build:
     BUILD +build-kairos-agent
