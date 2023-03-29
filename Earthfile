@@ -24,7 +24,7 @@ ARG OSBUILDER_VERSION=v0.5.3
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.47.3
 # renovate: datasource=docker depName=golang
-ARG GO_VERSION=1.18
+ARG GO_VERSION=1.20.2
 # renovate: datasource=docker depName=hadolint/hadolint versioning=docker
 ARG HADOLINT_VERSION=2.12.0-alpine
 # renovate: datasource=docker depName=renovate/renovate versioning=docker
