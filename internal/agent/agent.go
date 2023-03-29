@@ -11,6 +11,7 @@ import (
 	hook "github.com/kairos-io/kairos/internal/agent/hooks"
 	"github.com/kairos-io/kairos/internal/bus"
 	config "github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/pkg/config/collector"
 	"github.com/nxadm/tail"
 )
 
@@ -24,7 +25,7 @@ func Run(opts ...Option) error {
 	os.MkdirAll("/usr/local/.kairos", 0600) //nolint:errcheck
 
 	// Reads config
-	c, err := config.Scan(config.Directories(o.Dir...))
+	c, err := config.Scan(collector.Directories(o.Dir...))
 	if err != nil {
 		return err
 	}
@@ -75,13 +76,16 @@ func Run(opts ...Option) error {
 		}
 
 		// Re-read config files
-		c, err = config.Scan(config.Directories(o.Dir...))
+		c, err = config.Scan(collector.Directories(o.Dir...))
 		if err != nil {
 			return err
 		}
 	}
-
-	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: o.APIAddress, Config: c.String(), Logfile: fileName})
+	configStr, err := c.Config.String()
+	if err != nil {
+		panic(err)
+	}
+	_, err = bus.Manager.Publish(events.EventBootstrap, events.BootstrapPayload{APIAddress: o.APIAddress, Config: configStr, Logfile: fileName})
 
 	if o.Restart && err != nil {
 		fmt.Println("Warning: Agent failed, restarting: ", err.Error())

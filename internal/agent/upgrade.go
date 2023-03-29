@@ -10,6 +10,7 @@ import (
 
 	events "github.com/kairos-io/kairos-sdk/bus"
 	"github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/pkg/config/collector"
 
 	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/internal/bus"
@@ -99,7 +100,7 @@ func Upgrade(
 		fmt.Printf("Upgrading to image: '%s'\n", img)
 	}
 
-	c, err := config.Scan(config.Directories(dirs...), config.StrictValidation(strictValidations))
+	c, err := config.Scan(collector.Directories(dirs...), collector.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}

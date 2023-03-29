@@ -19,6 +19,7 @@ import (
 	"github.com/kairos-io/kairos/internal/bus"
 	"github.com/kairos-io/kairos/internal/cmd"
 	config "github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/pkg/config/collector"
 	qr "github.com/mudler/go-nodepair/qrcode"
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"
@@ -79,15 +80,19 @@ func ManualInstall(c string, options map[string]string, strictValidations bool) 
 		return err
 	}
 
-	cc, err := config.Scan(config.Directories(source), config.MergeBootLine, config.StrictValidation(strictValidations))
+	cc, err := config.Scan(collector.Directories(source), collector.MergeBootLine, collector.StrictValidation(strictValidations))
 	if err != nil {
 		return err
 	}
-	options["cc"] = cc.String()
+	configStr, err := cc.String()
+	if err != nil {
+		return err
+	}
+	options["cc"] = configStr
 	// unlike Install device is already set
 	// options["device"] = cc.Install.Device
 
-	mergeOption(cc.String(), options)
+	mergeOption(configStr, options)
 
 	if options["device"] == "" {
 		options["device"] = cc.Install.Device
@@ -122,11 +127,15 @@ func Install(dir ...string) error {
 
 	// Reads config, and if present and offline is defined,
 	// runs the installation
-	cc, err := config.Scan(config.Directories(dir...), config.MergeBootLine, config.NoLogs)
+	cc, err := config.Scan(collector.Directories(dir...), collector.MergeBootLine, collector.NoLogs)
 	if err == nil && cc.Install != nil && cc.Install.Auto {
-		r["cc"] = cc.String()
+		configStr, err := cc.String()
+		if err != nil {
+			return err
+		}
+		r["cc"] = configStr
 		r["device"] = cc.Install.Device
-		mergeOption(cc.String(), r)
+		mergeOption(configStr, r)
 
 		err = RunInstall(r)
 		if err != nil {
@@ -160,7 +169,11 @@ func Install(dir ...string) error {
 		return utils.Shell().Run()
 	}
 
-	_, err = bus.Manager.Publish(events.EventChallenge, events.EventPayload{Config: cc.String()})
+	configStr, err := cc.String()
+	if err != nil {
+		return err
+	}
+	_, err = bus.Manager.Publish(events.EventChallenge, events.EventPayload{Config: configStr})
 	if err != nil {
 		return err
 	}
@@ -175,7 +188,7 @@ func Install(dir ...string) error {
 		qr.Print(tk)
 	}
 
-	if _, err := bus.Manager.Publish(events.EventInstall, events.InstallPayload{Token: tk, Config: cc.String()}); err != nil {
+	if _, err := bus.Manager.Publish(events.EventInstall, events.InstallPayload{Token: tk, Config: configStr}); err != nil {
 		return err
 	}
 
@@ -196,12 +209,12 @@ func Install(dir ...string) error {
 	// make sure the config we write has at least the #cloud-config header,
 	// if any other was defined beforeahead
 	header := "#cloud-config"
-	if hasHeader, head := config.HasHeader(cc.String(), ""); hasHeader {
+	if hasHeader, head := config.HasHeader(configStr, ""); hasHeader {
 		header = head
 	}
 
 	// What we receive take precedence over the one in the system. best-effort
-	yaml.Unmarshal([]byte(cc.String()), &ccData) //nolint:errcheck
+	yaml.Unmarshal([]byte(configStr), &ccData) //nolint:errcheck
 	if exists {
 		yaml.Unmarshal([]byte(cloudConfig), &ccData) //nolint:errcheck
 		if hasHeader, head := config.HasHeader(cloudConfig, ""); hasHeader {

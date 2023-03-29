@@ -1,4 +1,6 @@
-package config
+package collector
+
+import "fmt"
 
 type Options struct {
 	ScanDir          []string
@@ -13,6 +15,16 @@ type Option func(o *Options) error
 var NoLogs Option = func(o *Options) error {
 	o.NoLogs = true
 	return nil
+}
+
+// SoftErr prints a warning if err is no nil and NoLogs is not true.
+// It's use to wrap the same handling happening in multiple places.
+//
+// TODO: Switch to a standard logging library (e.g. verbose, silent mode etc).
+func (o *Options) SoftErr(message string, err error) {
+	if !o.NoLogs && err != nil {
+		fmt.Printf("WARNING: %s, %s\n", message, err.Error())
+	}
 }
 
 func (o *Options) Apply(opts ...Option) error {
@@ -35,17 +47,17 @@ func WithBootCMDLineFile(s string) Option {
 		return nil
 	}
 }
-func Directories(d ...string) Option {
+
+func StrictValidation(v bool) Option {
 	return func(o *Options) error {
-		o.ScanDir = d
+		o.StrictValidation = v
 		return nil
 	}
 }
 
-// StrictValidation sets the strict validation option to true or false.
-func StrictValidation(b bool) Option {
+func Directories(d ...string) Option {
 	return func(o *Options) error {
-		o.StrictValidation = b
+		o.ScanDir = d
 		return nil
 	}
 }

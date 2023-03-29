@@ -28,12 +28,11 @@ var _ = Describe("Bootstrap provider", func() {
 			defer os.RemoveAll(f)
 
 			wd, _ := os.Getwd()
-			fmt.Println(wd)
 			os.WriteFile(filepath.Join(wd, "agent-provider-test"), []byte(testProvider), 0655)
 
 			defer os.RemoveAll(filepath.Join(wd, "agent-provider-test"))
 
-			err = os.WriteFile(filepath.Join(f, "test.config.yaml"), []byte(`
+			err = os.WriteFile(filepath.Join(f, "test.config.yaml"), []byte(`#cloud-config
 doo: bar`), 0655)
 			Expect(err).ToNot(HaveOccurred())
 

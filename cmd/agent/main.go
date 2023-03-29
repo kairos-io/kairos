@@ -15,6 +15,7 @@ import (
 	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/internal/common"
 	"github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/pkg/config/collector"
 
 	"github.com/urfave/cli/v2"
 )
@@ -224,12 +225,16 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 				Description: "Show the runtime configuration of the machine. It will scan the machine for all the configuration and will return the config file processed and found.",
 				Aliases:     []string{"s"},
 				Action: func(c *cli.Context) error {
-					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs)
+					config, err := config.Scan(collector.Directories(configScanDir...), collector.NoLogs)
 					if err != nil {
 						return err
 					}
 
-					fmt.Printf("%s", config.String())
+					configStr, err := config.String()
+					if err != nil {
+						return err
+					}
+					fmt.Printf("%s", configStr)
 					return nil
 				},
 			},
@@ -249,7 +254,7 @@ enabled: true`,
 				Description: "It allows to navigate the YAML config file by searching with 'yq' style keywords as `config get k3s` to retrieve the k3s config block",
 				Aliases:     []string{"g"},
 				Action: func(c *cli.Context) error {
-					config, err := config.Scan(config.Directories(configScanDir...), config.NoLogs, config.StrictValidation(c.Bool("strict-validation")))
+					config, err := config.Scan(collector.Directories(configScanDir...), collector.NoLogs, collector.StrictValidation(c.Bool("strict-validation")))
 					if err != nil {
 						return err
 					}
