@@ -9,7 +9,7 @@ import (
 
 type RunStage struct{}
 
-func (r RunStage) Run(c config.Config) error {
+func (r RunStage) Run(_ config.Config) error {
 	utils.SH("elemental run-stage kairos-install.after")             //nolint:errcheck
 	events.RunHookScript("/usr/bin/kairos-agent.install.after.hook") //nolint:errcheck
 	return nil
