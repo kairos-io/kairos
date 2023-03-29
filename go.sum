@@ -170,6 +170,8 @@ github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd h1:x3pwiwfj
 github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd/go.mod h1:Wg/jfAQe8seka5VUXtcPvg+sA6GmQEy+DYlJmgKM8Zs=
 github.com/kairos-io/kcrypt v0.5.1 h1:aKuhmfB/7/UamJN8XL5Ky49FXgcju3KXHPrh7DzoESo=
 github.com/kairos-io/kcrypt v0.5.1/go.mod h1:RGgYNj0S2G42eJuDYjIjaSshp+zkgADWQPtIMB89V6o=
+github.com/kairos-io/kcrypt v0.5.2-0.20230315093710-608b465afc50 h1:vNuROHKxFuMfmgDgQKf252TVvf1nP0KaQRsudIw8Fik=
+github.com/kairos-io/kcrypt v0.5.2-0.20230315093710-608b465afc50/go.mod h1:RGgYNj0S2G42eJuDYjIjaSshp+zkgADWQPtIMB89V6o=
 github.com/kairos-io/kcrypt v0.5.2-0.20230323162016-6c283fa40615 h1:cJtJxtp9qMMbXUfU553ULwxFxJOUzt6DJ23Wf2v1rhI=
 github.com/kairos-io/kcrypt v0.5.2-0.20230323162016-6c283fa40615/go.mod h1:4TI73s7jmrJhWwqi97RWn2tYW11Sh8sC4aVvHdVgn3U=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 h1:qq2nCpSrXrmvDGRxW0ruW9BVEV1CN2a9YDOExdt+U0o=

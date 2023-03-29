@@ -14,7 +14,7 @@ require (
 	github.com/jaypipes/ghw v0.10.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd
-	github.com/kairos-io/kcrypt v0.5.2-0.20230323162016-6c283fa40615
+	github.com/kairos-io/kcrypt v0.5.2-0.20230315093710-608b465afc50
 	github.com/labstack/echo/v4 v4.10.2
 	github.com/mudler/go-nodepair v0.0.0-20221223092639-ba399a66fdfb
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
