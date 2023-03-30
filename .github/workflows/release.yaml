@@ -110,8 +110,11 @@ jobs:
           export TAG=${GITHUB_REF##*/}
           export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}"
           docker push "$IMAGE:$TAG"
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
-
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          cosign sign $image_ref
+          spdx=$(ls release/*.spdx.json)
+          sbom=$(cosign attach sbom --sbom $spdx $image_ref --output=json | jq -r '.["signature"].protectedHeaders.digest.sha256')
+          cosign sign $sbom
       - name: Sign ISO sha files
         env:
           COSIGN_YES: true
