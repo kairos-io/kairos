@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "github.com/kairos-io/kairos/internal/agent"
+	. "github.com/kairos-io/kairos/v2/internal/agent"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
