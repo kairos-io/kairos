@@ -1,6 +1,6 @@
 common:
   - dracut/immucore
-  - dracut/kcrypt
+  - dracut/kcrypt # This needs to be in until we insert kcrypt into the initramfs via immucore config
   - static/grub-config
   - system/kcrypt
   - system/kcrypt-challenger
