@@ -22,7 +22,7 @@ require (
 	github.com/mudler/yip v0.11.5-0.20230124143654-91e88dfb6648
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.9.2
-	github.com/onsi/gomega v1.27.5
+	github.com/onsi/gomega v1.27.6
 	github.com/pterm/pterm v0.12.57
 	github.com/qeesung/image2ascii v1.0.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
