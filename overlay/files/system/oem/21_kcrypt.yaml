@@ -1,5 +1,10 @@
-name: "Update discovery plugins"
+name: "Kcrypt"
 stages:
+  rootfs:
+    - name: "Unlock encrypted volumes"
+      if: '[ ! -f "/run/cos/live_mode" ]'
+      commands:
+        - kcrypt unlock-all
   after-upgrade:
     - name: "Update plugins"
       if: "[ $(kairos-agent state get oem.found) == 'true' ]"
