@@ -148,6 +148,8 @@ github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd h1:x3pwiwfj
 github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd/go.mod h1:Wg/jfAQe8seka5VUXtcPvg+sA6GmQEy+DYlJmgKM8Zs=
 github.com/kairos-io/kcrypt v0.5.2-0.20230323162016-6c283fa40615 h1:cJtJxtp9qMMbXUfU553ULwxFxJOUzt6DJ23Wf2v1rhI=
 github.com/kairos-io/kcrypt v0.5.2-0.20230323162016-6c283fa40615/go.mod h1:4TI73s7jmrJhWwqi97RWn2tYW11Sh8sC4aVvHdVgn3U=
+github.com/kairos-io/kcrypt v0.5.2 h1:F9jbIjk3+nSQYEoSTDXT118Cx8AjmtDrMcU4rq/WBsI=
+github.com/kairos-io/kcrypt v0.5.2/go.mod h1:FdhkFI5/gbHWr15Pvd40IAttWvxnF8/XUghMsezj1fs=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 h1:qq2nCpSrXrmvDGRxW0ruW9BVEV1CN2a9YDOExdt+U0o=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329/go.mod h1:2VPVQDR4wO7KXHwP+DAypEy67rXf+okUx2zjgpCxZw4=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
