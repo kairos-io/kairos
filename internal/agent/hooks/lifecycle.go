@@ -2,7 +2,7 @@ package hook
 
 import (
 	"github.com/kairos-io/kairos-sdk/utils"
-	"github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/v2/pkg/config"
 )
 
 type Lifecycle struct{}

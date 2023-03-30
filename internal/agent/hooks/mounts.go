@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/kairos-io/kairos-sdk/machine"
-	config "github.com/kairos-io/kairos/pkg/config"
+	config "github.com/kairos-io/kairos/v2/pkg/config"
 	"github.com/mudler/yip/pkg/schema"
 	yip "github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v1"

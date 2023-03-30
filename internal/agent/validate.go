@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	sc "github.com/kairos-io/kairos/pkg/config/schemas"
+	sc "github.com/kairos-io/kairos/v2/pkg/config/schemas"
 )
 
 // JSONSchema builds a JSON Schema based on the Root Schema and the given version

@@ -3,7 +3,7 @@ package agent
 import (
 	"os"
 
-	"github.com/kairos-io/kairos/internal/kairos"
+	"github.com/kairos-io/kairos/v2/internal/kairos"
 
 	"gopkg.in/yaml.v2"
 )

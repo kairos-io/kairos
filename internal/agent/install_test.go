@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/v2/pkg/config"
 	"gopkg.in/yaml.v3"
 
 	. "github.com/onsi/ginkgo/v2"

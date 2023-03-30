@@ -6,7 +6,7 @@ import (
 	"path"
 	"path/filepath"
 
-	. "github.com/kairos-io/kairos/pkg/config/collector"
+	. "github.com/kairos-io/kairos/v2/pkg/config/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v1"

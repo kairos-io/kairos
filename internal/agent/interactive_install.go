@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kairos-io/kairos/internal/bus"
-	"github.com/kairos-io/kairos/internal/cmd"
-	config "github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/v2/internal/bus"
+	"github.com/kairos-io/kairos/v2/internal/cmd"
+	config "github.com/kairos-io/kairos/v2/pkg/config"
 
 	events "github.com/kairos-io/kairos-sdk/bus"
 	"github.com/kairos-io/kairos-sdk/unstructured"

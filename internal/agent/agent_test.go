@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	. "github.com/kairos-io/kairos/internal/agent"
-	"github.com/kairos-io/kairos/internal/bus"
+	. "github.com/kairos-io/kairos/v2/internal/agent"
+	"github.com/kairos-io/kairos/v2/internal/bus"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

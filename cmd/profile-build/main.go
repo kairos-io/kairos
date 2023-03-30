@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/kairos-io/kairos-sdk/profile"
-	"github.com/kairos-io/kairos/internal/common"
+	"github.com/kairos-io/kairos/v2/internal/common"
 	"github.com/urfave/cli/v2"
 )
 

@@ -13,8 +13,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/kairos-io/kairos/internal/agent"
-	"github.com/kairos-io/kairos/pkg/config"
+	"github.com/kairos-io/kairos/v2/internal/agent"
+	"github.com/kairos-io/kairos/v2/pkg/config"
 	"github.com/labstack/echo/v4"
 	process "github.com/mudler/go-processmanager"
 	"github.com/nxadm/tail"

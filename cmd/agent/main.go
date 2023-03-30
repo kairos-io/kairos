@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kairos-io/kairos/internal/agent"
-	"github.com/kairos-io/kairos/internal/bus"
-	"github.com/kairos-io/kairos/internal/webui"
+	"github.com/kairos-io/kairos/v2/internal/agent"
+	"github.com/kairos-io/kairos/v2/internal/bus"
+	"github.com/kairos-io/kairos/v2/internal/webui"
 
 	"github.com/kairos-io/kairos-sdk/bundles"
 	"github.com/kairos-io/kairos-sdk/machine"
 	"github.com/kairos-io/kairos-sdk/state"
 	"github.com/kairos-io/kairos-sdk/utils"
-	"github.com/kairos-io/kairos/internal/common"
-	"github.com/kairos-io/kairos/pkg/config"
-	"github.com/kairos-io/kairos/pkg/config/collector"
+	"github.com/kairos-io/kairos/v2/internal/common"
+	"github.com/kairos-io/kairos/v2/pkg/config"
+	"github.com/kairos-io/kairos/v2/pkg/config/collector"
 
 	"github.com/urfave/cli/v2"
 )
