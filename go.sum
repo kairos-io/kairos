@@ -142,12 +142,10 @@ github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240 h1:dy+DS31tGEGCsZzB45HmJ
 github.com/jezek/xgb v0.0.0-20210312150743-0e0f116e1240/go.mod h1:3P4UH/k22rXyHIJD2w4h2XMqPX4Of/eySEZq9L6wqc4=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
-github.com/kairos-io/kairos v1.24.3-56.0.20230323142810-5639f2bda126 h1:ePF1iMZ1Hgyp2/uOhN350wj70JG+hwuhtl3JKpRo4Zc=
-github.com/kairos-io/kairos v1.24.3-56.0.20230323142810-5639f2bda126/go.mod h1:yowL5M011fBFjegKrOaRa5gNP5/hEO4dH/HFMeYkoUk=
+github.com/kairos-io/kairos v1.24.3-56.0.20230329142538-b6ae4b58c07d h1:B01GinEZbowPwbWrqDIb6n2AaHIscJVOqsh0I5gAEXw=
+github.com/kairos-io/kairos v1.24.3-56.0.20230329142538-b6ae4b58c07d/go.mod h1:2aYSSCHw8csfuqA5g6BpxBJ89kZt84G5okeuJj7PH+w=
 github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd h1:x3pwiwfj/eAv3OZ8BNFdmpjhh8ZInu7z8Xv/6+dhmFw=
 github.com/kairos-io/kairos-sdk v0.0.2-0.20230317135804-ad3c0f6cd6dd/go.mod h1:Wg/jfAQe8seka5VUXtcPvg+sA6GmQEy+DYlJmgKM8Zs=
-github.com/kairos-io/kcrypt v0.5.2-0.20230323162016-6c283fa40615 h1:cJtJxtp9qMMbXUfU553ULwxFxJOUzt6DJ23Wf2v1rhI=
-github.com/kairos-io/kcrypt v0.5.2-0.20230323162016-6c283fa40615/go.mod h1:4TI73s7jmrJhWwqi97RWn2tYW11Sh8sC4aVvHdVgn3U=
 github.com/kairos-io/kcrypt v0.5.2 h1:F9jbIjk3+nSQYEoSTDXT118Cx8AjmtDrMcU4rq/WBsI=
 github.com/kairos-io/kcrypt v0.5.2/go.mod h1:FdhkFI5/gbHWr15Pvd40IAttWvxnF8/XUghMsezj1fs=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 h1:qq2nCpSrXrmvDGRxW0ruW9BVEV1CN2a9YDOExdt+U0o=
@@ -231,8 +229,6 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/onsi/gomega v1.10.3/go.mod h1:V9xEwhxec5O8UDM77eCW8vLymOMltsqPVYWrpDsH8xc=
 github.com/onsi/gomega v1.16.0/go.mod h1:HnhC7FXeEQY45zxNK3PPoIUhzk/80Xly9PcubAlGdZY=
-github.com/onsi/gomega v1.27.5 h1:T/X6I0RNFw/kTqgfkZPcQ5KU6vCnWNBGdtrIx2dpGeQ=
-github.com/onsi/gomega v1.27.5/go.mod h1:PIQNjfQwkP3aQAH7lf7j87O/5FiNr+ZR8+ipb+qQlhg=
 github.com/onsi/gomega v1.27.6 h1:ENqfyGeS5AX/rlXDd/ETokDz93u0YufY1Pgxuy/PvWE=
 github.com/onsi/gomega v1.27.6/go.mod h1:PIQNjfQwkP3aQAH7lf7j87O/5FiNr+ZR8+ipb+qQlhg=
 github.com/opentracing/opentracing-go v1.2.0 h1:uEJPy/1a5RIPAJ0Ov+OIO8OxWu77jEv+1B0VhjKrZUs=
