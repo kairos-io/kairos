@@ -105,10 +105,9 @@ jobs:
         run: |
           docker push "$IMAGE:$TAG"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
-          cosign sign $image_ref
           spdx=$(ls build/*.spdx.json)
           cosign attach sbom --sbom $spdx $image_ref
-          cosign sign ${image_ref}.sbom
+          cosign sign $image_ref --attachment sbom
           # in-toto attestation
           cosign attest --type spdx --predicate $spdx $image_ref
       - name: Upload results
