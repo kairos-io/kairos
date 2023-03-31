@@ -76,7 +76,12 @@ jobs:
         run: |
           export TAG=${GITHUB_REF##*/}
           export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}"
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          spdx=$(ls build/*.spdx.json)
+          cosign attach sbom --sbom $spdx $image_ref
+          cosign sign $image_ref --attachment sbom
+          # in-toto attestation
+          cosign attest --type spdx --predicate $spdx $image_ref
       - name: Export version
         run: |
           TAG=${GITHUB_REF##*/}

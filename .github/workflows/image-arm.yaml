@@ -103,8 +103,13 @@ jobs:
           TAG: "latest"
           COSIGN_YES: true
         run: |
-          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          docker push "$IMAGE:$TAG"
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          spdx=$(ls build/*.spdx.json)
+          cosign attach sbom --sbom $spdx $image_ref
+          cosign sign $image_ref --attachment sbom
+          # in-toto attestation
+          cosign attest --type spdx --predicate $spdx $image_ref
       - name: Upload results
         uses: actions/upload-artifact@v3
         with:

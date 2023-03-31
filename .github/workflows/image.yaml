@@ -146,7 +146,12 @@ jobs:
           COSIGN_YES: true
         run: |
           docker push "$IMAGE:$TAG"
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          spdx=$(ls *.spdx.json)
+          cosign attach sbom --sbom $spdx $image_ref
+          cosign sign $image_ref --attachment sbom
+          # in-toto attestation
+          cosign attest --type spdx --predicate $spdx $image_ref
       - name: Push to testing
         run: |
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
