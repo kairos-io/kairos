@@ -149,8 +149,8 @@ jobs:
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
           cosign sign $image_ref
           spdx=$(ls *.spdx.json)
-          sbom=$(cosign attach sbom --sbom $spdx $image_ref 2>&1 | grep "Uploading SBOM" | awk '{print $7}' | sed 's/\[//g;s/\]//g')
-          cosign sign $sbom
+          cosign attach sbom --sbom $spdx $image_ref
+          cosign sign ${image_ref}.sbom
           # in-toto attestation
           cosign attest --type spdx --predicate $spdx $image_ref
       - name: Push to testing
