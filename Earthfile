@@ -9,7 +9,7 @@ ARG LUET_VERSION=0.34.0
 ARG OS_ID=kairos
 ARG REPOSITORIES_FILE=framework-profile.yaml
 # renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.38.3
+ARG TRIVY_VERSION=0.39.0
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 
 IF [ "$FLAVOR" = "ubuntu" ]
