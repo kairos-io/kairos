@@ -13,10 +13,6 @@
 <meta name="msapplication-TileColor" content="#da532c">
 <meta name="msapplication-config" content="/favicons/browserconfig.xml">
 <meta name="theme-color" content="#ffffff">
-
-    
-  <link rel="stylesheet" href="/index/index.css" />
-  
   {{ $style := resources.Get "scss/main.scss" | resources.ToCSS | resources.Minify | resources.Fingerprint }}
   <link rel="stylesheet" href="{{ $style.RelPermalink }}">
   </head>
