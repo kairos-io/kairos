@@ -183,6 +183,9 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
+          IMAGE: "quay.io/kairos/framework"
+          TAG: "master_${{ matrix.flavor }}"
+          COSIGN_YES: true
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
@@ -196,14 +199,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly --push +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
-      - name: Push to quay
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          IMAGE: "quay.io/kairos/framework"
-          TAG: "master_${{ matrix.flavor }}"
-          COSIGN_YES: true
-        run: |
+          earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
       - name: Build framework image 🔧
