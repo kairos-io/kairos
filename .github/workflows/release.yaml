@@ -64,7 +64,7 @@ jobs:
                 http = true
           EOF
           export TAG=${GITHUB_REF##*/}
-          earthly --push +build-framework-image --FLAVOR=${FLAVOR}
+          earthly +build-framework-image --FLAVOR=${FLAVOR}
       - name: Push to quay
         env:
           COSIGN_YES: true
