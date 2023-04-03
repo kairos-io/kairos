@@ -24,7 +24,7 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   build-framework:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs:
     - get-matrix
     permissions:
@@ -37,13 +37,13 @@ jobs:
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
-      - name: setup-docker
-        uses: docker-practice/actions-setup-docker@master
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
-      - uses: earthly/actions-setup@2181cb2b4a133a5b0353fb2a6e87f88df7419025
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
         with:
-          version: "latest"
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
@@ -51,6 +51,18 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/framework
         run: |
+          # Configure earthly to use the docker mirror in CI
+          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+          mkdir -p ~/.earthly/
+          cat << EOF > ~/.earthly/config.yml
+          global:
+            buildkit_additional_config: |
+              [registry."docker.io"]
+                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+              [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                insecure = true
+                http = true
+          EOF
           export TAG=${GITHUB_REF##*/}
           earthly --push +build-framework-image --FLAVOR=${FLAVOR}
       - name: Push to quay
