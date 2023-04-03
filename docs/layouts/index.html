@@ -17,7 +17,7 @@
     
   <link rel="stylesheet" href="/index/index.css" />
   
-  {{ $style := resources.Get "sass/main.scss" | resources.ToCSS | resources.Minify | resources.Fingerprint }}
+  {{ $style := resources.Get "scss/main.scss" | resources.ToCSS | resources.Minify | resources.Fingerprint }}
   <link rel="stylesheet" href="{{ $style.RelPermalink }}">
   </head>
   <body class="td-section astro-7XAARZHW">
