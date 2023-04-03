@@ -53,7 +53,7 @@ id = "UA-00000000-0"
 
 [languages]
 [languages.en]
-title = "Kairos"
+title = "Kairos - The immutable Linux meta-distribution for edge Kubernetes"
 description = "The immutable edge Kubernetes"
 languageName ="English"
 # Weight used for sorting.
