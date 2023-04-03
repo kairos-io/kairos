@@ -17,6 +17,10 @@
     
   <link rel="stylesheet" href="/index/index.css" />
   <link href="/scss/main.css" rel="stylesheet">
+  
+{{ with resources.Get "sass/main.scss" }}
+  <link rel="stylesheet" href="{{ .RelPermalink }}">
+{{ end }}
   </head>
   <body class="td-section astro-7XAARZHW">
     <header class="hero astro-7XAARZHW">
