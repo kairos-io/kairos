@@ -22,7 +22,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.9.2
 	github.com/onsi/gomega v1.27.6
 	github.com/pterm/pterm v0.12.58
-	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
+	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
 	github.com/swaggest/jsonschema-go v0.3.48
 	github.com/urfave/cli/v2 v2.25.1
