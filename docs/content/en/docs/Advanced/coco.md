@@ -5,6 +5,10 @@ weight: 9
 description: >
 ---
 
+{{% alert title="Note" %}}
+This page describes features that are still experimental in Kairos. There are a lot of things that can be improved and might be more streamlined in the future.
+{{% /alert %}}
+
 Confidential computing is a type of secure computing that allows users to encrypt and decrypt data on a secure, isolated computing environment.
 It works by encrypting the data before it is sent to the cloud or other computing resources. This allows users to keep their data private and secure, even if it is accessed by unauthorized parties.
 This makes it useful for sensitive data such as financial information, health records, and other confidential data.
@@ -14,7 +18,7 @@ in order to run confidential workloads.
 
 ## Create a Kairos cluster
 
-The [`coco community bundle`](https://github.com/kairos-io/community-bundles/tree/main/coco) is supported since Kairos version `v2.0.0-alpha3` ("coco" stands for "**Co**nfidential **Co**mputing).
+The [`coco community bundle`](https://github.com/kairos-io/community-bundles/tree/main/coco) is supported since Kairos version `v2.0.0-alpha3` ("coco" stands for "**Co**nfidential **Co**mputing").
 
 A configuration file like the following should be used (see the `bundles` section):
 
@@ -86,3 +90,10 @@ When this file appears, reboot the node: `/etc/containerd/.sentinel`.
   ```
 
   Get a shell to it and run the verification commands (You will need to install `ssh` in the Pod first).
+
+## Known limitations
+
+The above solution has some known limitations that might be addressed in future releases of Kairos. Namely:
+
+- After a Kairos upgrade, the above process has to be repeated in order to install the customized `containerd` and the relevant configuration.
+- There is no simple way to upgrade to newer versions of the bundle ([this is a general bundles limitation](https://github.com/kairos-io/kairos/issues/974)).
