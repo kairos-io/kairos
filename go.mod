@@ -21,7 +21,7 @@ require (
 	github.com/nxadm/tail v1.4.8
 	github.com/onsi/ginkgo/v2 v2.9.2
 	github.com/onsi/gomega v1.27.6
-	github.com/pterm/pterm v0.12.57
+	github.com/pterm/pterm v0.12.58
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
 	github.com/swaggest/jsonschema-go v0.3.48
@@ -63,7 +63,7 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20230228050547-1710fef4ab10 // indirect
-	github.com/gookit/color v1.5.2 // indirect
+	github.com/gookit/color v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
