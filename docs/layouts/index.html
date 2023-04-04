@@ -1,24 +1,35 @@
 <!DOCTYPE html>
-<html lang="en" class="astro-7XAARZHW">
+<html lang="{{ .Site.Language.Lang }}" class="astro-7XAARZHW">
   <head>
-    <title>Kairos - The immutable Linux meta-distribution for edge Kubernetes</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{ partial "head.html" . }}
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
     <link rel="apple-touch-icon" sizes="180x180" href="/favicons/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicons/favicon-16x16.png">
-<link rel="manifest" href="/favicons/site.webmanifest">
-<link rel="shortcut icon" href="/favicons/favicon.ico">
-<meta name="msapplication-TileColor" content="#da532c">
-<meta name="msapplication-config" content="/favicons/browserconfig.xml">
-<meta name="theme-color" content="#ffffff">
-
-    
-  <link rel="stylesheet" href="/index/index.css" /></head>
-  <body class="astro-7XAARZHW">
-    <div class="orange-line astro-7XAARZHW"></div>
+    <link rel="manifest" href="/favicons/site.webmanifest">
+    <meta name="msapplication-TileColor" content="#da532c">
+    <meta name="msapplication-config" content="/favicons/browserconfig.xml">
+    <meta name="theme-color" content="#ffffff">
+  </head>
+  <body class="td-section astro-7XAARZHW">
     <header class="hero astro-7XAARZHW">
+      <nav class="js-navbar-scroll navbar navbar-expand navbar-dark flex-column flex-md-row td-navbar">
+        <div class="td-navbar-nav-scroll ml-md-auto" id="main_navbar">
+          <ul class="navbar-nav mt-2 mt-lg-0">
+            <li class="nav-item mr-4 mb-2 mb-lg-0">
+              <a class="nav-link" href="/blog/"><span>Blog</span></a>
+            </li>
+            <li class="nav-item mr-4 mb-2 mb-lg-0">
+              <a class="nav-link" href="/community/"><span>Community</span></a>
+            </li>
+            <li class="nav-item mr-4 mb-2 mb-lg-0 mt-lg-2">
+              <a class="github-button" href="https://github.com/kairos-io/kairos" data-size="large" data-show-count="true" aria-label="Star kairos-io/kairos on GitHub">Star</a>
+            </li>
+          </ul>
+        </div>
+        <div class="navbar-nav d-none d-lg-block">
+          {{ partial "search-input.html" . }}
+        </div>
+      </nav>
       <div class="overlay astro-7XAARZHW">
         <div class="constraint vertical astro-7XAARZHW">
           <div class="header astro-7XAARZHW">
@@ -58,4 +69,7 @@
     <footer class="astro-7XAARZHW">
       <img src="/index/footer.png" height="122px" alt="footer logo" class="astro-7XAARZHW">
     </footer>
-  </body></html>
+    <script async defer src="https://buttons.github.io/buttons.js"></script>
+    {{ partialCached "scripts.html" . }}
+  </body>
+</html>
