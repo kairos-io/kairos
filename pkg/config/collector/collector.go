@@ -4,7 +4,6 @@ package collector
 
 import (
 	"fmt"
-	"github.com/kairos-io/kairos-sdk/machine"
 	"io"
 	"net/http"
 	"os"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/kairos-io/kairos-sdk/machine"
 
 	"github.com/avast/retry-go"
 	"github.com/imdario/mergo"
