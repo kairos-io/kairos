@@ -143,7 +143,8 @@ dist:
     RUN luet install -y utils/goreleaser
     WORKDIR /build
     COPY . .
-    RUN goreleaser build --rm-dist --skip-validate --snapshot
+    COPY +version/VERSION ./
+    RUN VERSION=$(cat VERSION) goreleaser build --rm-dist --skip-validate --snapshot
     SAVE ARTIFACT /build/dist/* AS LOCAL dist/
 
 golint:
