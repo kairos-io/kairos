@@ -2,7 +2,7 @@
 project_name: kairos-agent
 builds:
   - ldflags:
-      - -w -s "github.com/kairos-io/kairos/internal/common.VERSION={{.Env.VERSION}}"
+      - -w -s -X "github.com/kairos-io/kairos/internal/common.VERSION={{.Env.VERSION}}"
     env:
       - CGO_ENABLED=0
     goos:
