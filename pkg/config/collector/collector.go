@@ -4,6 +4,7 @@ package collector
 
 import (
 	"fmt"
+	"github.com/kairos-io/kairos-sdk/machine"
 	"io"
 	"net/http"
 	"os"
@@ -13,10 +14,8 @@ import (
 	"unicode"
 
 	"github.com/avast/retry-go"
-	"github.com/google/shlex"
 	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
-	"github.com/kairos-io/kairos-sdk/unstructured"
 	"gopkg.in/yaml.v1"
 )
 
@@ -202,40 +201,22 @@ func listFiles(dir string) ([]string, error) {
 // ParseCmdLine reads options from the kernel cmdline and returns the equivalent
 // Config.
 func ParseCmdLine(file string) (*Config, error) {
-	result := &Config{}
+	result := Config{}
+	d, _ := machine.DotToYAML(file)
+	fmt.Println(string(d))
+	cmdLineConfig := map[string]interface{}{}
+	_ = yaml.Unmarshal(d, &cmdLineConfig)
 
-	if file == "" {
-		file = "/proc/cmdline"
+	configUrl, ok := cmdLineConfig["config_url"]
+	if ok {
+		result["config_url"] = configUrl
 	}
-	dat, err := os.ReadFile(file)
-	if err != nil {
-		return result, err
-	}
-
-	d, err := unstructured.ToYAML(stringToConfig(string(dat)))
-	if err != nil {
-		return result, err
-	}
-	err = yaml.Unmarshal(d, &result)
-
-	return result, err
-}
-
-func stringToConfig(s string) Config {
-	v := Config{}
-
-	splitted, _ := shlex.Split(s)
-	for _, item := range splitted {
-		parts := strings.SplitN(item, "=", 2)
-		value := "true"
-		if len(parts) > 1 {
-			value = strings.Trim(parts[1], `"`)
-		}
-		key := strings.Trim(parts[0], `"`)
-		v[key] = value
+	options, ok := cmdLineConfig["options"]
+	if ok {
+		result["options"] = options
 	}
 
-	return v
+	return &result, nil
 }
 
 // ConfigURL returns the value of config_url if set or empty string otherwise.
