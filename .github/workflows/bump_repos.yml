@@ -16,7 +16,7 @@ jobs:
       - name: Bump cos 🔧
         run: earthly +bump-repositories
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.PAT_TOKEN }}
           push-to-fork: ci-robbot/c3os
