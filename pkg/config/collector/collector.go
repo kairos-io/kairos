@@ -203,7 +203,6 @@ func listFiles(dir string) ([]string, error) {
 func ParseCmdLine(file string) (*Config, error) {
 	result := Config{}
 	d, _ := machine.DotToYAML(file)
-	fmt.Println(string(d))
 	cmdLineConfig := map[string]interface{}{}
 	_ = yaml.Unmarshal(d, &cmdLineConfig)
 
