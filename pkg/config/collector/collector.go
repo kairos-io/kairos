@@ -206,9 +206,9 @@ func ParseCmdLine(file string) (*Config, error) {
 	cmdLineConfig := map[string]interface{}{}
 	_ = yaml.Unmarshal(d, &cmdLineConfig)
 
-	configUrl, ok := cmdLineConfig["config_url"]
+	configURL, ok := cmdLineConfig["config_url"]
 	if ok {
-		result["config_url"] = configUrl
+		result["config_url"] = configURL
 	}
 	options, ok := cmdLineConfig["options"]
 	if ok {
