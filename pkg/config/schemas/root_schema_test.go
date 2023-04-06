@@ -16,6 +16,10 @@ func getTagName(s string) string {
 		return ""
 	}
 
+	if s == "-" {
+		return ""
+	}
+
 	f := func(c rune) bool {
 		return c == '"' || c == ','
 	}

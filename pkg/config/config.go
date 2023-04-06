@@ -36,8 +36,8 @@ type Install struct {
 }
 
 type Config struct {
-	Install *Install `yaml:"install,omitempty"`
-	collector.Config
+	Install          *Install `yaml:"install,omitempty"`
+	collector.Config `yaml:"-"`
 	// TODO: Remove this too?
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
@@ -95,6 +95,22 @@ func (c Config) HasConfigURL() bool {
 	return c.ConfigURL != ""
 }
 
+// FilterKeys is used to pass to any other pkg which might want to see which part of the config matches the Kairos config.
+func FilterKeys(d []byte) ([]byte, error) {
+	cmdLineFilter := Config{}
+	err := yaml.Unmarshal(d, &cmdLineFilter)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	out, err := yaml.Marshal(cmdLineFilter)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return out, nil
+}
+
 func Scan(opts ...collector.Option) (c *Config, err error) {
 	result := &Config{}
 
@@ -103,7 +119,7 @@ func Scan(opts ...collector.Option) (c *Config, err error) {
 		return result, err
 	}
 
-	genericConfig, err := collector.Scan(o)
+	genericConfig, err := collector.Scan(o, FilterKeys)
 	if err != nil {
 		return result, err
 

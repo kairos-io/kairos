@@ -12,11 +12,11 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/kairos-io/kairos-sdk/machine"
+
 	"github.com/avast/retry-go"
-	"github.com/google/shlex"
 	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
-	"github.com/kairos-io/kairos-sdk/unstructured"
 	"gopkg.in/yaml.v1"
 )
 
@@ -93,13 +93,13 @@ func (cs Configs) Merge() (*Config, error) {
 	return result, nil
 }
 
-func Scan(o *Options) (*Config, error) {
+func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	configs := Configs{}
 
 	configs = append(configs, parseFiles(o.ScanDir, o.NoLogs)...)
 
 	if o.MergeBootCMDLine {
-		cConfig, err := ParseCmdLine(o.BootCMDLineFile)
+		cConfig, err := ParseCmdLine(o.BootCMDLineFile, filter)
 		o.SoftErr("parsing cmdline", err)
 		if err == nil { // best-effort
 			configs = append(configs, cConfig)
@@ -201,41 +201,24 @@ func listFiles(dir string) ([]string, error) {
 
 // ParseCmdLine reads options from the kernel cmdline and returns the equivalent
 // Config.
-func ParseCmdLine(file string) (*Config, error) {
-	result := &Config{}
-
-	if file == "" {
-		file = "/proc/cmdline"
-	}
-	dat, err := os.ReadFile(file)
+func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, error) {
+	result := Config{}
+	dotToYAML, err := machine.DotToYAML(file)
 	if err != nil {
-		return result, err
+		return &result, err
 	}
 
-	d, err := unstructured.ToYAML(stringToConfig(string(dat)))
+	filteredYAML, err := filter(dotToYAML)
 	if err != nil {
-		return result, err
-	}
-	err = yaml.Unmarshal(d, &result)
-
-	return result, err
-}
-
-func stringToConfig(s string) Config {
-	v := Config{}
-
-	splitted, _ := shlex.Split(s)
-	for _, item := range splitted {
-		parts := strings.SplitN(item, "=", 2)
-		value := "true"
-		if len(parts) > 1 {
-			value = strings.Trim(parts[1], `"`)
-		}
-		key := strings.Trim(parts[0], `"`)
-		v[key] = value
+		return &result, err
 	}
 
-	return v
+	err = yaml.Unmarshal(filteredYAML, &result)
+	if err != nil {
+		return &result, err
+	}
+
+	return &result, nil
 }
 
 // ConfigURL returns the value of config_url if set or empty string otherwise.

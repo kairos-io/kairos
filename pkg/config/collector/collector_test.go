@@ -6,6 +6,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/kairos-io/kairos/v2/pkg/config"
+
 	. "github.com/kairos-io/kairos/v2/pkg/config/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -273,12 +275,12 @@ options:
 				)
 				Expect(err).ToNot(HaveOccurred())
 
-				c, err := Scan(o)
+				c, err := Scan(o, config.FilterKeys)
 				Expect(err).ToNot(HaveOccurred())
 
-				config_url, ok := (*c)["config_url"].(string)
+				configURL, ok := (*c)["config_url"].(string)
 				Expect(ok).To(BeTrue())
-				Expect(config_url).To(MatchRegexp("remote_config_2.yaml"))
+				Expect(configURL).To(MatchRegexp("remote_config_2.yaml"))
 
 				k := (*c)["local_key_1"].(string)
 				Expect(k).To(Equal("local_value_1"))
@@ -301,7 +303,7 @@ options:
 				Expect(options["remote_option_2"]).To(Equal("remote_option_value_2"))
 
 				player := (*c)["player"].(map[interface{}]interface{})
-				Expect(player["name"]).To(Equal("Dimitris"))
+				Expect(player["name"]).NotTo(Equal("Toad"))
 				Expect(player["surname"]).To(Equal("Bros"))
 			})
 		})
@@ -358,7 +360,7 @@ remote_key_2: remote_value_2`), os.ModePerm)
 				err := o.Apply(Directories(tmpDir), NoLogs)
 				Expect(err).ToNot(HaveOccurred())
 
-				c, err := Scan(o)
+				c, err := Scan(o, config.FilterKeys)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect((*c)["local_key_2"]).To(BeNil())
@@ -426,7 +428,7 @@ some:
 			)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(o)
+			c, err := Scan(o, config.FilterKeys)
 			Expect(err).ToNot(HaveOccurred())
 
 			v, err := c.Query("local_key_1")
@@ -446,7 +448,6 @@ func createRemoteConfigs(serverDir string, port int) string {
 
 config_url: http://127.0.0.1:%d/remote_config_2.yaml
 player:
-  name: Dimitris
 remote_key_1: remote_value_1
 `, port)), os.ModePerm)
 	Expect(err).ToNot(HaveOccurred())
@@ -460,7 +461,7 @@ remote_key_2: remote_value_2
 
 	cmdLinePath := filepath.Join(serverDir, "cmdline")
 	// We put the cmdline in the same dir, it doesn't matter.
-	cmdLine := fmt.Sprintf(`config_url="http://127.0.0.1:%d/remote_config_1.yaml" player.name="Mario" options.foo=bar`, port)
+	cmdLine := fmt.Sprintf(`config_url="http://127.0.0.1:%d/remote_config_1.yaml" player.name="Toad" options.foo=bar`, port)
 	err = os.WriteFile(cmdLinePath, []byte(cmdLine), os.ModePerm)
 	Expect(err).ToNot(HaveOccurred())
 
