@@ -6,6 +6,8 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/kairos-io/kairos/v2/pkg/config"
+
 	. "github.com/kairos-io/kairos/v2/pkg/config/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -273,7 +275,8 @@ options:
 				)
 				Expect(err).ToNot(HaveOccurred())
 
-				c, err := Scan(o)
+				cmdLineFilter := config.Config{}
+				c, err := Scan(o, cmdLineFilter)
 				Expect(err).ToNot(HaveOccurred())
 
 				config_url, ok := (*c)["config_url"].(string)
@@ -358,7 +361,8 @@ remote_key_2: remote_value_2`), os.ModePerm)
 				err := o.Apply(Directories(tmpDir), NoLogs)
 				Expect(err).ToNot(HaveOccurred())
 
-				c, err := Scan(o)
+				cmdLineFilter := config.Config{}
+				c, err := Scan(o, cmdLineFilter)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect((*c)["local_key_2"]).To(BeNil())
@@ -426,7 +430,8 @@ some:
 			)
 			Expect(err).ToNot(HaveOccurred())
 
-			c, err := Scan(o)
+			cmdLineFilter := config.Config{}
+			c, err := Scan(o, cmdLineFilter)
 			Expect(err).ToNot(HaveOccurred())
 
 			v, err := c.Query("local_key_1")

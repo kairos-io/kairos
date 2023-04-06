@@ -103,7 +103,8 @@ func Scan(opts ...collector.Option) (c *Config, err error) {
 		return result, err
 	}
 
-	genericConfig, err := collector.Scan(o)
+	cmdLineFilter := &Config{}
+	genericConfig, err := collector.Scan(o, cmdLineFilter)
 	if err != nil {
 		return result, err
 
