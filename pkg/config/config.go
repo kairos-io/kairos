@@ -95,6 +95,7 @@ func (c Config) HasConfigURL() bool {
 	return c.ConfigURL != ""
 }
 
+// FilterKeys is used to pass to any other pkg which might want to see which part of the config matches the Kairos config.
 func FilterKeys(d []byte) ([]byte, error) {
 	cmdLineFilter := Config{}
 	err := yaml.Unmarshal(d, &cmdLineFilter)
