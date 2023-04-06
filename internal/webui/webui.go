@@ -209,7 +209,7 @@ func Start(ctx context.Context) error {
 		args = append(args, "--device", installationDevice)
 
 		// create tempfile to store cloud-config, bail out if we fail as we couldn't go much further
-		file, err := os.CreateTemp("", "install-webui")
+		file, err := os.CreateTemp("", "install-webui-*.yaml")
 		if err != nil {
 			log.Fatalf("could not create tmpfile for cloud-config: %s", err.Error())
 		}
