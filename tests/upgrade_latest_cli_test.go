@@ -43,7 +43,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 		})
 
 		It("can upgrade to current image", func() {
-			currentVersion, err := vm.Sudo(". /etc/os-release; echo $VERSION")
+			currentVersion, err := vm.Sudo(". /etc/os-release; echo $KAIROS_VERSION")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(currentVersion).To(ContainSubstring("v"))
 			_, err = vm.Sudo("kairos-agent")
