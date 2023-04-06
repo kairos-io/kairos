@@ -51,22 +51,22 @@ $ docker pull quay.io/kairos/core-alpine:v1.1.0
 We can run it locally with docker as a container to inspect it, as it is runnable:
 
 ```
-$ docker run -ti --rm quay.io/kairos/core-alpine:v1.1.0
+$ docker run -ti --rm quay.io/kairos/core-alpine:v2.0.0
 / # cat /etc/os-release
-NAME="kairos-core-alpine"
-VERSION="v1.1.0"
-ID="kairos"
-ID_LIKE="kairos-core-alpine"
-VERSION_ID="v1.1.0"
-PRETTY_NAME="kairos-core-alpine v1.1.0"
-ANSI_COLOR="0;32"
-BUG_REPORT_URL="https://github.com/kairos-io/kairos/issues"
-HOME_URL="https://github.com/kairos-io/kairos"
-IMAGE_REPO="quay.io/kairos/core-alpine"
-IMAGE_LABEL="latest"
-GITHUB_REPO="kairos-io/kairos"
-VARIANT="core"
-FLAVOR="alpine"/ #
+...
+KAIROS_NAME="kairos-core-alpine"
+KAIROS_VERSION="v1.1.0"
+KAIROS_ID="kairos"
+KAIROS_ID_LIKE="kairos-core-alpine"
+KAIROS_VERSION_ID="v1.1.0"
+KAIROS_PRETTY_NAME="kairos-core-alpine v1.1.0"
+KAIROS_BUG_REPORT_URL="https://github.com/kairos-io/kairos/issues"
+KAIROS_HOME_URL="https://github.com/kairos-io/kairos"
+KAIROS_IMAGE_REPO="quay.io/kairos/core-alpine"
+KAIROS_IMAGE_LABEL="latest"
+KAIROS_GITHUB_REPO="kairos-io/kairos"
+KAIROS_VARIANT="core"
+KAIROS_FLAVOR="alpine"/ #
 ```
 
 And check out things like what's the kernel inside:
