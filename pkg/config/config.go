@@ -96,15 +96,16 @@ func (c Config) HasConfigURL() bool {
 }
 
 func FilterKeys(d []byte) ([]byte, error) {
-	// result := make(map[string]interface{})
 	cmdLineFilter := Config{}
 	err := yaml.Unmarshal(d, &cmdLineFilter)
 	if err != nil {
 		return []byte{}, err
 	}
 
-	out, _ := yaml.Marshal(cmdLineFilter)
-	// yaml.Unmarshal(out, &result)
+	out, err := yaml.Marshal(cmdLineFilter)
+	if err != nil {
+		return []byte{}, err
+	}
 
 	return out, nil
 }
