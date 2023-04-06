@@ -36,8 +36,8 @@ type Install struct {
 }
 
 type Config struct {
-	Install *Install `yaml:"install,omitempty"`
-	collector.Config
+	Install          *Install `yaml:"install,omitempty"`
+	collector.Config `yaml:"-"`
 	// TODO: Remove this too?
 	ConfigURL          string            `yaml:"config_url,omitempty"`
 	Options            map[string]string `yaml:"options,omitempty"`
