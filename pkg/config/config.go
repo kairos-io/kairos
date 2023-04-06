@@ -95,6 +95,20 @@ func (c Config) HasConfigURL() bool {
 	return c.ConfigURL != ""
 }
 
+func FilterKeys(d []byte) ([]byte, error) {
+	// result := make(map[string]interface{})
+	cmdLineFilter := Config{}
+	err := yaml.Unmarshal(d, &cmdLineFilter)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	out, _ := yaml.Marshal(cmdLineFilter)
+	// yaml.Unmarshal(out, &result)
+
+	return out, nil
+}
+
 func Scan(opts ...collector.Option) (c *Config, err error) {
 	result := &Config{}
 
@@ -103,8 +117,7 @@ func Scan(opts ...collector.Option) (c *Config, err error) {
 		return result, err
 	}
 
-	cmdLineFilter := &Config{}
-	genericConfig, err := collector.Scan(o, cmdLineFilter)
+	genericConfig, err := collector.Scan(o, FilterKeys)
 	if err != nil {
 		return result, err
 

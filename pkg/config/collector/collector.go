@@ -93,13 +93,13 @@ func (cs Configs) Merge() (*Config, error) {
 	return result, nil
 }
 
-func Scan(o *Options, cmdLineFilter interface{}) (*Config, error) {
+func Scan(o *Options, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	configs := Configs{}
 
 	configs = append(configs, parseFiles(o.ScanDir, o.NoLogs)...)
 
 	if o.MergeBootCMDLine {
-		cConfig, err := ParseCmdLine(o.BootCMDLineFile, cmdLineFilter)
+		cConfig, err := ParseCmdLine(o.BootCMDLineFile, filter)
 		o.SoftErr("parsing cmdline", err)
 		if err == nil { // best-effort
 			configs = append(configs, cConfig)
@@ -201,20 +201,21 @@ func listFiles(dir string) ([]string, error) {
 
 // ParseCmdLine reads options from the kernel cmdline and returns the equivalent
 // Config.
-func ParseCmdLine(file string, cmdLineFilter interface{}) (*Config, error) {
+func ParseCmdLine(file string, filter func(d []byte) ([]byte, error)) (*Config, error) {
 	result := Config{}
-	d, err := machine.DotToYAML(file)
+	dotToYAML, err := machine.DotToYAML(file)
 	if err != nil {
 		return &result, err
 	}
 
-	err = yaml.Unmarshal(d, &cmdLineFilter)
+	filteredYAML, err := filter(dotToYAML)
 	if err != nil {
 		return &result, err
 	}
 
-	for k, v := range cmdLineFilter.(map[interface{}]interface{}) {
-		result[k.(string)] = v
+	err = yaml.Unmarshal(filteredYAML, &result)
+	if err != nil {
+		return &result, err
 	}
 
 	return &result, nil
