@@ -781,6 +781,15 @@ webui-deps:
     RUN npm install
     SAVE ARTIFACT node_modules /node_modules AS LOCAL internal/webui/public/node_modules
 
+webui-tests:
+    FROM ubuntu:22.10
+    RUN apt-get update && apt-get install -y libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb golang nodejs npm
+    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    COPY . src/
+    WORKDIR src/
+    RUN .github/cypress_tests.sh
+    SAVE ARTIFACT /src/internal/webui/public/cypress/videos videos
+
 docs:
     FROM node:19-bullseye
     ARG TARGETARCH

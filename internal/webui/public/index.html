@@ -47,7 +47,7 @@
     <div class="container mt-5">
       <h1>Welcome to the Installer!</h1>
       <p>Enter your <a href="/local/docs/reference/configuration/" target="_blank">cloud-config config configuration file</a> and select the device to install on:</p>
-      <div class="alert alert-info" role="alert">
+      <div id="cloud-config-help" class="alert alert-info" role="alert">
         Need help with your cloud config? Check out our <a href="/local/docs/examples/" class="alert-link">documentation on where to find examples</a>.
       </div>
       <form action="/install" method="POST">
@@ -105,21 +105,21 @@
 
               codeMirrorEditor.on('change', () => content = codeMirrorEditor.getValue())
             " 
-            x-on:keydown="validateYAML"
+            x-on:keydown.debounce="validateYAML"
         >
           <label for="cloud-config">Cloud Config</label>
-          <div class="alert" x-text="getText" :class="{ 'alert-info': valid, 'alert-danger': !valid }" x-show="show"></div>
+          <div id="validator-alert" class="alert" x-text="getText" :class="{ 'alert-info': valid, 'alert-danger': !valid }" x-show="show"></div>
           <textarea x-model.debounce.750ms="content" x-ref="input" class="form-control" id="cloud-config" name="cloud-config" rows="5"></textarea>
         </div>
         <div class="form-group">
           <label for="installation-device">Device</label>
           <input type="text" class="form-control" id="installation-device" name="installation-device"  value="auto">
         </div>
-        <div class="form-group form-check">
+        <div id="reboot-checkbox" class="form-group form-check">
           <input type="checkbox" class="form-check-input" name="reboot">
           <label class="form-check-label" for="reboot">Reboot after installation</label>
         </div>
-        <div class="form-group form-check">
+        <div id="poweroff-checkbox" class="form-group form-check">
           <input type="checkbox" class="form-check-input" name="power-off">
           <label class="form-check-label" for="poweroff">Power off after installation</label>
         </div>
