@@ -71,7 +71,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+          ./earthly.sh +all-arm --IMAGE_NAME=core-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
@@ -80,7 +80,7 @@ jobs:
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=latest
-          export IMAGE_NAME=kairos-$FLAVOR-$TAG.img
+          export IMAGE_NAME=core-$FLAVOR-$TAG.img
           export IMAGE=quay.io/kairos/core-$FLAVOR:$TAG
           docker push quay.io/kairos/core-$FLAVOR:$TAG
       - name: Prepare sarif files  🔧

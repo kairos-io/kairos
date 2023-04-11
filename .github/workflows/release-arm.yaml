@@ -62,7 +62,7 @@ jobs:
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+          ./earthly.sh +all-arm --IMAGE_NAME=core-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
