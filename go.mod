@@ -24,7 +24,7 @@ require (
 	github.com/pterm/pterm v0.12.58
 	github.com/santhosh-tekuri/jsonschema/v5 v5.2.0
 	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
-	github.com/swaggest/jsonschema-go v0.3.48
+	github.com/swaggest/jsonschema-go v0.3.49
 	github.com/urfave/cli/v2 v2.25.1
 	golang.org/x/net v0.9.0
 	golang.org/x/oauth2 v0.6.0
