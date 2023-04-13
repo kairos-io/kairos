@@ -41,7 +41,7 @@ There were also fixes to the Debian flavor (thanks to the community for reportin
 
 Finally, it is also now possible to specify custom bind mounts path to overlay on top of the persistent partition, allowing to easily specify paths that you want to be persistent in the system via the cloud config file: https://kairos.io/docs/advanced/customizing/#customizing-the-file-system-hierarchy-using-custom-mounts .
 
-To see all the changes, you can check the full changelog at:  https://github.com/kairos-io/kairos/releases/tag/v2.0.0, and if you are curious on what's next, check out our [Roadmap](https://github.com/orgs/kairos-io/projects/2) and feel free to engage with our [community](https://kairos.io/community/)!
+If you are curious on what's next, check out our [Roadmap](https://github.com/orgs/kairos-io/projects/2) and feel free to engage with our [community](https://kairos.io/community/)!
 
 ---
 
