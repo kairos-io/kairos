@@ -2,7 +2,8 @@ VERSION 0.6
 FROM alpine
 ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse-leap
-ARG IMAGE=quay.io/kairos/${VARIANT}-${FLAVOR}:latest
+ARG BASE_URL=quay.io/kairos
+ARG IMAGE=${BASE_URL}/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
@@ -353,7 +354,6 @@ base-image:
         # no dracut on those flavors, do nothing
     ELSE
         # Regenerate initrd if necessary
-        RUN --no-cache kernel=$(ls /boot/vmlinuz-* | head -n1) && ln -sf "${kernel#/boot/}" /boot/vmlinuz
         RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
         RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
     END
@@ -363,15 +363,23 @@ base-image:
         RUN rm -rf /boot/initramfs-*
     END
 
+    # Set /boot/vmlinuz pointing to our kernel so elemental-cli can use it
+    # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
     IF [ ! -e "/boot/vmlinuz" ]
         # If it's an ARM flavor, we want a symlink here from zImage/Image
-        IF [ -e "/boot/Image" ]
+        # Check that its not a symlink already or grub will fail!
+        IF [ -e "/boot/Image" ] && [ ! -L "/boot/Image" ]
             RUN ln -sf Image /boot/vmlinuz
         ELSE IF [ -e "/boot/zImage" ]
-            RUN ln -sf zImage /boot/vmlinuz
+            IF  [ ! -L "/boot/zImage" ]
+                RUN ln -sf zImage /boot/vmlinuz
+            ELSE
+                RUN kernel=$(ls /boot/zImage-* | head -n1) && if [ -e "$kernel" ]; then ln -sf "${kernel#/boot/}" /boot/vmlinuz; fi
+            END
         ELSE
-            RUN kernel=$(ls /lib/modules | head -n1) && \
-             ln -sf "${kernel#/boot/}" /boot/vmlinuz
+            # Debian has vmlinuz-VERSION
+            RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && if [ -e "$kernel" ]; then ln -sf "${kernel#/boot/}" /boot/vmlinuz; fi
+            RUN kernel=$(ls /boot/Image-* | head -n1) && if [ -e "$kernel" ]; then ln -sf "${kernel#/boot/}" /boot/vmlinuz; fi
         END
     END
 
@@ -416,6 +424,23 @@ iso:
     COPY . ./
     COPY --keep-own +image-rootfs/rootfs /build/image
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --overlay-iso /build/${overlay} --output /build/
+    SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
+    SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
+
+# This target builds an iso using a remote docker image as rootfs instead of building the whole rootfs
+# This should be really fast as it uses an existing image. This requires a pushed image from the +image target
+# defaults to use the $IMAGE name (so ttl.sh/core-opensuse-leap:latest)
+# you can override either the full thing by setting --IMG=docker:REPO/IMAGE:TAG
+# or by --IMAGE=REPO/IMAGE:TAG
+iso-remote:
+    ARG OSBUILDER_IMAGE
+    ARG ISO_NAME=${OS_ID}
+    ARG IMG=docker:$IMAGE
+    ARG overlay=overlay/files-iso
+    FROM $OSBUILDER_IMAGE
+    WORKDIR /build
+    COPY . ./
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false $IMG --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
