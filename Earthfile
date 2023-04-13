@@ -95,7 +95,7 @@ BUILD_GOLANG:
     ARG VERSION
 
     ENV CGO_ENABLED=${CGO_ENABLED}
-    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
+    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/v2/internal/common.VERSION=${VERSION}'"
     RUN --no-cache echo "Building ${BIN} from ${SRC} using ${VERSION}"
     RUN echo ${LDFLAGS}
     RUN go build -o ${BIN} -ldflags "${LDFLAGS}" ./cmd/${SRC} && upx ${BIN}
@@ -129,6 +129,7 @@ build-kairos-agent:
     COPY +docs/public/local ./internal/webui/public/local
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
+    RUN echo $(cat VERSION)
     DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED --VERSION=$VERSION
 
 build:
@@ -223,7 +224,7 @@ framework:
     ARG COSIGN_REPOSITORY
     ARG FLAVOR
     ARG VERSION
-    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/internal/common.VERSION=$VERSION'"
+    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/v2/internal/common.VERSION=$VERSION'"
 
     FROM golang:alpine
     WORKDIR /build
