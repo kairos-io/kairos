@@ -146,7 +146,7 @@ Here are some additional helpful tips depending on the physical/virtual machine 
       virt-install --name my-first-kairos-vm \
                   --vcpus 1 \
                   --memory 1024 \
-                  --cdrom /path/to/kairos-opensuse-{{<kairosVersion>}}-{{k3sVersion}}.iso \
+                  --cdrom /path/to/kairos-opensuse-{{< kairosVersion >}}-{{< k3sVersion >}}.iso \
                   --disk size=30 \
                   --os-variant opensuse-factory \
                   --virt-type kvm
