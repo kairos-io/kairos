@@ -26,7 +26,7 @@ Kairos 2.0.0 has just been released, and we are thrilled to share the latest upd
   
 ### What changed?
 
-We replaced the former dracut modules (a set of bash scripts/dracut/systemd services), which were responsible for the immutability management of Kairos, with https://github.com/kairos-io/immucore, a self-contained binary which doesn't have dependencies and can run without dracut and systemd. While changes shouldn't be impactful for most of our users, as changes impacted only in internal components, we suggest to try the upgrade in a lab environment before upgrading from earlier versions (v1.x).
+We replaced the former dracut modules (a set of bash scripts/dracut/systemd services), which were responsible for the immutability management of Kairos, with https://github.com/kairos-io/immucore , a self-contained binary which doesn't have dependencies and can run without dracut and systemd. While changes shouldn't be impactful for most of our users, as changes impacted only in internal components, we suggest to try the upgrade in a lab environment before upgrading from earlier versions (v1.x).
 
 The 2.0 release allows us to:
 - not depend anymore on systemd while set up immutability on boot ( allowing us to unblock several stories, for instance create Alpine images with vanilla kernels )
