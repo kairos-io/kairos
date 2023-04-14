@@ -3,6 +3,7 @@
 package collector
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +18,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
-	"gopkg.in/yaml.v1"
+	"gopkg.in/yaml.v3"
 )
 
 const DefaultHeader = "#cloud-config"
@@ -290,12 +291,23 @@ func (c Config) Query(s string) (res string, err error) {
 	s = fmt.Sprintf(".%s", s)
 
 	var dat map[string]interface{}
+	var dat1 map[string]interface{}
 
 	yamlStr, err := c.String()
 	if err != nil {
 		panic(err)
 	}
-	if err := yaml.Unmarshal([]byte(yamlStr), &dat); err != nil {
+	// Marshall it so it removes the first line which cannot be parsed
+	err = yaml.Unmarshal([]byte(yamlStr), &dat1)
+	if err != nil {
+		panic(err)
+	}
+	// Transform it to json so its parsed correctly by gojq
+	b, err := json.Marshal(dat1)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(b, &dat); err != nil {
 		panic(err)
 	}
 
