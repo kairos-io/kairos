@@ -174,6 +174,10 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 				EnvVars: []string{"REPOSITORY"},
 				Value:   "docker://quay.io/kairos/packages",
 			},
+			&cli.BoolFlag{
+				Name:    "local-file",
+				EnvVars: []string{"LOCAL_FILE"},
+			},
 		},
 		UsageText: "Install a bundle manually in the node",
 		Action: func(c *cli.Context) error {
@@ -181,7 +185,7 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 				return fmt.Errorf("bundle name required")
 			}
 
-			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRepository(c.String("repository")), bundles.WithTarget(c.Args().First())})
+			return bundles.RunBundles([]bundles.BundleOption{bundles.WithRepository(c.String("repository")), bundles.WithTarget(c.Args().First()), bundles.WithLocalFile(c.Bool("local-file"))})
 		},
 	},
 	{
