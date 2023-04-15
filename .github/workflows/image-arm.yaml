@@ -142,7 +142,7 @@ jobs:
       - name: Set up Docker Buildx
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         id: buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
       - name: Build iso  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: earthly --platform=linux/arm64 +iso --FLAVOR=${{ matrix.flavor }}
