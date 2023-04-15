@@ -69,13 +69,13 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 			vm.Reboot()
 
 			Eventually(func() error {
-				_, err := vm.Sudo(". /etc/os-release; echo $VERSION")
+				_, err := vm.Sudo(". /etc/os-release; echo $KAIROS_VERSION")
 				return err
 			}, 10*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
 
 			var v string
 			Eventually(func() string {
-				v, _ = vm.Sudo(". /etc/os-release; echo $VERSION")
+				v, _ = vm.Sudo(". /etc/os-release; echo $KAIROS_VERSION")
 				return v
 				// TODO: Add regex semver check here
 			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v"), v)
