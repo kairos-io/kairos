@@ -297,12 +297,12 @@ options:
 				k = (*c)["remote_key_4"].(string)
 				Expect(k).To(Equal("remote_value_4"))
 
-				options := (*c)["options"].(map[interface{}]interface{})
+				options := (*c)["options"].(Config)
 				Expect(options["foo"]).To(Equal("bar"))
 				Expect(options["remote_option_1"]).To(Equal("remote_option_value_1"))
 				Expect(options["remote_option_2"]).To(Equal("remote_option_value_2"))
 
-				player := (*c)["player"].(map[interface{}]interface{})
+				player := (*c)["player"].(Config)
 				Expect(player["name"]).NotTo(Equal("Toad"))
 				Expect(player["surname"]).To(Equal("Bros"))
 			})
@@ -436,8 +436,11 @@ some:
 			Expect(v).To(Equal("local_value_1\n"))
 			v, err = c.Query("some")
 			Expect(err).ToNot(HaveOccurred())
-			// TODO: there's a bug when trying to dig some.other.key, so making the test pass this way for now, since that was not tested before
-			Expect(v).To(Equal("other:\n  key: 3\n"))
+			Expect(v).To(Equal("other:\n    key: 3\n"))
+			v, err = c.Query("some.other")
+			Expect(v).To(Equal("key: 3\n"))
+			v, err = c.Query("some.other.key")
+			Expect(v).To(Equal("3\n"))
 			Expect(c.Query("options")).To(Equal("foo: bar\n"))
 		})
 	})
