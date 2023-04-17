@@ -21,6 +21,6 @@ rm -rf "${publicpath}" || true
 
 npm install --save-dev autoprefixer postcss-cli postcss
 
-HUGO_ENV="production" hugo --gc -b "${BASE_URL}" -d "${publicpath}"
+HUGO_ENV="production" hugo --buildFuture --gc -b "${BASE_URL}" -d "${publicpath}"
 
 cp -rf CNAME "${publicpath}"
