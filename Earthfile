@@ -350,7 +350,7 @@ base-image:
     END
 
 
-    IF [[ "$FLAVOR" =~ ^alpine.* ]] || [[ "$FLAVOR" =~ .*-arm-rpi$ ]]
+    IF [[ "$FLAVOR" =~ ^alpine.* ]]
         # no dracut on those flavors, do nothing
     ELSE
         # Regenerate initrd if necessary
