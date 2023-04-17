@@ -30,6 +30,8 @@ var sshPort string
 
 var machineID string = os.Getenv("MACHINE_ID")
 
+var getVersionCmd = ". /etc/os-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION || echo $VERSION"
+
 // https://gist.github.com/sevkin/96bdae9274465b2d09191384f86ef39d
 // GetFreePort asks the kernel for a free open port that is ready to use.
 func getFreePort() (port int, err error) {
