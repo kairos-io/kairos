@@ -64,6 +64,8 @@ func Reset(dir ...string) error {
 	lock.Lock()
 	args := []string{"reset"}
 
+	ensureDataSourceReady()
+
 	bus.Manager.Publish(sdk.EventBeforeReset, sdk.EventPayload{}) //nolint:errcheck
 
 	optsArgs := optsToArgs(options)
@@ -96,7 +98,9 @@ func Reset(dir ...string) error {
 
 	bus.Manager.Publish(sdk.EventAfterReset, sdk.EventPayload{}) //nolint:errcheck
 
-	pterm.Info.Println("Rebooting in 60 seconds, press Enter to abort...")
+	if !agentConfig.Fast {
+		pterm.Info.Println("Rebooting in 60 seconds, press Enter to abort...")
+	}
 
 	// We don't close the lock, as none of the following actions are expected to return
 	lock2 := sync.Mutex{}
