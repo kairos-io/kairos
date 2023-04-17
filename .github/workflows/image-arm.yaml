@@ -144,8 +144,20 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v2
       - name: Build iso  🔧
+        env:
+          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
+          TAG: "latest"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: earthly --platform=linux/arm64 +iso --FLAVOR=${{ matrix.flavor }}
+        run: |
+          earthly --platform=linux/arm64 +image --FLAVOR=${{ matrix.flavor }} --IMAGE=$IMAGE
+          earthly --platform=linux/arm64 +iso --FLAVOR=${{ matrix.flavor }} --IMAGE=$IMAGE
+      - name: Push to quay
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        env:
+          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
+          TAG: "latest"
+        run: |
+          docker push "$IMAGE:$TAG"
       - uses: actions/upload-artifact@v3
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
