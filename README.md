@@ -18,7 +18,7 @@
 
 <hr>
 
-With Kairos you can build immutable, bootable Kubernetes and OS images for your edge devices as easily as writing a Dockerfile. Optional P2P mesh with distributed ledger automates node bootstrapping and coordination. Updating nodes is as easy as CI/CD: push a new image to your container registry and let secure, risk-free A/B atomic upgrades do the rest. 
+With Kairos you can build immutable, bootable Kubernetes and OS images for your edge devices as easily as writing a Dockerfile. Optional P2P mesh with distributed ledger automates node bootstrapping and coordination. Updating nodes is as easy as CI/CD: push a new image to your container registry and let secure, risk-free A/B atomic upgrades do the rest. Kairos leverages the Secure Edge-Native Architecture (SENA) to securely run workloads at the Edge ([whitepaper](https://github.com/kairos-io/kairos/files/11250843/Secure-Edge-Native-Architecture-white-paper-20240417.3.pdf)).
 
 Kairos (formerly `c3os`) is an open-source project which brings Edge, cloud, and bare metal lifecycle OS management into the same design principles with a unified Cloud Native API.
 
@@ -42,6 +42,10 @@ For comprehensive docs, tutorials, and examples see our [documentation](https://
 
 ## Project status
 
+To stay up-to-date, check out the [Kairos Blog](https://kairos.io/blog/). You will find also release announcements and deep-dive into Kairos features!
+
+- (Apr 18, 2022) SENA whitepaper (check it out [here](https://github.com/kairos-io/kairos/files/11250843/Secure-Edge-Native-Architecture-white-paper-20240417.3.pdf)) released in collaboration with Intel.
+- (Apr 13, 2022) announcing release of Kairos 2.0, a step forward confidential computing and securing the runtime stack.
 - (Dec 28, 2022) announcing the release of Kairos 1.4, which includes self-coordinated automated HA deployment via p2p and with [KubeVIP](https://kube-vip.io/). Check out the [docs](https://kairos.io/docs/installation/p2p/) for more information on this exciting new feature! Support for Ubuntu, Debian, and Fedora is also added in the Kairos 1.4 release. Expanding the number of supported operating systems currently available to pick from!
 - (Sep 29, 2022) announcing Kairos 1.0 GA availability. Kairos is now backed by Spectro Cloud, which contributes to the project. Kairos will remain fully community-driven and has its own governance. See the [announcement](https://github.com/kairos-io/kairos/discussions/159)
 - (Sep 15, 2022) the c3OS project has a new name: Kairos! For full details, see https://github.com/c3os-io/c3os/issues/88 and https://github.com/c3os-io/c3os/discussions/84.
