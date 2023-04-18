@@ -7,8 +7,8 @@ RUN wget https://github.com/ipfs/kubo/releases/download/v0.15.0/kubo_v0.15.0_lin
 RUN tar xvf kubo.tar.gz
 RUN mv kubo/ipfs /usr/bin/ipfs
 RUN mkdir -p /usr/lib/extension-release.d/
-RUN echo ID=kairos > /usr/lib/extension-release.d/extension-release.kubo
-RUN echo VERSION_ID=$VERSION >> /usr/lib/extension-release.d/extension-release.kubo
+RUN echo KAIROS_ID=kairos > /usr/lib/extension-release.d/extension-release.kubo
+RUN echo KAIROS_VERSION_ID=$VERSION >> /usr/lib/extension-release.d/extension-release.kubo
 
 
 FROM scratch
