@@ -148,7 +148,6 @@ jobs:
       - name: Push to quay
         env:
           IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
-          TAG: "latest"
         run: |
           export TAG=${GITHUB_REF##*/}
           docker push "$IMAGE:$TAG"
