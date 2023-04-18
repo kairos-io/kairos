@@ -52,6 +52,10 @@ all-arm:
   BUILD +grype-scan
   BUILD +arm-image
 
+all-arm-generic:
+  BUILD --platform=linux/arm64 +image
+  BUILD --platform=linux/arm64 +iso
+
 go-deps:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
