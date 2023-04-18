@@ -7,7 +7,7 @@ RUN wget https://github.com/ipfs/kubo/releases/download/v0.15.0/kubo_v0.15.0_lin
 RUN tar xvf kubo.tar.gz
 RUN mv kubo/ipfs /usr/bin/ipfs
 RUN mkdir -p /usr/lib/extension-release.d/
-RUN echo ID=_any > /usr/lib/extension-release.d/extension-release.kubo
+RUN echo ID=\"_any\" > /usr/lib/extension-release.d/extension-release.kubo
 
 FROM scratch
 
