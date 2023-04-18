@@ -276,6 +276,8 @@ github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e h1:MRM5ITcdelLK2j1
 github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e/go.mod h1:XV66xRDqSt+GTGFMVlhk3ULuV0y9ZmzeVGR4mloJI3M=
 github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73 h1:VzFEC5pUg0FO9FLVC9/muXr6thbp+U6zWsgNurNA2Ss=
 github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
+github.com/spectrocloud/peg v0.0.0-20230407121159-2e15270c4a46 h1:q2T2RnISqPdZWvUpBQw0n7QWtF4cNo5RpCDTZmV732M=
+github.com/spectrocloud/peg v0.0.0-20230407121159-2e15270c4a46/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0 h1:1zr/of2m5FGMsad5YfcqgdqdWrIhu+EBEJRhR1U7z/c=

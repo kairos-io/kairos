@@ -23,7 +23,7 @@ require (
 	github.com/onsi/gomega v1.27.6
 	github.com/pterm/pterm v0.12.59
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.0
-	github.com/spectrocloud/peg v0.0.0-20230301170947-e1afc769ab73
+	github.com/spectrocloud/peg v0.0.0-20230407121159-2e15270c4a46
 	github.com/swaggest/jsonschema-go v0.3.49
 	github.com/urfave/cli/v2 v2.25.1
 	golang.org/x/net v0.9.0
