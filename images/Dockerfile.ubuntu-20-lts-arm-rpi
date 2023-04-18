@@ -4,6 +4,7 @@ FROM $BASE_IMAGE
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+RUN echo "deb http://ports.ubuntu.com/ubuntu-ports/ focal main universe restricted multiverse" >> /etc/apt/sources.list.d/raspberrypi.list
 RUN apt-get update \
     && apt-get install -y software-properties-common \
     && add-apt-repository ppa:oibaf/test \
