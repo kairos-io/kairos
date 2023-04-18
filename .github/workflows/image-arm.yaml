@@ -116,7 +116,7 @@ jobs:
           name: ${{ matrix.flavor }}-image
           path: build
           if-no-files-found: error
-  iso:
+  image_and_iso_arm64_generic:
     runs-on: ubuntu-latest
     needs:
       - get-matrix
@@ -149,16 +149,15 @@ jobs:
       - name: Build iso  🔧
         env:
           IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
-          TAG: "latest"
+          TAG: "master"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
-          earthly --platform=linux/arm64 +image --FLAVOR=${{ matrix.flavor }} --IMAGE=$IMAGE
-          earthly --platform=linux/arm64 +iso --FLAVOR=${{ matrix.flavor }} --IMAGE=$IMAGE
+          earthly -P +all-arm-generic --FLAVOR=${{ matrix.flavor }} --IMAGE=$IMAGE:$TAG --ISO_NAME=kairos-${{ matrix.flavor }}-arm-generic-$TAG
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
-          TAG: "latest"
+          TAG: "master"
         run: |
           docker push "$IMAGE:$TAG"
       - uses: actions/upload-artifact@v3
