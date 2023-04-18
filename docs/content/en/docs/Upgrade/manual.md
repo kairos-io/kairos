@@ -44,3 +44,20 @@ To specify a specific image, use the `--image` flag:
 ```bash
 sudo kairos-agent upgrade --image <image>
 ```
+
+
+To upgrade with a docker image behind a registry with authentication, the upgrade command provides the following flags:
+
+| Flag                    | Description                                                                              |
+|-------------------------|------------------------------------------------------------------------------------------|
+| `--auth-username`       | User to authenticate with                                                                |
+| `--auth-password`       | Password to authenticate with                                                            |
+| `--auth-server-address` | Server address to authenticate to, defaults to docker                                    |
+| `--auth-registry-token` | IdentityToken is used to authenticate the user and get an access token for the registry. |
+| `--auth-identity-token` | RegistryToken is a bearer token to be sent to a registry                                 |
+
+
+
+```bash
+sudo kairos-agent upgrade --image private/myimage:latest --auth-username MYNAME --auth-password MYPASSWORD
+```
