@@ -37,7 +37,7 @@ Notably:
 - We use the `k3s` block to disable `traefik` and `servicelb` (the default `k3s` load balancer).
 - In a single-node setup, you may wish to use a non-generated node name. This can be achieved with these options:
   ```
-    k3s:
+  k3s:
     enabled: true
     replace_args: true
     args:
