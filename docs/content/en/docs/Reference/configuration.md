@@ -236,7 +236,7 @@ total 32K
 38553235 -rw-r--r-- 1 mudler mudler  380 Nov 12 19:21 09_services.yaml
 
 # Run the cloud-init command on your YAML files in a Docker container
-$ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm quay.io/kairos/core-alpine cloud-init /test
+$ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm {{< registryURL >}}/core-{{< flavor >}} cloud-init /test
 
 # Output from the cloud-init command
 INFO[2022-11-18T08:51:33Z] Starting elemental version ...
@@ -253,12 +253,12 @@ By default, the cloud-init command runs the `default` stage, which doesn't actua
 
 ```bash
 # Run the cloud-init command on your YAML files in a Docker container, and specify the "initramfs" stage
-$ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm quay.io/kairos/core-alpine cloud-init -s initramfs /test
+$ docker run -ti -v $PWD:/test --entrypoint /usr/bin/elemental --rm {{< registryURL >}}/core-{{< flavor >}} cloud-init -s initramfs /test
 ```
 
 You can also test individual YAML files by piping them to the cloud-init command, like this:
 ```bash
-cat <<EOF | docker run -i --rm --entrypoint /usr/bin/elemental quay.io/kairos/core-alpine cloud-init -s test -
+cat <<EOF | docker run -i --rm --entrypoint /usr/bin/elemental {{< registryURL >}}/core-{{< flavor >}} cloud-init -s test -
 #cloud-config
 
 stages:

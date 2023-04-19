@@ -88,7 +88,7 @@ OSRELEASE:
     ARG HOME_URL
 
     # update OS-release file
-    RUN envsubst >/etc/os-release </usr/lib/os-release.tmpl
+    RUN envsubst >>/etc/os-release </usr/lib/os-release.tmpl
 
 BUILD_GOLANG:
     COMMAND

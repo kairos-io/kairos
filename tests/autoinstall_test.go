@@ -142,7 +142,7 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				out, err := vm.Sudo("kairos-agent state")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(out).To(ContainSubstring("boot: active_boot"))
-				currentVersion, err := vm.Sudo(". /etc/os-release; echo $VERSION")
+				currentVersion, err := vm.Sudo(getVersionCmd)
 				Expect(err).ToNot(HaveOccurred(), currentVersion)
 
 				stateAssertVM(vm, "oem.mounted", "true")
