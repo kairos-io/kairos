@@ -55,7 +55,12 @@ func Upgrade(
 			return fmt.Errorf("no releases found")
 		}
 
-		version = releases[len(releases)-1]
+		version = releases[0]
+
+		if utils.Version() == version && !force {
+			fmt.Printf("version %s already installed. use --force to force upgrade\n", version)
+			return nil
+		}
 		msg := fmt.Sprintf("Latest release is %s\nAre you sure you want to upgrade to this release? (y/n)", version)
 		reply, err := promptBool(events.YAMLPrompt{Prompt: msg, Default: "y"})
 		if err != nil {
@@ -64,11 +69,6 @@ func Upgrade(
 		if reply == "false" {
 			return nil
 		}
-	}
-
-	if utils.Version() == version && !force {
-		fmt.Println("version already installed. use --force to force upgrade")
-		return nil
 	}
 
 	discoveredImage := ""
