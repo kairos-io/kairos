@@ -21,7 +21,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.6.0
+ARG OSBUILDER_VERSION=v0.6.1
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -51,6 +51,10 @@ all-arm:
   BUILD +trivy-scan
   BUILD +grype-scan
   BUILD +arm-image
+
+all-arm-generic:
+  BUILD --platform=linux/arm64 +image
+  BUILD --platform=linux/arm64 +iso
 
 go-deps:
     ARG GO_VERSION
@@ -780,6 +784,15 @@ webui-deps:
     WORKDIR ./internal/webui/public
     RUN npm install
     SAVE ARTIFACT node_modules /node_modules AS LOCAL internal/webui/public/node_modules
+
+webui-tests:
+    FROM ubuntu:22.10
+    RUN apt-get update && apt-get install -y libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb golang nodejs npm
+    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    COPY . src/
+    WORKDIR src/
+    RUN .github/cypress_tests.sh
+    SAVE ARTIFACT /src/internal/webui/public/cypress/videos videos
 
 docs:
     FROM node:19-bullseye

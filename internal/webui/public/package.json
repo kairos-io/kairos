@@ -10,5 +10,8 @@
     "xterm-addon-fit": "^0.7.0",
     "xterm-theme": "^1.1.0",
     "yamljs": "^0.3.0"
+  },
+  "devDependencies": {
+    "cypress": "^12.9.0"
   }
 }
