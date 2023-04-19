@@ -46,7 +46,7 @@ sudo kairos-agent upgrade --image <image>
 ```
 
 
-To upgrade with a docker image behind a registry with authentication, the upgrade command provides the following flags:
+To upgrade with a container image behind a registry with authentication, the upgrade command provides the following flags:
 
 | Flag                    | Description                                                                              |
 |-------------------------|------------------------------------------------------------------------------------------|
@@ -56,7 +56,7 @@ To upgrade with a docker image behind a registry with authentication, the upgrad
 | `--auth-registry-token` | IdentityToken is used to authenticate the user and get an access token for the registry. |
 | `--auth-identity-token` | RegistryToken is a bearer token to be sent to a registry                                 |
 
-
+For instance:
 
 ```bash
 sudo kairos-agent upgrade --image private/myimage:latest --auth-username MYNAME --auth-password MYPASSWORD
