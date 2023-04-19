@@ -22,7 +22,7 @@ func newHTTPClient(ctx context.Context, token string) *http.Client {
 }
 
 // FindReleases finds the releases from the given repo (slug) and returns a parsed semver.Collection
-// where the first item is the highest version as its sorted
+// where the first item is the highest version as its sorted.
 func FindReleases(ctx context.Context, token, slug string) (semver.Collection, error) {
 	hc := newHTTPClient(ctx, token)
 	cli := github.NewClient(hc)

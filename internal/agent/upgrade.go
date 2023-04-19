@@ -4,17 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Masterminds/semver/v3"
 	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	events "github.com/kairos-io/kairos-sdk/bus"
-	"github.com/kairos-io/kairos/v2/pkg/config"
-	"github.com/kairos-io/kairos/v2/pkg/config/collector"
-
 	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/v2/internal/bus"
+	"github.com/kairos-io/kairos/v2/pkg/config"
+	"github.com/kairos-io/kairos/v2/pkg/config/collector"
 	"github.com/kairos-io/kairos/v2/pkg/github"
 	"github.com/mudler/go-pluggable"
 )

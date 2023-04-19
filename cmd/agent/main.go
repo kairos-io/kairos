@@ -27,7 +27,7 @@ import (
 var configScanDir = []string{"/oem", "/usr/local/cloud-config", "/run/initramfs/live"}
 
 // ReleasesToOutput gets a semver.Collection and outputs it in the given format
-// Only used here
+// Only used here.
 func ReleasesToOutput(rels semver.Collection, output string) []string {
 	// Set them back to their original version number with the v in front
 	var stringRels []string
