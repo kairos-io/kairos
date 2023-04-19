@@ -68,31 +68,29 @@ For example, a bundle can be defined as a naked container image containing only 
 
 Consider the following Dockerfile to create an extension which adds `/usr/bin/ipfs` to the system:
 
+
+{{% alert title="Note" %}}
+Note that systemd extensions require an extension-release file, which can be used to validate different aspects of the system being run.
+
+If you don't want to limit to a single OS, you can use the special key `_any` but keep in mind that this is only available in systemd versions 252+.
+On the other hand if you do want to have a validation, or if you're running an older version of systemd, you will need to set at least the `ID` and the `VERSION_ID` of the OS.
+These need to match with the values in the `/etc/os-release` file.
+
+Read more here about systemd-sysext [here](https://www.freedesktop.org/software/systemd/man/systemd-sysext.html)
+{{% /alert %}}
+
 ```docker
 FROM alpine as build
-# Install a binary
-ARG VERSION
-ENV VERSION=$VERSION
 
+# Install a binary
 RUN wget https://github.com/ipfs/kubo/releases/download/v0.15.0/kubo_v0.15.0_linux-amd64.tar.gz -O kubo.tar.gz
 RUN tar xvf kubo.tar.gz
 RUN mv kubo/ipfs /usr/bin/ipfs
 RUN mkdir -p /usr/lib/extension-release.d/
-RUN echo ID=kairos > /usr/lib/extension-release.d/extension-release.kubo
-RUN echo VERSION_ID=$VERSION >> /usr/lib/extension-release.d/extension-release.kubo
-
+RUN echo ID=_any > /usr/lib/extension-release.d/extension-release.kubo
 
 FROM scratch
 
 COPY --from=build /usr/bin/ipfs /usr/bin/ipfs
 COPY --from=build /usr/lib/extension-release.d /usr/lib/extension-release.d
 ```
-
-We can build that image with:
-
-```bash
-docker build --build-arg VERSION=v1.0.0 -t image .
-```
-
-Note that systemd extensions requires an extension-release file which matches the `ID` and the `VERSION_ID` of the OS iqn the `/etc/os-release` file.
-This has the consequence that bundles can be created for specific OS versions and are loaded only if `ID` and `VERSION_ID` are matching. In the example above this can be controlled by the `VERSION` build arg while building the container image.

@@ -40,7 +40,7 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 				Eventually(func() string {
 					out, _ := vm.Sudo("cat /oem/grubenv")
 					return out
-				}, 40*time.Minute, 1*time.Second).Should(
+				}, 20*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("foobarzz"),
 					))
@@ -51,7 +51,7 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 				Eventually(func() string {
 					out, _ := vm.Sudo("cat /proc/cmdline")
 					return out
-				}, 30*time.Minute, 1*time.Second).Should(
+				}, 10*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("foobarzz"),
 					))
@@ -61,7 +61,7 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 				Eventually(func() string {
 					out, _ := vm.Sudo("systemd-sysext")
 					return out
-				}, 20*time.Minute, 3*time.Second).Should(ContainSubstring("kubo"), func() string {
+				}, 3*time.Minute, 10*time.Second).Should(ContainSubstring("kubo"), func() string {
 					// Debug output in case of an error
 					result := ""
 					out, _ := vm.Sudo("cat /etc/os-release")

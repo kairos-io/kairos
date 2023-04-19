@@ -1,0 +1,7 @@
+name: "Journalctl persistence"
+stages:
+  initramfs:
+    - name: "Create journalctl /var/log/journal dir"
+      if: '[ -e "/sbin/systemctl" ] || [ -e "/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+      directories:
+        - path: /var/log/journal
