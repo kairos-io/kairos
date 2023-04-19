@@ -36,7 +36,7 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 			Eventually(func() string {
 				out, _ := vm.Sudo("cat /oem/grubenv")
 				return out
-			}, 40*time.Minute, 1*time.Second).Should(
+			}, 10*time.Minute, 1*time.Second).Should(
 				Or(
 					ContainSubstring("foobarzz"),
 				))
@@ -60,14 +60,14 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 			Eventually(func() string {
 				out, _ := vm.Sudo("if [ -f /usr/local/test ]; then echo ok; else echo wrong; fi")
 				return out
-			}, 40*time.Minute, 1*time.Second).Should(
+			}, 3*time.Minute, 1*time.Second).Should(
 				Or(
 					ContainSubstring("wrong"),
 				))
 			Eventually(func() string {
 				out, _ := vm.Sudo("if [ -f /oem/test ]; then echo ok; else echo wrong; fi")
 				return out
-			}, 40*time.Minute, 1*time.Second).Should(
+			}, 3*time.Minute, 1*time.Second).Should(
 				Or(
 					ContainSubstring("ok"),
 				))
