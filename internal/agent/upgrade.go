@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Masterminds/semver/v3"
 	"os"
 	"os/exec"
 	"strings"
@@ -18,8 +19,8 @@ import (
 	"github.com/mudler/go-pluggable"
 )
 
-func ListReleases() []string {
-	releases := []string{}
+func ListReleases() semver.Collection {
+	var releases semver.Collection
 
 	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 		if err := json.Unmarshal([]byte(r.Data), &releases); err != nil {
@@ -55,7 +56,8 @@ func Upgrade(
 			return fmt.Errorf("no releases found")
 		}
 
-		version = releases[0]
+		// Using Original here because the parsing removes the v as its a semver. But it stores the original full version there
+		version = releases[0].Original()
 
 		if utils.Version() == version && !force {
 			fmt.Printf("version %s already installed. use --force to force upgrade\n", version)
