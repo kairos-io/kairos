@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/google/go-github/v40/github"
 	"golang.org/x/oauth2"
 )
@@ -19,7 +21,9 @@ func newHTTPClient(ctx context.Context, token string) *http.Client {
 	return oauth2.NewClient(ctx, src)
 }
 
-func FindReleases(ctx context.Context, token, slug string) ([]string, error) {
+// FindReleases finds the releases from the given repo (slug) and returns a parsed semver.Collection
+// where the first item is the highest version as its sorted.
+func FindReleases(ctx context.Context, token, slug string) (semver.Collection, error) {
 	hc := newHTTPClient(ctx, token)
 	cli := github.NewClient(hc)
 
@@ -39,11 +43,13 @@ func FindReleases(ctx context.Context, token, slug string) ([]string, error) {
 		return nil, err
 	}
 
-	versions := []string{}
+	var versions semver.Collection
 	for _, rel := range rels {
 		if strings.HasPrefix(*rel.Name, "v") {
-			versions = append(versions, *rel.Name)
+			versions = append(versions, semver.MustParse(*rel.Name))
 		}
 	}
+	// Return them reversed sorted so the higher is the first one in the collection!
+	sort.Sort(sort.Reverse(versions))
 	return versions, nil
 }

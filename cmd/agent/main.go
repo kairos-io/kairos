@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+
 	"os"
+	"strings"
 
 	"github.com/kairos-io/kairos/v2/internal/agent"
 	"github.com/kairos-io/kairos/v2/internal/bus"
@@ -12,15 +15,36 @@ import (
 	"github.com/kairos-io/kairos-sdk/bundles"
 	"github.com/kairos-io/kairos-sdk/machine"
 	"github.com/kairos-io/kairos-sdk/state"
-	"github.com/kairos-io/kairos-sdk/utils"
 	"github.com/kairos-io/kairos/v2/internal/common"
 	"github.com/kairos-io/kairos/v2/pkg/config"
 	"github.com/kairos-io/kairos/v2/pkg/config/collector"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/urfave/cli/v2"
+	"gopkg.in/yaml.v3"
 )
 
 var configScanDir = []string{"/oem", "/usr/local/cloud-config", "/run/initramfs/live"}
+
+// ReleasesToOutput gets a semver.Collection and outputs it in the given format
+// Only used here.
+func ReleasesToOutput(rels semver.Collection, output string) []string {
+	// Set them back to their original version number with the v in front
+	var stringRels []string
+	for _, v := range rels {
+		stringRels = append(stringRels, v.Original())
+	}
+	switch strings.ToLower(output) {
+	case "yaml":
+		d, _ := yaml.Marshal(stringRels)
+		return []string{string(d)}
+	case "json":
+		d, _ := json.Marshal(stringRels)
+		return []string{string(d)}
+	default:
+		return stringRels
+	}
+}
 
 var cmds = []*cli.Command{
 	{
@@ -71,7 +95,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
 					releases := agent.ListReleases()
-					list := utils.ListToOutput(releases, c.String("output"))
+					list := ReleasesToOutput(releases, c.String("output"))
 					for _, i := range list {
 						fmt.Println(i)
 					}

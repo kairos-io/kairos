@@ -3,6 +3,7 @@ module github.com/kairos-io/kairos/v2
 go 1.20
 
 require (
+	github.com/Masterminds/semver/v3 v3.1.1
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/erikgeiser/promptkit v0.8.0
 	github.com/google/go-github/v40 v40.0.0
