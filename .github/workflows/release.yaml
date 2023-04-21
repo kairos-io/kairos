@@ -21,7 +21,7 @@ jobs:
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
-          echo "matrix={\"include\": $content }" >> $GITHUB_OUTPUT
+          echo "MATRIX={\"include\": $content }" >> $GITHUB_OUTPUT
 
   build-framework:
     runs-on: self-hosted
@@ -32,7 +32,7 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-matrix.outputs.MATRIX)}}
     steps:
       - uses: actions/checkout@v3
       - run: |
