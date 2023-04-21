@@ -6,7 +6,8 @@ These are active contributors who have made multiple contributions to the projec
 
 | Contributor              | GitHub ID                                              |
 | ------------------------ | ------------------------------------------------------ |
-| Christian Prim           | [@christianprim](https://github.com/christianprim )    |
-| Ludea                    | [@ludea](https://github.com/ludea )                    |
-| Jason B. Alonso          | [@jbalonso](https://github.com/jbalonso )              |
-| Shawn Wilsher            | [@sdwilsh](https://github.com/sdwilsh )                |
+| Christian Prim           | [@christianprim](https://github.com/christianprim)     |
+| Ludea                    | [@ludea](https://github.com/ludea)                     |
+| Jason B. Alonso          | [@jbalonso](https://github.com/jbalonso)               |
+| Shawn Wilsher            | [@sdwilsh](https://github.com/sdwilsh)                 |
+| scuzhanglei              | [@scuzhanglei](https://github.com/scuzhanglei)         |
