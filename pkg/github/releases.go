@@ -23,7 +23,7 @@ func newHTTPClient(ctx context.Context, token string) *http.Client {
 
 // FindReleases finds the releases from the given repo (slug) and returns a parsed semver.Collection
 // where the first item is the highest version as its sorted.
-func FindReleases(ctx context.Context, token, slug string) (semver.Collection, error) {
+func FindReleases(ctx context.Context, token, slug string, preReleases bool) (semver.Collection, error) {
 	hc := newHTTPClient(ctx, token)
 	cli := github.NewClient(hc)
 
@@ -32,7 +32,9 @@ func FindReleases(ctx context.Context, token, slug string) (semver.Collection, e
 		return nil, fmt.Errorf("Invalid slug format. It should be 'owner/name': %s", slug)
 	}
 
-	rels, res, err := cli.Repositories.ListReleases(ctx, repo[0], repo[1], nil)
+	// Get at least 30 releases
+	opts := github.ListOptions{PerPage: 30}
+	rels, res, err := cli.Repositories.ListReleases(ctx, repo[0], repo[1], &opts)
 	if err != nil {
 		log.Println("API returned an error response:", err)
 		if res != nil && res.StatusCode == 404 {
@@ -46,7 +48,13 @@ func FindReleases(ctx context.Context, token, slug string) (semver.Collection, e
 	var versions semver.Collection
 	for _, rel := range rels {
 		if strings.HasPrefix(*rel.Name, "v") {
-			versions = append(versions, semver.MustParse(*rel.Name))
+			v := semver.MustParse(*rel.Name)
+			if v.Prerelease() == "" {
+				versions = append(versions, v)
+			}
+			if v.Prerelease() != "" && preReleases {
+				versions = append(versions, v)
+			}
 		}
 	}
 	// Return them reversed sorted so the higher is the first one in the collection!
