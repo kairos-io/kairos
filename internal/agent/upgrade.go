@@ -18,7 +18,7 @@ import (
 	"github.com/mudler/go-pluggable"
 )
 
-func ListReleases() semver.Collection {
+func ListReleases(includePrereleases bool) semver.Collection {
 	var releases semver.Collection
 
 	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
@@ -36,20 +36,28 @@ func ListReleases() semver.Collection {
 		if err != nil {
 			return releases
 		}
-		releases, _ = github.FindReleases(context.Background(), "", githubRepo)
+		fmt.Println("Searching for releases")
+		if includePrereleases {
+			fmt.Println("Including pre-releases")
+		}
+		releases, _ = github.FindReleases(context.Background(), "", githubRepo, includePrereleases)
 	}
 
 	return releases
 }
 
 func Upgrade(
-	version, image string, force, debug, strictValidations bool, dirs []string,
-	authUser string, authPass string, authServer string, authType string, registryToken string, identityToken string,
+	version, image string, force, debug, strictValidations bool, dirs []string, authUser string,
+	authPass string, authServer string, authType string, registryToken string, identityToken string, preReleases bool,
 ) error {
 	bus.Manager.Initialize()
 
 	if version == "" && image == "" {
-		releases := ListReleases()
+		fmt.Println("Searching for releases")
+		if preReleases {
+			fmt.Println("Including pre-releases")
+		}
+		releases := ListReleases(preReleases)
 
 		if len(releases) == 0 {
 			return fmt.Errorf("no releases found")
@@ -86,6 +94,7 @@ func Upgrade(
 
 	registry, err := utils.OSRelease("IMAGE_REPO")
 	if err != nil {
+		fmt.Printf("Cant find IMAGE_REPO key under /etc/os-release\n")
 		return err
 	}
 

@@ -68,6 +68,7 @@ var cmds = []*cli.Command{
 			&cli.StringFlag{Name: "auth-type", Usage: "Auth type"},
 			&cli.StringFlag{Name: "auth-registry-token", Usage: "Authentication registry token"},
 			&cli.StringFlag{Name: "auth-identity-token", Usage: "Authentication identity token"},
+			&cli.BoolFlag{Name: "pre", Usage: "Include pre-releases (rc, beta, alpha)"},
 		},
 		Description: `
 Manually upgrade a kairos node.
@@ -90,11 +91,12 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 						Name:  "output",
 						Usage: "Output format (json|yaml|terminal)",
 					},
+					&cli.BoolFlag{Name: "pre", Usage: "Include pre-releases (rc, beta, alpha)"},
 				},
 				Name:        "list-releases",
 				Description: `List all available releases versions`,
 				Action: func(c *cli.Context) error {
-					releases := agent.ListReleases()
+					releases := agent.ListReleases(c.Bool("pre"))
 					list := ReleasesToOutput(releases, c.String("output"))
 					for _, i := range list {
 						fmt.Println(i)
@@ -116,6 +118,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				c.Bool("strict-validation"), configScanDir,
 				c.String("auth-username"), c.String("auth-password"), c.String("auth-server-address"),
 				c.String("auth-type"), c.String("auth-registry-token"), c.String("auth-identity-token"),
+				c.Bool("pre"),
 			)
 		},
 	},
