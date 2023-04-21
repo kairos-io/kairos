@@ -85,13 +85,19 @@ To create a custom ISO, you will need Docker installed on your machine.
 
 Here's an example of how you might do this:
 
+{{% alert title="Warning" %}}
+The image passed to the osbuilder-tools, needs to have one of the accepted schemes: `docker`, `oci`, `file`, `dir` or `channel`.
+
+If you don't pass one, we will make an attempt to read it as a web URL but depending on your URL this might throw an error.
+{{% /alert %}}
+
 {{< tabpane text=true  >}}
 {{% tab header="AuroraBoot" %}}
 
 We can use [AuroraBoot](/docs/reference/auroraboot) to handle the the ISO build process, for example:
 
 ```bash
-$ IMAGE=<source/image>
+$ IMAGE=<scheme://host[:port]/path[:tag]>
 $ docker pull $IMAGE
 # Build the ISO
 $ docker run -v $PWD/cloud_init.yaml:/cloud_init.yaml \
@@ -116,7 +122,7 @@ total 778M
 {{% tab header="Manually" %}}
 
 ```bash
-$ IMAGE=<source/image>
+$ IMAGE=<scheme://host[:port]/path[:tag]>
 $ mkdir -p files-iso/boot/grub2
 # You can replace this step with your own grub config. This GRUB configuration is the boot menu of the ISO
 $ wget https://raw.githubusercontent.com/kairos-io/kairos/master/overlay/files-iso/boot/grub2/grub.cfg -O files-iso/boot/grub2/grub.cfg
