@@ -269,21 +269,8 @@ jobs:
           # The default value is 'false'
           latest: true
           repository: kairos-io/kairos
-          fileName: '*opensuse-leap*.iso'
+          fileName: '*opensuse-leap-v*.iso'
           out-file-path: last-release
-      - uses: actions/upload-artifact@v3
-        with:
-          name: latest-release.zip
-          path: last-release
-          if-no-files-found: error
-      - uses: robinraju/release-downloader@v1.7
-        with:
-          # A flag to set the download target as latest release
-          # The default value is 'false'
-          latest: true
-          repository: "kairos-io/kairos"
-          fileName: "*opensuse-leap*.iso"
-          out-file-path: "last-release"
       - uses: actions/upload-artifact@v3
         with:
           name: latest-release.zip
