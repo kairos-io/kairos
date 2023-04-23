@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 	"unicode"
@@ -16,7 +17,6 @@ import (
 	"github.com/kairos-io/kairos-sdk/machine"
 
 	"github.com/avast/retry-go"
-	"github.com/imdario/mergo"
 	"github.com/itchyny/gojq"
 	"gopkg.in/yaml.v3"
 )
@@ -65,7 +65,89 @@ func (c *Config) MergeConfigURL() error {
 
 // MergeConfig merges the config passed as parameter back to the receiver Config.
 func (c *Config) MergeConfig(newConfig *Config) error {
-	return mergo.Merge(c, newConfig, func(c *mergo.Config) { c.Overwrite = true })
+	var err error
+	var aMap map[string]interface{}
+	var bMap map[string]interface{}
+	aData, _ := yaml.Marshal(c)
+	yaml.Unmarshal(aData, &aMap)
+	bData, _ := yaml.Marshal(newConfig)
+	yaml.Unmarshal(bData, &bMap)
+	cMap, _ := DeepMerge(aMap, bMap)
+
+	cData, _ := yaml.Marshal(cMap)
+	yaml.Unmarshal(cData, c)
+	return err
+}
+
+func DeepMerge(a, b interface{}) (interface{}, error) {
+	if a == nil && b != nil {
+		return b, nil
+	}
+
+	typeA := reflect.TypeOf(a)
+	typeB := reflect.TypeOf(b)
+	if typeA.Kind() != typeB.Kind() {
+		return map[string]interface{}{}, fmt.Errorf("Cannot merge %s with %s", typeA.String(), typeB.String())
+	}
+
+	if typeA.Kind() == reflect.Slice {
+		sliceA := a.([]interface{})
+		sliceB := b.([]interface{})
+
+		firstItem := sliceA[0]
+		if reflect.ValueOf(firstItem).Kind() == reflect.Map {
+			temp := make(map[string]interface{})
+
+			for _, item := range sliceA {
+				for k, v := range item.(map[string]interface{}) {
+					temp[k] = v
+				}
+			}
+
+			for _, item := range sliceB {
+				for k, v := range item.(map[string]interface{}) {
+					current, ok := temp[k]
+					if ok {
+						dm, _ := DeepMerge(current, v)
+						temp[k] = dm
+					} else {
+						temp[k] = v
+					}
+				}
+			}
+
+			var result []interface{}
+			for k, v := range temp {
+				result = append(result, map[string]interface{}{k: v})
+			}
+
+			return result, nil
+		} else {
+			return append(sliceA, sliceB...), nil
+		}
+	}
+
+	if typeA.Kind() == reflect.Map {
+		aMap := a.(map[string]interface{})
+		bMap := b.(map[string]interface{})
+
+		for k, v := range bMap {
+			current, ok := aMap[k]
+			if ok {
+				res, err := DeepMerge(current, v)
+				if err != nil {
+					return aMap, err
+				}
+				aMap[k] = res
+			} else {
+				aMap[k] = v
+			}
+		}
+
+		return aMap, nil
+	}
+
+	return b, nil
 }
 
 // String returns a string which is a Yaml representation of the Config.
