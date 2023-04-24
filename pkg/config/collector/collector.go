@@ -68,14 +68,38 @@ func (c *Config) MergeConfig(newConfig *Config) error {
 	var err error
 	var aMap map[string]interface{}
 	var bMap map[string]interface{}
-	aData, _ := yaml.Marshal(c)
-	yaml.Unmarshal(aData, &aMap)
-	bData, _ := yaml.Marshal(newConfig)
-	yaml.Unmarshal(bData, &bMap)
-	cMap, _ := DeepMerge(aMap, bMap)
 
-	cData, _ := yaml.Marshal(cMap)
-	yaml.Unmarshal(cData, c)
+	aData, err := yaml.Marshal(c)
+	if err != nil {
+		return err
+	}
+
+	err = yaml.Unmarshal(aData, &aMap)
+	if err != nil {
+		return err
+	}
+
+	bData, _ := yaml.Marshal(newConfig)
+	err = yaml.Unmarshal(bData, &bMap)
+	if err != nil {
+		return err
+	}
+
+	cMap, err := DeepMerge(aMap, bMap)
+	if err != nil {
+		return err
+	}
+
+	cData, err := yaml.Marshal(cMap)
+	if err != nil {
+		return err
+	}
+
+	err = yaml.Unmarshal(cData, c)
+	if err != nil {
+		return err
+	}
+
 	return err
 }
 
@@ -122,9 +146,9 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 			}
 
 			return result, nil
-		} else {
-			return append(sliceA, sliceB...), nil
 		}
+
+		return append(sliceA, sliceB...), nil
 	}
 
 	if typeA.Kind() == reflect.Map {
