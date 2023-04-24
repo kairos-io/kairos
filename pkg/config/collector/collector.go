@@ -63,46 +63,118 @@ func (c *Config) MergeConfigURL() error {
 	return c.MergeConfig(remoteConfig)
 }
 
+func (c *Config) toMap() (map[string]interface{}, error) {
+	var result map[string]interface{}
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return result, err
+	}
+
+	err = yaml.Unmarshal(data, &result)
+	return result, err
+}
+
+func (c *Config) applyMap(i interface{}) error {
+	data, err := yaml.Marshal(i)
+	if err != nil {
+		return err
+	}
+
+	err = yaml.Unmarshal(data, c)
+	return err
+}
+
 // MergeConfig merges the config passed as parameter back to the receiver Config.
 func (c *Config) MergeConfig(newConfig *Config) error {
 	var err error
-	var aMap map[string]interface{}
-	var bMap map[string]interface{}
 
-	aData, err := yaml.Marshal(c)
+	// convert the two configs into maps
+	aMap, err := c.toMap()
+	if err != nil {
+		return err
+	}
+	bMap, err := newConfig.toMap()
 	if err != nil {
 		return err
 	}
 
-	err = yaml.Unmarshal(aData, &aMap)
-	if err != nil {
-		return err
-	}
-
-	bData, _ := yaml.Marshal(newConfig)
-	err = yaml.Unmarshal(bData, &bMap)
-	if err != nil {
-		return err
-	}
-
+	// deep merge the two maps
 	cMap, err := DeepMerge(aMap, bMap)
 	if err != nil {
 		return err
 	}
 
-	cData, err := yaml.Marshal(cMap)
-	if err != nil {
-		return err
-	}
-
-	err = yaml.Unmarshal(cData, c)
-	if err != nil {
-		return err
-	}
-
-	return err
+	// apply the result of the deepmerge into the base config
+	return c.applyMap(cMap)
 }
 
+func deepMergeSlices(sliceA, sliceB []interface{}) ([]interface{}, error) {
+	// We use the first item in the slice to determine if there are maps present.
+	// Do we need to do the same for other types?
+	firstItem := sliceA[0]
+	if reflect.ValueOf(firstItem).Kind() == reflect.Map {
+		temp := make(map[string]interface{})
+
+		// first we put in temp all the keys present in a, and assign them their existing values
+		for _, item := range sliceA {
+			for k, v := range item.(map[string]interface{}) {
+				temp[k] = v
+			}
+		}
+
+		// then we go through b to merge each of its keys
+		for _, item := range sliceB {
+			for k, v := range item.(map[string]interface{}) {
+				current, ok := temp[k]
+				if ok {
+					// if the key exists, we deep merge it
+					dm, err := DeepMerge(current, v)
+					if err != nil {
+						return []interface{}{}, fmt.Errorf("cannot merge %s with %s", current, v)
+					}
+					temp[k] = dm
+				} else {
+					// otherwise we just set it
+					temp[k] = v
+				}
+			}
+		}
+
+		// finally we unrwap the temp map to be a slice again
+		var result []interface{}
+		for k, v := range temp {
+			result = append(result, map[string]interface{}{k: v})
+		}
+
+		return result, nil
+	}
+
+	// for simple slices
+	return append(sliceA, sliceB...), nil
+}
+
+func deepMergeMaps(a, b map[string]interface{}) (map[string]interface{}, error) {
+	// go through all items in b and merge them to a
+	for k, v := range b {
+		current, ok := a[k]
+		if ok {
+			// when the key is already set, we don't know what type it has, so we deep merge them in case they are maps
+			// or slices
+			res, err := DeepMerge(current, v)
+			if err != nil {
+				return a, err
+			}
+			a[k] = res
+		} else {
+			a[k] = v
+		}
+	}
+
+	return a, nil
+}
+
+// DeepMerge takes two data structures and merges them together deeply. The results can vary depending on how the
+// arguments are passed since structure B will always overwrite what's on A.
 func DeepMerge(a, b interface{}) (interface{}, error) {
 	if a == nil && b != nil {
 		return b, nil
@@ -110,67 +182,21 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 
 	typeA := reflect.TypeOf(a)
 	typeB := reflect.TypeOf(b)
+
+	// We don't support merging different data structures
 	if typeA.Kind() != typeB.Kind() {
-		return map[string]interface{}{}, fmt.Errorf("Cannot merge %s with %s", typeA.String(), typeB.String())
+		return map[string]interface{}{}, fmt.Errorf("cannot merge %s with %s", typeA.String(), typeB.String())
 	}
 
 	if typeA.Kind() == reflect.Slice {
-		sliceA := a.([]interface{})
-		sliceB := b.([]interface{})
-
-		firstItem := sliceA[0]
-		if reflect.ValueOf(firstItem).Kind() == reflect.Map {
-			temp := make(map[string]interface{})
-
-			for _, item := range sliceA {
-				for k, v := range item.(map[string]interface{}) {
-					temp[k] = v
-				}
-			}
-
-			for _, item := range sliceB {
-				for k, v := range item.(map[string]interface{}) {
-					current, ok := temp[k]
-					if ok {
-						dm, _ := DeepMerge(current, v)
-						temp[k] = dm
-					} else {
-						temp[k] = v
-					}
-				}
-			}
-
-			var result []interface{}
-			for k, v := range temp {
-				result = append(result, map[string]interface{}{k: v})
-			}
-
-			return result, nil
-		}
-
-		return append(sliceA, sliceB...), nil
+		return deepMergeSlices(a.([]interface{}), b.([]interface{}))
 	}
 
 	if typeA.Kind() == reflect.Map {
-		aMap := a.(map[string]interface{})
-		bMap := b.(map[string]interface{})
-
-		for k, v := range bMap {
-			current, ok := aMap[k]
-			if ok {
-				res, err := DeepMerge(current, v)
-				if err != nil {
-					return aMap, err
-				}
-				aMap[k] = res
-			} else {
-				aMap[k] = v
-			}
-		}
-
-		return aMap, nil
+		return deepMergeMaps(a.(map[string]interface{}), b.(map[string]interface{}))
 	}
 
+	// for any other type, b should take precedence
 	return b, nil
 }
 

@@ -197,11 +197,11 @@ info:
 			It("merges", func() {
 				_, err := DeepMerge(a, b)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("Cannot merge map[string]interface {} with []string"))
+				Expect(err.Error()).To(Equal("cannot merge map[string]interface {} with []string"))
 
 				_, err = DeepMerge(b, a)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("Cannot merge []string with map[string]interface {}"))
+				Expect(err.Error()).To(Equal("cannot merge []string with map[string]interface {}"))
 			})
 		})
 
