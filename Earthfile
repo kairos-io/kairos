@@ -66,13 +66,6 @@ go-deps:
     SAVE ARTIFACT go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum AS LOCAL go.sum
 
-test:
-    FROM +go-deps
-    WORKDIR /build
-    COPY +luet/luet /usr/bin/luet
-    COPY . .
-    RUN go run github.com/onsi/ginkgo/v2/ginkgo --fail-fast --covermode=atomic --coverprofile=coverage.out -p -r ./pkg ./internal ./cmd ./sdk
-    SAVE ARTIFACT coverage.out AS LOCAL coverage.out
 
 OSRELEASE:
     COMMAND
@@ -89,22 +82,6 @@ OSRELEASE:
 
     # update OS-release file
     RUN envsubst >>/etc/os-release </usr/lib/os-release.tmpl
-
-BUILD_GOLANG:
-    COMMAND
-    WORKDIR /build
-    COPY . ./
-    ARG CGO_ENABLED
-    ARG BIN
-    ARG SRC
-    ARG VERSION
-
-    ENV CGO_ENABLED=${CGO_ENABLED}
-    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/v2/internal/common.VERSION=${VERSION}'"
-    RUN --no-cache echo "Building ${BIN} from ${SRC} using ${VERSION}"
-    RUN echo ${LDFLAGS}
-    RUN go build -o ${BIN} -ldflags "${LDFLAGS}" ./cmd/${SRC} && upx ${BIN}
-    SAVE ARTIFACT ${BIN} ${BIN} AS LOCAL build/${BIN}
 
 uuidgen:
     FROM alpine
@@ -127,19 +104,6 @@ version:
     ARG VERSION=$(cat VERSION)
     SAVE ARTIFACT VERSION VERSION
 
-
-build-kairos-agent:
-    FROM +go-deps
-    COPY +webui-deps/node_modules ./internal/webui/public/node_modules
-    COPY +docs/public/local ./internal/webui/public/local
-    COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
-    RUN echo $(cat VERSION)
-    DO +BUILD_GOLANG --BIN=kairos-agent --SRC=agent --CGO_ENABLED=$CGO_ENABLED --VERSION=$VERSION
-
-build:
-    BUILD +build-kairos-agent
-
 dist:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
@@ -153,15 +117,6 @@ dist:
     RUN echo $(cat VERSION)
     RUN VERSION=$(cat VERSION) goreleaser build --rm-dist --skip-validate --snapshot
     SAVE ARTIFACT /build/dist/* AS LOCAL dist/
-
-golint:
-    ARG GO_VERSION
-    FROM golang:$GO_VERSION
-    ARG GOLINT_VERSION
-    RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s v$GOLINT_VERSION
-    WORKDIR /build
-    COPY . .
-    RUN golangci-lint run
 
 hadolint:
     ARG HADOLINT_VERSION
@@ -191,7 +146,6 @@ yamllint:
     RUN yamllint .github/workflows/ overlay/
 
 lint:
-    BUILD +golint
     BUILD +hadolint
     BUILD +renovate-validate
     BUILD +shellcheck-lint
@@ -246,10 +200,8 @@ framework:
 
     COPY . /build
 
-    RUN go run -ldflags "${LDFLAGS}" ./cmd/profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
+    RUN go run -ldflags "${LDFLAGS}" ./profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
 
-    # Copy kairos binaries
-    COPY +build-kairos-agent/kairos-agent /framework/usr/bin/kairos-agent
     COPY +luet/luet /framework/usr/bin/luet
 
     RUN luet cleanup --system-target /framework
@@ -574,23 +526,6 @@ grype-scan:
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.sarif
     SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-grype.json
 
-linux-bench:
-    ARG GO_VERSION
-    FROM golang:$GO_VERSION
-    GIT CLONE https://github.com/aquasecurity/linux-bench /linux-bench-src
-    RUN cd /linux-bench-src && CGO_ENABLED=0 go build -o linux-bench . && mv linux-bench /
-    SAVE ARTIFACT /linux-bench /linux-bench
-
-# The target below should run on a live host instead. 
-# However, some checks are relevant as well at container level.
-# It is good enough for a quick assessment.
-linux-bench-scan:
-    FROM +image
-    GIT CLONE https://github.com/aquasecurity/linux-bench /build/linux-bench
-    WORKDIR /build/linux-bench
-    COPY +linux-bench/linux-bench /build/linux-bench/linux-bench
-    RUN /build/linux-bench/linux-bench
-
 
 ###
 ### Test targets
@@ -778,22 +713,6 @@ examples-bundle-config:
     RUN envsubst >> tests/assets/live-overlay.yaml < tests/assets/live-overlay.tmpl
     SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml
 
-webui-deps:
-    FROM node:19-alpine
-    COPY . .
-    WORKDIR ./internal/webui/public
-    RUN npm install
-    SAVE ARTIFACT node_modules /node_modules AS LOCAL internal/webui/public/node_modules
-
-webui-tests:
-    FROM ubuntu:22.10
-    RUN apt-get update && apt-get install -y libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb golang nodejs npm
-    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
-    COPY . src/
-    WORKDIR src/
-    RUN .github/cypress_tests.sh
-    SAVE ARTIFACT /src/internal/webui/public/cypress/videos videos
-
 docs:
     FROM node:19-bullseye
     ARG TARGETARCH
@@ -847,7 +766,10 @@ generate-schema:
     FROM alpine
     COPY . ./
     COPY +version/VERSION ./
-    COPY +build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    COPY +luet/luet /usr/bin/luet
+    RUN mkdir -p /etc/luet/repos.conf.d/
+    RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
+    RUN luet install -y system/kairos-agent
     ARG RELEASE_VERSION=$(cat VERSION)
     RUN mkdir "docs/static/$RELEASE_VERSION"
     ARG SCHEMA_FILE="docs/static/$RELEASE_VERSION/cloud-config.json"
