@@ -5,6 +5,7 @@ package collector
 import (
 	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"os"
@@ -140,17 +141,18 @@ func deepMergeSlices(sliceA, sliceB []interface{}) ([]interface{}, error) {
 			}
 		}
 
-		// finally we unrwap the temp map to be a slice again
-		var result []interface{}
-		for k, v := range temp {
-			result = append(result, map[string]interface{}{k: v})
-		}
-
-		return result, nil
+		return []interface{}{temp}, nil
 	}
 
 	// for simple slices
-	return append(sliceA, sliceB...), nil
+	for _, v := range sliceB {
+		i := slices.Index(sliceA, v)
+		if i < 0 {
+			sliceA = append(sliceA, v)
+		}
+	}
+
+	return sliceA, nil
 }
 
 func deepMergeMaps(a, b map[string]interface{}) (map[string]interface{}, error) {
