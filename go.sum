@@ -270,6 +270,8 @@ github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e h1:MRM5ITcdelLK2j1
 github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e/go.mod h1:XV66xRDqSt+GTGFMVlhk3ULuV0y9ZmzeVGR4mloJI3M=
 github.com/spectrocloud/peg v0.0.0-20230407121159-2e15270c4a46 h1:q2T2RnISqPdZWvUpBQw0n7QWtF4cNo5RpCDTZmV732M=
 github.com/spectrocloud/peg v0.0.0-20230407121159-2e15270c4a46/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
+github.com/spectrocloud/peg v0.0.0-20230425144257-edfded3e4cb3 h1:Ui+3e2wMTCyL8nExSbMFOZZgbkiMdez2Rw9FaJBh3rA=
+github.com/spectrocloud/peg v0.0.0-20230425144257-edfded3e4cb3/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.5.0 h1:1zr/of2m5FGMsad5YfcqgdqdWrIhu+EBEJRhR1U7z/c=
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
