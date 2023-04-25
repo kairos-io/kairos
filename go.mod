@@ -13,7 +13,7 @@ require (
 	github.com/kairos-io/kairos-sdk v0.0.2-0.20230414094028-0c9d2bd9e6ae
 	github.com/kairos-io/kcrypt v0.5.2
 	github.com/labstack/echo/v4 v4.10.2
-	github.com/mudler/go-nodepair v0.0.0-20221223092639-ba399a66fdfb
+	github.com/mudler/go-nodepair 85d7096c99e3
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
 	github.com/mudler/yip v0.11.5-0.20230124143654-91e88dfb6648
