@@ -43,6 +43,8 @@ RUN apt-get update \
     lldpd \
     lvm2 \
     mdadm \
+    nano \
+    neovim \
     nbd-client \
     ncurses-term \
     networkd-dispatcher \
