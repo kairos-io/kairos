@@ -61,8 +61,8 @@ go-deps-test:
     WORKDIR /build
     COPY tests/go.mod tests/go.sum ./
     RUN go mod download
-    SAVE ARTIFACT go.mod AS LOCAL go.mod
-    SAVE ARTIFACT go.sum AS LOCAL go.sum
+    SAVE ARTIFACT go.mod go.mod AS LOCAL go.mod
+    SAVE ARTIFACT go.sum go.sum AS LOCAL go.sum
 
 OSRELEASE:
     COMMAND
@@ -543,7 +543,8 @@ run-qemu-datasource-tests:
         ENV DATASOURCE=/test/build/datasource.iso
     END
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
-
+    COPY +go-deps-test/go.mod go.mod
+    COPY +go-deps-test/go.sum go.sum
     RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 
@@ -574,7 +575,8 @@ run-qemu-netboot-test:
     ENV USE_QEMU=true
     ARG TEST_SUITE=netboot-test
 
-
+    COPY +go-deps-test/go.mod go.mod
+    COPY +go-deps-test/go.sum go.sum
     # TODO: use --pull or something to cache the python image in Earthly
     WITH DOCKER
         RUN docker run -d -v $PWD/build:/build --workdir=/build \
@@ -603,6 +605,8 @@ run-qemu-test:
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/build/kairos.iso
     END
+    COPY +go-deps-test/go.mod go.mod
+    COPY +go-deps-test/go.sum go.sum
     RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 ###
