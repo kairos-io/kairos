@@ -5,7 +5,6 @@ package collector
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"io"
 	"net/http"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/kairos-io/kairos-sdk/machine"
 
