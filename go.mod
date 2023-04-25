@@ -7,9 +7,7 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/erikgeiser/promptkit v0.8.0
 	github.com/google/go-github/v40 v40.0.0
-	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
-	github.com/imdario/mergo v0.3.15
 	github.com/itchyny/gojq v0.12.12
 	github.com/jaypipes/ghw v0.10.0
 	github.com/kairos-io/kairos-sdk v0.0.2-0.20230414094028-0c9d2bd9e6ae
@@ -27,6 +25,7 @@ require (
 	github.com/spectrocloud/peg v0.0.0-20230407121159-2e15270c4a46
 	github.com/swaggest/jsonschema-go v0.3.49
 	github.com/urfave/cli/v2 v2.25.1
+	golang.org/x/exp v0.0.0-20220916125017-b168a2c6b86b
 	golang.org/x/net v0.9.0
 	golang.org/x/oauth2 v0.7.0
 	gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
@@ -64,9 +63,11 @@ require (
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20230228050547-1710fef4ab10 // indirect
+	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gookit/color v1.5.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/imdario/mergo v0.3.15 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect

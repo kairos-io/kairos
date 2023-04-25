@@ -2,11 +2,10 @@ package collector_test
 
 import (
 	"fmt"
+	"github.com/kairos-io/kairos/v2/pkg/config"
 	"os"
 	"path"
 	"path/filepath"
-
-	"github.com/kairos-io/kairos/v2/pkg/config"
 
 	. "github.com/kairos-io/kairos/v2/pkg/config/collector"
 	. "github.com/onsi/ginkgo/v2"
@@ -77,7 +76,7 @@ info:
 				})
 				It("merges the keys", func() {
 					Expect(originalConfig.MergeConfig(newConfig)).ToNot(HaveOccurred())
-					info, isMap := (*originalConfig)["info"].(map[interface{}]interface{})
+					info, isMap := (*originalConfig)["info"].(Config)
 					Expect(isMap).To(BeTrue())
 					Expect(info["name"]).To(Equal("Mario"))
 					Expect(info["surname"]).To(Equal("Bros"))
@@ -180,7 +179,7 @@ info:
 				Expect(ok).To(BeTrue())
 				Expect(surname).To(Equal("Bras"))
 
-				info, ok := (*originalConfig)["info"].(map[interface{}]interface{})
+				info, ok := (*originalConfig)["info"].(Config)
 				Expect(ok).To(BeTrue())
 				Expect(info["job"]).To(Equal("plumber"))
 				Expect(info["girlfriend"]).To(Equal("princess"))
@@ -190,7 +189,290 @@ info:
 		})
 	})
 
+	Describe("deepMerge", func() {
+		Context("different types", func() {
+			a := map[string]interface{}{}
+			b := []string{}
+
+			It("merges", func() {
+				_, err := DeepMerge(a, b)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("cannot merge map[string]interface {} with []string"))
+
+				_, err = DeepMerge(b, a)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("cannot merge []string with map[string]interface {}"))
+			})
+		})
+
+		Context("simple slices", func() {
+			a := []interface{}{"one", "three"}
+			b := []interface{}{"two", 4}
+
+			It("merges", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal([]interface{}{"one", "three", "two", 4}))
+			})
+		})
+
+		Context("slices containing maps", func() {
+			a := []interface{}{
+				map[string]interface{}{
+					"users": []interface{}{
+						map[string]interface{}{
+							"kairos": map[string]interface{}{
+								"passwd": "kairos",
+							},
+						},
+					},
+				},
+			}
+			b := []interface{}{
+				map[string]interface{}{
+					"users": []interface{}{
+						map[string]interface{}{
+							"foo": map[string]interface{}{
+								"passwd": "bar",
+							},
+						},
+					},
+				},
+			}
+
+			It("merges", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				users := c.([]interface{})[0].(map[string]interface{})["users"]
+				Expect(users).To(HaveLen(1))
+				Expect(users).To(Equal([]interface{}{
+					map[string]interface{}{
+						"kairos": map[string]interface{}{
+							"passwd": "kairos",
+						},
+						"foo": map[string]interface{}{
+							"passwd": "bar",
+						},
+					},
+				}))
+			})
+		})
+
+		Context("empty map", func() {
+			a := map[string]interface{}{}
+			b := map[string]interface{}{
+				"foo": "bar",
+			}
+
+			It("merges", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(map[string]interface{}{
+					"foo": "bar",
+				}))
+			})
+		})
+
+		Context("simple map", func() {
+			a := map[string]interface{}{
+				"es": "uno",
+				"nl": "een",
+				"#":  0,
+			}
+			b := map[string]interface{}{
+				"en": "one",
+				"nl": "één",
+				"de": "Eins",
+				"#":  1,
+			}
+
+			It("merges", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(map[string]interface{}{
+					"#":  1,
+					"de": "Eins",
+					"en": "one",
+					"es": "uno",
+					"nl": "één",
+				}))
+			})
+		})
+	})
+
 	Describe("Scan", func() {
+		Context("duplicated configs", func() {
+			var cmdLinePath, tmpDir1 string
+			var err error
+
+			BeforeEach(func() {
+				tmpDir1, err = os.MkdirTemp("", "config1")
+				Expect(err).ToNot(HaveOccurred())
+				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
+
+stages:
+   initramfs:
+     - name: "Set user and password"
+       users:
+         kairos:
+           passwd: "kairos"
+       hostname: kairos-{{ trunc 4 .Random }}
+
+install:
+  auto: true
+  reboot: true
+  device: auto
+  grub_options:
+    extra_cmdline: foobarzz
+  bundles:
+  - rootfs_path: /usr/local/lib/extensions/kubo
+    targets:
+    - container://ttl.sh/97d4530c-df80-4eb4-9ae7-39f8f90c26e5:8h
+`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = os.WriteFile(path.Join(tmpDir1, "local_config_2.yaml"), []byte(`#cloud-config
+
+stages:
+   initramfs:
+     - name: "Set user and password"
+       users:
+         kairos:
+           passwd: "kairos"
+       hostname: kairos-{{ trunc 4 .Random }}
+
+install:
+  auto: true
+  reboot: true
+  device: auto
+  grub_options:
+    extra_cmdline: foobarzz
+  bundles:
+  - rootfs_path: /usr/local/lib/extensions/kubo
+    targets:
+    - container://ttl.sh/97d4530c-df80-4eb4-9ae7-39f8f90c26e5:8h
+`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err = os.RemoveAll(tmpDir1)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("should be the same as just one of them", func() {
+				o := &Options{}
+				err := o.Apply(
+					MergeBootLine,
+					WithBootCMDLineFile(cmdLinePath),
+					Directories(tmpDir1),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				c, err := Scan(o, config.FilterKeys)
+				Expect(err).ToNot(HaveOccurred())
+
+				fmt.Println(c.String())
+				Expect(c.String()).To(Equal(`#cloud-config
+
+install:
+    auto: true
+    bundles:
+        - rootfs_path: /usr/local/lib/extensions/kubo
+          targets:
+            - container://ttl.sh/97d4530c-df80-4eb4-9ae7-39f8f90c26e5:8h
+    device: auto
+    grub_options:
+        extra_cmdline: foobarzz
+    reboot: true
+stages:
+    initramfs:
+        - hostname: kairos-{{ trunc 4 .Random }}
+          name: Set user and password
+          users:
+            kairos:
+                passwd: kairos
+`))
+			})
+		})
+		Context("Deep merge maps within arrays", func() {
+			var cmdLinePath, tmpDir1 string
+			var err error
+
+			BeforeEach(func() {
+				tmpDir1, err = os.MkdirTemp("", "config1")
+				Expect(err).ToNot(HaveOccurred())
+				err := os.WriteFile(path.Join(tmpDir1, "local_config_1.yaml"), []byte(`#cloud-config
+install:
+  auto: true
+  reboot: false
+  poweroff: false
+  grub_options:
+     extra_cmdline: "console=tty0"
+options:
+  device: /dev/sda
+stages:
+  initramfs:
+    - users:
+        kairos:
+          groups:
+            - sudo
+          passwd: kairos
+`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = os.WriteFile(path.Join(tmpDir1, "local_config_2.yaml"), []byte(`#cloud-config
+stages:
+  initramfs:
+    - users:
+        foo:
+          groups:
+            - sudo
+          passwd: bar
+`), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				err = os.RemoveAll(tmpDir1)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("merges all the sources accordingly", func() {
+				o := &Options{}
+				err := o.Apply(
+					MergeBootLine,
+					WithBootCMDLineFile(cmdLinePath),
+					Directories(tmpDir1),
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				c, err := Scan(o, config.FilterKeys)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(c.String()).To(Equal(`#cloud-config
+
+install:
+    auto: true
+    grub_options:
+        extra_cmdline: console=tty0
+    poweroff: false
+    reboot: false
+options:
+    device: /dev/sda
+stages:
+    initramfs:
+        - users:
+            foo:
+                groups:
+                    - sudo
+                passwd: bar
+            kairos:
+                groups:
+                    - sudo
+                passwd: kairos
+`))
+			})
+		})
+
 		Context("multiple sources are defined", func() {
 			var cmdLinePath, serverDir, tmpDir, tmpDir1, tmpDir2 string
 			var err error
