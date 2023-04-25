@@ -513,6 +513,7 @@ grype-scan:
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
     FROM +go-deps-test
+    RUN apt update
     RUN apt install -y qemu-system-x86 qemu-utils golang git
     WORKDIR /test
     ARG FLAVOR
@@ -583,6 +584,7 @@ run-qemu-netboot-test:
 
 run-qemu-test:
     FROM +go-deps-test
+    RUN apt update
     RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
@@ -698,6 +700,7 @@ docs:
     ARG TARGETARCH
 
     # Install dependencies
+    RUN apt update
     RUN apt install git
     # renovate: datasource=github-releases depName=gohugoio/hugo
     ARG HUGO_VERSION="0.110.0"
