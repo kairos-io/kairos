@@ -8,7 +8,6 @@ ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
 ARG OS_ID=kairos
-ARG REPOSITORIES_FILE=framework-profile.yaml
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.40.0
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
@@ -56,16 +55,14 @@ all-arm-generic:
   BUILD --platform=linux/arm64 +image
   BUILD --platform=linux/arm64 +iso
 
-go-deps:
+go-deps-test:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
     WORKDIR /build
-    COPY go.mod go.sum ./
+    COPY tests/go.mod tests/go.sum ./
     RUN go mod download
-    RUN apt-get update && apt-get install -y upx
     SAVE ARTIFACT go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum AS LOCAL go.sum
-
 
 OSRELEASE:
     COMMAND
@@ -103,20 +100,6 @@ version:
 
     ARG VERSION=$(cat VERSION)
     SAVE ARTIFACT VERSION VERSION
-
-dist:
-    ARG GO_VERSION
-    FROM golang:$GO_VERSION
-    COPY +luet/luet /usr/bin/luet
-    RUN mkdir -p /etc/luet/repos.conf.d/
-    RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
-    RUN luet install -y utils/goreleaser
-    WORKDIR /build
-    COPY . .
-    COPY +version/VERSION ./
-    RUN echo $(cat VERSION)
-    RUN VERSION=$(cat VERSION) goreleaser build --rm-dist --skip-validate --snapshot
-    SAVE ARTIFACT /build/dist/* AS LOCAL dist/
 
 hadolint:
     ARG HADOLINT_VERSION
@@ -176,37 +159,36 @@ luet:
 ### Image Build targets
 ###
 
-framework:
-    ARG COSIGN_SKIP
-    ARG REPOSITORIES_FILE
-    ARG COSIGN_EXPERIMENTAL
-    ARG COSIGN_REPOSITORY
-    ARG FLAVOR
-    ARG VERSION
-    ARG LDFLAGS="-s -w -X 'github.com/kairos-io/kairos/v2/internal/common.VERSION=$VERSION'"
-
+# This generates the framework base by installing luet packages generated with the profile-build + framework-profile.yaml
+# file
+# Installs everything under the /framework dir and saves that as an artifact
+framework-luet:
     FROM golang:alpine
+    ARG FLAVOR
     WORKDIR /build
+    COPY ./profile-build /build
+    COPY framework-profile.yaml /build
     COPY +luet/luet /usr/bin/luet
-
-    # cosign keyless verify
-    ENV COSIGN_EXPERIMENTAL=${COSIGN_EXPERIMENTAL}
-    # Repo containing signatures
-    ENV COSIGN_REPOSITORY=${COSIGN_REPOSITORY}
-    # Skip this repo artifacts verify as they are not signed
-    ENV COSIGN_SKIP=${COSIGN_SKIP}
-
-    ENV USER=root
-
-    COPY . /build
-
-    RUN go run -ldflags "${LDFLAGS}" ./profile-build/main.go ${FLAVOR} $REPOSITORIES_FILE /framework
-
-    COPY +luet/luet /framework/usr/bin/luet
-
+    RUN go run main.go ${FLAVOR} framework-profile.yaml /framework
     RUN luet cleanup --system-target /framework
+    # COPY luet into the final framework
+    # TODO: Understand why?
+    COPY +luet/luet /framework/usr/bin/luet
+    # more cleanup
+    RUN rm -rf /framework/var/luet
+    RUN rm -rf /framework/var/cache
+
+    SAVE ARTIFACT --keep-own /framework framework-luet
+
+framework:
+    FROM alpine
+    ARG FLAVOR
+    # This ARG does nothing?
+    ARG VERSION
+    COPY +framework-luet/framework-luet /framework
 
     # Copy overlay files
+    # TODO: Make this also a package?
     COPY overlay/files /framework
     # Copy flavor-specific overlay files
     IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
@@ -224,8 +206,6 @@ framework:
         COPY overlay/files-ubuntu/ /framework
     END
 
-    RUN rm -rf /framework/var/luet
-    RUN rm -rf /framework/var/cache
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
@@ -532,7 +512,7 @@ grype-scan:
 ###
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
-    FROM +go-deps
+    FROM +go-deps-test
     RUN apt install -y qemu-system-x86 qemu-utils golang git
     WORKDIR /test
     ARG FLAVOR
@@ -567,7 +547,7 @@ run-qemu-datasource-tests:
 
 
 run-qemu-netboot-test:
-    FROM +go-deps
+    FROM +go-deps-test
     COPY . /test
     WORKDIR /test
 
@@ -602,7 +582,7 @@ run-qemu-netboot-test:
     END
 
 run-qemu-test:
-    FROM +go-deps
+    FROM +go-deps-test
     RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
