@@ -20,7 +20,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.6.1
+ARG OSBUILDER_VERSION=v0.6.4
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -424,7 +424,7 @@ arm-image:
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
-    RUN /build-arm-image.sh --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
+    RUN /build-arm-image.sh --use-lvm --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
   END
   RUN xz -v /build/$IMAGE_NAME
   SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
