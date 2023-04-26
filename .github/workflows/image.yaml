@@ -225,7 +225,7 @@ jobs:
   install-test:
     needs:
       - build
-    runs-on: macos-12
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
@@ -239,25 +239,21 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ matrix.flavor }}.iso.zip
-      - name: Install deps
-        run: |
-          brew install cdrtools jq gsed
       - name: Install Go
         uses: actions/setup-go@v4
         with:
           go-version: ^1.20
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - run: |
-          export ISO=$PWD/$(ls *.iso)
-          export GOPATH="/Users/runner/go"
-          export PATH=$PATH:$GOPATH/bin
-          export CREATE_VM=true
-          export FLAVOR=${{ matrix.flavor }}
-          cd tests
-          go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "install-test" --fail-fast -r ./...
+          earthly +run-qemu-test --TEST_SUITE="install-test" --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }}
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
-          name: ${{ matrix.flavor }}-vbox.logs.zip
+          name: ${{ matrix.flavor }}-install-test.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
   # This job is used to download the latest release and then used by the upgrade-latest-* jobs
