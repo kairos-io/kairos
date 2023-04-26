@@ -44,6 +44,8 @@ RUN apt-get update \
     linux-image-generic-hwe-22.04 \
     lvm2 \
     mdadm \
+    nano \
+    neovim \
     nbd-client \
     ncurses-term \
     networkd-dispatcher \
