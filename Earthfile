@@ -280,6 +280,13 @@ base-image:
         COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
     END
     # END
+    IF [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+        # compress firmware
+        RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
+        # compress modules
+        RUN find /usr/lib/modules -type f -name "*.ko" -execdir zstd --rm -9 {} \+
+    END
+
 
     IF [ "$FLAVOR" = "debian" ]
 	    RUN rm -rf /boot/initrd.img-*
@@ -290,8 +297,8 @@ base-image:
         # no dracut on those flavors, do nothing
     ELSE
         # Regenerate initrd if necessary
-        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
         RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
     END
 
     IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
