@@ -267,6 +267,15 @@ base-image:
           systemctl enable cos-setup-network.service
     END
 
+    # TEST KAIROS-AGENT FROM BRANCH
+    ARG KAIROS_AGENT_DEV
+    ARG KAIROS_AGENT_DEV_BRANCH=main
+    IF [ "$KAIROS_AGENT_DEV" = "true" ]
+        RUN rm -rf /usr/bin/kairos-agent
+        COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    END
+    # END
+
     # TEST IMMUCORE FROM BRANCH
     ARG IMMUCORE_DEV
     ARG IMMUCORE_DEV_BRANCH=master
