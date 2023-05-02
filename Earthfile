@@ -305,7 +305,7 @@ base-image:
 
     # END
 
-    IF [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+    IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ] || [ "$FLAVOR" = "ubuntu-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-20-lts-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-22-lts-arm-rpi" ]
         # compress firmware
         RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
         # compress modules
