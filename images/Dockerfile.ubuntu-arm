@@ -1,26 +1,15 @@
 ARG BASE_IMAGE=ubuntu:22.10
-ARG MODEL=generic
 
-FROM $BASE_IMAGE as base
+FROM $BASE_IMAGE
+
 ENV DEBIAN_FRONTEND=noninteractive
+
+RUN echo "deb http://ports.ubuntu.com/ubuntu-ports/ kinetic main universe restricted multiverse" >> /etc/apt/sources.list.d/ubuntu-ports.list
 RUN apt-get update \
     && apt-get install -y software-properties-common \
-    && add-apt-repository ppa:oibaf/test
-
-FROM base AS generic
-RUN apt-get update && apt-get install -y linux-base \
-    linux-image-generic-hwe-22.04
-
-FROM base AS rpi64
-# RUN echo "deb http://ports.ubuntu.com/ubuntu-ports/ kinetic main universe restricted multiverse" >> /etc/apt/sources.list.d/ports.list
-RUN apt-get update && apt-get install -y linux-firmware-raspi \
-    linux-modules-extra-raspi \
-    linux-raspi
-
-FROM ${MODEL} AS all
-
-FROM all
-RUN apt-get update && apt-get install -y \
+    && add-apt-repository ppa:oibaf/test \
+    && apt-get update \
+    && apt-get install -y \
     conntrack \
     console-data \
     coreutils \
@@ -32,13 +21,13 @@ RUN apt-get update && apt-get install -y \
     dracut-live \
     e2fsprogs \
     gawk \
-    gdisk \
     grub-efi-arm64-bin \
     grub2-common \
     haveged \
     iproute2 \
     iptables \
     jq \
+    linux-base \
     nano \
     neovim \
     open-vm-tools \

@@ -49,10 +49,10 @@ all-arm:
   BUILD +image-sbom
   BUILD +trivy-scan
   BUILD +grype-scan
-  BUILD +arm-image
+  BUILD --platform=linux/arm64 +arm-image
 
 all-arm-generic:
-  BUILD --platform=linux/arm64 +image
+  BUILD --platform=linux/arm64 +image --MODEL=generic
   BUILD --platform=linux/arm64 +iso
 
 go-deps-test:
@@ -207,7 +207,7 @@ framework:
         COPY overlay/files-fedora/ /framework
     ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /framework
-    ELSE IF [ "$FLAVOR" = "ubuntu-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-20-lts-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-22-lts-arm-rpi" ]
+    ELSE IF [[ "$FLAVOR" =~ ^ubuntu-arm* ]]
         COPY overlay/files-ubuntu-arm-rpi/ /
     END
 
@@ -228,11 +228,12 @@ framework-image:
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
 base-image:
+    ARG MODEL
     ARG FLAVOR
     ARG VARIANT
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
-        FROM DOCKERFILE -f images/Dockerfile.$FLAVOR .
+        FROM DOCKERFILE --build-arg MODEL=$MODEL -f images/Dockerfile.$FLAVOR .
     ELSE 
         FROM $BASE_IMAGE
     END
@@ -295,7 +296,7 @@ base-image:
     END
     # END
 
-    # TEST KCRYPT FROM BRANCH
+# TEST KCRYPT FROM BRANCH
     ARG KCRYPT_DEV
     ARG KCRYPT_DEV_BRANCH=main
     IF [ "$KCRYPT_DEV" = "true" ]
@@ -305,7 +306,7 @@ base-image:
 
     # END
 
-    IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ] || [ "$FLAVOR" = "ubuntu-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-20-lts-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-22-lts-arm-rpi" ]
+    IF [[ "$FLAVOR" =~ ^ubuntu* ]]
         # compress firmware
         RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
         # compress modules
@@ -357,6 +358,7 @@ image:
     FROM +base-image
     ARG FLAVOR
     ARG VARIANT
+    ARG MODEL
     ARG KAIROS_VERSION
     IF [ "$KAIROS_VERSION" = "" ]
         COPY +version/VERSION ./
@@ -368,6 +370,7 @@ image:
         ARG OS_VERSION=${KAIROS_VERSION}
     END
     ARG OS_ID
+    # should we add the model to the resulting iso?
     ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
     ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
     ARG OS_LABEL=latest
@@ -443,7 +446,7 @@ arm-image:
   ARG IMAGE_NAME=${FLAVOR}.img
   WORKDIR /build
   ENV SIZE="15200"
-  IF [ "$FLAVOR" = "ubuntu-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-20-lts-arm-rpi" ] || [ "$FLAVOR" = "ubuntu-22-lts-arm-rpi" ]
+  IF [[ "$FLAVOR" =~ ^ubuntu* ]]
     ENV STATE_SIZE="6900"
     ENV RECOVERY_SIZE="4600"
     ENV DEFAULT_ACTIVE_SIZE="2300"
