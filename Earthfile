@@ -289,6 +289,17 @@ base-image:
         COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
     END
     # END
+
+    # TEST KCRYPT FROM BRANCH
+    ARG KCRYPT_DEV
+    ARG KCRYPT_DEV_BRANCH=main
+    IF [ "$KCRYPT_DEV" = "true" ]
+        RUN rm /usr/bin/kcrypt
+        COPY github.com/kairos-io/kcrypt:$KCRYPT_DEV_BRANCH+build-kcrypt/kcrypt /usr/bin/kcrypt
+    END
+
+    # END
+
     IF [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         # compress firmware
         RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
