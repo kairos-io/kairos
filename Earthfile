@@ -297,7 +297,15 @@ base-image:
         RUN rm /usr/bin/kcrypt
         COPY github.com/kairos-io/kcrypt:$KCRYPT_DEV_BRANCH+build-kcrypt/kcrypt /usr/bin/kcrypt
     END
+   # END
 
+   # TEST KCRYPT-CHALLENGER FROM BRANCH
+    ARG KCRYPT_CHALLENGER
+    ARG KCRYPT_CHALLENGER_BRANCH=main
+    IF [ "$KCRYPT_CHALLENGER" = "true" ]
+       RUN rm /system/discovery/kcrypt-discovery-challenger
+       COPY github.com/kairos-io/kcrypt-challenger:$KCRYPT_CHALLENGER_BRANCH+build-challenger/kcrypt-discovery-challenger /system/discovery/kcrypt-discovery-challenger
+    END
     # END
 
     IF [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
