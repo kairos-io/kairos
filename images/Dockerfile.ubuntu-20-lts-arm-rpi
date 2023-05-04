@@ -22,7 +22,6 @@ RUN apt-get update && apt-get install -y linux-firmware-raspi \
 FROM ${MODEL} AS all
 
 FROM all
-#RUN echo "deb http://ports.ubuntu.com/ubuntu-ports/ focal main universe restricted multiverse" >> /etc/apt/sources.list.d/raspberrypi.list
 RUN apt-get update && apt-get install -y \
     conntrack \
     console-data \

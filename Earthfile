@@ -46,10 +46,10 @@ all:
 
 all-arm:
   BUILD --platform=linux/arm64 +image --MODEL=rpi64
-  BUILD +image-sbom
-  BUILD +trivy-scan
-  BUILD +grype-scan
-  BUILD --platform=linux/arm64 +arm-image
+  BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
+  BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
+  BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
+  BUILD +arm-image --MODEL=rpi64
 
 all-arm-generic:
   BUILD --platform=linux/arm64 +image --MODEL=generic
