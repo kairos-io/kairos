@@ -1,15 +1,29 @@
 ARG BASE_IMAGE=ubuntu:20.04
+ARG MODEL=generic
 
 FROM $BASE_IMAGE
-
 ENV DEBIAN_FRONTEND=noninteractive
-
-RUN echo "deb http://ports.ubuntu.com/ubuntu-ports/ focal main universe restricted multiverse" >> /etc/apt/sources.list.d/raspberrypi.list
 RUN apt-get update \
     && apt-get install -y software-properties-common \
     && add-apt-repository ppa:oibaf/test \
-    && apt-get update \
-    && apt-get install -y \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+
+FROM base AS generic
+RUN apt-get update && apt-get install -y linux-base \
+    linux-image-generic-hwe-22.04 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM base AS rpi64
+RUN apt-get update && apt-get install -y linux-firmware-raspi \
+    linux-modules-extra-raspi \
+    linux-raspi \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${MODEL} AS all
+
+FROM all
+#RUN echo "deb http://ports.ubuntu.com/ubuntu-ports/ focal main universe restricted multiverse" >> /etc/apt/sources.list.d/raspberrypi.list
+RUN apt-get update && apt-get install -y \
     conntrack \
     console-data \
     coreutils \
@@ -20,6 +34,7 @@ RUN apt-get update \
     dracut-network \
     e2fsprogs \
     gawk \
+    gdisk \
     grub-efi-arm64-bin \
     grub2-common \
     haveged \
@@ -44,7 +59,7 @@ RUN apt-get update \
     systemd \
     systemd-timesyncd \
     tar \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv

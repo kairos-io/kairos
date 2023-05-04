@@ -45,7 +45,7 @@ all:
   BUILD +ipxe-iso
 
 all-arm:
-  BUILD --platform=linux/arm64 +image
+  BUILD --platform=linux/arm64 +image --MODEL=rpi64
   BUILD +image-sbom
   BUILD +trivy-scan
   BUILD +grype-scan
@@ -53,7 +53,7 @@ all-arm:
 
 all-arm-generic:
   BUILD --platform=linux/arm64 +image --MODEL=generic
-  BUILD --platform=linux/arm64 +iso
+  BUILD --platform=linux/arm64 +iso --MODEL=generic
 
 go-deps-test:
     ARG GO_VERSION
