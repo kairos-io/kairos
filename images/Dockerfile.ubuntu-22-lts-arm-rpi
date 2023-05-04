@@ -1,8 +1,7 @@
 ARG BASE_IMAGE=ubuntu:22.04
 ARG MODEL=generic
 
-FROM $BASE_IMAGE
-
+FROM $BASE_IMAGE as base
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y software-properties-common \
