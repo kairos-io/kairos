@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y linux-base \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM base AS rpi64
-RUN apt-get update && apt-get install -y linux-firmware-raspi \
-    linux-modules-extra-raspi \
+# Normally we install also linux-modules-extra-raspi but this is not available for 20.04, not sure what's the impact to
+# remove it.
+RUN apt-get update && apt-get install -y linux-firmware-raspi2 \
     linux-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 

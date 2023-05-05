@@ -45,10 +45,13 @@ all:
   BUILD +ipxe-iso
 
 all-arm:
+  ARG SECURITY_SCANS=true
   BUILD --platform=linux/arm64 +image --MODEL=rpi64
-  BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
-  BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
-  BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
+  IF [ "$SECURITY_SCANS" = "true" ]
+      BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
+      BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
+      BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
+  END
   BUILD +arm-image --MODEL=rpi64
 
 all-arm-generic:
