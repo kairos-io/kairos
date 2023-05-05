@@ -441,6 +441,7 @@ netboot:
 
 arm-image:
   ARG OSBUILDER_IMAGE
+  ARG COMPRESS_IMG=true
   FROM $OSBUILDER_IMAGE
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
@@ -460,8 +461,12 @@ arm-image:
   WITH DOCKER --allow-privileged
     RUN /build-arm-image.sh --use-lvm --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
   END
-  RUN xz -v /build/$IMAGE_NAME
-  SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
+  IF [ "$COMPRESS_IMG" = "true" ]
+      RUN xz -v /build/$IMAGE_NAME
+      SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
+  ELSE
+      SAVE ARTIFACT /build/$IMAGE_NAME img AS LOCAL build/$IMAGE_NAME
+  END
   SAVE ARTIFACT /build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
 ipxe-iso:
@@ -522,9 +527,9 @@ trivy-scan:
     ARG FLAVOR
     ARG VARIANT
     WORKDIR /build
-    RUN /trivy filesystem --skip-dirs /tmp --format sarif -o report.sarif --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp -f json -o results.json --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
     SAVE ARTIFACT /build/report.sarif report.sartif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.json
