@@ -159,7 +159,7 @@ jobs:
   build-framework:
     needs:
       - get-matrix
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
     strategy:
@@ -337,7 +337,7 @@ jobs:
   qemu-bundles-tests:
     needs:
       - build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -377,7 +377,7 @@ jobs:
   qemu-reset-tests:
     needs:
       - build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
