@@ -217,7 +217,7 @@ func expectStartedInstallation(vm VM) {
 		Eventually(func() string {
 			out, _ := vm.Sudo("ps aux")
 			return out
-		}, 30*time.Minute, 1*time.Second).Should(ContainSubstring("elemental install"))
+		}, 30*time.Minute, 1*time.Second).Should(ContainSubstring("/usr/bin/kairos-agent install"))
 	})
 }
 
