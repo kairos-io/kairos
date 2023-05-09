@@ -105,7 +105,8 @@ hadolint:
     ARG HADOLINT_VERSION
     FROM hadolint/hadolint:$HADOLINT_VERSION
     WORKDIR /images
-    COPY images .
+    COPY images/Dockerfile* .
+    COPY .hadolint.yaml .
     RUN ls
     RUN find . -name "Dockerfile*" -print | xargs -r -n1 hadolint
 

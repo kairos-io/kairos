@@ -3,7 +3,7 @@ ARG BASE_IMAGE=fedora:36
 FROM $BASE_IMAGE
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
-RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-2$(rpm --eval "%{dist}").noarch.rpm"
+RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-2$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 RUN dnf install -y \
     NetworkManager \
     squashfs-tools \
@@ -53,12 +53,11 @@ RUN dnf install -y \
     zfs \
     rsync && dnf clean all
 
-RUN mkdir -p /run/lock
-RUN touch /usr/libexec/.keep
-RUN systemctl enable getty@tty1.service
-RUN systemctl enable getty@tty2.service
-RUN systemctl enable getty@tty3.service
-
-RUN systemctl enable systemd-networkd
-RUN systemctl enable systemd-resolved
-RUN systemctl enable sshd
+RUN mkdir -p /run/lock && \
+  touch /usr/libexec/.keep && \
+  systemctl enable getty@tty1.service && \
+  systemctl enable getty@tty2.service && \
+  systemctl enable getty@tty3.service && \
+  systemctl enable systemd-networkd && \
+  systemctl enable systemd-resolved && \
+  systemctl enable sshd

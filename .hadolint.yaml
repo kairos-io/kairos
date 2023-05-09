@@ -1,0 +1,20 @@
+# We use "override" instead of "ignore" to still see these issues.
+# With the "failure-threshold" set to "warning" below, these should not make
+# the test fail.
+override: 
+  info:
+    # warning: Specify version with `zypper install -y <package>=<version>`.
+    - DL3037
+    # warning: Pin versions in apk add. Instead of `apk add <package>` use `apk add <package>=<version>`
+    - DL3018
+    # warning: Specify version with `dnf install -y <package>-<version>`.
+    - DL3041
+    # warning: Pin versions in apt get install. Instead of `apt-get install <package>` use `apt-get install <package>=<version>`
+    - DL3008
+    # warning: Always tag the version of an image explicitly
+    # Reason: We build "latest" images using "latest" base images.
+    - DL3006
+    # warning: Use WORKDIR to switch to a directory
+    # Reason: Sometimes we don't want to change the workdir
+    - DL3003
+failure-threshold: warning

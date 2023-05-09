@@ -46,4 +46,4 @@ spec:
   upgrade:
     image: quay.io/kairos/kairos
     command: ["sh"]
-    args: [ "/rotate-token/rotate.sh"]
+    args: ["/rotate-token/rotate.sh"]
