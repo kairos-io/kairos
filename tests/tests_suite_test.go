@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -110,6 +111,10 @@ func startVM() (context.Context, VM) {
 	stateDir, err := os.MkdirTemp("", "")
 	Expect(err).ToNot(HaveOccurred())
 
+	if os.Getenv("EMULATE_TPM") != "" {
+		emulateTPM(stateDir)
+	}
+
 	sshPort, err = getFreePort()
 	Expect(err).ToNot(HaveOccurred())
 
@@ -132,15 +137,40 @@ func startVM() (context.Context, VM) {
 		types.WithSSHUser(user()),
 		types.WithSSHPass(pass()),
 		types.OnFailure(func(p *process.Process) {
+			var serial string
+
 			out, _ := os.ReadFile(p.StdoutPath())
 			err, _ := os.ReadFile(p.StderrPath())
 			status, _ := p.ExitCode()
 
-			// We are explicitly killing the qemu process. We don't treat that as an error
+			if serialBytes, err := os.ReadFile(path.Join(p.StateDir(), "serial.log")); err != nil {
+				serial = fmt.Sprintf("Error reading serial log file: %s\n", err)
+			} else {
+				serial = string(serialBytes)
+			}
+
+			// We are explicitly killing the qemu process. We don't treat that as an error,
 			// but we just print the output just in case.
-			fmt.Printf("\nVM Aborted: %s %s Exit status: %s\n", out, err, status)
+			fmt.Printf("\nVM Aborted.\nstdout: %s\nstderr: %s\nserial: %s\nExit status: %s\n", out, err, serial, status)
+			Fail(fmt.Sprintf("\nVM Aborted.\nstdout: %s\nstderr: %s\nserial: %s\nExit status: %s\n",
+				out, err, serial, status))
 		}),
 		types.WithStateDir(stateDir),
+		// Serial output to file: https://superuser.com/a/1412150
+		func(m *types.MachineConfig) error {
+			m.Args = append(m.Args,
+				"-chardev", fmt.Sprintf("stdio,mux=on,id=char0,logfile=%s,signal=off", path.Join(stateDir, "serial.log")),
+				"-serial", "chardev:char0",
+				"-mon", "chardev=char0",
+			)
+			if os.Getenv("EMULATE_TPM") != "" {
+				m.Args = append(m.Args,
+					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
+					"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
+				)
+			}
+			return nil
+		},
 		types.WithDataSource(os.Getenv("DATASOURCE")),
 	}
 	if os.Getenv("KVM") != "" {
@@ -231,4 +261,22 @@ func expectRebootedToActive(vm VM) {
 				ContainSubstring("active_boot"),
 			))
 	})
+}
+
+// return the PID of the swtpm (to be killed later) and the state directory
+func emulateTPM(stateDir string) {
+	t := path.Join(stateDir, "tpm")
+	err := os.MkdirAll(t, os.ModePerm)
+	Expect(err).ToNot(HaveOccurred())
+
+	cmd := exec.Command("swtpm",
+		"socket",
+		"--tpmstate", fmt.Sprintf("dir=%s", t),
+		"--ctrl", fmt.Sprintf("type=unixio,path=%s/swtpm-sock", t),
+		"--tpm2", "--log", "level=20")
+	err = cmd.Start()
+	Expect(err).ToNot(HaveOccurred())
+
+	err = os.WriteFile(path.Join(t, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0744)
+	Expect(err).ToNot(HaveOccurred())
 }
