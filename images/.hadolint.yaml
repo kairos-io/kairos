@@ -6,8 +6,6 @@ ignored:
   - DL3006
   # Pin versions in apt get install: https://github.com/hadolint/hadolint/wiki/DL3008
   - DL3008
-  # Avoid additional packages by specifying --no-install-recommends: https://github.com/hadolint/hadolint/wiki/DL3015
-  - DL3015
   # Pin versions in apk add: https://github.com/hadolint/hadolint/wiki/DL3018
   - DL3018
   # Specify version with zypper install -y <package>[=]<version>: https://github.com/hadolint/hadolint/wiki/DL3037
