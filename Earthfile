@@ -211,7 +211,7 @@ framework:
     ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /framework
     ELSE IF [[ "$FLAVOR" =~ ^ubuntu-arm* ]]
-        COPY overlay/files-ubuntu-arm-rpi/ /
+        COPY overlay/files-ubuntu-arm-rpi/ /framework
     END
 
     SAVE ARTIFACT --keep-own /framework/ framework
