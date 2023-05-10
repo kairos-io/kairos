@@ -196,22 +196,19 @@ framework:
     # Copy overlay files
     # TODO: Make this also a package?
     COPY overlay/files /framework
-    # Copy flavor-specific overlay files
-    IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
-        COPY overlay/files-alpine/ /framework
+
+    # Copy common overlay files for Raspberry Pi
+    IF [ "$MODEL" = "rpi64" ]
+        COPY overlay/files-rpi/ /framework
     END
-    
-    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
+
+    # Copy flavor-specific overlay files
+    IF [[ "$FLAVOR" =~ ^alpine* ]]
         COPY overlay/files-alpine/ /framework
-        COPY overlay/files-opensuse-arm-rpi/ /framework
-    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
-        COPY overlay/files-opensuse-arm-rpi/ /framework
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
         COPY overlay/files-fedora/ /framework
     ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /framework
-    ELSE IF [[ "$FLAVOR" =~ ^ubuntu-arm* ]]
-        COPY overlay/files-ubuntu-arm-rpi/ /framework
     END
 
     SAVE ARTIFACT --keep-own /framework/ framework
