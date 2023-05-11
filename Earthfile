@@ -58,6 +58,8 @@ all-arm-generic:
 go-deps-test:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
+    # Enable backports repo for debian for swtpm
+    RUN . /etc/os-release && echo "deb http://deb.debian.org/debian $VERSION_CODENAME-backports main contrib non-free" > /etc/apt/sources.list.d/backports.list
     WORKDIR /build
     COPY tests/go.mod tests/go.sum ./
     RUN go mod download
@@ -542,7 +544,7 @@ grype-scan:
 run-qemu-datasource-tests:
     FROM +go-deps-test
     RUN apt update
-    RUN apt install -y qemu-system-x86 qemu-utils golang git
+    RUN apt install -y qemu-system-x86 qemu-utils golang git swtpm
     WORKDIR /test
     ARG FLAVOR
     ARG PREBUILT_ISO
@@ -586,7 +588,7 @@ run-qemu-netboot-test:
     ARG VERSION=$(cat VERSION)
 
     RUN apt update
-    RUN apt install -y qemu qemu-utils qemu-system git && apt clean
+    RUN apt install -y qemu qemu-utils qemu-system git swtpm && apt clean
 
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
@@ -615,7 +617,7 @@ run-qemu-netboot-test:
 run-qemu-test:
     FROM +go-deps-test
     RUN apt update
-    RUN apt install -y qemu-system-x86 qemu-utils git && apt clean
+    RUN apt install -y qemu-system-x86 qemu-utils git swtpm && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG PREBUILT_ISO

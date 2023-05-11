@@ -1,0 +1,35 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: challenger-server
+  annotations:
+    cert-manager.io/cluster-issuer: "selfsigned"
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  tls:
+    - hosts:
+        - 10.0.2.2.challenger.sslip.io
+        - ${CLUSTER_IP}.challenger.sslip.io
+      secretName: kms-tls
+  rules:
+    - host: 10.0.2.2.challenger.sslip.io
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: kcrypt-controller-kcrypt-escrow-server
+                port:
+                  number: 8082
+    - host: ${CLUSTER_IP}.challenger.sslip.io
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: kcrypt-controller-kcrypt-escrow-server
+                port:
+                  number: 8082

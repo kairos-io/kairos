@@ -1,0 +1,37 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+  namespace: system
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          image: quay.io/kairos/kcrypt-challenger:v0.4.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--health-probe-bind-address"
+            - ":8081"
+            - "--metrics-bind-address"
+            - "127.0.0.1:8080"
+            - "--namespace"
+            - "default"
+            - "--leader-elect"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kcrypt-escrow-server
+  namespace: system
+spec:
+  type: ClusterIP
+  selector:
+    control-plane: controller-manager
+  ports:
+    - name: wss
+      port: 8082
+      protocol: TCP
+      targetPort: 8082

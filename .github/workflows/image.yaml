@@ -575,3 +575,51 @@ jobs:
           name: ${{ matrix.flavor }}-upgrade-test.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
+  encryption-tests:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    strategy:
+      fail-fast: true
+      matrix:
+        label:
+          - "local-encryption"
+          - "remote-auto"
+          - "remote-static"
+          - "remote-https-pinned"
+          - "remote-https-bad-cert"
+        flavor:
+          - "opensuse-leap"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ^1.20
+      - name: Deps
+        run: |
+          sudo apt update && \
+          sudo apt install -y git qemu-system-x86 qemu-utils swtpm jq make glibc-tools \
+          openssl curl gettext ca-certificates curl gnupg lsb-release
+
+          curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          sudo mkdir -p /etc/luet/repos.conf.d/
+          sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
+          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d utils/earthly
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: kairos-${{ matrix.flavor }}.iso.zip
+      - name: Run tests
+        env:
+          LABEL: ${{ matrix.label }}
+          EMULATE_TPM: true
+          USE_QEMU: true
+        run: |
+          export ISO=$PWD/$(ls *.iso)
+          .github/encryption-tests.sh
