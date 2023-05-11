@@ -27,14 +27,14 @@ stages:
         VOLUMES: "LABEL=COS_OEM:/oem"
         OVERLAY: "tmpfs:25%"
   initramfs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ]'
-      name: "Persist /etc/machine-id"
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /usr/local/etc/machine-id ]'
+      name: "Restore /etc/machine-id"
+      commands:
+        - cat /usr/local/etc/machine-id > /etc/machine-id
+  fs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /usr/local/etc/machine-id ] '
+      name: "Save /etc/machine-id"
       commands:
       - |
-        # persist machine-id
-        if [ -s /usr/local/etc/machine-id ]; then
-          cat /usr/local/etc/machine-id > /etc/machine-id
-        else
-          mkdir -p /usr/local/etc
-          cp /etc/machine-id /usr/local/etc
-        fi
+        mkdir -p /usr/local/etc
+        cp /etc/machine-id /usr/local/etc
