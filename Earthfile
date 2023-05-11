@@ -189,6 +189,7 @@ framework-luet:
 framework:
     FROM alpine
     ARG FLAVOR
+    ARG MODEL
     # This ARG does nothing?
     ARG VERSION
     COPY +framework-luet/framework-luet /framework
@@ -252,7 +253,7 @@ base-image:
     END
 
     # Includes overlay/files
-    COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION) /
+    COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION --MODEL=$MODEL) /
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
@@ -448,6 +449,7 @@ arm-image:
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
   WORKDIR /build
+  # These sizes are in MB
   ENV SIZE="15200"
   IF [[ "$FLAVOR" =~ ^ubuntu* ]]
     ENV STATE_SIZE="6900"
