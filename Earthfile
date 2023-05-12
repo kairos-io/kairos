@@ -36,10 +36,13 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
 
 all:
+  ARG SECURITY_SCANS=true
   BUILD +image
-  BUILD +image-sbom
-  BUILD +trivy-scan
-  BUILD +grype-scan
+  IF [ "$SECURITY_SCANS" = "true" ]
+      BUILD +image-sbom
+      BUILD +trivy-scan
+      BUILD +grype-scan
+  END
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
@@ -299,7 +302,7 @@ base-image:
     END
     # END
 
-# TEST KCRYPT FROM BRANCH
+    # TEST KCRYPT FROM BRANCH
     ARG KCRYPT_DEV
     ARG KCRYPT_DEV_BRANCH=main
     IF [ "$KCRYPT_DEV" = "true" ]
