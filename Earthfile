@@ -80,6 +80,7 @@ OSRELEASE:
     ARG HOME_URL
 
     # update OS-release file
+    RUN cat /etc/os-release | grep -v KAIROS_ > /etc/os-release
     RUN envsubst >>/etc/os-release </usr/lib/os-release.tmpl
 
 uuidgen:
