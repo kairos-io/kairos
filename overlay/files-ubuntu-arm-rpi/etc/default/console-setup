@@ -1,0 +1,7 @@
+ACTIVE_CONSOLES="/dev/tty[1-6]"
+FONT="default8x16.psf.gz"
+CHARMAP="UTF-8"
+CODESET="guess"
+FONTFACE="default"
+FONTSIZE="8x16"
+SCREEN_WIDTH="100"

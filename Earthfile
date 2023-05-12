@@ -36,24 +36,30 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
 
 all:
+  ARG SECURITY_SCANS=true
   BUILD +image
-  BUILD +image-sbom
-  BUILD +trivy-scan
-  BUILD +grype-scan
+  IF [ "$SECURITY_SCANS" = "true" ]
+      BUILD +image-sbom
+      BUILD +trivy-scan
+      BUILD +grype-scan
+  END
   BUILD +iso
   BUILD +netboot
   BUILD +ipxe-iso
 
 all-arm:
-  BUILD --platform=linux/arm64 +image
-  BUILD +image-sbom
-  BUILD +trivy-scan
-  BUILD +grype-scan
-  BUILD +arm-image
+  ARG SECURITY_SCANS=true
+  BUILD --platform=linux/arm64 +image --MODEL=rpi64
+  IF [ "$SECURITY_SCANS" = "true" ]
+      BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
+      BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
+      BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
+  END
+  BUILD +arm-image --MODEL=rpi64
 
 all-arm-generic:
-  BUILD --platform=linux/arm64 +image
-  BUILD --platform=linux/arm64 +iso
+  BUILD --platform=linux/arm64 +image --MODEL=generic
+  BUILD --platform=linux/arm64 +iso --MODEL=generic
 
 go-deps-test:
     ARG GO_VERSION
@@ -187,6 +193,7 @@ framework-luet:
 framework:
     FROM alpine
     ARG FLAVOR
+    ARG MODEL
     # This ARG does nothing?
     ARG VERSION
     COPY +framework-luet/framework-luet /framework
@@ -194,20 +201,21 @@ framework:
     # Copy overlay files
     # TODO: Make this also a package?
     COPY overlay/files /framework
-    # Copy flavor-specific overlay files
-    IF [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-ubuntu" ]
-        COPY overlay/files-alpine/ /framework
+
+    # Copy common overlay files for Raspberry Pi
+    IF [ "$MODEL" = "rpi64" ]
+        COPY overlay/files-rpi/ /framework
     END
-    
-    IF [ "$FLAVOR" = "alpine-arm-rpi" ]
+
+    # Copy flavor-specific overlay files
+    IF [[ "$FLAVOR" =~ ^alpine* ]]
         COPY overlay/files-alpine/ /framework
-        COPY overlay/files-opensuse-arm-rpi/ /framework
-    ELSE IF [ "$FLAVOR" = "opensuse-leap-arm-rpi" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
-        COPY overlay/files-opensuse-arm-rpi/ /framework
     ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
         COPY overlay/files-fedora/ /framework
     ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /framework
+    ELSE IF [[ "$FLAVOR" =~ ^ubuntu-arm* ]]
+        COPY overlay/files-ubuntu-arm-rpi/ /framework
     END
 
     SAVE ARTIFACT --keep-own /framework/ framework
@@ -227,11 +235,12 @@ framework-image:
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
 base-image:
+    ARG MODEL
     ARG FLAVOR
     ARG VARIANT
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
-        FROM DOCKERFILE -f images/Dockerfile.$FLAVOR .
+        FROM DOCKERFILE --build-arg MODEL=$MODEL -f images/Dockerfile.$FLAVOR .
     ELSE 
         FROM $BASE_IMAGE
     END
@@ -248,7 +257,7 @@ base-image:
     END
 
     # Includes overlay/files
-    COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION) /
+    COPY (+framework/framework --FLAVOR=$FLAVOR --VERSION=$OS_VERSION --MODEL=$MODEL) /
 
     RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
 
@@ -304,7 +313,7 @@ base-image:
 
     # END
 
-    IF [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
+    IF [[ "$FLAVOR" =~ ^ubuntu* ]]
         # compress firmware
         RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
         # compress modules
@@ -356,6 +365,7 @@ image:
     FROM +base-image
     ARG FLAVOR
     ARG VARIANT
+    ARG MODEL
     ARG KAIROS_VERSION
     IF [ "$KAIROS_VERSION" = "" ]
         COPY +version/VERSION ./
@@ -367,6 +377,7 @@ image:
         ARG OS_VERSION=${KAIROS_VERSION}
     END
     ARG OS_ID
+    # should we add the model to the resulting iso?
     ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
     ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
     ARG OS_LABEL=latest
@@ -437,21 +448,33 @@ netboot:
 
 arm-image:
   ARG OSBUILDER_IMAGE
+  ARG COMPRESS_IMG=true
   FROM $OSBUILDER_IMAGE
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
   WORKDIR /build
-  ENV STATE_SIZE="6200"
-  ENV RECOVERY_SIZE="4200"
+  # These sizes are in MB
   ENV SIZE="15200"
-  ENV DEFAULT_ACTIVE_SIZE="2000"
+  IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+    ENV STATE_SIZE="6900"
+    ENV RECOVERY_SIZE="4600"
+    ENV DEFAULT_ACTIVE_SIZE="2300"
+  ELSE
+    ENV STATE_SIZE="6200"
+    ENV RECOVERY_SIZE="4200"
+    ENV DEFAULT_ACTIVE_SIZE="2000"
+  END
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
     RUN /build-arm-image.sh --use-lvm --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
   END
-  RUN xz -v /build/$IMAGE_NAME
-  SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
+  IF [ "$COMPRESS_IMG" = "true" ]
+      RUN xz -v /build/$IMAGE_NAME
+      SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
+  ELSE
+      SAVE ARTIFACT /build/$IMAGE_NAME img AS LOCAL build/$IMAGE_NAME
+  END
   SAVE ARTIFACT /build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
 ipxe-iso:
@@ -512,9 +535,9 @@ trivy-scan:
     ARG FLAVOR
     ARG VARIANT
     WORKDIR /build
-    RUN /trivy filesystem --skip-dirs /tmp --format sarif -o report.sarif --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp -f json -o results.json --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
     SAVE ARTIFACT /build/report.sarif report.sartif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.json
