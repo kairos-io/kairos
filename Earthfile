@@ -456,7 +456,7 @@ arm-image:
   # These sizes are in MB
   ENV SIZE="15200"
   IF [[ "$FLAVOR" =~ ^ubuntu* ]]
-    ENV STATE_SIZE="6900"
+    ENV STATE_SIZE="7100"
     ENV RECOVERY_SIZE="4600"
     ENV DEFAULT_ACTIVE_SIZE="2300"
   ELSE
