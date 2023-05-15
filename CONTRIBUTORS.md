@@ -11,3 +11,4 @@ These are active contributors who have made multiple contributions to the projec
 | Jason B. Alonso          | [@jbalonso](https://github.com/jbalonso)               |
 | Shawn Wilsher            | [@sdwilsh](https://github.com/sdwilsh)                 |
 | scuzhanglei              | [@scuzhanglei](https://github.com/scuzhanglei)         |
+| Martin Schuessler        | [@c0ffee](https://github.com/c0ffee)                   |
