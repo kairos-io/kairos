@@ -57,6 +57,10 @@ all-arm:
   END
   BUILD +arm-image --MODEL=rpi64
 
+arm-container-image:
+  ARG MODEL
+  BUILD --platform=linux/arm64 +image --MODEL=$MODEL
+
 all-arm-generic:
   BUILD --platform=linux/arm64 +image --MODEL=generic
   BUILD --platform=linux/arm64 +iso --MODEL=generic
