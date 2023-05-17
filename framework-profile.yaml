@@ -5,7 +5,6 @@ common:
   - system/kcrypt-challenger
   - system/suc-upgrade
   - system/grub2-efi
-  - system/elemental-cli
   - system/immucore
   - system/kairos-agent
 flavors:
