@@ -334,13 +334,12 @@ base-image:
         RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
     END
 
+
+    # Set /boot/vmlinuz pointing to our kernel so kairos-agent can use it
+    # https://github.com/kairos-io/kairos-agent/blob/0288fb111bc568a1bfca59cb09f39302220475b6/pkg/elemental/elemental.go#L548
     IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
-        # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
         RUN rm -rf /boot/initramfs-*
     END
-
-    # Set /boot/vmlinuz pointing to our kernel so elemental-cli can use it
-    # https://github.com/kairos-io/elemental-cli/blob/23ca64435fedb9f521c95e798d2c98d2714c53bd/pkg/elemental/elemental.go#L553
     IF [ ! -e "/boot/vmlinuz" ]
         # If it's an ARM flavor, we want a symlink here from zImage/Image
         # Check that its not a symlink already or grub will fail!
