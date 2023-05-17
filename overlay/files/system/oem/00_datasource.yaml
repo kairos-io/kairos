@@ -20,8 +20,8 @@ stages:
     - <<: *datasource
     - if: '[ -f /oem/userdata ] && [ -f /run/.userdata_load ]'
       commands:
-      - elemental cloud-init -s initramfs /oem/userdata
-      - elemental cloud-init -s boot /oem/userdata
+      - kairos-agent run-stage initramfs
+      - kairos-agent run-stage boot
       - rm -rf /run/.userdata_load
     - if: '[ ! -f /oem/userdata ] && [ -f /run/.userdata_load ]'
       commands:
