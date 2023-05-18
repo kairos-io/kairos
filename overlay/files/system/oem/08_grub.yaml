@@ -9,7 +9,7 @@
 # - If we get back again at the GRUB menu, a failure must have occurred and we select the fallback entry, creating also
 #   sentinels files and a specific cmdline option indicating we failed booting after an upgrade
 
-name: "Boot assessment"
+name: "Boot assessment and branding"
 stages:
     boot.before:
     # Remove any grub sentinel and add
@@ -40,6 +40,7 @@ stages:
         group: 0
     after-install:
     # After install, reset, and upgrade, we install additional GRUB configuration for boot assessment into COS_STATE.
+    # We also add any branding that exists
 
     - &statemount
       name: "Mount state"
@@ -97,11 +98,15 @@ stages:
                 fi
               fi
             fi
+    - &grubinstall
+      name: "Grub branding"
+      if: '[ -e "/etc/kairos/branding/grubmenu.cfg" ]'
+      commands:
+        - cp -rfv /etc/kairos/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
     - &stateumount
       name: "umount state"
       commands:
-      - |
-          umount /tmp/mnt/STATE
+      - umount /tmp/mnt/STATE
 
     # Here we do enable boot assessment for the next bootup.
     # Similarly, we could trigger boot assessment in other cases
@@ -113,6 +118,7 @@ stages:
           grub2-editenv /tmp/mnt/STATE/boot_assessment set enable_boot_assessment=yes
     # We do re-install hooks here if needed to track upgrades of boot assessment
     - <<: *customhook
+    - <<: *grubinstall
     - <<: *bootgrub
     - <<: *stateumount
 
@@ -120,5 +126,6 @@ stages:
     - <<: *statemount
     # Reset completely restores COS_STATE, so we re-inject ourselves
     - <<: *customhook
+    - <<: *grubinstall
     - <<: *bootgrub
     - <<: *stateumount
