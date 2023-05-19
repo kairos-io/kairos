@@ -1,4 +1,5 @@
-ARG BASE_IMAGE=fedora:36
+# latest is the last stable release, does not include rawhide
+ARG BASE_IMAGE=fedora:latest
 
 FROM $BASE_IMAGE
 
