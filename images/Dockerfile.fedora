@@ -1,9 +1,10 @@
-ARG BASE_IMAGE=fedora:36
+# latest is the last stable release, does not include rawhide
+ARG BASE_IMAGE=fedora:latest
 
 FROM $BASE_IMAGE
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
-RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-2$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 RUN dnf install -y \
     NetworkManager \
     squashfs-tools \
