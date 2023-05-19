@@ -106,7 +106,7 @@ stages:
     - &stateumount
       name: "umount state"
       commands:
-      - umount /tmp/mnt/STATE
+        - umount /tmp/mnt/STATE
 
     # Here we do enable boot assessment for the next bootup.
     # Similarly, we could trigger boot assessment in other cases
