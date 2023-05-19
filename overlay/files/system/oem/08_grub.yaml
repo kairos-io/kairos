@@ -102,7 +102,7 @@ stages:
       name: "Grub branding"
       if: '[ -e "/etc/kairos/branding/grubmenu.cfg" ]'
       commands:
-        - cp -rfv /etc/kairos/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
+      - cp -rfv /etc/kairos/branding/grubmenu.cfg /tmp/mnt/STATE/grubmenu
     - &stateumount
       name: "umount state"
       commands:
