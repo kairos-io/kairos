@@ -1,4 +1,5 @@
-ARG BASE_IMAGE=ubuntu:22.10
+# rolling tag points to the latest release (regardless of LTS status)
+ARG BASE_IMAGE=ubuntu:rolling
 ARG MODEL=generic
 
 FROM $BASE_IMAGE as base
