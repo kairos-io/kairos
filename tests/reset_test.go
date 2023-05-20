@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -52,7 +53,13 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 			vm.HasFile("/oem/test")
 			vm.HasFile("/usr/local/test")
 
-			_, err = vm.Sudo("grub2-editenv /oem/grubenv set next_entry=statereset")
+			var grubCmd string
+			if isFlavor("alpine") {
+				grubCmd = "grub-editenv"
+			} else {
+				grubCmd = "grub2-editenv"
+			}
+			_, err = vm.Sudo(fmt.Sprintf("%s /oem/grubenv set next_entry=statereset", grubCmd))
 			Expect(err).ToNot(HaveOccurred())
 
 			vm.Reboot()
