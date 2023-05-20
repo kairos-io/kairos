@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -45,6 +46,12 @@ var _ = Describe("kcrypt encryption", func() {
 	})
 
 	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			fmt.Println(serial)
+		}
+
 		err := vm.Destroy(func(vm VM) {
 			// Stop TPM emulator
 			tpmPID, err := os.ReadFile(path.Join(vm.StateDir, "tpm", "pid"))
