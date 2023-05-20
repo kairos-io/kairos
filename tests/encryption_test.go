@@ -49,7 +49,7 @@ var _ = Describe("kcrypt encryption", func() {
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
 			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
-			fmt.Println(serial)
+			fmt.Println(string(serial))
 		}
 
 		err := vm.Destroy(func(vm VM) {

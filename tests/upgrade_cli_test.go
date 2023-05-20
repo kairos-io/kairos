@@ -3,6 +3,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -22,6 +23,11 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 	})
 
 	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			fmt.Println(string(serial))
+		}
 		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
 	})
 
