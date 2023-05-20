@@ -2,6 +2,7 @@ package mos_test
 
 import (
 	"fmt"
+	"github.com/onsi/gomega/format"
 	"os"
 	"path/filepath"
 	"time"
@@ -28,6 +29,7 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 
 	Context("auto installs, reboots and passes functional tests", func() {
 		BeforeEach(func() {
+			format.MaxLength = 0
 			expectDefaultService(vm)
 			expectStartedInstallation(vm)
 			expectRebootedToActive(vm)

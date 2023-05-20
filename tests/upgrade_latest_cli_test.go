@@ -10,7 +10,7 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), func() {
+var _ = Describe("upgrade manual test", Label("upgrade-latest-with-cli"), func() {
 	var vm VM
 	containerImage := os.Getenv("CONTAINER_IMAGE")
 
