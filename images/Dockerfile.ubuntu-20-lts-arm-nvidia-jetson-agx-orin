@@ -17,16 +17,12 @@ RUN apt install -y net-tools
 # needed by knod-static-nodes to create a list of static device nodes
 RUN apt install -y kmod
 
-# Install our resizerootfs service
-#COPY root/etc/systemd/ /etc/systemd
-
-#RUN systemctl enable resizerootfs
 RUN systemctl enable ssh
 RUN systemctl enable systemd-networkd
 
 RUN mkdir -p /opt/nvidia/l4t-packages
 RUN touch /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
-#jetson origin 
+#jetson orin 
 ARG BOARD_MODEL=t234 
 ARG FRAMEWORK_VERSION=35.3
 
@@ -35,18 +31,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
 RUN apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
-    RUN add-apt-repository "deb https://repo.download.nvidia.com/jetson/common r$FRAMEWORK_VERSION main"
-        RUN add-apt-repository "deb https://repo.download.nvidia.com/jetson/$BOARD_MODEL r$FRAMEWORK_VERSION main"
-
-#RUN echo "deb [signed-by=/usr/share/keyrings/nvidia-l4t-archive-keyring.asc] https://repo.download.nvidia.com/jetson/common r$FRAMEWORK_VERSION main" >> /etc/apt/sources.list.d/nvidia-l4t.list
-#RUN echo "deb [signed-by=/usr/share/keyrings/nvidia-l4t-archive-keyring.asc] https://repo.download.nvidia.com/jetson/$BOARD_MODEL r$FRAMEWORK_VERSION main" >> /etc/apt/sources.list.d/nvidia-l4t.list
-#RUN echo "deb http://ports.ubuntu.com/ubuntu-ports/ bionic main" >> /etc/apt/sources.list.d/bionic.list
-
+RUN add-apt-repository "deb https://repo.download.nvidia.com/jetson/common r$FRAMEWORK_VERSION main"
+RUN add-apt-repository "deb https://repo.download.nvidia.com/jetson/$BOARD_MODEL r$FRAMEWORK_VERSION main"
 
 RUN apt update
 
 # nv-l4t-usb-device-mode
-
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     bridge-utils \
     conntrack \
@@ -114,11 +104,8 @@ RUN apt install -y -o Dpkg::Options::="--force-overwrite" \
     jetson-gpio-common \
     python3-jetson-gpio
 
-RUN rm -rf /opt/nvidia/l4t-packages
-RUN rm -rf /var/lib/apt/lists/*
-#COPY root/ /
-
-RUN useradd -ms /bin/bash jetson
-RUN echo 'jetson:jetson' | chpasswd
-
-RUN usermod -a -G sudo jetson
+# RUN rm -rf /opt/nvidia/l4t-packages
+# RUN rm -rf /var/lib/apt/lists/*
+# RUN useradd -ms /bin/bash jetson
+# RUN echo 'jetson:jetson' | chpasswd
+# RUN usermod -a -G sudo jetson

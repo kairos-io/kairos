@@ -18,7 +18,7 @@ flavors:
   ubuntu-arm-rpi:
     - systemd-base
     - dracut-network-legacy
-  ubuntu-20-lts-arm-nvidia-jetson:
+  ubuntu-20-lts-arm-nvidia-jetson-agx-orin:
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-20-lts-arm-rpi:

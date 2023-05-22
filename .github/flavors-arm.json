@@ -22,5 +22,9 @@
     {
         "flavor": "ubuntu-22-lts-arm-rpi",
         "model": "rpi64"
+    },
+    {
+        "flavor": "ubuntu-20-lts-arm-nvidia-jetson-agx-orin",
+        "model": "none"
     }
 ]

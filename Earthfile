@@ -55,7 +55,13 @@ all-arm:
       BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
       BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
   END
-  BUILD +arm-image --MODEL=rpi64
+  
+  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+    BUILD +prepare-arm-image --MODEL=rpi64 --FLAVOR=${FLAVOR}
+
+  ELSE
+    BUILD +arm-image --MODEL=rpi64
+  END
 
 arm-container-image:
   ARG MODEL
@@ -222,9 +228,10 @@ framework:
         COPY overlay/files-ubuntu-arm-rpi/ /framework
     END
 
-    IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson" ]]
+    IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
         COPY overlay/files-nvidia/ /framework
     END
+
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
@@ -483,6 +490,39 @@ arm-image:
       SAVE ARTIFACT /build/$IMAGE_NAME img AS LOCAL build/$IMAGE_NAME
   END
   SAVE ARTIFACT /build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
+
+prepare-arm-image:
+  ARG OSBUILDER_IMAGE
+  ARG COMPRESS_IMG=true
+  FROM $OSBUILDER_IMAGE
+  ARG MODEL=rpi64
+  ARG IMAGE_NAME=${FLAVOR}.img
+  WORKDIR /build
+  # These sizes are in MB
+  ENV SIZE="15200"
+  IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+    ENV STATE_SIZE="6900"
+    ENV RECOVERY_SIZE="4600"
+    ENV DEFAULT_ACTIVE_SIZE="2500"
+  ELSE
+    ENV STATE_SIZE="6200"
+    ENV RECOVERY_SIZE="4200"
+    ENV DEFAULT_ACTIVE_SIZE="2000"
+  END
+  COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
+
+  ENV directory=/build/image
+  RUN mkdir bootloader
+  # With docker is required for loop devices
+  WITH DOCKER --allow-privileged
+    RUN /prepare_arm_images.sh
+  END
+
+  SAVE ARTIFACT /build/bootloader/efi.img efi.img AS LOCAL build/efi.img
+  SAVE ARTIFACT /build/bootloader/oem.img oem.img AS LOCAL build/oem.img
+  SAVE ARTIFACT /build/bootloader/persistent.img persistent.img AS LOCAL build/persistent.img
+  SAVE ARTIFACT /build/bootloader/recovery_partition.img recovery_partition.img AS LOCAL build/recovery_partition.img
+  SAVE ARTIFACT /build/bootloader/state_partition.img state_partition.img AS LOCAL build/state_partition.img
 
 ipxe-iso:
     FROM ubuntu
