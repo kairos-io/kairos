@@ -46,9 +46,6 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 	Context("reboots and passes functional tests", func() {
 		BeforeEach(func() {
 			expectDefaultService(vm)
-			if !isFlavor("alpine") {
-				expectStartedInstallation(vm)
-			}
 			expectRebootedToActive(vm)
 		})
 

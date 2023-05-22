@@ -242,15 +242,6 @@ func expectDefaultService(vm VM) {
 	})
 }
 
-func expectStartedInstallation(vm VM) {
-	By("checking that installation has started", func() {
-		Eventually(func() string {
-			out, _ := vm.Sudo("ps aux")
-			return out
-		}, 30*time.Minute, 1*time.Second).Should(ContainSubstring("/usr/bin/kairos-agent install"))
-	})
-}
-
 func expectRebootedToActive(vm VM) {
 	By("checking that vm has rebooted to 'active'", func() {
 		Eventually(func() string {

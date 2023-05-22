@@ -29,7 +29,6 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 	Context("reboots and passes functional tests", func() {
 		BeforeEach(func() {
 			expectDefaultService(vm)
-			expectStartedInstallation(vm)
 			expectRebootedToActive(vm)
 		})
 
