@@ -12,7 +12,7 @@ import (
 )
 
 // test ci
-var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
+var _ = Describe("upgrade manual test", Label("upgrade-with-cli"), func() {
 
 	containerImage := os.Getenv("CONTAINER_IMAGE")
 
