@@ -222,6 +222,9 @@ framework:
         COPY overlay/files-ubuntu-arm-rpi/ /framework
     END
 
+    IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson" ]]
+        COPY overlay/files-nvidia/ /framework
+    END
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
