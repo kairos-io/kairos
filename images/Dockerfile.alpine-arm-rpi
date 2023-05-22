@@ -94,3 +94,6 @@ RUN rc-update add sshd boot && \
     rc-update add ntpd boot && \
     rc-update add crond && \
     rc-update add fail2ban
+
+RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
+RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
