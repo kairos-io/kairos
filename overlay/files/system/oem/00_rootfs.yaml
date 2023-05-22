@@ -31,6 +31,10 @@ stages:
       name: "Restore /etc/machine-id"
       commands:
         - cat /usr/local/etc/machine-id > /etc/machine-id
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /var/lib/dbus/machine-id ]'
+      name: "Restore /etc/machine-id for openrc systems"
+      commands:
+        - cat /var/lib/dbus/machine-id > /etc/machine-id
   fs:
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /usr/local/etc/machine-id ] '
       name: "Save /etc/machine-id"
@@ -38,3 +42,9 @@ stages:
       - |
         mkdir -p /usr/local/etc
         cp /etc/machine-id /usr/local/etc
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /var/lib/dbus/machine-id ] '
+      name: "Save /etc/machine-id for openrc systems"
+      commands:
+        - |
+          mkdir -p /var/lib/dbus/
+          cp /etc/machine-id /var/lib/dbus/ 
