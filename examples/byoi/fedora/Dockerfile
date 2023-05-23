@@ -55,6 +55,7 @@ RUN systemctl enable cos-setup-reconcile.timer && \
           systemctl enable cos-setup-network.service
 
 ## Generate initrd
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
             ln -sf "${kernel#/boot/}" /boot/vmlinuz
 RUN kernel=$(ls /lib/modules | head -n1) && \

@@ -10,5 +10,17 @@
     {
         "flavor": "alpine-arm-rpi",
         "model": "rpi64"
+    },
+    {
+        "flavor": "ubuntu-arm-rpi",
+        "model": "rpi64"
+    },
+    {
+        "flavor": "ubuntu-20-lts-arm-rpi",
+        "model": "rpi64"
+    },
+    {
+        "flavor": "ubuntu-22-lts-arm-rpi",
+        "model": "rpi64"
     }
 ]

@@ -1,0 +1,13 @@
+# Adds namespace to all resources.
+namespace: default
+
+bases:
+  - github.com/kairos-io/kcrypt-challenger/config/default
+
+resources:
+  - challenger-server-ingress.yaml
+  - cluster-issuer.yaml
+
+patchesStrategicMerge:
+  # Fix labels and selectors to make challenger server accessible
+  - challenger-patch.yaml

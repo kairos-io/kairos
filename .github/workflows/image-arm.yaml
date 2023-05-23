@@ -7,7 +7,6 @@ on:
   pull_request:
     paths:
       - '**'
-      - '!docs/**'
 
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}

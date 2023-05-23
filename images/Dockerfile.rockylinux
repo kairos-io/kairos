@@ -4,7 +4,7 @@ FROM $BASE_IMAGE
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 
-RUN dnf install -y epel-release
+RUN dnf install -y epel-release && dnf clean all
 RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
