@@ -36,7 +36,7 @@ jobs:
   docker:
     needs:
     - get-matrix
-    runs-on: self-hosted
+    runs-on: ${{ matrix.worker }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -66,14 +66,19 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - name: Build  🔧
+      - name: Standard Build  🔧
+        if: ${{ matrix.worker != 'self-hosted' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
-          # Lower Earthly parallelism: earthly seems to fail hardly when transfering over big files
-          earthly config "global.conversion_parallelism" "1"
-          earthly config "global.buildkit_max_parallelism" "1"
+          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+      - name: Selfhosted Build  🔧
+        if: ${{ matrix.worker == 'self-hosted' }}
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          MODEL: ${{ matrix.model }}
+        run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
           mkdir -p ~/.earthly/
