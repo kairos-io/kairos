@@ -86,7 +86,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly -P +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
