@@ -439,7 +439,7 @@ jobs:
   upgrade-with-cli-test:
     needs:
       - build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:

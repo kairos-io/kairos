@@ -2,17 +2,17 @@ package mos_test
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"path"
-	"strconv"
-	"strings"
-	"syscall"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
 	"gopkg.in/yaml.v3"
+	"os"
+	"os/exec"
+	"path"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"syscall"
 )
 
 var installationOutput string
@@ -37,14 +37,21 @@ var _ = Describe("kcrypt encryption", func() {
 		err = os.WriteFile(configFile.Name(), []byte(config), 0744)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = vm.Scp(configFile.Name(), "config.yaml", "0744")
+		err = vm.Scp(configFile.Name(), "/tmp/config.yaml", "0744")
 		Expect(err).ToNot(HaveOccurred())
-
-		installationOutput, err = vm.Sudo("/bin/bash -c 'set -o pipefail && kairos-agent manual-install --device auto config.yaml 2>&1 | tee manual-install.txt'")
+		By("Manually installing")
+		installationOutput, err = vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
 		Expect(err).ToNot(HaveOccurred(), installationOutput)
 	})
 
 	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
+		}
 		err := vm.Destroy(func(vm VM) {
 			// Stop TPM emulator
 			tpmPID, err := os.ReadFile(path.Join(vm.StateDir, "tpm", "pid"))
@@ -66,20 +73,27 @@ var _ = Describe("kcrypt encryption", func() {
 			config = `#cloud-config
 
 install:
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
   encrypted_partitions:
-  - COS_PERSISTENT
+    - COS_PERSISTENT
   reboot: false # we will reboot manually
 
-hostname: metal-{{ trunc 4 .MachineID }}
-users:
-- name: kairos
-  passwd: kairos
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+      hostname: kairos-{{ trunc 4 .Random }}
 `
 		})
 
 		It("boots and has an encrypted partition", func() {
+			By("Rebooting")
 			vm.Reboot()
 			vm.EventuallyConnects(1200)
+			By("Checking the partition")
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
@@ -195,10 +209,13 @@ spec:
 
 			config = fmt.Sprintf(`#cloud-config
 
-hostname: metal-{{ trunc 4 .MachineID }}
-users:
-- name: kairos
-  passwd: kairos
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+      hostname: kairos-{{ trunc 4 .Random }}
 
 install:
   encrypted_partitions:
@@ -268,11 +285,13 @@ spec:
 				Expect(err).ToNot(HaveOccurred())
 				config = fmt.Sprintf(`#cloud-config
 
-hostname: metal-{{ trunc 4 .MachineID }}
-users:
-- name: kairos
-  passwd: kairos
-
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+      hostname: kairos-{{ trunc 4 .Random }}
 install:
   encrypted_partitions:
   - COS_PERSISTENT
@@ -321,9 +340,7 @@ kcrypt:
 			})
 
 			It("fails to talk to the server", func() {
-				out, err := vm.Sudo("cat manual-install.txt")
-				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).To(MatchRegexp("could not encrypt partition.*x509: certificate signed by unknown authority"))
+				Expect(installationOutput).To(MatchRegexp("could not encrypt partition.*x509: certificate signed by unknown authority"))
 			})
 		})
 	})

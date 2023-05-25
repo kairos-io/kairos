@@ -2,6 +2,7 @@ ARG BASE_IMAGE=opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 
+RUN zypper removerepo repo-openh264
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && \
     zypper ref
 
