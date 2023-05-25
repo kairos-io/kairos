@@ -47,4 +47,4 @@ stages:
       commands:
         - |
           mkdir -p /var/lib/dbus/
-          cp /etc/machine-id /var/lib/dbus/ 
+          cp /etc/machine-id /var/lib/dbus/
