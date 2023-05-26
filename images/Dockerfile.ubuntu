@@ -57,6 +57,7 @@ RUN apt-get update \
     os-prober \
     packagekit-tools \
     parted \
+    patch \
     pigz \
     pkg-config \
     polkitd \
