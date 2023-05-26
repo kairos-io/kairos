@@ -53,6 +53,32 @@ Where:
  * Cmdline is the line to be passed to the kernel (Optional content, but needed in our case)
  
 
+# Running the efi locally with qemu
+
+For ease of use there is a target in the earthly file that will generate a disk.img with the efi inside.
+Run `earthly +prepare-disk-image` and you will get a `build/disk.img` ready to be consumed
+
+To run it under qemu use the following arguments:
+
+```bash
+qemu-system-x86_64 -bios $EFI_FIRMWARE -accel kvm -cpu host -m $MEMORY -machine pc \
+-drive file=disk.img,if=none,index=0,media=disk,format=raw,id=disk1 -device virtio-blk-pci,drive=disk1,bootindex=0 \
+-boot menu=on
+```
+
+Where `$EFI_FIRMWARE` is the OVMF efi firmware and `$MEMORY` is at least 4000.
+
+
+Note that you can also build the uki image signed by passing the `--SIGNED_EFI=true` to earthly. That would produce the same
+`build/disk.img` but with some extra files inside, like the certificates needed to be added to the firmware and the MokManager util to install those certificates.
+
+With those certs and MokManager is possible to install the generated certs to test booting with SecureBoot enabled.
+
+Note that the `$EFI_FIRMWARE` needs to be set to the OVMF SecureBoot enabled file to test SecureBoot.
+
+For example under Fedora, the normal firmware with no SecureBoot is found at `/usr/share/edk2/ovmf/OVMF_CODE.fd` while
+the SecureBoot enabled one is `/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd`
+
 Good links:
 
  - https://man.archlinux.org/man/systemd-stub.7
