@@ -331,7 +331,7 @@ base-image:
         RUN find /usr/lib/modules -type f -name "*.ko" -execdir zstd --rm -9 {} \+
     END
 
-    IF [ "$BUILD_INITRD" == "true" ]
+    IF [ "$BUILD_INITRD" = "true" ]
         IF [ "$FLAVOR" = "debian" ]
             RUN rm -rf /boot/initrd.img-*
         END
