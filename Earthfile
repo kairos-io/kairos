@@ -219,7 +219,7 @@ framework:
         COPY overlay/files-fedora/ /framework
     ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
         COPY overlay/files-ubuntu/ /framework
-    ELSE IF [[ "$FLAVOR" =~ ^ubuntu-arm* ]]
+    ELSE IF [[ "$FLAVOR" =~ ^ubuntu-.*-lts-arm-.*$ ]]
         COPY overlay/files-ubuntu-arm-rpi/ /framework
     END
 
@@ -336,14 +336,11 @@ base-image:
     END
 
 
-    IF [[ "$FLAVOR" =~ ^alpine.* ]]
-        # no dracut on those flavors, do nothing
-    ELSE
+    IF [ -e "/usr/bin/dracut" ]
         # Regenerate initrd if necessary
         RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
         RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
     END
-
 
     # Set /boot/vmlinuz pointing to our kernel so kairos-agent can use it
     # https://github.com/kairos-io/kairos-agent/blob/0288fb111bc568a1bfca59cb09f39302220475b6/pkg/elemental/elemental.go#L548   q
