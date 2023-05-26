@@ -209,23 +209,11 @@ framework:
     COPY +framework-luet/framework-luet /framework
 
     # Copy overlay files
-    # TODO: Make this also a package?
-    COPY overlay/files /framework
+    COPY overlay /overlay
+    COPY scripts/prepare_framework.sh ./
 
-    # Copy flavor-specific overlay files
-    IF [[ "$FLAVOR" =~ ^alpine* ]]
-        COPY overlay/files-alpine/ /framework
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
-        COPY overlay/files-fedora/ /framework
-    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ]
-        COPY overlay/files-ubuntu/ /framework
-    ELSE IF [[ "$FLAVOR" =~ ^ubuntu-arm* ]] || [[ "$FLAVOR" = "ubuntu-[0-9]{2}-lts-arm*" ]]
-        COPY overlay/files-ubuntu-arm-rpi/ /framework
-    END
-
-    IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-        COPY overlay/files-nvidia/ /framework
-    END
+    RUN apk add bash
+    RUN bash prepare_framework.sh ${FLAVOR}
 
     SAVE ARTIFACT --keep-own /framework/ framework
 
