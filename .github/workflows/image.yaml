@@ -263,7 +263,7 @@ jobs:
   latest-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: robinraju/release-downloader@v1.7
+      - uses: robinraju/release-downloader@v1.8
         with:
           # A flag to set the download target as latest release
           # The default value is 'false'
