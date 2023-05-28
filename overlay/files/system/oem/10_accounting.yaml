@@ -38,3 +38,14 @@ stages:
            #includedir /etc/sudoers.d
       commands:
         - passwd -l root
+    - name: "Ensure runtime permission"
+      if: '[ -e "/oem" ]'
+      commands:
+        - chown -R root:admin /oem
+        - chmod 770 /oem
+    - name: "Ensure runtime permission"
+      if: '[ -e "/usr/local/cloud-config" ]'
+      commands:
+        - chown -R root:admin /usr/local/cloud-config
+        - chmod 770 /usr/local/cloud-config
+
