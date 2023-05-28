@@ -497,7 +497,7 @@ prepare-uki-disk-image:
     ELSE
         COPY +uki/uki.efi .
     END
-    RUN dd if=/dev/zero of=disk.img bs=1G count=2
+    RUN dd if=/dev/zero of=disk.img bs=1G count=1
     RUN mformat -i disk.img -F  ::
     RUN mmd -i disk.img ::/EFI
     RUN mmd -i disk.img ::/EFI/BOOT

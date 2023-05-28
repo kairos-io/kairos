@@ -7,12 +7,11 @@ stages:
       name: "Layout configuration for UKI"
       environment_file: /run/cos/cos-layout.env
       environment:
-        RW_PATHS: "/var /etc /srv"
+        RW_PATHS: "/var /etc /srv /usr"
         OVERLAY: "tmpfs:25%"
         PERSISTENT_STATE_PATHS: >-
           /var
           /etc
-          /src
           /etc/systemd
           /etc/modprobe.d
           /etc/rancher
@@ -26,7 +25,6 @@ stages:
           /home
           /opt
           /root
-          /snap
           /var/snap
           /usr/libexec
           /var/log
