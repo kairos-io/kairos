@@ -13,12 +13,12 @@ jobs:
   core:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
 
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
     needs:
       - core
 
@@ -32,49 +32,49 @@ jobs:
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
     needs:
       - core
 
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
     needs:
       - core
 
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
     needs:
       - core
 
   netboot:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
     needs:
       - core
 
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
     needs:
       - core
 
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
     needs:
     - core
 
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
-      flavor: ubuntu
+      flavor: alpine
       label: ${{ matrix.label }}
     needs:
       - core

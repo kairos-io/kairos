@@ -258,6 +258,7 @@ framework:
     COPY framework-profile.yaml /build
     COPY +luet/luet /usr/bin/luet
 
+    RUN go mod download
     RUN go run main.go ${FLAVOR} framework-profile.yaml /framework
 
     RUN mkdir -p /framework/etc/kairos/
@@ -443,7 +444,21 @@ base-image:
         RUN rm -rf /boot/initramfs-*
     END
 
+    # Cleanup for alpine as this gets installed as a side-effect
+    # we already provide a /boot/initrd with the luet package
+    IF [ -e "/boot/initramfs-lts" ]
+        RUN rm /boot/initramfs-lts
+    END
+
     IF [ ! -e "/boot/vmlinuz" ]
+        IF [ -e "/boot/vmlinuz-lts" ]
+            # Alpine provides the kernel under this name
+            RUN ln -sf /boot/vmlinuz-lts /boot/vmlinuz
+        END
+        IF [ -e "/boot/vmlinuz-rpi4" ]
+            # Alpine-rpi provides the kernel under this name
+            RUN ln -sf /boot/vmlinuz-rpi4 /boot/vmlinuz
+        END
         # If it's an ARM flavor, we want a symlink here from zImage/Image
         # Check that its not a symlink already or grub will fail!
         IF [ -e "/boot/Image" ] && [ ! -L "/boot/Image" ]

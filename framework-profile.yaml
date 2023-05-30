@@ -96,22 +96,23 @@ flavors:
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
+  alpine:
+    - common-packages
+    - kairos-toolchain
+    - openrc
+    - alpine-pure
   alpine-arm-rpi:
     - common-packages
     - kairos-toolchain
-    - opensuse-leap-kernel
     - openrc
-  alpine-opensuse-leap:
-    - common-packages
-    - kairos-toolchain
-    - openrc
-    - opensuse-leap-kernel
-  alpine-ubuntu:
-    - common-packages
-    - kairos-toolchain
-    - ubuntu-kernel
-    - openrc
+    - alpine-pure-rpi
 # See https://github.com/kairos-io/packages/pull/67 for rationale
+alpine-pure:
+  packages:
+    - distro-kernel/alpine
+alpine-pure-rpi:
+  packages:
+    - distro-kernel/alpine-rpi
 dracut-network-legacy:
   packages:
     - dracut/network-legacy

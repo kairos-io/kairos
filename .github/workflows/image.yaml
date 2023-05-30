@@ -105,7 +105,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: "alpine-opensuse-leap"
+          - flavor: "alpine"
           - flavor: "opensuse-leap"
           - flavor: "opensuse-tumbleweed"
           - flavor: "ubuntu"
@@ -133,7 +133,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine-opensuse-leap
+          - flavor: alpine
           - flavor: opensuse-leap
   netboot:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
@@ -145,20 +145,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine-opensuse-leap
+          - flavor: alpine
           - flavor: opensuse-leap
           - flavor: ubuntu
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+
     needs:
       - core
     strategy:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine-opensuse-leap
+          - flavor: alpine
           - flavor: opensuse-leap
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
@@ -170,7 +171,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine-opensuse-leap
+          - flavor: alpine
           - flavor: opensuse-leap
           # - flavor: "ubuntu"
           # - flavor: "ubuntu"

@@ -7,13 +7,16 @@ ARG MODEL=generic
 ####                          Common                       ####
 ###############################################################
 FROM alpine AS common
+
 RUN apk --no-cache add  \
       bash \
       bash-completion \
       blkid \
+      cloud-utils-growpart \
+      bonding \
+      bridge \
       busybox-openrc \
       ca-certificates \
-      cloud-utils-growpart \
       connman \
       conntrack-tools \
       coreutils \
@@ -68,7 +71,9 @@ RUN apk --no-cache add  \
       open-vm-tools-vmbackup \
       parted \
       procps \
+      parted \
       qemu-guest-agent \
+      rbd-nbd \
       rng-tools \
       rsync \
       smartmontools \
@@ -107,6 +112,8 @@ FROM rpicommon AS rpi4
 ####               Post-Process Common to All              ####
 ###############################################################
 FROM ${MODEL} AS all
+
+
 RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
     rc-update add acpid boot && \
@@ -114,6 +121,7 @@ RUN rc-update add sshd boot && \
     rc-update add syslog boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
+    rc-update add cgroups sysinit && \
     rc-update add ntpd boot && \
     rc-update add crond && \
     rc-update add fail2ban
