@@ -1,8 +1,44 @@
 name: "Configure persistent dirs bind-mounts"
 stages:
   rootfs.after:
-    - if: '[ ! -f "/run/cos/recovery_mode" ]'
-      name: "Layout configuration"
+    - if: '[ -e "/run/cos/uki_mode" ]'
+      # omit the persistent partition on uki mode
+      # And mount all persistent mounts under the overlay
+      name: "Layout configuration for UKI"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        RW_PATHS: "/var /etc /srv /usr"
+        OVERLAY: "tmpfs:25%"
+        PERSISTENT_STATE_PATHS: >-
+          /var
+          /etc
+          /etc/systemd
+          /etc/modprobe.d
+          /etc/rancher
+          /etc/sysconfig
+          /etc/runlevels
+          /etc/ssh
+          /etc/ssl/certs
+          /etc/iscsi
+          /etc/cni
+          /etc/kubernetes
+          /home
+          /opt
+          /root
+          /var/snap
+          /usr/libexec
+          /var/log
+          /var/lib/rancher
+          /var/lib/kubelet
+          /var/lib/snapd
+          /var/lib/wicked
+          /var/lib/longhorn
+          /var/lib/cni
+          /usr/share/pki/trust
+          /usr/share/pki/trust/anchors
+          /var/lib/ca-certificates
+    - if: '[ ! -f "/run/cos/recovery_mode" ] &&  [ ! -e "/run/cos/uki_mode" ]'
+      name: "Layout configuration for active/passive"
       environment_file: /run/cos/cos-layout.env
       environment:
         VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
@@ -56,7 +92,7 @@ stages:
             echo PERSISTENT_STATE_PATHS=\"${PERSISTENT_STATE_PATHS}\" >> /run/cos/cos-layout.env
     - if: |
         cat /proc/cmdline | grep -q "kairos.boot_live_mode"
-      name: "Layout configuration"
+      name: "Layout configuration for boot_live_mode"
       environment_file: /run/cos/cos-layout.env
       environment:
         VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
