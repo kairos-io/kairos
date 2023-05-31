@@ -87,12 +87,13 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
         run: |
-          earthly +all --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          earthly +ci --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
           mkdir sarif
-          mv *.sarif sarif/
+          mv *.sarif sarif/ || true
       - name: Upload Trivy scan results to GitHub Security tab
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'sarif'
@@ -105,36 +106,12 @@ jobs:
             *.sha256
           if-no-files-found: error
       - uses: actions/upload-artifact@v3
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
           name: kairos-${{ matrix.flavor }}.sbom.zip
           path: |
             *.syft.json
             *.spdx.json
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.initrd.zip
-          path: |
-            *-initrd
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.squashfs.zip
-          path: |
-            *.squashfs
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.kernel.zip
-          path: |
-            *-kernel
-            *-initrd
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.ipxe.zip
-          path: |
-            *.ipxe
           if-no-files-found: error
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}

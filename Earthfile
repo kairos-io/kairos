@@ -47,6 +47,11 @@ all:
   BUILD +netboot
   BUILD +ipxe-iso
 
+# For PR building, only image and iso are needed
+ci:
+  BUILD +image
+  BUILD +iso
+
 all-arm:
   ARG SECURITY_SCANS=true
   BUILD --platform=linux/arm64 +image --MODEL=rpi64
@@ -699,7 +704,7 @@ trivy-scan:
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
-    SAVE ARTIFACT /build/report.sarif report.sartif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
+    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${VARIANT}-${FLAVOR}-${VERSION}-trivy.json
 
