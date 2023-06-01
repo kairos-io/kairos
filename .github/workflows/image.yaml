@@ -82,7 +82,17 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - name: Build  🔧
+      - name: Build PR 🔧
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
+        run: |
+          earthly +ci --SECURITY_SCANS=false --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          sudo mv build/* .
+          sudo rm -rf build
+      - name: Build master 🔧
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
@@ -91,7 +101,7 @@ jobs:
           sudo mv build/* .
           sudo rm -rf build
           mkdir sarif
-          mv *.sarif sarif/ || true
+          mv *.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: github/codeql-action/upload-sarif@v2

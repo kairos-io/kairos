@@ -49,7 +49,13 @@ all:
 
 # For PR building, only image and iso are needed
 ci:
+  ARG SECURITY_SCANS=true
   BUILD +image
+  IF [ "$SECURITY_SCANS" = "true" ]
+    BUILD +image-sbom
+    BUILD +trivy-scan
+    BUILD +grype-scan
+  END
   BUILD +iso
 
 all-arm:
