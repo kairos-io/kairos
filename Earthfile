@@ -223,6 +223,11 @@ framework:
     # TODO: Make this also a package?
     COPY overlay/files /framework
 
+    # Copy common overlay files for Raspberry Pi
+    IF [ "$MODEL" = "rpi64" ]
+        COPY overlay/files-rpi/ /framework
+    END
+
     # Copy flavor-specific overlay files
     IF [[ "$FLAVOR" =~ ^alpine* ]]
         COPY overlay/files-alpine/ /framework
