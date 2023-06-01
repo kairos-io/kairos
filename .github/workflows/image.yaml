@@ -8,27 +8,11 @@ on:
   pull_request:
     paths:
       - '**'
-  workflow_dispatch:
-    inputs:
-      immucore_dev:
-        description: 'Build workflow with immucore from a given branch'
-        required: false
-        type: choice
-        options:
-          - true
-          - false
-        default: 'false'
-      immucore_dev_branch:
-        description: 'Branch to build immucore from'
-        required: false
-        type: string
-        default: 'master'
 
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 env:
-  EARTHLY_BUILD_ARGS: 'IMMUCORE_DEV=${{ inputs.immucore_dev }},IMMUCORE_DEV_BRANCH=${{ inputs.immucore_dev_branch }}'
   FORCE_COLOR: 1
 jobs:
   get-matrix:
@@ -142,6 +126,7 @@ jobs:
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
   build-framework:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     needs:
       - get-matrix
     runs-on: self-hosted
@@ -157,7 +142,6 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
@@ -165,7 +149,6 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Build framework image 🔧
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: "quay.io/kairos/framework"
@@ -187,26 +170,6 @@ jobs:
           earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
-      - name: Build framework image 🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:master
-        run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/ || true
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
-          earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
-          docker tag quay.io/kairos/framework:master_${{ matrix.flavor }} ttl.sh/kairos-framework-${{ matrix.flavor }}-${{ github.sha }}:8h
-          docker push ttl.sh/kairos-framework-${{ matrix.flavor }}-${{ github.sha }}:8h
   install-test:
     needs:
       - build
