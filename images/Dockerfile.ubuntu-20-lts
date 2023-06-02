@@ -87,10 +87,6 @@ RUN systemctl enable ssh
 COPY images/dracut-broken-iscsi-ubuntu-20.patch /
 RUN cd /usr/lib/dracut/modules.d/95iscsi && patch < /dracut-broken-iscsi-ubuntu-20.patch && rm -rf /dracut-broken-iscsi-ubuntu-20.patch
 
-# Enable tmp
-RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 
-RUN systemctl enable tmp.mount
-
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
