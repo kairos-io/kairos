@@ -63,6 +63,3 @@ RUN systemctl enable systemd-resolved
 RUN systemctl disable dnf-makecache.service
 RUN systemctl disable NetworkManager
 RUN systemctl enable sshd
-
-# Enable tmp
-RUN systemctl enable tmp.mount

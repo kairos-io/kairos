@@ -113,10 +113,6 @@ RUN systemctl enable ssh
 COPY images/dracut-missing-overlay-dirs.patch /
 RUN cd /usr/lib/dracut/modules.d/90dmsquash-live && patch < /dracut-missing-overlay-dirs.patch && rm -rf /dracut-missing-overlay-dirs.patch
 
-# Enable tmp
-RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 
-RUN systemctl enable tmp.mount
-
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
