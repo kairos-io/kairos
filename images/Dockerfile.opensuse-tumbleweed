@@ -65,9 +65,3 @@ RUN zypper in --force-resolution -y \
     vim \
     e2fsprogs \
     which && zypper cc
-
-# workaround https://github.com/systemd/systemd/issues/12231
-# see also: https://github.com/OSInside/kiwi/issues/1015
-# TODO: backport patch into packages
-COPY images/dracut-missing-overlay-dirs.patch /
-RUN cd /usr/lib/dracut/modules.d/90dmsquash-live && patch < /dracut-missing-overlay-dirs.patch && rm -rf /dracut-missing-overlay-dirs.patch
