@@ -62,12 +62,6 @@ RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 RUN systemctl enable systemd-networkd
 RUN systemctl enable ssh
 
-# workaround https://github.com/systemd/systemd/issues/12231
-# see also: https://github.com/OSInside/kiwi/issues/1015
-# TODO: backport patch into packages
-COPY images/dracut-missing-overlay-dirs.patch /
-RUN cd /usr/lib/dracut/modules.d/90dmsquash-live && patch < /dracut-missing-overlay-dirs.patch && rm -rf /dracut-missing-overlay-dirs.patch
-
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
