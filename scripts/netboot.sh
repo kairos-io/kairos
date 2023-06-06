@@ -24,7 +24,7 @@ set dns 8.8.8.8
 ifconf
 # set config https://example.com/machine-config
 # set cmdline extra.values=1
-kernel \${url}/\${kernel} initrd=\${initrd} rd.neednet=1 ip=dhcp rd.cos.disable root=live:\${url}/\${rootfs} netboot nodepair.enable config_url=\${config} console=tty1 console=ttyS0 \${cmdline}
+kernel \${url}/\${kernel} initrd=\${initrd} rd.neednet=1 ip=dhcp rd.cos.disable root=live:\${url}/\${rootfs} netboot nodepair.enable config_url=\${config} console=tty1 console=ttyS0 security=selinux selinux=1 rd.live.overlay.overlayfs \${cmdline}
 initrd \${url}/\${initrd}
 boot
 EOF
