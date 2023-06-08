@@ -171,13 +171,12 @@ jobs:
           if-no-files-found: error
   image_and_iso_arm64_generic:
     runs-on: ubuntu-latest
-    needs:
-      - get-matrix
     strategy:
       fail-fast: false
       matrix:
         flavor:
           - "opensuse-leap"
+          - "ubuntu"
     steps:
       - uses: actions/checkout@v3
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
