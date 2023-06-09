@@ -306,8 +306,8 @@ base-image:
     END
 
     # TEST KAIROS-AGENT FROM BRANCH
-    ARG KAIROS_AGENT_DEV
-    ARG KAIROS_AGENT_DEV_BRANCH=main
+    ARG KAIROS_AGENT_DEV=true
+    ARG KAIROS_AGENT_DEV_BRANCH=1448-use-yip
     IF [ "$KAIROS_AGENT_DEV" = "true" ]
         RUN rm -rf /usr/bin/kairos-agent
         COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
@@ -315,8 +315,8 @@ base-image:
     # END
 
     # TEST IMMUCORE FROM BRANCH
-    ARG IMMUCORE_DEV
-    ARG IMMUCORE_DEV_BRANCH=master
+    ARG IMMUCORE_DEV=true
+    ARG IMMUCORE_DEV_BRANCH=1448-use-yip
     IF [ "$IMMUCORE_DEV" = "true" ]
         RUN rm -Rf /usr/lib/dracut/modules.d/28immucore
         RUN rm /etc/dracut.conf.d/10-immucore.conf
