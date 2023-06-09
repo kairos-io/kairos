@@ -2,36 +2,36 @@
     {
        "flavor": "opensuse-leap-arm-rpi",
        "model": "rpi64",
-       "worker": "ubuntu-latest"
+       "worker": "buildjet-4vcpu-ubuntu-2204-arm"
     },
     {
         "flavor": "opensuse-tumbleweed-arm-rpi",
         "model": "rpi64",
-        "worker": "ubuntu-latest"
+        "worker": "buildjet-4vcpu-ubuntu-2204-arm"
     },
     {
         "flavor": "alpine-arm-rpi",
         "model": "rpi64",
-        "worker": "ubuntu-latest"
+        "worker": "buildjet-4vcpu-ubuntu-2204-arm"
     },
     {
         "flavor": "ubuntu-arm-rpi",
         "model": "rpi64",
-        "worker": "ubuntu-latest"
+        "worker": "buildjet-4vcpu-ubuntu-2204-arm"
     },
     {
         "flavor": "ubuntu-20-lts-arm-rpi",
         "model": "rpi64",
-        "worker": "ubuntu-latest"
+        "worker": "buildjet-4vcpu-ubuntu-2204-arm"
     },
     {
         "flavor": "ubuntu-22-lts-arm-rpi",
         "model": "rpi64",
-        "worker": "ubuntu-latest"
+        "worker": "buildjet-4vcpu-ubuntu-2204-arm"
     },
     {
         "flavor": "ubuntu-20-lts-arm-nvidia-jetson-agx-orin",
         "model": "none",
-        "worker": "self-hosted"
+        "worker": "buildjet-4vcpu-ubuntu-2204-arm"
     }
 ]
