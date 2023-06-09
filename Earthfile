@@ -614,8 +614,8 @@ arm-image:
     RUN /build-arm-image.sh --use-lvm --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
   END
   IF [ "$COMPRESS_IMG" = "true" ]
-      RUN xz -v /build/$IMAGE_NAME
-      SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
+      RUN qemu-img convert -f raw -O qcow2 /build/$IMAGE_NAME /build/${FLAVOR}.qcow2
+      SAVE ARTIFACT /build/${FLAVOR}.qcow2 img AS LOCAL build/${FLAVOR}.qcow2
   ELSE
       SAVE ARTIFACT /build/$IMAGE_NAME img AS LOCAL build/$IMAGE_NAME
   END
