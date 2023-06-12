@@ -13,6 +13,10 @@ stages:
         providers: ["aws", "gcp", "openstack", "cdrom"]
         path: "/oem"
   rootfs:
+    - name: "Mount BPF on Alpine systems"
+      if: '[ ! -e "/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ] && [ ! -e "/usr/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ]'
+      commands:
+        - mount bpffs -o rw,nosuid,nodev,noexec,relatime,mode=700 /sys/fs/bpf -t bpf
     - if: '[ ! -f "/run/cos/recovery_mode" ] &&  [ ! -e "/run/cos/uki_mode" ]'
       name: "Layout configuration for active/passive mode"
       environment_file: /run/cos/cos-layout.env
@@ -153,10 +157,6 @@ stages:
           # Size 0 is required to specify all remaining space
           size: 0
   initramfs:
-    - name: "Mount BPF"
-      if: '[ ! -e "/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ] && [ ! -e "/usr/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ]'
-      commands:
-        - mount bpffs -o rw,nosuid,nodev,noexec,relatime,mode=700 /sys/fs/bpf -t bpf
     - name: "Create journalctl /var/log/journal dir"
       if: '[ -e "/sbin/systemctl" ] || [ -e "/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
       directories:
