@@ -46,39 +46,6 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
     steps:
-      - name: Release space from worker
-        if: ${{ matrix.worker != 'self-hosted' }}
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
@@ -105,7 +72,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+          earthly -P +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Selfhosted Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
         env:
@@ -125,6 +92,11 @@ jobs:
                 http = true
           EOF
           docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR
+      - name: File sizes
+        run: |
+          ls -ltra build
+          ls -ltrh build
+          exit 1
       - name: Push  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:

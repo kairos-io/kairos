@@ -1,37 +1,7 @@
 [
     {
-       "flavor": "opensuse-leap-arm-rpi",
-       "model": "rpi64",
-       "worker": "ubuntu-latest"
-    },
-    {
-        "flavor": "opensuse-tumbleweed-arm-rpi",
-        "model": "rpi64",
-        "worker": "ubuntu-latest"
-    },
-    {
         "flavor": "alpine-arm-rpi",
         "model": "rpi64",
-        "worker": "ubuntu-latest"
-    },
-    {
-        "flavor": "ubuntu-arm-rpi",
-        "model": "rpi64",
-        "worker": "ubuntu-latest"
-    },
-    {
-        "flavor": "ubuntu-20-lts-arm-rpi",
-        "model": "rpi64",
-        "worker": "ubuntu-latest"
-    },
-    {
-        "flavor": "ubuntu-22-lts-arm-rpi",
-        "model": "rpi64",
-        "worker": "ubuntu-latest"
-    },
-    {
-        "flavor": "ubuntu-20-lts-arm-nvidia-jetson-agx-orin",
-        "model": "none",
         "worker": "self-hosted"
     }
 ]
