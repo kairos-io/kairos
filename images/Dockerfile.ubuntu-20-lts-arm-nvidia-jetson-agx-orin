@@ -89,6 +89,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     xxd \
     xz-utils
 
+RUN apt-get remove -y unattended-upgrades
+
+# not sure if this is really necessary, since the package is already removed
+RUN sed -i 's/APT::Periodic::Update-Package-Lists "1";/APT::Periodic::Update-Package-Lists "0";/g' /etc/apt/apt.conf.d/20auto-upgrades
+RUN sed -i 's/APT::Periodic::Unattended-Upgrade "1";/APT::Periodic::Unattended-Upgrade "0";/g' /etc/apt/apt.conf.d/20auto-upgrades
+
 # https://docs.nvidia.com/jetson/l4t/index.html#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/updating_jetson_and_host.html
 RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
     nvidia-l4t-core \
