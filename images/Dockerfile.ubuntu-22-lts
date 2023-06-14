@@ -69,14 +69,14 @@ RUN apt-get update \
     systemd-timesyncd \
     thermald \
     ubuntu-advantage-tools \
-    unattended-upgrades \
     xdg-user-dirs \
     xxd \
     xz-utils \
     zerofree \
     zstd \
     console-data \
-    zfsutils-linux && apt-get clean && rm -rf /var/lib/apt/lists/*
+    zfsutils-linux \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
