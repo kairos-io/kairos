@@ -795,7 +795,7 @@ run-qemu-netboot-test:
     ARG VERSION=$(cat VERSION)
 
     RUN apt update
-    RUN apt install -y qemu qemu-utils qemu-system git swtpm && apt clean
+    RUN apt install -y qemu-utils qemu-system git swtpm && apt clean
 
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
