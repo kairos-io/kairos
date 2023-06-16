@@ -20,7 +20,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.7.4
+ARG OSBUILDER_VERSION=v0.7.6
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -593,6 +593,7 @@ netboot:
 arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
+  ARG IMG_COMPRESSION=xz
   FROM $OSBUILDER_IMAGE
   ARG MODEL=rpi64
   ARG IMAGE_NAME=${FLAVOR}.img
@@ -614,8 +615,13 @@ arm-image:
     RUN /build-arm-image.sh --use-lvm --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
   END
   IF [ "$COMPRESS_IMG" = "true" ]
+    IF [ "$IMG_COMPRESSION" = "zstd" ]
+      RUN zstd --rm /build/$IMAGE_NAME
+      SAVE ARTIFACT /build/$IMAGE_NAME.zst img AS LOCAL build/$IMAGE_NAME.zst
+    ELSE IF [ "$IMG_COMPRESSION" = "xz" ]
       RUN xz -v /build/$IMAGE_NAME
       SAVE ARTIFACT /build/$IMAGE_NAME.xz img AS LOCAL build/$IMAGE_NAME.xz
+    END
   ELSE
       SAVE ARTIFACT /build/$IMAGE_NAME img AS LOCAL build/$IMAGE_NAME
   END
@@ -789,7 +795,7 @@ run-qemu-netboot-test:
     ARG VERSION=$(cat VERSION)
 
     RUN apt update
-    RUN apt install -y qemu qemu-utils qemu-system git swtpm && apt clean
+    RUN apt install -y qemu-utils qemu-system git swtpm && apt clean
 
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"

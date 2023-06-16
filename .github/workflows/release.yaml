@@ -177,7 +177,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            build/efi
+            build/*.efi
 # build-vm-images:
 #   needs: build
 #   runs-on: macos-12
