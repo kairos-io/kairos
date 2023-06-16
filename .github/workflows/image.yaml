@@ -277,7 +277,7 @@ jobs:
   qemu-acceptance-tests:
     needs:
       - build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
@@ -302,9 +302,22 @@ jobs:
       with:
         repository: quay.io/kairos/packages
         packages: utils/earthly
+    - name: Install Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '^1.20'
     - run: |
             earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+            earthly +iso --FLAVOR=${{ matrix.flavor }}
+            export KVM=true
+            export DATASOURCE=$PWD/build/datasource.iso
+            export CLOUD_INIT=$PWD/tests/assets/autoinstall.yaml
+            export ISO="$PWD/build/$(ls *.iso)"
+            export USE_QEMU=true
+            export CREATE_VM=true
+
+            go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+            ginkgo -v --label-filter=autoinstall-test -v tests/
   qemu-bundles-tests:
     needs:
       - build
