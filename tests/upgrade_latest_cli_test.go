@@ -14,6 +14,7 @@ import (
 var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), func() {
 	var vm VM
 	containerImage := os.Getenv("CONTAINER_IMAGE")
+	var installOutput string
 
 	BeforeEach(func() {
 		if containerImage == "" {
@@ -21,15 +22,18 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 		}
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
+		// Workaround for v2.2.0 alpine flavors mounting /tmp and overwriting the install config
+		// TODO: drop in v2.2.1 or v2.3.0 whichever comes first
+		time.Sleep(5 * time.Minute)
 	})
-
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
-			gatherLogs(vm)
+			fmt.Print(installOutput)
 			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
 			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
 			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
 			fmt.Println(string(serial))
+			gatherLogs(vm)
 		}
 		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
 	})
@@ -41,10 +45,10 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			err := vm.Scp("assets/config.yaml", "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 			By("Manually installing")
-			out, err := vm.Sudo("/bin/bash -c 'set -o pipefail && kairos-agent manual-install --device auto /tmp/config.yaml 2>&1 | tee manual-install.txt'")
-			Expect(err).ToNot(HaveOccurred(), out)
+			installOutput, err := vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
+			Expect(err).ToNot(HaveOccurred(), installOutput)
 
-			Expect(out).Should(ContainSubstring("Running after-install hook"))
+			Expect(installOutput).Should(ContainSubstring("Running after-install hook"))
 			vm.Sudo("sync")
 
 			err = vm.DetachCD()
