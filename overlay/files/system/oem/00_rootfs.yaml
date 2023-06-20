@@ -192,5 +192,4 @@ stages:
     - name: "Mount tmp on alpine"
       if: "[[ $(kairos-agent state get kairos.flavor) =~ ^alpine ]]"
       commands:
-        - mount -o mode=1777,nosuid,nodev -t tmpfs tmpfs /tmp
         - mount --make-rshared /
