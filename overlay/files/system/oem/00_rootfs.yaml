@@ -7,11 +7,6 @@
 # copy the file with a prefix starting by 90, e.g. /oem/91_custom.yaml
 name: "Rootfs Layout Settings"
 stages:
-  rootfs.before:
-    - name: "Pull data from provider"
-      datasource:
-        providers: ["aws", "gcp", "openstack", "cdrom"]
-        path: "/oem"
   rootfs:
     - name: "Mount BPF on Alpine systems"
       if: '[ ! -e "/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ] && [ ! -e "/usr/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ]'
@@ -162,21 +157,21 @@ stages:
       directories:
         - path: /var/log/journal
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /usr/local/etc/machine-id ]'
-      name: "Restore /etc/machine-id"
+      name: "Restore /etc/machine-id for systemd systems"
       commands:
         - cat /usr/local/etc/machine-id > /etc/machine-id
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /var/lib/dbus/machine-id ]'
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /var/lib/dbus/machine-id ] && [ -f "/sbin/openrc" ]'
       name: "Restore /etc/machine-id for openrc systems"
       commands:
         - cat /var/lib/dbus/machine-id > /etc/machine-id
   fs:
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /usr/local/etc/machine-id ] '
-      name: "Save /etc/machine-id"
+      name: "Save /etc/machine-id for systemd systems"
       commands:
       - |
         mkdir -p /usr/local/etc
         cp /etc/machine-id /usr/local/etc
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /var/lib/dbus/machine-id ] '
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /var/lib/dbus/machine-id ] && [ -f "/sbin/openrc" ]'
       name: "Save /etc/machine-id for openrc systems"
       commands:
         - |
