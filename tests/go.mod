@@ -7,7 +7,7 @@ require (
 	github.com/mudler/go-processmanager v0.0.0-20220724164624-c45b5c61312d
 	github.com/onsi/ginkgo/v2 v2.9.2
 	github.com/onsi/gomega v1.27.6
-	github.com/spectrocloud/peg v0.0.0-20230517145826-35016677d163
+	github.com/spectrocloud/peg v0.0.0-20230621080216-2a1a0084537f
 	gopkg.in/yaml.v3 v3.0.1
 )
 
