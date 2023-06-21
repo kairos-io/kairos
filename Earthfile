@@ -37,6 +37,7 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
 all:
   ARG SECURITY_SCANS=true
+  ARG CI=false
   BUILD +image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD +image-sbom
@@ -44,19 +45,11 @@ all:
       BUILD +grype-scan
   END
   BUILD +iso
-  BUILD +netboot
-  BUILD +ipxe-iso
-
-# For PR building, only image and iso are needed
-ci:
-  ARG SECURITY_SCANS=true
-  BUILD +image
-  IF [ "$SECURITY_SCANS" = "true" ]
-    BUILD +image-sbom
-    BUILD +trivy-scan
-    BUILD +grype-scan
+  # For PR building, only image and iso are needed
+  IF [ "$CI" = "false" ]
+      BUILD +netboot
+      BUILD +ipxe-iso
   END
-  BUILD +iso
 
 all-arm:
   ARG SECURITY_SCANS=true
