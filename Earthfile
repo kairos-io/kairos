@@ -231,7 +231,7 @@ framework:
     # Copy flavor-specific overlay files
     IF [[ "$FLAVOR" =~ ^alpine* ]]
         COPY overlay/files-alpine/ /framework
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "almalinux" ]
         COPY overlay/files-fedora/ /framework
     ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ] || [[ "$FLAVOR" =~ ^ubuntu-.*-lts-arm-.*$ ]]
         COPY overlay/files-ubuntu/ /framework
@@ -360,7 +360,7 @@ base-image:
 
     # Set /boot/vmlinuz pointing to our kernel so kairos-agent can use it
     # https://github.com/kairos-io/kairos-agent/blob/0288fb111bc568a1bfca59cb09f39302220475b6/pkg/elemental/elemental.go#L548   q
-    IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ]
+    IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "almalinux" ]
         RUN rm -rf /boot/initramfs-*
     END
 

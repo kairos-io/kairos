@@ -38,6 +38,9 @@ flavors:
   rockylinux:
     - systemd-base
     - dracut-network-legacy-compat
+  almalinux:
+    - systemd-base
+    - dracut-network-legacy-compat
   opensuse-tumbleweed:
     - systemd-base
     - systemd-latest

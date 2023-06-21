@@ -1,10 +1,12 @@
-# latest is the last stable release, does not include rawhide
-ARG BASE_IMAGE=fedora:latest
+ARG BASE_IMAGE=almalinux:latest
 
 FROM $BASE_IMAGE
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
-RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+
+RUN dnf install -y epel-release && dnf clean all
+RUN dnf update -y
+RUN dnf makecache
 RUN dnf install -y \
     dracut-live \
     livecd-tools \
@@ -12,8 +14,6 @@ RUN dnf install -y \
     dracut-network \
     efibootmgr \
     audit \
-    coreutils \
-    curl \
     device-mapper \
     dosfstools \
     dracut \
@@ -23,12 +23,10 @@ RUN dnf install -y \
     e2fsprogs \
     efibootmgr \
     gawk \
-    gdisk \
     grub2 \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
     grub2-pc \
-    haveged \
     kernel \
     kernel-modules \
     kernel-modules-extra \
@@ -45,17 +43,19 @@ RUN dnf install -y \
     systemd \
     systemd-networkd \
     systemd-resolved \
+    systemd-timesyncd \
     tar \
     which \
-    kernel kernel-modules kernel-modules-extra \
-    zfs \
+    epel-release \
+    https://zfsonlinux.org/epel/zfs-release-2-2.el9.noarch.rpm \
     rsync && dnf clean all
 
-RUN mkdir -p /run/lock && \
-  touch /usr/libexec/.keep && \
-  systemctl enable getty@tty1.service && \
-  systemctl enable getty@tty2.service && \
-  systemctl enable getty@tty3.service && \
-  systemctl enable systemd-networkd && \
-  systemctl enable systemd-resolved && \
-  systemctl enable sshd
+RUN mkdir -p /run/lock
+RUN touch /usr/libexec/.keep
+RUN systemctl enable getty@tty1.service
+RUN systemctl enable getty@tty2.service
+RUN systemctl enable getty@tty3.service
+RUN systemctl enable systemd-networkd
+RUN systemctl enable systemd-resolved
+RUN systemctl disable dnf-makecache.service
+RUN systemctl enable sshd

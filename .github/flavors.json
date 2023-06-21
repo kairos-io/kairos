@@ -28,5 +28,8 @@
     },
     {
         "flavor": "rockylinux"
+    },
+    {
+        "flavor": "almalinux"
     }
 ]
