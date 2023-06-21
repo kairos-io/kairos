@@ -6,8 +6,6 @@ FROM $BASE_IMAGE
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 RUN dnf install -y \
-    NetworkManager \
-    squashfs-tools \
     dracut-live \
     livecd-tools \
     dracut-squash \
@@ -37,7 +35,6 @@ RUN dnf install -y \
     livecd-tools \
     lvm2 \
     nano \
-    NetworkManager \
     openssh-server \
     parted \
     polkit \

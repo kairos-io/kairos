@@ -8,8 +8,6 @@ RUN dnf install -y epel-release && dnf clean all
 RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
-    NetworkManager \
-    squashfs-tools \
     dracut-live \
     livecd-tools \
     dracut-squash \
@@ -35,13 +33,12 @@ RUN dnf install -y \
     livecd-tools \
     lvm2 \
     nano \
-    NetworkManager \
     openssh-server \
     parted \
     polkit \
     rsync \
     shim-x64 \
-    squashfs-tools \ 
+    squashfs-tools \
     sudo \
     systemd \
     systemd-networkd \
@@ -61,5 +58,4 @@ RUN systemctl enable getty@tty3.service
 RUN systemctl enable systemd-networkd
 RUN systemctl enable systemd-resolved
 RUN systemctl disable dnf-makecache.service
-RUN systemctl disable NetworkManager
 RUN systemctl enable sshd
