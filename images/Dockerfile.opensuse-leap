@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-ARG BASE_IMAGE=opensuse/leap:15.4
+ARG BASE_IMAGE=registry.opensuse.org/opensuse/leap:15.4
 
 FROM $BASE_IMAGE
 

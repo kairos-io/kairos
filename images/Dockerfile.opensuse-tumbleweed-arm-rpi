@@ -1,5 +1,5 @@
 
-ARG BASE_IMAGE=opensuse/tumbleweed
+ARG BASE_IMAGE=registry.opensuse.org/opensuse/tumbleweed
 
 FROM $BASE_IMAGE
 

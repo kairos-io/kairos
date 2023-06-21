@@ -1,5 +1,5 @@
 VERSION 0.6
-FROM alpine
+
 ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse-leap
 ARG BASE_URL=quay.io/kairos
@@ -10,14 +10,6 @@ ARG LUET_VERSION=0.34.0
 ARG OS_ID=kairos
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.42.0
-ARG COSIGN_SKIP=".*quay.io/kairos/.*"
-
-IF [ "$FLAVOR" = "ubuntu" ]
-    ARG COSIGN_REPOSITORY=raccos/releases-orange
-ELSE
-    ARG COSIGN_REPOSITORY=raccos/releases-teal
-END
-ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
 ARG OSBUILDER_VERSION=v0.7.6
@@ -31,8 +23,16 @@ ARG HADOLINT_VERSION=2.12.0-alpine
 ARG RENOVATE_VERSION=35
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
-
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
+
+# Our base image for most of the targets. Tracks the upstream image golang:$GO_VERSION
+# Has all of the dependencies already installed
+# runs off quay as it doesnt have pull limits
+
+# renovate: datasource=docker depName=quay.io/itxaka/ci-image
+ARG BASE_IMAGE=quay.io/itxaka/ci-image:$GO_VERSION
+# This sets the base image for any bash checks (IF X) outside of a target or for targets that dont have a FROM
+FROM $BASE_IMAGE
 
 
 all:
@@ -82,16 +82,6 @@ all-arm-generic:
   BUILD --platform=linux/arm64 +image --MODEL=generic
   BUILD --platform=linux/arm64 +iso --MODEL=generic
 
-go-deps-test:
-    ARG GO_VERSION
-    FROM golang:$GO_VERSION
-    # Enable backports repo for debian for swtpm
-    RUN . /etc/os-release && echo "deb http://deb.debian.org/debian $VERSION_CODENAME-backports main contrib non-free" > /etc/apt/sources.list.d/backports.list
-    WORKDIR /build
-    COPY tests/go.mod tests/go.sum ./
-    RUN go mod download
-    SAVE ARTIFACT go.mod go.mod AS LOCAL go.mod
-    SAVE ARTIFACT go.sum go.sum AS LOCAL go.sum
 
 OSRELEASE:
     COMMAND
@@ -111,18 +101,15 @@ OSRELEASE:
     RUN envsubst >>/etc/os-release </usr/lib/os-release.tmpl
 
 uuidgen:
-    FROM alpine
-    RUN apk add uuidgen
-
+    FROM $BASE_IMAGE
     COPY . ./
 
-    RUN echo $(uuidgen) > UUIDGEN
+    RUN echo $(uuid) > UUIDGEN
 
     SAVE ARTIFACT UUIDGEN UUIDGEN
 
 version:
-    FROM alpine
-    RUN apk add git
+    FROM $BASE_IMAGE
 
     COPY . ./
 
@@ -194,7 +181,7 @@ luet:
 # file
 # Installs everything under the /framework dir and saves that as an artifact
 framework-luet:
-    FROM golang:alpine
+    FROM $BASE_IMAGE
     ARG FLAVOR
     WORKDIR /build
     COPY ./profile-build /build
@@ -212,7 +199,7 @@ framework-luet:
     SAVE ARTIFACT --keep-own /framework framework-luet
 
 framework:
-    FROM alpine
+    FROM $BASE_IMAGE
     ARG FLAVOR
     ARG MODEL
     # This ARG does nothing?
@@ -262,12 +249,8 @@ base-image:
     ARG FLAVOR
     ARG VARIANT
     ARG BUILD_INITRD="true"
-    IF [ "$BASE_IMAGE" = "" ]
-        # Source the flavor-provided docker file
-        FROM DOCKERFILE --build-arg MODEL=$MODEL -f images/Dockerfile.$FLAVOR .
-    ELSE 
-        FROM $BASE_IMAGE
-    END
+    # Source the flavor-provided docker file
+    FROM DOCKERFILE --build-arg MODEL=$MODEL -f images/Dockerfile.$FLAVOR .
 
     ARG KAIROS_VERSION
     IF [ "$KAIROS_VERSION" = "" ]
@@ -661,12 +644,8 @@ prepare-arm-image:
   SAVE ARTIFACT /build/bootloader/state_partition.img state_partition.img AS LOCAL build/state_partition.img
 
 ipxe-iso:
-    FROM ubuntu
+    FROM $BASE_IMAGE
     ARG ipxe_script
-    RUN apt update
-    RUN apt install -y -o Acquire::Retries=50 \
-                           mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
-                           # jq docker
     WORKDIR /build
     ARG ISO_NAME=${OS_ID}        
     COPY +version/VERSION ./
@@ -749,9 +728,7 @@ grype-scan:
 ###
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
-    FROM +go-deps-test
-    RUN apt update
-    RUN apt install -y qemu-system-x86 qemu-utils golang git swtpm
+    FROM $BASE_IMAGE
     WORKDIR /test
     ARG FLAVOR
     ARG PREBUILT_ISO
@@ -780,22 +757,19 @@ run-qemu-datasource-tests:
         ENV DATASOURCE=/test/build/datasource.iso
     END
     ENV CLOUD_INIT=/tests/tests/$CLOUD_CONFIG
-    COPY +go-deps-test/go.mod go.mod
-    COPY +go-deps-test/go.sum go.sum
+    COPY tests/go.mod go.mod
+    COPY tests/go.sum go.sum
     RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 
 run-qemu-netboot-test:
-    FROM +go-deps-test
+    FROM $BASE_IMAGE
     COPY . /test
     WORKDIR /test
 
     ARG ISO_NAME=${OS_ID}
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
-
-    RUN apt update
-    RUN apt install -y qemu-utils qemu-system git swtpm && apt clean
 
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
@@ -812,8 +786,8 @@ run-qemu-netboot-test:
     ENV USE_QEMU=true
     ARG TEST_SUITE=netboot-test
 
-    COPY +go-deps-test/go.mod go.mod
-    COPY +go-deps-test/go.sum go.sum
+    COPY tests/go.mod go.mod
+    COPY tests/go.sum go.sum
     # TODO: use --pull or something to cache the python image in Earthly
     WITH DOCKER
         RUN docker run -d -v $PWD/build:/build --workdir=/build \
@@ -822,9 +796,7 @@ run-qemu-netboot-test:
     END
 
 run-qemu-test:
-    FROM +go-deps-test
-    RUN apt update
-    RUN apt install -y qemu-system-x86 qemu-utils git swtpm && apt clean
+    FROM $BASE_IMAGE
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG PREBUILT_ISO
@@ -842,8 +814,8 @@ run-qemu-test:
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/build/kairos.iso
     END
-    COPY +go-deps-test/go.mod go.mod
-    COPY +go-deps-test/go.sum go.sum
+    COPY tests/go.mod go.mod
+    COPY tests/go.sum go.sum
     RUN go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_SUITE" --fail-fast -r ./tests/
 
 ###
@@ -852,45 +824,12 @@ run-qemu-test:
 
 ## Gets the latest release artifacts for a given release
 pull-release:
-    FROM alpine
+    FROM $BASE_IMAGE
     RUN apk add curl wget
     RUN curl -s https://api.github.com/repos/kairos-io/kairos/releases/latest | grep "browser_download_url.*${FLAVOR}.*iso" | cut -d : -f 2,3 | tr -d \" | wget -i -
     RUN mkdir build
     RUN mv *.iso build/
     SAVE ARTIFACT build AS LOCAL build
-
-## Pull build artifacts from BUNDLE_IMAGE (expected arg)
-pull-build-artifacts:
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
-    RUN zypper in -y jq docker
-    COPY +uuidgen/UUIDGEN ./
-    COPY +version/VERSION ./
-    ARG UUIDGEN=$(cat UUIDGEN)
-    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
-
-    COPY +luet/luet /usr/bin/luet
-    RUN luet util unpack $BUNDLE_IMAGE build
-    SAVE ARTIFACT build AS LOCAL build
-
-## Push build artifacts as BUNDLE_IMAGE (expected arg, common is to use ttl.sh/$(uuidgen):8h)
-push-build-artifacts:
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
-    RUN zypper in -y jq docker
-    COPY +uuidgen/UUIDGEN ./
-    COPY +version/VERSION ./
-    ARG UUIDGEN=$(cat UUIDGEN)
-    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
-
-    COPY . .
-    COPY +luet/luet /usr/bin/luet
-
-    RUN cd build && tar cvf ../build.tar ./
-    RUN luet util pack $BUNDLE_IMAGE build.tar image.tar
-    WITH DOCKER
-        RUN docker load -i image.tar && docker push $BUNDLE_IMAGE 
-    END
 
 # bundles tests needs to run in sequence:
 # +prepare-bundles-tests
@@ -930,34 +869,10 @@ examples-bundle:
 ## cat bundles-config.yaml
 examples-bundle-config:
     ARG BUNDLE_IMAGE
-    FROM alpine
-    RUN apk add gettext
+    FROM $BASE_IMAGE
     COPY . .
     RUN envsubst >> tests/assets/live-overlay.yaml < tests/assets/live-overlay.tmpl
     SAVE ARTIFACT tests/assets/live-overlay.yaml AS LOCAL bundles-config.yaml
-
-docs:
-    FROM node:19-bullseye
-    ARG TARGETARCH
-
-    # Install dependencies
-    RUN apt update
-    RUN apt install git
-    # renovate: datasource=github-releases depName=gohugoio/hugo
-    ARG HUGO_VERSION="0.110.0"
-    RUN wget --quiet "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-${TARGETARCH}.tar.gz" && \
-        tar xzf hugo_extended_${HUGO_VERSION}_linux-${TARGETARCH}.tar.gz && \
-        rm -r hugo_extended_${HUGO_VERSION}_linux-${TARGETARCH}.tar.gz && \
-        mv hugo /usr/bin
-
-    COPY . .
-    WORKDIR ./docs
-    
-    RUN npm install postcss-cli
-    RUN npm run prepare
-
-    RUN HUGO_ENV="production" /usr/bin/hugo --gc -b "/local/" -d "public/local"
-    SAVE ARTIFACT public /public AS LOCAL docs/public
 
 ## ./earthly.sh --push +temp-image --FLAVOR=ubuntu
 ## all same flags than the `docker` target plus 
@@ -967,8 +882,7 @@ docs:
 ## 
 ## you will have access to an image in ttl.sh e.g. ttl.sh/add-earthly-target-to-build-temp-images-339dfc7:24h
 temp-image:
-    FROM alpine 
-    RUN apk add git
+    FROM $BASE_IMAGE
     COPY . ./
 
     IF [ "$EXPIRATION" = "" ]
@@ -987,7 +901,7 @@ temp-image:
     SAVE IMAGE --push $TTL_IMAGE
 
 generate-schema:
-    FROM alpine
+    FROM $BASE_IMAGE
     COPY . ./
     COPY +version/VERSION ./
     COPY +luet/luet /usr/bin/luet
