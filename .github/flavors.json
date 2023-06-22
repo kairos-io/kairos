@@ -1,15 +1,19 @@
 [
     {
-       "flavor": "opensuse-leap"
+        "flavor": "opensuse-leap"
     },
     {
-       "flavor": "opensuse-tumbleweed"
+        "flavor": "opensuse-tumbleweed"
     },
     {
         "flavor": "ubuntu"
     },
     {
         "flavor": "ubuntu-20-lts"
+    },
+    {
+        "flavor": "ubuntu-20-lts-fips",
+        "frameworkonly": "true"
     },
     {
         "flavor": "ubuntu-22-lts"
