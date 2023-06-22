@@ -21,6 +21,8 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - id: set-matrix
@@ -48,6 +50,8 @@ jobs:
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: setup-docker
@@ -137,6 +141,8 @@ jobs:
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: Install Cosign
@@ -181,6 +187,8 @@ jobs:
           - flavor: opensuse-leap
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: Download artifacts
@@ -237,6 +245,8 @@ jobs:
           - flavor: "ubuntu"
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
@@ -269,6 +279,8 @@ jobs:
           - flavor: "ubuntu-22-lts"
     steps:
     - uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
     - run: |
         git fetch --prune --unshallow
     - name: Download artifacts
@@ -294,6 +306,8 @@ jobs:
           - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: Download artifacts
@@ -335,6 +349,8 @@ jobs:
           - flavor: opensuse-leap
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: Download artifacts
@@ -377,6 +393,8 @@ jobs:
           - flavor: ubuntu
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: Install earthly
@@ -398,6 +416,8 @@ jobs:
           - flavor: opensuse-leap
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: Download artifacts
@@ -470,6 +490,8 @@ jobs:
           # - flavor: "ubuntu"
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
       - run: |
           git fetch --prune --unshallow
       - name: Download artifacts
@@ -543,6 +565,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
       - name: Install Go
         uses: actions/setup-go@v4
