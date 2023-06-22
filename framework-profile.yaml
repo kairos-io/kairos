@@ -140,8 +140,6 @@ kairos-toolchain-nonfips:
   packages:
   - system/kcrypt
   - system/kcrypt-challenger
-  - system/suc-upgrade
-  - system/grub2-efi
   - system/immucore
   - system/kairos-agent
 ubuntu-kernel:
