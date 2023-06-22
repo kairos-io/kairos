@@ -4,42 +4,42 @@
 flavors:
   debian:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy
   ubuntu:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy
   ubuntu-arm-rpi:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy
   ubuntu-20-lts-arm-nvidia-jetson-agx-orin:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-20-lts-arm-rpi:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-22-lts-arm-rpi:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-22-lts:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-20-lts:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-20-lts-fips:
@@ -49,56 +49,56 @@ flavors:
     - dracut-network-legacy-compat
   fedora:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   rockylinux:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   almalinux:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   opensuse-tumbleweed:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   opensuse-tumbleweed-arm-rpi:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   opensuse-leap:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   opensuse-leap-arm-rpi:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   alpine-arm-rpi:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - opensuse-leap-kernel
     - openrc
   alpine-opensuse-leap:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - openrc
     - opensuse-leap-kernel
   alpine-ubuntu:
     - common-packages
-    - kairos-toolchain-nonfips
+    - kairos-toolchain
     - ubuntu-kernel
     - openrc
 # See https://github.com/kairos-io/packages/pull/67 for rationale
@@ -136,7 +136,7 @@ kairos-toolchain-fips:
   - fips/immucore
   - fips/kairos-agent
 
-kairos-toolchain-nonfips:
+kairos-toolchain:
   packages:
   - system/kcrypt
   - system/kcrypt-challenger
