@@ -54,14 +54,14 @@ RUN apk --no-cache add  \
       ncurses-terminfo \
       nfs-utils \
       open-iscsi \
+      openrc \
+      openssh-client \
+      openssh-server \
       open-vm-tools \
       open-vm-tools-deploypkg \
       open-vm-tools-guestinfo \
       open-vm-tools-static \
       open-vm-tools-vmbackup \
-      openrc \
-      openssh-client \
-      openssh-server \
       parted \
       procps \
       qemu-guest-agent \

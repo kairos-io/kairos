@@ -6,11 +6,6 @@ FROM $BASE_IMAGE
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 RUN dnf install -y \
-    dracut-live \
-    livecd-tools \
-    dracut-squash \
-    dracut-network \
-    efibootmgr \
     audit \
     coreutils \
     curl \
@@ -47,9 +42,7 @@ RUN dnf install -y \
     systemd-resolved \
     tar \
     which \
-    kernel kernel-modules kernel-modules-extra \
-    zfs \
-    rsync && dnf clean all
+    zfs && dnf clean all
 
 RUN mkdir -p /run/lock && \
   touch /usr/libexec/.keep && \

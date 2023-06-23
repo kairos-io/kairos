@@ -54,8 +54,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     file \
     fuse \
     gawk \
-    grub-efi-arm64-bin \
     grub2-common \
+    grub-efi-arm64-bin \
     haveged \
     iproute2 \
     iptables \
@@ -71,8 +71,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     networkd-dispatcher \
     nfs-common \
     open-iscsi \
-    open-vm-tools \
     openssh-server \
+    open-vm-tools \
     os-prober \
     packagekit-tools \
     parted \

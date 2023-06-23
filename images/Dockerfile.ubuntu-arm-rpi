@@ -31,21 +31,21 @@ RUN apt-get update && apt-get install -y \
     debianutils \
     dosfstools \
     dracut \
-    dracut-network \
     dracut-live \
+    dracut-network \
     e2fsprogs \
     gawk \
     gdisk \
-    grub-efi-arm64-bin \
     grub2-common \
+    grub-efi-arm64-bin \
     haveged \
     iproute2 \
     iptables \
     jq \
     nano \
     neovim \
-    open-vm-tools \
     openssh-server \
+    open-vm-tools \
     parted \
     polkitd \
     rsync \

@@ -43,8 +43,8 @@ RUN zypper in --force-resolution -y \
     nethogs \
     nfs-utils \
     open-iscsi \
-    open-vm-tools \
     openssh \
+    open-vm-tools \
     parted \
     pigz \
     policycoreutils \

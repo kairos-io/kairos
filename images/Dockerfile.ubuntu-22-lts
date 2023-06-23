@@ -28,11 +28,11 @@ RUN apt-get update \
     fuse3 \
     gawk \
     gdisk \
+    grub2 \
+    grub2-common \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     grub-pc-bin \
-    grub2 \
-    grub2-common \
     haveged \
     iproute2 \
     iptables \
@@ -44,14 +44,14 @@ RUN apt-get update \
     lvm2 \
     mdadm \
     nano \
-    neovim \
     nbd-client \
     ncurses-term \
+    neovim \
     networkd-dispatcher \
     nfs-common \
     open-iscsi \
-    open-vm-tools \
     openssh-server \
+    open-vm-tools \
     os-prober \
     packagekit-tools \
     parted \
@@ -73,9 +73,8 @@ RUN apt-get update \
     xxd \
     xz-utils \
     zerofree \
-    zstd \
-    console-data \
     zfsutils-linux \
+    zstd \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
