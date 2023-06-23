@@ -3,7 +3,7 @@ module main
 go 1.20
 
 require (
-	github.com/kairos-io/kairos-sdk v0.0.8
+	github.com/kairos-io/kairos-sdk v0.0.9
 	github.com/urfave/cli v1.22.13
 )
 
