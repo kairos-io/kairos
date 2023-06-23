@@ -1,4 +1,4 @@
-name: "Default user"
+name: "Default user, permissions and serial login"
 stages:
   initramfs:
     - name: "Setup groups"
@@ -16,8 +16,8 @@ stages:
           homedir: "/home/kairos"
           groups:
             - "admin"
-    - name: "Set user password if running in live"
-      if: "[ -e /run/cos/live_mode ]"
+    - name: "Set user password if running in live or uki"
+      if: "[ -e /run/cos/live_mode ] || [ -e /run/cos/uki_mode ]"
       users:
         kairos:
           passwd: "kairos"
@@ -38,3 +38,18 @@ stages:
            #includedir /etc/sudoers.d
       commands:
         - passwd -l root
+    - name: "Ensure runtime permission"
+      if: '[ -e "/oem" ]'
+      commands:
+        - chown -R root:admin /oem
+        - chmod 770 /oem
+    - name: "Ensure runtime permission"
+      if: '[ -e "/usr/local/cloud-config" ]'
+      commands:
+        - chown -R root:admin /usr/local/cloud-config
+        - chmod 770 /usr/local/cloud-config
+    - name: "Enable serial login for alpine" # https://wiki.alpinelinux.org/wiki/Enable_Serial_Console_on_Boot
+      if: '[ -e /sbin/rc-service ]'
+      commands:
+        - sed -i -e 's/ttyS0.*//g' /etc/inittab
+        - echo "ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100" >> /etc/inittab

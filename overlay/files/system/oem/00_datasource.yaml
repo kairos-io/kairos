@@ -5,24 +5,27 @@ stages:
       if: '[ ! -f /oem/userdata ]'
       name: "Pull data from provider"
       datasource:
-        providers: ["cdrom", "gcp", "openstack", "aws", "azure", "hetzner", "packet", "scaleway", "vultr", "digitalocean", "metaldata"]
+        providers: ["cdrom", "gcp", "openstack", "aws", "azure", "hetzner", "packet", "vultr", "digitalocean", "metaldata"]
         path: "/oem"
     - if: '[ ! -f /oem/userdata ]'
+      name: "Sentinel file for userdata"
       files:
       - path: /run/.userdata_load
   initramfs.before:
     - <<: *datasource
     - if: '[ ! -f /oem/userdata ]'
       files:
-      - path: /oem/.userdata_load
+      - path: /run/.userdata_load
   # After network, if no datasource could be pulled, we stop trying
   network:
     - <<: *datasource
     - if: '[ -f /oem/userdata ] && [ -f /run/.userdata_load ]'
+      name: "Run stages if userdata is found"
       commands:
-      - elemental cloud-init -s initramfs /oem/userdata
-      - elemental cloud-init -s boot /oem/userdata
+      - kairos-agent run-stage initramfs
+      - kairos-agent run-stage boot
       - rm -rf /run/.userdata_load
     - if: '[ ! -f /oem/userdata ] && [ -f /run/.userdata_load ]'
+      name: "Remove userdata sentinel"
       commands:
       - rm -rf /run/.userdata_load

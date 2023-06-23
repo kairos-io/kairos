@@ -4,22 +4,9 @@
 /cli/cli
 /kairos
 /dist
-/docs/bin
-/docs/.hugo_build.lock
 /build
-docs/node_modules
-docs/public
-!docs/public/favicon
-!docs/public/CNAME
-docs/dist
-docs/.vscode
 coverage.out
 .DS_Store
-/docs/bin/
-/docs/public/
-/docs/resources/
-/docs/node_modules/
-/docs/tech-doc-hugo
 internal/webui/public/cypress/videos/
 
 node_modules/

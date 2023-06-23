@@ -1,64 +1,109 @@
-common:
-  - dracut/immucore
-  - static/grub-config
-  - system/kcrypt
-  - system/kcrypt-challenger
-  - system/suc-upgrade
-  - system/grub2-efi
-  - system/elemental-cli
-  - system/immucore
-  - system/kairos-agent
+# Additional common packages to be added to all the FLAVORS
+## common:
+##  - category/name@version
+#
+# Apply arbitrary images (e.g. to stub a package to a specific version)
+# These are applyied after the packages.
+# images:
+#   - quay.io/kairos/packages:k9s-utils-0.27.4
 flavors:
   debian:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy
   ubuntu:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy
   ubuntu-arm-rpi:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy
+  ubuntu-20-lts-arm-nvidia-jetson-agx-orin:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+    - dracut-network-legacy-compat
   ubuntu-20-lts-arm-rpi:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-22-lts-arm-rpi:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-22-lts:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   ubuntu-20-lts:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+    - dracut-network-legacy-compat
+  ubuntu-20-lts-fips:
+    - common-packages
+    - kairos-toolchain-fips
     - systemd-base
     - dracut-network-legacy-compat
   fedora:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   rockylinux:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+    - dracut-network-legacy-compat
+  almalinux:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
   opensuse-tumbleweed:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   opensuse-tumbleweed-arm-rpi:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   opensuse-leap:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   opensuse-leap-arm-rpi:
+    - common-packages
+    - kairos-toolchain
     - systemd-base
     - systemd-latest
     - dracut-network-legacy
   alpine-arm-rpi:
+    - common-packages
+    - kairos-toolchain
     - opensuse-leap-kernel
     - openrc
   alpine-opensuse-leap:
+    - common-packages
+    - kairos-toolchain
     - openrc
     - opensuse-leap-kernel
   alpine-ubuntu:
+    - common-packages
+    - kairos-toolchain
     - ubuntu-kernel
     - openrc
 # See https://github.com/kairos-io/packages/pull/67 for rationale
@@ -79,6 +124,29 @@ opensuse-leap-kernel:
   packages:
     - distro-kernels/opensuse-leap
     - distro-initrd/opensuse-leap
+
+## Packages (cat/name@version) that are added to ALL flavors
+## Static files, no binary
+common-packages:
+  packages:
+  - static/grub-config
+  - dracut/immucore
+  - system/suc-upgrade
+  - system/grub2-efi
+
+kairos-toolchain-fips:
+  packages:
+  - fips/kcrypt
+  - fips/kcrypt-challenger
+  - fips/immucore
+  - fips/kairos-agent
+
+kairos-toolchain:
+  packages:
+  - system/kcrypt
+  - system/kcrypt-challenger
+  - system/immucore
+  - system/kairos-agent
 ubuntu-kernel:
   packages:
     - distro-kernels/ubuntu
@@ -102,4 +170,4 @@ repositories:
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230512115044-repository.yaml
+    reference: 20230613201238-repository.yaml

@@ -1,0 +1,117 @@
+FROM ubuntu:20.04 as base
+
+RUN apt-get update
+RUN apt-get install -y ca-certificates
+
+RUN apt-get install -y sudo
+RUN apt-get install -y ssh
+RUN apt-get install -y netplan.io
+
+# resizerootfs
+RUN apt-get install -y udev
+RUN apt-get install -y parted
+
+# ifconfig
+RUN apt-get install -y net-tools
+
+# needed by knod-static-nodes to create a list of static device nodes
+RUN apt-get install -y kmod
+
+RUN systemctl enable ssh
+RUN systemctl enable systemd-networkd
+
+RUN mkdir -p /opt/nvidia/l4t-packages
+RUN touch /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
+#jetson orin 
+ARG BOARD_MODEL=t234 
+ARG FRAMEWORK_VERSION=35.3
+
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
+
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
+RUN add-apt-repository "deb https://repo.download.nvidia.com/jetson/common r$FRAMEWORK_VERSION main"
+RUN add-apt-repository "deb https://repo.download.nvidia.com/jetson/$BOARD_MODEL r$FRAMEWORK_VERSION main"
+
+RUN apt-get update
+
+# nv-l4t-usb-device-mode
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    bridge-utils \
+    conntrack \
+    console-data \
+    coreutils \
+    cryptsetup \
+    curl \
+    debianutils \
+    dmsetup \
+    dosfstools \
+    dracut \
+    dracut-network \
+    e2fsprogs \
+    efibootmgr \
+    file \
+    fuse \
+    gawk \
+    grub-efi-arm64-bin \
+    grub2-common \
+    haveged \
+    iproute2 \
+    iptables \
+    isc-dhcp-common \
+    jq \
+    kbd \
+    krb5-locales \
+    lldpd \
+    lvm2 \
+    mdadm \
+    nbd-client \
+    ncurses-term \
+    networkd-dispatcher \
+    nfs-common \
+    open-iscsi \
+    open-vm-tools \
+    openssh-server \
+    os-prober \
+    packagekit-tools \
+    parted \
+    policykit-1 \
+    publicsuffix \
+    rsync \
+    shared-mime-info \
+    snmpd \
+    squashfs-tools \
+    sudo \
+    systemd \
+    systemd-timesyncd \
+    xdg-user-dirs \
+    xxd \
+    xz-utils
+
+RUN apt-get remove -y unattended-upgrades
+
+# https://docs.nvidia.com/jetson/l4t/index.html#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/updating_jetson_and_host.html
+RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
+    nvidia-l4t-core \
+    nvidia-l4t-init \
+    nvidia-l4t-bootloader \
+    nvidia-l4t-camera \
+    nvidia-l4t-initrd \
+    nvidia-l4t-xusb-firmware \
+    nvidia-l4t-kernel \
+    nvidia-l4t-kernel-dtbs \
+    nvidia-l4t-kernel-headers \
+    nvidia-l4t-cuda \
+    jetson-gpio-common \
+    python3-jetson-gpio
+
+# Symlinks to make installer work
+RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
+    ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
+
+# RUN rm -rf /opt/nvidia/l4t-packages
+# RUN rm -rf /var/lib/apt/lists/*
+# RUN useradd -ms /bin/bash jetson
+# RUN echo 'jetson:jetson' | chpasswd
+# RUN usermod -a -G sudo jetson

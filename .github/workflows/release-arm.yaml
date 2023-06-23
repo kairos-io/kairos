@@ -22,7 +22,7 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
   docker:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.worker }}
     needs:
       - get-matrix
     permissions:
@@ -35,9 +35,38 @@ jobs:
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
+        if: ${{ matrix.worker != 'self-hosted' }}
         run: |
-          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
-          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          df -h
+          echo
+          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+          sudo rm -rf /usr/share/dotnet
+          sudo apt-get remove -y '^mono-.*' || true
+          sudo apt-get remove -y '^ghc-.*' || true
+          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+          sudo apt-get remove -y 'php.*' || true
+          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+          sudo apt-get remove -y '^google-.*' || true
+          sudo apt-get remove -y azure-cli || true
+          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+          sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          sudo rm -rfv build || true
+          df -h
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
@@ -47,6 +76,11 @@ jobs:
           platforms: all
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
@@ -56,13 +90,34 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Build  🔧
+      - name: Standard Build  🔧
+        if: ${{ matrix.worker != 'self-hosted' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
           ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+      - name: Selfhosted Build  🔧
+        if: ${{ matrix.worker == 'self-hosted' }}
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          MODEL: ${{ matrix.model }}
+        run: |
+          # Configure earthly to use the docker mirror in CI
+          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+          mkdir -p ~/.earthly/
+          cat << EOF > ~/.earthly/config.yml
+          global:
+            buildkit_additional_config: |
+              [registry."docker.io"]
+                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+              [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                insecure = true
+                http = true
+          EOF
+          export TAG=${GITHUB_REF##*/}
+          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}

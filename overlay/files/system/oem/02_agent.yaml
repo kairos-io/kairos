@@ -1,11 +1,11 @@
 name: "Start agent"
 stages:
   boot:
-    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -d "/usr/share/systemd" ]'
       commands:
         - systemctl start kairos-agent
         - systemctl enable kairos-agent
   initramfs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -d "/usr/share/systemd" ]'
       commands:
         - systemctl enable kairos-agent

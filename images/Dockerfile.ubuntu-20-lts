@@ -68,14 +68,15 @@ RUN apt-get update \
     systemd-timesyncd \
     thermald \
     ubuntu-advantage-tools \
-    unattended-upgrades \
     xdg-user-dirs \
     xxd \
     xz-utils \
     zerofree \
     zstd \
     console-data \
-    zfsutils-linux && apt-get clean && rm -rf /var/lib/apt/lists/*
+    zfsutils-linux \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
@@ -86,10 +87,6 @@ RUN systemctl enable ssh
 # TODO: backport patch into packages
 COPY images/dracut-broken-iscsi-ubuntu-20.patch /
 RUN cd /usr/lib/dracut/modules.d/95iscsi && patch < /dracut-broken-iscsi-ubuntu-20.patch && rm -rf /dracut-broken-iscsi-ubuntu-20.patch
-
-# Enable tmp
-RUN cp -v /usr/share/systemd/tmp.mount /etc/systemd/system/ 
-RUN systemctl enable tmp.mount
 
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo

@@ -1,9 +1,14 @@
 #cloud-config
 
+install:
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
+
 stages:
   initramfs:
     - name: "Set user and password"
       users:
         kairos:
           passwd: "kairos"
+    - name: "Set hostname"
       hostname: kairos-{{ trunc 4 .Random }}

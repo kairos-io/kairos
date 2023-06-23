@@ -7,34 +7,184 @@
 # copy the file with a prefix starting by 90, e.g. /oem/91_custom.yaml
 name: "Rootfs Layout Settings"
 stages:
-  rootfs.before:
-    - name: "Pull data from provider"
-      datasource:
-        providers: ["aws", "gcp", "openstack", "cdrom"]
-        path: "/oem"
   rootfs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ]'
-      name: "Layout configuration"
+    - name: "Mount BPF on Alpine systems"
+      if: '[ ! -e "/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ] && [ ! -e "/usr/sbin/systemctl" ] && [ ! -e "/usr/bin/systemctl" ]'
+      commands:
+        - mount bpffs -o rw,nosuid,nodev,noexec,relatime,mode=700 /sys/fs/bpf -t bpf
+    - if: '[ ! -f "/run/cos/recovery_mode" ] &&  [ ! -e "/run/cos/uki_mode" ]'
+      name: "Layout configuration for active/passive mode"
       environment_file: /run/cos/cos-layout.env
       environment:
-        VOLUMES: "LABEL=COS_OEM:/oem LABEL=COS_PERSISTENT:/usr/local"
+        VOLUMES: "LABEL=COS_PERSISTENT:/usr/local"
         OVERLAY: "tmpfs:25%"
+        RW_PATHS: "/var /etc /srv"
+        PERSISTENT_STATE_PATHS: >-
+          /etc/systemd
+          /etc/modprobe.d
+          /etc/rancher
+          /etc/sysconfig
+          /etc/runlevels
+          /etc/ssh
+          /etc/ssl/certs
+          /etc/iscsi
+          /etc/zfs
+          /etc/cni
+          /etc/kubernetes
+          /home
+          /opt
+          /root
+          /snap
+          /var/snap
+          /usr/libexec
+          /var/log
+          /var/lib/rancher
+          /var/lib/kubelet
+          /var/lib/snapd
+          /var/lib/wicked
+          /var/lib/longhorn
+          /var/lib/cni
+          /var/lib/dbus
+          /usr/share/pki/trust
+          /usr/share/pki/trust/anchors
+          /var/lib/ca-certificates
+        PERSISTENT_STATE_BIND: "true"
     - if: '[ -f "/run/cos/recovery_mode" ]'
       # omit the persistent partition on recovery mode
-      name: "Layout configuration"
+      name: "Layout configuration for recovery mode"
       environment_file: /run/cos/cos-layout.env
       environment:
-        VOLUMES: "LABEL=COS_OEM:/oem"
         OVERLAY: "tmpfs:25%"
+    - if: grep -q "kairos.boot_live_mode" /proc/cmdline
+      name: "Layout configuration for booting local node from livecd"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        VOLUMES: "LABEL=COS_PERSISTENT:/usr/local"
+        OVERLAY: "tmpfs:25%"
+        RW_PATHS: "/var /etc /srv"
+        PERSISTENT_STATE_PATHS: >-
+          /etc/systemd
+          /etc/modprobe.d
+          /etc/rancher
+          /etc/sysconfig
+          /etc/runlevels
+          /etc/ssh
+          /etc/ssl/certs
+          /etc/iscsi
+          /etc/cni
+          /etc/kubernetes
+          /home
+          /opt
+          /root
+          /snap
+          /var/snap
+          /usr/libexec
+          /var/log
+          /var/lib/rancher
+          /var/lib/kubelet
+          /var/lib/snapd
+          /var/lib/wicked
+          /var/lib/longhorn
+          /var/lib/cni
+          /usr/share/pki/trust
+          /usr/share/pki/trust/anchors
+          /var/lib/ca-certificates
+        PERSISTENT_STATE_BIND: "true"
+    - if: '[ -e "/run/cos/uki_mode" ]'
+      # omit the persistent partition on uki mode
+      # And mount all persistent mounts under the overlay
+      name: "Layout configuration for UKI"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        RW_PATHS: "/var /etc /srv /usr"
+        OVERLAY: "tmpfs:25%"
+        PERSISTENT_STATE_PATHS: >-
+          /var
+          /etc
+          /etc/systemd
+          /etc/modprobe.d
+          /etc/rancher
+          /etc/sysconfig
+          /etc/runlevels
+          /etc/ssh
+          /etc/ssl/certs
+          /etc/iscsi
+          /etc/cni
+          /etc/kubernetes
+          /home
+          /opt
+          /root
+          /var/snap
+          /usr/libexec
+          /var/log
+          /var/lib/rancher
+          /var/lib/kubelet
+          /var/lib/snapd
+          /var/lib/wicked
+          /var/lib/longhorn
+          /var/lib/cni
+          /usr/share/pki/trust
+          /usr/share/pki/trust/anchors
+          /var/lib/ca-certificates
+  rootfs.after:
+    - if: '[ -r /run/cos/custom-layout.env ] && [ ! -f "/run/cos/recovery_mode" ] && [ ! -f /run/cos/live_mode ]'
+      name: "add custom bind and ephemeral mounts to /run/cos/cos-layout.env"
+      commands:
+        - |
+          source /run/cos/cos-layout.env
+          source /run/cos/custom-layout.env
+          PERSISTENT_STATE_PATHS="${PERSISTENT_STATE_PATHS} ${CUSTOM_BIND_MOUNTS} "
+          RW_PATHS="${RW_PATHS} ${CUSTOM_EPHEMERAL_MOUNTS}"
+          # Remove the existing lines that we are gonna rewrite
+          sed -i "/RW_PATHS/d" /run/cos/cos-layout.env
+          sed -i "/PERSISTENT_STATE_PATHS/d" /run/cos/cos-layout.env
+          # Add the new lines
+          echo "# rw paths with user bind mounts" >> /run/cos/cos-layout.env
+          echo RW_PATHS=\"${RW_PATHS}\" >> /run/cos/cos-layout.env
+          echo "# persistent state paths with user ephemeral mounts" >> /run/cos/cos-layout.env
+          echo PERSISTENT_STATE_PATHS=\"${PERSISTENT_STATE_PATHS}\" >> /run/cos/cos-layout.env
+    - if: '[ ! -f /run/cos/recovery_mode ] && [ ! -f /run/cos/live_mode ]'
+      name: "Grow persistent"
+      layout:
+        device:
+          label: COS_PERSISTENT
+        expand_partition:
+          # Size 0 is required to specify all remaining space
+          size: 0
   initramfs:
+    - name: "Create journalctl /var/log/journal dir"
+      if: '[ -e "/sbin/systemctl" ] || [ -e "/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
+      directories:
+        - path: /var/log/journal
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /usr/local/etc/machine-id ]'
-      name: "Restore /etc/machine-id"
+      name: "Restore /etc/machine-id for systemd systems"
       commands:
         - cat /usr/local/etc/machine-id > /etc/machine-id
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /var/lib/dbus/machine-id ] && [ -f "/sbin/openrc" ]'
+      name: "Restore /etc/machine-id for openrc systems"
+      commands:
+        - cat /var/lib/dbus/machine-id > /etc/machine-id
   fs:
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /usr/local/etc/machine-id ] '
-      name: "Save /etc/machine-id"
+      name: "Save /etc/machine-id for systemd systems"
       commands:
       - |
         mkdir -p /usr/local/etc
         cp /etc/machine-id /usr/local/etc
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /var/lib/dbus/machine-id ] && [ -f "/sbin/openrc" ]'
+      name: "Save /etc/machine-id for openrc systems"
+      commands:
+        - |
+          mkdir -p /var/lib/dbus/
+          cp /etc/machine-id /var/lib/dbus/
+  fs.after:
+    - if: "[ ! -d /usr/local/cloud-config ]"
+      name: "Ensure /usr/local/cloud-config exists"
+      commands:
+        - mkdir /usr/local/cloud-config
+        - chmod 600 /usr/local/cloud-config
+  boot.before:
+    - name: "Mount tmp on alpine"
+      if: "[[ $(kairos-agent state get kairos.flavor) =~ ^alpine ]]"
+      commands:
+        - mount --make-rshared /

@@ -26,11 +26,6 @@ func TestSuite(t *testing.T) {
 	RunSpecs(t, "kairos Test Suite")
 }
 
-var tempDir string
-var sshPort string
-
-var machineID string = os.Getenv("MACHINE_ID")
-
 var getVersionCmd = ". /etc/os-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION || echo $VERSION"
 
 // https://gist.github.com/sevkin/96bdae9274465b2d09191384f86ef39d
@@ -48,20 +43,20 @@ func getFreePort() (port int, err error) {
 }
 
 func user() string {
-	user := os.Getenv("SSH_USER")
-	if user == "" {
-		user = "kairos"
+	u := os.Getenv("SSH_USER")
+	if u == "" {
+		u = "kairos"
 	}
-	return user
+	return u
 }
 
 func pass() string {
-	pass := os.Getenv("SSH_PASS")
-	if pass == "" {
-		pass = "kairos"
+	p := os.Getenv("SSH_PASS")
+	if p == "" {
+		p = "kairos"
 	}
 
-	return pass
+	return p
 }
 
 func gatherLogs(vm VM) {
@@ -117,6 +112,7 @@ func startVM() (context.Context, VM) {
 
 	sshPort, err = getFreePort()
 	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("Using ssh port: %d\n", sshPort)
 
 	memory := os.Getenv("MEMORY")
 	if memory == "" {
