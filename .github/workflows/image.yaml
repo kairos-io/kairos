@@ -88,6 +88,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build PR 🔧
         if: ${{ github.event_name == 'pull_request' }}
         env:
@@ -170,6 +175,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build framework image 🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
@@ -268,6 +278,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - run: |
           ls -liah
           export ISO=$PWD/$(ls *.iso)
@@ -302,6 +317,11 @@ jobs:
       with:
         repository: quay.io/kairos/packages
         packages: utils/earthly
+    - name: Login to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Install Go
       uses: actions/setup-go@v4
       with:
@@ -340,6 +360,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - env:
           KVM: true
         run: |
@@ -381,6 +406,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - env:
           KVM: true
         run: |
@@ -419,6 +449,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - run: |
           earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
   upgrade-with-cli-test:
@@ -476,6 +511,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - run: |
           earthly +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
             --FLAVOR=${{ matrix.flavor }} \
@@ -548,6 +588,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - run: |
           earthly +run-qemu-test --PREBUILT_ISO=$(ls kairos-${{matrix.flavor}}-*.iso) \
             --FLAVOR=${{ matrix.flavor }} \
