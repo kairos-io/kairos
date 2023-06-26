@@ -92,17 +92,108 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 RUN apt-get remove -y unattended-upgrades
 
 # https://docs.nvidia.com/jetson/l4t/index.html#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/updating_jetson_and_host.html
+# root@orin:~# cat /run/data/installed_nvidia.txt | grep nv
+# cuda-nvcc-11-4/stable,now 11.4.315-1 arm64 [installed]
+# cuda-nvdisasm-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
+# cuda-nvml-dev-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
+# cuda-nvprune-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
+# cuda-nvrtc-11-4/stable,now 11.4.300-1 arm64 [installed,automatic]
+# cuda-nvrtc-dev-11-4/stable,now 11.4.300-1 arm64 [installed,automatic]
+# cuda-nvtx-11-4/stable,now 11.4.300-1 arm64 [installed,automatic]
+# libtext-iconv-perl/focal,now 1.7-7 arm64 [installed,automatic]
+# libuno-purpenvhelpergcc3-3/now 1:6.4.7-0ubuntu0.20.04.6 arm64 [installed,upgradable to: 1:6.4.7-0ubuntu0.20.04.8]
+# libv4lconvert0/focal,now 1.18.0-2build1 arm64 [installed,automatic]
+# libxnvctrl0/focal-updates,now 470.57.01-0ubuntu0.20.04.3 arm64 [installed,auto-removable]
+# network-manager-openvpn-gnome/focal,now 1.8.12-1 arm64 [installed,automatic]
+# network-manager-openvpn/focal,now 1.8.12-1 arm64 [installed,automatic]
+# nvidia-l4t-3d-core/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-apt-source/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-bootloader/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-camera/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-configs/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-core/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-cuda/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-display-kernel/stable,now 5.10.104-tegra-35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-firmware/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-gbm/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-graphics-demos/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-gstreamer/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-init/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-initrd/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-jetson-io/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-jetsonpower-gui-tools/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-kernel-dtbs/stable,now 5.10.104-tegra-35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-kernel-headers/stable,now 5.10.104-tegra-35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-kernel/stable,now 5.10.104-tegra-35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-libvulkan/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-multimedia-utils/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-multimedia/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-nvfancontrol/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-nvpmodel-gui-tools/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-nvpmodel/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-nvsci/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-oem-config/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-openwfd/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-optee/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-pva/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-tools/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-vulkan-sc-dev/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-vulkan-sc-samples/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-vulkan-sc-sdk/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-vulkan-sc/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-wayland/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-weston/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-x11/stable,now 35.3.1-20230319081403 arm64 [installed]
+# nvidia-l4t-xusb-firmware/stable,now 35.3.1-20230319081403 arm64 [installed]
+# openvpn/focal-updates,focal-security,now 2.4.7-1ubuntu2.20.04.4 arm64 [installed,automatic]
+
 RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
-    nvidia-l4t-core \
-    nvidia-l4t-init \
+    cuda-nvcc-11-4 \
+    cuda-nvdisasm-11-4 \
+    cuda-nvml-dev-11-4 \
+    cuda-nvprune-11-4 \
+    cuda-nvrtc-11-4 \
+    cuda-nvrtc-dev-11-4 \
+    cuda-nvtx-11-4 \
+    nvidia-l4t-3d-core \
+    nvidia-l4t-apt-source \
     nvidia-l4t-bootloader \
     nvidia-l4t-camera \
+    nvidia-l4t-configs \
+    nvidia-l4t-core \
+    nvidia-l4t-cuda \
+    nvidia-l4t-display-kernel \
+    nvidia-l4t-firmware \
+    nvidia-l4t-gbm \
+    nvidia-l4t-graphics-demos \
+    nvidia-l4t-gstreamer \
+    nvidia-l4t-init \
     nvidia-l4t-initrd \
-    nvidia-l4t-xusb-firmware \
-    nvidia-l4t-kernel \
+    nvidia-l4t-jetson-io \
+    nvidia-l4t-jetsonpower-gui-tools \
     nvidia-l4t-kernel-dtbs \
     nvidia-l4t-kernel-headers \
-    nvidia-l4t-cuda \
+    nvidia-l4t-kernel \
+    nvidia-l4t-libvulkan \
+    nvidia-l4t-multimedia-utils \
+    nvidia-l4t-multimedia \
+    nvidia-l4t-nvfancontrol \
+    nvidia-l4t-nvpmodel-gui-tools \
+    nvidia-l4t-nvpmodel \
+    nvidia-l4t-nvsci \
+    nvidia-l4t-oem-config \
+    nvidia-l4t-openwfd \
+    nvidia-l4t-optee \
+    nvidia-l4t-pva \
+    nvidia-l4t-tools \
+    nvidia-l4t-vulkan-sc-dev \
+    nvidia-l4t-vulkan-sc-samples \
+    nvidia-l4t-vulkan-sc-sdk \
+    nvidia-l4t-vulkan-sc \
+    nvidia-l4t-wayland \
+    nvidia-l4t-weston \
+    nvidia-l4t-x11 \
+    nvidia-l4t-xusb-firmware \
     jetson-gpio-common \
     python3-jetson-gpio
 
