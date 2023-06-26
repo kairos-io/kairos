@@ -92,7 +92,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 RUN apt-get remove -y unattended-upgrades
 
 # https://docs.nvidia.com/jetson/l4t/index.html#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/updating_jetson_and_host.html
-# root@orin:~# cat /run/data/installed_nvidia.txt | grep nv
+# root@orin:~# apt list --installed | grep nv
 # cuda-nvcc-11-4/stable,now 11.4.315-1 arm64 [installed]
 # cuda-nvdisasm-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
 # cuda-nvml-dev-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
