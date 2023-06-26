@@ -53,8 +53,8 @@ RUN zypper in -y \
     nethogs \
     nfs-utils \
     open-iscsi \
-    open-vm-tools \
     openssh \
+    open-vm-tools \
     parted \
     pigz \
     policycoreutils \
@@ -81,4 +81,4 @@ RUN zypper in -y \
     which \
     wireless-tools \
     wpa_supplicant \
-    which && zypper cc \
+    && zypper cc \

@@ -13,18 +13,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     binutils \
     conntrack \
     console-setup \
-    systemd \
-    grub-pc-bin \
-    grub-efi-amd64-bin \
-    grub2 \
-    grub2-common \
-    sudo \
-    iproute2 \
-    squashfs-tools \
-    parted dracut \
-    dracut-network dracut-live tar \
-    e2fsprogs \
-    dosfstools \
     coreutils \
     cryptsetup \
     curl \
@@ -44,11 +32,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdisk \
     gnupg \
     gnupg1-l10n \
+    grub2 \
+    grub2-common \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     grub-pc-bin \
-    grub2 \
-    grub2-common \
     haveged \
     iproute2 \
     iptables \
@@ -72,8 +60,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nfs-common \
     nftables \
     open-iscsi \
-    open-vm-tools \
     openssh-server \
+    open-vm-tools \
     os-prober \
     parted \
     patch \
