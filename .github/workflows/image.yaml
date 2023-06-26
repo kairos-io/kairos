@@ -327,6 +327,15 @@ jobs:
       with:
         go-version: '^1.20'
     - run: |
+            # install qemu-system-x86_64 and qemu-img
+            sudo apt update
+            sudo apt install -y qemu-system-x86 qemu-utils qemu-kvm acl
+
+            # Allow the "runner" user to access /dev/kvm
+            # Might not be the best solution but adding to the kvm group didn't work
+            # https://askubuntu.com/a/1081326
+            sudo setfacl -m u:runner:rwx /dev/kvm
+
             earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             earthly +iso --FLAVOR=${{ matrix.flavor }}
             export KVM=true
