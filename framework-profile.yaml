@@ -124,29 +124,26 @@ opensuse-leap-kernel:
   packages:
     - distro-kernels/opensuse-leap
     - distro-initrd/opensuse-leap
-
 ## Packages (cat/name@version) that are added to ALL flavors
 ## Static files, no binary
 common-packages:
   packages:
-  - static/grub-config
-  - dracut/immucore
-  - system/suc-upgrade
-  - system/grub2-efi
-
+    - static/grub-config
+    - dracut/immucore
+    - system/suc-upgrade
+    - system/grub2-efi
 kairos-toolchain-fips:
   packages:
-  - fips/kcrypt
-  - fips/kcrypt-challenger
-  - fips/immucore
-  - fips/kairos-agent
-
+    - fips/kcrypt
+    - fips/kcrypt-challenger
+    - fips/immucore
+    - fips/kairos-agent
 kairos-toolchain:
   packages:
-  - system/kcrypt
-  - system/kcrypt-challenger
-  - system/immucore
-  - system/kairos-agent
+    - system/kcrypt
+    - system/kcrypt-challenger
+    - system/immucore
+    - system/kairos-agent
 ubuntu-kernel:
   packages:
     - distro-kernels/ubuntu
@@ -165,9 +162,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230621111751-repository.yaml
+    reference: 20230626100306-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230613201238-repository.yaml
+    reference: 20230626110950-repository.yaml
