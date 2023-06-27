@@ -6,9 +6,6 @@ on:
       flavor:
         required: true
         type: string
-      port:
-        required: false
-        type: string
 
 jobs:
   build:
