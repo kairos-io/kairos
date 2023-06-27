@@ -145,8 +145,8 @@ jobs:
           cosign attest --type spdx --predicate $spdx $image_ref
       - name: Push to testing
         run: |
-          docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
-          docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h
+          docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h
+          docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h
   build-framework:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     needs:
@@ -466,7 +466,7 @@ jobs:
       - run: |
           earthly +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
             --FLAVOR=${{ matrix.flavor }} \
-            --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
+            --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-with-cli
       - uses: actions/upload-artifact@v3
         if: failure()
@@ -538,7 +538,7 @@ jobs:
       - run: |
           earthly +run-qemu-test --PREBUILT_ISO=$(ls kairos-${{matrix.flavor}}-*.iso) \
             --FLAVOR=${{ matrix.flavor }} \
-            --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:8h \
+            --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
       - uses: actions/upload-artifact@v3
         if: failure()
