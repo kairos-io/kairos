@@ -181,7 +181,7 @@ jobs:
       - get-matrix
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
     with:
       flavor: ${{ matrix.flavor }}
 
