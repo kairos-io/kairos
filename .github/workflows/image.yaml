@@ -290,45 +290,17 @@ jobs:
             earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
   qemu-bundles-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor
     needs:
       - build
-    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
         include:
           - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
-    steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - env:
-          KVM: true
-        run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
+    with:
+      flavor: ${{ matrix.flavor }}
 
-          earthly -P +prepare-bundles-tests
-          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }}
   qemu-reset-tests:
     needs:
       - build
