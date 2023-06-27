@@ -57,7 +57,7 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   build:
-    uses: kairos-io/kairos/.github/workflows/build-flavor.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
     needs:
       - get-matrix
     strategy:
@@ -69,7 +69,7 @@ jobs:
 
   build-framework:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-    uses: kairos-io/kairos/.github/workflows/build-framework-flavor.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@1556-pr-one-flavor
     needs:
       - get-matrix
     strategy:
@@ -79,61 +79,17 @@ jobs:
       flavor: ${{ matrix.flavor }}
 
   install-test:
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
     needs:
       - build
-    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
         include:
           - flavor: opensuse-leap
-    steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-      - name: Install deps
-        run: |
-          brew install cdrtools jq gsed
-      - name: Install Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: tests/go.mod
-          cache-dependency-path: tests/go.sum
-      - run: |
-          export ISO=$PWD/$(ls *.iso)
-          export GOPATH="/Users/runner/go"
-          export PATH=$PATH:$GOPATH/bin
-          export CREATE_VM=true
-          export FLAVOR=${{ matrix.flavor }}
-          cd tests
-          go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "install-test" --fail-fast -r ./...
-      - uses: actions/upload-artifact@v3
-        if: failure()
-        with:
-          name: ${{ matrix.flavor }}-vbox.logs.zip
-          path: tests/**/logs/*
-          if-no-files-found: warn
-  # This job is used to download the latest release and then used by the upgrade-latest-* jobs
-  latest-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          # A flag to set the download target as latest release
-          # The default value is 'false'
-          latest: true
-          repository: kairos-io/kairos
-          fileName: '*opensuse-leap-v*.iso'
-          out-file-path: last-release
-      - uses: actions/upload-artifact@v3
-        with:
-          name: latest-release.zip
-          path: last-release
-          if-no-files-found: error
+    with:
+      flavor: ${{ matrix.flavor }}
+
   zfs-tests:
     needs:
       - build
@@ -160,6 +116,24 @@ jobs:
           mkdir build
           mv $ISO build/kairos.iso
           earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ matrix.flavor }}
+
+  # This job is used to download the latest release and then used by the upgrade-latest-* jobs
+  latest-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          # A flag to set the download target as latest release
+          # The default value is 'false'
+          latest: true
+          repository: kairos-io/kairos
+          fileName: '*opensuse-leap-v*.iso'
+          out-file-path: last-release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: latest-release.zip
+          path: last-release
+          if-no-files-found: error
   qemu-acceptance-tests:
     needs:
       - build
