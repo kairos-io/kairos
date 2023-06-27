@@ -867,13 +867,13 @@ pull-build-artifacts:
     COPY +uuidgen/UUIDGEN ./
     COPY +version/VERSION ./
     ARG UUIDGEN=$(cat UUIDGEN)
-    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
 
     COPY +luet/luet /usr/bin/luet
     RUN luet util unpack $BUNDLE_IMAGE build
     SAVE ARTIFACT build AS LOCAL build
 
-## Push build artifacts as BUNDLE_IMAGE (expected arg, common is to use ttl.sh/$(uuidgen):8h)
+## Push build artifacts as BUNDLE_IMAGE (expected arg, common is to use ttl.sh/$(uuidgen):24h)
 push-build-artifacts:
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -881,7 +881,7 @@ push-build-artifacts:
     COPY +uuidgen/UUIDGEN ./
     COPY +version/VERSION ./
     ARG UUIDGEN=$(cat UUIDGEN)
-    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
 
     COPY . .
     COPY +luet/luet /usr/bin/luet
@@ -902,7 +902,7 @@ prepare-bundles-tests:
     COPY +uuidgen/UUIDGEN ./
     COPY +version/VERSION ./
     ARG UUIDGEN=$(cat UUIDGEN)
-    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:8h
+    ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
    # BUILD +examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE
     ARG VERSION=$(cat VERSION)
     RUN echo "version ${VERSION}"
