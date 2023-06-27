@@ -197,32 +197,17 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
 
-  zfs-tests:
+  zfs-test:
+    uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor
     needs:
       - build
-    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
         include:
           - flavor: "ubuntu"
-    steps:
-      - uses: actions/checkout@v3
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - run: |
-          ls -liah
-          export ISO=$PWD/$(ls *.iso)
-          mkdir build
-          mv $ISO build/kairos.iso
-          earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ matrix.flavor }}
+    with:
+      flavor: ${{ matrix.flavor }}
 
   # This job is used to download the latest release and then used by the upgrade-latest-* jobs
   latest-release:
