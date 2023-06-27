@@ -92,5 +92,5 @@ jobs:
           cosign attest --type spdx --predicate $spdx $image_ref
       - name: Push to testing
         run: |
-          docker tag quay.io/kairos/core-${{ inputs.flavor }}:latest ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:8h
-          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:8h
+          docker tag quay.io/kairos/core-${{ inputs.flavor }}:latest ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h
+          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h
