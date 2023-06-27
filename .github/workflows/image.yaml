@@ -57,14 +57,9 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   build:
-    runs-on: ubuntu-latest
+    uses: kairos-io/kairos/.github/workflows/build-flavor.yaml@1556-pr-one-flavor
     needs:
       - get-matrix
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
