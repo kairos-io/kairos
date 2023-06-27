@@ -344,6 +344,7 @@ jobs:
             export ISO="$PWD/build/$(ls *.iso)"
             export USE_QEMU=true
             export CREATE_VM=true
+            export FLAVOR=${{ matrix.flavor }}
 
             go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
             ginkgo -v --label-filter=autoinstall-test -v tests/
