@@ -176,49 +176,15 @@ jobs:
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h
   build-framework:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    uses: kairos-io/kairos/.github/workflows/build-framework-flavor.yaml@1556-pr-one-flavor
     needs:
-      - get-framework-matrix
-    runs-on: self-hosted
-    permissions:
-      id-token: write
+      - get-matrix
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
-    steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Login to Quay Registry
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Build framework image 🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: "quay.io/kairos/framework"
-          TAG: "master_${{ matrix.flavor }}"
-          COSIGN_YES: true
-        run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
-          earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
-          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+    with:
+      flavor: ${{ matrix.flavor }}
+
   install-test:
     needs:
       - build
