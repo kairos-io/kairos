@@ -1,0 +1,31 @@
+name: Reusable workflow - qemu acceptance test
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        required: true
+        type: string
+      port:
+        required: false
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
+    - name: Download artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: kairos-${{ inputs.flavor }}.iso.zip
+    - name: Install earthly
+      uses: Luet-lab/luet-install-action@v1
+      with:
+        repository: quay.io/kairos/packages
+        packages: utils/earthly
+    - run: |
+            earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ inputs.flavor }} --SSH_PORT=${{ inputs.port }}
