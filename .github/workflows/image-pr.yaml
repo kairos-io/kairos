@@ -9,73 +9,72 @@ concurrency:
   cancel-in-progress: true
 env:
   FORCE_COLOR: 1
-  FLAVOR: opensuse-leap
 jobs:
   build:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
 
   install-test:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
       - build
 
   zfs-test:
     uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
       - build
 
   qemu-acceptance-tests:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
       - build
 
   qemu-bundles-tests:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
       - build
 
   qemu-reset-tests:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
       - build
 
   qemu-netboot-tests:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
       - build
 
   upgrade-with-cli-test:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
       - build
 
   upgrade-latest-with-cli-test:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
     needs:
     - build
 
   encryption-tests:
     uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@1556-pr-one-flavor
     with:
-      flavor: $FLAVOR
+      flavor: opensuse-leap
       label: ${{ matrix.label }}
     needs:
       - build
