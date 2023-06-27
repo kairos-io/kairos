@@ -15,13 +15,6 @@ jobs:
     with:
       flavor: opensuse-leap
 
-  # TODO: Do we need to build framework images on PRs?
-  build-framework:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-    uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@1556-pr-one-flavor
-    with:
-      flavor: opensuse-leap
-
   install-test:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
     with:
