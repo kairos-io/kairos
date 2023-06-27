@@ -1,0 +1,23 @@
+name: Reusable workflow - qemu netboot test
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - run: |
+          earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ inputs.flavor }}

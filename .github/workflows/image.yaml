@@ -58,28 +58,30 @@ jobs:
 
   build:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - get-matrix
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
-    with:
-      flavor: ${{ matrix.flavor }}
 
 
   build-framework:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - get-matrix
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
-    with:
-      flavor: ${{ matrix.flavor }}
 
   install-test:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - build
     strategy:
@@ -87,11 +89,11 @@ jobs:
       matrix:
         include:
           - flavor: opensuse-leap
-    with:
-      flavor: ${{ matrix.flavor }}
 
   zfs-test:
     uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - build
     strategy:
@@ -99,11 +101,11 @@ jobs:
       matrix:
         include:
           - flavor: "ubuntu"
-    with:
-      flavor: ${{ matrix.flavor }}
 
   qemu-acceptance-tests:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - build
     strategy:
@@ -117,11 +119,11 @@ jobs:
           - flavor: "debian"
           - flavor: "ubuntu-20-lts"
           - flavor: "ubuntu-22-lts"
-    with:
-      flavor: ${{ matrix.flavor }}
 
   qemu-bundles-tests:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - build
     strategy:
@@ -129,54 +131,26 @@ jobs:
       matrix:
         include:
           - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
-    with:
-      flavor: ${{ matrix.flavor }}
 
   qemu-reset-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - build
-    runs-on: self-hosted
     strategy:
       fail-fast: false
       matrix:
         include:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
-    steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - env:
-          KVM: true
-        run: |
-            # Configure earthly to use the docker mirror in CI
-            # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-            mkdir -p ~/.earthly/
-            cat << EOF > ~/.earthly/config.yml
-            global:
-              buildkit_additional_config: |
-                [registry."docker.io"]
-                  mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-                [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                  insecure = true
-                  http = true
-            EOF
-            earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            earthly -P +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
 
   qemu-netboot-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - build
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -184,17 +158,6 @@ jobs:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
           - flavor: ubuntu
-    steps:
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - run: |
-          earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
 
   # This job is used to download the latest release and then used by the upgrade-latest-* jobs
   latest-release:
