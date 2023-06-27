@@ -102,27 +102,10 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
 
-  # This job is used to download the latest release and then used by the upgrade-latest-* jobs
-  latest-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          # A flag to set the download target as latest release
-          # The default value is 'false'
-          latest: true
-          repository: kairos-io/kairos
-          fileName: '*opensuse-leap-v*.iso'
-          out-file-path: last-release
-      - uses: actions/upload-artifact@v3
-        with:
-          name: latest-release.zip
-          path: last-release
-          if-no-files-found: error
   qemu-acceptance-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor
     needs:
       - build
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -134,22 +117,9 @@ jobs:
           - flavor: "debian"
           - flavor: "ubuntu-20-lts"
           - flavor: "ubuntu-22-lts"
-    steps:
-    - uses: actions/checkout@v3
-    - run: |
-        git fetch --prune --unshallow
-    - name: Download artifacts
-      uses: actions/download-artifact@v3
-      with:
-        name: kairos-${{ matrix.flavor }}.iso.zip
-    - name: Install earthly
-      uses: Luet-lab/luet-install-action@v1
-      with:
-        repository: quay.io/kairos/packages
-        packages: utils/earthly
-    - run: |
-            earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+    with:
+      flavor: ${{ matrix.flavor }}
+
   qemu-bundles-tests:
     needs:
       - build
@@ -253,6 +223,24 @@ jobs:
           packages: utils/earthly
       - run: |
           earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
+
+  # This job is used to download the latest release and then used by the upgrade-latest-* jobs
+  latest-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: robinraju/release-downloader@v1.8
+        with:
+          # A flag to set the download target as latest release
+          # The default value is 'false'
+          latest: true
+          repository: kairos-io/kairos
+          fileName: '*opensuse-leap-v*.iso'
+          out-file-path: last-release
+      - uses: actions/upload-artifact@v3
+        with:
+          name: latest-release.zip
+          path: last-release
+          if-no-files-found: error
   upgrade-with-cli-test:
     needs:
       - build
