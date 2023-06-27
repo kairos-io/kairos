@@ -1,0 +1,96 @@
+name: Build and test PRs
+on:
+  pull_request:
+    paths:
+      - '**'
+
+concurrency:
+  group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+env:
+  FORCE_COLOR: 1
+jobs:
+  build:
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+
+  # TODO: Do we need to build framework images on PRs?
+  build-framework:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+
+  install-test:
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+      - build
+
+  zfs-test:
+    uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+      - build
+
+  qemu-acceptance-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+      - build
+
+  qemu-bundles-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+      - build
+
+  qemu-reset-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+      - build
+
+  qemu-netboot-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+      - build
+
+  upgrade-with-cli-test:
+    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+      - build
+
+  upgrade-latest-with-cli-test:
+    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+    needs:
+    - build
+
+  encryption-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap
+      label: ${{ matrix.label }}
+    needs:
+      - build
+    strategy:
+      fail-fast: true
+      matrix:
+        label:
+          - "local-encryption"
+          - "remote-auto"
+          - "remote-static"
+          - "remote-https-pinned"
+          - "remote-https-bad-cert"

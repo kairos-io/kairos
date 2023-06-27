@@ -1,11 +1,8 @@
-name: Build image
+name: Build and test images
 on:
   push:
     branches:
       - master
-    paths:
-      - '**'
-  pull_request:
     paths:
       - '**'
 
