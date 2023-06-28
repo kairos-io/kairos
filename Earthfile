@@ -20,7 +20,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.7.6
+ARG OSBUILDER_VERSION=v0.7.7
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -93,8 +93,7 @@ go-deps-test:
     SAVE ARTIFACT go.mod go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum go.sum AS LOCAL go.sum
 
-OSRELEASE:
-    COMMAND
+update-os-release:
     ARG OS_ID
     ARG OS_NAME
     ARG OS_REPO
@@ -102,13 +101,15 @@ OSRELEASE:
     ARG OS_LABEL
     ARG VARIANT
     ARG FLAVOR
-    ARG GITHUB_REPO
-    ARG BUG_REPORT_URL
-    ARG HOME_URL
 
-    # update OS-release file
-    RUN sed -i -n '/KAIROS_/!p' /etc/os-release
-    RUN envsubst >>/etc/os-release </usr/lib/os-release.tmpl
+    FROM $OSBUILDER_IMAGE
+    RUN zypper install -y gettext
+    RUN mkdir /workspace
+    COPY +base-image/Osrelease /workspace/os-release
+    WITH DOCKER --allow-privileged
+        RUN HOME_URL=https://github.com/kairos-io/kairos BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues GITHUB_REPO=kairos-io/kairos VARIANT=${VARIANT} FLAVOR=${FLAVOR} OS_ID=${OS_ID} OS_LABEL=${OS_LABEL} OS_NAME=${OS_NAME} OS_REPO=${OS_REPO} OS_VERSION=${OS_VERSION} /update-os-release.sh
+    END
+    SAVE ARTIFACT /workspace/os-release Osrelease
 
 uuidgen:
     FROM alpine
@@ -382,8 +383,9 @@ base-image:
         END
     END
 
-
     RUN rm -rf /tmp/*
+
+    SAVE ARTIFACT /etc/os-release Osrelease
 
 image:
     ARG BUILD_INITRD="true"
@@ -406,7 +408,9 @@ image:
     ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
     ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
     ARG OS_LABEL=latest
-    DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
+
+    COPY (+update-os-release/Osrelease --VERSION=$VERSION --OS_ID=$OS_ID --OS_NAME=$OS_NAME --OS_REPO=$OS_REPO --OS_VERSION=$OS_VERSION --OS_LABEL=$OS_LABEL --VARIANT=$VARIANT --FLAVOR=$FLAVOR) /etc/os-release
+
     SAVE IMAGE $IMAGE
 
 image-rootfs:
