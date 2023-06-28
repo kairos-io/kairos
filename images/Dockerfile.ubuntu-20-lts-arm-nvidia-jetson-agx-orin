@@ -195,7 +195,11 @@ RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
     nvidia-l4t-x11 \
     nvidia-l4t-xusb-firmware \
     jetson-gpio-common \
-    python3-jetson-gpio
+    python3-jetson-gpio \
+    cuda-nvcc-11-4  git  libssl-dev libcublas-11-4 libcublas-dev-11-4 cuda-cudart-11-4 cuda-cudart-dev-11-4
+
+RUN apt-get install -y libopencv-dev && \
+    ln -s /usr/include/opencv4/opencv2 /usr/include/opencv2
 
 # Symlinks to make installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
