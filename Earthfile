@@ -635,8 +635,14 @@ prepare-arm-image:
   ARG IMAGE_NAME=${FLAVOR}.img
   WORKDIR /build
   # These sizes are in MB
+  
   ENV SIZE="15200"
-  IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+
+  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+    ENV STATE_SIZE="14000"
+    ENV RECOVERY_SIZE="10000"
+    ENV DEFAULT_ACTIVE_SIZE="4500"
+  ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
     ENV STATE_SIZE="6900"
     ENV RECOVERY_SIZE="4600"
     ENV DEFAULT_ACTIVE_SIZE="2500"

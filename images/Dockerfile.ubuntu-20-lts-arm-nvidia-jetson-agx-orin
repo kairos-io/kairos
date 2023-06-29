@@ -54,6 +54,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     file \
     fuse \
     gawk \
+    git \
     grub2-common \
     grub-efi-arm64-bin \
     haveged \
@@ -67,6 +68,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     lvm2 \
     mdadm \
     nbd-client \
+    libssl-dev \
     ncurses-term \
     networkd-dispatcher \
     nfs-common \
@@ -85,6 +87,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     sudo \
     systemd \
     systemd-timesyncd \
+    vim \
     xdg-user-dirs \
     xxd \
     xz-utils
@@ -148,6 +151,8 @@ RUN apt-get remove -y unattended-upgrades
 # openvpn/focal-updates,focal-security,now 2.4.7-1ubuntu2.20.04.4 arm64 [installed,automatic]
 
 RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
+    cuda-cudart-11-4 \
+    cuda-cudart-dev-11-4 \
     cuda-nvcc-11-4 \
     cuda-nvdisasm-11-4 \
     cuda-nvml-dev-11-4 \
@@ -155,6 +160,8 @@ RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
     cuda-nvrtc-11-4 \
     cuda-nvrtc-dev-11-4 \
     cuda-nvtx-11-4 \
+    libcublas-11-4 \
+    libcublas-dev-11-4 \
     nvidia-l4t-3d-core \
     nvidia-l4t-apt-source \
     nvidia-l4t-bootloader \
@@ -197,12 +204,10 @@ RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
     jetson-gpio-common \
     python3-jetson-gpio
 
+# OpenCV setup
+RUN apt-get install -y libopencv-dev && \
+    ln -s /usr/include/opencv4/opencv2 /usr/include/opencv2
+
 # Symlinks to make installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
     ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
-
-# RUN rm -rf /opt/nvidia/l4t-packages
-# RUN rm -rf /var/lib/apt/lists/*
-# RUN useradd -ms /bin/bash jetson
-# RUN echo 'jetson:jetson' | chpasswd
-# RUN usermod -a -G sudo jetson
