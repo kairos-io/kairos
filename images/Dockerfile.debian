@@ -71,6 +71,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     psmisc \
     publicsuffix \
     python3-pynvim \
+    qemu-guest-agent \
     rsync \
     shared-mime-info \
     snapd \
