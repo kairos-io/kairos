@@ -131,7 +131,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          earthly +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
+          earthly -P +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
           sudo mv build release
       - name: Push to quay
         env:
