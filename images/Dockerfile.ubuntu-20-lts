@@ -58,6 +58,7 @@ RUN apt-get update \
     patch \
     policykit-1 \
     publicsuffix \
+    qemu-guest-agent \
     rsync \
     shared-mime-info \
     snapd \

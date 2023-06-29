@@ -33,6 +33,7 @@ RUN dnf install -y \
     openssh-server \
     parted \
     polkit \
+    qemu-guest-agent \
     rsync \
     shim-x64 \
     squashfs-tools \

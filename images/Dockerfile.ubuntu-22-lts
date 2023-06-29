@@ -55,6 +55,7 @@ RUN apt-get update \
     os-prober \
     packagekit-tools \
     parted \
+    qemu-guest-agent \
     pigz \
     polkitd \
     publicsuffix \

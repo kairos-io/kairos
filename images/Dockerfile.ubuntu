@@ -61,6 +61,7 @@ RUN apt-get update \
     pkg-config \
     polkitd \
     publicsuffix \
+    qemu-guest-agent \
     rsync \
     shared-mime-info \
     snapd \
