@@ -18,4 +18,4 @@ install:
 
 Notes:
 - The dracut patch is needed as Ubuntu has an older version of systemd
-- Most of the Dockerfile configuration are: packages being installed by ubuntu, and the framework files coming from Kairos containing FIPS-enabled packages
+- Most of the Dockerfile configuration are: packages being installed by Ubuntu, and the framework files coming from Kairos containing FIPS-enabled packages
