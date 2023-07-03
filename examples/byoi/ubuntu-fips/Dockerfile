@@ -7,7 +7,7 @@ FROM ubuntu:focal as base
 
 # Generate os-release file
 FROM quay.io/kairos/osbuilder-tools:latest as osbuilder
-RUN zypper install -y gettext
+RUN zypper install -y gettext && zypper clean
 RUN mkdir /workspace
 COPY --from=base /etc/os-release /workspace/os-release
 # You should change the following values according to your own versioning and other details
@@ -38,9 +38,7 @@ RUN --mount=type=secret,id=pro-attach-config \
     && pro attach --attach-config /run/secrets/pro-attach-config \
     && apt-get upgrade -y \
     && apt-get install -y openssl libssl1.1 libssl1.1-hmac libgcrypt20 libgcrypt20-hmac strongswan strongswan-hmac openssh-client openssh-server linux-image-fips \
-    && pro detach --assume-yes \
-    && apt-get purge --auto-remove -y ubuntu-advantage-tools \
-    && rm -rf /var/lib/apt/lists/*
+    && pro detach --assume-yes
 
 
 ## Kairos setup
@@ -115,7 +113,9 @@ RUN apt-get install -y --no-install-recommends \
     zerofree \
     zfsutils-linux \
     zstd \
-    && apt-get remove -y unattended-upgrades && apt-get clean
+    && apt-get remove -y unattended-upgrades && apt-get clean \
+    && apt-get purge --auto-remove -y ubuntu-advantage-tools \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy the Kairos framework files. We use master builds here for fedora. See https://quay.io/repository/kairos/framework?tab=tags for a list
 COPY --from=kairos-fips / /
