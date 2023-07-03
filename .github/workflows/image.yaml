@@ -94,7 +94,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
         run: |
-          earthly +ci --SECURITY_SCANS=false --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          earthly +ci --SECURITY_SCANS=false --IMAGE=$IMAGE --FLAVOR=$FLAVOR --KAIROS_AGENT_DEV=true
           sudo mv build/* .
           sudo rm -rf build
       - name: Build master 🔧
@@ -103,7 +103,7 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: quay.io/kairos/core-${{ matrix.flavor }}:latest
         run: |
-          earthly +ci --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          earthly +ci --IMAGE=$IMAGE --FLAVOR=$FLAVOR --KAIROS_AGENT_DEV=true
           sudo mv build/* .
           sudo rm -rf build
           mkdir sarif
@@ -189,7 +189,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
+          earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master --KAIROS_AGENT_DEV=true
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
   install-test:
@@ -273,7 +273,7 @@ jobs:
           export ISO=$PWD/$(ls *.iso)
           mkdir build
           mv $ISO build/kairos.iso
-          earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ matrix.flavor }}
+          earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ matrix.flavor }} --KAIROS_AGENT_DEV=true
   qemu-acceptance-tests:
     needs:
       - build
@@ -303,8 +303,8 @@ jobs:
         repository: quay.io/kairos/packages
         packages: utils/earthly
     - run: |
-            earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }}
+            earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml --KAIROS_AGENT_DEV=true
+            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --SSH_PORT=${{ matrix.port }} --KAIROS_AGENT_DEV=true
   qemu-bundles-tests:
     needs:
       - build
@@ -343,8 +343,8 @@ jobs:
                 http = true
           EOF
 
-          earthly -P +prepare-bundles-tests
-          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }}
+          earthly -P +prepare-bundles-tests --KAIROS_AGENT_DEV=true
+          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=$(ls *.iso) --FLAVOR=${{ matrix.flavor }} --KAIROS_AGENT_DEV=true
   qemu-reset-tests:
     needs:
       - build
@@ -383,8 +383,8 @@ jobs:
                   insecure = true
                   http = true
             EOF
-            earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            earthly -P +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }}
+            earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml --KAIROS_AGENT_DEV=true
+            earthly -P +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --TEST_SUITE=reset-test --FLAVOR=${{ matrix.flavor }} --KAIROS_AGENT_DEV=true
 
   qemu-netboot-tests:
     needs:
@@ -407,7 +407,7 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - run: |
-          earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }}
+          earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ matrix.flavor }} --KAIROS_AGENT_DEV=true
   upgrade-with-cli-test:
     needs:
       - build
@@ -467,7 +467,7 @@ jobs:
           earthly +run-qemu-test --PREBUILT_ISO=$(ls *.iso) \
             --FLAVOR=${{ matrix.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h \
-            --TEST_SUITE=upgrade-with-cli
+            --TEST_SUITE=upgrade-with-cli --KAIROS_AGENT_DEV=true
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
@@ -539,7 +539,7 @@ jobs:
           earthly +run-qemu-test --PREBUILT_ISO=$(ls kairos-${{matrix.flavor}}-*.iso) \
             --FLAVOR=${{ matrix.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h \
-            --TEST_SUITE=upgrade-latest-with-cli
+            --TEST_SUITE=upgrade-latest-with-cli --KAIROS_AGENT_DEV=true
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
