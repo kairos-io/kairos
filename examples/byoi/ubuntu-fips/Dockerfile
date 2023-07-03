@@ -132,7 +132,15 @@ COPY dracut-broken-iscsi-ubuntu-20.patch /
 RUN cd /usr/lib/dracut/modules.d/95iscsi && patch < /dracut-broken-iscsi-ubuntu-20.patch && rm -rf /dracut-broken-iscsi-ubuntu-20.patch
 
 COPY dracut.conf /etc/dracut.conf.d/kairos-fips.conf
-
+# CLEANUP
+# Installing dracut and fips creates this default packages and symlinks and we dont want that
+# We want to fully rebuild and link our initrd
+RUN rm -Rf /boot/vmlinuz.old # symlink
+RUN rm -Rf /boot/vmlinuz.img.old # symlink
+RUN rm -Rf /boot/vmlinuz.img # symlink
+RUN rm -Rf /boot/initrd.img.old # symlink to wrong initrd (no immucore, no kairos-agent)
+RUN rm -Rf /boot/initrd.img # symlink to wrong initrd (no immucore, no kairos-agent)
+RUN rm -Rf /boot/initrd.img-* # wrong initrd (no immucore, no kairos-agent)
 ## Generate initrd
 RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && \
             ln -sf "${kernel#/boot/}" /boot/vmlinuz
