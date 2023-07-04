@@ -3,6 +3,12 @@
   "extends": [
     "config:base"
   ],
+  "schedule": [
+    "after 11pm every weekday",
+    "before 7am every weekday",
+    "every weekend"
+  ],
+  "timezone": "Europe/Brussels",
   "regexManagers": [
     {
       "fileMatch": [
