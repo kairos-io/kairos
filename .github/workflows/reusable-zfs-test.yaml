@@ -1,0 +1,29 @@
+name: Reusable workflow - zfs test
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - run: |
+          ls -liah
+          export ISO=$PWD/$(ls *.iso)
+          mkdir build
+          mv $ISO build/kairos.iso
+          earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ inputs.flavor }}

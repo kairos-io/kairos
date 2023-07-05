@@ -1,0 +1,81 @@
+name: Reusable workflow - upgrade latest with cli test
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        required: true
+        type: string
+      label:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release space from worker
+        run: |
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          df -h
+          echo
+          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+          sudo rm -rf /usr/share/dotnet
+          sudo apt-get remove -y '^mono-.*' || true
+          sudo apt-get remove -y '^ghc-.*' || true
+          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+          sudo apt-get remove -y 'php.*' || true
+          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+          sudo apt-get remove -y '^google-.*' || true
+          sudo apt-get remove -y azure-cli || true
+          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+          sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          sudo rm -rfv build || true
+          df -h
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - name: Deps
+        run: |
+          sudo apt update && \
+          sudo apt install -y git qemu-system-x86 qemu-utils swtpm jq make glibc-tools \
+          openssl curl gettext ca-certificates curl gnupg lsb-release
+
+          curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          sudo mkdir -p /etc/luet/repos.conf.d/
+          sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
+          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d utils/earthly
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Run tests
+        env:
+          LABEL: ${{ inputs.label }}
+          EMULATE_TPM: true
+          USE_QEMU: true
+        run: |
+          export ISO=$PWD/$(ls *.iso)
+          .github/encryption-tests.sh
