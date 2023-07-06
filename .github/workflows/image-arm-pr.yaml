@@ -1,0 +1,25 @@
+name: 'Push latest ARM images'
+
+on:
+  pull_request:
+    paths:
+      - '**'
+
+concurrency:
+  group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+env:
+  FORCE_COLOR: 1
+
+jobs:
+  docker:
+    uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap-arm-rpi
+      model: rpi64
+      worker: ubuntu-latest
+
+  image_and_iso_arm64_generic:
+    uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@1556-pr-one-flavor
+    with:
+      flavor: opensuse-leap-arm-rpi
