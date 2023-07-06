@@ -54,8 +54,6 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: kairos-${{ inputs.flavor }}.iso.zip
-    - name: Unzip ISO
-      run: ls -las ${{steps.iso.outputs.download-path}} && unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
     - name: Install earthly
       uses: Luet-lab/luet-install-action@v1
       with:
