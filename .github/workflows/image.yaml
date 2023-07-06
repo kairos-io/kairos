@@ -54,7 +54,7 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   build:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -66,7 +66,7 @@ jobs:
 
   build-framework:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-    uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -76,7 +76,7 @@ jobs:
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
 
   install-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -88,7 +88,7 @@ jobs:
           - flavor: opensuse-leap
 
   zfs-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -100,7 +100,7 @@ jobs:
           - flavor: "ubuntu"
 
   qemu-acceptance-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -118,7 +118,7 @@ jobs:
           - flavor: "ubuntu-22-lts"
 
   qemu-bundles-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -130,7 +130,7 @@ jobs:
           - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
 
   qemu-reset-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -143,7 +143,7 @@ jobs:
           - flavor: opensuse-leap
 
   qemu-netboot-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -157,7 +157,7 @@ jobs:
           - flavor: ubuntu
 
   upgrade-with-cli-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -170,7 +170,7 @@ jobs:
           - flavor: opensuse-leap
 
   upgrade-latest-with-cli-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -186,7 +186,7 @@ jobs:
           # - flavor: "ubuntu"
 
   encryption-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@1556-pr-one-flavor
+    uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
