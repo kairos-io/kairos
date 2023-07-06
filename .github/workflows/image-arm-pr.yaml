@@ -13,13 +13,13 @@ env:
 
 jobs:
   docker:
-    uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: opensuse-leap-arm-rpi
       model: rpi64
       worker: ubuntu-latest
 
   image_and_iso_arm64_generic:
-    uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: opensuse-leap-arm-rpi

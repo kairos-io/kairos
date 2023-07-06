@@ -31,7 +31,7 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   docker:
-    uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
       model: ${{ matrix.model }}
@@ -43,7 +43,7 @@ jobs:
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
 
   image_and_iso_arm64_generic:
-    uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
     needs:

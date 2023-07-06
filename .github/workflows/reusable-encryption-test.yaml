@@ -67,15 +67,18 @@ jobs:
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d utils/earthly
-      - name: Download artifacts
+      - name: Download ISO
+        id: iso
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Unzip ISO
+        run: unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
       - name: Run tests
         env:
           LABEL: ${{ inputs.label }}
           EMULATE_TPM: true
           USE_QEMU: true
         run: |
-          export ISO=$PWD/$(ls *.iso)
+          export ISO=${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso
           .github/encryption-tests.sh

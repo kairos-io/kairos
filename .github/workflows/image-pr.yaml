@@ -11,54 +11,54 @@ env:
   FORCE_COLOR: 1
 jobs:
   build:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
 
   install-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
       - build
 
   zfs-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
       - build
 
   qemu-acceptance-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
       - build
 
   qemu-bundles-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
       - build
 
   qemu-reset-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
       - build
 
   qemu-netboot-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
       - build
 
   upgrade-with-cli-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
@@ -72,7 +72,7 @@ jobs:
     - build
 
   encryption-tests:
-    uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
       label: ${{ matrix.label }}
