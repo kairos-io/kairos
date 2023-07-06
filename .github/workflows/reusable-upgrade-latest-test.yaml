@@ -74,6 +74,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Unzip iso
+        run: unzip kairos-${{ inputs.flavor }}.iso.zip
       - name: Release space from worker
         run: |
           echo "Listing top largest packages"
