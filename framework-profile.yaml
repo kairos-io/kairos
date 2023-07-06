@@ -52,6 +52,11 @@ flavors:
     - kairos-toolchain-fips
     - systemd-base
     - dracut-network-legacy-compat
+  fips-systemd:
+    - common-packages
+    - kairos-toolchain-fips-static
+    - systemd-base
+    - dracut-network-legacy-compat
   fedora:
     - common-packages
     - kairos-toolchain
@@ -138,6 +143,12 @@ kairos-toolchain-fips:
     - fips/kcrypt-challenger
     - fips/immucore
     - fips/kairos-agent
+kairos-toolchain-fips-static:
+  packages:
+    - fips-static/kcrypt
+    - fips-static/kcrypt-challenger
+    - fips-static/immucore
+    - fips-static/kairos-agent
 kairos-toolchain:
   packages:
     - system/kcrypt
