@@ -65,7 +65,7 @@ jobs:
       - build
 
   upgrade-latest-with-cli-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@master
+    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
