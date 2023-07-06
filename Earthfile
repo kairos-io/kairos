@@ -1023,6 +1023,47 @@ bump-repositories:
     ARG REPO_AMD64=$(cat REPO_AMD64)
     ARG REPO_ARM64=$(cat REPO_ARM64)
     COPY framework-profile.yaml framework-profile.yaml
+    ARG OLD_REPO_AMD64=$(yq eval '.repositories[0].reference' framework-profile.yaml)
+    ARG OLD_REPO_ARM64=$(yq eval '.repositories[1].reference' framework-profile.yaml)
+    IF [[ "$OLD_REPO_AMD64" != "$REPO_AMD64" ]]
+        RUN --no-cache echo "[AMD64] Checking diff between $OLD_REPO_AMD64 and newer repo $REPO_AMD64" && exit 1
+        DO +EXTRACT_REPO_CHANGES --BASE_REPO=quay.io/kairos/packages --OLD_REFERENCE=$OLD_REPO_AMD64 --NEW_REFERENCE=$REPO_AMD64
+        RUN echo "Changes in quay.io/kairos/packages:" >> CHANGELOG_BUMP
+        RUN cat CHANGELOG >> CHANGELOG_BUMP
+        RUN rm CHANGELOG
+    END
+    IF [[ "$OLD_REPO_ARM64" != "$REPO_ARM64" ]]
+        RUN --no-cache echo "[ARM64] Checking diff between $OLD_REPO_ARM64 and newer repo $REPO_ARM64" && exit 1
+        DO +EXTRACT_REPO_CHANGES --BASE_REPO=quay.io/kairos/packages-arm64 --OLD_REFERENCE=$OLD_REPO_ARM64 --NEW_REFERENCE=$REPO_ARM64
+        RUN echo "Changes in quay.io/kairos/packages-arm64:" >> CHANGELOG_BUMP
+        RUN cat CHANGELOG >> CHANGELOG_BUMP
+        RUN rm CHANGELOG
+    END
+    COPY framework-profile.yaml framework-profile.yaml
     RUN yq eval ".repositories[0] |= . * { \"reference\": \"${REPO_AMD64}\" }" -i framework-profile.yaml
     RUN yq eval ".repositories[1] |= . * { \"reference\": \"${REPO_ARM64}\" }" -i framework-profile.yaml
+    IF [[ -e CHANGELOG_BUMP ]]
+        SAVE ARTIFACT CHANGELOG_BUMP AS LOCAL CHANGELOG_BUMP
+    END
     SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
+
+EXTRACT_REPO_CHANGES:
+    COMMAND
+    ARG BASE_REPO
+    ARG OLD_REFERENCE
+    ARG NEW_REFERENCE
+    FROM alpine
+    RUN apk --no-cache add yq go
+    COPY +luet/luet /usr/bin/luet
+    COPY .github/repochanges /repochanges
+    WORKDIR /repochanges
+    ARG OLD_REFERENCE_META=$(basename $OLD_REFERENCE .yaml).meta.yaml.tar
+    ARG NEW_REFERENCE_META=$(basename $NEW_REFERENCE .yaml).meta.yaml.tar
+    RUN luet util unpack $BASE_REPO:$OLD_REFERENCE_META /tmp/oldrepo
+    RUN luet util unpack $BASE_REPO:$NEW_REFERENCE_META /tmp/newrepo
+    RUN tar xvf /tmp/oldrepo/$OLD_REFERENCE_META && mv repository.meta.yaml repository.old.meta.yaml
+    RUN tar xvf /tmp/newrepo/$NEW_REFERENCE_META && mv repository.meta.yaml repository.new.meta.yaml
+    RUN yq '.index[]| select(.files|length > 0 ) | [{"name": .runtime.name, "category": .runtime.category, "version": .runtime.version}]' -i repository.old.meta.yaml
+    RUN yq '.index[]| select(.files|length > 0 ) | [{"name": .runtime.name, "category": .runtime.category, "version": .runtime.version}]' -i repository.new.meta.yaml
+    RUN go run main.go repository.old.meta.yaml repository.new.meta.yaml > CHANGELOG
+    RUN cat CHANGELOG

@@ -23,4 +23,5 @@ jobs:
           commit-message: ':arrow_up: Update repositories'
           title: ':arrow_up: Update repositories'
           body: Bump of Kairos repositories
+          body-path: CHANGELOG_BUMP
           signoff: true
