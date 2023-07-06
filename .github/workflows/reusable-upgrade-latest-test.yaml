@@ -77,7 +77,7 @@ jobs:
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
       - name: Unzip ISO
-        run: unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
+        run: ls -las ${{steps.iso.outputs.download-path}} && unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
       - name: Release space from worker
         run: |
           echo "Listing top largest packages"

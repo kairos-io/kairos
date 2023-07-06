@@ -20,7 +20,7 @@ jobs:
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
       - name: Unzip ISO
-        run: unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
+        run: ls -las ${{steps.iso.outputs.download-path}} && unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
       - name: Install deps
         run: |
           brew install cdrtools jq gsed

@@ -73,7 +73,7 @@ jobs:
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
       - name: Unzip ISO
-        run: unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
+        run: ls -las ${{steps.iso.outputs.download-path}} && unzip ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso.zip
       - name: Run tests
         env:
           LABEL: ${{ inputs.label }}
