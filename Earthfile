@@ -37,7 +37,7 @@ ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
 all:
   ARG SECURITY_SCANS=true
-  BUILD +image
+  BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD +image-sbom
       BUILD +trivy-scan
@@ -50,7 +50,7 @@ all:
 # For PR building, only image and iso are needed
 ci:
   ARG SECURITY_SCANS=true
-  BUILD +image
+  BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
     BUILD +image-sbom
     BUILD +trivy-scan
@@ -60,7 +60,7 @@ ci:
 
 all-arm:
   ARG SECURITY_SCANS=true
-  BUILD --platform=linux/arm64 +image --MODEL=rpi64
+  BUILD --platform=linux/arm64 +base-image --MODEL=rpi64
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
       BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
@@ -76,10 +76,10 @@ all-arm:
 
 arm-container-image:
   ARG MODEL
-  BUILD --platform=linux/arm64 +image --MODEL=$MODEL
+  BUILD --platform=linux/arm64 +base-image --MODEL=$MODEL
 
 all-arm-generic:
-  BUILD --platform=linux/arm64 +image --MODEL=generic
+  BUILD --platform=linux/arm64 +base-image --MODEL=generic
   BUILD --platform=linux/arm64 +iso --MODEL=generic
 
 go-deps-test:
@@ -981,7 +981,7 @@ temp-image:
 
     ARG TTL_IMAGE = "ttl.sh/${NAME}:${EXPIRATION}"
 
-    FROM +image
+    FROM +base-image
     SAVE IMAGE --push $TTL_IMAGE
 
 generate-schema:
