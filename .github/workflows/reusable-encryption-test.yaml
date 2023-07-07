@@ -72,11 +72,17 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
+          path: ./build
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: ./build
+      - name: Move ISO to build
+        run: mv ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso ./build/
       - name: Run tests
         env:
           LABEL: ${{ inputs.label }}
           EMULATE_TPM: true
           USE_QEMU: true
         run: |
-          export ISO=${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso
+          export ISO=kairos-${{ inputs.flavor }}.iso
           .github/encryption-tests.sh
