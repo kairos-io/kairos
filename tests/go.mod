@@ -1,4 +1,4 @@
-module github.com/kairos-io/kairos/v2
+module kairos-tests
 
 go 1.20
 
