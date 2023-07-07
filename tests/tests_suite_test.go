@@ -8,16 +8,18 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kairos-io/go-nodepair"
+	qr "github.com/kairos-io/go-nodepair/qrcode"
+	"github.com/mudler/edgevpn/pkg/node"
 	process "github.com/mudler/go-processmanager"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
-	machine "github.com/spectrocloud/peg/pkg/machine"
+	"github.com/spectrocloud/peg/pkg/machine"
 	"github.com/spectrocloud/peg/pkg/machine/types"
 )
 
@@ -60,6 +62,10 @@ func pass() string {
 }
 
 func gatherLogs(vm VM) {
+	vm.Scp("assets/kubernetes_logs.sh", "/tmp/logs.sh", "0770")
+	vm.Sudo("sh /tmp/logs.sh > /run/kube_logs")
+	vm.Sudo("cat /oem/* > /run/oem.yaml")
+	vm.Sudo("cat /etc/resolv.conf > /run/resolv.conf")
 	vm.Sudo("k3s kubectl get pods -A -o json > /run/pods.json")
 	vm.Sudo("k3s kubectl get events -A -o json > /run/events.json")
 	vm.Sudo("cat /proc/cmdline > /run/cmdline")
@@ -68,6 +74,7 @@ func gatherLogs(vm VM) {
 	vm.Sudo("df -h > /run/disk")
 	vm.Sudo("mount > /run/mounts")
 	vm.Sudo("blkid > /run/blkid")
+	vm.Sudo("dmesg > /run/dmesg.log")
 
 	vm.GatherAllLogs(
 		[]string{
@@ -75,8 +82,10 @@ func gatherLogs(vm VM) {
 			"kairos-agent",
 			"cos-setup-boot",
 			"cos-setup-network",
+			"cos-setup-reconcile",
 			"kairos",
 			"k3s",
+			"k3s-agent",
 		},
 		[]string{
 			"/var/log/edgevpn.log",
@@ -86,7 +95,11 @@ func gatherLogs(vm VM) {
 			"/run/mounts",
 			"/run/blkid",
 			"/run/events.json",
+			"/run/kube_logs",
 			"/run/cmdline",
+			"/run/oem.yaml",
+			"/run/resolv.conf",
+			"/run/dmesg.log",
 			"/run/immucore/immucore.log",
 			"/run/immucore/initramfs_stage.log",
 			"/run/immucore/rootfs_stage.log",
@@ -123,11 +136,17 @@ func startVM() (context.Context, VM) {
 		cpus = "2"
 	}
 
+	driveSize := os.Getenv("DRIVE_SIZE")
+	if driveSize == "" {
+		driveSize = "25000"
+	}
+
 	opts := []types.MachineOption{
 		types.QEMUEngine,
 		types.WithISO(os.Getenv("ISO")),
 		types.WithMemory(memory),
 		types.WithCPU(cpus),
+		types.WithDriveSize(driveSize),
 		types.WithSSHPort(strconv.Itoa(sshPort)),
 		types.WithID(vmName),
 		types.WithSSHUser(user()),
@@ -211,13 +230,14 @@ func startVM() (context.Context, VM) {
 	return ctx, vm
 }
 
-func isFlavor(flavor string) bool {
-	return strings.Contains(os.Getenv("FLAVOR"), flavor)
+func isFlavor(vm VM, flavor string) bool {
+	out, err := vm.Sudo(fmt.Sprintf("cat /etc/os-release | grep ID=%s", flavor))
+	return err == nil && out != ""
 }
 
 func expectDefaultService(vm VM) {
 	By("checking if default service is active in live cd mode", func() {
-		if isFlavor("alpine") {
+		if isFlavor(vm, "alpine") {
 			out, err := vm.Sudo("rc-status")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("kairos-agent"))
@@ -275,4 +295,66 @@ func emulateTPM(stateDir string) {
 
 	err = os.WriteFile(path.Join(t, "pid"), []byte(strconv.Itoa(cmd.Process.Pid)), 0744)
 	Expect(err).ToNot(HaveOccurred())
+}
+
+var kubectl = func(vm VM, s string) (string, error) {
+	return vm.Sudo("k3s kubectl " + s)
+}
+
+// Generates a valid token for provider tests
+func generateToken() string {
+	l := int(^uint(0) >> 1)
+	return node.GenerateNewConnectionData(l).Base64()
+}
+
+// register registers a node with a qrfile
+func register(qrfile, configFile, device string) error {
+	b, _ := os.ReadFile(configFile)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if qrfile != "" {
+		fileInfo, err := os.Stat(qrfile)
+		if err != nil {
+			return err
+		}
+		if fileInfo.IsDir() {
+			return fmt.Errorf("cannot register with a directory, please pass a file") //nolint:revive // This is a message printed to the user.
+		}
+
+		if !isReadable(qrfile) {
+			return fmt.Errorf("cannot register with a file that is not readable") //nolint:revive // This is a message printed to the user.
+		}
+	}
+	// dmesg -D to suppress tty ev
+	fmt.Println("Sending registration payload, please wait")
+
+	config := map[string]string{
+		"device": device,
+		"cc":     string(b),
+	}
+
+	err := nodepair.Send(
+		ctx,
+		config,
+		nodepair.WithReader(qr.Reader),
+		nodepair.WithToken(qrfile),
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Payload sent, installation will start on the machine briefly")
+	return nil
+}
+
+func isReadable(fileName string) bool {
+	file, err := os.Open(fileName)
+	if err != nil {
+		if os.IsPermission(err) {
+			return false
+		}
+	}
+	file.Close()
+	return true
 }
