@@ -17,7 +17,7 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("kairos qr code install", Label("qrcode-install"), func() {
+var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-install"), func() {
 	var vm VM
 
 	BeforeEach(func() {

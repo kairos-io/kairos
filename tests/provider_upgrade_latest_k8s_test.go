@@ -39,7 +39,7 @@ spec:
 
 }
 
-var _ = Describe("k3s upgrade test from k8s", Label("upgrade-latest-with-kubernetes"), func() {
+var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrade-latest-k8s-with-kubernetes"), func() {
 	var containerImage string
 	var vm VM
 

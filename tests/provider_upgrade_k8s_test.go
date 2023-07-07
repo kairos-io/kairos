@@ -11,7 +11,7 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("k3s upgrade test", Label("upgrade-k8s"), func() {
+var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), func() {
 	var vm VM
 
 	BeforeEach(func() {

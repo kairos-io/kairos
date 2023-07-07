@@ -10,7 +10,7 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-var _ = Describe("provider upgrade test", Label("provider-upgrade"), func() {
+var _ = Describe("provider upgrade test", Label("provider", "provider-upgrade"), func() {
 	var vm VM
 
 	BeforeEach(func() {
