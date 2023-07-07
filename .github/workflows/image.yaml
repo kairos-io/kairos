@@ -853,7 +853,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: kairos-${{ matrix.flavor }}.iso.zip
+          name: kairos-${{ matrix.flavor }}-provider.iso.zip
       - name: Run tests
         env:
           USE_QEMU: true
