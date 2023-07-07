@@ -1,6 +1,6 @@
 
 # Kairos framework packages for ubuntu fips
-FROM quay.io/kairos/framework:master_ubuntu-20-lts-fips as kairos-fips
+FROM quay.io/kairos/framework:master_fips-systemd as kairos-fips
 
 # Base ubuntu image (focal)
 FROM ubuntu:focal as base

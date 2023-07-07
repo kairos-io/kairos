@@ -47,14 +47,9 @@ flavors:
     - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
-  ubuntu-20-lts-fips:
-    - common-packages
-    - kairos-toolchain-fips
-    - systemd-base
-    - dracut-network-legacy-compat
   fips-systemd:
     - common-packages
-    - kairos-toolchain-fips-static
+    - kairos-toolchain-fips
     - systemd-base
     - dracut-network-legacy-compat
   fedora:

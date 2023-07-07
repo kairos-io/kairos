@@ -12,10 +12,6 @@
         "flavor": "ubuntu-20-lts"
     },
     {
-        "flavor": "ubuntu-20-lts-fips",
-        "frameworkonly": "true"
-    },
-    {
         "flavor": "fips-systemd",
         "frameworkonly": "true"
     },
