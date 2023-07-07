@@ -76,8 +76,6 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -R
         working-directory: ./build
-      - name: Move ISO to build
-        run: mv ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso ./build/
       - name: Run tests
         env:
           LABEL: ${{ inputs.label }}
