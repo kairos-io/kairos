@@ -45,4 +45,4 @@ jobs:
           EOF
 
           earthly -P +prepare-bundles-tests
-          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=kairos-${{ inputs.flavor }}.iso --FLAVOR=${{ inputs.flavor }}
+          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=kairos-core-${{ inputs.flavor }}.iso --FLAVOR=${{ inputs.flavor }}

@@ -86,7 +86,7 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - run: |
-          earthly +run-qemu-test --PREBUILT_ISO=kairos-${{ inputs.flavor }}.iso
+          earthly +run-qemu-test --PREBUILT_ISO=kairos-core-${{ inputs.flavor }}.iso
             --FLAVOR=${{ inputs.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
