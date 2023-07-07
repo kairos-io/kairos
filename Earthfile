@@ -205,6 +205,7 @@ framework-luet:
     # COPY luet into the final framework
     # TODO: Understand why?
     COPY +luet/luet /framework/usr/bin/luet
+    COPY framework-profile.yaml /framework/etc/luet/luet.yaml
     # more cleanup
     RUN rm -rf /framework/var/luet
     RUN rm -rf /framework/var/cache
@@ -350,7 +351,7 @@ base-image:
     ARG PROVIDER_KAIROS
     ARG PROVIDER_KAIROS_BRANCH=main
     IF [[ "$PROVIDER_KAIROS" != "" ]]
-        COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+docker-rootfs/rootfs /
+        DO github.com/itxaka/provider-kairos:command_provider_install+PROVIDER_INSTALL --FLAVOR=$FLAVOR
     END
 
     IF [[ "$FLAVOR" =~ ^ubuntu* ]]
