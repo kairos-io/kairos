@@ -19,6 +19,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Move ISO to build
+        run: mv ${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso ./build/
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
@@ -41,4 +43,4 @@ jobs:
           EOF
 
           earthly -P +prepare-bundles-tests
-          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=${{steps.iso.outputs.download-path}}/kairos-${{ inputs.flavor }}.iso --FLAVOR=${{ inputs.flavor }}
+          earthly -P +run-qemu-bundles-tests --PREBUILT_ISO=kairos-${{ inputs.flavor }}.iso --FLAVOR=${{ inputs.flavor }}
