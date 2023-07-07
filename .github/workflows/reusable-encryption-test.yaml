@@ -82,5 +82,5 @@ jobs:
           EMULATE_TPM: true
           USE_QEMU: true
         run: |
-          export ISO=kairos-${{ inputs.flavor }}.iso
+          export ISO=$PWD/kairos-${{ inputs.flavor }}.iso
           .github/encryption-tests.sh

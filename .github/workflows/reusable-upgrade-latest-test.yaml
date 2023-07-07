@@ -78,8 +78,7 @@ jobs:
           name: kairos-${{ inputs.flavor }}.iso.zip
           path: ./build
       - name: Display structure of downloaded files
-        run: ls -R
-        working-directory: ./build
+        run: ls -R ./build
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:

@@ -26,8 +26,5 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - run: |
-          ls -liah
-          export ISO=$PWD/$(ls *.iso)
-          mkdir build
-          mv $ISO build/kairos.iso
+          export ISO=$PWD/kairos-${{ inputs.flavor }}.iso
           earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ inputs.flavor }}
