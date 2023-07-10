@@ -308,7 +308,7 @@ func generateToken() string {
 }
 
 // register registers a node with a qrfile
-func register(qrfile, configFile, device string) error {
+func register(loglevel, qrfile, configFile, device string) error {
 	b, _ := os.ReadFile(configFile)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -339,6 +339,7 @@ func register(qrfile, configFile, device string) error {
 		config,
 		nodepair.WithReader(qr.Reader),
 		nodepair.WithToken(qrfile),
+		nodepair.WithLogLevel(loglevel),
 	)
 	if err != nil {
 		return err
