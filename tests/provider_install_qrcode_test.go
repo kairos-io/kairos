@@ -3,9 +3,11 @@ package mos_test
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,8 +28,12 @@ var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-in
 	})
 
 	AfterEach(func() {
-		if CurrentGinkgoTestDescription().Failed {
+		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
 		}
 		vm.Destroy(nil)
 	})

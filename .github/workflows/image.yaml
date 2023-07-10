@@ -808,8 +808,8 @@ jobs:
     needs:
       - build-provider
     strategy:
-      fail-fast: true
-      max-parallel: 1
+      fail-fast: false
+      max-parallel: 2
       matrix:
         label:
           - "provider-qrcode-install"
