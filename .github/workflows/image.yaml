@@ -861,9 +861,8 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          LABEL: ${{ matrix.label }}
           CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
         run: |
           export ISO=$PWD/$(ls *.iso)
           cp tests/go.* .
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.suite }}" --fail-fast -r ./tests/
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
