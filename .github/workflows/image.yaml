@@ -866,3 +866,59 @@ jobs:
           export ISO=$PWD/$(ls *.iso)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
+
+  provider-tests-upgrade-latest:
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        label:
+          - "provider-upgrade-latest-k8s-with-kubernetes"
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - name: Install deps
+        run: |
+          # install qemu-system-x86_64 and qemu-img
+          sudo apt update
+          sudo apt install -y qemu-system-x86 qemu-utils qemu-kvm acl
+
+          # Allow the "runner" user to access /dev/kvm
+          # Might not be the best solution but adding to the kvm group didn't work
+          # https://askubuntu.com/a/1081326
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - uses: actions/checkout@v3
+      - name: Download artifacts
+        uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          repository: "kairos-io/provider-kairos"
+          fileName: "kairos-${{ matrix.flavor }}-*v1.25*.iso"
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+          DRIVE_SIZE: 30000
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
+        run: |
+          export ISO=$PWD/$(ls *.iso)
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
