@@ -19,9 +19,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
-          path: ./test
       - name: Display structure of downloaded files
-        run: ls -R ./test
+        run: ls -las .
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:

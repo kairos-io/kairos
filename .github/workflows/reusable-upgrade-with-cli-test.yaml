@@ -56,9 +56,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
-          path: ./build
       - name: Display structure of downloaded files
-        run: ls -R ./build
+        run: ls -las .
       - run: |
           earthly +run-qemu-test --PREBUILT_ISO=kairos-core-${{ inputs.flavor }}.iso \
             --FLAVOR=${{ inputs.flavor }} \
