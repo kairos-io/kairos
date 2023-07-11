@@ -351,7 +351,7 @@ base-image:
     ARG PROVIDER_KAIROS
     ARG PROVIDER_KAIROS_BRANCH=main
     IF [[ "$PROVIDER_KAIROS" != "" ]]
-        DO github.com/itxaka/provider-kairos:command_provider_install+PROVIDER_INSTALL --FLAVOR=$FLAVOR
+        DO github.com/kairos-io/provider-kairos:main+PROVIDER_INSTALL --FLAVOR=$FLAVOR
         # Redo os-release with override settings to point to provider-kairos stuff
         # in earthly 0.7 we will be able to just override VARIANT here and just run the OSRELEASE once
         # but currently on 0.6 you cant override args properly as it picks the first arg it founds
