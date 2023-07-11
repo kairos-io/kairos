@@ -816,7 +816,6 @@ jobs:
           - "provider-upgrade"
           - "provider-decentralized-k8s"
           - "provider-upgrade-k8s"
-          - "provider-upgrade-latest-k8s-with-kubernetes"
         flavor:
           - "opensuse-leap"
           - "alpine-opensuse-leap"
