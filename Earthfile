@@ -290,11 +290,7 @@ base-image:
     ELSE
         ARG OS_VERSION=${KAIROS_VERSION}
     END
-    ARG OS_ID
-    # should we add the model to the resulting iso?
-    ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
-    ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
-    ARG OS_LABEL=latest
+
     DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
     # Enable services
