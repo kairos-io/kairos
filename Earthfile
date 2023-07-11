@@ -5,9 +5,13 @@ ARG FLAVOR=opensuse-leap
 ARG BASE_URL=quay.io/kairos
 ARG IMAGE=${BASE_URL}/${VARIANT}-${FLAVOR}:latest
 ARG ISO_NAME=kairos-${VARIANT}-${FLAVOR}
+ARG GITHUB_REPO=kairos-io/kairos
+ARG OS_ID=kairos
+ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
+ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
+ARG OS_LABEL=latest
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
-ARG OS_ID=kairos
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.42.0
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
@@ -352,6 +356,19 @@ base-image:
     ARG PROVIDER_KAIROS_BRANCH=main
     IF [[ "$PROVIDER_KAIROS" != "" ]]
         DO github.com/itxaka/provider-kairos:command_provider_install+PROVIDER_INSTALL --FLAVOR=$FLAVOR
+        # Redo os-release with override settings to point to provider-kairos stuff
+        # in earthly 0.7 we will be able to just override VARIANT here and just run the OSRELEASE once
+        # but currently on 0.6 you cant override args properly as it picks the first arg it founds
+        # https://docs.earthly.dev/docs/earthfile#arg
+        # Overrides GITHUB_REPO, VARIANT, OS_REPO and OS_NAME to add the kairos name in there
+        # which points to the provider-kairos repo
+        DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos \
+        --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues \
+        --GITHUB_REPO=kairos-io/provider-kairos --VARIANT=kairos \
+        --OS_REPO=quay.io/kairos/kairos-${FLAVOR} \
+        --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} \
+        --OS_NAME=${OS_ID}-kairos-${FLAVOR} \
+        --OS_VERSION=${OS_VERSION}
     END
 
     IF [[ "$FLAVOR" =~ ^ubuntu* ]]
