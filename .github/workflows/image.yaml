@@ -180,6 +180,7 @@ jobs:
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h
   build-provider:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write  # OIDC support
@@ -804,6 +805,7 @@ jobs:
           .github/encryption-tests.sh
 
   provider-tests:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: self-hosted
     needs:
       - build-provider
@@ -867,6 +869,7 @@ jobs:
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
 
   provider-tests-upgrade-latest:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       fail-fast: false
