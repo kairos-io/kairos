@@ -179,6 +179,81 @@ jobs:
         run: |
           docker tag quay.io/kairos/core-${{ matrix.flavor }}:latest ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h
           docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}:24h
+  build-provider:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+    steps:
+      - name: Release space from worker
+        run: |
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          df -h
+          echo
+          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+          sudo rm -rf /usr/share/dotnet
+          sudo apt-get remove -y '^mono-.*' || true
+          sudo apt-get remove -y '^ghc-.*' || true
+          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+          sudo apt-get remove -y 'php.*' || true
+          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+          sudo apt-get remove -y '^google-.*' || true
+          sudo apt-get remove -y azure-cli || true
+          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+          sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          sudo rm -rfv build || true
+          df -h
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
+      - name: setup-docker
+        uses: docker-practice/actions-setup-docker@master
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Build PR 🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
+        run: |
+          earthly +ci --SECURITY_SCANS=false --IMAGE=$IMAGE --FLAVOR=$FLAVOR --PROVIDER_KAIROS=true
+          sudo mv build/* .
+          sudo rm -rf build
+      - uses: actions/upload-artifact@v3
+        with:
+          name: kairos-${{ matrix.flavor }}-provider.iso.zip
+          path: |
+            *.iso
+            *.sha256
+          if-no-files-found: error
+      - name: Push to testing
+        run: |
+          docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
   build-framework:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     needs:
@@ -723,3 +798,122 @@ jobs:
         run: |
           export ISO=$PWD/$(ls *.iso)
           .github/encryption-tests.sh
+  provider-tests:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    runs-on: self-hosted
+    needs:
+      - build-provider
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        label:
+          - "provider-qrcode-install"
+          - "provider-upgrade"
+          - "provider-decentralized-k8s"
+          - "provider-upgrade-k8s"
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+        exclude: # looks like only the k8s stuff is tested on both flavors
+          - label: "provider-qrcode-install"
+            flavor: "alpine-opensuse-leap"
+          - label: "provider-upgrade"
+            flavor: "alpine-opensuse-leap"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - name: Install deps
+        run: |
+          # install qemu-system-x86_64 and qemu-img
+          sudo apt update
+          sudo apt install -y qemu-system-x86 qemu-utils qemu-kvm acl
+
+          # Allow the "runner" user to access /dev/kvm
+          # Might not be the best solution but adding to the kvm group didn't work
+          # https://askubuntu.com/a/1081326
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: kairos-${{ matrix.flavor }}-provider.iso.zip
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+          DRIVE_SIZE: 30000
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
+        run: |
+          export ISO=$PWD/$(ls *.iso)
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
+  provider-tests-upgrade-latest:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        label:
+          - "provider-upgrade-latest-k8s-with-kubernetes"
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - name: Install deps
+        run: |
+          # install qemu-system-x86_64 and qemu-img
+          sudo apt update
+          sudo apt install -y qemu-system-x86 qemu-utils qemu-kvm acl
+
+          # Allow the "runner" user to access /dev/kvm
+          # Might not be the best solution but adding to the kvm group didn't work
+          # https://askubuntu.com/a/1081326
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - uses: actions/checkout@v3
+      - name: Download artifacts
+        uses: robinraju/release-downloader@v1.8
+        with:
+          latest: true
+          repository: "kairos-io/provider-kairos"
+          fileName: "kairos-${{ matrix.flavor }}-*v1.25*.iso"
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+          DRIVE_SIZE: 30000
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
+        run: |
+          export ISO=$PWD/$(ls *.iso)
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
