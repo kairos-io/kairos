@@ -22,9 +22,6 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 		}
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
-		// Workaround for v2.2.0 alpine flavors mounting /tmp and overwriting the install config
-		// TODO: drop in v2.2.1 or v2.3.0 whichever comes first
-		time.Sleep(5 * time.Minute)
 	})
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
@@ -82,7 +79,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 				v, _ = vm.Sudo(getVersionCmd)
 				return v
 				// TODO: Add regex semver check here
-			}, 30*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
+			}, 40*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
 		})
 	})
 })
