@@ -231,17 +231,12 @@ jobs:
           git fetch --prune --unshallow
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
-      - name: Release space from worker
-        run: |
-          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
-          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Build PR 🔧
-        if: ${{ github.event_name == 'pull_request' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
           IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
@@ -803,7 +798,6 @@ jobs:
         run: |
           export ISO=$PWD/$(ls *.iso)
           .github/encryption-tests.sh
-
   provider-tests:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: self-hosted
@@ -867,7 +861,6 @@ jobs:
           export ISO=$PWD/$(ls *.iso)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
-
   provider-tests-upgrade-latest:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: self-hosted
