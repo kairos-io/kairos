@@ -47,14 +47,9 @@ flavors:
     - kairos-toolchain
     - systemd-base
     - dracut-network-legacy-compat
-  ubuntu-20-lts-fips:
-    - common-packages
-    - kairos-toolchain-fips
-    - systemd-base
-    - dracut-network-legacy-compat
   fips-systemd:
     - common-packages
-    - kairos-toolchain-fips-static
+    - kairos-toolchain-fips
     - systemd-base
     - dracut-network-legacy-compat
   fedora:
@@ -173,9 +168,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230706102827-repository.yaml
+    reference: 20230707164258-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230706110205-repository.yaml
+    reference: 20230707174702-repository.yaml
