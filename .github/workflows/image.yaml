@@ -75,6 +75,18 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
 
+  build-provider:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    uses: kairos-io/kairos/.github/workflows/reusable-build-provider.yaml@1556-pr-one-flavor-pt2
+    with:
+      flavor: ${{ matrix.flavor }}
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+
   install-test:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor-pt2
     with:
@@ -203,3 +215,28 @@ jobs:
           - "remote-https-bad-cert"
         flavor:
           - "opensuse-leap"
+
+  provider-tests:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    uses: kairos-io/kairos/.github/workflows/reusable-provider-tests.yaml@1556-pr-one-flavor-pt2
+    with:
+      flavor: ${{ matrix.flavor }}
+    needs:
+      - build-provider
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        label:
+          - "provider-qrcode-install"
+          - "provider-upgrade"
+          - "provider-decentralized-k8s"
+          - "provider-upgrade-k8s"
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+        exclude: # looks like only the k8s stuff is tested on both flavors
+          - label: "provider-qrcode-install"
+            flavor: "alpine-opensuse-leap"
+          - label: "provider-upgrade"
+            flavor: "alpine-opensuse-leap"
