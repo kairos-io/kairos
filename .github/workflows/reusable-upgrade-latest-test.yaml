@@ -18,8 +18,7 @@ jobs:
           # The default value is 'false'
           latest: true
           repository: kairos-io/kairos
-          # why is opensuse-leap fixed here if the flavor can be passed?
-          fileName: '*opensuse-leap-v*.iso'
+          fileName: '*ubuntu-v*.iso'
           out-file-path: last-release
       - uses: actions/upload-artifact@v3
         with:

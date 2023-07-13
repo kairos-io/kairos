@@ -79,7 +79,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 				v, _ = vm.Sudo(getVersionCmd)
 				return v
 				// TODO: Add regex semver check here
-			}, 60*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
+			}, 30*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
 		})
 	})
 })
