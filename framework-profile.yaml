@@ -12,6 +12,11 @@ flavors:
     - kairos-toolchain
     - systemd-base
     - dracut-network-legacy
+  debian-arm-rpi:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+    - dracut-network-legacy
   ubuntu:
     - common-packages
     - kairos-toolchain
