@@ -65,7 +65,6 @@ jobs:
 
 
   build-framework:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -76,7 +75,6 @@ jobs:
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
 
   build-provider:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     uses: kairos-io/kairos/.github/workflows/reusable-build-provider.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -217,7 +215,6 @@ jobs:
           - "opensuse-leap"
 
   provider-tests:
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     uses: kairos-io/kairos/.github/workflows/reusable-provider-tests.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
