@@ -8,22 +8,7 @@ on:
         type: string
 
 jobs:
-  # This job is used to download the latest release and then used by the other job
-  latest-release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: robinraju/release-downloader@v1.8
-        with:
-          # A flag to set the download target as latest release
-          # The default value is 'false'
-          latest: true
-          repository: kairos-io/kairos
-          fileName: '*ubuntu-v*.iso'
-          out-file-path: last-release
-
   build:
-    needs:
-    - latest-release
     runs-on: ubuntu-latest
     steps:
       - name: Release space from worker
@@ -61,10 +46,13 @@ jobs:
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
-      - name: Download latest release
-        uses: actions/download-artifact@v3
+      - uses: robinraju/release-downloader@v1.8
         with:
-          name: latest-release.zip
+          # A flag to set the download target as latest release
+          # The default value is 'false'
+          latest: true
+          fileName: '*${{ inputs.flavor }}-v*.iso'
+          out-file-path: ""
       - name: Download ISO
         id: iso
         uses: actions/download-artifact@v3
