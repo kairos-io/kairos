@@ -103,6 +103,7 @@ jobs:
     uses: kairos-io/kairos/.github/workflows/reusable-provider-tests.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
+      label: ${{ matrix.label }}
     needs:
       - build-provider
     strategy:
