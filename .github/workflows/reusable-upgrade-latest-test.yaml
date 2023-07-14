@@ -20,11 +20,6 @@ jobs:
           repository: kairos-io/kairos
           fileName: '*ubuntu-v*.iso'
           out-file-path: last-release
-      - uses: actions/upload-artifact@v3
-        with:
-          name: latest-release.zip
-          path: last-release
-          if-no-files-found: error
 
   build:
     needs:
@@ -83,7 +78,7 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - run: |
-          earthly +run-qemu-test --PREBUILT_ISO=kairos-core-${{ inputs.flavor }}.iso \
+          earthly +run-qemu-test --PREBUILT_ISO=$(ls kairos-${{ inputs.flavor }}*.iso) \
             --FLAVOR=${{ inputs.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
