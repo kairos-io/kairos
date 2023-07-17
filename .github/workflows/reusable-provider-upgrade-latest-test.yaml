@@ -44,14 +44,13 @@ jobs:
           fileName: '*${{ inputs.flavor }}-v*.iso'
           out-file-path: ""
       - name: Run tests
-        env:
-          USE_QEMU: true
-          KVM: true
-          MEMORY: 4000
-          CPUS: 2
-          DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
         run: |
+          export USE_QEMU=true
+          export KVM=true
+          export MEMORY=4000
+          export CPUS=2
+          export DRIVE_SIZE=30000
+          export CONTAINER_IMAGE=ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
           export ISO=$PWD/$(ls *.iso | head -n 1)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "provider-upgrade-latest-k8s-with-kubernetes" --fail-fast -r ./tests
