@@ -52,6 +52,6 @@ jobs:
           DRIVE_SIZE: 30000
           CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
         run: |
-          export ISO=$PWD/$(ls *.iso)
+          export ISO=$PWD/$(ls *.iso | head -n 1)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "provider-upgrade-latest-k8s-with-kubernetes" --fail-fast -r ./tests
