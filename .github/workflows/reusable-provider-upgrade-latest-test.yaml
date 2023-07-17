@@ -41,8 +41,8 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/provider-kairos"
-          # TODO: why not get latest, and upgrade to the built one?
-          fileName: "kairos-${{ matrix.flavor }}-*v1.25*.iso"
+          fileName: '*${{ inputs.flavor }}-v*.iso'
+          out-file-path: ""
       - name: Run tests
         env:
           USE_QEMU: true
