@@ -8,7 +8,7 @@ on:
         type: string
 
 jobs:
-  build:
+  test:
     runs-on: macos-12
     steps:
       - uses: actions/checkout@v3
@@ -29,7 +29,8 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-      - run: |
+      - name: Ginkgo
+        run: |
           export ISO=$PWD/kairos-${{ inputs.flavor }}.iso
           export GOPATH="/Users/runner/go"
           export PATH=$PATH:$GOPATH/bin

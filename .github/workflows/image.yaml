@@ -64,7 +64,7 @@ jobs:
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
 
 
-  build-framework:
+  framework:
     uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -74,19 +74,8 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
 
-  build-provider:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-provider.yaml@1556-pr-one-flavor-pt2
-    with:
-      flavor: ${{ matrix.flavor }}
-    strategy:
-      fail-fast: false
-      matrix:
-        flavor:
-          - "opensuse-leap"
-          - "alpine-opensuse-leap"
-
-  install-test:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor-pt2
+  install:
+    uses: kairos-io/kairos/.github/workflows/reusable-install-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -97,7 +86,7 @@ jobs:
         include:
           - flavor: opensuse-leap
 
-  zfs-test:
+  zfs:
     uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -109,7 +98,7 @@ jobs:
         include:
           - flavor: "ubuntu"
 
-  qemu-acceptance-tests:
+  acceptance:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -127,7 +116,7 @@ jobs:
           - flavor: "ubuntu-20-lts"
           - flavor: "ubuntu-22-lts"
 
-  qemu-bundles-tests:
+  bundles:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -139,7 +128,7 @@ jobs:
         include:
           - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
 
-  qemu-reset-tests:
+  reset:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -152,7 +141,7 @@ jobs:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
 
-  qemu-netboot-tests:
+  netboot:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -166,7 +155,7 @@ jobs:
           - flavor: opensuse-leap
           - flavor: ubuntu
 
-  upgrade-with-cli-test:
+  upgrade:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -179,7 +168,7 @@ jobs:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
 
-  upgrade-latest-with-cli-test:
+  upgrade-latest:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -195,7 +184,7 @@ jobs:
           # - flavor: "ubuntu"
           # - flavor: "ubuntu"
 
-  encryption-tests:
+  encryption:
     uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -214,10 +203,21 @@ jobs:
         flavor:
           - "opensuse-leap"
 
-  provider-tests:
+  provider:
+    uses: kairos-io/kairos/.github/workflows/reusable-build-provider.yaml@1556-pr-one-flavor-pt2
+    with:
+      flavor: ${{ matrix.flavor }}
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+  provider-various:
     uses: kairos-io/kairos/.github/workflows/reusable-provider-tests.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
+      label: ${{ matrix.label }}
     needs:
       - build-provider
     strategy:
@@ -237,3 +237,16 @@ jobs:
             flavor: "alpine-opensuse-leap"
           - label: "provider-upgrade"
             flavor: "alpine-opensuse-leap"
+  provider-upgrade-latest:
+    uses: kairos-io/kairos/.github/workflows/reusable-provider-upgrade-latest-test.yaml@1556-pr-one-flavor-pt2
+    with:
+      flavor: ${{ matrix.flavor }}
+    needs:
+      - build-provider
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
