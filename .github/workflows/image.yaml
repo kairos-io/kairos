@@ -219,7 +219,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
     needs:
-      - build-provider
+      - provider
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -242,7 +242,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build-provider
+      - provider
     strategy:
       fail-fast: false
       max-parallel: 2
