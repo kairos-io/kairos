@@ -59,11 +59,8 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Build PR 🔧
-        env:
-          FLAVOR: ${{ inputs.flavor }}
-          IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
         run: |
-          earthly +ci --SECURITY_SCANS=false --IMAGE=$IMAGE --FLAVOR=$FLAVOR --PROVIDER_KAIROS=true
+          earthly +ci --SECURITY_SCANS=false --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h --FLAVOR=${{ inputs.flavor }} --PROVIDER_KAIROS=true
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v3
