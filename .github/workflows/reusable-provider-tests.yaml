@@ -45,7 +45,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: kairos-${{ matrix.flavor }}-provider.iso.zip
+          name: kairos-${{ inputs.flavor }}-provider.iso.zip
       - name: Run tests
         env:
           USE_QEMU: true
@@ -53,11 +53,11 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
         run: |
           export ISO=$PWD/$(ls *.iso)
           cp tests/go.* .
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ matrix.label }}" --fail-fast -r ./tests/
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.label }}" --fail-fast -r ./tests/
   provider-tests-upgrade-latest:
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
     runs-on: self-hosted

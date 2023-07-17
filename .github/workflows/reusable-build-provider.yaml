@@ -60,19 +60,19 @@ jobs:
           packages: utils/earthly
       - name: Build PR 🔧
         env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
+          FLAVOR: ${{ inputs.flavor }}
+          IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
         run: |
           earthly +ci --SECURITY_SCANS=false --IMAGE=$IMAGE --FLAVOR=$FLAVOR --PROVIDER_KAIROS=true
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v3
         with:
-          name: kairos-${{ matrix.flavor }}-provider.iso.zip
+          name: kairos-${{ inputs.flavor }}-provider.iso.zip
           path: |
             *.iso
             *.sha256
           if-no-files-found: error
       - name: Push to testing
         run: |
-          docker push ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
+          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
