@@ -123,3 +123,16 @@ jobs:
             flavor: "alpine-opensuse-leap"
           - label: "provider-upgrade"
             flavor: "alpine-opensuse-leap"
+  provider-upgrade-latest-tests:
+    uses: kairos-io/kairos/.github/workflows/reusable-provider-upgrade-latest-test.yaml@1556-pr-one-flavor-pt2
+    with:
+      flavor: ${{ matrix.flavor }}
+    needs:
+      - build-provider
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"

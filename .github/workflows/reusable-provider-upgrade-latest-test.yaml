@@ -6,18 +6,11 @@ on:
       flavor:
         required: true
         type: string
-      label:
-        required: true
-        type: string
 
 jobs:
-  build:
+  provider-tests-upgrade-latest:
     runs-on: self-hosted
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -42,10 +35,14 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - uses: actions/checkout@v3
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: robinraju/release-downloader@v1.8
         with:
-          name: kairos-${{ inputs.flavor }}-provider.iso.zip
+          latest: true
+          repository: "kairos-io/provider-kairos"
+          # TODO: why not get latest, and upgrade to the built one?
+          fileName: "kairos-${{ matrix.flavor }}-*v1.25*.iso"
       - name: Run tests
         env:
           USE_QEMU: true
@@ -53,8 +50,8 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ matrix.flavor }}-${{ github.sha }}-provider:24h
         run: |
           export ISO=$PWD/$(ls *.iso)
           cp tests/go.* .
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.label }}" --fail-fast -r ./tests/
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "provider-upgrade-latest-k8s-with-kubernetes" --fail-fast -r ./tests
