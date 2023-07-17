@@ -10,66 +10,66 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  build:
+  core:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
 
   install:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor-pt2
+    uses: kairos-io/kairos/.github/workflows/reusable-install-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-      - build
+      - core
 
   zfs:
     uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-      - build
+      - core
 
   acceptance:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-      - build
+      - core
 
   bundles:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-      - build
+      - core
 
   reset:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-      - build
+      - core
 
   netboot:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-      - build
+      - core
 
   upgrade:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-      - build
+      - core
 
   upgrade-latest:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ubuntu
     needs:
-    - build
+    - core
 
   encryption:
     uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@1556-pr-one-flavor-pt2
@@ -77,7 +77,7 @@ jobs:
       flavor: ubuntu
       label: ${{ matrix.label }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: true
       matrix:
@@ -89,7 +89,7 @@ jobs:
           - "remote-https-bad-cert"
 
   # TODO: remove from PR if green
-  provider:
+  standard:
     uses: kairos-io/kairos/.github/workflows/reusable-build-provider.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -105,7 +105,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
     needs:
-      - provider
+      - standard
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -128,7 +128,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - provider
+      - standard
     strategy:
       fail-fast: false
       max-parallel: 2

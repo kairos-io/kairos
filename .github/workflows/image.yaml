@@ -53,7 +53,7 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
-  build:
+  core:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -79,7 +79,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: true
       matrix:
@@ -91,7 +91,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: false
       matrix:
@@ -103,7 +103,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: false
       matrix:
@@ -121,7 +121,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: false
       matrix:
@@ -133,7 +133,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: false
       matrix:
@@ -146,7 +146,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: false
       matrix:
@@ -160,7 +160,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: false
       matrix:
@@ -173,7 +173,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-    - build
+    - core
     strategy:
       fail-fast: false
       matrix:
@@ -190,7 +190,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
     needs:
-      - build
+      - core
     strategy:
       fail-fast: true
       matrix:
@@ -203,7 +203,7 @@ jobs:
         flavor:
           - "opensuse-leap"
 
-  provider:
+  standard:
     uses: kairos-io/kairos/.github/workflows/reusable-build-provider.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
@@ -213,13 +213,13 @@ jobs:
         flavor:
           - "opensuse-leap"
           - "alpine-opensuse-leap"
-  provider-various:
+  various:
     uses: kairos-io/kairos/.github/workflows/reusable-provider-tests.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
     needs:
-      - provider
+      - standard
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -237,12 +237,12 @@ jobs:
             flavor: "alpine-opensuse-leap"
           - label: "provider-upgrade"
             flavor: "alpine-opensuse-leap"
-  provider-upgrade-latest:
+  standard-upgrade-latest:
     uses: kairos-io/kairos/.github/workflows/reusable-provider-upgrade-latest-test.yaml@1556-pr-one-flavor-pt2
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - provider
+      - standard
     strategy:
       fail-fast: false
       max-parallel: 2
