@@ -8,7 +8,7 @@ on:
         type: string
 
 jobs:
-  provider-tests-upgrade-latest:
+  test:
     runs-on: self-hosted
 
     steps:
