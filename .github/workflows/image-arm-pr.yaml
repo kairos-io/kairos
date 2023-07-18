@@ -18,8 +18,3 @@ jobs:
       flavor: opensuse-leap-arm-rpi
       model: rpi64
       worker: ubuntu-latest
-
-  image_and_iso_arm64_generic:
-    uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@master
-    with:
-      flavor: opensuse-leap-arm-rpi

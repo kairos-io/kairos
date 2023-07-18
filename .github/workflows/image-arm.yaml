@@ -32,6 +32,7 @@ jobs:
 
   docker:
     uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@master
+    secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
       model: ${{ matrix.model }}
@@ -44,6 +45,7 @@ jobs:
 
   image_and_iso_arm64_generic:
     uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@master
+    secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
     needs:

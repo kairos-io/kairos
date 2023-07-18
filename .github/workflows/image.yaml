@@ -55,6 +55,7 @@ jobs:
 
   core:
     uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@master
+    secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -66,6 +67,7 @@ jobs:
 
   framework:
     uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@master
+    secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
     needs:
