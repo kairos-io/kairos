@@ -63,8 +63,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
-
-
   framework:
     uses: kairos-io/kairos/.github/workflows/reusable-build-framework-flavor.yaml@master
     secrets: inherit
@@ -75,7 +73,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
-
   install:
     uses: kairos-io/kairos/.github/workflows/reusable-install-test.yaml@master
     with:
@@ -87,7 +84,6 @@ jobs:
       matrix:
         include:
           - flavor: opensuse-leap
-
   zfs:
     uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@master
     with:
@@ -99,7 +95,6 @@ jobs:
       matrix:
         include:
           - flavor: "ubuntu"
-
   acceptance:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@master
     with:
@@ -117,7 +112,6 @@ jobs:
           - flavor: "debian"
           - flavor: "ubuntu-20-lts"
           - flavor: "ubuntu-22-lts"
-
   bundles:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@master
     with:
@@ -129,7 +123,6 @@ jobs:
       matrix:
         include:
           - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
-
   reset:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@master
     with:
@@ -142,7 +135,6 @@ jobs:
         include:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
-
   netboot:
     uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@master
     with:
@@ -156,7 +148,6 @@ jobs:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
           - flavor: ubuntu
-
   upgrade:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@master
     with:
@@ -169,7 +160,6 @@ jobs:
         include:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
-
   upgrade-latest:
     uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@master
     with:
@@ -185,7 +175,6 @@ jobs:
           # - flavor: "ubuntu"
           # - flavor: "ubuntu"
           # - flavor: "ubuntu"
-
   encryption:
     uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@master
     with:
@@ -204,7 +193,6 @@ jobs:
           - "remote-https-bad-cert"
         flavor:
           - "opensuse-leap"
-
   standard:
     uses: kairos-io/kairos/.github/workflows/reusable-build-provider.yaml@master
     with:
@@ -252,3 +240,69 @@ jobs:
         flavor:
           - "opensuse-leap"
           - "alpine-opensuse-leap"
+  notify:
+    runs-on: ubuntu-latest
+    if: failure()
+    needs:
+      - core
+      - standard
+      - install
+      - zfs
+      - acceptance
+      - bundles
+      - reset
+      - netboot
+      - upgrade
+      - upgrade-latest
+      - encryption
+      - various
+      - standard-upgrade-latest
+    steps:
+      - name: save commit-message
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
+        run: echo "COMMIT_MSG=$(git log -1 --pretty=format:%s)" >> $GITHUB_ENV
+      - name: notify if failure
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Job failure on master branch for job ${{ github.job }} in workflow \"${{ github.workflow }}\"\n\nCommit message is \"${{ env.COMMIT_MSG }}\"\n\n Commit sha is <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":thisisfine: Failed Run",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":kairos: Repository link",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}"
+                    }
+                  ]
+                }
+              ]
+            }
