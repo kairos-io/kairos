@@ -11,7 +11,7 @@ on:
         type: string
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Release space from worker
@@ -67,15 +67,18 @@ jobs:
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d utils/earthly
-      - name: Download artifacts
+      - name: Download ISO
+        id: iso
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Display structure of downloaded files
+        run: ls -las .
       - name: Run tests
         env:
           LABEL: ${{ inputs.label }}
           EMULATE_TPM: true
           USE_QEMU: true
         run: |
-          export ISO=$PWD/$(ls *.iso)
+          export ISO=$PWD/kairos-core-${{ inputs.flavor }}.iso
           .github/encryption-tests.sh

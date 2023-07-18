@@ -1,4 +1,4 @@
-name: Reusable workflow - upgrade with cli test
+name: Reusable workflow that builds a Provider image
 
 on:
   workflow_call:
@@ -8,8 +8,13 @@ on:
         type: string
 
 jobs:
-  test:
-    runs-on: self-hosted
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     steps:
       - name: Release space from worker
         run: |
@@ -43,29 +48,28 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
+      - name: setup-docker
+        uses: docker-practice/actions-setup-docker@master
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Download ISO
-        id: iso
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ inputs.flavor }}.iso.zip
-      - name: Display structure of downloaded files
-        run: ls -las .
-      - run: |
-          earthly +run-qemu-test --PREBUILT_ISO=kairos-core-${{ inputs.flavor }}.iso \
-            --FLAVOR=${{ inputs.flavor }} \
-            --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h \
-            --TEST_SUITE=upgrade-with-cli
+      - name: Build PR 🔧
+        run: |
+          earthly +ci --SECURITY_SCANS=false --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h --FLAVOR=${{ inputs.flavor }} --PROVIDER_KAIROS=true
+          sudo mv build/* .
+          sudo rm -rf build
       - uses: actions/upload-artifact@v3
-        if: failure()
         with:
-          name: ${{ inputs.flavor }}-upgrade-test.logs.zip
-          path: tests/**/logs/*
-          if-no-files-found: warn
+          name: kairos-${{ inputs.flavor }}-provider.iso.zip
+          path: |
+            *.iso
+            *.sha256
+          if-no-files-found: error
+      - name: Push to testing
+        run: |
+          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h

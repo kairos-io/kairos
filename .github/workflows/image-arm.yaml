@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - master
-  pull_request:
-    paths:
-      - '**'
 
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
@@ -34,156 +31,21 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   docker:
+    uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@master
+    with:
+      flavor: ${{ matrix.flavor }}
+      model: ${{ matrix.model }}
+      worker: ${{ matrix.worker }}
     needs:
     - get-matrix
-    runs-on: ${{ matrix.worker }}
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
-    steps:
-      - name: Release space from worker
-        if: ${{ matrix.worker != 'self-hosted' }}
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
-      - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
-      - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Set compression for PR
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          echo "IMG_COMPRESSION=zstd" >> $GITHUB_ENV
-      - name: Set compression for master
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: |
-          echo "IMG_COMPRESSION=xz" >> $GITHUB_ENV
-      - name: Standard Build  🔧
-        if: ${{ matrix.worker != 'self-hosted' }}
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          MODEL: ${{ matrix.model }}
-        run: |
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
-      - name: Selfhosted Build  🔧
-        if: ${{ matrix.worker == 'self-hosted' }}
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          MODEL: ${{ matrix.model }}
-        run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
-          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
-      - name: Show img sizes
-        run: |
-          ls -ltra build
-          ls -ltrh build
-      - name: Push  🔧
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-$FLAVOR:latest
-          MODEL: ${{ matrix.model }}
-        run: |
-          export TAG=latest
-          export IMAGE_NAME=kairos-$FLAVOR-$TAG.img
-          export IMAGE=quay.io/kairos/core-$FLAVOR:$TAG
-          docker push quay.io/kairos/core-$FLAVOR:$TAG
-      - name: Prepare sarif files  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-$FLAVOR:latest
-          MODEL: ${{ matrix.model }}
-        run: |
-          mkdir sarif
-          sudo mv build/*.sarif sarif/
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'sarif'
-          category: ${{ matrix.flavor }}
-      - name: Sign image
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}"
-          TAG: "latest"
-          COSIGN_YES: true
-        run: |
-          docker push "$IMAGE:$TAG"
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
-          spdx=$(ls build/*.spdx.json)
-          cosign attach sbom --sbom $spdx $image_ref
-          cosign sign $image_ref --attachment sbom
-          # in-toto attestation
-          cosign attest --type spdx --predicate $spdx $image_ref
-      - name: Upload results
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ matrix.flavor }}-image
-          path: build
-          if-no-files-found: error
+
   image_and_iso_arm64_generic:
-    runs-on: ubuntu-latest
+    uses: kairos-io/kairos/.github/workflows/reusable-image-and-iso-arm-generic.yaml@master
+    with:
+      flavor: ${{ matrix.flavor }}
     needs:
       - get-matrix
     strategy:
@@ -191,45 +53,3 @@ jobs:
       matrix:
         flavor:
           - "opensuse-leap"
-    steps:
-      - uses: actions/checkout@v3
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-      - name: Install earthly
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Set up QEMU
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
-      - name: Set up Docker Buildx
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        id: buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Build iso  🔧
-        env:
-          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
-          TAG: "master"
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: |
-          earthly -P +all-arm-generic --FLAVOR=${{ matrix.flavor }} --IMAGE=$IMAGE:$TAG --ISO_NAME=kairos-${{ matrix.flavor }}-arm-generic-$TAG
-      - name: Push to quay
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
-          TAG: "master"
-        run: |
-          docker push "$IMAGE:$TAG"
-      - uses: actions/upload-artifact@v3
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        with:
-          name: kairos-${{ matrix.flavor }}-arm64.iso.zip
-          path: |
-            build/*.iso
-            build/*.sha256
