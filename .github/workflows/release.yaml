@@ -5,7 +5,7 @@ on:
     tags:
       - v*
 jobs:
-  get-matrix:
+  get-core-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -17,6 +17,30 @@ jobs:
     - id: set-matrix
       run: |
           content=`cat .github/flavors.json  | jq 'map(select(.frameworkonly != "true"))'`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+
+  # The matrix for standard (provider) images
+  get-standard-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      # TODO:
+      # - extend the matrix to also include k8s versions as defined in releases.json in provider-kairos repo
+      # - For each flavor in the matrix here and for each k8s version, build and release
+      #   a provider-kairos image but calling out to the appropriate Earthly target
+    steps:
+    - uses: actions/checkout@v3
+    - run: |
+        git fetch --prune --unshallow
+        sudo apt update && sudo apt install -y jq
+    - id: set-matrix
+      run: |
+          content=`jq -s '. | combinations | .[0] + {"k8s": .[1]} | select(.frameworkonly != "true")' .github/flavors.json .github/kubernetes-versions.json`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -94,10 +118,10 @@ jobs:
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
 
-  build:
+  build-core:
     runs-on: ubuntu-latest
     needs:
-    - get-matrix
+    - get-core-matrix
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -105,7 +129,7 @@ jobs:
       security-events: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.get-core-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
       - run: |
@@ -176,7 +200,7 @@ jobs:
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
-  build-uki:
+  build-core-uki:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -197,6 +221,89 @@ jobs:
         with:
           files: |
             build/*.efi
+  build-standard:
+    runs-on: ubuntu-latest
+    needs:
+    - get-standard-matrix
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.get-standard-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
+      - name: setup-docker
+        uses: docker-practice/actions-setup-docker@master
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+      - name: Release space from worker
+        run: |
+          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
+          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+      - name: Login to Quay Registry
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Build  🔧
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          export TAG=${GITHUB_REF##*/}
+          earthly +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
+          sudo mv build release
+      - name: Push to quay
+        env:
+          COSIGN_YES: true
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          export TAG=${GITHUB_REF##*/}
+          export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}"
+          docker push "$IMAGE:$TAG"
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          spdx=$(ls release/*.spdx.json)
+          cosign attach sbom --sbom $spdx $image_ref
+          cosign sign $image_ref --attachment sbom
+          # in-toto attestation
+          cosign attest --type spdx --predicate $spdx $image_ref
+      - name: Sign ISO sha files
+        env:
+          COSIGN_YES: true
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          export TAG=${GITHUB_REF##*/}
+          sudo chmod -R 777 release
+          cosign sign-blob --yes --output-certificate=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.pem \
+                          --output-signature=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.sig \
+                          release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/*
+      - name: Prepare sarif files  🔧
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+          IMAGE: quay.io/kairos/core-$FLAVOR:latest
+          MODEL: ${{ matrix.model }}
+        run: |
+          mkdir sarif
+          mv release/*.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}
+
 # build-vm-images:
 #   needs: build
 #   runs-on: macos-12
