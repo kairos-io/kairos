@@ -320,7 +320,6 @@ base-image:
         RUN rm -rf /usr/bin/kairos-agent
         COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
     END
-    # END
 
     # TEST IMMUCORE FROM BRANCH
     ARG IMMUCORE_DEV
@@ -334,7 +333,6 @@ base-image:
         COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
         COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
     END
-    # END
 
     # TEST KCRYPT FROM BRANCH
     ARG KCRYPT_DEV
@@ -344,14 +342,18 @@ base-image:
         COPY github.com/kairos-io/kcrypt:$KCRYPT_DEV_BRANCH+build-kcrypt/kcrypt /usr/bin/kcrypt
     END
 
-    # END
-
-    # Build with provider-kairos
-    # TODO: Allow installing from luet packages
     ARG PROVIDER_KAIROS
-    ARG PROVIDER_KAIROS_BRANCH=main
+    ARG PROVIDER_KAIROS_VERSION
+    ARG PROVIDER_KAIROS_BRANCH
+    ARG K3S_VERSION
     IF [[ "$PROVIDER_KAIROS" != "" ]]
-        DO github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+PROVIDER_INSTALL --FLAVOR=$FLAVOR
+        DO +PROVIDER_INSTALL \
+          -PROVIDER_KAIROS_VERSION=${PROVIDER_KAIROS_VERSION} \
+          -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
+
+        DO +INSTALL_NOHANG -FLAVOR=${FLAVOR}
+        DO +INSTALL_K3S -K3S_VERSION=${K3S_VERSION}
+
         # Redo os-release with override settings to point to provider-kairos stuff
         # in earthly 0.7 we will be able to just override VARIANT here and just run the OSRELEASE once
         # but currently on 0.6 you cant override args properly as it picks the first arg it founds
@@ -1032,3 +1034,72 @@ bump-repositories:
     RUN yq eval ".repositories[0] |= . * { \"reference\": \"${REPO_AMD64}\" }" -i framework-profile.yaml
     RUN yq eval ".repositories[1] |= . * { \"reference\": \"${REPO_ARM64}\" }" -i framework-profile.yaml
     SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
+
+# Installs the needed bits for "standard" images (the provider ones)
+PROVIDER_INSTALL:
+    COMMAND
+
+    ARG PROVIDER_KAIROS_BRANCH=main
+    ARG PROVIDER_KAIROS_VERSION
+
+    COPY +luet/luet /usr/bin/luet
+    #RUN mkdir -p /etc/luet/repos.conf.d/
+    #RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
+
+    IF [ "$PROVIDER_KAIROS_VERSION" = "" ] && [ "$PROVIDER_KAIROS_BRANCH" = "" ]
+      RUN echo "$PROVIDER_KAIROS_VERSION or $PROVIDER_KAIROS_BRANCH should be set when $PROVIDER_KAIROS is true" && exit 1
+    END
+
+    IF [[ "$PROVIDER_KAIROS_VERSION" != "" ]] # Install with luet (released versions of the binary)
+      # If base image does not bundle a luet config use one
+      # TODO: Remove this, use luet config from base images so they are in sync
+      IF [ ! -e "/etc/luet/luet.yaml" ]
+          COPY framework-profile.yaml /etc/luet/luet.yaml
+      END
+
+      # We don't specify a version. To bump, just change what the latest version
+      # in the repository is.
+      RUN luet install -y bundles/provider-kairos
+    ELSE # Install from a branch
+      COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
+      RUN ln -s /system/providers/agent-provider-kairos /usr/bin/kairos
+    END
+
+INSTALL_NOHANG:
+    COMMAND
+
+    ARG FLAVOR
+
+    # Install nohang
+    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ]
+      RUN zypper ref && zypper in -y nohang
+    ELSE IF [ "$FLAVOR" = "alpine-ubuntu" ] || [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
+      RUN apk add grep
+    ELSE IF [ "$FLAVOR" = "opensuse-tumbleweed" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
+      RUN zypper ref && zypper in -y nohang
+    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ] || [ "$FLAVOR" = "debian" ]
+      RUN apt-get update && apt-get install -y nohang
+    END
+
+# Installs k3s (for "standard" images)
+INSTALL_K3S:
+    COMMAND
+
+    ARG K3S_VERSION
+    IF [[ "$K3S_VERSION" = "" ]]
+      RUN echo "$K3S_VERSION must be set" && exit 1
+    END
+
+    IF [[ "$K3S_VERSION" = "latest" ]] # Install latest using the upstream installer
+      ENV INSTALL_K3S_BIN_DIR="/usr/bin"
+      RUN curl -sfL https://get.k3s.io > installer.sh \
+          && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh \
+          && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh agent \
+          && rm -rf installer.sh
+    ELSE
+      IF [ ! -e "/etc/luet/luet.yaml" ]
+          COPY framework-profile.yaml /etc/luet/luet.yaml
+      END
+
+      RUN luet install -y bundle/k3s@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup
+    END

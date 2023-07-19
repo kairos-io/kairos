@@ -40,7 +40,7 @@ jobs:
         sudo apt update && sudo apt install -y jq
     - id: set-matrix
       run: |
-          content=`jq -s '. | combinations | .[0] + {"k8s": .[1]} | select(.frameworkonly != "true")' .github/flavors.json .github/kubernetes-versions.json`
+          content=`jq -s '. | combinations | .[0] + {"k3s_version": .[1]} | select(.frameworkonly != "true")' .github/flavors.json .github/kubernetes-versions.json`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -247,133 +247,23 @@ jobs:
           sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
       - name: Build  🔧
         if: startsWith(github.ref, 'refs/tags/')
-        env:
-          FLAVOR: ${{ matrix.flavor }}
         run: |
-          export TAG=${GITHUB_REF##*/}
-          earthly +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
+          ./earthly.sh +all --K3S_VERSION=${{ matrix.k3s_version }} --FLAVOR=${{ matrix.flavor }}
           sudo mv build release
       - name: Push to quay
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           COSIGN_YES: true
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
-          export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}"
-          docker push "$IMAGE:$TAG"
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
-          spdx=$(ls release/*.spdx.json)
-          cosign attach sbom --sbom $spdx $image_ref
-          cosign sign $image_ref --attachment sbom
-          # in-toto attestation
-          cosign attest --type spdx --predicate $spdx $image_ref
-      - name: Sign ISO sha files
-        env:
-          COSIGN_YES: true
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          export TAG=${GITHUB_REF##*/}
-          sudo chmod -R 777 release
-          cosign sign-blob --yes --output-certificate=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.pem \
-                          --output-signature=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.sig \
-                          release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256
+          IMAGE=$(cat release/IMAGE)
+          docker push "$IMAGE"
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          sudo rm -rf release/IMAGE release/VERSION
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             release/*
-      - name: Prepare sarif files  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-$FLAVOR:latest
-          MODEL: ${{ matrix.model }}
-        run: |
-          mkdir sarif
-          mv release/*.sarif sarif/
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: 'sarif'
-          category: ${{ matrix.flavor }}
-
-# build-vm-images:
-#   needs: build
-#   runs-on: macos-12
-#   strategy:
-#     fail-fast: false
-#     matrix:
-#      include:
-#        - flavor: "opensuse"
-#        - flavor: "alpine"
-#   steps:
-#     - uses: actions/checkout@v2
-#     - name: Install deps
-#       run: |
-#         brew install hudochenkov/sshpass/sshpass
-#         brew install qemu
-#     - name: Download artifacts
-#       uses: actions/download-artifact@v2
-#       with:
-#         name: kairos-${{ matrix.flavor }}.iso.zip
-#     - run: |
-#             ls -liah
-#             iso=$(ls *.iso)
-#             bash scripts/build_vm.sh $iso
-#     - uses: actions/upload-artifact@v2
-#       with:
-#         name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
-#         path: |
-#           *.qcow2.tar.xz
-#     - uses: actions/upload-artifact@v2
-#       with:
-#         name: kairos-${{ matrix.flavor }}.ova
-#         path: |
-#           *.ova
-#         if-no-files-found: error
-
-# release-images:
-#   runs-on: ubuntu-latest
-#   permissions:
-#     contents: write
-#   needs: build-vm-images
-#   strategy:
-#     fail-fast: false
-#     matrix:
-#      include:
-#        - flavor: "opensuse"
-#        - flavor: "alpine"
-#   steps:
-#     - name: Download artifacts
-#       uses: actions/download-artifact@v2
-#       with:
-#         name: kairos-${{ matrix.flavor }}.qcow2.tar.xz
-#     - name: Download artifacts
-#       uses: actions/download-artifact@v2
-#       with:
-#         name: kairos-${{ matrix.flavor }}.ova
-#     - run: |
-#             mkdir release
-#             mv *.qcow2.tar.xz release/
-#             mv *.ova release/
-#     - uses: web3-storage/add-to-web3@v2
-#       id: web3
-#       with:
-#         web3_token: ${{ secrets.WEB3_STORAGE_TOKEN }}
-#         path_to_add: 'release'
-#     - run: |
-#         mkdir dist
-#         echo ${{ steps.web3.outputs.url }} > dist/kairos-${{ matrix.flavor }}.qcow2.url.txt
-#     - name: Release
-#       uses: softprops/action-gh-release@v1
-#       if: startsWith(github.ref, 'refs/tags/')
-#       with:
-#         files: |
-#           dist/*
