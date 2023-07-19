@@ -252,3 +252,41 @@ jobs:
         flavor:
           - "opensuse-leap"
           - "alpine-opensuse-leap"
+  test-uki:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - name: Install deps
+        run: |
+          # install qemu-system-x86_64 and qemu-img
+          sudo apt update
+          sudo apt install -y qemu-system-x86 qemu-utils qemu-kvm acl
+          # Allow the "runner" user to access /dev/kvm
+          # Might not be the best solution but adding to the kvm group didn't work
+          # https://askubuntu.com/a/1081326
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Build uki disk 🔧
+        run: |
+          # Do fedora as its the smaller uki possible
+          earthly +prepare-uki-disk-image --FLAVOR=fedora
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+          FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
+        run: |
+          export UKI_DRIVE=${PWD}/build/disk.img
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/

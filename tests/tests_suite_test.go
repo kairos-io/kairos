@@ -118,6 +118,7 @@ func startVM() (context.Context, VM) {
 
 	stateDir, err := os.MkdirTemp("", "")
 	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("State dir: %s\n", stateDir)
 
 	if os.Getenv("EMULATE_TPM") != "" {
 		emulateTPM(stateDir)
@@ -183,6 +184,28 @@ func startVM() (context.Context, VM) {
 					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
 					"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
 				)
+			}
+			return nil
+		},
+		// Firmware
+		func(m *types.MachineConfig) error {
+			FW := os.Getenv("FIRMWARE")
+			if FW != "" {
+				m.Args = append(m.Args,
+					"-bios", FW)
+			}
+
+			return nil
+		},
+		// UKI boot
+		func(m *types.MachineConfig) error {
+			drive := os.Getenv("UKI_DRIVE")
+			// UKI drive needs to be set with bootindex=0 to be able to boot from that disk directly
+			// Otherwise it won't boot
+			if drive != "" {
+				m.Args = append(m.Args,
+					"-drive", fmt.Sprintf("file=%s,if=none,index=0,media=disk,format=raw,id=disk1", drive),
+					"-device", "virtio-blk-pci,drive=disk1,bootindex=0")
 			}
 			return nil
 		},
