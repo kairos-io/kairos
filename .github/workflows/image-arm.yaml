@@ -55,3 +55,59 @@ jobs:
       matrix:
         flavor:
           - "opensuse-leap"
+
+  notify:
+    runs-on: ubuntu-latest
+    if: failure()
+    needs:
+      - docker
+      - image_and_iso_arm64_generic
+    steps:
+      - name: save commit-message
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
+        run: echo "COMMIT_MSG=$(git log -1 --pretty=format:%s)" >> $GITHUB_ENV
+      - name: notify if failure
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Job failure on master branch for job ${{ github.job }} in workflow \"${{ github.workflow }}\"\n\nCommit message is \"${{ env.COMMIT_MSG }}\"\n\n Commit sha is <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":thisisfine: Failed Run",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": ":kairos: Repository link",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}"
+                    }
+                  ]
+                }
+              ]
+            }
