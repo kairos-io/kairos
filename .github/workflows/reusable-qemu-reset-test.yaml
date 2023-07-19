@@ -8,16 +8,19 @@ on:
         type: string
 
 jobs:
-  build:
+  test:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
-      - name: Download artifacts
+      - name: Download ISO
+        id: iso
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Display structure of downloaded files
+        run: ls -las .
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
@@ -39,4 +42,4 @@ jobs:
                   http = true
             EOF
             earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
-            earthly -P +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *.iso) --TEST_SUITE=reset-test --FLAVOR=${{ inputs.flavor }}
+            earthly -P +run-qemu-datasource-tests --PREBUILT_ISO=kairos-core-${{ inputs.flavor }}.iso --TEST_SUITE=reset-test --FLAVOR=${{ inputs.flavor }}

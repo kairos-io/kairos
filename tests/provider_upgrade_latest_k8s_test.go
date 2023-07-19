@@ -154,7 +154,7 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		}, 900*time.Second, 10*time.Second).ShouldNot(And(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
 
 		By("triggering an upgrade")
-		suc := sucYAML(strings.ReplaceAll(containerImage, ":8h", ""), "8h")
+		suc := sucYAML(strings.ReplaceAll(containerImage, ":24h", ""), "24h")
 
 		err = ioutil.WriteFile("assets/generated.yaml", []byte(suc), os.ModePerm)
 		Expect(err).ToNot(HaveOccurred())

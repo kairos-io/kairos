@@ -8,16 +8,19 @@ on:
         type: string
 
 jobs:
-  build:
+  test:
     runs-on: macos-12
     steps:
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
-      - name: Download artifacts
+      - name: Download ISO
+        id: iso
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
+      - name: Display structure of downloaded files
+        run: ls -las .
       - name: Install deps
         run: |
           brew install cdrtools jq gsed
@@ -26,8 +29,9 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-      - run: |
-          export ISO=$PWD/$(ls *.iso)
+      - name: Ginkgo
+        run: |
+          export ISO=$PWD/kairos-core-${{ inputs.flavor }}.iso
           export GOPATH="/Users/runner/go"
           export PATH=$PATH:$GOPATH/bin
           export CREATE_VM=true
