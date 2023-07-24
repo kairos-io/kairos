@@ -59,7 +59,7 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -las .
       - run: |
-          earthly +run-qemu-test --PREBUILT_ISO=kairos-core-${{ inputs.flavor }}.iso \
+          earthly +run-qemu-test --PREBUILT_ISO=$(ls kairos-core-*${{ inputs.flavor }}*.iso) \
             --FLAVOR=${{ inputs.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-with-cli
