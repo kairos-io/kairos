@@ -69,9 +69,9 @@ all-arm:
   ARG SECURITY_SCANS=true
   BUILD --platform=linux/arm64 +base-image --MODEL=rpi64
   IF [ "$SECURITY_SCANS" = "true" ]
-      BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
-      BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
-      BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
+      BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64 --ARCH=arm64
+      BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64 --ARCH=arm64
+      BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64 --ARCH=arm64
   END
   
   IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
@@ -177,6 +177,7 @@ syft:
     SAVE ARTIFACT /syft syft
 
 image-sbom:
+    ARG ARCH
     # Use base-image so it can read original os-release file
     FROM +base-image
     WORKDIR /build
@@ -622,7 +623,7 @@ arm-image:
   COPY +version/VERSION ./
   RUN echo "version ${VERSION}"
   ARG VERSION=$(cat VERSION)
-  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}.img
+  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-arm-${MODEL}-${VERSION}.img
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
@@ -746,6 +747,7 @@ trivy:
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
+    ARG ARCH
     # Use base-image so it can read original os-release file
     FROM +base-image
     COPY +trivy/trivy /trivy
@@ -768,6 +770,7 @@ grype:
     SAVE ARTIFACT /grype /grype
 
 grype-scan:
+    ARG ARCH
     # Use base-image so it can read original os-release file
     FROM +base-image
     COPY +grype/grype /grype
