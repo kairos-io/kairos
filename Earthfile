@@ -77,7 +77,7 @@ all-arm:
   IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
     BUILD +prepare-arm-image --MODEL=rpi64 --FLAVOR=${FLAVOR}
   ELSE
-    BUILD +arm-image --MODEL=rpi64
+    BUILD +arm-image --MODEL=rpi64 --ARCH=arm64
   END
 
 arm-container-image:
