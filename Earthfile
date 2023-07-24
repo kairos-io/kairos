@@ -594,7 +594,6 @@ netboot:
     ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
-    COPY +version/VERSION ./
     ARG FROM_ARTIFACT
     WORKDIR /build
     ARG RELEASE_URL
@@ -620,7 +619,10 @@ arm-image:
   ARG IMG_COMPRESSION=xz
   FROM $OSBUILDER_IMAGE
   ARG MODEL=rpi64
-  ARG IMAGE_NAME=${FLAVOR}.img
+  COPY +version/VERSION ./
+  RUN echo "version ${VERSION}"
+  ARG VERSION=$(cat VERSION)
+  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}.img
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
