@@ -186,7 +186,7 @@ image-sbom:
     ARG VERSION=$(cat VERSION)
 
     IF [ "$ARCH" = "arm64" ]
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(echo $FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
     ELSE
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
     END
@@ -629,7 +629,7 @@ arm-image:
   COPY +version/VERSION ./
   RUN echo "version ${VERSION}"
   ARG VERSION=$(cat VERSION)
-  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
+  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-$(echo $FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
@@ -763,7 +763,7 @@ trivy-scan:
     ARG FLAVOR
     ARG VARIANT
     IF [ "$ARCH" = "arm64" ]
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(echo $FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
     ELSE
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
     END
@@ -789,7 +789,7 @@ grype-scan:
     ARG FLAVOR
     ARG VARIANT
     IF [ "$ARCH" = "arm64" ]
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(echo $FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
     ELSE
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
     END
