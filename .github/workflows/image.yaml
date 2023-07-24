@@ -54,7 +54,7 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   core:
-    uses: .github/workflows/reusable-build-flavor.yaml
+    uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
@@ -64,7 +64,7 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
   framework:
-    uses: .github/workflows/reusable-build-framework-flavor.yaml
+    uses: ./.github/workflows/reusable-build-framework-flavor.yaml
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
@@ -74,7 +74,7 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
   install:
-    uses: .github/workflows/reusable-install-test.yaml
+    uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -85,7 +85,7 @@ jobs:
         include:
           - flavor: opensuse-leap
   zfs:
-    uses: .github/workflows/reusable-zfs-test.yaml
+    uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -96,7 +96,7 @@ jobs:
         include:
           - flavor: "ubuntu"
   acceptance:
-    uses: .github/workflows/reusable-qemu-acceptance-test.yaml
+    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -113,7 +113,7 @@ jobs:
           - flavor: "ubuntu-20-lts"
           - flavor: "ubuntu-22-lts"
   bundles:
-    uses: .github/workflows/reusable-qemu-bundles-test.yaml
+    uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -124,7 +124,7 @@ jobs:
         include:
           - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
   reset:
-    uses: .github/workflows/reusable-qemu-reset-test.yaml
+    uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -136,7 +136,7 @@ jobs:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
   netboot:
-    uses: .github/workflows/reusable-qemu-netboot-test.yaml
+    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -149,7 +149,7 @@ jobs:
           - flavor: opensuse-leap
           - flavor: ubuntu
   upgrade:
-    uses: .github/workflows/reusable-upgrade-with-cli-test.yaml
+    uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -161,7 +161,7 @@ jobs:
           - flavor: alpine-opensuse-leap
           - flavor: opensuse-leap
   upgrade-latest:
-    uses: .github/workflows/reusable-upgrade-latest-test.yaml
+    uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:
@@ -176,7 +176,7 @@ jobs:
           # - flavor: "ubuntu"
           # - flavor: "ubuntu"
   encryption:
-    uses: .github/workflows/reusable-encryption-test.yaml
+    uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
@@ -194,7 +194,7 @@ jobs:
         flavor:
           - "opensuse-leap"
   standard:
-    uses: .github/workflows/reusable-build-provider.yaml
+    uses: ./.github/workflows/reusable-build-provider.yaml
     with:
       flavor: ${{ matrix.flavor }}
     strategy:
@@ -204,7 +204,7 @@ jobs:
           - "opensuse-leap"
           - "alpine-opensuse-leap"
   various:
-    uses: .github/workflows/reusable-provider-tests.yaml
+    uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
@@ -228,7 +228,7 @@ jobs:
           - label: "provider-upgrade"
             flavor: "alpine-opensuse-leap"
   standard-upgrade-latest:
-    uses: .github/workflows/reusable-provider-upgrade-latest-test.yaml
+    uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
     needs:

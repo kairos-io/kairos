@@ -75,8 +75,7 @@ all-arm:
   END
   
   IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-    BUILD +prepare-arm-image --MODEL=nvidia-orin --FLAVOR=${FLAVOR}
-
+    BUILD +prepare-arm-image --MODEL=rpi64 --FLAVOR=${FLAVOR}
   ELSE
     BUILD +arm-image --MODEL=rpi64
   END
@@ -185,7 +184,13 @@ image-sbom:
     ARG VARIANT
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+
+    IF [ "$ARCH" = "arm64" ]
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
+    ELSE
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    END
+
     COPY +syft/syft /usr/bin/syft
     RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
     SAVE ARTIFACT /build/sbom.syft.json sbom.syft.json AS LOCAL build/${ISO_NAME}-sbom.syft.json
@@ -624,7 +629,7 @@ arm-image:
   COPY +version/VERSION ./
   RUN echo "version ${VERSION}"
   ARG VERSION=$(cat VERSION)
-  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}.img
+  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
@@ -757,7 +762,11 @@ trivy-scan:
     ARG VERSION=$(cat VERSION)
     ARG FLAVOR
     ARG VARIANT
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    IF [ "$ARCH" = "arm64" ]
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
+    ELSE
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    END
     WORKDIR /build
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
@@ -779,7 +788,11 @@ grype-scan:
     ARG VERSION=$(cat VERSION)
     ARG FLAVOR
     ARG VARIANT
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    IF [ "$ARCH" = "arm64" ]
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-$(FLAVOR | sed 's/-arm-rpi*//')-${ARCH}-${MODEL}-${VERSION}.img
+    ELSE
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    END
     WORKDIR /build
     RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
     RUN /grype dir:/ --output json --add-cpes-if-none --file report.json

@@ -13,7 +13,7 @@ env:
 
 jobs:
   docker:
-    uses: .github/workflows/reusable-docker-arm-build.yaml
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
       flavor: opensuse-leap-arm-rpi
       model: rpi64

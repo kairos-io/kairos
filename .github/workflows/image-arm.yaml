@@ -31,7 +31,7 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   docker:
-    uses: .github/workflows/reusable-docker-arm-build.yaml
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
@@ -44,7 +44,7 @@ jobs:
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
 
   image_and_iso_arm64_generic:
-    uses: .github/workflows/reusable-image-and-iso-arm-generic.yaml
+    uses: ./.github/workflows/reusable-image-and-iso-arm-generic.yaml
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
