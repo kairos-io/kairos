@@ -75,7 +75,7 @@ all-arm:
   END
   
   IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-    BUILD +prepare-arm-image --MODEL=rpi64 --FLAVOR=${FLAVOR}
+    BUILD +prepare-arm-image --MODEL=nvidia-orin --FLAVOR=${FLAVOR}
 
   ELSE
     BUILD +arm-image --MODEL=rpi64
@@ -615,6 +615,7 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
 arm-image:
+  ARG ARCH=arm64
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
@@ -623,7 +624,7 @@ arm-image:
   COPY +version/VERSION ./
   RUN echo "version ${VERSION}"
   ARG VERSION=$(cat VERSION)
-  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-arm-${MODEL}-${VERSION}.img
+  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}.img
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
