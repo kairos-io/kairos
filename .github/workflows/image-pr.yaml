@@ -11,68 +11,68 @@ env:
   FORCE_COLOR: 1
 jobs:
   core:
-    uses: kairos-io/kairos/.github/workflows/reusable-build-flavor.yaml@master
+    uses: .github/workflows/reusable-build-flavor.yaml
     with:
       flavor: ubuntu
 
   install:
-    uses: kairos-io/kairos/.github/workflows/reusable-install-test.yaml@master
+    uses: .github/workflows/reusable-install-test.yaml
     with:
       flavor: ubuntu
     needs:
       - core
 
   zfs:
-    uses: kairos-io/kairos/.github/workflows/reusable-zfs-test.yaml@master
+    uses: .github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ubuntu
     needs:
       - core
 
   acceptance:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-acceptance-test.yaml@master
+    uses: .github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: ubuntu
     needs:
       - core
 
   bundles:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-bundles-test.yaml@master
+    uses: .github/workflows/reusable-qemu-bundles-test.yaml
     with:
       flavor: ubuntu
     needs:
       - core
 
   reset:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-reset-test.yaml@master
+    uses: .github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: ubuntu
     needs:
       - core
 
   netboot:
-    uses: kairos-io/kairos/.github/workflows/reusable-qemu-netboot-test.yaml@master
+    uses: .github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: ubuntu
     needs:
       - core
 
   upgrade:
-    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-with-cli-test.yaml@master
+    uses: .github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ubuntu
     needs:
       - core
 
   upgrade-latest:
-    uses: kairos-io/kairos/.github/workflows/reusable-upgrade-latest-test.yaml@master
+    uses: .github/workflows/reusable-upgrade-latest-test.yaml
     with:
       flavor: ubuntu
     needs:
     - core
 
   encryption:
-    uses: kairos-io/kairos/.github/workflows/reusable-encryption-test.yaml@master
+    uses: .github/workflows/reusable-encryption-test.yaml
     with:
       flavor: ubuntu
       label: ${{ matrix.label }}
