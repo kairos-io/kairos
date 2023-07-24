@@ -4,11 +4,21 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
+	"os"
 	"strings"
 )
 
-var _ = Describe("kairos UKI test", Label("uki"), func() {
+var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 	var vm VM
+
+	BeforeAll(func() {
+		if os.Getenv("UKI_DRIVE") == "" {
+			Fail("UKI_DRIVE environment variable set to a UKI disk is needed for UKI test")
+		}
+		if os.Getenv("FIRMWARE") == "" {
+			Fail("FIRMWARE environment variable set to a EFI firmware is needed for UKI test")
+		}
+	})
 
 	BeforeEach(func() {
 		_, vm = startVM()
