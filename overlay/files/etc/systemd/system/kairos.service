@@ -10,5 +10,6 @@ ExecStartPre=-/bin/sh -c "dmesg -D"
 TTYPath=/dev/tty1
 RemainAfterExit=yes
 ExecStart=/usr/bin/kairos-agent install
+TimeoutStopSec=10s
 [Install]
 WantedBy=multi-user.target
