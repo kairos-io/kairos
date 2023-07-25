@@ -315,7 +315,7 @@ base-image:
 
     # TEST KAIROS-AGENT FROM BRANCH
     ARG KAIROS_AGENT_DEV=true
-    ARG KAIROS_AGENT_DEV_BRANCH=v2.2.0-rc3
+    ARG KAIROS_AGENT_DEV_BRANCH=v2.2.0-rc4
     IF [ "$KAIROS_AGENT_DEV" = "true" ]
         RUN rm -rf /usr/bin/kairos-agent
         COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
