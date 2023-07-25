@@ -1059,7 +1059,7 @@ PROVIDER_INSTALL:
 
       # We don't specify a version. To bump, just change what the latest version
       # in the repository is.
-      RUN luet install -y bundles/provider-kairos
+      RUN luet install -y system/provider-kairos
     ELSE # Install from a branch
       COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
       RUN ln -s /system/providers/agent-provider-kairos /usr/bin/kairos
@@ -1101,5 +1101,5 @@ INSTALL_K3S:
           COPY framework-profile.yaml /etc/luet/luet.yaml
       END
 
-      RUN luet install -y bundle/k3s@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup
+      RUN luet install -y k8s/k3s@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup
     END
