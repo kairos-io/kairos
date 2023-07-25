@@ -343,13 +343,10 @@ base-image:
     END
 
     ARG PROVIDER_KAIROS
-    ARG PROVIDER_KAIROS_VERSION
     ARG PROVIDER_KAIROS_BRANCH
     ARG K3S_VERSION
     IF [[ "$PROVIDER_KAIROS" != "" ]]
-        DO +PROVIDER_INSTALL \
-          -PROVIDER_KAIROS_VERSION=${PROVIDER_KAIROS_VERSION} \
-          -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
+        DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
         DO +INSTALL_NOHANG -FLAVOR=${FLAVOR}
         DO +INSTALL_K3S -K3S_VERSION=${K3S_VERSION}
@@ -1040,17 +1037,10 @@ PROVIDER_INSTALL:
     COMMAND
 
     ARG PROVIDER_KAIROS_BRANCH=main
-    ARG PROVIDER_KAIROS_VERSION
 
     COPY +luet/luet /usr/bin/luet
-    #RUN mkdir -p /etc/luet/repos.conf.d/
-    #RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
 
-    IF [ "$PROVIDER_KAIROS_VERSION" = "" ] && [ "$PROVIDER_KAIROS_BRANCH" = "" ]
-      RUN echo "$PROVIDER_KAIROS_VERSION or $PROVIDER_KAIROS_BRANCH should be set when $PROVIDER_KAIROS is true" && exit 1
-    END
-
-    IF [[ "$PROVIDER_KAIROS_VERSION" != "" ]] # Install with luet (released versions of the binary)
+    IF [[ "$PROVIDER_KAIROS_BRANCH" = "" ]] # Install with luet (released versions of the binary)
       # If base image does not bundle a luet config use one
       # TODO: Remove this, use luet config from base images so they are in sync
       IF [ ! -e "/etc/luet/luet.yaml" ]
