@@ -4,7 +4,6 @@ ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse-leap
 ARG BASE_URL=quay.io/kairos
 ARG IMAGE=${BASE_URL}/${VARIANT}-${FLAVOR}:latest
-ARG ARCH=amd64
 ARG MODEL=generic
 ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
 ARG GITHUB_REPO=kairos-io/kairos
@@ -69,15 +68,15 @@ all-arm:
   ARG SECURITY_SCANS=true
   BUILD --platform=linux/arm64 +base-image --MODEL=rpi64
   IF [ "$SECURITY_SCANS" = "true" ]
-      BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64 --ARCH=arm64
-      BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64 --ARCH=arm64
-      BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64 --ARCH=arm64
+      BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
+      BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
+      BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
   END
   
   IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
     BUILD +prepare-arm-image --MODEL=rpi64 --FLAVOR=${FLAVOR}
   ELSE
-    BUILD +arm-image --MODEL=rpi64 --ARCH=arm64
+    BUILD +arm-image --MODEL=rpi64
   END
 
 arm-container-image:
@@ -176,7 +175,7 @@ syft:
     SAVE ARTIFACT /syft syft
 
 image-sbom:
-    ARG ARCH
+    ARG TARGETARCH
     # Use base-image so it can read original os-release file
     FROM +base-image
     WORKDIR /build
@@ -185,11 +184,11 @@ image-sbom:
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
 
-    IF [ "$ARCH" = "arm64" ]
+    IF [ "$TARGETARCH" = "arm64" ]
         ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${ARCH}-${MODEL}-${VERSION}
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
     ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     END
 
     COPY +syft/syft /usr/bin/syft
@@ -450,10 +449,11 @@ uki-tools-image:
     RUN dnf install -y binutils systemd-boot mtools efitools sbsigntools shim openssl
 
 uki:
+    ARG TARGETARCH
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     FROM +uki-tools-image
     WORKDIR build
     COPY +uki-artifacts/Kernel Kernel
@@ -498,7 +498,8 @@ uki-signed:
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    ARG TARGETARCH
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
 
     RUN sbsign --key DB.key --cert DB.crt --output uki.signed.efi uki.efi
 
@@ -563,7 +564,8 @@ prepare-uki-disk-image:
 iso:
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    ARG TARGETARCH
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
     ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
@@ -581,9 +583,10 @@ iso:
 # you can override either the full thing by setting --IMG=docker:REPO/IMAGE:TAG
 # or by --IMAGE=REPO/IMAGE:TAG
 iso-remote:
+    ARG TARGETARCH
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
     ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
@@ -595,10 +598,11 @@ iso-remote:
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
 netboot:
+    ARG TARGETARCH
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     ARG FROM_ARTIFACT
@@ -614,14 +618,11 @@ netboot:
     END
 
     SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
-    # TODO: why do the kernel and initrd files don't have an extension?
     SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
     SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
-    # TODO: what is the different between this one and the ipxe.iso.ipxe one?
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
 arm-image:
-  ARG ARCH=arm64
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
@@ -631,7 +632,9 @@ arm-image:
   RUN echo "version ${VERSION}"
   ARG VERSION=$(cat VERSION)
   ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
-  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${ARCH}-${MODEL}-${VERSION}.img
+  # TARGETARCH is not used here because OSBUILDER_IMAGE is not available in arm64. When this changes, then the caller
+  # of this target can simply pass the desired TARGETARCH.
+  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}.img
   RUN echo $IMAGE_NAME
   WORKDIR /build
   # These sizes are in MB
@@ -703,6 +706,7 @@ prepare-arm-image:
   SAVE ARTIFACT /build/bootloader/state_partition.img state_partition.img AS LOCAL build/state_partition.img
 
 ipxe-iso:
+    ARG TARGETARCH
     FROM ubuntu
     ARG ipxe_script
     RUN apt update
@@ -713,7 +717,7 @@ ipxe-iso:
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
     ARG RELEASE_URL
@@ -728,10 +732,8 @@ ipxe-iso:
     RUN cd ipxe/src && \
         sed -i 's/#undef\tDOWNLOAD_PROTO_HTTPS/#define\tDOWNLOAD_PROTO_HTTPS/' config/general.h && \
         make EMBED=/build/ipxe/script.ipxe
-    # TODO: can we remove the first ipxe from these names?
-    SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso.ipxe
-    # TODO: is usb, img and ipxe needed?
-    SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img.ipxe
+    SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso
+    SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img
 
 # Generic targets
 # usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
@@ -756,7 +758,7 @@ trivy:
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
-    ARG ARCH
+    ARG TARGETARCH
     # Use base-image so it can read original os-release file
     FROM +base-image
     COPY +trivy/trivy /trivy
@@ -765,11 +767,11 @@ trivy-scan:
     ARG VERSION=$(cat VERSION)
     ARG FLAVOR
     ARG VARIANT
-    IF [ "$ARCH" = "arm64" ]
+    IF [ "$TARGETARCH" = "arm64" ]
         ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${ARCH}-${MODEL}-${VERSION}
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
     ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     END
     WORKDIR /build
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
@@ -784,7 +786,7 @@ grype:
     SAVE ARTIFACT /grype /grype
 
 grype-scan:
-    ARG ARCH
+    ARG TARGETARCH
     # Use base-image so it can read original os-release file
     FROM +base-image
     COPY +grype/grype /grype
@@ -792,11 +794,11 @@ grype-scan:
     ARG VERSION=$(cat VERSION)
     ARG FLAVOR
     ARG VARIANT
-    IF [ "$ARCH" = "arm64" ]
+    IF [ "$TARGETARCH" = "arm64" ]
         ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${ARCH}-${MODEL}-${VERSION}
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
     ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     END
     WORKDIR /build
     RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
@@ -847,6 +849,7 @@ run-qemu-datasource-tests:
 
 
 run-qemu-netboot-test:
+    ARG TARGETARCH
     FROM +go-deps-test
     COPY . /test
     WORKDIR /test
@@ -854,7 +857,7 @@ run-qemu-netboot-test:
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${ARCH}-${MODEL}-${VERSION}
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
 
