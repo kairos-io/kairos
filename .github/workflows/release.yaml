@@ -29,9 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
-      # TODO:
-      # - For each flavor in the matrix here and for each k8s version, build and release
-      #   a provider-kairos image but calling out to the appropriate Earthly target
     steps:
     - uses: actions/checkout@v3
     - run: |
