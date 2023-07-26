@@ -31,7 +31,7 @@ jobs:
           cache-dependency-path: tests/go.sum
       - name: Ginkgo
         run: |
-          export ISO=$PWD/kairos-core-${{ inputs.flavor }}.iso
+          export ISO=$(ls $PWD/kairos-core-*${{ inputs.flavor }}*.iso)
           export GOPATH="/Users/runner/go"
           export PATH=$PATH:$GOPATH/bin
           export CREATE_VM=true
