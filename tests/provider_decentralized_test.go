@@ -140,14 +140,6 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			}
 		})
 
-		vmForEach("checking if it has default image sizes", vms, func(vm VM) {
-			for _, p := range []string{"active.img", "passive.img"} {
-				out, err := vm.Sudo(`stat -c "%s" /run/initramfs/cos-state/cOS/` + p)
-				Expect(err).ToNot(HaveOccurred(), out)
-				Expect(out).Should(ContainSubstring("3145728000"))
-			}
-		})
-
 		vmForEach("checking if it has a working kubeconfig", vms, func(vm VM) {
 			var out string
 			Eventually(func() string {

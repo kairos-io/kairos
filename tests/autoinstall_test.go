@@ -163,6 +163,13 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian")
 				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
 			})
+			By("checking if it has default image sizes", func() {
+				for _, p := range []string{"active.img", "passive.img"} {
+					out, err := vm.Sudo(`stat -c "%s" /run/initramfs/cos-state/cOS/` + p)
+					Expect(err).ToNot(HaveOccurred(), out)
+					Expect(out).Should(ContainSubstring("3221225472"))
+				}
+			})
 		})
 	})
 })
