@@ -52,6 +52,8 @@ You can find us at:
 - [IRC #kairos in libera.chat](https://web.libera.chat/#kairos)
 - [GitHub Discussions](https://github.com/kairos-io/kairos/discussions)
 
+The [:handshake: community repository](https://github.com/kairos-io/community) contains information about how to get involved, Code of conduct, Maintainers, Contribution guidelines, including also links to our weekly meeting notes, roadmap, and more.
+
 ### Project Office Hours
 
 Project Office Hours is an opportunity for attendees to meet the maintainers of the project, learn more about the project, ask questions, and learn about new features and upcoming updates.
