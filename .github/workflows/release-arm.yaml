@@ -4,7 +4,7 @@ on:
     tags:
       - '*'
 jobs:
-  get-matrix:
+  get-core-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -21,10 +21,35 @@ jobs:
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
+
+  # The matrix for standard (provider) images
+  get-standard-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: Luet-lab/luet-install-action@v1
+    - run: |
+        git fetch --prune --unshallow
+        sudo apt update && sudo apt install -y jq
+    - id: set-matrix
+      run: |
+          luet repo add kairos --yes --url quay.io/kairos/packages --type docker
+          # Construct an array like this from the found versions:
+          luet search -o json k8s/k3s  | jq '.packages | map(.version)' >  k3s_versions.json
+          content=$(jq -s '. | combinations | .[0] + {"k3s_version": .[1]} | select(.frameworkonly != "true")' .github/flavors-arm.json k3s_versions.json)
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+  # TODO: Duplicate this instead of switching it to standard. We will need the core images!
   docker:
     runs-on: ${{ matrix.worker }}
     needs:
-      - get-matrix
+      - get-core-matrix
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -32,7 +57,7 @@ jobs:
       security-events: write
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
         if: ${{ matrix.worker != 'self-hosted' }}
@@ -97,7 +122,9 @@ jobs:
           MODEL: ${{ matrix.model }}
         run: |
           export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+
+          # TODO: Build all arm generic too!!
+          ./earthly.sh +all-arm -VARIANT=kairos -PROVIDER_KAIROS=true -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
       - name: Selfhosted Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
         env:
@@ -117,7 +144,7 @@ jobs:
                 http = true
           EOF
           export TAG=${GITHUB_REF##*/}
-          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm -VARIANT=kairos -PROVIDER_KAIROS=true -K3S_VERSION=${{ matrix.k3s_version }} --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
@@ -146,6 +173,7 @@ jobs:
         run: |
           curl https://luet.io/install.sh | sudo sh
           sudo tar cvf build.tar build
+          # TODO: Fix image names here (we no longer pass an explicit name but we let Earthly construct it)
           sudo luet util pack quay.io/kairos/core-${{ matrix.flavor }}-img:$VERSION build.tar image.tar
           sudo -E docker load -i image.tar
           sudo -E docker push quay.io/kairos/core-${{ matrix.flavor }}-img:$VERSION
@@ -168,10 +196,13 @@ jobs:
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
+
+  # TODO: Build standard generic images
+  # TODO: DRY these workflows. They are almost identical except for one command.
   image_and_iso_arm64_generic:
     runs-on: ubuntu-latest
     needs:
-      - get-matrix
+      - get-core-matrix
     strategy:
       fail-fast: false
       matrix:

@@ -652,6 +652,21 @@ arm-image:
     ENV RECOVERY_SIZE="4200"
     ENV DEFAULT_ACTIVE_SIZE="2000"
   END
+
+  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+    ENV STATE_SIZE="14000"
+    ENV RECOVERY_SIZE="10000"
+    ENV DEFAULT_ACTIVE_SIZE="4500"
+  ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+    ENV STATE_SIZE="6900"
+    ENV RECOVERY_SIZE="4600"
+    ENV DEFAULT_ACTIVE_SIZE="2700"
+  ELSE
+    ENV STATE_SIZE="6200"
+    ENV RECOVERY_SIZE="4200"
+    ENV DEFAULT_ACTIVE_SIZE="2000"
+  END
+
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
