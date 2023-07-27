@@ -57,8 +57,8 @@ RUN apt-get update \
     os-prober \
     packagekit-tools \
     parted \
-    qemu-guest-agent \
     publicsuffix \
+    qemu-guest-agent \
     rsync \
     shared-mime-info \
     snapd \
@@ -107,8 +107,8 @@ RUN apt-get update \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 # workaround https://github.com/kairos-io/kairos/issues/949
 # TODO: backport patch into packages
-COPY images/dracut-broken-iscsi-ubuntu-20.patch /
-RUN cd /usr/lib/dracut/modules.d/95iscsi && patch < /dracut-broken-iscsi-ubuntu-20.patch && rm -rf /dracut-broken-iscsi-ubuntu-20.patch
+# COPY images/dracut-broken-iscsi-ubuntu-20.patch /
+# RUN cd /usr/lib/dracut/modules.d/95iscsi && patch < /dracut-broken-iscsi-ubuntu-20.patch && rm -rf /dracut-broken-iscsi-ubuntu-20.patch
 
 FROM common AS ubuntu-22-lts-specific
 RUN apt-get update \
