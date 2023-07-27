@@ -185,7 +185,7 @@ image-sbom:
     ARG VERSION=$(cat VERSION)
 
     IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
+        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
     ELSE
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
@@ -631,7 +631,7 @@ arm-image:
   COPY +version/VERSION ./
   RUN echo "version ${VERSION}"
   ARG VERSION=$(cat VERSION)
-  ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
+  ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
   # TARGETARCH is not used here because OSBUILDER_IMAGE is not available in arm64. When this changes, then the caller
   # of this target can simply pass the desired TARGETARCH.
   ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}.img
@@ -768,7 +768,7 @@ trivy-scan:
     ARG FLAVOR
     ARG VARIANT
     IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
+        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
     ELSE
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
@@ -795,7 +795,7 @@ grype-scan:
     ARG FLAVOR
     ARG VARIANT
     IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-rpi*//')
+        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
     ELSE
         ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
