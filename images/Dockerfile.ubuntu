@@ -56,8 +56,8 @@ RUN apt-get update \
     os-prober \
     packagekit-tools \
     parted \
-    publicsuffix \
     qemu-guest-agent \
+    publicsuffix \
     rsync \
     shared-mime-info \
     snapd \
