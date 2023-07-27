@@ -123,8 +123,8 @@ jobs:
         run: |
           export TAG=${GITHUB_REF##*/}
 
-          # TODO: Build all arm generic too!!
-          ./earthly.sh +all-arm -VARIANT=kairos -PROVIDER_KAIROS=true -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+          # TODO: Build all arm generic too!! (and other models?)
+          earthly +all-arm -VARIANT=standard -MODEL=rpi64 -PROVIDER_KAIROS=true -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
       - name: Selfhosted Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
         env:
