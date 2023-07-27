@@ -357,11 +357,9 @@ base-image:
         COPY github.com/kairos-io/kcrypt:$KCRYPT_DEV_BRANCH+build-kcrypt/kcrypt /usr/bin/kcrypt
     END
 
-    ARG PROVIDER_KAIROS
     ARG PROVIDER_KAIROS_BRANCH
     ARG K3S_VERSION
-    # TODO: Use VARIANT=standard instead?
-    IF [[ "$PROVIDER_KAIROS" != "" ]]
+    IF [[ "$VARIANT" = "standard" ]]
         DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
         DO +INSTALL_NOHANG -FLAVOR=${FLAVOR}

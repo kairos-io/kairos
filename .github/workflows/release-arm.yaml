@@ -126,7 +126,7 @@ jobs:
           export TAG=${GITHUB_REF##*/}
 
           # TODO: Build all arm generic too!! (and other models?)
-          earthly +all-arm -VARIANT=standard -MODEL=${MODEL} -PROVIDER_KAIROS=true -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+          earthly +all-arm -VARIANT=standard -MODEL=${MODEL} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
       - name: Selfhosted Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
         env:
@@ -146,7 +146,7 @@ jobs:
                 http = true
           EOF
           export TAG=${GITHUB_REF##*/}
-          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm -VARIANT=standard -PROVIDER_KAIROS=true -K3S_VERSION=${{ matrix.k3s_version }} --MODEL=$MODEL --FLAVOR=$FLAVOR
+          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm -VARIANT=standard -K3S_VERSION=${{ matrix.k3s_version }} --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
