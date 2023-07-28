@@ -110,8 +110,10 @@ generate-artifact-names:
   ARG VERSION=$(cat VERSION)
 
   IF [ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]
+    # Example: kairos-core-ubuntu-20-lts-arm64-nvidia-jetson-agx-orin.img
+    RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-$(DISTRO | sed 's/-arm-/-arm64-/')-${VERSION}.img" >> ARTIFACT_NAMES_ENV
+
     # Example: core-ubuntu-20-lts-arm-nvidia-jetson-agx-orin
-    RUN echo "export IMAGE_NAME=${VARIANT}-${FLAVOR}.img" >> ARTIFACT_NAMES_ENV
     RUN echo "export CONTAINER_NAME=${VARIANT}-${FLAVOR}" >> ARTIFACT_NAMES_ENV
     RUN echo "export IMG_CONTAINER_NAME=${VARIANT}-${FLAVOR}-img" >> ARTIFACT_NAMES_ENV
   ELSE
