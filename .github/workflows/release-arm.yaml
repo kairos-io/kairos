@@ -47,6 +47,7 @@ jobs:
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
+
   # TODO: Duplicate this instead of switching it to standard. We will need the core images!
   docker:
     runs-on: ${{ matrix.worker }}
@@ -117,7 +118,7 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Standard Build  🔧
+      - name: Shared runner build  🔧
         if: ${{ matrix.worker != 'self-hosted' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
@@ -126,8 +127,8 @@ jobs:
           export TAG=${GITHUB_REF##*/}
 
           # TODO: Build all arm generic too!! (and other models?)
-          earthly +all-arm -VARIANT=standard -MODEL=${MODEL} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
-      - name: Selfhosted Build  🔧
+          earthly +all-arm -CONTAINER_LEGACY_NAMING=true -VARIANT=standard -MODEL=${MODEL} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+      - name: Self-hosted runner Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
         env:
           FLAVOR: ${{ matrix.flavor }}
@@ -145,6 +146,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
+          # TODO: Do we need the TAG? Earthly does a good job creating the image name without it
           export TAG=${GITHUB_REF##*/}
           docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm -VARIANT=standard -K3S_VERSION=${{ matrix.k3s_version }} --MODEL=$MODEL --FLAVOR=$FLAVOR
       - name: Push  🔧

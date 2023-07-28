@@ -257,6 +257,7 @@ jobs:
         env:
           COSIGN_YES: true
         run: |
+          # TODO: Stick to the old naming
           IMAGE=$(cat release/IMAGE)
           docker push "$IMAGE"
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")

@@ -98,6 +98,52 @@ go-deps-test:
     SAVE ARTIFACT go.mod go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum go.sum AS LOCAL go.sum
 
+generate-artifact-names:
+  ARG OS_ID
+  ARG VARIANT
+  ARG K3S_VERSION
+  ARG TARGETARCH
+  ARG FLAVOR
+
+  IF [ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]
+    ARG MODEL="nvidia-jetson-agx-orin"
+  ELSE
+    ARG MODEL
+  END
+
+  # Don't set DISTRO when calling this target!
+  # It's here just because Earthly is crazy and doesn't allow us to set ENV
+  # variables from bash commands.
+  IF [ "$TARGETARCH" = "arm64" ]
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+  ELSE
+    ARG DISTRO=${FLAVOR}
+  END
+
+  COPY +version/VERSION ./
+  ARG VERSION=$(cat VERSION)
+
+  # CONTAINER_NAME
+  ENV PREFIX=${VARIANT}
+  IF [ "$VARIANT" = "standard" ]
+    ENV PREFIX=kairos
+  END
+
+  RUN echo "export CONTAINER_NAME=${PREFIX}-${FLAVOR}" >> ARTIFACT_NAMES_ENV
+  RUN echo "export IMG_CONTAINER_NAME=${PREFIX}-${FLAVOR}-img" >> ARTIFACT_NAMES_ENV
+
+  # core-ubuntu-20-lts-arm-nvidia-jetson-agx-orin
+
+  IF [ "$VARIANT" = "standard" ]
+    RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3s${K3S_VERSION}.img" >> ARTIFACT_NAMES_ENV
+    RUN echo "export ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3s${K3S_VERSION}.iso" >> ARTIFACT_NAMES_ENV
+  ELSE
+    RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}.img" >> ARTIFACT_NAMES_ENV
+    RUN echo "export ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}.iso" >> ARTIFACT_NAMES_ENV
+  END
+
+  SAVE ARTIFACT ARTIFACT_NAMES_ENV AS LOCAL build/ARTIFACT_NAMES_ENV
+
 OSRELEASE:
     COMMAND
     ARG OS_ID
@@ -1129,7 +1175,7 @@ bump-repositories:
 PROVIDER_INSTALL:
     COMMAND
 
-    ARG PROVIDER_KAIROS_BRANCH=main
+    ARG PROVIDER_KAIROS_BRANCH
 
     COPY +luet/luet /usr/bin/luet
 
