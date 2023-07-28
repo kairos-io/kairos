@@ -27,6 +27,7 @@ RUN dnf install -y \
     kernel \
     kernel-modules \
     kernel-modules-extra \
+    less \
     livecd-tools \
     lvm2 \
     nano \
