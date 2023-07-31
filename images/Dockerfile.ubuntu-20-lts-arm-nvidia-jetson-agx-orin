@@ -60,10 +60,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     haveged \
     iproute2 \
     iptables \
+    iputils-ping \
     isc-dhcp-common \
     jq \
     kbd \
     krb5-locales \
+    less \
     lldpd \
     lvm2 \
     mdadm \

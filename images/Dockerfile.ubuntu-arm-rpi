@@ -41,7 +41,9 @@ RUN apt-get update && apt-get install -y \
     haveged \
     iproute2 \
     iptables \
+    iputils-ping \
     jq \
+    less \
     nano \
     neovim \
     openssh-server \

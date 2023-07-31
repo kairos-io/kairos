@@ -38,9 +38,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     haveged \
     iproute2 \
     iptables \
+    iputils-ping \
     isc-dhcp-common \
     jq \
     krb5-locales \
+    less \
     libatm1 \
     libglib2.0-data \
     libgpm2 \
