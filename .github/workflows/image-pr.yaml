@@ -10,80 +10,37 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  core:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
+  standard:
+    uses: ./.github/workflows/reusable-build-provider.yaml
     with:
-      flavor: ubuntu
-
-  install:
-    uses: ./.github/workflows/reusable-install-test.yaml
+      flavor: ${{ matrix.flavor }}
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+  various:
+    uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
-      flavor: ubuntu
-    needs:
-      - core
-
-  zfs:
-    uses: ./.github/workflows/reusable-zfs-test.yaml
-    with:
-      flavor: ubuntu
-    needs:
-      - core
-
-  acceptance:
-    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
-    with:
-      flavor: ubuntu
-    needs:
-      - core
-
-  bundles:
-    uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
-    with:
-      flavor: ubuntu
-    needs:
-      - core
-
-  reset:
-    uses: ./.github/workflows/reusable-qemu-reset-test.yaml
-    with:
-      flavor: ubuntu
-    needs:
-      - core
-
-  netboot:
-    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
-    with:
-      flavor: ubuntu
-    needs:
-      - core
-
-  upgrade:
-    uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
-    with:
-      flavor: ubuntu
-    needs:
-      - core
-
-  upgrade-latest:
-    uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
-    with:
-      flavor: ubuntu
-    needs:
-    - core
-
-  encryption:
-    uses: ./.github/workflows/reusable-encryption-test.yaml
-    with:
-      flavor: ubuntu
+      flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
     needs:
-      - core
+      - standard
     strategy:
-      fail-fast: true
+      fail-fast: false
+      max-parallel: 2
       matrix:
         label:
-          - "local-encryption"
-          - "remote-auto"
-          - "remote-static"
-          - "remote-https-pinned"
-          - "remote-https-bad-cert"
+          - "provider-qrcode-install"
+          - "provider-upgrade"
+          - "provider-decentralized-k8s"
+          - "provider-upgrade-k8s"
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+        exclude: # looks like only the k8s stuff is tested on both flavors
+          - label: "provider-qrcode-install"
+            flavor: "alpine-opensuse-leap"
+          - label: "provider-upgrade"
+            flavor: "alpine-opensuse-leap"
