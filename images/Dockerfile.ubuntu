@@ -1,7 +1,6 @@
 ARG FLAVOR
 
-# Create images based on the different flavors. Maybe it would be better to use as flavors the same names as the container
-# images or have a mapping between the two.
+# Available flavors
 FROM ubuntu:rolling AS ubuntu
 
 FROM ubuntu:20.04 AS ubuntu-20-lts
@@ -105,10 +104,6 @@ RUN apt-get update \
     snmpd \
     ubuntu-advantage-tools \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
-# workaround https://github.com/kairos-io/kairos/issues/949
-# TODO: backport patch into packages
-# COPY images/dracut-broken-iscsi-ubuntu-20.patch /
-# RUN cd /usr/lib/dracut/modules.d/95iscsi && patch < /dracut-broken-iscsi-ubuntu-20.patch && rm -rf /dracut-broken-iscsi-ubuntu-20.patch
 
 FROM common AS ubuntu-22-lts-specific
 RUN apt-get update \
