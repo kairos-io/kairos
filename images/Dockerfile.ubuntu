@@ -1,10 +1,15 @@
-# rolling tag points to the latest release (regardless of LTS status)
-ARG BASE_IMAGE=ubuntu:rolling
+ARG FLAVOR
 
-FROM $BASE_IMAGE
+# Available flavors
+FROM ubuntu:rolling AS ubuntu
 
+FROM ubuntu:20.04 AS ubuntu-20-lts
+
+FROM ubuntu:22.04 AS ubuntu-22-lts
+
+# Common packages for all images
+FROM ${FLAVOR} AS common
 ENV DEBIAN_FRONTEND=noninteractive
-
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     gnupg \
@@ -17,17 +22,13 @@ RUN apt-get update \
     coreutils \
     cryptsetup \
     curl \
-    dbus-user-session \
     debianutils \
     dmsetup \
     dosfstools \
     dracut \
-    dracut-live \
     dracut-network \
     e2fsprogs \
     efibootmgr \
-    firmware-sof-signed \
-    fuse3 \
     gawk \
     gdisk \
     grub2 \
@@ -41,8 +42,6 @@ RUN apt-get update \
     isc-dhcp-common \
     jq \
     kbd \
-    krb5-locales \
-    linux-image-generic-hwe-22.04 \
     lvm2 \
     mdadm \
     nano \
@@ -57,9 +56,6 @@ RUN apt-get update \
     os-prober \
     packagekit-tools \
     parted \
-    pigz \
-    pkg-config \
-    polkitd \
     publicsuffix \
     qemu-guest-agent \
     rsync \
@@ -68,8 +64,6 @@ RUN apt-get update \
     squashfs-tools \
     sudo \
     systemd \
-    systemd-hwe-hwdb \
-    systemd-resolved \
     systemd-timesyncd \
     thermald \
     xdg-user-dirs \
@@ -80,6 +74,57 @@ RUN apt-get update \
     zstd \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Packages and scripts only for specific images
+FROM common AS ubuntu-specific
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dbus-user-session \
+    dracut-live \
+    firmware-sof-signed \
+    fuse3 \
+    krb5-locales \
+    linux-image-generic-hwe-22.04 \
+    pigz \
+    pkg-config \
+    polkitd \
+    systemd-hwe-hwdb \
+    systemd-resolved \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM common AS ubuntu-20-lts-specific
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    file \
+    fuse \
+    krb5-locales \
+    linux-image-generic-hwe-20.04 \
+    lldpd \
+    patch \
+    policykit-1 \
+    snmpd \
+    ubuntu-advantage-tools \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM common AS ubuntu-22-lts-specific
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dracut-live \
+    firmware-sof-signed \
+    fuse3 \
+    linux-image-generic-hwe-22.04 \
+    lldpd \
+    pigz \
+    polkitd \
+    snmpd \
+    systemd-hwe-hwdb \
+    ubuntu-advantage-tools \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${FLAVOR}-specific AS all
+
+# Generic steps for all images
+FROM all
+
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 RUN systemctl enable systemd-networkd
@@ -87,7 +132,6 @@ RUN systemctl enable ssh
 
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
-
 
 # Clear cache
 RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
