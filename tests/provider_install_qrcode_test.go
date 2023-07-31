@@ -72,7 +72,7 @@ var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-in
 		Expect(err).ToNot(HaveOccurred(), device)
 
 		By("registering with a screenshot")
-		err = register("fatal", fileName, "./assets/config.yaml", strings.TrimSpace(device), true)
+		err = register("fatal", fileName, "./assets/config_with_reboot.yaml", strings.TrimSpace(device), true)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("waiting until it reboots to installed system")

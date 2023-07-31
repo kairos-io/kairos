@@ -55,8 +55,10 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			err := vm.Scp(configPath, "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
-			out, _ := vm.Sudo("kairos-agent manual-install --device auto /tmp/config.yaml")
+			out, _ := vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
 			Expect(out).Should(ContainSubstring("Running after-install hook"), out)
+			fmt.Printf(out)
+			By("rebooting machine")
 			vm.Reboot()
 
 			By("waiting until it reboots to installed system")
