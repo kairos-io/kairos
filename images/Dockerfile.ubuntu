@@ -39,9 +39,11 @@ RUN apt-get update \
     haveged \
     iproute2 \
     iptables \
+    iputils-ping \
     isc-dhcp-common \
     jq \
     kbd \
+    less \
     lvm2 \
     mdadm \
     nano \

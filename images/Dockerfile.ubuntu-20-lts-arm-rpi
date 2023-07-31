@@ -40,7 +40,9 @@ RUN apt-get update && apt-get install -y \
     haveged \
     iproute2 \
     iptables \
+    iputils-ping \
     jq \
+    less \
     linux-firmware-raspi2 \
     linux-raspi \
     lldpd \
