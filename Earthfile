@@ -14,7 +14,7 @@ ARG OS_LABEL=latest
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
 # renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.42.0
+ARG TRIVY_VERSION=0.44.0
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
