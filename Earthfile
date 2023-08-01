@@ -278,6 +278,7 @@ base-image:
     ARG VARIANT
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
+    ARG TARGETARCH
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
         IF [[ "$FLAVOR" =~ ^ubuntu* ]] && [ "$TARGETARCH" != "arm64" ]
