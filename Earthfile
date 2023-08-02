@@ -148,7 +148,13 @@ CONTAINER_IMAGE:
   ARG VERSION
 
   IF [ "$IMAGE" = "" ]
-    RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${VERSION} > IMAGE
+    # TODO: This IF block should be deleted as soon as our repository names
+    # follow our conventions.
+    IF [ "$VARIANT" = "standard" ]
+      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${VERSION} > IMAGE
+    ELSE
+      RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${VERSION} > IMAGE
+    END
   ELSE
     RUN echo $IMAGE > IMAGE
   END
