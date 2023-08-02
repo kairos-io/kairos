@@ -36,20 +36,16 @@ jobs:
     - uses: actions/checkout@v3
     - run: |
         git fetch --prune --unshallow
-        sudo apt update && sudo apt install -y jq
-    - uses: Luet-lab/luet-install-action@v1
-      with:
-        repository: quay.io/kairos/packages
-        #TODO: Find a better solution
-        packages: utils/earthly
+        sudo apt update && sudo apt install -y jq wget
     - id: set-matrix
       run: |
-          cat framework-profile.yaml
-          luet --config framework-profile.yaml config
+          docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
           # Construct an array like this from the found versions:
-          luet --config framework-profile.yaml search -o json k8s/k3s
+          sudo luet --config framework-profile.yaml search -o json k8s/k3s
 
-          luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version)' >  k3s_versions.json
+          sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version)' >  k3s_versions.json
           cat k3s_versions.json
           content=$(jq -s '. | combinations | .[0] + {"k3s_version": .[1]} | select(.frameworkonly != "true")' .github/flavors.json k3s_versions.json)
           # the following lines are only required for multi line json
