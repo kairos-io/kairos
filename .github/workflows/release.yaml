@@ -45,11 +45,12 @@ jobs:
           sudo mv luet /usr/bin/luet
           # Construct an array like this from the found versions:
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version)' >  k3s_versions.json
-          content=$(jq -s '. | combinations | .[0] + {"k3s_version": .[1]} | select(.frameworkonly != "true")' .github/flavors.json k3s_versions.json)
+          content=$(jq -s '[. | combinations | .[0] + {"k3s_version": .[1]} | select(.frameworkonly != "true")]' .github/flavors.json k3s_versions.json)
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
+
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
@@ -223,6 +224,11 @@ jobs:
     runs-on: ubuntu-latest
     needs:
     - get-standard-matrix
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-standard-matrix.outputs.matrix) }}
