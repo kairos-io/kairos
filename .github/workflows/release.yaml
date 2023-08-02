@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - v*
+    branches:
+      - "1609-release-standard-images"
+
 jobs:
   get-core-matrix:
     runs-on: ubuntu-latest
@@ -150,7 +153,6 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Build  🔧
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           FLAVOR: ${{ matrix.flavor }}
         run: |
@@ -172,13 +174,12 @@ jobs:
       - name: Sign ISO sha files
         env:
           COSIGN_YES: true
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
           sudo chmod -R 777 release
-          cosign sign-blob --yes --output-certificate=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.pem \
-                          --output-signature=release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256.sig \
-                          release/kairos-${{ matrix.flavor }}-$TAG.iso.sha256
+          filename=$(ls release/*.iso.sha256)
+          cosign sign-blob --yes --output-certificate="release/${filename}.pem" \
+                          --output-signature="release/${filename}.sig" \
+                          "release/${filename}"
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -186,15 +187,12 @@ jobs:
           files: |
             release/*
       - name: Prepare sarif files  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-$FLAVOR:latest
-          MODEL: ${{ matrix.model }}
         run: |
           mkdir sarif
           mv release/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
@@ -212,13 +210,14 @@ jobs:
       - name: Build uki image 🔧
         run: |
           # Do fedora as its the smaller uki possible
-          earthly +uki --FLAVOR=fedora
+          earthly +uki --VARIANT=core --FLAVOR=fedora
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             build/*.efi
+
   build-standard:
     runs-on: ubuntu-latest
     needs:
@@ -246,7 +245,6 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           ./earthly.sh +all -VARIANT=standard -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
           sudo mv build release
