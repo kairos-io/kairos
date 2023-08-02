@@ -3,14 +3,13 @@ FROM alpine
 ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse-leap
 ARG BASE_URL=quay.io/kairos
-ARG IMAGE=${BASE_URL}/${VARIANT}-${FLAVOR}:latest
+ARG IMAGE
 ARG MODEL=generic
 ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
 ARG GITHUB_REPO=kairos-io/kairos
 ARG OS_ID=kairos
-ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
+ARG OS_REPO=${BASE_URL}/${VARIANT}-${FLAVOR}
 ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
-ARG OS_LABEL=latest
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
 # renovate: datasource=docker depName=aquasec/trivy
@@ -143,18 +142,31 @@ generate-artifact-names:
 
   SAVE ARTIFACT ARTIFACT_NAMES_ENV AS LOCAL build/ARTIFACT_NAMES_ENV
 
+CONTAINER_IMAGE:
+  COMMAND
+
+  ARG VERSION
+
+  IF [ "$IMAGE" = "" ]
+    RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${VERSION} > IMAGE
+  ELSE
+    RUN echo $IMAGE > IMAGE
+  END
+
 OSRELEASE:
     COMMAND
     ARG OS_ID
     ARG OS_NAME
     ARG OS_REPO
     ARG OS_VERSION
-    ARG OS_LABEL
     ARG VARIANT
     ARG FLAVOR
     ARG GITHUB_REPO
     ARG BUG_REPORT_URL
     ARG HOME_URL
+
+    COPY +version/VERSION ./
+    ARG OS_LABEL=$(cat VERSION)
 
     # update OS-release file
     RUN sed -i -n '/KAIROS_/!p' /etc/os-release
@@ -312,7 +324,6 @@ build-framework-image:
 framework-image:
     FROM scratch
     ARG VERSION
-    ARG IMG
     ARG FLAVOR
     COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
@@ -324,6 +335,7 @@ base-image:
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
     ARG TARGETARCH
+
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
         IF [[ "$FLAVOR" =~ ^ubuntu* ]] && [ "$TARGETARCH" != "arm64" ]
@@ -408,6 +420,7 @@ base-image:
         DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
         DO +INSTALL_NOHANG -FLAVOR=${FLAVOR}
+        # TODO: Do we need to pass the platform here?
         DO +INSTALL_K3S -K3S_VERSION=${K3S_VERSION}
 
         # Redo os-release with override settings to point to provider-kairos stuff
@@ -471,7 +484,11 @@ base-image:
 
     RUN rm -rf /tmp/*
 
-    SAVE IMAGE $IMAGE
+    DO +CONTAINER_IMAGE -VERSION=${OS_VERSION}
+    ARG _CIMG=$(cat IMAGE)
+
+    SAVE IMAGE $_CIMG
+    SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
 
 image-rootfs:
     FROM +base-image
@@ -615,7 +632,6 @@ iso:
     ARG TARGETARCH
     ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
-    ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
@@ -628,20 +644,21 @@ iso:
 # This target builds an iso using a remote docker image as rootfs instead of building the whole rootfs
 # This should be really fast as it uses an existing image. This requires a pushed image from the +image target
 # defaults to use the $IMAGE name (so ttl.sh/core-opensuse-leap:latest)
-# you can override either the full thing by setting --IMG=docker:REPO/IMAGE:TAG
-# or by --IMAGE=REPO/IMAGE:TAG
+# you can override either the full thing by setting --REMOTE_IMG=docker:REPO/IMAGE:TAG
+# or by --REMOTE_IMG=REPO/IMAGE:TAG
 iso-remote:
     ARG TARGETARCH
+    ARG REMOTE_IMG
+
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
     ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
-    ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
-    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false $IMG --overlay-iso /build/${overlay} --output /build/
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false docker:$REMOTE_IMG --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
@@ -1189,6 +1206,7 @@ PROVIDER_INSTALL:
       # in the repository is.
       RUN luet install -y system/provider-kairos
     ELSE # Install from a branch
+      # TODO: Does this need the platform to be passed?
       COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
       RUN ln -s /system/providers/agent-provider-kairos /usr/bin/kairos
     END
@@ -1229,5 +1247,6 @@ INSTALL_K3S:
           COPY framework-profile.yaml /etc/luet/luet.yaml
       END
 
+      # TODO: Does this work for all architectures? How does this work?
       RUN luet install -y k8s/k3s@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup
     END

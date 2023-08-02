@@ -154,18 +154,16 @@ jobs:
         env:
           FLAVOR: ${{ matrix.flavor }}
         run: |
-          export TAG=${GITHUB_REF##*/}
-          earthly +all --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --FLAVOR=$FLAVOR --ISO_NAME=kairos-$FLAVOR-$TAG
+          earthly +all --VARIANT=core --FLAVOR=$FLAVOR
           sudo mv build release
       - name: Push to quay
         env:
           COSIGN_YES: true
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
-          export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}"
-          docker push "$IMAGE:$TAG"
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          export IMAGE=$(cat release/IMAGE)
+          docker push "$IMAGE"
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           spdx=$(ls release/*.spdx.json)
           cosign attach sbom --sbom $spdx $image_ref
           cosign sign $image_ref --attachment sbom
