@@ -219,23 +219,10 @@ jobs:
           files: |
             build/*.efi
 
-  do-something-standard:
-    runs-on: ubuntu-latest
-    needs:
-    - get-standard-matrix
-    steps:
-      - run: |
-          ls
-
   build-standard:
     runs-on: ubuntu-latest
     needs:
     - get-standard-matrix
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-standard-matrix.outputs.matrix) }}
