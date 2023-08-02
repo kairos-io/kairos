@@ -14,7 +14,7 @@ ARG OS_LABEL=latest
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
 # renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.42.0
+ARG TRIVY_VERSION=0.44.0
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
@@ -26,7 +26,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.8.0
+ARG OSBUILDER_VERSION=v0.8.2
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -278,6 +278,7 @@ base-image:
     ARG VARIANT
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
+    ARG TARGETARCH
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
         IF [[ "$FLAVOR" =~ ^ubuntu* ]] && [ "$TARGETARCH" != "arm64" ]
