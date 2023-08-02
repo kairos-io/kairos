@@ -1,0 +1,30 @@
+#cloud-config
+
+users:
+  - name: "kairos"
+    passwd: "kairos"
+name: "Default deployment"
+stages:
+  boot:
+    - name: "Repart image"
+      layout:
+        device:
+          label: COS_RECOVERY
+        add_partitions:
+          - fsLabel: COS_STATE
+            size: 16240 # At least 16gb
+            pLabel: state
+    - name: "Repart image"
+      layout:
+        device:
+          label: COS_RECOVERY
+        add_partitions:
+          - fsLabel: COS_PERSISTENT
+            pLabel: persistent
+            size: 0 # all space
+    - if: '[ -f "/run/cos/recovery_mode" ] && [ ! -e /usr/local/.deployed ]'
+      name: "Deploy kairos"
+      commands:
+        - kairos-agent --debug reset --unattended
+        - touch /usr/local/.deployed
+        - reboot
