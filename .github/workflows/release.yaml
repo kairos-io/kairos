@@ -219,6 +219,14 @@ jobs:
           files: |
             build/*.efi
 
+  do-something-standard:
+    runs-on: ubuntu-latest
+    needs:
+    - get-standard-matrix
+    steps:
+      - run: |
+          ls
+
   build-standard:
     runs-on: ubuntu-latest
     needs:
