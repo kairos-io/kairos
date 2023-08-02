@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  # Bump the CI
   push:
     tags:
       - v*
