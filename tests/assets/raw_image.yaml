@@ -1,4 +1,7 @@
 #cloud-config
+# same config as in the docs: https://kairos.io/docs/advanced/build/#build-a-cloud-image
+# This is the default for cloud images which only come with the recovery partition and the workflow
+# is to boot from them and do a reset to get the latest system installed
 
 users:
   - name: "kairos"

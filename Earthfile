@@ -740,6 +740,10 @@ ipxe-iso:
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img
 
+# Uses the same config as in the docs: https://kairos.io/docs/advanced/build/#build-a-cloud-image
+# This is the default for cloud images which only come with the recovery partition and the workflow
+# is to boot from them and do a reset to get the latest system installed
+# This allows us to build a raw disk image locally to test the cloud workflow easily
 raw-image:
     ARG TARGETARCH
     COPY +version/VERSION ./
