@@ -194,11 +194,16 @@ luet:
 # file
 # Installs everything under the /framework dir and saves that as an artifact
 framework-luet:
+    ARG TARGETARCH
     FROM golang:alpine
     ARG FLAVOR
     WORKDIR /build
     COPY ./profile-build /build
-    COPY framework-profile.yaml /build
+    IF [ "$TARGETARCH" = "arm64" ]
+      COPY framework-profile-arm.yaml /build/framework-profile.yaml
+    ELSE
+      COPY framework-profile.yaml /build
+    END
     COPY +luet/luet /usr/bin/luet
     RUN go run main.go ${FLAVOR} framework-profile.yaml /framework
     RUN luet cleanup --system-target /framework
