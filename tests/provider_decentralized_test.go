@@ -103,10 +103,11 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 
 				Expect(out).Should(ContainSubstring("Kairos remote recovery"))
 
-				grub, err := vm.Sudo("cat /tmp/mnt/STATE/grub_oem_env")
-				Expect(err).ToNot(HaveOccurred(), grub)
-
-				Expect(grub).Should(ContainSubstring("default_menu_entry=Kairos"))
+				// No longer used. This is created to override the default entry but now the default entry is kairos already
+				// TODO: Create a test in acceptance to check for the creation of this file and if it has the correct override entry
+				//grub, err := vm.Sudo("cat /tmp/mnt/STATE/grub_oem_env")
+				//Expect(err).ToNot(HaveOccurred(), grub)
+				//Expect(grub).Should(ContainSubstring("default_menu_entry=Kairos"))
 
 				out, err = vm.Sudo("umount /tmp/mnt/STATE")
 				Expect(err).ToNot(HaveOccurred(), out)
