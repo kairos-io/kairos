@@ -740,6 +740,25 @@ ipxe-iso:
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.iso iso AS LOCAL build/${ISO_NAME}-ipxe.iso
     SAVE ARTIFACT /build/ipxe/src/bin/ipxe.usb usb AS LOCAL build/${ISO_NAME}-ipxe-usb.img
 
+# Uses the same config as in the docs: https://kairos.io/docs/advanced/build/#build-a-cloud-image
+# This is the default for cloud images which only come with the recovery partition and the workflow
+# is to boot from them and do a reset to get the latest system installed
+# This allows us to build a raw disk image locally to test the cloud workflow easily
+raw-image:
+    ARG TARGETARCH
+    COPY +version/VERSION ./
+    RUN echo "version ${VERSION}"
+    ARG VERSION=$(cat VERSION)
+    ARG IMG_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}.raw
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    WORKDIR /build
+    COPY tests/assets/raw_image.yaml /raw_image.yaml
+    COPY --keep-own +image-rootfs/rootfs /rootfs
+    RUN /raw-images.sh /rootfs /$IMG_NAME /raw_image.yaml
+    RUN truncate -s "+$((32000*1024*1024))" /$IMG_NAME
+    SAVE ARTIFACT /$IMG_NAME $IMG_NAME AS LOCAL build/$IMG_NAME
+
 # Generic targets
 # usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
 datasource-iso:
