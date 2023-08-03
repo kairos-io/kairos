@@ -159,6 +159,8 @@ CONTAINER_IMAGE:
     RUN echo $IMAGE > IMAGE
   END
 
+  RUN echo "${VERSION}" > VERSION
+
 OSRELEASE:
     COMMAND
     ARG OS_ID
@@ -495,6 +497,7 @@ base-image:
 
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
+    SAVE ARTIFACT VERSION AS LOCAL build/VERSION
 
 image-rootfs:
     FROM +base-image
