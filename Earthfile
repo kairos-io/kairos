@@ -351,7 +351,7 @@ base-image:
 
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
-        IF [[ "$FLAVOR" =~ ^ubuntu* ]] && [ "$TARGETARCH" != "arm64" ]
+        IF [[ "$FLAVOR" =~ ^ubuntu* ]]
             FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR -f images/Dockerfile.ubuntu .
         ELSE
             FROM DOCKERFILE --build-arg MODEL=$MODEL -f images/Dockerfile.$FLAVOR .

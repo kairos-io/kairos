@@ -1,13 +1,21 @@
+###############################################
+####                  ARGS                 ####
+###############################################
 ARG FLAVOR
+ARG MODEL=generic
 
-# Available flavors
+###############################################
+####            Available Flavors          ####
+###############################################
 FROM ubuntu:rolling AS ubuntu
 
 FROM ubuntu:20.04 AS ubuntu-20-lts
 
 FROM ubuntu:22.04 AS ubuntu-22-lts
 
-# Common packages for all images
+###############################################
+####             Common Packages           ####
+###############################################
 FROM ${FLAVOR} AS common
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
@@ -26,16 +34,13 @@ RUN apt-get update \
     dmsetup \
     dosfstools \
     dracut \
+    dracut-live \
     dracut-network \
     e2fsprogs \
     efibootmgr \
     gawk \
     gdisk \
-    grub2 \
     grub2-common \
-    grub-efi-amd64-bin \
-    grub-efi-amd64-signed \
-    grub-pc-bin \
     haveged \
     iproute2 \
     iptables \
@@ -59,8 +64,8 @@ RUN apt-get update \
     os-prober \
     packagekit-tools \
     parted \
+    polkitd \
     publicsuffix \
-    qemu-guest-agent \
     rsync \
     shared-mime-info \
     snapd \
@@ -68,7 +73,7 @@ RUN apt-get update \
     sudo \
     systemd \
     systemd-timesyncd \
-    thermald \
+    tar \
     xdg-user-dirs \
     xxd \
     xz-utils \
@@ -77,24 +82,57 @@ RUN apt-get update \
     zstd \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Packages and scripts only for specific images
-FROM common AS ubuntu-specific
+###############################################
+####       Arch Specific Packages          ####
+###############################################
+FROM common AS amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    grub2 \
+    grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
+    grub-pc-bin \
+    thermald \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM common AS arm64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    grub-efi-arm64-bin \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+###############################################
+####            Model Specific             ####
+###############################################
+FROM ${TARGETARCH} AS generic
+RUN apt-get update && apt-get install -y linux-base \
+    qemu-guest-agent \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${TARGETARCH} AS rpi64
+RUN apt-get update && apt-get install -y linux-firmware-raspi \
+    linux-modules-extra-raspi \
+    linux-raspi \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+###############################################
+####             Flavor Specific           ####
+###############################################
+FROM ${MODEL} AS ubuntu-only
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     dbus-user-session \
-    dracut-live \
     firmware-sof-signed \
     fuse3 \
     krb5-locales \
     linux-image-generic-hwe-22.04 \
     pigz \
     pkg-config \
-    polkitd \
     systemd-hwe-hwdb \
     systemd-resolved \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS ubuntu-20-lts-specific
+FROM ${MODEL} AS ubuntu-20-lts-only
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     file \
@@ -106,26 +144,26 @@ RUN apt-get update \
     policykit-1 \
     snmpd \
     ubuntu-advantage-tools \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS ubuntu-22-lts-specific
+FROM ${MODEL} AS ubuntu-22-lts-only
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    dracut-live \
     firmware-sof-signed \
     fuse3 \
     linux-image-generic-hwe-22.04 \
     lldpd \
     pigz \
-    polkitd \
     snmpd \
     systemd-hwe-hwdb \
     ubuntu-advantage-tools \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${FLAVOR}-specific AS all
+FROM ${FLAVOR}-only AS all
 
-# Generic steps for all images
+###############################################
+####           Final Steps for All         ####
+###############################################
 FROM all
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
