@@ -316,6 +316,8 @@ jobs:
           - "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
@@ -354,6 +356,8 @@ jobs:
           - "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
