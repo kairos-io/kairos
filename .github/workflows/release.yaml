@@ -13,8 +13,9 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
     - run: |
-        git fetch --prune --unshallow
         sudo apt update && sudo apt install -y jq
     - id: set-matrix
       run: |
@@ -33,8 +34,9 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
     - run: |
-        git fetch --prune --unshallow
         sudo apt update && sudo apt install -y jq wget
     - id: set-matrix
       run: |
@@ -58,8 +60,8 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
     - uses: actions/checkout@v3
-    - run: |
-        git fetch --prune --unshallow
+      with:
+        fetch-depth: 0
     - id: set-matrix
       run: |
           content=`cat .github/flavors.json`
@@ -82,8 +84,8 @@ jobs:
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: 0
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Install earthly
@@ -136,8 +138,8 @@ jobs:
       matrix: ${{ fromJson(needs.get-core-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: 0
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
       - name: Install Cosign
@@ -200,8 +202,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: 0
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
@@ -232,8 +234,8 @@ jobs:
       matrix: ${{ fromJson(needs.get-standard-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: 0
       - name: setup-docker
         uses: docker-practice/actions-setup-docker@master
       - name: Install Cosign
