@@ -69,7 +69,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - get-matrix
+      - get-framework-matrix
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
