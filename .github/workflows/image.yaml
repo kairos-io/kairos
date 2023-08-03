@@ -69,7 +69,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - get-matrix
+      - get-framework-matrix
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
@@ -284,6 +284,7 @@ jobs:
     needs:
       - core
       - standard
+      - framework
       - install
       - zfs
       - acceptance
@@ -297,6 +298,9 @@ jobs:
       - standard-upgrade-latest
       - test-uki
     steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
       - name: save commit-message
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
         run: echo "COMMIT_MSG=$(git log -1 --pretty=format:%s)" >> $GITHUB_ENV
