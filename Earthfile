@@ -324,16 +324,18 @@ framework:
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
-   COPY +version/VERSION ./
-   ARG VERSION=$(cat VERSION)
-   ARG FLAVOR
-   BUILD +framework-image --VERSION=$VERSION --FLAVOR=$FLAVOR
-
-framework-image:
     FROM scratch
-    ARG VERSION
     ARG FLAVOR
+
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+
     COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
+
+    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}"
+    RUN echo $_IMG > FRAMEWORK_IMAGE
+
+    SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
 base-image:
@@ -375,13 +377,13 @@ base-image:
 
     # Enable services
     IF [ -f /sbin/openrc ]
-     # Fully remove machine-id, it will be generated
-     RUN rm -rf /etc/machine-id
-     RUN mkdir -p /etc/runlevels/default && \
-      ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
-      ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
-      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
-      ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
+      # Fully remove machine-id, it will be generated
+      RUN rm -rf /etc/machine-id
+      RUN mkdir -p /etc/runlevels/default && \
+        ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
+        ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
+        ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
+        ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
     # Otherwise we assume systemd
     ELSE
       # Empty machine-id so we dont accidentally run systemd-firstboot ¬_¬

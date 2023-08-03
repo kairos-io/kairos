@@ -98,7 +98,6 @@ jobs:
       - name: Build  🔧
         env:
           FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/framework
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
@@ -112,17 +111,15 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          export TAG=${GITHUB_REF##*/}
           earthly +build-framework-image --FLAVOR=${FLAVOR}
       - name: Push to quay
         env:
           COSIGN_YES: true
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}_${{ matrix.flavor }}
-          export IMAGE="quay.io/kairos/framework"
-          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          export _IMG="$(cat build/FRAMEWORK_IMAGE)"
+          docker push "$_IMG" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$_IMG")
 
   build-core:
     runs-on: ubuntu-latest

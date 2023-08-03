@@ -124,7 +124,7 @@ jobs:
       - name: Shared runner build  🔧
         if: ${{ matrix.worker != 'self-hosted' }}
         run: |
-          earthly +all-arm -VARIANT=core -MODEL=${{ matrix.model }} -FLAVOR=${{ matrix.flavor }}
+          earthly -P +all-arm -VARIANT=core -MODEL=${{ matrix.model }} -FLAVOR=${{ matrix.flavor }}
       - name: Self-hosted runner Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
         run: |
@@ -175,6 +175,7 @@ jobs:
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
@@ -251,7 +252,7 @@ jobs:
       - name: Shared runner build  🔧
         if: ${{ matrix.worker != 'self-hosted' }}
         run: |
-          earthly +all-arm -VARIANT=standard -MODEL=${{ matrix.model }} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+          earthly -P +all-arm -VARIANT=standard -MODEL=${{ matrix.model }} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
       - name: Self-hosted runner Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
         run: |
@@ -303,6 +304,7 @@ jobs:
           mkdir sarif
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
+        if: startsWith(github.ref, 'refs/tags/')
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: 'sarif'
@@ -335,7 +337,7 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
         run: |
-          earthly +all-arm-generic --VARIANT=core --FLAVOR=${{ matrix.flavor }}
+          earthly -P +all-arm-generic --VARIANT=core --FLAVOR=${{ matrix.flavor }}
           sudo mv build release
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')
@@ -375,7 +377,7 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
         run: |
-          earthly +all-arm-generic --VARIANT=standard --FLAVOR=${{ matrix.flavor }} --K3S_VERSION=latest
+          earthly -P +all-arm-generic --VARIANT=standard --FLAVOR=${{ matrix.flavor }} --K3S_VERSION=latest
           sudo mv build release
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')
