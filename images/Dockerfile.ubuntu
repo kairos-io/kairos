@@ -105,12 +105,14 @@ RUN apt-get update \
 ####            Model Specific             ####
 ###############################################
 FROM ${TARGETARCH} AS generic
-RUN apt-get update && apt-get install -y linux-base \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-base \
     qemu-guest-agent \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ${TARGETARCH} AS rpi64
-RUN apt-get update && apt-get install -y linux-firmware-raspi \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-firmware-raspi \
     linux-modules-extra-raspi \
     linux-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
