@@ -73,7 +73,7 @@ jobs:
           FLAVOR: ${{ inputs.flavor }}
           IMAGE: quay.io/kairos/core-${{ inputs.flavor }}:latest
         run: |
-          earthly +ci --SECURITY_SCANS=false --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          earthly +ci --SECURITY_SCANS=false --VARIANT=core --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
       - name: Build master 🔧
@@ -82,7 +82,7 @@ jobs:
           FLAVOR: ${{ inputs.flavor }}
           IMAGE: quay.io/kairos/core-${{ inputs.flavor }}:latest
         run: |
-          earthly +ci --IMAGE=$IMAGE --FLAVOR=$FLAVOR
+          earthly +ci --VARIANT=core --IMAGE=$IMAGE --FLAVOR=$FLAVOR
           sudo mv build/* .
           sudo rm -rf build
           mkdir sarif

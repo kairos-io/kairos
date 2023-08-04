@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master
+      - 1609-release-standard-images
     paths:
       - '**'
 

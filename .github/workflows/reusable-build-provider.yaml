@@ -60,7 +60,7 @@ jobs:
           packages: utils/earthly
       - name: Build PR 🔧
         run: |
-          earthly +ci --SECURITY_SCANS=false --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h --FLAVOR=${{ inputs.flavor }} --VARIANT=standard -K3S_VERSION=1.27.3+1
+          earthly +ci --SECURITY_SCANS=false --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h --FLAVOR=${{ inputs.flavor }} --VARIANT=standard -K3S_VERSION=latest
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v3
