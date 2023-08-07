@@ -430,7 +430,6 @@ base-image:
         DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
         DO +INSTALL_NOHANG -FLAVOR=${FLAVOR}
-        # TODO: Do we need to pass the platform here?
         DO +INSTALL_K3S -K3S_VERSION=${K3S_VERSION}
 
         # Redo os-release with override settings to point to provider-kairos stuff
@@ -1217,7 +1216,6 @@ PROVIDER_INSTALL:
       # in the repository is.
       RUN luet install -y system/provider-kairos
     ELSE # Install from a branch
-      # TODO: Does this need the platform to be passed?
       COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
       RUN ln -s /system/providers/agent-provider-kairos /usr/bin/kairos
     END
@@ -1247,6 +1245,10 @@ INSTALL_K3S:
       RUN echo "$K3S_VERSION must be set" && exit 1
     END
 
+    IF [ ! -e "/etc/luet/luet.yaml" ]
+        COPY framework-profile.yaml /etc/luet/luet.yaml
+    END
+
     IF [[ "$K3S_VERSION" = "latest" ]] # Install latest using the upstream installer
       ENV INSTALL_K3S_BIN_DIR="/usr/bin"
       RUN curl -sfL https://get.k3s.io > installer.sh \
@@ -1254,10 +1256,7 @@ INSTALL_K3S:
           && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh agent \
           && rm -rf installer.sh
     ELSE
-      IF [ ! -e "/etc/luet/luet.yaml" ]
-          COPY framework-profile.yaml /etc/luet/luet.yaml
-      END
-
-      # TODO: Does this work for all architectures? How does this work?
-      RUN luet install -y k8s/k3s@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup
+      ARG _LUET_K3S=$(k8s/k3s@${K3S_VERSION})
     END
+
+    RUN luet install -y ${_LUET_K3S} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup

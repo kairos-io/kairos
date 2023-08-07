@@ -53,7 +53,6 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
-  # TODO: Build standard "latest" images too?
   core:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
