@@ -151,32 +151,20 @@ stages:
         expand_partition:
           # Size 0 is required to specify all remaining space
           size: 0
+  initramfs.before:
+    - name: "Create machine-id in persistent if it doesnt exist"
+      if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -f /var/lib/dbus/machine-id ]'
+      commands:
+        - dbus-uuidgen --ensure=/var/lib/dbus/machine-id
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /var/lib/dbus/machine-id ]'
+      name: "Restore /etc/machine-id from persistent"
+      commands:
+        - cat /var/lib/dbus/machine-id > /etc/machine-id
   initramfs:
     - name: "Create journalctl /var/log/journal dir"
       if: '[ -e "/sbin/systemctl" ] || [ -e "/bin/systemctl" ] || [ -e "/usr/sbin/systemctl" ] || [ -e "/usr/bin/systemctl" ]'
       directories:
         - path: /var/log/journal
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /usr/local/etc/machine-id ]'
-      name: "Restore /etc/machine-id for systemd systems"
-      commands:
-        - cat /usr/local/etc/machine-id > /etc/machine-id
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /var/lib/dbus/machine-id ] && [ -f "/sbin/openrc" ]'
-      name: "Restore /etc/machine-id for openrc systems"
-      commands:
-        - cat /var/lib/dbus/machine-id > /etc/machine-id
-  fs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /usr/local/etc/machine-id ] '
-      name: "Save /etc/machine-id for systemd systems"
-      commands:
-      - |
-        mkdir -p /usr/local/etc
-        cp /etc/machine-id /usr/local/etc
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -s /var/lib/dbus/machine-id ] && [ -f "/sbin/openrc" ]'
-      name: "Save /etc/machine-id for openrc systems"
-      commands:
-        - |
-          mkdir -p /var/lib/dbus/
-          cp /etc/machine-id /var/lib/dbus/
   fs.after:
     - if: "[ ! -d /usr/local/cloud-config ]"
       name: "Ensure /usr/local/cloud-config exists"
