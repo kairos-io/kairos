@@ -48,9 +48,8 @@ jobs:
           sudo mv luet /usr/bin/luet
           # Construct an array like this from the found versions:
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version)' >  k3s_versions.json
-          # Exclude framework only flavors and orin (for which we only build a core image)
-          # Also create a combination of flavors and k3s versions.
-          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.frameworkonly != "true")) | map(select(.flavor|test(".*agx-orin")|not))' .github/flavors-arm.json k3s_versions.json)
+          # Create a combination of flavors and k3s versions.
+          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.frameworkonly != "true")) | map(select(.standard == "true"))' .github/flavors-arm.json k3s_versions.json)
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -66,7 +65,7 @@ jobs:
       model: ${{ matrix.model }}
       worker: ${{ matrix.worker }}
     needs:
-    - get-matrix
+    - get-core-matrix
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
