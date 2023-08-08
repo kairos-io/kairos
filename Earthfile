@@ -323,20 +323,30 @@ framework:
 
     SAVE ARTIFACT --keep-own /framework/ framework
 
-build-framework-image:
+# This target must stay "dummy" because it has to be "FROM scratch" thus it cannot
+# call "cat" or "echo".
+framework-image:
     FROM scratch
+    ARG FLAVOR
+    ARG VERSION
+
+    COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
+
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
+
+build-framework-image:
+    FROM alpine
     ARG FLAVOR
 
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
 
-    COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
+    BUILD +framework-image --VERSION=$VERSION --FLAVOR=$FLAVOR
 
     ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}"
     RUN echo $_IMG > FRAMEWORK_IMAGE
 
     SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
 base-image:
     ARG MODEL
