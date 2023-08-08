@@ -142,7 +142,7 @@ generate-artifact-names:
 
   SAVE ARTIFACT ARTIFACT_NAMES_ENV AS LOCAL build/ARTIFACT_NAMES_ENV
 
-CONTAINER_IMAGE:
+CONTAINER_IMAGE_VERSION:
   COMMAND
 
   ARG VERSION
@@ -493,7 +493,7 @@ base-image:
 
     RUN rm -rf /tmp/*
 
-    DO +CONTAINER_IMAGE -VERSION=${OS_VERSION}
+    DO +CONTAINER_IMAGE_VERSION -VERSION=${OS_VERSION}
     ARG _CIMG=$(cat IMAGE)
 
     SAVE IMAGE $_CIMG
@@ -1206,12 +1206,6 @@ PROVIDER_INSTALL:
     COPY +luet/luet /usr/bin/luet
 
     IF [[ "$PROVIDER_KAIROS_BRANCH" = "" ]] # Install with luet (released versions of the binary)
-      # If base image does not bundle a luet config use one
-      # TODO: Remove this, use luet config from base images so they are in sync
-      IF [ ! -e "/etc/luet/luet.yaml" ]
-          COPY framework-profile.yaml /etc/luet/luet.yaml
-      END
-
       # We don't specify a version. To bump, just change what the latest version
       # in the repository is.
       RUN luet install -y system/provider-kairos
@@ -1243,10 +1237,6 @@ INSTALL_K3S:
     ARG K3S_VERSION
     IF [[ "$K3S_VERSION" = "" ]]
       RUN echo "$K3S_VERSION must be set" && exit 1
-    END
-
-    IF [ ! -e "/etc/luet/luet.yaml" ]
-        COPY framework-profile.yaml /etc/luet/luet.yaml
     END
 
     IF [[ "$K3S_VERSION" = "latest" ]] # Install latest using the upstream installer
