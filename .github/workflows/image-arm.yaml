@@ -68,7 +68,7 @@ jobs:
     - get-core-matrix
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
 
   image_and_iso_arm64_generic:
     uses: ./.github/workflows/reusable-image-and-iso-arm-generic.yaml
@@ -76,7 +76,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - get-matrix
+      - get-core-matrix
     strategy:
       fail-fast: false
       matrix:
