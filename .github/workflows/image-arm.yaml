@@ -12,7 +12,7 @@ env:
   FORCE_COLOR: 1
 
 jobs:
-  get-matrix:
+  get-core-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -30,7 +30,34 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
-  docker:
+  # The matrix for standard (provider) images
+  get-standard-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - run: |
+        sudo apt update && sudo apt install -y jq
+    - id: set-matrix
+      run: |
+          docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          # Construct an array like this from the found versions:
+          sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version)' >  k3s_versions.json
+          # Create a combination of flavors and k3s versions.
+          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.frameworkonly != "true")) | map(select(.standard == "true"))' .github/flavors-arm.json k3s_versions.json)
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+
+  build-arm-core:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     secrets: inherit
     with:
@@ -38,10 +65,10 @@ jobs:
       model: ${{ matrix.model }}
       worker: ${{ matrix.worker }}
     needs:
-    - get-matrix
+    - get-core-matrix
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
 
   image_and_iso_arm64_generic:
     uses: ./.github/workflows/reusable-image-and-iso-arm-generic.yaml
@@ -49,7 +76,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
     needs:
-      - get-matrix
+      - get-core-matrix
     strategy:
       fail-fast: false
       matrix:

@@ -1,37 +1,47 @@
 [
     {
-        "flavor": "opensuse-leap"
+        "flavor": "opensuse-leap",
+        "standard": "true"
     },
     {
-        "flavor": "opensuse-tumbleweed"
+        "flavor": "opensuse-tumbleweed",
+        "standard": "true"
     },
     {
-        "flavor": "ubuntu"
+        "flavor": "ubuntu",
+        "standard": "true"
     },
     {
-        "flavor": "ubuntu-20-lts"
+        "flavor": "ubuntu-20-lts",
+        "standard": "true"
     },
     {
         "flavor": "fips-systemd",
         "frameworkonly": "true"
     },
     {
-        "flavor": "ubuntu-22-lts"
+        "flavor": "ubuntu-22-lts",
+        "standard": "true"
     },
     {
-        "flavor": "alpine-ubuntu"
+        "flavor": "alpine-ubuntu",
+        "standard": "true"
     },
     {
-        "flavor": "alpine-opensuse-leap"
+        "flavor": "alpine-opensuse-leap",
+        "standard": "true"
     },
     {
-        "flavor": "fedora"
+        "flavor": "fedora",
+        "standard": "true"
     },
     {
-        "flavor": "debian"
+        "flavor": "debian",
+        "standard": "true"
     },
     {
-        "flavor": "rockylinux"
+        "flavor": "rockylinux",
+        "standard": "true"
     },
     {
         "flavor": "almalinux"

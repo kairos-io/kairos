@@ -51,6 +51,7 @@ RUN apt-get update \
     ncurses-term \
     neovim \
     networkd-dispatcher \
+    nohang \
     nfs-common \
     open-iscsi \
     openssh-server \
