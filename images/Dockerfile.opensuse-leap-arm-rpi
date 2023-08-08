@@ -51,6 +51,7 @@ RUN zypper in -y \
     multipath-tools \
     nano \
     nethogs \
+    nohang \
     nfs-utils \
     open-iscsi \
     openssh \

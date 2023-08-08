@@ -66,14 +66,15 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     kbd \
     krb5-locales \
     less \
+    libssl-dev \
     lldpd \
     lvm2 \
     mdadm \
     nbd-client \
-    libssl-dev \
     ncurses-term \
     networkd-dispatcher \
     nfs-common \
+    nohang \
     open-iscsi \
     openssh-server \
     open-vm-tools \

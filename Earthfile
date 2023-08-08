@@ -429,7 +429,6 @@ base-image:
     IF [[ "$VARIANT" = "standard" ]]
         DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
-        DO +INSTALL_NOHANG -FLAVOR=${FLAVOR}
         DO +INSTALL_K3S -K3S_VERSION=${K3S_VERSION}
 
         # Redo os-release with override settings to point to provider-kairos stuff
@@ -1212,22 +1211,6 @@ PROVIDER_INSTALL:
     ELSE # Install from a branch
       COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
       RUN ln -s /system/providers/agent-provider-kairos /usr/bin/kairos
-    END
-
-INSTALL_NOHANG:
-    COMMAND
-
-    ARG FLAVOR
-
-    # Install nohang
-    IF [ "$FLAVOR" = "opensuse-leap" ] || [ "$FLAVOR" = "opensuse-leap-arm-rpi" ]
-      RUN zypper ref && zypper in -y nohang
-    ELSE IF [ "$FLAVOR" = "alpine-ubuntu" ] || [ "$FLAVOR" = "alpine-opensuse-leap" ] || [ "$FLAVOR" = "alpine-arm-rpi" ]
-      RUN apk add grep
-    ELSE IF [ "$FLAVOR" = "opensuse-tumbleweed" ] || [ "$FLAVOR" = "opensuse-tumbleweed-arm-rpi" ]
-      RUN zypper ref && zypper in -y nohang
-    ELSE IF [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ] || [ "$FLAVOR" = "debian" ]
-      RUN apt-get update && apt-get install -y nohang
     END
 
 # Installs k3s (for "standard" images)
