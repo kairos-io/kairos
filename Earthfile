@@ -308,10 +308,11 @@ base-image:
 
     DO +OSRELEASE --HOME_URL=https://github.com/kairos-io/kairos --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues --GITHUB_REPO=kairos-io/kairos --VARIANT=${VARIANT} --FLAVOR=${FLAVOR} --OS_ID=${OS_ID} --OS_LABEL=${OS_LABEL} --OS_NAME=${OS_NAME} --OS_REPO=${OS_REPO} --OS_VERSION=${OS_VERSION}
 
+    # Fully remove machine-id, it will be generated on first boot
+    RUN rm -rf /etc/machine-id
+
     # Enable services
     IF [ -f /sbin/openrc ]
-     # Fully remove machine-id, it will be generated
-     RUN rm -rf /etc/machine-id
      RUN mkdir -p /etc/runlevels/default && \
       ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
       ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
@@ -319,9 +320,8 @@ base-image:
       ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
     # Otherwise we assume systemd
     ELSE
-      # Empty machine-id so we dont accidentally run systemd-firstboot ¬_¬
-      RUN rm -rf /etc/machine-id && touch /etc/machine-id && chmod 444 /etc/machine-id
-      RUN ls -liah /etc/systemd/system
+      # mask systemd-firstboot dont accidentally run block booting
+      RUN systemctl mask systemd-firstboot
       RUN systemctl enable cos-setup-reconcile.timer && \
           systemctl enable cos-setup-fs.service && \
           systemctl enable cos-setup-boot.service && \
