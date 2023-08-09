@@ -4,14 +4,14 @@ on:
     tags:
       - '*'
 jobs:
-  get-matrix:
+  get-core-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: 0
       - id: set-matrix
         run: |
           content=`cat ./.github/flavors-arm.json`
@@ -21,10 +21,38 @@ jobs:
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-  docker:
+
+  # The matrix for standard (provider) images
+  get-standard-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - run: |
+        sudo apt update && sudo apt install -y jq
+    - id: set-matrix
+      run: |
+          docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          # Construct an array like this from the found versions:
+          sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version)' >  k3s_versions.json
+          # Create a combination of flavors and k3s versions.
+          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.frameworkonly != "true")) | map(select(.standard == "true"))' .github/flavors-arm.json k3s_versions.json)
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+
+  build-arm-core:
     runs-on: ${{ matrix.worker }}
     needs:
-      - get-matrix
+      - get-core-matrix
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -32,7 +60,7 @@ jobs:
       security-events: write
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
         if: ${{ matrix.worker != 'self-hosted' }}
@@ -68,8 +96,8 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: 0
       - name: Set up QEMU
         uses: docker/setup-qemu-action@master
         with:
@@ -90,19 +118,12 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Standard Build  🔧
+      - name: Shared runner build  🔧
         if: ${{ matrix.worker != 'self-hosted' }}
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          MODEL: ${{ matrix.model }}
         run: |
-          export TAG=${GITHUB_REF##*/}
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
-      - name: Selfhosted Build  🔧
+          earthly -P +all-arm -VARIANT=core -MODEL=${{ matrix.model }} -FLAVOR=${{ matrix.flavor }}
+      - name: Self-hosted runner Build  🔧
         if: ${{ matrix.worker == 'self-hosted' }}
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          MODEL: ${{ matrix.model }}
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
@@ -116,39 +137,29 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          export TAG=${GITHUB_REF##*/}
-          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm --IMAGE_NAME=kairos-$FLAVOR-$TAG.img --IMAGE=quay.io/kairos/core-$FLAVOR:$TAG --MODEL=$MODEL --FLAVOR=$FLAVOR
+          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm -VARIANT=core --MODEL=${{ matrix.model }} --FLAVOR=${{ matrix.flavor }}
       - name: Push  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
-          docker push quay.io/kairos/core-$FLAVOR:$TAG
+          docker push $(cat build/IMAGE)
       - name: Sign image
         env:
           COSIGN_YES: true
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
-          export IMAGE="quay.io/kairos/core-${{ matrix.flavor }}"
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
-          spdx=$(ls build/*.spdx.json)
-          cosign attach sbom --sbom $spdx $image_ref
-          cosign sign $image_ref --attachment sbom
-          # in-toto attestation
-          cosign attest --type spdx --predicate $spdx $image_ref
-      - name: Export version
-        run: |
-          TAG=${GITHUB_REF##*/}
-          echo "VERSION=$TAG" >> $GITHUB_ENV
+          export IMAGE=$(cat build/IMAGE)
+          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
       - name: Upload Image
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           curl https://luet.io/install.sh | sudo sh
+          IMAGE=$(cat build/IMAGE | sed 's/:/-img:/')
           sudo tar cvf build.tar build
-          sudo luet util pack quay.io/kairos/core-${{ matrix.flavor }}-img:$VERSION build.tar image.tar
+          sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
-          sudo -E docker push quay.io/kairos/core-${{ matrix.flavor }}-img:$VERSION
+          sudo -E docker push "$IMAGE"
+          sudo rm -rf build/IMAGE build/VERSION
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -156,22 +167,148 @@ jobs:
           files: |
             build/*.json
       - name: Prepare sarif files  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          IMAGE: quay.io/kairos/core-$FLAVOR:latest
-          MODEL: ${{ matrix.model }}
         run: |
           mkdir sarif
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
-  image_and_iso_arm64_generic:
-    runs-on: ubuntu-latest
+
+  build-arm-standard:
+    runs-on: ${{ matrix.worker }}
     needs:
-      - get-matrix
+      - get-standard-matrix
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-standard-matrix.outputs.matrix)}}
+    steps:
+      - name: Release space from worker
+        if: ${{ matrix.worker != 'self-hosted' }}
+        run: |
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          df -h
+          echo
+          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+          sudo rm -rf /usr/share/dotnet
+          sudo apt-get remove -y '^mono-.*' || true
+          sudo apt-get remove -y '^ghc-.*' || true
+          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+          sudo apt-get remove -y 'php.*' || true
+          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+          sudo apt-get remove -y '^google-.*' || true
+          sudo apt-get remove -y azure-cli || true
+          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+          sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          sudo rm -rfv build || true
+          df -h
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@master
+        with:
+          platforms: all
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Shared runner build  🔧
+        if: ${{ matrix.worker != 'self-hosted' }}
+        run: |
+          earthly -P +all-arm -VARIANT=standard -MODEL=${{ matrix.model }} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+      - name: Self-hosted runner Build  🔧
+        if: ${{ matrix.worker == 'self-hosted' }}
+        run: |
+          # Configure earthly to use the docker mirror in CI
+          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+          mkdir -p ~/.earthly/
+          cat << EOF > ~/.earthly/config.yml
+          global:
+            buildkit_additional_config: |
+              [registry."docker.io"]
+                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+              [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                insecure = true
+                http = true
+          EOF
+
+          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm -VARIANT=standard -K3S_VERSION=${{ matrix.k3s_version }} --MODEL=${{ matrix.model }} --FLAVOR=${{ matrix.flavor }}
+
+      - name: Push  🔧
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          docker push $(cat build/IMAGE)
+      - name: Sign image
+        env:
+          COSIGN_YES: true
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          export IMAGE=$(cat build/IMAGE)
+          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+      - name: Upload Image
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          curl https://luet.io/install.sh | sudo sh
+          IMAGE=$(cat build/IMAGE | sed 's/:/-img:/')
+          sudo tar cvf build.tar build
+          sudo luet util pack $IMAGE build.tar image.tar
+          sudo -E docker load -i image.tar
+          sudo -E docker push "$IMAGE"
+          sudo rm -rf build/IMAGE build/VERSION
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            build/*.json
+      - name: Prepare sarif files  🔧
+        run: |
+          mkdir sarif
+          sudo mv build/*.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}
+
+  build-arm-generic-core:
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -179,6 +316,8 @@ jobs:
           - "opensuse-leap"
     steps:
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
@@ -194,18 +333,53 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
-        env:
-          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
         run: |
-          export TAG=${GITHUB_REF##*/}
-          earthly +all-arm-generic --FLAVOR=${{ matrix.flavor }} --IMAGE=$IMAGE:$TAG --ISO_NAME=kairos-${{ matrix.flavor }}-arm-generic-$TAG
+          earthly -P +all-arm-generic --VARIANT=core --FLAVOR=${{ matrix.flavor }}
           sudo mv build release
       - name: Push to quay
-        env:
-          IMAGE: "quay.io/kairos/core-${{ matrix.flavor }}-arm-generic"
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          export TAG=${GITHUB_REF##*/}
-          docker push "$IMAGE:$TAG"
+          docker push $(cat release/IMAGE)
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/*
+
+  build-arm-generic-standard:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - "opensuse-leap"
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@master
+        with:
+          platforms: all
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Quay Registry
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Build iso  🔧
+        run: |
+          earthly -P +all-arm-generic --VARIANT=standard --FLAVOR=${{ matrix.flavor }} --K3S_VERSION=latest
+          sudo mv build release
+      - name: Push to quay
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          docker push $(cat release/IMAGE)
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
