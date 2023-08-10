@@ -116,7 +116,7 @@ RUN zypper in --force-resolution -y \
     qemu-guest-agent \
     && zypper cc
 
-FROM ${TARGETARCH} AS rpi64
+FROM ${TARGETARCH} AS rpicommon
 RUN zypper in --force-resolution -y \
     raspberrypi-eeprom \
     raspberrypi-firmware \
@@ -127,6 +127,9 @@ RUN zypper in --force-resolution -y \
     wireless-tools \
     wpa_supplicant \
     && zypper cc
+
+FROM rpicommon AS rpi3
+FROM rpicommon AS rpi4
 
 ###############################################################
 ####               Post-Process Common to All              ####

@@ -80,7 +80,7 @@ RUN zypper in --force-resolution -y \
     qemu-guest-agent \
     && zypper cc
 
-FROM common AS  rpi64
+FROM common AS rpicommon
 RUN zypper in --force-resolution -y \
     bcm43xx-firmware \
     grub2-arm64-efi \
@@ -105,6 +105,9 @@ RUN zypper in --force-resolution -y \
     wireless-tools \
     wpa_supplicant \
     && zypper cc
+
+FROM rpicommon as rpi3
+FROM rpicommon as rpi4
 
 ###############################################################
 ####               Post-Process Common to All              ####

@@ -23,7 +23,7 @@ jobs:
       security-events: write
     steps:
       - name: Release space from worker
-        if: ${{ inputs.worker != 'kvm' }}
+        if: ${{ inputs.worker != 'fast' }}
         run: |
           echo "Listing top largest packages"
           pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
@@ -84,32 +84,15 @@ jobs:
         run: |
           echo "IMG_COMPRESSION=xz" >> $GITHUB_ENV
       - name: Shared runner build  🔧
-        if: ${{ inputs.worker != 'kvm' }}
+        if: ${{ inputs.worker != 'fast' }}
         run: |
           ./earthly.sh +all-arm --VARIANT=core --MODEL=${{ inputs.model }} \
             --FLAVOR=${{ inputs.flavor }} \
             --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
-      - name: Selfhosted Build  🔧
-        if: ${{ inputs.worker == 'kvm' }}
+      - name: fast runner Build  🔧
+        if: ${{ inputs.worker == 'fast' }}
         run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
-          docker run --privileged \
-            -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace \
-            -v earthly-tmp:/tmp/earthly:rw \
-            earthly/earthly:v0.7.5 --allow-privileged +all-arm \
+          earthly --allow-privileged +all-arm \
               --VARIANT=core --MODEL=${{ inputs.model }} \
               --FLAVOR=${{ inputs.flavor }} --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
       - name: Show img sizes

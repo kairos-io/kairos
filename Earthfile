@@ -25,7 +25,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.8.3
+ARG OSBUILDER_VERSION=v0.8.4
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -65,17 +65,18 @@ ci:
 
 all-arm:
   ARG SECURITY_SCANS=true
-  BUILD --platform=linux/arm64 +base-image --MODEL=rpi64
+  ARG MODEL=rpi4
+  BUILD --platform=linux/arm64 +base-image --MODEL=$MODEL
   IF [ "$SECURITY_SCANS" = "true" ]
-      BUILD --platform=linux/arm64 +image-sbom --MODEL=rpi64
-      BUILD --platform=linux/arm64 +trivy-scan --MODEL=rpi64
-      BUILD --platform=linux/arm64 +grype-scan --MODEL=rpi64
+      BUILD --platform=linux/arm64 +image-sbom --MODEL=$MODEL
+      BUILD --platform=linux/arm64 +trivy-scan --MODEL=$MODEL
+      BUILD --platform=linux/arm64 +grype-scan --MODEL=$MODEL
   END
   
   IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-    BUILD +prepare-arm-image --MODEL=rpi64 --FLAVOR=${FLAVOR}
+    BUILD +prepare-arm-image --MODEL=$MODEL --FLAVOR=${FLAVOR}
   ELSE
-    BUILD +arm-image --MODEL=rpi64
+    BUILD +arm-image --MODEL=$MODEL
   END
 
 arm-container-image:
@@ -304,7 +305,7 @@ framework:
     COPY overlay/files /framework
 
     # Copy common overlay files for Raspberry Pi
-    IF [ "$MODEL" = "rpi64" ]
+    IF [ "$MODEL" = "rpi3" ] || [ "$MODEL" = "rpi4" ]
         COPY overlay/files-rpi/ /framework
     END
 
@@ -717,7 +718,7 @@ arm-image:
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
   FROM $OSBUILDER_IMAGE
-  ARG MODEL
+  ARG MODEL=rpi4
   COPY +version/VERSION ./
   RUN echo "version ${VERSION}"
   ARG VERSION=$(cat VERSION)
@@ -775,7 +776,7 @@ prepare-arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
   FROM $OSBUILDER_IMAGE
-  ARG MODEL=rpi64
+  ARG MODEL=rpi4
   ARG IMAGE_NAME=${FLAVOR}.img
   WORKDIR /build
   # These sizes are in MB
