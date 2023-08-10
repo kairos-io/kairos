@@ -17,4 +17,4 @@ jobs:
     with:
       flavor: opensuse-leap-arm-rpi
       model: rpi4
-      worker: ubuntu-latest
+      worker: kvm

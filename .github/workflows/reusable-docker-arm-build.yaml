@@ -104,12 +104,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          docker run --privileged \
-            -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace \
-            -v earthly-tmp:/tmp/earthly:rw \
-            earthly/earthly:v0.7.5 --allow-privileged +all-arm \
+          earthly --allow-privileged +all-arm \
               --VARIANT=core --MODEL=${{ inputs.model }} \
               --FLAVOR=${{ inputs.flavor }} --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
       - name: Show img sizes
