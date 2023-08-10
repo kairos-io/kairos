@@ -348,23 +348,27 @@ base-image:
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
     ARG TARGETARCH
-    # TODO: only needed while we don't have a pure alpine
-    IF [[ "$FLAVOR" =~ ^alpine* ]]
-        ARG DISTRO=alpine
-    ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-        ARG DISTRO=ubuntu-20-lts-arm-nvidia-jetson-agx-orin
-    ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]]
-        ARG DISTRO=ubuntu
-    ELSE
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
-    END
 
-    RUN echo HERE
-    RUN echo $DISTRO
-    RUN echo $TARGETARCH
-    RUN echo $MODEL
     IF [ "$BASE_IMAGE" = "" ]
-        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR -f images/Dockerfile.$DISTRO .
+        # DISTRO is used to match the Linux distribution in the Dockerfile e.g. Dockerfile.ubuntu
+        # This is a bit messy at the moment, but it will be sorted out when we stop including the model and the arch in
+        # the flavor name e.g. ubuntu-20-lts-arm-rpi
+        IF [[ "$FLAVOR" =~ ^alpine* ]] # TODO: only needed while we don't have a pure alpine
+            ARG DISTRO=alpine
+        ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]] # TODO: needs to still be merged on Dockerfile.ubuntu (or not?)
+            ARG DISTRO=ubuntu-20-lts-arm-nvidia-jetson-agx-orin
+        ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]] # TODO: need to find a better way to match the flavor and the distro in the dockerfile for Ubuntu
+            ARG DISTRO=ubuntu
+        ELSE
+            ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+        END
+
+        # SIMPLE_FLAVOR is used to distinguish the flavor inside the Dockerfile, where it's important to make a distinction
+        # between e.g. ubuntu and ubuntu-20-lts, but we don't really need to know the model and the arch since this is
+        # defined using MODEL and TARGETARCH.
+        ARG SIMPLE_FLAVOR=$(echo $FLAVOR | sed 's/-arm-.*//')
+
+        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$SIMPLE_FLAVOR -f images/Dockerfile.$DISTRO .
     ELSE
         FROM $BASE_IMAGE
     END
