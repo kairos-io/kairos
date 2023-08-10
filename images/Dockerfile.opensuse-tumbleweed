@@ -39,6 +39,7 @@ RUN zypper in --force-resolution -y \
     mdadm \
     multipath-tools \
     nano \
+    nohang \
     nethogs \
     nfs-utils \
     open-iscsi \

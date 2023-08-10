@@ -3,14 +3,13 @@ FROM alpine
 ARG VARIANT=core # core, lite, framework
 ARG FLAVOR=opensuse-leap
 ARG BASE_URL=quay.io/kairos
-ARG IMAGE=${BASE_URL}/${VARIANT}-${FLAVOR}:latest
+ARG IMAGE
 ARG MODEL=generic
 ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
 ARG GITHUB_REPO=kairos-io/kairos
 ARG OS_ID=kairos
-ARG OS_REPO=quay.io/kairos/${VARIANT}-${FLAVOR}
+ARG OS_REPO=${BASE_URL}/${VARIANT}-${FLAVOR}
 ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
-ARG OS_LABEL=latest
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.34.0
 # renovate: datasource=docker depName=aquasec/trivy
@@ -99,18 +98,84 @@ go-deps-test:
     SAVE ARTIFACT go.mod go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum go.sum AS LOCAL go.sum
 
+generate-artifact-names:
+  ARG OS_ID
+  ARG VARIANT
+  ARG K3S_VERSION
+  ARG TARGETARCH
+  ARG FLAVOR
+  ARG MODEL
+
+  COPY +version/VERSION ./
+  ARG VERSION=$(cat VERSION)
+
+  IF [ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]
+    # Example: kairos-core-ubuntu-20-lts-arm64-nvidia-jetson-agx-orin.img
+    RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-$(DISTRO | sed 's/-arm-/-arm64-/')-${VERSION}.img" >> ARTIFACT_NAMES_ENV
+
+    # Example: core-ubuntu-20-lts-arm-nvidia-jetson-agx-orin
+    RUN echo "export CONTAINER_NAME=${VARIANT}-${FLAVOR}" >> ARTIFACT_NAMES_ENV
+    RUN echo "export IMG_CONTAINER_NAME=${VARIANT}-${FLAVOR}-img" >> ARTIFACT_NAMES_ENV
+  ELSE
+    ENV PREFIX=${VARIANT}
+
+    # Don't set DISTRO when calling this target!
+    # It's here just because Earthly is crazy and doesn't allow us to set ENV
+    # variables from bash commands.
+    IF [ "$TARGETARCH" = "arm64" ]
+      ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    ELSE
+      ARG DISTRO=${FLAVOR}
+    END
+
+    IF [ "$VARIANT" = "standard" ]
+      ENV PREFIX=kairos
+      RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3s${K3S_VERSION}.img" >> ARTIFACT_NAMES_ENV
+      RUN echo "export ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3s${K3S_VERSION}.iso" >> ARTIFACT_NAMES_ENV
+    ELSE
+      RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}.img" >> ARTIFACT_NAMES_ENV
+      RUN echo "export ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}.iso" >> ARTIFACT_NAMES_ENV
+    END
+
+    RUN echo "export CONTAINER_NAME=${PREFIX}-${FLAVOR}" >> ARTIFACT_NAMES_ENV
+    RUN echo "export IMG_CONTAINER_NAME=${PREFIX}-${FLAVOR}-img" >> ARTIFACT_NAMES_ENV
+  END
+
+  SAVE ARTIFACT ARTIFACT_NAMES_ENV AS LOCAL build/ARTIFACT_NAMES_ENV
+
+CONTAINER_IMAGE_VERSION:
+  COMMAND
+
+  ARG VERSION
+
+  IF [ "$IMAGE" = "" ]
+    # TODO: This IF block should be deleted as soon as our repository names
+    # follow our conventions.
+    IF [ "$VARIANT" = "standard" ]
+      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${VERSION} > IMAGE
+    ELSE
+      RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${VERSION} > IMAGE
+    END
+  ELSE
+    RUN echo $IMAGE > IMAGE
+  END
+
+  RUN echo "${VERSION}" > VERSION
+
 OSRELEASE:
     COMMAND
     ARG OS_ID
     ARG OS_NAME
     ARG OS_REPO
     ARG OS_VERSION
-    ARG OS_LABEL
     ARG VARIANT
     ARG FLAVOR
     ARG GITHUB_REPO
     ARG BUG_REPORT_URL
     ARG HOME_URL
+
+    COPY +version/VERSION ./
+    ARG OS_LABEL=$(cat VERSION)
 
     # update OS-release file
     RUN sed -i -n '/KAIROS_/!p' /etc/os-release
@@ -260,17 +325,21 @@ framework:
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
-   COPY +version/VERSION ./
-   ARG VERSION=$(cat VERSION)
-   ARG FLAVOR
-   BUILD +framework-image --VERSION=$VERSION --FLAVOR=$FLAVOR
-
-framework-image:
-    FROM scratch
-    ARG VERSION
-    ARG IMG
+    FROM alpine
     ARG FLAVOR
+
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+
+    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}"
+    RUN echo $_IMG > FRAMEWORK_IMAGE
+
+    SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
+
+    FROM scratch
+
     COPY (+framework/framework --VERSION=$VERSION --FLAVOR=$FLAVOR) /
+
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
 base-image:
@@ -280,6 +349,7 @@ base-image:
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
     ARG TARGETARCH
+
     IF [ "$BASE_IMAGE" = "" ]
         # Source the flavor-provided docker file
         IF [[ "$FLAVOR" =~ ^ubuntu* ]] && [ "$TARGETARCH" != "arm64" ]
@@ -311,13 +381,13 @@ base-image:
 
     # Enable services
     IF [ -f /sbin/openrc ]
-     # Fully remove machine-id, it will be generated
-     RUN rm -rf /etc/machine-id
-     RUN mkdir -p /etc/runlevels/default && \
-      ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
-      ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
-      ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
-      ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
+      # Fully remove machine-id, it will be generated
+      RUN rm -rf /etc/machine-id
+      RUN mkdir -p /etc/runlevels/default && \
+        ln -sf /etc/init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot  && \
+        ln -sf /etc/init.d/cos-setup-network /etc/runlevels/default/cos-setup-network  && \
+        ln -sf /etc/init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile && \
+        ln -sf /etc/init.d/kairos-agent /etc/runlevels/default/kairos-agent
     # Otherwise we assume systemd
     ELSE
       # Empty machine-id so we dont accidentally run systemd-firstboot ¬_¬
@@ -336,7 +406,6 @@ base-image:
         RUN rm -rf /usr/bin/kairos-agent
         COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
     END
-    # END
 
     # TEST IMMUCORE FROM BRANCH
     ARG IMMUCORE_DEV
@@ -350,7 +419,6 @@ base-image:
         COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
         COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
     END
-    # END
 
     # TEST KCRYPT FROM BRANCH
     ARG KCRYPT_DEV
@@ -360,14 +428,13 @@ base-image:
         COPY github.com/kairos-io/kcrypt:$KCRYPT_DEV_BRANCH+build-kcrypt/kcrypt /usr/bin/kcrypt
     END
 
-    # END
+    ARG PROVIDER_KAIROS_BRANCH
+    ARG K3S_VERSION
+    IF [[ "$VARIANT" = "standard" ]]
+        DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
-    # Build with provider-kairos
-    # TODO: Allow installing from luet packages
-    ARG PROVIDER_KAIROS
-    ARG PROVIDER_KAIROS_BRANCH=main
-    IF [[ "$PROVIDER_KAIROS" != "" ]]
-        DO github.com/kairos-io/provider-kairos:main+PROVIDER_INSTALL --FLAVOR=$FLAVOR
+        DO +INSTALL_K3S -K3S_VERSION=${K3S_VERSION}
+
         # Redo os-release with override settings to point to provider-kairos stuff
         # in earthly 0.7 we will be able to just override VARIANT here and just run the OSRELEASE once
         # but currently on 0.6 you cant override args properly as it picks the first arg it founds
@@ -429,7 +496,12 @@ base-image:
 
     RUN rm -rf /tmp/*
 
-    SAVE IMAGE $IMAGE
+    DO +CONTAINER_IMAGE_VERSION -VERSION=${OS_VERSION}
+    ARG _CIMG=$(cat IMAGE)
+
+    SAVE IMAGE $_CIMG
+    SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
+    SAVE ARTIFACT VERSION AS LOCAL build/VERSION
 
 image-rootfs:
     FROM +base-image
@@ -573,7 +645,6 @@ iso:
     ARG TARGETARCH
     ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
-    ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
@@ -586,20 +657,21 @@ iso:
 # This target builds an iso using a remote docker image as rootfs instead of building the whole rootfs
 # This should be really fast as it uses an existing image. This requires a pushed image from the +image target
 # defaults to use the $IMAGE name (so ttl.sh/core-opensuse-leap:latest)
-# you can override either the full thing by setting --IMG=docker:REPO/IMAGE:TAG
-# or by --IMAGE=REPO/IMAGE:TAG
+# you can override either the full thing by setting --REMOTE_IMG=docker:REPO/IMAGE:TAG
+# or by --REMOTE_IMG=REPO/IMAGE:TAG
 iso-remote:
     ARG TARGETARCH
+    ARG REMOTE_IMG
+
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
     ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
-    ARG IMG=docker:$IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
-    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false $IMG --overlay-iso /build/${overlay} --output /build/
+    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false docker:$REMOTE_IMG --overlay-iso /build/${overlay} --output /build/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
@@ -654,6 +726,21 @@ arm-image:
     ENV RECOVERY_SIZE="4200"
     ENV DEFAULT_ACTIVE_SIZE="2000"
   END
+
+  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+    ENV STATE_SIZE="14000"
+    ENV RECOVERY_SIZE="10000"
+    ENV DEFAULT_ACTIVE_SIZE="4500"
+  ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+    ENV STATE_SIZE="6900"
+    ENV RECOVERY_SIZE="4600"
+    ENV DEFAULT_ACTIVE_SIZE="2700"
+  ELSE
+    ENV STATE_SIZE="6200"
+    ENV RECOVERY_SIZE="4200"
+    ENV DEFAULT_ACTIVE_SIZE="2000"
+  END
+
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
@@ -1112,3 +1199,41 @@ bump-repositories:
     RUN yq eval ".repositories[0] |= . * { \"reference\": \"${REPO_AMD64}\" }" -i framework-profile.yaml
     RUN yq eval ".repositories[1] |= . * { \"reference\": \"${REPO_ARM64}\" }" -i framework-profile.yaml
     SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
+
+# Installs the needed bits for "standard" images (the provider ones)
+PROVIDER_INSTALL:
+    COMMAND
+
+    ARG PROVIDER_KAIROS_BRANCH
+
+    COPY +luet/luet /usr/bin/luet
+
+    IF [[ "$PROVIDER_KAIROS_BRANCH" = "" ]] # Install with luet (released versions of the binary)
+      # We don't specify a version. To bump, just change what the latest version
+      # in the repository is.
+      RUN luet install -y system/provider-kairos
+    ELSE # Install from a branch
+      COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
+      RUN ln -s /system/providers/agent-provider-kairos /usr/bin/kairos
+    END
+
+# Installs k3s (for "standard" images)
+INSTALL_K3S:
+    COMMAND
+
+    ARG K3S_VERSION
+    IF [[ "$K3S_VERSION" = "" ]]
+      RUN echo "$K3S_VERSION must be set" && exit 1
+    END
+
+    IF [[ "$K3S_VERSION" = "latest" ]] # Install latest using the upstream installer
+      ENV INSTALL_K3S_BIN_DIR="/usr/bin"
+      RUN curl -sfL https://get.k3s.io > installer.sh \
+          && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh \
+          && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh agent \
+          && rm -rf installer.sh
+    ELSE
+      ARG _LUET_K3S=$(k8s/k3s@${K3S_VERSION})
+    END
+
+    RUN luet install -y ${_LUET_K3S} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup

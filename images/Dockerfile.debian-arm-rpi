@@ -59,6 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     neovim \
     nfs-common \
     nftables \
+    nohang \
     open-iscsi \
     openssh-server \
     open-vm-tools \

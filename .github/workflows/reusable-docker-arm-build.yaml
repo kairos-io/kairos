@@ -56,8 +56,8 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - uses: actions/checkout@v3
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: 0
       - name: Set up QEMU
         uses: docker/setup-qemu-action@master
         with:
@@ -83,18 +83,14 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
           echo "IMG_COMPRESSION=xz" >> $GITHUB_ENV
-      - name: Standard Build  🔧
+      - name: Shared runner build  🔧
         if: ${{ inputs.worker != 'self-hosted' }}
-        env:
-          FLAVOR: ${{ inputs.flavor }}
-          MODEL: ${{ inputs.model }}
         run: |
-          ./earthly.sh +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
+          ./earthly.sh +all-arm --VARIANT=core --MODEL=${{ inputs.model }} \
+            --FLAVOR=${{ inputs.flavor }} \
+            --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
       - name: Selfhosted Build  🔧
         if: ${{ inputs.worker == 'self-hosted' }}
-        env:
-          FLAVOR: ${{ inputs.flavor }}
-          MODEL: ${{ inputs.model }}
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
@@ -108,7 +104,14 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          docker run --privileged -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml -v /var/run/docker.sock:/var/run/docker.sock --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.7.5 --allow-privileged +all-arm --IMAGE_NAME=kairos-$FLAVOR-latest.img --IMAGE=quay.io/kairos/core-$FLAVOR:latest --MODEL=$MODEL --FLAVOR=$FLAVOR --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
+          docker run --privileged \
+            -v $HOME/.earthly/config.yml:/etc/.earthly/config.yml \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            --rm --env EARTHLY_BUILD_ARGS -t -v "$(pwd)":/workspace \
+            -v earthly-tmp:/tmp/earthly:rw \
+            earthly/earthly:v0.7.5 --allow-privileged +all-arm \
+              --VARIANT=core --MODEL=${{ inputs.model }} \
+              --FLAVOR=${{ inputs.flavor }} --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
       - name: Show img sizes
         run: |
           ls -ltra build
@@ -120,20 +123,18 @@ jobs:
           IMAGE: quay.io/kairos/core-$FLAVOR:latest
           MODEL: ${{ inputs.model }}
         run: |
-          export TAG=latest
-          export IMAGE_NAME=kairos-$FLAVOR-$TAG.img
-          export IMAGE=quay.io/kairos/core-$FLAVOR:$TAG
-          docker push quay.io/kairos/core-$FLAVOR:$TAG
+          export _IMG=$(cat build/IMAGE)
+          export _NEW_IMG=$(echo $_IMG | cut -f1 -d:):latest
+          docker tag $_IMG $_NEW_IMG
+          docker push $_NEW_IMG
       - name: Prepare sarif files  🔧
-        env:
-          FLAVOR: ${{ inputs.flavor }}
-          IMAGE: quay.io/kairos/core-$FLAVOR:latest
-          MODEL: ${{ inputs.model }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
           mkdir sarif
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v2
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
           sarif_file: 'sarif'
           category: ${{ inputs.flavor }}
@@ -144,8 +145,11 @@ jobs:
           TAG: "latest"
           COSIGN_YES: true
         run: |
-          docker push "$IMAGE:$TAG"
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          # Avoid pushing a new image for every commit (re-use latest)
+          export _IMG=$(cat build/IMAGE)
+          export _LATEST=$(echo $_IMG | cut -f1 -d:):latest
+          docker push $_LATEST
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$_LATEST")
           spdx=$(ls build/*.spdx.json)
           cosign attach sbom --sbom $spdx $image_ref
           cosign sign $image_ref --attachment sbom

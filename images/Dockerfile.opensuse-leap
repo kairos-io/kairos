@@ -41,6 +41,7 @@ RUN zypper in --force-resolution -y \
     multipath-tools \
     nano \
     nethogs \
+    nohang \
     nfs-utils \
     open-iscsi \
     openssh \
