@@ -1,35 +1,35 @@
 [
     {
         "flavor": "opensuse-leap-arm-rpi",
-        "model": "rpi64",
+        "model": "rpi4",
         "worker": "ubuntu-latest",
         "standard": "true"
     },
     {
         "flavor": "opensuse-tumbleweed-arm-rpi",
-        "model": "rpi64",
+        "model": "rpi4",
         "worker": "ubuntu-latest",
         "standard": "true"
     },
     {
         "flavor": "alpine-arm-rpi",
-        "model": "rpi64",
+        "model": "rpi4",
         "worker": "ubuntu-latest",
         "standard": "true"
     },
     {
         "flavor": "ubuntu-arm-rpi",
-        "model": "rpi64",
+        "model": "rpi4",
         "worker": "ubuntu-latest"
     },
     {
         "flavor": "ubuntu-20-lts-arm-rpi",
-        "model": "rpi64",
+        "model": "rpi4",
         "worker": "ubuntu-latest"
     },
     {
         "flavor": "ubuntu-22-lts-arm-rpi",
-        "model": "rpi64",
+        "model": "rpi4",
         "worker": "ubuntu-latest"
     },
     {
