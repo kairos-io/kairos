@@ -349,15 +349,21 @@ base-image:
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
     ARG TARGETARCH
+    # TODO: only needed while we don't have a pure alpine
+    IF [[ "$FLAVOR" =~ ^alpine* ]]
+        ARG DISTRO=alpine
+    ELSE
+        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    END
 
     IF [ "$BASE_IMAGE" = "" ]
-        # Source the flavor-provided docker file
-        IF [[ "$FLAVOR" =~ ^ubuntu* ]] && [ "$TARGETARCH" != "arm64" ]
-            FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR -f images/Dockerfile.ubuntu .
-        ELSE
+        # TODO: Temporary while all arm dockerfiles are merged
+        IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
             FROM DOCKERFILE --build-arg MODEL=$MODEL -f images/Dockerfile.$FLAVOR .
+        ELSE
+            FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR -f images/Dockerfile.$DISTRO .
         END
-    ELSE 
+    ELSE
         FROM $BASE_IMAGE
     END
 

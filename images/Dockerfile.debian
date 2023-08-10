@@ -1,13 +1,26 @@
-# We can't use stable due to: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=962300
-ARG BASE_IMAGE=debian:testing
+###############################################################
+####                           ARGS                        ####
+###############################################################
+ARG MODEL=generic
 
-FROM $BASE_IMAGE
+###############################################################
+####                     Upstream Images                   ####
+###############################################################
 
-ENV DEBIAN_FRONTEND=noninteractive
-
+# we use testing for amd64 because zfsutils-linux is not available in bookworm
+FROM debian:testing AS amd64-upstream
 RUN <<EOF
 echo "deb http://deb.debian.org/debian bookworm main contrib" >> /etc/apt/sources.list.d/kairos.list
 EOF
+
+FROM debian:bookworm-slim AS arm64-upstream
+
+###############################################################
+####                          Common                       ####
+###############################################################
+FROM ${TARGETARCH}-upstream AS common
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     binutils \
@@ -32,11 +45,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gdisk \
     gnupg \
     gnupg1-l10n \
-    grub2 \
     grub2-common \
-    grub-efi-amd64-bin \
-    grub-efi-amd64-signed \
-    grub-pc-bin \
     haveged \
     iproute2 \
     iptables \
@@ -52,7 +61,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss-systemd \
     libpam-cap \
     libsasl2-modules \
-    linux-image-amd64 \
     lvm2 \
     mdadm \
     nano \
@@ -74,7 +82,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     psmisc \
     publicsuffix \
     python3-pynvim \
-    qemu-guest-agent \
     rsync \
     shared-mime-info \
     snapd \
@@ -91,9 +98,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xxd \
     xz-utils \
     zerofree \
-    zfsutils-linux \
-    linux-image-amd64 && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+###############################################################
+####                    Common to a Model                  ####
+###############################################################
+FROM common AS  generic
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    grub2 \
+    grub-pc-bin \
+    grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
+    linux-image-amd64 \
+    qemu-guest-agent \
+    zfsutils-linux \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM common AS rpi64
+RUN sed -i 's/^Components: main.*$/& non-free-firmware/' /etc/apt/sources.list.d/debian.sources
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    grub-efi-arm64-bin \
+    grub-efi-arm64-signed \
+    linux-image-arm64 \
+    raspi-firmware \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${MODEL} AS all
+
+###############################################################
+####               Post-Process Common to All              ####
+###############################################################
+FROM all
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 RUN systemctl enable systemd-networkd
@@ -101,7 +138,6 @@ RUN systemctl enable ssh
 
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
-
 
 # Clear cache
 RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname

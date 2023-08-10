@@ -38,6 +38,7 @@ stages:
           /var/snap
           /usr/libexec
           /var/log
+          /var/lib/containerd
           /var/lib/rancher
           /var/lib/kubelet
           /var/lib/snapd
@@ -80,6 +81,7 @@ stages:
           /var/snap
           /usr/libexec
           /var/log
+          /var/lib/containerd
           /var/lib/rancher
           /var/lib/kubelet
           /var/lib/snapd
@@ -117,6 +119,7 @@ stages:
           /var/snap
           /usr/libexec
           /var/log
+          /var/lib/containerd
           /var/lib/rancher
           /var/lib/kubelet
           /var/lib/snapd

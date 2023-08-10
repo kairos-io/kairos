@@ -73,7 +73,7 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
 
   build-framework:
-    runs-on: self-hosted
+    runs-on: kvm
     needs:
     - get-framework-matrix
     permissions:
