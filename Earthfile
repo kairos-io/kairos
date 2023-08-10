@@ -351,17 +351,20 @@ base-image:
     # TODO: only needed while we don't have a pure alpine
     IF [[ "$FLAVOR" =~ ^alpine* ]]
         ARG DISTRO=alpine
+    ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+        ARG DISTRO=ubuntu-20-lts-arm-nvidia-jetson-agx-orin
+    ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]]
+        ARG DISTRO=ubuntu
     ELSE
         ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
     END
 
+    RUN echo HERE
+    RUN echo $DISTRO
+    RUN echo $TARGETARCH
+    RUN echo $MODEL
     IF [ "$BASE_IMAGE" = "" ]
-        # TODO: Temporary while all arm dockerfiles are merged
-        IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-            FROM DOCKERFILE --build-arg MODEL=$MODEL -f images/Dockerfile.$FLAVOR .
-        ELSE
-            FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR -f images/Dockerfile.$DISTRO .
-        END
+        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR -f images/Dockerfile.$DISTRO .
     ELSE
         FROM $BASE_IMAGE
     END
