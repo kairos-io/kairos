@@ -63,7 +63,7 @@ jobs:
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
-        if: ${{ matrix.worker != 'self-hosted' }}
+        if: ${{ matrix.worker != 'kvm' }}
         run: |
           echo "Listing top largest packages"
           pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
@@ -119,11 +119,11 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Shared runner build  🔧
-        if: ${{ matrix.worker != 'self-hosted' }}
+        if: ${{ matrix.worker != 'kvm' }}
         run: |
           earthly -P +all-arm -VARIANT=core -MODEL=${{ matrix.model }} -FLAVOR=${{ matrix.flavor }}
       - name: Self-hosted runner Build  🔧
-        if: ${{ matrix.worker == 'self-hosted' }}
+        if: ${{ matrix.worker == 'kvm' }}
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
@@ -191,7 +191,7 @@ jobs:
       matrix: ${{fromJson(needs.get-standard-matrix.outputs.matrix)}}
     steps:
       - name: Release space from worker
-        if: ${{ matrix.worker != 'self-hosted' }}
+        if: ${{ matrix.worker != 'kvm' }}
         run: |
           echo "Listing top largest packages"
           pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
@@ -247,11 +247,11 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Shared runner build  🔧
-        if: ${{ matrix.worker != 'self-hosted' }}
+        if: ${{ matrix.worker != 'kvm' }}
         run: |
           earthly -P +all-arm -VARIANT=standard -MODEL=${{ matrix.model }} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
       - name: Self-hosted runner Build  🔧
-        if: ${{ matrix.worker == 'self-hosted' }}
+        if: ${{ matrix.worker == 'kvm' }}
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
