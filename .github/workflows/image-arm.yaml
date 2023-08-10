@@ -87,7 +87,7 @@ jobs:
     runs-on: ubuntu-latest
     if: failure()
     needs:
-      - docker
+      - build-arm-core
       - image_and_iso_arm64_generic
     steps:
       - name: save commit-message

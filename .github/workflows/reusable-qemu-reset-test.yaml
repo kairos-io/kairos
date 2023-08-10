@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: kvm
     steps:
       - uses: actions/checkout@v3
       - run: |

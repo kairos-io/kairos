@@ -12,7 +12,7 @@ on:
 
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: kvm
     permissions:
       id-token: write  # OIDC support
       contents: write
