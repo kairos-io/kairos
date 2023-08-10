@@ -17,7 +17,7 @@ RUN zypper removerepo repo-openh264
 
 FROM upstream AS arm64-config
 RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && \
-    zypper ref \
+    zypper ref
 
 ###############################################################
 ####                         Common                        ####
