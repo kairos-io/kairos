@@ -1,7 +1,12 @@
-ARG BASE_IMAGE=alpine
+###############################################################
+####                           ARGS                        ####
+###############################################################
+ARG MODEL=generic
 
-FROM $BASE_IMAGE
-
+###############################################################
+####                          Common                       ####
+###############################################################
+FROM alpine AS common
 RUN apk --no-cache add  \
       bash \
       bash-completion \
@@ -79,6 +84,22 @@ RUN apk --no-cache add  \
       xfsprogs \
       xz
 
+###############################################################
+####                    Common to a Model                  ####
+###############################################################
+FROM common AS generic
+RUN apk --no-cache add  \
+      bonding \
+      bridge \
+      grub-bios \
+      rbd-nbd
+
+FROM common AS rpi64
+
+###############################################################
+####               Post-Process Common to All              ####
+###############################################################
+FROM ${MODEL} AS all
 RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
     rc-update add acpid boot && \
@@ -89,7 +110,7 @@ RUN rc-update add sshd boot && \
     rc-update add ntpd boot && \
     rc-update add crond && \
     rc-update add fail2ban
-    
+
 # Symlinks to make elemental installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
     ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv

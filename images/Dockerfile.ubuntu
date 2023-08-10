@@ -1,14 +1,22 @@
+###############################################################
+####                           ARGS                        ####
+###############################################################
 ARG FLAVOR
+ARG MODEL=generic
 
-# Available flavors
-FROM ubuntu:rolling AS ubuntu
+###############################################################
+####                     Upstream Images                   ####
+###############################################################
+FROM ubuntu:rolling AS ubuntu-upstream
 
-FROM ubuntu:20.04 AS ubuntu-20-lts
+FROM ubuntu:20.04 AS ubuntu-20-lts-upstream
 
-FROM ubuntu:22.04 AS ubuntu-22-lts
+FROM ubuntu:22.04 AS ubuntu-22-lts-upstream
 
-# Common packages for all images
-FROM ${FLAVOR} AS common
+###############################################################
+####                Pre-Process Common to All              ####
+###############################################################
+FROM ${FLAVOR}-upstream AS common
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -20,54 +28,65 @@ RUN apt-get update \
     conntrack \
     console-data \
     coreutils \
-    cryptsetup \
     curl \
     debianutils \
-    dmsetup \
     dosfstools \
     dracut \
+    dracut-live \
     dracut-network \
     e2fsprogs \
-    efibootmgr \
     gawk \
     gdisk \
-    grub2 \
     grub2-common \
-    grub-efi-amd64-bin \
-    grub-efi-amd64-signed \
-    grub-pc-bin \
     haveged \
     iproute2 \
     iptables \
     iputils-ping \
-    isc-dhcp-common \
     jq \
     kbd \
     less \
     lvm2 \
-    mdadm \
     nano \
     nbd-client \
-    ncurses-term \
     neovim \
-    networkd-dispatcher \
     nohang \
-    nfs-common \
     open-iscsi \
-    openssh-server \
     open-vm-tools \
-    os-prober \
-    packagekit-tools \
+    openssh-server \
     parted \
-    publicsuffix \
-    qemu-guest-agent \
+    polkitd \
     rsync \
-    shared-mime-info \
     snapd \
     squashfs-tools \
     sudo \
     systemd \
     systemd-timesyncd \
+    tar \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+###############################################################
+####           Common to a Single Architecture             ####
+###############################################################
+
+FROM common AS amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    cryptsetup \
+    dmsetup \
+    efibootmgr \
+    grub2 \
+    grub-efi-amd64-bin \
+    grub-efi-amd64-signed \
+    grub-pc-bin \
+    isc-dhcp-common \
+    mdadm \
+    ncurses-term \
+    networkd-dispatcher \
+    nfs-common \
+    os-prober \
+    packagekit-tools \
+    publicsuffix \
+    shared-mime-info \
     thermald \
     xdg-user-dirs \
     xxd \
@@ -75,57 +94,103 @@ RUN apt-get update \
     zerofree \
     zfsutils-linux \
     zstd \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Packages and scripts only for specific images
-FROM common AS ubuntu-specific
+FROM common AS arm64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    grub-efi-arm64 \
+    grub-efi-arm64-bin \
+    grub-efi-arm64-signed \
+    keyutils \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+###############################################################
+####            Common to an Arch and Flavor               ####
+###############################################################
+FROM ${TARGETARCH} AS amd64-ubuntu
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-image-generic-hwe-22.04 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${TARGETARCH} AS amd64-ubuntu-20-lts
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-image-generic-hwe-20.04 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${TARGETARCH} AS amd64-ubuntu-22-lts
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-image-generic-hwe-22.04 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${TARGETARCH} AS arm64-ubuntu
+
+FROM ${TARGETARCH} AS arm64-ubuntu-20-lts
+
+FROM ${TARGETARCH} AS arm64-ubuntu-22-lts
+
+###############################################################
+####               Common to a Single Model                ####
+###############################################################
+FROM ${TARGETARCH}-${FLAVOR} AS generic
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-base \
+    qemu-guest-agent \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${TARGETARCH}-${FLAVOR} AS rpi64
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-firmware-raspi \
+    linux-modules-extra-raspi \
+    linux-raspi \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+###############################################################
+####                Common to a Single Flavor              ####
+###############################################################
+FROM ${MODEL} AS ubuntu
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     dbus-user-session \
-    dracut-live \
     firmware-sof-signed \
     fuse3 \
     krb5-locales \
-    linux-image-generic-hwe-22.04 \
     pigz \
     pkg-config \
-    polkitd \
     systemd-hwe-hwdb \
     systemd-resolved \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS ubuntu-20-lts-specific
+FROM ${MODEL} AS ubuntu-20-lts
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     file \
     fuse \
     krb5-locales \
-    linux-image-generic-hwe-20.04 \
     lldpd \
     patch \
     policykit-1 \
     snmpd \
     ubuntu-advantage-tools \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS ubuntu-22-lts-specific
+FROM ${MODEL} AS ubuntu-22-lts
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    dracut-live \
     firmware-sof-signed \
     fuse3 \
-    linux-image-generic-hwe-22.04 \
     lldpd \
     pigz \
-    polkitd \
     snmpd \
     systemd-hwe-hwdb \
     ubuntu-advantage-tools \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${FLAVOR}-specific AS all
+FROM ${FLAVOR} AS all
 
-# Generic steps for all images
+###############################################################
+####               Post-Process Common to All              ####
+###############################################################
 FROM all
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
