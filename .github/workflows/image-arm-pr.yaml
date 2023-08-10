@@ -16,5 +16,5 @@ jobs:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
       flavor: opensuse-leap-arm-rpi
-      model: rpi64
+      model: rpi4
       worker: ubuntu-latest

@@ -115,7 +115,7 @@ RUN apt-get update \
     zfsutils-linux \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS rpi64
+FROM common AS rpicommon
 RUN sed -i 's/^Components: main.*$/& non-free-firmware/' /etc/apt/sources.list.d/debian.sources
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -124,6 +124,9 @@ RUN apt-get update \
     linux-image-arm64 \
     raspi-firmware \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM rpicommon AS rpi3
+FROM rpicommon AS rpi4
 
 FROM ${MODEL} AS all
 

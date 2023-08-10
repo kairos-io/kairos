@@ -94,7 +94,8 @@ RUN apk --no-cache add  \
       grub-bios \
       rbd-nbd
 
-FROM common AS rpi64
+FROM common AS rpi3
+FROM common AS rpi4
 
 ###############################################################
 ####               Post-Process Common to All              ####
