@@ -28,11 +28,11 @@ RUN apt-get update \
     conntrack \
     console-data \
     coreutils \
+    cryptsetup \
     curl \
     debianutils \
     dosfstools \
     dracut \
-    dracut-live \
     dracut-network \
     e2fsprogs \
     gawk \
@@ -54,7 +54,6 @@ RUN apt-get update \
     open-vm-tools \
     openssh-server \
     parted \
-    polkitd \
     rsync \
     snapd \
     squashfs-tools \
@@ -71,7 +70,6 @@ RUN apt-get update \
 FROM common AS amd64
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    cryptsetup \
     dmsetup \
     efibootmgr \
     grub2 \
@@ -110,7 +108,9 @@ RUN apt-get update \
 ###############################################################
 FROM ${TARGETARCH} AS amd64-ubuntu
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    dracut-live \
     linux-image-generic-hwe-22.04 \
+    polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ${TARGETARCH} AS amd64-ubuntu-20-lts
@@ -120,14 +120,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 FROM ${TARGETARCH} AS amd64-ubuntu-22-lts
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    dracut-live \
     linux-image-generic-hwe-22.04 \
+    polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ${TARGETARCH} AS arm64-ubuntu
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dracut-live \
+    polkitd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ${TARGETARCH} AS arm64-ubuntu-20-lts
 
 FROM ${TARGETARCH} AS arm64-ubuntu-22-lts
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dracut-live \
+    polkitd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ###############################################################
 ####               Common to a Single Model                ####
