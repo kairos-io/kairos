@@ -90,6 +90,9 @@ jobs:
       - build-arm-core
       - image_and_iso_arm64_generic
     steps:
+      - uses: actions/checkout@v3
+      - run: |
+          git fetch --prune --unshallow
       - name: save commit-message
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
         run: echo "COMMIT_MSG=$(git log -1 --pretty=format:%s)" >> $GITHUB_ENV
