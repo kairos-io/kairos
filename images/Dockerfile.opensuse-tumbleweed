@@ -47,7 +47,6 @@ RUN zypper in --force-resolution -y \
     iputils \
     issue-generator \
     jq \
-    kernel-default \
     less \
     logrotate \
     lsscsi \
@@ -75,8 +74,7 @@ RUN zypper in --force-resolution -y \
     timezone \
     tmux \
     vim \
-    which \
-    && zypper cc
+    which
 
 FROM common as amd64
 RUN zypper in --force-resolution -y \
@@ -87,8 +85,7 @@ RUN zypper in --force-resolution -y \
     nethogs \
     nfs-utils \
     patch \
-    systemd-sysvinit \
-    && zypper cc
+    systemd-sysvinit
 
 FROM common as arm64
 RUN zypper in --force-resolution -y \
@@ -105,16 +102,14 @@ RUN zypper in --force-resolution -y \
     kernel-firmware-realtek \
     kernel-firmware-serial \
     kernel-firmware-usb-network \
-    nethogs \
-    && zypper cc
+    nethogs
 
 ###############################################################
 ####                          Model                        ####
 ###############################################################
 FROM ${TARGETARCH} AS generic
 RUN zypper in --force-resolution -y \
-    qemu-guest-agent \
-    && zypper cc
+    qemu-guest-agent
 
 FROM ${TARGETARCH} AS rpicommon
 RUN zypper in --force-resolution -y \
@@ -125,8 +120,7 @@ RUN zypper in --force-resolution -y \
     sysconfig-netconfig \
     sysvinit-tools \
     wireless-tools \
-    wpa_supplicant \
-    && zypper cc
+    wpa_supplicant
 
 FROM rpicommon AS rpi3
 FROM rpicommon AS rpi4
@@ -135,3 +129,8 @@ FROM rpicommon AS rpi4
 ####               Post-Process Common to All              ####
 ###############################################################
 FROM ${MODEL} AS all
+# Not sure why but if I install kernel-defult at the common stage, it doesn't populate /boot so it's done here. Should
+# be investigated further.
+RUN zypper in --force-resolution -y \
+    kernel-default \
+    && zypper cc
