@@ -74,7 +74,8 @@ RUN zypper in --force-resolution -y \
     timezone \
     tmux \
     vim \
-    which
+    which \
+    && zypper cc
 
 FROM common as amd64
 RUN zypper in --force-resolution -y \
@@ -85,7 +86,8 @@ RUN zypper in --force-resolution -y \
     nethogs \
     nfs-utils \
     patch \
-    systemd-sysvinit
+    systemd-sysvinit \
+    && zypper cc
 
 FROM common as arm64
 RUN zypper in --force-resolution -y \
@@ -102,14 +104,16 @@ RUN zypper in --force-resolution -y \
     kernel-firmware-realtek \
     kernel-firmware-serial \
     kernel-firmware-usb-network \
-    nethogs
+    nethogs \
+    && zypper cc
 
 ###############################################################
 ####                          Model                        ####
 ###############################################################
 FROM ${TARGETARCH} AS generic
 RUN zypper in --force-resolution -y \
-    qemu-guest-agent
+    qemu-guest-agent \
+    && zypper cc
 
 FROM ${TARGETARCH} AS rpicommon
 RUN zypper in --force-resolution -y \
@@ -120,7 +124,8 @@ RUN zypper in --force-resolution -y \
     sysconfig-netconfig \
     sysvinit-tools \
     wireless-tools \
-    wpa_supplicant
+    wpa_supplicant \
+    && zypper cc
 
 FROM rpicommon AS rpi3
 FROM rpicommon AS rpi4
