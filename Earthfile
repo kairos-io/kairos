@@ -98,51 +98,6 @@ go-deps-test:
     SAVE ARTIFACT go.mod go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum go.sum AS LOCAL go.sum
 
-generate-artifact-names:
-  ARG OS_ID
-  ARG VARIANT
-  ARG K3S_VERSION
-  ARG TARGETARCH
-  ARG FLAVOR
-  ARG MODEL
-
-  COPY +version/VERSION ./
-  ARG VERSION=$(cat VERSION)
-
-  IF [ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]
-    # Example: kairos-core-ubuntu-20-lts-arm64-nvidia-jetson-agx-orin.img
-    RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-$(DISTRO | sed 's/-arm-/-arm64-/')-${VERSION}.img" >> ARTIFACT_NAMES_ENV
-
-    # Example: core-ubuntu-20-lts-arm-nvidia-jetson-agx-orin
-    RUN echo "export CONTAINER_NAME=${VARIANT}-${FLAVOR}" >> ARTIFACT_NAMES_ENV
-    RUN echo "export IMG_CONTAINER_NAME=${VARIANT}-${FLAVOR}-img" >> ARTIFACT_NAMES_ENV
-  ELSE
-    ENV PREFIX=${VARIANT}
-
-    # Don't set DISTRO when calling this target!
-    # It's here just because Earthly is crazy and doesn't allow us to set ENV
-    # variables from bash commands.
-    IF [ "$TARGETARCH" = "arm64" ]
-      ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
-    ELSE
-      ARG DISTRO=${FLAVOR}
-    END
-
-    IF [ "$VARIANT" = "standard" ]
-      ENV PREFIX=kairos
-      RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3s${K3S_VERSION}.img" >> ARTIFACT_NAMES_ENV
-      RUN echo "export ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3s${K3S_VERSION}.iso" >> ARTIFACT_NAMES_ENV
-    ELSE
-      RUN echo "export IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}.img" >> ARTIFACT_NAMES_ENV
-      RUN echo "export ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}.iso" >> ARTIFACT_NAMES_ENV
-    END
-
-    RUN echo "export CONTAINER_NAME=${PREFIX}-${FLAVOR}" >> ARTIFACT_NAMES_ENV
-    RUN echo "export IMG_CONTAINER_NAME=${PREFIX}-${FLAVOR}-img" >> ARTIFACT_NAMES_ENV
-  END
-
-  SAVE ARTIFACT ARTIFACT_NAMES_ENV AS LOCAL build/ARTIFACT_NAMES_ENV
-
 CONTAINER_IMAGE_VERSION:
   COMMAND
 
