@@ -33,7 +33,7 @@ func testInstall(cloudConfig string, vm VM) string { //, actual interface{}, m t
 
 	var out string
 	By("installing kairos", func() {
-		out, err = vm.Sudo(`kairos-agent manual-install --device "auto" /tmp/config.yaml`)
+		out, err = vm.Sudo(`kairos-agent --debug manual-install --device "auto" /tmp/config.yaml`)
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
 		vm.Sudo("sync")
