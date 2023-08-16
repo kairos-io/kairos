@@ -12,6 +12,7 @@ stages:
         permissions: 0600
         owner: 0
         group: 0
+      # TODO: This is no longer read. This should be moved to cloud-init file.
       - path: /etc/elemental/config.yaml
         content: |
           cosign: false
