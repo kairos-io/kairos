@@ -102,13 +102,15 @@ CONTAINER_IMAGE_VERSION:
   COMMAND
 
   ARG VERSION
+  ARG K3S_VERSION
+  ARG REPO_K3S_VERSION=$(echo $K3S_VERSION | sed 's/+/-/')
 
   IF [ "$IMAGE" = "" ]
     # TODO: This IF block should be deleted as soon as our repository names
     # follow our conventions.
     IF [ "$VARIANT" = "standard" ]
-      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${VERSION} > IMAGE
-    ELSE
+      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${VERSION}-${REPO_K3S_VERSION} > IMAGE
+    ELSE IF [ "$VARIANT" = "core" ]
       RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${VERSION} > IMAGE
     END
   ELSE
@@ -464,7 +466,7 @@ base-image:
 
     RUN rm -rf /tmp/*
 
-    DO +CONTAINER_IMAGE_VERSION -VERSION=${OS_VERSION}
+    DO +CONTAINER_IMAGE_VERSION -VERSION=${OS_VERSION} -K3S_VERSION=${K3S_VERSION}
     ARG _CIMG=$(cat IMAGE)
 
     SAVE IMAGE $_CIMG
@@ -669,6 +671,8 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
 arm-image:
+  ARG VARIANT
+  ARG K3S_VERSION
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
@@ -680,7 +684,11 @@ arm-image:
   ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
   # TARGETARCH is not used here because OSBUILDER_IMAGE is not available in arm64. When this changes, then the caller
   # of this target can simply pass the desired TARGETARCH.
-  ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}.img
+  IF [ "$VARIANT" = "core" ]
+      ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}.img
+  ELSE IF [ "$VARIANT" = "standard" ]
+      ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}-${K3S_VERSION}.img
+ END
   RUN echo $IMAGE_NAME
   WORKDIR /build
   # These sizes are in MB
