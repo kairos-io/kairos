@@ -272,18 +272,9 @@ framework:
     # TODO: Make this also a package?
     COPY overlay/files /framework
 
-    # Copy common overlay files for Raspberry Pi
-    IF [ "$MODEL" = "rpi3" ] || [ "$MODEL" = "rpi4" ]
-        COPY overlay/files-rpi/ /framework
-    END
-
     # Copy flavor-specific overlay files
     IF [[ "$FLAVOR" =~ ^alpine* ]]
         COPY overlay/files-alpine/ /framework
-    ELSE IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "almalinux" ]
-        COPY overlay/files-fedora/ /framework
-    ELSE IF [ "$FLAVOR" = "debian" ] || [ "$FLAVOR" = "ubuntu" ] || [ "$FLAVOR" = "ubuntu-20-lts" ] || [ "$FLAVOR" = "ubuntu-22-lts" ] || [[ "$FLAVOR" =~ ^ubuntu-.*-lts-arm-.*$ ]]
-        COPY overlay/files-ubuntu/ /framework
     END
 
     IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
