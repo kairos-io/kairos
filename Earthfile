@@ -272,11 +272,6 @@ framework:
     # TODO: Make this also a package?
     COPY overlay/files /framework
 
-    # Copy flavor-specific overlay files
-    IF [[ "$FLAVOR" =~ ^alpine* ]]
-        COPY overlay/files-alpine/ /framework
-    END
-
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
