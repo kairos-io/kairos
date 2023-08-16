@@ -277,10 +277,6 @@ framework:
         COPY overlay/files-alpine/ /framework
     END
 
-    IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-        COPY overlay/files-nvidia/ /framework
-    END
-
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:

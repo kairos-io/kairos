@@ -1,0 +1,67 @@
+name: "Nvidia jetson specific files"
+stages:
+    after-install:
+    - &createfiles
+      name: "Create files"
+      if: |
+          [ -f "/sys/firmware/devicetree/base/model" ] && grep -i nvidia "/sys/firmware/devicetree/base/model"
+      files:
+      - path: /etc/dracut.conf.d/iscsi.conf
+        content: |
+          omit_dracutmodules+=" iscsi "
+        permissions: 0600
+        owner: 0
+        group: 0
+      - path: /etc/elemental/config.yaml
+        content: |
+          cosign: false
+          verify: false
+          install:
+            grub-entry-name: "Kairos"
+            system:
+              size: 4500
+            recovery-system:
+              size: 4500
+          upgrade:
+            grub-entry-name: "Kairos"
+            recovery-system:
+              size: 4500
+            system:
+              size: 4500
+          reset:
+            grub-entry-name: "Kairos"
+            system:
+              size: 4500
+          cloud-init-paths:
+          - /run/initramfs/cos-state
+          # - /run/initramfs/live
+        permissions: 0600
+        owner: 0
+        group: 0
+      - path: /system/oem/mount.yaml
+        content: |
+          ## TODO: this is a workaround
+          ## The orin packages are writing to /usr/local, which is mounted to COS_PERSISTENT.
+          ## We probably should run this in immucore, overlaying the /usr/local of the image to COS_PERSISTENT.
+          ## For the time being, doing it in the cloud configs.
+          #
+          ### Note: This have the consequences of everything stored inside /usr/local to go inside the "local" directory inside the partition.
+          ###       Usually this is not the case as there is no need of subtrees, but due to how overlayfs work the workdir and uppermount needs to be in the same filesystem.
+          stages:
+            initramfs.before:
+            - commands:
+              - umount /usr/local
+              - |
+                 mkdir -p /run/mount/persistent && \
+                 mount /dev/disk/by-label/COS_PERSISTENT /run/mount/persistent && \
+                 mkdir -p /run/mount/persistent/work /run/mount/persistent/local && \
+                 mount -t overlay \
+                            -o lowerdir=/usr/local,upperdir=/run/mount/persistent/local,workdir=/run/mount/persistent/work \
+                            /usr/local
+        permissions: 0600
+        owner: 0
+        group: 0
+    after-upgrade:
+    - <<: *createfiles
+    after-reset:
+    - <<: *createfiles
