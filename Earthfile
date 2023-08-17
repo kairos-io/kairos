@@ -158,16 +158,17 @@ version:
 
     ARG _GIT_VERSION=$(git describe --always --tags --dirty)
 
+    # Remove luet rebuild numbers like we do here:
+    # https://github.com/kairos-io/packages/blob/2fbc098d0499a0c34c587057ff8a9f00c2b7f575/packages/k8s/k3s/build.yaml#L11-L12
     IF [ "$K3S_VERSION" != "" ]
-      ARG _K3S_VERSION="-k3sv${K3S_VERSION}-k3s1"
-    ELSE
-      ARG _K3S_VERSION=$K3S_VERSION
+      ARG _FIXED_VERSION=$(echo $K3S_VERSION | sed 's/+[[:digit:]]*//')
+      ARG _K3S_VERSION="-k3sv${_FIXED_VERSION}+k3s1"
     END
 
     RUN --no-cache echo ${_GIT_VERSION}${_K3S_VERSION} > VERSION
 
     ARG VERSION=$(cat VERSION)
-    SAVE ARTIFACT VERSION AS LOCAL VERSION
+    SAVE ARTIFACT VERSION VERSION
 
 hadolint:
     ARG HADOLINT_VERSION
