@@ -268,10 +268,6 @@ framework:
     ARG VERSION
     COPY +framework-luet/framework-luet /framework
 
-    # Copy overlay files
-    # TODO: Make this also a package?
-    COPY overlay/files /framework
-
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:

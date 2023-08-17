@@ -1,8 +1,0 @@
-name: "c3os sentinel migration"
-stages:
-  fs.after:
-    - name: "Rename sentinel dir"
-      if: '[ -d "/usr/local/.c3os" ]'
-      commands:
-        - |
-            mv /usr/local/.c3os /usr/local/.kairos

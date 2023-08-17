@@ -1,7 +1,0 @@
-name: "Fonts fix for ubuntu"
-stages:
-  initramfs.after:
-    - if: "[[ $(kairos-agent state get kairos.flavor) =~ ^ubuntu ]]"
-      name: "setupcon initramfs.after ubuntu"
-      commands:
-        - setupcon

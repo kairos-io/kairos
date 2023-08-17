@@ -1,6 +1,0 @@
-name: "Notify Kairos Plugins of Elemental Events"
-stages:
-    initramfs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -f "/run/cos/live_mode" ]'
-      commands:
-      - kairos-agent notify agent.boot
