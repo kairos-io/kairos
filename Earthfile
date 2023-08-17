@@ -109,7 +109,7 @@ CONTAINER_IMAGE_VERSION:
     # TODO: This IF block should be deleted as soon as our repository names
     # follow our conventions.
     IF [ "$VARIANT" = "standard" ]
-      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${VERSION}-${REPO_K3S_VERSION} > IMAGE
+      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${VERSION}-k3sv${REPO_K3S_VERSION}-k3s1 > IMAGE
     ELSE IF [ "$VARIANT" = "core" ]
       RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${VERSION} > IMAGE
     END
