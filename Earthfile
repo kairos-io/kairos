@@ -39,6 +39,7 @@ ARG SHELLCHECK_VERSION=v0.9.0
 
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
+ARG K3S_VERSION
 
 all:
   ARG SECURITY_SCANS=true
@@ -103,13 +104,16 @@ CONTAINER_IMAGE_VERSION:
 
   ARG VERSION
 
+  # quay.io doesn't accept "+" in the repo name
+  ARG _VERSION=$(echo $VERSION | sed 's/+/-/')
+
   IF [ "$IMAGE" = "" ]
     # TODO: This IF block should be deleted as soon as our repository names
     # follow our conventions.
     IF [ "$VARIANT" = "standard" ]
-      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${VERSION} > IMAGE
+      RUN echo ${BASE_URL}/kairos-${FLAVOR}:${_VERSION} > IMAGE
     ELSE
-      RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${VERSION} > IMAGE
+      RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${_VERSION} > IMAGE
     END
   ELSE
     RUN echo $IMAGE > IMAGE
@@ -150,16 +154,20 @@ version:
     FROM alpine
     RUN apk add git
 
-    ARG K3S_VERSION
-
     COPY . ./
 
     ARG _GIT_VERSION=$(git describe --always --tags --dirty)
 
-    RUN --no-cache echo ${_GIT_VERSION}${K3S_VERSION} > VERSION
+    IF [ "$K3S_VERSION" != "" ]
+      ARG _K3S_VERSION="-k3sv${K3S_VERSION}-k3s1"
+    ELSE
+      ARG _K3S_VERSION=$K3S_VERSION
+    END
+
+    RUN --no-cache echo ${_GIT_VERSION}${_K3S_VERSION} > VERSION
 
     ARG VERSION=$(cat VERSION)
-    SAVE ARTIFACT VERSION VERSION
+    SAVE ARTIFACT VERSION AS LOCAL VERSION
 
 hadolint:
     ARG HADOLINT_VERSION
@@ -340,7 +348,7 @@ base-image:
 
     # Set proper os-release file with all the info
     IF [ "$KAIROS_VERSION" = "" ]
-        COPY +version/VERSION -K3S_VERSION=$K3S_VERSION ./
+        COPY +version/VERSION ./
         ARG VERSION=$(cat VERSION)
         RUN echo "version ${VERSION}"
         ARG OS_VERSION=${VERSION}
@@ -401,11 +409,10 @@ base-image:
     END
 
     ARG PROVIDER_KAIROS_BRANCH
-    ARG K3S_VERSION
     IF [[ "$VARIANT" = "standard" ]]
         DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
-        DO +INSTALL_K3S -K3S_VERSION=${K3S_VERSION}
+        DO +INSTALL_K3S
 
         # Redo os-release with override settings to point to provider-kairos stuff
         # in earthly 0.7 we will be able to just override VARIANT here and just run the OSRELEASE once
@@ -1193,7 +1200,6 @@ PROVIDER_INSTALL:
 INSTALL_K3S:
     COMMAND
 
-    ARG K3S_VERSION
     IF [[ "$K3S_VERSION" = "" ]]
       RUN echo "$K3S_VERSION must be set" && exit 1
     END
