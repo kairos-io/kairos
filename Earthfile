@@ -150,9 +150,13 @@ version:
     FROM alpine
     RUN apk add git
 
+    ARG K3S_VERSION
+
     COPY . ./
 
-    RUN --no-cache echo $(git describe --always --tags --dirty) > VERSION
+    ARG _GIT_VERSION=$(git describe --always --tags --dirty)
+
+    RUN --no-cache echo ${_GIT_VERSION}${K3S_VERSION} > VERSION
 
     ARG VERSION=$(cat VERSION)
     SAVE ARTIFACT VERSION VERSION
@@ -336,7 +340,7 @@ base-image:
 
     # Set proper os-release file with all the info
     IF [ "$KAIROS_VERSION" = "" ]
-        COPY +version/VERSION ./
+        COPY +version/VERSION -K3S_VERSION=$K3S_VERSION ./
         ARG VERSION=$(cat VERSION)
         RUN echo "version ${VERSION}"
         ARG OS_VERSION=${VERSION}
