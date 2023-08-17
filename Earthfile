@@ -199,6 +199,7 @@ syft:
 
 image-sbom:
     ARG TARGETARCH
+    ARG K3S_VERSION
     # Use base-image so it can read original os-release file
     FROM +base-image
     WORKDIR /build
@@ -206,13 +207,12 @@ image-sbom:
     ARG VARIANT
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
-
-    IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
-    ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
-    END
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    IF [ "$VARIANT" = "core" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
+    ELSE IF [ "$VARIANT" = "standard" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1
+     END
 
     COPY +syft/syft /usr/bin/syft
     RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
@@ -613,7 +613,14 @@ iso:
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
     ARG TARGETARCH
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
+    ARG K3S_VERSION
+    ARG FLAVOR
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    IF [ "$VARIANT" = "core" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
+    ELSE IF [ "$VARIANT" = "standard" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1
+    END
     ARG OSBUILDER_IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
@@ -635,7 +642,12 @@ iso-remote:
 
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    IF [ "$VARIANT" = "core" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
+    ELSE IF [ "$VARIANT" = "standard" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1
+    END
     ARG OSBUILDER_IMAGE
     ARG overlay=overlay/files-iso
     FROM $OSBUILDER_IMAGE
@@ -647,10 +659,16 @@ iso-remote:
 
 netboot:
     ARG TARGETARCH
+    ARG K3S_VERSION
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    IF [ "$VARIANT" = "core" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
+    ELSE IF [ "$VARIANT" = "standard" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1
+    END
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     ARG FROM_ARTIFACT
@@ -687,7 +705,7 @@ arm-image:
   IF [ "$VARIANT" = "core" ]
       ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}.img
   ELSE IF [ "$VARIANT" = "standard" ]
-      ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}-${K3S_VERSION}.img
+      ARG IMAGE_NAME=${OS_ID}-${VARIANT}-${DISTRO}-arm64-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1.img
  END
   RUN echo $IMAGE_NAME
   WORKDIR /build
@@ -783,10 +801,16 @@ ipxe-iso:
                            mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
                            # jq docker
     WORKDIR /build
+    ARG K3S_VERSION
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    IF [ "$VARIANT" = "core" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
+    ELSE IF [ "$VARIANT" = "standard" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1
+    END
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
     ARG RELEASE_URL
@@ -855,11 +879,12 @@ trivy-scan:
     ARG VERSION=$(cat VERSION)
     ARG FLAVOR
     ARG VARIANT
-    IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
-    ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
+    ARG K3S_VERSION
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    IF [ "$VARIANT" = "core" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
+    ELSE IF [ "$VARIANT" = "standard" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1
     END
     WORKDIR /build
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
@@ -882,11 +907,12 @@ grype-scan:
     ARG VERSION=$(cat VERSION)
     ARG FLAVOR
     ARG VARIANT
-    IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
-    ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
+    ARG K3S_VERSION
+    ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+    IF [ "$VARIANT" = "core" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
+    ELSE IF [ "$VARIANT" = "standard" ]
+      ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}-k3sv${K3S_VERSION}-k3s1
     END
     WORKDIR /build
     RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
