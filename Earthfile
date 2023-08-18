@@ -1210,7 +1210,7 @@ INSTALL_K3S:
           && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh agent \
           && rm -rf installer.sh
     ELSE
-      ARG _LUET_K3S=$(k8s/k3s@${K3S_VERSION})
+      ARG _LUET_K3S=$(echo k8s/k3s@${K3S_VERSION})
     END
 
     RUN luet install -y ${_LUET_K3S} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup
