@@ -196,7 +196,7 @@ shellcheck-lint:
 yamllint:
     FROM cytopia/yamllint
     COPY . .
-    RUN yamllint .github/workflows/ overlay/
+    RUN yamllint .github/workflows/
 
 lint:
     BUILD +hadolint
