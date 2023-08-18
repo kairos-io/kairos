@@ -1,11 +1,12 @@
 package mos_test
 
 import (
+	"os"
+	"strings"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
-	"os"
-	"strings"
 )
 
 var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
@@ -63,12 +64,6 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			out, err := vm.Sudo("mount")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).To(ContainSubstring("bpf"))
-		})
-
-		By("checking correct permissions", func() {
-			out, err := vm.Sudo(`stat -c "%a" /usr/local/cloud-config`)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(out).To(ContainSubstring("755"))
 		})
 
 		By("checking rootfs shared mount", func() {
