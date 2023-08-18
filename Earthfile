@@ -25,7 +25,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.8.5
+ARG OSBUILDER_VERSION=v0.8.6
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -660,18 +660,17 @@ netboot:
     ARG VERSION=$(cat VERSION)
     ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
     ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
-    ARG FROM_ARTIFACT
-    WORKDIR /build
-    ARG RELEASE_URL
+    ARG RELEASE_URL=https://github.com/kairos-io/kairos/releases/download
 
-    COPY . .
-    IF [ "$FROM_ARTIFACT" = "" ]
-         COPY +iso/kairos.iso kairos.iso
-         RUN /build/scripts/netboot.sh kairos.iso $ISO_NAME $VERSION
-    ELSE
-         RUN /build/scripts/netboot.sh $FROM_ARTIFACT $ISO_NAME $VERSION
-    END
+    FROM $OSBUILDER_IMAGE
+    WORKDIR /build
+
+    COPY +iso/kairos.iso kairos.iso
+
+    RUN isoinfo -x /rootfs.squashfs -R -i kairos.iso > ${ISO_NAME}.squashfs
+    RUN isoinfo -x /boot/kernel -R -i kairos.iso > ${ISO_NAME}-kernel
+    RUN isoinfo -x /boot/initrd -R -i kairos.iso > ${ISO_NAME}-initrd
+    RUN envsubst >> ${ISO_NAME}.ipxe < /ipxe.tmpl
 
     SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
     SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel
