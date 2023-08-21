@@ -11,7 +11,7 @@ ARG OS_ID=kairos
 ARG OS_REPO=${BASE_URL}/${VARIANT}-${FLAVOR}
 ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
 # renovate: datasource=docker depName=quay.io/luet/base
-ARG LUET_VERSION=0.34.0
+ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.44.0
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
@@ -253,14 +253,13 @@ framework:
 
     RUN go run main.go ${FLAVOR} framework-profile.yaml /framework
     RUN luet cleanup --system-target /framework
+    RUN mkdir -p /framework/etc/kairos/
+    RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
 
     # COPY luet into the final framework
     # TODO: Understand why?
     COPY +luet/luet /framework/usr/bin/luet
     COPY framework-profile.yaml /framework/etc/luet/luet.yaml
-    # more cleanup
-    RUN rm -rf /framework/var/luet
-    RUN rm -rf /framework/var/cache
 
     SAVE ARTIFACT --keep-own /framework/ framework
 
@@ -279,6 +278,11 @@ build-framework-image:
     FROM scratch
 
     COPY (+framework/framework --FLAVOR=$FLAVOR) /
+
+    # luet cleanup
+    RUN luet cleanup
+    RUN rm -rf /var/luet
+    RUN rm -rf /var/cache
 
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
@@ -451,9 +455,15 @@ base-image:
     DO +CONTAINER_IMAGE_VERSION -VERSION=${OS_VERSION}
     ARG _CIMG=$(cat IMAGE)
 
+    # luet cleanup
+    RUN luet cleanup
+    RUN rm -rf /var/luet
+    RUN rm -rf /var/cache
+
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
+    SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
 
 image-rootfs:
     FROM +base-image
@@ -1149,6 +1159,10 @@ bump-repositories:
     RUN yq eval ".repositories[1] |= . * { \"reference\": \"${REPO_ARM64}\" }" -i framework-profile.yaml
     SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
 
+luet-versions:
+    FROM +base-image
+    SAVE ARTIFACT /framework/etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
+
 # Installs the needed bits for "standard" images (the provider ones)
 PROVIDER_INSTALL:
     COMMAND
@@ -1161,6 +1175,7 @@ PROVIDER_INSTALL:
       # We don't specify a version. To bump, just change what the latest version
       # in the repository is.
       RUN luet install -y system/provider-kairos
+      RUN luet database get-all-installed --output /etc/kairos/versions.yaml
     ELSE # Install from a branch
       COPY github.com/kairos-io/provider-kairos:$PROVIDER_KAIROS_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
       RUN ln -s /system/providers/agent-provider-kairos /usr/bin/kairos
@@ -1184,4 +1199,5 @@ INSTALL_K3S:
       ARG _LUET_K3S=$(echo k8s/k3s@${K3S_VERSION})
     END
 
-    RUN luet install -y ${_LUET_K3S} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip && luet cleanup
+    RUN luet install -y ${_LUET_K3S} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+    RUN luet database get-all-installed --output /etc/kairos/versions.yaml

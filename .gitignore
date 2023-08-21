@@ -8,6 +8,7 @@
 coverage.out
 .DS_Store
 internal/webui/public/cypress/videos/
+pr-message
 
 node_modules/
 

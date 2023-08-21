@@ -69,6 +69,7 @@ jobs:
           path: |
             *.iso
             *.sha256
+            versions.yaml
           if-no-files-found: error
       - name: Push to testing
         run: |
