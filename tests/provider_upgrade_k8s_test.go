@@ -125,7 +125,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			fmt.Printf("out = %+v\n", out)
 			return out
 
-		}, 900*time.Second, 10*time.Second).ShouldNot(And(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
+		}, 900*time.Second, 10*time.Second).ShouldNot(Or(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
 
 		By("applying upgrade plan")
 		err = vm.Scp("assets/suc.yaml", "./suc.yaml", "0770")
@@ -145,6 +145,6 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			out, _ = kubectl(vm, "get pods -A")
 			version, _ := vm.Sudo(getVersionCmd)
 			return version
-		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("v"), out)
+		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("v2.3.1-k3sv1.25.11+k3s1"), out)
 	})
 })
