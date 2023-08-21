@@ -3,8 +3,11 @@ package mos_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -141,10 +144,26 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			return out
 		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"), out)
 
+		expectedVersion := getExpectedVersion()
+
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			version, _ := vm.Sudo(getVersionCmd)
+			fmt.Printf("version = %+v\n", version)
 			return version
-		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("v2.3.1-k3sv1.25.11+k3s1"), out)
+		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(expectedVersion), out)
 	})
 })
+
+func getExpectedVersion() string {
+	b, err := os.ReadFile("assets/suc.yaml")
+	Expect(err).ToNot(HaveOccurred())
+
+	yamlData := make(map[string]interface{})
+	err = yaml.Unmarshal(b, &yamlData)
+
+	Expect(err).ToNot(HaveOccurred())
+	spec := yamlData["spec"].(map[string]interface{})
+
+	return strings.TrimSuffix(spec["version"].(string), "-k3s1")
+}
