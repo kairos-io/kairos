@@ -1,8 +1,0 @@
-[Unit]
-Description=kairos installer
-After=sysinit.target
-[Service]
-ExecStart=/usr/bin/kairos-agent webui
-TimeoutStopSec=10s
-[Install]
-WantedBy=multi-user.target

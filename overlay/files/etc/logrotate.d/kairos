@@ -1,8 +1,0 @@
-/var/log/kairos/*.log {
-    create
-    daily
-    compress
-    copytruncate
-    missingok
-    rotate 3
-}

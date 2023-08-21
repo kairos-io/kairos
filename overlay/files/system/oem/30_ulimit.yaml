@@ -1,6 +1,0 @@
-stages:
-  boot.before:
-    - name: "Setup higher limit for open files"
-      if: '[ -e /sbin/rc-service ]'
-      commands:
-        - echo 'rc_ulimit="-n 1048576"' >> /etc/rc.conf
