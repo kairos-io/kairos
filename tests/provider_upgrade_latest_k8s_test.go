@@ -148,10 +148,9 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		By("wait for all containers to be in running state")
 		Eventually(func() string {
 			out, _ := kubectl(vm, "get pods -A")
-			fmt.Printf("out = %+v\n", out)
 			return out
 
-		}, 900*time.Second, 10*time.Second).ShouldNot(And(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
+		}, 900*time.Second, 10*time.Second).ShouldNot(Or(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
 
 		By("triggering an upgrade")
 		suc := sucYAML(strings.ReplaceAll(containerImage, ":24h", ""), "24h")
