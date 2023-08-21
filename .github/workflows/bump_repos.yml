@@ -24,6 +24,7 @@ jobs:
           earthly +base-image --VARIANT=standard --FLAVOR=opensuse-leap --K3S_VERSION=latest
           mv build/versions.yaml build/versions.new.yaml
       - name: Diff versions
+        shell: bash
         run: |
           yq -i -P '.|=sort_by(.name)|.[]|[{"name": .name, "category": .category, "version": .version}]' build/versions.old.yaml
           yq -i -P '.|=sort_by(.name)|.[]|[{"name": .name, "category": .category, "version": .version}]' build/versions.new.yaml
