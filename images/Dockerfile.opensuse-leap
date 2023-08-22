@@ -70,7 +70,7 @@ RUN zypper in --force-resolution -y \
 ###############################################################
 ####                          Model                        ####
 ###############################################################
-FROM common AS  generic
+FROM common AS generic
 RUN zypper in --force-resolution -y \
     cryptsetup \
     grub2-i386-pc \
@@ -79,6 +79,7 @@ RUN zypper in --force-resolution -y \
     lldpd \
     qemu-guest-agent \
     && zypper cc
+COPY opensuse/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM common AS rpicommon
 RUN zypper in --force-resolution -y \
@@ -105,6 +106,7 @@ RUN zypper in --force-resolution -y \
     wireless-tools \
     wpa_supplicant \
     && zypper cc
+COPY rpi/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM rpicommon as rpi3
 FROM rpicommon as rpi4

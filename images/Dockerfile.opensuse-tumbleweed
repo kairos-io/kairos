@@ -114,6 +114,7 @@ FROM ${TARGETARCH} AS generic
 RUN zypper in --force-resolution -y \
     qemu-guest-agent \
     && zypper cc
+COPY opensuse/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM ${TARGETARCH} AS rpicommon
 RUN zypper in --force-resolution -y \
@@ -126,6 +127,7 @@ RUN zypper in --force-resolution -y \
     wireless-tools \
     wpa_supplicant \
     && zypper cc
+COPY rpi/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM rpicommon AS rpi3
 FROM rpicommon AS rpi4

@@ -147,11 +147,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-base \
     qemu-guest-agent \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+COPY debian/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM ${TARGETARCH}-${FLAVOR} AS rpicommon
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+COPY rpi/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM rpicommon AS ubuntu-20-lts-rpi
 RUN apt-get update && apt-get install -y --no-install-recommends \
