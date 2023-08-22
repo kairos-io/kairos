@@ -9,13 +9,14 @@ metadata:
 spec:
   concurrency: 1
   #version:  latest
-  version: "opensuse-v1.23.5-44"
+  version: "v2.3.1-k3sv1.25.11-k3s1"
+
   nodeSelector:
     matchExpressions:
       - {key: kubernetes.io/hostname, operator: Exists}
   serviceAccountName: system-upgrade
   cordon: false
   upgrade:
-    image: quay.io/kairos/kairos
+    image: quay.io/kairos/kairos-opensuse-leap
     command:
     - "/usr/sbin/suc-upgrade"
