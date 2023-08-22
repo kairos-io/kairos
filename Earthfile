@@ -252,7 +252,12 @@ framework:
     COPY +luet/luet /usr/bin/luet
 
     RUN go run main.go ${FLAVOR} framework-profile.yaml /framework
+
+    # luet cleanup
     RUN luet cleanup --system-target /framework
+    RUN rm -rf /var/luet
+    RUN rm -rf /var/cache
+
     RUN mkdir -p /framework/etc/kairos/
     RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
 
@@ -278,11 +283,6 @@ build-framework-image:
     FROM scratch
 
     COPY (+framework/framework --FLAVOR=$FLAVOR) /
-
-    # luet cleanup
-    RUN luet cleanup
-    RUN rm -rf /var/luet
-    RUN rm -rf /var/cache
 
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
