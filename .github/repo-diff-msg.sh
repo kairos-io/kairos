@@ -12,7 +12,7 @@ if [[ $? == 1 ]]; then
     echo "\`\`\`diff"
     echo "${DIFF}"
     echo "\`\`\`"
-    printf '\\n'
+    echo
   } >> pr-message
 fi
 
