@@ -93,9 +93,14 @@ RUN apk --no-cache add  \
       bridge \
       grub-bios \
       rbd-nbd
+RUN alpine/bootargs.cfg /etc/cos/bootargs.cfg
 
-FROM common AS rpi3
-FROM common AS rpi4
+FROM common as rpicommon
+RUN rpi/bootargs.cfg /etc/cos/bootargs.cfg
+
+FROM rpicommon AS rpi3
+FROM rpicommon AS rpi4
+
 
 ###############################################################
 ####               Post-Process Common to All              ####

@@ -46,6 +46,8 @@ RUN dnf install -y \
     https://zfsonlinux.org/epel/zfs-release-2-2.el9.noarch.rpm \
     && dnf clean all
 
+COPY redhat/bootargs.cfg /etc/cos/bootargs.cfg
+
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
 RUN systemctl enable getty@tty1.service
