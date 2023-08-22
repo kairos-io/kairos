@@ -313,7 +313,7 @@ base-image:
         # defined using MODEL and TARGETARCH.
         ARG SIMPLE_FLAVOR=$(echo $FLAVOR | sed 's/-arm-.*//')
 
-        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$SIMPLE_FLAVOR -f images/Dockerfile.$DISTRO .
+        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$SIMPLE_FLAVOR -f images/Dockerfile.$DISTRO images/
     ELSE
         FROM $BASE_IMAGE
     END
