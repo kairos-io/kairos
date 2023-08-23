@@ -386,7 +386,7 @@ base-image:
     END
 
     ARG PROVIDER_KAIROS_BRANCH
-    IF [[ "$VARIANT" = "standard" ]]
+    IF [ "$VARIANT" = "standard" ]
         DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
         DO +INSTALL_K3S
