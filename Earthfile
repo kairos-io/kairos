@@ -676,16 +676,6 @@ arm-image:
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
-  IF [[ "$FLAVOR" =~ ^ubuntu* ]]
-    ENV STATE_SIZE="6900"
-    ENV RECOVERY_SIZE="4600"
-    ENV DEFAULT_ACTIVE_SIZE="2500"
-  ELSE
-    ENV STATE_SIZE="6200"
-    ENV RECOVERY_SIZE="4200"
-    ENV DEFAULT_ACTIVE_SIZE="2000"
-  END
-
   IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
     ENV STATE_SIZE="14000"
     ENV RECOVERY_SIZE="10000"
@@ -1171,7 +1161,7 @@ PROVIDER_INSTALL:
 
     COPY +luet/luet /usr/bin/luet
 
-    IF [[ "$PROVIDER_KAIROS_BRANCH" = "" ]] # Install with luet (released versions of the binary)
+    IF [ "$PROVIDER_KAIROS_BRANCH" = "" ] # Install with luet (released versions of the binary)
       # We don't specify a version. To bump, just change what the latest version
       # in the repository is.
       RUN luet install -y system/provider-kairos
@@ -1185,11 +1175,11 @@ PROVIDER_INSTALL:
 INSTALL_K3S:
     COMMAND
 
-    IF [[ "$K3S_VERSION" = "" ]]
+    IF [ "$K3S_VERSION" = "" ]
       RUN echo "$K3S_VERSION must be set" && exit 1
     END
 
-    IF [[ "$K3S_VERSION" = "latest" ]] # Install latest using the upstream installer
+    IF [ "$K3S_VERSION" = "latest" ] # Install latest using the upstream installer
       ENV INSTALL_K3S_BIN_DIR="/usr/bin"
       RUN curl -sfL https://get.k3s.io > installer.sh \
           && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh \
