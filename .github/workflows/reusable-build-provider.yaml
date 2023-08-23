@@ -51,8 +51,6 @@ jobs:
       - uses: actions/checkout@v3
       - run: |
           git fetch --prune --unshallow
-      - name: setup-docker
-        uses: docker-practice/actions-setup-docker@master
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1
         with:
