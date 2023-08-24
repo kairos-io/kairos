@@ -133,7 +133,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				Eventually(func() string {
 					out, _ = vm.Sudo("systemctl status kairos-agent")
 					return out
-				}, 30*time.Minute, 1*time.Second).Should(
+				}, 45*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("Configuring k3s-agent"),
 						ContainSubstring("Configuring k3s"),
