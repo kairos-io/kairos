@@ -20,17 +20,20 @@
     {
         "flavor": "ubuntu-arm-rpi",
         "model": "rpi4",
-        "worker": "ubuntu-latest"
+        "worker": "ubuntu-latest",
+        "standard": "true"
     },
     {
         "flavor": "ubuntu-20-lts-arm-rpi",
         "model": "rpi4",
-        "worker": "ubuntu-latest"
+        "worker": "ubuntu-latest",
+        "standard": "true"
     },
     {
         "flavor": "ubuntu-22-lts-arm-rpi",
         "model": "rpi4",
-        "worker": "ubuntu-latest"
+        "worker": "ubuntu-latest",
+        "standard": "true"
     },
     {
         "flavor": "ubuntu-20-lts-arm-nvidia-jetson-agx-orin",
