@@ -227,8 +227,6 @@ github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/kairos-io/go-nodepair v0.0.0-20230424150716-d8f0757542c3 h1:HlHW1DfV/WcCphzR5uZh+NyECDLb1KlIbzbzVYvFG5Y=
 github.com/kairos-io/go-nodepair v0.0.0-20230424150716-d8f0757542c3/go.mod h1:KH11wbkXxTMJrtRLjzycCqmYMoUjGJAz2gduHlQ9r8w=
-github.com/kairos-io/go-nodepair v0.0.0-20230613101045-8eb2c1d2cc49 h1:VF44Ny75ohTm4VOs0LZ6xpy/aCQoWwNvbyVfJ8PBBE4=
-github.com/kairos-io/go-nodepair v0.0.0-20230613101045-8eb2c1d2cc49/go.mod h1:KH11wbkXxTMJrtRLjzycCqmYMoUjGJAz2gduHlQ9r8w=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329 h1:qq2nCpSrXrmvDGRxW0ruW9BVEV1CN2a9YDOExdt+U0o=
 github.com/kbinani/screenshot v0.0.0-20210720154843-7d3a670d8329/go.mod h1:2VPVQDR4wO7KXHwP+DAypEy67rXf+okUx2zjgpCxZw4=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
@@ -471,8 +469,8 @@ github.com/sourcegraph/annotate v0.0.0-20160123013949-f4cad6c6324d/go.mod h1:Udh
 github.com/sourcegraph/syntaxhighlight v0.0.0-20170531221838-bd320f5d308e/go.mod h1:HuIsMU8RRBOtsCgI77wP899iHVBQpCmg4ErYMZB+2IA=
 github.com/spaolacci/murmur3 v1.1.0 h1:7c1g84S4BPRrfL5Xrdp6fOJ206sU9y293DDHaoy0bLI=
 github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
-github.com/spectrocloud/peg v0.0.0-20230517145826-35016677d163 h1:5RlgJFagRV81CIDBC5peiWuYdhpG0jSdlx32sIyOFJw=
-github.com/spectrocloud/peg v0.0.0-20230517145826-35016677d163/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
+github.com/spectrocloud/peg v0.0.0-20230824153430-3a2b20182e0b h1:0SkK1zTTje6tjuKtOYe0Fjc8mkkBPirFSHPwsuJxSwk=
+github.com/spectrocloud/peg v0.0.0-20230824153430-3a2b20182e0b/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
