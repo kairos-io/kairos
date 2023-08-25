@@ -12,7 +12,7 @@ on:
 
 jobs:
   test:
-    runs-on: kvm
+    runs-on: fast
     permissions:
       id-token: write  # OIDC support
       contents: write
