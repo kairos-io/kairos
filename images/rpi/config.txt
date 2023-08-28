@@ -1,7 +1,6 @@
 # https://emteria.com/kb/connect-uart-rpi 
 # https://www.raspberrypi.com/documentation/computers/config_txt.html
 enable_uart=1
-console=serial0
 uart_2ndstage=1
 
 # Disabling bluetooth might change the serial device:
