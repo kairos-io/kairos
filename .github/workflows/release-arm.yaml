@@ -141,7 +141,8 @@ jobs:
       - name: Convert all json files into a reports.tar.gz file
         run: |
           export VERSION=$(cat build/VERSION)
-          sudo tar cvf kairos-core-${matrix.flavor}-arm64-${matrix.model}-${VERSION}-scan-reports.tar.gz build/*.json
+          cd build
+          sudo tar cvf "kairos-core-${{matrix.flavor}}-arm64-${{matrix.model}}-${VERSION}-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -275,7 +276,8 @@ jobs:
       - name: Convert all json files into a reports.tar.gz file
         run: |
           export VERSION=$(cat build/VERSION)
-          sudo tar cvf kairos-standard-${matrix.flavor}-arm64-${matrix.model}-${VERSION}-scan-reports.tar.gz build/*.json
+          cd build
+          sudo tar cvf "kairos-standard-${{matrix.flavor}}-arm64-${{matrix.model}}-${VERSION}-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
