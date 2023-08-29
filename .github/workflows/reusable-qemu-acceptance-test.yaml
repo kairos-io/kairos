@@ -62,5 +62,4 @@ jobs:
         repository: quay.io/kairos/packages
         packages: utils/earthly
     - run: |
-            earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls kairos-core-*${{ inputs.flavor }}*.iso) --FLAVOR=${{ inputs.flavor }} --SSH_PORT=${{ inputs.port }}
