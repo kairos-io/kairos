@@ -41,5 +41,4 @@ jobs:
                   insecure = true
                   http = true
             EOF
-            earthly -P +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
             earthly -P +run-qemu-datasource-tests --PREBUILT_ISO=$(ls kairos-core-*${{ inputs.flavor }}*.iso) --TEST_SUITE=reset-test --FLAVOR=${{ inputs.flavor }}

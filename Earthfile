@@ -88,11 +88,18 @@ all-arm-generic:
   BUILD --platform=linux/arm64 +base-image --MODEL=generic
   BUILD --platform=linux/arm64 +iso --MODEL=generic
 
-go-deps-test:
+build-and-push-golang-testing:
     ARG GO_VERSION
     FROM golang:$GO_VERSION
     # Enable backports repo for debian for swtpm
     RUN . /etc/os-release && echo "deb http://deb.debian.org/debian $VERSION_CODENAME-backports main contrib non-free" > /etc/apt/sources.list.d/backports.list
+    RUN apt update
+    RUN apt install -y qemu-system-x86 qemu-utils git swtpm && apt clean
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/golang-testing:${GO_VERSION}
+
+go-deps-test:
+    ARG GO_VERSION
+    FROM $IMAGE_REPOSITORY_ORG/golang-testing:$GO_VERSION
     WORKDIR /build
     COPY tests/go.mod tests/go.sum ./
     RUN go mod download
@@ -874,8 +881,6 @@ grype-scan:
 # usage e.g. ./earthly.sh +run-qemu-datasource-tests --FLAVOR=alpine-opensuse-leap --FROM_ARTIFACTS=true
 run-qemu-datasource-tests:
     FROM +go-deps-test
-    RUN apt update
-    RUN apt install -y qemu-system-x86 qemu-utils golang git swtpm
     WORKDIR /test
     ARG FLAVOR
     ARG PREBUILT_ISO
@@ -922,9 +927,6 @@ run-qemu-netboot-test:
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
 
-    RUN apt update
-    RUN apt install -y qemu-utils qemu-system git swtpm && apt clean
-
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
 
@@ -951,8 +953,6 @@ run-qemu-netboot-test:
 
 run-qemu-test:
     FROM +go-deps-test
-    RUN apt update
-    RUN apt install -y qemu-system-x86 qemu-utils git swtpm && apt clean
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG PREBUILT_ISO
