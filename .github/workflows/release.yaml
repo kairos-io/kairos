@@ -286,6 +286,14 @@ jobs:
         run: |
           earthly +all -VARIANT=standard -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
           sudo mv build release
+      - name: Push to quay
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          COSIGN_YES: true
+        run: |
+          IMAGE=$(cat release/IMAGE)
+          docker push "$IMAGE"
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
       - name: Prepare files for release
         run: |
           export VERSION=$(cat build/VERSION)
@@ -297,16 +305,7 @@ jobs:
           sudo tar cvf "kairos-core-${{matrix.flavor}}-amd64-generic-${VERSION}-scan-reports.tar.gz" *.json
           mv *.tar.gz ../release/
           cd ..
-          rm release/VERSION release/IMAGE release/versions.yaml
-      - name: Push to quay
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          COSIGN_YES: true
-        run: |
-          IMAGE=$(cat release/IMAGE)
-          docker push "$IMAGE"
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-          sudo rm -rf release/IMAGE release/VERSION
+          sudo rm -rf release/IMAGE release/VERSION release/versions.yaml
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
