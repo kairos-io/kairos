@@ -38,6 +38,6 @@
     {
         "flavor": "ubuntu-20-lts-arm-nvidia-jetson-agx-orin",
         "model": "none",
-        "worker": "fast"
+        "worker": "self-hosted"
     }
 ]

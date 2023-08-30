@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: kvm
+    runs-on: self-hosted
     permissions:
       id-token: write
     steps:

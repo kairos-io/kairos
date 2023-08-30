@@ -9,7 +9,7 @@ on:
 
 jobs:
   test:
-    runs-on: kvm
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code

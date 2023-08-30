@@ -12,7 +12,7 @@ on:
 
 jobs:
   test:
-    runs-on: fast
+    runs-on: self-hosted
     permissions:
       id-token: write  # OIDC support
       contents: write
