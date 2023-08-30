@@ -23,7 +23,7 @@ jobs:
       security-events: write
     steps:
       - name: Release space from worker
-        if: ${{ inputs.worker != 'self-hosted' }}
+        if: ${{ inputs.worker != 'fast' }}
         run: |
           echo "Listing top largest packages"
           pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
@@ -84,13 +84,13 @@ jobs:
         run: |
           echo "IMG_COMPRESSION=xz" >> $GITHUB_ENV
       - name: Shared runner build  🔧
-        if: ${{ inputs.worker != 'self-hosted' }}
+        if: ${{ inputs.worker != 'fast' }}
         run: |
           ./earthly.sh +all-arm --VARIANT=core --MODEL=${{ inputs.model }} \
             --FLAVOR=${{ inputs.flavor }} \
             --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
       - name: fast runner Build  🔧
-        if: ${{ inputs.worker == 'self-hosted' }}
+        if: ${{ inputs.worker == 'fast' }}
         run: |
           earthly --allow-privileged +all-arm \
               --VARIANT=core --MODEL=${{ inputs.model }} \

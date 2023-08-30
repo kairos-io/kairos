@@ -241,7 +241,7 @@ jobs:
           - "opensuse-leap"
           - "alpine-opensuse-leap"
   test-uki:
-    runs-on: self-hosted
+    runs-on: kvm
     steps:
       - uses: actions/checkout@v3
       - name: Install Go
