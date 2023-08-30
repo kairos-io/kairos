@@ -113,6 +113,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+FROM ${TARGETARCH} AS amd64-ubuntu-20-lts-non-hwe
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    linux-image-generic \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 FROM ${TARGETARCH} AS amd64-ubuntu-20-lts
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-20.04 \
@@ -122,6 +127,13 @@ FROM ${TARGETARCH} AS amd64-ubuntu-22-lts
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dracut-live \
     linux-image-generic-hwe-22.04 \
+    polkitd \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${TARGETARCH} AS amd64-ubuntu-22-lts-non-hwe
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    dracut-live \
+    linux-image-generic \
     polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -170,6 +182,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM generic AS amd64-ubuntu-generic
 FROM generic AS amd64-ubuntu-22-lts-generic
 FROM generic AS amd64-ubuntu-20-lts-generic
+FROM generic AS amd64-ubuntu-22-lts-non-hwe-generic
+FROM generic AS amd64-ubuntu-20-lts-non-hwe-generic
 FROM generic AS arm64-ubuntu-generic
 FROM ubuntu-rpi AS arm64-ubuntu-rpi3
 FROM ubuntu-rpi AS arm64-ubuntu-rpi4
@@ -206,8 +220,9 @@ RUN apt-get update \
     snmpd \
     ubuntu-advantage-tools \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM ubuntu-20-lts AS ubuntu-20-lts-non-hwe
 
-FROM ${TARGETARCH}-${FLAVOR}-${MODEL} AS ubuntu-22-lts
+FROM ${TARGETARCH}-${FLAVOR}-${MODEL} AS ubuntu-22-lts-non-hwe
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     firmware-sof-signed \
@@ -215,8 +230,13 @@ RUN apt-get update \
     lldpd \
     pigz \
     snmpd \
-    systemd-hwe-hwdb \
     ubuntu-advantage-tools \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ubuntu-22-lts-non-hwe AS ubuntu-22-lts
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    systemd-hwe-hwdb \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ${FLAVOR} AS all
