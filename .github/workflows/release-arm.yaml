@@ -105,7 +105,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.1
+        uses: jimmykarily/luet-install-action@v1.2
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -221,7 +221,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.1
+        uses: jimmykarily/luet-install-action@v1.2
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -293,7 +293,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.1
+        uses: jimmykarily/luet-install-action@v1.2
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -333,7 +333,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.1
+        uses: jimmykarily/luet-install-action@v1.2
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly

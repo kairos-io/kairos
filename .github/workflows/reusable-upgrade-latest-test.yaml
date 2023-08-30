@@ -61,7 +61,7 @@ jobs:
       - name: Display structure of downloaded files
         run: ls -las .
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.1
+        uses: jimmykarily/luet-install-action@v1.2
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
