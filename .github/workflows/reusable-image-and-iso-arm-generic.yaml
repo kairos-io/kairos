@@ -15,7 +15,7 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
       - name: Install earthly
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: Luet-lab/luet-install-action@v1
+        uses: jimmykarily/luet-install-action@v1.2
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
