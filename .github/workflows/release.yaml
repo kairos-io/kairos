@@ -89,7 +89,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
+        uses: jimmykarily/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -176,7 +176,7 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
+        uses: jimmykarily/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -238,7 +238,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
+        uses: jimmykarily/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -276,7 +276,7 @@ jobs:
           sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
           sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
+        uses: jimmykarily/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly

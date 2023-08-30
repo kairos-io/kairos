@@ -21,7 +21,7 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
+        uses: jimmykarily/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly

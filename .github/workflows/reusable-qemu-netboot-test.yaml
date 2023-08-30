@@ -47,7 +47,7 @@ jobs:
       - run: |
           git fetch --prune --unshallow
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1
+        uses: jimmykarily/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
