@@ -15,6 +15,7 @@ RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
     coreutils \
+    cryptsetup \
     curl \
     device-mapper \
     dhcp-client \
@@ -72,7 +73,6 @@ RUN zypper in --force-resolution -y \
 ###############################################################
 FROM common AS generic
 RUN zypper in --force-resolution -y \
-    cryptsetup \
     grub2-i386-pc \
     grub2-x86_64-efi \
     kernel-firmware-all \
