@@ -1,9 +1,22 @@
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+# Currently supported flavors are:
+#   - ubuntu
+#   - ubuntu-20-lts
+#   - ubuntu-22-lts
 ARG FLAVOR
+# Currently supported models are:
+#   - generic
+#   - rpi4
+#   - rpi3
 ARG MODEL=generic
+# HWE is used to determine if the HWE kernel should be installed
+# the default value is empty, which means the HWE kernel WILL be installed
+# if you want to disable the HWE kernel, set HWE to "-non-hwe"
 ARG HWE=""
+# TARGETARCH is used to determine the architecture of the image
+# it is already set by Docker so it doesn't need to be defined here
 
 ###############################################################
 ####                     Upstream Images                   ####

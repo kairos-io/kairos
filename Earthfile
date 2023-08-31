@@ -300,6 +300,9 @@ base-image:
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
     ARG TARGETARCH
+    # HWE is used to determine if the HWE kernel should be installed on Ubuntu LTS.
+    # The default value is empty, which means the HWE kernel WILL be installed
+    # if you want to disable the HWE kernel, set HWE to "-non-hwe"
     ARG HWE
 
     IF [ "$BASE_IMAGE" = "" ]
