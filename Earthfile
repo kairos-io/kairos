@@ -300,6 +300,10 @@ base-image:
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
     ARG TARGETARCH
+    # HWE is used to determine if the HWE kernel should be installed on Ubuntu LTS.
+    # The default value is empty, which means the HWE kernel WILL be installed
+    # if you want to disable the HWE kernel, set HWE to "-non-hwe"
+    ARG HWE
 
     IF [ "$BASE_IMAGE" = "" ]
         # DISTRO is used to match the Linux distribution in the Dockerfile e.g. Dockerfile.ubuntu
@@ -320,7 +324,7 @@ base-image:
         # defined using MODEL and TARGETARCH.
         ARG SIMPLE_FLAVOR=$(echo $FLAVOR | sed 's/-arm-.*//')
 
-        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$SIMPLE_FLAVOR -f images/Dockerfile.$DISTRO images/
+        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$SIMPLE_FLAVOR --build-arg HWE=$HWE -f images/Dockerfile.$DISTRO images/
     ELSE
         FROM $BASE_IMAGE
     END
