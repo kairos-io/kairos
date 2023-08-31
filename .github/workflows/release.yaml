@@ -209,7 +209,7 @@ jobs:
                           --output-signature="${filename}.sig" "${filename}"
       - name: Prepare files for release
         run: |
-          export VERSION=$(cat build/VERSION)
+          export VERSION=$(cat release/VERSION)
           mkdir sarif
           mv release/*.sarif sarif/
           mkdir reports
@@ -296,7 +296,7 @@ jobs:
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
       - name: Prepare files for release
         run: |
-          export VERSION=$(cat build/VERSION)
+          export VERSION=$(cat release/VERSION)
           mkdir sarif
           mv release/*.sarif sarif/
           mkdir reports
