@@ -256,8 +256,8 @@ jobs:
 
           # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
+          # https://forums.docker.com/t/udevadm-control-reload-rules/135564
+          sudo /lib/systemd/systemd-udevd --daemon && sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
 
           sudo usermod -a -G kvm,libvirt $USER
       - name: Install earthly
