@@ -31,6 +31,7 @@ jobs:
           # sudo udevadm control --reload-rules
           # sudo udevadm trigger --name-match=kvm
           # sudo usermod -a -G kvm,libvirt $USER
+          #
           # TODO: Switch back to the above solution when we switch to the github runners
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm

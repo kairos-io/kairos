@@ -258,12 +258,11 @@ jobs:
           # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           # sudo udevadm control --reload-rules
           # sudo udevadm trigger --name-match=kvm
+          # sudo usermod -a -G kvm,libvirt $USER
           #
           # TODO: Switch back to the above solution when we switch to the github runners
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
-
-          sudo usermod -a -G kvm,libvirt $USER
       - name: Install earthly
         uses: jimmykarily/luet-install-action@v1.2
         with:
