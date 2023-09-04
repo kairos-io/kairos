@@ -54,10 +54,11 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Expect(err).ToNot(HaveOccurred(), device)
 
 		By("installing")
-		cmd := fmt.Sprintf("kairos-agent manual-install --device %s /tmp/config.yaml", strings.TrimSpace(device))
+		cmd := fmt.Sprintf("kairos-agent --debug manual-install --device %s /tmp/config.yaml", strings.TrimSpace(device))
 		out, err := vm.Sudo(cmd)
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
+		fmt.Println(out)
 
 		out, err = vm.Sudo("sync")
 		Expect(err).ToNot(HaveOccurred(), out)
@@ -95,6 +96,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			} else {
 				out, _ = vm.Sudo("systemctl status kairos-agent")
 			}
+			fmt.Println(out)
 			return out
 		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("status: started")))
 		By("Checking agent provider correct start")
