@@ -28,7 +28,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			gatherLogs(vm)
 			file, err := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
 			if err == nil {
-				fmt.Println(file)
+				fmt.Println(string(file))
 			}
 		}
 		vm.Destroy(nil)

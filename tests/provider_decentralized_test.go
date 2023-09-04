@@ -36,7 +36,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			gatherLogs(vms[0])
 			file, err := os.ReadFile(filepath.Join(vms[0].StateDir, "serial.log"))
 			if err == nil {
-				fmt.Println(file)
+				fmt.Println(string(file))
 			}
 		}
 		vmForEach("destroying vm", vms, func(vm VM) {
