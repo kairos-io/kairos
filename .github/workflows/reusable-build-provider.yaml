@@ -10,7 +10,8 @@ on:
 jobs:
   build:
     runs-on:
-      group: fast
+      group: Kairos core
+      labels: fast
     permissions:
       id-token: write  # OIDC support
       contents: write
