@@ -9,7 +9,8 @@ on:
 
 jobs:
   build:
-    runs-on: fast
+    runs-on:
+      group: fast
     permissions:
       id-token: write  # OIDC support
       contents: write

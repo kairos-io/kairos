@@ -4,6 +4,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -25,6 +26,10 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
 			gatherLogs(vm)
+			file, err := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			if err == nil {
+				fmt.Println(file)
+			}
 		}
 		vm.Destroy(nil)
 	})

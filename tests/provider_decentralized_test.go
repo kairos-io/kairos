@@ -4,6 +4,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,10 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
 			gatherLogs(vms[0])
+			file, err := os.ReadFile(filepath.Join(vms[0].StateDir, "serial.log"))
+			if err == nil {
+				fmt.Println(file)
+			}
 		}
 		vmForEach("destroying vm", vms, func(vm VM) {
 			vm.Destroy(nil)
