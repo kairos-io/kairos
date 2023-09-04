@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install Go
@@ -40,7 +40,7 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Download artifacts
         uses: robinraju/release-downloader@v1.8
         with:
