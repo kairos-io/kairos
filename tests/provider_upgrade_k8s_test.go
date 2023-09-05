@@ -20,6 +20,9 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 	var vm VM
 
 	BeforeEach(func() {
+		homeDir, _ := os.UserHomeDir()
+		os.MkdirAll(filepath.Join(homeDir, ".ssh"), os.ModeDir|os.ModePerm)
+		os.WriteFile(filepath.Join(homeDir, ".ssh", "config"), []byte("Host *\n\tStrictHostKeyChecking no\n\tUserKnownHostsFile /dev/null\n"), os.ModePerm)
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
 	})

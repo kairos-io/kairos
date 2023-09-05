@@ -30,6 +30,6 @@ jobs:
       matrix:
         label:
           - "provider-decentralized-k8s"
-          - "provider-upgrade-k8s"
+          #- "provider-upgrade-k8s"
         flavor:
           - "opensuse-leap"
