@@ -8,22 +8,11 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  standard:
-    uses: ./.github/workflows/reusable-build-provider.yaml
-    with:
-      flavor: ${{ matrix.flavor }}
-    strategy:
-      fail-fast: false
-      matrix:
-        flavor:
-          - "opensuse-leap"
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
       flavor: ${{ matrix.flavor }}
       label: ${{ matrix.label }}
-    needs:
-      - standard
     strategy:
       fail-fast: false
       max-parallel: 2

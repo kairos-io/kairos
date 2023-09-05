@@ -1,5 +1,9 @@
 #cloud-config
 
+install:
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
+
 stages:
   initramfs:
     - name: Set user and password

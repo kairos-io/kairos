@@ -49,10 +49,11 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - name: Download artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ inputs.flavor }}-provider.iso.zip
+      - name: Build PR 🔧
+        run: |
+          earthly +ci --SECURITY_SCANS=false --FLAVOR=${{ inputs.flavor }} --VARIANT=standard -K3S_VERSION=latest
+          sudo mv build/* .
+          sudo rm -rf build
       - name: Run tests
         env:
           USE_QEMU: true
