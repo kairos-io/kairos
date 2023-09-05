@@ -48,7 +48,7 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           git fetch --prune --unshallow
       - name: Download ISO

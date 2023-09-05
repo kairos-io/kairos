@@ -17,7 +17,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           git fetch --prune --unshallow
           sudo apt update && sudo apt install -y jq
@@ -38,7 +38,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - run: |
         git fetch --prune --unshallow
     - id: set-matrix
@@ -243,7 +243,7 @@ jobs:
   test-uki:
     runs-on: kvm
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Go
         uses: actions/setup-go@v4
         with:
@@ -303,7 +303,7 @@ jobs:
       - standard-upgrade-latest
       - test-uki
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           git fetch --prune --unshallow
       - name: save commit-message
