@@ -70,7 +70,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Expect(err).ToNot(HaveOccurred(), device)
 
 		By("copy the config")
-		err := vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
+		err = vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
 		By("installing")
