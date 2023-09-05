@@ -476,6 +476,8 @@ github.com/sourcegraph/annotate v0.0.0-20160123013949-f4cad6c6324d/go.mod h1:Udh
 github.com/sourcegraph/syntaxhighlight v0.0.0-20170531221838-bd320f5d308e/go.mod h1:HuIsMU8RRBOtsCgI77wP899iHVBQpCmg4ErYMZB+2IA=
 github.com/spaolacci/murmur3 v1.1.0 h1:7c1g84S4BPRrfL5Xrdp6fOJ206sU9y293DDHaoy0bLI=
 github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
+github.com/spectrocloud/peg v0.0.0-20230825070640-9d974338b0bc h1:Q+l1ZLQTNd+QEAmG1ZwXDjuIK0O5aP9LzzjWuFvrL3A=
+github.com/spectrocloud/peg v0.0.0-20230825070640-9d974338b0bc/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
 github.com/spectrocloud/peg v0.0.0-20230825092931-25d89833e022 h1:/dw2RhgT412X7iXzGBrUNdwfV914VjGsakISm2Ual5Q=
 github.com/spectrocloud/peg v0.0.0-20230825092931-25d89833e022/go.mod h1:L2fIdtZqbQEagjOOXwkwH3t7MjJUd7fbt52cLSQGDBg=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

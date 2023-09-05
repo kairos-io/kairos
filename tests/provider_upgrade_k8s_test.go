@@ -4,7 +4,6 @@ package mos_test
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,11 +28,6 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
-			sshconfig := vm.SshConfig()
-			cmd := exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"}...)
-			fmt.Printf("Running command sshpass with args %s\n", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"})
-			output, err := cmd.CombinedOutput()
-			fmt.Printf("OUTPUT of ssh: %s\n", output)
 			gatherLogs(vm)
 			file, err := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
 			if err == nil {
@@ -59,23 +53,10 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			Expect(out).Should(ContainSubstring("active (waiting)"))
 		}
 
-		sshconfig := vm.SshConfig()
-		fmt.Println(sshconfig)
-		cmd := exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"}...)
-		fmt.Printf("Running command sshpass with args %s\n", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"})
-		output, err := cmd.CombinedOutput()
-		fmt.Println(string(output))
-		if err != nil {
-			fmt.Println(err.Error())
-		}
 		By("copy the config")
-		err = vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
+		err := vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
-		cmd = exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"}...)
-		output, err = cmd.CombinedOutput()
-		fmt.Printf("OUTPUT of ssh: %s\n", output)
-		Expect(err).ToNot(HaveOccurred())
 		By("installing")
 		cmdremote := "kairos-agent --debug manual-install --device /dev/vda /tmp/config.yaml"
 		out, err := vm.Sudo(cmdremote)
