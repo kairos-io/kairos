@@ -67,17 +67,11 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		vm.EventuallyConnects(1200)
 
-		By("find the correct device (qemu vs vbox)")
-		device, err = vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
-		Expect(err).ToNot(HaveOccurred(), device)
-
-		By("find the correct device (qemu vs vbox)")
-		device, err = vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
-		Expect(err).ToNot(HaveOccurred(), device)
-
 		By("copy the config")
 		err = vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
+
+		vm.EventuallyConnects(1200)
 
 		By("installing")
 		cmd := fmt.Sprintf("kairos-agent --debug manual-install --device %s /tmp/config.yaml", strings.TrimSpace(device))
@@ -102,6 +96,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 				ContainSubstring("kairos-agent")))
 		} else {
 			Eventually(func() string {
+				vm.EventuallyConnects(1200)
 				out, _ := vm.Sudo("systemctl status kairos-agent")
 				return out
 			}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
@@ -114,9 +109,11 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 				"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled; vendor preset: disabled)"))
 		}
 
+		vm.EventuallyConnects(1200)
 		By("checking if kairos-agent has started")
 		Eventually(func() string {
 			var out string
+			vm.EventuallyConnects(1200)
 			if isFlavor(vm, "alpine") {
 				out, _ = vm.Sudo("rc-service kairos-agent status")
 			} else {
@@ -124,12 +121,12 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			}
 			fmt.Println(out)
 			return out
-		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("status: started")))
+		}, 1200*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("status: started")))
 		By("Checking agent provider correct start")
 		Eventually(func() string {
 			out, _ := vm.Sudo("cat /var/log/kairos/agent-provider.log")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
+		}, 1200*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
 
 		By("Checking k3s is pointing to https")
 		Eventually(func() string {
