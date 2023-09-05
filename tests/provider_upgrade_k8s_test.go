@@ -65,11 +65,12 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		cmd = exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", fmt.Sprintf("%s@127.0.0.1:%s", sshconfig.User, sshconfig.Port), "true"}...)
 		output, err = cmd.CombinedOutput()
+		fmt.Printf("OUTPUT of ssh: %s\n", output)
 		Expect(err).ToNot(HaveOccurred())
-		fmt.Println(output)
 		By("installing")
 		cmdremote := "kairos-agent --debug manual-install --device /dev/vda /tmp/config.yaml"
 		out, err := vm.Sudo(cmdremote)
+		fmt.Printf("OUTPUT of install: %s\n", out)
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
 		fmt.Println(out)

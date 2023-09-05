@@ -64,7 +64,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			if err != nil {
 				fmt.Println(err.Error())
 			}
-			fmt.Println(out)
+			fmt.Printf("install output: %s\n", out)
 			Expect(out).Should(ContainSubstring("Running after-install hook"), out)
 			vm.Reboot()
 
