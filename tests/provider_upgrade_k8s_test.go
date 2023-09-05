@@ -57,14 +57,17 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		err := vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
+		By("find the correct device (qemu vs vbox)")
+		device, err := vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
+		Expect(err).ToNot(HaveOccurred(), device)
+
 		By("installing")
-		cmdremote := "kairos-agent --debug manual-install --device /dev/vda /tmp/config.yaml"
-		out, err := vm.Sudo(cmdremote)
+		cmd := fmt.Sprintf("kairos-agent --debug manual-install --device %s /tmp/config.yaml", strings.TrimSpace(device))
+		out, err := vm.Sudo(cmd)
 		fmt.Printf("OUTPUT of install: %s\n", out)
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
-		fmt.Println(out)
-
+		
 		out, err = vm.Sudo("sync")
 		Expect(err).ToNot(HaveOccurred(), out)
 
