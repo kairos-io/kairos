@@ -53,13 +53,19 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			Expect(out).Should(ContainSubstring("active (waiting)"))
 		}
 
+		vm.EventuallyConnects(1200)
+
 		By("find the correct device (qemu vs vbox)")
 		device, err := vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
 		Expect(err).ToNot(HaveOccurred(), device)
 
+		vm.EventuallyConnects(1200)
+
 		By("find the correct device (qemu vs vbox)")
 		device, err = vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
 		Expect(err).ToNot(HaveOccurred(), device)
+
+		vm.EventuallyConnects(1200)
 
 		By("find the correct device (qemu vs vbox)")
 		device, err = vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
