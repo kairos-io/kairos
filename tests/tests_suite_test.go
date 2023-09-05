@@ -75,6 +75,7 @@ func gatherLogs(vm VM) {
 	vm.Sudo("mount > /run/mounts")
 	vm.Sudo("blkid > /run/blkid")
 	vm.Sudo("dmesg > /run/dmesg.log")
+	vm.Sudo("journalctl > /run/journalctl.log")
 
 	vm.GatherAllLogs(
 		[]string{
@@ -103,6 +104,7 @@ func gatherLogs(vm VM) {
 			"/run/immucore/immucore.log",
 			"/run/immucore/initramfs_stage.log",
 			"/run/immucore/rootfs_stage.log",
+			"/run/journalctl.log",
 		})
 }
 

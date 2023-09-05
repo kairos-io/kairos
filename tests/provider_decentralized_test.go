@@ -33,6 +33,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
+			vms[0].Sudo("journalctl ")
 			gatherLogs(vms[0])
 			file, err := os.ReadFile(filepath.Join(vms[0].StateDir, "serial.log"))
 			if err == nil {
@@ -143,7 +144,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					out, _ = vm.Sudo("systemctl status kairos-agent")
 					fmt.Println(out)
 					return out
-				}, 45*time.Minute, 1*time.Second).Should(
+				}, 10*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("Configuring k3s-agent"),
 						ContainSubstring("Configuring k3s"),
