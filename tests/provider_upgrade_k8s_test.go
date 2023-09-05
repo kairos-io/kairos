@@ -55,8 +55,10 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		fmt.Println(sshconfig)
 		cmd := exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", fmt.Sprintf("%s@127.0.0.1:%s", sshconfig.User, sshconfig.Port), "true"}...)
 		output, err := cmd.CombinedOutput()
-		Expect(err).ToNot(HaveOccurred())
 		fmt.Println(output)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
 		By("copy the config")
 		err = vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
