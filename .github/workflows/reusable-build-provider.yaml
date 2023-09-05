@@ -18,38 +18,6 @@ jobs:
       actions: read
       security-events: write
     steps:
-      - name: Release space from worker
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
       - uses: actions/checkout@v4
       - run: |
           git fetch --prune --unshallow
@@ -60,7 +28,7 @@ jobs:
           packages: utils/earthly
       - name: Build PR 🔧
         run: |
-          earthly +ci --SECURITY_SCANS=false --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h --FLAVOR=${{ inputs.flavor }} --VARIANT=standard -K3S_VERSION=latest
+          earthly +ci --SECURITY_SCANS=false --FLAVOR=${{ inputs.flavor }} --VARIANT=standard -K3S_VERSION=latest
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v3
@@ -71,6 +39,3 @@ jobs:
             *.sha256
             versions.yaml
           if-no-files-found: error
-      - name: Push to testing
-        run: |
-          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h

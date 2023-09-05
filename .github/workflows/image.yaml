@@ -29,7 +29,7 @@ jobs:
       max-parallel: 2
       matrix:
         label:
-          - "provider-decentralized-k8s"
-          #- "provider-upgrade-k8s"
+          #- "provider-decentralized-k8s"
+          - "provider-upgrade-k8s"
         flavor:
           - "opensuse-leap"
