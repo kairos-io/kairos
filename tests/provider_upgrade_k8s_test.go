@@ -28,6 +28,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		if CurrentGinkgoTestDescription().Failed {
 			sshconfig := vm.SshConfig()
 			cmd := exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"}...)
+			fmt.Printf("Running command sshpass with args %s\n", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"})
 			output, err := cmd.CombinedOutput()
 			fmt.Printf("OUTPUT of ssh: %s\n", output)
 			gatherLogs(vm)
@@ -57,7 +58,8 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		sshconfig := vm.SshConfig()
 		fmt.Println(sshconfig)
-		cmd := exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", fmt.Sprintf("%s@127.0.0.1:%s", sshconfig.User, sshconfig.Port), "true"}...)
+		cmd := exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"}...)
+		fmt.Printf("Running command sshpass with args %s\n", []string{"-p", sshconfig.Pass, "ssh", "-v", "-p", sshconfig.Port, fmt.Sprintf("%s@127.0.0.1", sshconfig.User), "true"})
 		output, err := cmd.CombinedOutput()
 		fmt.Println(string(output))
 		if err != nil {

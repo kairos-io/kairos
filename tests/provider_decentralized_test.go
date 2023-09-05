@@ -33,7 +33,6 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 
 	AfterEach(func() {
 		if CurrentGinkgoTestDescription().Failed {
-			vms[0].Sudo("journalctl ")
 			gatherLogs(vms[0])
 			file, err := os.ReadFile(filepath.Join(vms[0].StateDir, "serial.log"))
 			if err == nil {
@@ -52,8 +51,11 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				out, _ := vm.Sudo("rc-status")
 				Expect(out).Should(ContainSubstring("kairos-agent"))
 			} else {
-				out, _ := vm.Sudo("systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; vendor preset: disabled)"))
+				Eventually(func() string {
+					out, _ := vm.Sudo("systemctl status kairos")
+					fmt.Printf("OUPUT OF KAIROS SERVICE: %s\n", out)
+					return out
+				}, 5*time.Minute, 1*time.Second).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; vendor preset: disabled)"))
 			}
 		})
 
