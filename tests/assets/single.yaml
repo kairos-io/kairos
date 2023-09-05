@@ -5,6 +5,10 @@ install:
     extra_cmdline: "rd.immucore.debug"
 
 stages:
+  boot:
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -d "/usr/share/systemd" ]'
+      commands:
+        - systemctl enable --now kairos-agent
   initramfs:
     - name: Set user and password
       users:
