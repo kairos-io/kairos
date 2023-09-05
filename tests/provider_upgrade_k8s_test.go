@@ -117,7 +117,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			if isFlavor(vm, "alpine") {
 				out, _ = vm.Sudo("rc-service kairos-agent status")
 			} else {
-				out, _ = vm.Sudo("journalctl -t kairos-agent")
+				out, _ = vm.Sudo("systemctl status kairos-agent")
 			}
 			fmt.Println(out)
 			return out
