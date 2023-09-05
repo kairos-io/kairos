@@ -14,7 +14,7 @@ jobs:
   test:
     runs-on:
       group: Kairos core
-      labels: kvm
+      labels: fast
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -43,7 +43,7 @@ jobs:
           #
           # TODO: Switch back to the above solution when we switch to the github runners
           # https://askubuntu.com/a/1081326
-          # sudo setfacl -m u:runner:rwx /dev/kvm
+          sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Install earthly
         uses: jimmykarily/luet-install-action@v1.2
         with:

@@ -4,6 +4,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,13 +51,23 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			Expect(out).Should(ContainSubstring("active (waiting)"))
 		}
 
+		sshconfig := vm.SshConfig()
+		fmt.Println(sshconfig)
+		cmd := exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", fmt.Sprintf("%s@127.0.0.1:%s", sshconfig.User, sshconfig.Port), "true"}...)
+		output, err := cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Println(output)
 		By("copy the config")
-		err := vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
+		err = vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
+		cmd = exec.Command("sshpass", []string{"-p", sshconfig.Pass, "ssh", "-v", fmt.Sprintf("%s@127.0.0.1:%s", sshconfig.User, sshconfig.Port), "true"}...)
+		output, err = cmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Println(output)
 		By("installing")
-		cmd := "kairos-agent --debug manual-install --device /dev/vda /tmp/config.yaml"
-		out, err := vm.Sudo(cmd)
+		cmdremote := "kairos-agent --debug manual-install --device /dev/vda /tmp/config.yaml"
+		out, err := vm.Sudo(cmdremote)
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
 		fmt.Println(out)
