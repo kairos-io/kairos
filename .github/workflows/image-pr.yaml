@@ -1,8 +1,4 @@
 name: Build and test PRs
-on:
-  pull_request:
-    paths:
-      - '**'
 
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}

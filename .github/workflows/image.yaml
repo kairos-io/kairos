@@ -1,10 +1,6 @@
 name: Build and test images
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - '**'
+  pull_request:
 
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
