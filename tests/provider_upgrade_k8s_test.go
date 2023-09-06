@@ -53,25 +53,13 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			Expect(out).Should(ContainSubstring("active (waiting)"))
 		}
 
-		vm.EventuallyConnects(1200)
-
 		By("find the correct device (qemu vs vbox)")
 		device, err := vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
 		Expect(err).ToNot(HaveOccurred(), device)
 
-		vm.EventuallyConnects(1200)
-
-		By("find the correct device (qemu vs vbox)")
-		device, err = vm.Sudo(`[[ -e /dev/sda ]] && echo "/dev/sda" || echo "/dev/vda"`)
-		Expect(err).ToNot(HaveOccurred(), device)
-
-		vm.EventuallyConnects(1200)
-
 		By("copy the config")
 		err = vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
-
-		vm.EventuallyConnects(1200)
 
 		By("installing")
 		cmd := fmt.Sprintf("kairos-agent --debug manual-install --device %s /tmp/config.yaml", strings.TrimSpace(device))
@@ -96,7 +84,6 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 				ContainSubstring("kairos-agent")))
 		} else {
 			Eventually(func() string {
-				vm.EventuallyConnects(1200)
 				out, _ := vm.Sudo("systemctl status kairos-agent")
 				return out
 			}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
@@ -109,11 +96,9 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 				"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled; vendor preset: disabled)"))
 		}
 
-		vm.EventuallyConnects(1200)
 		By("checking if kairos-agent has started")
 		Eventually(func() string {
 			var out string
-			vm.EventuallyConnects(1200)
 			if isFlavor(vm, "alpine") {
 				out, _ = vm.Sudo("rc-service kairos-agent status")
 			} else {
