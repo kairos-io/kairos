@@ -31,6 +31,10 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Build iso  🔧
         env:
           IMAGE: "quay.io/kairos/core-${{ inputs.flavor }}-arm-generic"

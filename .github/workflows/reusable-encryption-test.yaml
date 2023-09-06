@@ -77,6 +77,10 @@ jobs:
           name: kairos-${{ inputs.flavor }}.iso.zip
       - name: Display structure of downloaded files
         run: ls -las .
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Run tests
         env:
           LABEL: ${{ inputs.label }}
