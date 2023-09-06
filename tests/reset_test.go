@@ -31,8 +31,7 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 			expectStartedInstallation(vm)
 			expectRebootedToActive(vm)
 		})
-
-		It("has grubenv file", func() {
+		It("resets", func() {
 			Eventually(func() string {
 				out, _ := vm.Sudo("cat /oem/grubenv")
 				return out
@@ -40,9 +39,6 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 				Or(
 					ContainSubstring("foobarzz"),
 				))
-		})
-
-		It("resets", func() {
 			_, err := vm.Sudo("touch /usr/local/test")
 			Expect(err).ToNot(HaveOccurred())
 

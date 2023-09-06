@@ -12,14 +12,13 @@ jobs:
     runs-on: kvm
     steps:
       - uses: actions/checkout@v4
-      - name: Download artifacts
+      - name: Download ISO
+        id: iso
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}.iso.zip
-          path: ./build
       - name: Display structure of downloaded files
         run: ls -R
-        working-directory: ./build
       - name: Install earthly
         uses: jimmykarily/luet-install-action@v1.2
         with:
@@ -30,5 +29,4 @@ jobs:
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - run: |
-          export ISO=$(ls $PWD/kairos-*${{ inputs.flavor }}*).iso
-          earthly +run-qemu-test --TEST_SUITE=zfs --FLAVOR=${{ inputs.flavor }}
+          earthly +run-qemu-test --PREBUILT_ISO=$(ls kairos-core-*${{ inputs.flavor }}*.iso) --TEST_SUITE=zfs --FLAVOR=${{ inputs.flavor }}

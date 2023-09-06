@@ -957,6 +957,7 @@ run-qemu-netboot-test:
 
 run-qemu-test:
     FROM +go-deps-test
+    WORKDIR /test
     ARG FLAVOR
     ARG TEST_SUITE=upgrade-with-cli
     ARG PREBUILT_ISO
@@ -969,10 +970,10 @@ run-qemu-test:
 
     COPY . .
     IF [ -n "$PREBUILT_ISO" ]
-        ENV ISO=/build/$PREBUILT_ISO
+        ENV ISO=/test/$PREBUILT_ISO
     ELSE
         COPY +iso/kairos.iso kairos.iso
-        ENV ISO=/build/kairos.iso
+        ENV ISO=/test/kairos.iso
     END
     COPY +go-deps-test/go.mod go.mod
     COPY +go-deps-test/go.sum go.sum
