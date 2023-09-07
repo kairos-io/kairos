@@ -260,18 +260,34 @@ framework:
 
     RUN go run main.go ${FLAVOR} framework-profile.yaml /framework
 
+    RUN mkdir -p /framework/etc/kairos/
+    RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
+
     # luet cleanup
     RUN luet cleanup --system-target /framework
     RUN rm -rf /var/luet
     RUN rm -rf /var/cache
 
-    RUN mkdir -p /framework/etc/kairos/
-    RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
-
     # COPY luet into the final framework
     # TODO: Understand why?
     COPY +luet/luet /framework/usr/bin/luet
     COPY framework-profile.yaml /framework/etc/luet/luet.yaml
+
+    # Copy bootargs.cfg into the final framework as its needed to boot
+    IF [[ "$FLAVOR" =~ ^alpine* ]]
+        COPY ./images/alpine/bootargs.cfg /framework/etc/cos/bootargs.cfg
+    ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+        COPY ./images/nvidia/bootargs.cfg /framework/etc/cos/bootargs.cfg
+    ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]]
+        COPY ./images/debian/bootargs.cfg /framework/etc/cos/bootargs.cfg
+    ELSE IF [[ "$FLAVOR" =~ ^opensuse-leap$ ]] || [[ "$FLAVOR" =~ ^opensuse-tumbleweed$ ]] # Be specific so it doesnt match the arm-rpi flavors
+        COPY ./images/opensuse/bootargs.cfg /framework/etc/cos/bootargs.cfg
+    ELSE IF [[ "$FLAVOR" =~ ^rockylinux* ]] || [[ "$FLAVOR" =~ ^fedora* ]] || [[ "$FLAVOR" =~ ^almalinux* ]]
+        COPY ./images/redhat/bootargs.cfg /framework/etc/cos/bootargs.cfg
+    ELSE IF [[ "$FLAVOR" =~ -rpi$ ]]
+        COPY ./images/rpi/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        COPY ./images/rpi/config.txt /framework/boot/config.txt
+    END
 
     SAVE ARTIFACT --keep-own /framework/ framework
 
