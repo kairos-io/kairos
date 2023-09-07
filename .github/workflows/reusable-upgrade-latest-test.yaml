@@ -51,13 +51,8 @@ jobs:
           # A flag to set the download target as latest release
           # The default value is 'false'
           latest: true
-          fileName: '*${{ inputs.flavor }}-v*.iso'
+          fileName: 'kairos-${{ inputs.flavor }}-v*.iso'
           out-file-path: ""
-      - name: Download ISO
-        id: iso
-        uses: actions/download-artifact@v3
-        with:
-          name: kairos-${{ inputs.flavor }}.iso.zip
       - name: Display structure of downloaded files
         run: ls -las .
       - name: Install earthly
