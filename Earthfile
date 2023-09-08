@@ -416,7 +416,7 @@ base-image:
     IF [ "$VARIANT" = "standard" ]
         DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
 
-        DO +INSTALL_K3S
+        DO +INSTALL_K3S --FLAVOR=$FLAVOR
 
         # Redo os-release with override settings to point to provider-kairos stuff
         # in earthly 0.7 we will be able to just override VARIANT here and just run the OSRELEASE once
@@ -1207,7 +1207,11 @@ INSTALL_K3S:
           && INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_SKIP_START="true" INSTALL_K3S_SKIP_ENABLE="true" INSTALL_K3S_SKIP_SELINUX_RPM="true" bash installer.sh agent \
           && rm -rf installer.sh
     ELSE
-      ARG _LUET_K3S=$(echo k8s/k3s@${K3S_VERSION})
+      IF [[ "$FLAVOR" =~ ^alpine* ]]
+        ARG _LUET_K3S=$(echo k8s/k3s-openrc@${K3S_VERSION})
+      ELSE
+      ARG _LUET_K3S=$(echo k8s/k3s-systemd@${K3S_VERSION})
+      END
     END
 
     RUN luet install -y ${_LUET_K3S} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
