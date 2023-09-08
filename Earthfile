@@ -1196,6 +1196,8 @@ PROVIDER_INSTALL:
 INSTALL_K3S:
     COMMAND
 
+    ARG FLAVOR
+
     IF [ "$K3S_VERSION" = "" ]
       RUN echo "$K3S_VERSION must be set" && exit 1
     END
