@@ -41,6 +41,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     conntrack \
     console-data \
+    cloud-guest-utils \
     coreutils \
     cryptsetup \
     curl \
