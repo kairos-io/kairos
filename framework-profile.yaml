@@ -174,9 +174,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230911104114-repository.yaml
+    reference: 20230911150034-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230911102847-repository.yaml
+    reference: 20230911150011-repository.yaml
