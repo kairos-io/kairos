@@ -1216,5 +1216,5 @@ INSTALL_K3S:
       END
     END
 
-    RUN luet install -y ${_LUET_K3S} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+    RUN luet install -y "${_LUET_K3S}" utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
     RUN luet database get-all-installed --output /etc/kairos/versions.yaml
