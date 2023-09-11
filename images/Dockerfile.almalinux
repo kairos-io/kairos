@@ -9,6 +9,7 @@ RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
     audit \
+    cloud-utils-growpart \
     device-mapper \
     dosfstools \
     dracut \

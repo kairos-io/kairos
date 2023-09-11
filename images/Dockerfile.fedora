@@ -8,6 +8,7 @@ RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%
 RUN dnf install -y \
     audit \
     coreutils \
+    cloud-utils-growpart \
     curl \
     device-mapper \
     dosfstools \

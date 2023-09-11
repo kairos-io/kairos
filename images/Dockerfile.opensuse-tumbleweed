@@ -39,6 +39,7 @@ RUN zypper in --force-resolution -y \
     fail2ban \
     findutils \
     gawk \
+    growpart \
     gptfdisk \
     haveged \
     htop \
