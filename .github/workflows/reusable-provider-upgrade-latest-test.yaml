@@ -49,8 +49,8 @@ jobs:
         uses: robinraju/release-downloader@v1.8
         with:
           latest: true
-          repository: "kairos-io/provider-kairos"
-          fileName: '*${{ inputs.flavor }}-v*.iso'
+          repository: "kairos-io/kairos"
+          fileName: 'kairos-standard-*${{ inputs.flavor }}-v*.iso'
           out-file-path: ""
       - name: Run tests
         run: |
