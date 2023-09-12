@@ -273,20 +273,22 @@ framework:
     COPY +luet/luet /framework/usr/bin/luet
     COPY framework-profile.yaml /framework/etc/luet/luet.yaml
 
-    # Copy bootargs.cfg into the final framework as its needed to boot
-    IF [[ "$FLAVOR" =~ ^alpine* ]]
-        COPY ./images/alpine/bootargs.cfg /framework/etc/cos/bootargs.cfg
-    ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-        COPY ./images/nvidia/bootargs.cfg /framework/etc/cos/bootargs.cfg
-    ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]]
-        COPY ./images/debian/bootargs.cfg /framework/etc/cos/bootargs.cfg
-    ELSE IF [[ "$FLAVOR" =~ ^opensuse-leap$ ]] || [[ "$FLAVOR" =~ ^opensuse-tumbleweed$ ]] # Be specific so it doesnt match the arm-rpi flavors
-        COPY ./images/opensuse/bootargs.cfg /framework/etc/cos/bootargs.cfg
-    ELSE IF [[ "$FLAVOR" =~ ^rockylinux* ]] || [[ "$FLAVOR" =~ ^fedora* ]] || [[ "$FLAVOR" =~ ^almalinux* ]]
-        COPY ./images/redhat/bootargs.cfg /framework/etc/cos/bootargs.cfg
-    ELSE IF [[ "$FLAVOR" =~ -rpi$ ]]
-        COPY ./images/rpi/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        COPY ./images/rpi/config.txt /framework/boot/config.txt
+    # Copy bootargs.cfg into the final framework as its needed to boot if its not there
+    IF [ ! -f /framework/etc/cos/bootargs.cfg ]
+        IF [[ "$FLAVOR" =~ ^alpine* ]]
+            COPY ./images/alpine/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+            COPY ./images/nvidia/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]] && [[ ! "$FLAVOR" =~ -rpi$ ]]
+            COPY ./images/debian/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        ELSE IF [[ "$FLAVOR" =~ ^opensuse-leap$ ]] || [[ "$FLAVOR" =~ ^opensuse-tumbleweed$ ]] # Be specific so it doesnt match the arm-rpi flavors
+            COPY ./images/opensuse/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        ELSE IF [[ "$FLAVOR" =~ ^rockylinux* ]] || [[ "$FLAVOR" =~ ^fedora* ]] || [[ "$FLAVOR" =~ ^almalinux* ]]
+            COPY ./images/redhat/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        ELSE IF [[ "$FLAVOR" =~ -rpi$ ]]
+            COPY ./images/rpi/bootargs.cfg /framework/etc/cos/bootargs.cfg
+            COPY ./images/rpi/config.txt /framework/boot/config.txt
+        END
     END
 
     SAVE ARTIFACT --keep-own /framework/ framework
