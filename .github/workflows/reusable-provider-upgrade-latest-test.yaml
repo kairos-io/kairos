@@ -50,7 +50,7 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          fileName: 'kairos-standard-*${{ inputs.flavor }}-v*.iso'
+          fileName: 'kairos-standard-*${{ inputs.flavor }}-*.iso'
           out-file-path: ""
       - name: Run tests
         run: |
