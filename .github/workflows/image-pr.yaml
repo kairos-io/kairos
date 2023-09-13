@@ -87,3 +87,50 @@ jobs:
           - "remote-static"
           - "remote-https-pinned"
           - "remote-https-bad-cert"
+  standard:
+    uses: ./.github/workflows/reusable-build-provider.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+  various:
+    uses: ./.github/workflows/reusable-provider-tests.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+      label: ${{ matrix.label }}
+    needs:
+      - standard
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        label:
+          - "provider-qrcode-install"
+          - "provider-upgrade"
+          - "provider-decentralized-k8s"
+          - "provider-upgrade-k8s"
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
+        exclude: # looks like only the k8s stuff is tested on both flavors
+          - label: "provider-qrcode-install"
+            flavor: "alpine-opensuse-leap"
+          - label: "provider-upgrade"
+            flavor: "alpine-opensuse-leap"
+  standard-upgrade-latest:
+    uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+    needs:
+      - standard
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        flavor:
+          - "opensuse-leap"
+          - "alpine-opensuse-leap"
