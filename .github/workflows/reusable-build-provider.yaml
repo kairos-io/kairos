@@ -62,7 +62,12 @@ jobs:
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Build PR 🔧
         run: |
-          earthly +ci --SECURITY_SCANS=false --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h --FLAVOR=${{ inputs.flavor }} --VARIANT=standard -K3S_VERSION=latest
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last')
+          earthly +ci \
+            --SECURITY_SCANS=false \
+            --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h \
+            --FLAVOR=${{ inputs.flavor }} \
+            --VARIANT=standard -K3S_VERSION=${K3S_VERSION}
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v3
