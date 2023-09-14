@@ -18,6 +18,12 @@
         "standard": "true"
     },
     {
+        "flavor": "alpine-arm-rpi",
+        "model": "rpi3",
+        "worker": "ubuntu-latest",
+        "standard": "true"
+    },
+    {
         "flavor": "ubuntu-arm-rpi",
         "model": "rpi4",
         "worker": "ubuntu-latest",
