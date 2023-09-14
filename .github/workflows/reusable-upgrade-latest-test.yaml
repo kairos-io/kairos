@@ -67,7 +67,7 @@ jobs:
       - run: |
           # release-downloader globing matches more than one iso. Make sure
           # we use the right one.
-          ISO=$(ls kairos-${{ inputs.flavor }}*.iso | grep -v ipxe)
+          ISO=$(ls kairos-core-${{ inputs.flavor }}-amd64-generic-v*.iso | grep -v ipxe)
           earthly +run-qemu-test --PREBUILT_ISO=$ISO \
             --FLAVOR=${{ inputs.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h \
