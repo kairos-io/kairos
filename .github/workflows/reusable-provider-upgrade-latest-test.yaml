@@ -50,7 +50,7 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          fileName: 'kairos-standard-*${{ inputs.flavor }}-*.iso'
+          fileName: 'kairos-standard-*${{ inputs.flavor }}-*k3s1.iso'
           out-file-path: ""
       - name: Run tests
         run: |
@@ -60,6 +60,9 @@ jobs:
           export CPUS=2
           export DRIVE_SIZE=30000
           export CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
-          export ISO=$PWD/$(ls *.iso | head -n 1)
+
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq -r '.packages | map(.version) | unique | last' | cut -d+ -f1)
+
+          export ISO=$PWD/$(ls "*${K3S_VERSION}*.iso" | head -n 1)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "provider-upgrade-latest-k8s-with-kubernetes" --fail-fast -r ./tests
