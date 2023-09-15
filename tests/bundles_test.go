@@ -70,7 +70,7 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 					out, _ = vm.Sudo("cat /oem/90_custom.yaml")
 					result = result + fmt.Sprintf("90_custom.yaml:\n%s\n", out)
 
-					out, _ = vm.Sudo("cat /usr/local/lib/extensions/kubo/usr/lib/extension-release.d/extension-release.kubo")
+					out, _ = vm.Sudo("cat /var/lib/extensions/kubo/usr/lib/extension-release.d/extension-release.kubo")
 					result = result + fmt.Sprintf("extension-release.kubo:\n%s\n", out)
 
 					out, _ = vm.Sudo("systemd-sysext status")
