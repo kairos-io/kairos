@@ -47,8 +47,6 @@ RUN dnf install -y \
     which \
     zfs && dnf clean all
 
-COPY redhat/bootargs.cfg /etc/cos/bootargs.cfg
-
 RUN mkdir -p /run/lock && \
   touch /usr/libexec/.keep && \
   systemctl enable getty@tty1.service && \

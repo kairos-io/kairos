@@ -275,18 +275,8 @@ framework:
 
     # Copy bootargs.cfg into the final framework as its needed to boot if its not there
     IF [ ! -f /framework/etc/cos/bootargs.cfg ]
-        IF [[ "$FLAVOR" =~ ^alpine* ]]
-            COPY ./images/alpine/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-            COPY ./images/nvidia/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]] && [[ ! "$FLAVOR" =~ -rpi$ ]]
-            COPY ./images/debian/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ ^opensuse-leap$ ]] || [[ "$FLAVOR" =~ ^opensuse-tumbleweed$ ]] # Be specific so it doesnt match the arm-rpi flavors
-            COPY ./images/opensuse/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ ^rockylinux* ]] || [[ "$FLAVOR" =~ ^fedora* ]] || [[ "$FLAVOR" =~ ^almalinux* ]]
-            COPY ./images/redhat/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ -rpi$ ]]
-            COPY ./images/rpi/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        COPY ./images/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        IF [[ "$FLAVOR" =~ -rpi$ ]]
             COPY ./images/rpi/config.txt /framework/boot/config.txt
         ELSE IF [[ "$FLAVOR" =~ ^fips-systemd* ]]
             # Use a generic one like redhat which has selinux disabled so it can be used on all flavors??
