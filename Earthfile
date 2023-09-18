@@ -13,7 +13,7 @@ ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.45.0
+ARG TRIVY_VERSION=0.45.1
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
