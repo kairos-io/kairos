@@ -647,6 +647,27 @@ iso:
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
+
+iso-uki:
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    ARG TARGETARCH
+    ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
+    ARG OSBUILDER_IMAGE
+    FROM $OSBUILDER_IMAGE
+    WORKDIR /build
+    COPY +uki/uki.efi /build/uki.efi
+    RUN mkdir -p /build/efi
+    # TODO: Create the img size based ont eh actual efi size!
+    RUN dd if=/dev/zero of=/build/efi/efiboot.img bs=1G count=1
+    RUN mkfs.msdos -F 32 -n 'EFIBOOTISO' /build/efi/efiboot.img
+    RUN mmd -i /build/efi/efiboot.img ::EFI
+    RUN mmd -i /build/efi/efiboot.img ::EFI/BOOT
+    # TODO: TARGETARCH should change the output name to BOOTAA64.EFI in arm64!
+    RUN mcopy -i /build/efi/efiboot.img /build/uki.efi ::EFI/BOOT/BOOTX64.EFI
+    RUN xorriso -as mkisofs -V 'EFI_ISO_BOOT' -e efiboot.img -no-emul-boot -o /build/$ISO_NAME.iso /build/efi/
+    SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
+
 # This target builds an iso using a remote docker image as rootfs instead of building the whole rootfs
 # This should be really fast as it uses an existing image. This requires a pushed image from the +image target
 # defaults to use the $IMAGE name (so ttl.sh/core-opensuse-leap:latest)
