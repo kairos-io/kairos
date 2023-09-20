@@ -52,7 +52,7 @@ jobs:
       - run: |
           git fetch --prune --unshallow
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.2
+        uses: Luet-lab/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
