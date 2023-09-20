@@ -44,7 +44,7 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.2
+        uses: Luet-lab/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly

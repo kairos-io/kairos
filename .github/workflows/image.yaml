@@ -264,7 +264,7 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Install earthly
-        uses: jimmykarily/luet-install-action@v1.2
+        uses: Luet-lab/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
