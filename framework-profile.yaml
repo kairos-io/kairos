@@ -124,7 +124,6 @@ openrc:
 systemd-base:
   packages:
     - init-svc/systemd
-    - systemd-default/network
 opensuse-leap-kernel:
   packages:
     - distro-kernels/opensuse-leap
@@ -137,7 +136,7 @@ common-packages:
     - dracut/immucore
     - system/suc-upgrade
     - system/grub2-efi
-    - bundles/kairos-overlay-files
+    - static/kairos-overlay-files
 kairos-toolchain-fips:
   packages:
     - fips/kcrypt
@@ -174,9 +173,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20230915145241-repository.yaml
+    reference: 20230920112615-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20230915154712-repository.yaml
+    reference: 20230920113926-repository.yaml
