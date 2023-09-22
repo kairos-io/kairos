@@ -278,9 +278,6 @@ framework:
         COPY ./images/bootargs.cfg /framework/etc/cos/bootargs.cfg
         IF [[ "$FLAVOR" =~ -rpi$ ]]
             COPY ./images/rpi/config.txt /framework/boot/config.txt
-        ELSE IF [[ "$FLAVOR" =~ ^fips-systemd* ]]
-            # Use a generic one like redhat which has selinux disabled so it can be used on all flavors??
-            COPY ./images/redhat/bootargs.cfg /framework/etc/cos/bootargs.cfg
         END
     END
 
