@@ -219,8 +219,6 @@ RUN apt-get install -y libopencv-dev && \
 # Drop the repository file installed by apt (we have installed the repository manually above)
 RUN rm -rf /etc/apt/sources.list.d/nvidia-l4t-apt-source.list
 
-COPY nvidia/bootargs.cfg /etc/cos/bootargs.cfg
-
 # Symlinks to make installer work
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
     ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
