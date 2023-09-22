@@ -80,7 +80,6 @@ RUN zypper in --force-resolution -y \
     lldpd \
     qemu-guest-agent \
     && zypper cc
-COPY opensuse/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM common AS rpicommon
 RUN zypper in --force-resolution -y \
@@ -107,7 +106,6 @@ RUN zypper in --force-resolution -y \
     wireless-tools \
     wpa_supplicant \
     && zypper cc
-COPY rpi/bootargs.cfg /etc/cos/bootargs.cfg
 COPY rpi/config.txt /boot/config.txt
 
 FROM rpicommon as rpi3
