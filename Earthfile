@@ -491,8 +491,10 @@ uki-artifacts:
     FROM +base-image --BUILD_INITRD=false
     RUN /usr/bin/immucore version
     RUN ln -s /usr/bin/immucore /init
+    RUN mkdir -p /oem # be able to mount oem under here if found
+    RUN mkdir -p /efi # mount the esp under here if found
     RUN find . \( -path ./sys -prune -o -path ./run -prune -o -path ./dev -prune -o -path ./tmp -prune -o -path ./proc -prune \) -o -print | cpio -R root:root -H newc -o | gzip -2 > /tmp/initramfs.cpio.gz
-    RUN echo "console=tty1 console=ttyS0 net.ifnames=1 rd.immucore.debug rd.immucore.uki selinux=0" > /tmp/Cmdline
+    RUN echo "console=tty1 console=ttyS0 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.debug rd.immucore.uki selinux=0" > /tmp/Cmdline
     RUN basename $(ls /boot/vmlinuz-* |grep -v rescue | head -n1)| sed --expression "s/vmlinuz-//g" > /tmp/Uname
     SAVE ARTIFACT /boot/vmlinuz Kernel
     SAVE ARTIFACT /etc/os-release Osrelease
@@ -541,15 +543,15 @@ uki-signed:
     # Platform key
     RUN openssl req -new -x509 -subj "/CN=Kairos PK/" -days 3650 -nodes -newkey rsa:2048 -sha256 -keyout PK.key -out PK.crt
     # CER keys are for FW install
-    RUN openssl x509 -in PK.crt -out PK.cer -outform DER
+    RUN openssl x509 -in PK.crt -out PK.auth -outform DER
     # Key exchange
     RUN openssl req -new -x509 -subj "/CN=Kairos KEK/" -days 3650 -nodes -newkey rsa:2048 -sha256 -keyout KEK.key -out KEK.crt
     # CER keys are for FW install
-    RUN openssl x509 -in KEK.crt -out KEK.cer -outform DER
+    RUN openssl x509 -in KEK.crt -out KEK.auth -outform DER
     # Signature DB
     RUN openssl req -new -x509 -subj "/CN=Kairos DB/" -days 3650 -nodes -newkey rsa:2048 -sha256 -keyout DB.key -out DB.crt
     # CER keys are for FW install
-    RUN openssl x509 -in DB.crt -out DB.cer -outform DER
+    RUN openssl x509 -in DB.crt -out DB.auth -outform DER
     COPY +uki/uki.efi uki.efi
     COPY +uki/Uname Uname
     ARG KVERSION=$(cat Uname)
@@ -564,13 +566,13 @@ uki-signed:
     SAVE ARTIFACT /boot/efi/EFI/fedora/mmx64.efi MokManager.efi
     SAVE ARTIFACT PK.key PK.key AS LOCAL build/PK.key
     SAVE ARTIFACT PK.crt PK.crt AS LOCAL build/PK.crt
-    SAVE ARTIFACT PK.cer PK.cer AS LOCAL build/PK.cer
+    SAVE ARTIFACT PK.auth PK.auth AS LOCAL build/PK.auth
     SAVE ARTIFACT KEK.key KEK.key AS LOCAL build/KEK.key
     SAVE ARTIFACT KEK.crt KEK.crt AS LOCAL build/KEK.crt
-    SAVE ARTIFACT KEK.cer KEK.cer AS LOCAL build/KEK.cer
+    SAVE ARTIFACT KEK.auth KEK.auth AS LOCAL build/KEK.auth
     SAVE ARTIFACT DB.key DB.key AS LOCAL build/DB.key
     SAVE ARTIFACT DB.crt DB.crt AS LOCAL build/DB.crt
-    SAVE ARTIFACT DB.cer DB.cer AS LOCAL  build/DB.cer
+    SAVE ARTIFACT DB.auth DB.auth AS LOCAL  build/DB.auth
     SAVE ARTIFACT uki.signed.efi uki.efi AS LOCAL build/$ISO_NAME.signed-$KVERSION.efi
 
 # This target will prepare a disk.img ready with the uki artifact on it for qemu. Just attach it to qemu and mark you vm to boot from that disk
@@ -583,13 +585,13 @@ prepare-uki-disk-image:
         COPY +uki-signed/uki.efi .
         COPY +uki-signed/PK.key .
         COPY +uki-signed/PK.crt .
-        COPY +uki-signed/PK.cer .
+        COPY +uki-signed/PK.auth .
         COPY +uki-signed/KEK.key .
         COPY +uki-signed/KEK.crt .
-        COPY +uki-signed/KEK.cer .
+        COPY +uki-signed/KEK.auth .
         COPY +uki-signed/DB.key .
         COPY +uki-signed/DB.crt .
-        COPY +uki-signed/DB.cer .
+        COPY +uki-signed/DB.auth .
         COPY +uki-signed/MokManager.efi .
     ELSE
         COPY +uki/uki.efi .
@@ -602,13 +604,13 @@ prepare-uki-disk-image:
     IF [ "$SIGNED_EFI" = "true" ]
         RUN mcopy -i disk.img PK.key ::/EFI/BOOT/PK.key
         RUN mcopy -i disk.img PK.crt ::/EFI/BOOT/PK.crt
-        RUN mcopy -i disk.img PK.cer ::/EFI/BOOT/PK.cer
+        RUN mcopy -i disk.img PK.cer ::/EFI/BOOT/PK.auth
         RUN mcopy -i disk.img KEK.key ::/EFI/BOOT/KEK.key
         RUN mcopy -i disk.img KEK.crt ::/EFI/BOOT/KEK.crt
-        RUN mcopy -i disk.img KEK.cer ::/EFI/BOOT/KEK.cer
+        RUN mcopy -i disk.img KEK.cer ::/EFI/BOOT/KEK.auth
         RUN mcopy -i disk.img DB.key ::/EFI/BOOT/DB.key
         RUN mcopy -i disk.img DB.crt ::/EFI/BOOT/DB.crt
-        RUN mcopy -i disk.img DB.cer ::/EFI/BOOT/DB.cer
+        RUN mcopy -i disk.img DB.cer ::/EFI/BOOT/DB.auth
         RUN mcopy -i disk.img MokManager.efi ::/EFI/BOOT/mmx64.efi
     END
     RUN mdir -i disk.img ::/EFI/BOOT
@@ -642,16 +644,40 @@ iso-uki:
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
-    COPY +uki/uki.efi /build/uki.efi
+    COPY +uki-signed/uki.efi .
+    COPY +uki-signed/PK.auth .
+    COPY +uki-signed/KEK.auth .
+    COPY +uki-signed/DB.auth .
+    COPY +uki-signed/MokManager.efi .
+    # Set the name for kairos manually as otherwise it picks it from the os-release automatically
+    RUN printf "title Kairos ${FLAVOR} ${VERSION}\nefi /EFI/kairos/kairos.efi" > kairos.conf
+    RUN printf "default  kairos.conf" > loader.conf
     RUN mkdir -p /build/efi
-    # TODO: Create the img size based ont eh actual efi size!
+    # TODO: Create the img size based on the actual efi size!
     RUN dd if=/dev/zero of=/build/efi/efiboot.img bs=1G count=1
-    RUN mkfs.msdos -F 32 -n 'EFIBOOTISO' /build/efi/efiboot.img
+    RUN mkfs.msdos -F 32 /build/efi/efiboot.img
     RUN mmd -i /build/efi/efiboot.img ::EFI
     RUN mmd -i /build/efi/efiboot.img ::EFI/BOOT
+    RUN mmd -i /build/efi/efiboot.img ::EFI/kairos
+    RUN mmd -i /build/efi/efiboot.img ::EFI/tools
+    RUN mmd -i /build/efi/efiboot.img ::loader
+    RUN mmd -i /build/efi/efiboot.img ::loader/entries
+    RUN mmd -i /build/efi/efiboot.img ::loader/keys
+    RUN mmd -i /build/efi/efiboot.img ::loader/keys/kairos
+    # Copy keys, not sure which ones lol
+    RUN mcopy -i /build/efi/efiboot.img /build/PK.auth ::loader/keys/kairos/PK.auth
+    RUN mcopy -i /build/efi/efiboot.img /build/KEK.auth ::loader/keys/kairos/KEK.auth
+    RUN mcopy -i /build/efi/efiboot.img /build/DB.auth ::loader/keys/kairos/DB.auth
+    # Copy kairos efi. This dir will make system-boot autosearch and add to entries automatically
+    # /EFI/Linux/
+    # but here we do it by using systemd-boot
+    RUN mcopy -i /build/efi/efiboot.img /build/kairos.conf ::loader/entries/kairos.conf
+    RUN mcopy -i /build/efi/efiboot.img /build/uki.efi ::EFI/kairos/kairos.EFI
+    # systemd-boot as bootloader
+    RUN mcopy -i /build/efi/efiboot.img /build/loader.conf ::loader/loader.conf
     # TODO: TARGETARCH should change the output name to BOOTAA64.EFI in arm64!
-    RUN mcopy -i /build/efi/efiboot.img /build/uki.efi ::EFI/BOOT/BOOTX64.EFI
-    RUN xorriso -as mkisofs -V 'EFI_ISO_BOOT' -e efiboot.img -no-emul-boot -o /build/$ISO_NAME.iso /build/efi/
+    RUN mcopy -i /build/efi/efiboot.img /usr/lib/systemd/boot/efi/systemd-bootx64.efi ::EFI/BOOT/BOOTX64.EFI
+    RUN xorriso -as mkisofs -V 'UKI_ISO_INSTALL' -e efiboot.img -no-emul-boot -o /build/$ISO_NAME.iso /build/efi/
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
 
 # This target builds an iso using a remote docker image as rootfs instead of building the whole rootfs
