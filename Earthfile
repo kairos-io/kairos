@@ -477,7 +477,6 @@ base-image:
     # luet cleanup
     RUN luet cleanup
     RUN rm -rf /var/luet
-    RUN rm -rf /var/cache
 
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
