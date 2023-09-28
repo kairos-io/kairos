@@ -178,13 +178,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-base \
     qemu-guest-agent \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-COPY debian/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM ${TARGETARCH}-${FLAVOR} AS rpicommon
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-COPY rpi/bootargs.cfg /etc/cos/bootargs.cfg
 COPY rpi/config.txt /boot/config.txt
 
 FROM rpicommon AS ubuntu-20-lts-rpi
@@ -243,5 +241,4 @@ RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 RUN systemctl enable systemd-networkd
 RUN systemctl enable ssh
 
-# Clear cache
-RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+RUN journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname

@@ -155,5 +155,8 @@ RUN rm -rf /boot/initramfs-*
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
+# Symlink kernel HMAC
+RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && ln -sf ."${kernel#/boot/}".hmac /boot/.vmlinuz.hmac
+
 # Clear cache
 RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname

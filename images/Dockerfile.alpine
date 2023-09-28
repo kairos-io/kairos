@@ -94,10 +94,8 @@ RUN apk --no-cache add  \
       bridge \
       grub-bios \
       rbd-nbd
-COPY alpine/bootargs.cfg /etc/cos/bootargs.cfg
 
 FROM common as rpicommon
-COPY rpi/bootargs.cfg /etc/cos/bootargs.cfg
 COPY rpi/config.txt /boot/config.txt
 
 FROM rpicommon AS rpi3

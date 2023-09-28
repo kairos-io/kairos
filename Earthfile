@@ -33,7 +33,7 @@ ARG GO_VERSION=1.20
 # renovate: datasource=docker depName=hadolint/hadolint versioning=docker
 ARG HADOLINT_VERSION=2.12.0-alpine
 # renovate: datasource=docker depName=renovate/renovate versioning=docker
-ARG RENOVATE_VERSION=36
+ARG RENOVATE_VERSION=37
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
 
@@ -275,22 +275,9 @@ framework:
 
     # Copy bootargs.cfg into the final framework as its needed to boot if its not there
     IF [ ! -f /framework/etc/cos/bootargs.cfg ]
-        IF [[ "$FLAVOR" =~ ^alpine* ]]
-            COPY ./images/alpine/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
-            COPY ./images/nvidia/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]] && [[ ! "$FLAVOR" =~ -rpi$ ]]
-            COPY ./images/debian/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ ^opensuse-leap$ ]] || [[ "$FLAVOR" =~ ^opensuse-tumbleweed$ ]] # Be specific so it doesnt match the arm-rpi flavors
-            COPY ./images/opensuse/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ ^rockylinux* ]] || [[ "$FLAVOR" =~ ^fedora* ]] || [[ "$FLAVOR" =~ ^almalinux* ]]
-            COPY ./images/redhat/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        ELSE IF [[ "$FLAVOR" =~ -rpi$ ]]
-            COPY ./images/rpi/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        COPY ./images/bootargs.cfg /framework/etc/cos/bootargs.cfg
+        IF [[ "$FLAVOR" =~ -rpi$ ]]
             COPY ./images/rpi/config.txt /framework/boot/config.txt
-        ELSE IF [[ "$FLAVOR" =~ ^fips-systemd* ]]
-            # Use a generic one like redhat which has selinux disabled so it can be used on all flavors??
-            COPY ./images/redhat/bootargs.cfg /framework/etc/cos/bootargs.cfg
         END
     END
 
@@ -490,7 +477,6 @@ base-image:
     # luet cleanup
     RUN luet cleanup
     RUN rm -rf /var/luet
-    RUN rm -rf /var/cache
 
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
