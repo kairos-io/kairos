@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -103,6 +104,7 @@ func gatherLogs(vm VM) {
 			"/run/immucore/immucore.log",
 			"/run/immucore/initramfs_stage.log",
 			"/run/immucore/rootfs_stage.log",
+			"/tmp/ovmf_debug.log",
 		})
 }
 
@@ -191,22 +193,22 @@ func startVM() (context.Context, VM) {
 		func(m *types.MachineConfig) error {
 			FW := os.Getenv("FIRMWARE")
 			if FW != "" {
-				m.Args = append(m.Args,
-					"-bios", FW)
+				getwd, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				m.Args = append(m.Args, "-drive",
+					fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
+				)
+
+				// Set custom vars file for efi config so we boot first from disk then from DVD
+				m.Args = append(m.Args, "-drive",
+					fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.fd")),
+				)
+				// Needed to be set for secureboot!
+				m.Args = append(m.Args, "-machine", "q35,smm=on")
 			}
 
-			return nil
-		},
-		// UKI boot
-		func(m *types.MachineConfig) error {
-			drive := os.Getenv("UKI_DRIVE")
-			// UKI drive needs to be set with bootindex=0 to be able to boot from that disk directly
-			// Otherwise it won't boot
-			if drive != "" {
-				m.Args = append(m.Args,
-					"-drive", fmt.Sprintf("file=%s,if=none,index=0,media=disk,format=raw,id=disk1", drive),
-					"-device", "virtio-blk-pci,drive=disk1,bootindex=0")
-			}
 			return nil
 		},
 		types.WithDataSource(os.Getenv("DATASOURCE")),
