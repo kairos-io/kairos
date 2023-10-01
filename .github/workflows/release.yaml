@@ -25,7 +25,7 @@ jobs:
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
+          echo "matrix={\"include\": $content }" >> $GITHUB_OUTPUT
 
   # The matrix for standard (provider) images
   get-standard-matrix:
@@ -52,7 +52,7 @@ jobs:
           content="${content//$'\r'/'%0D'}"
 
           # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
+          echo "matrix={\"include\": $content }" >> $GITHUB_OUTPUT
 
   get-framework-matrix:
     runs-on: ubuntu-latest
@@ -70,7 +70,7 @@ jobs:
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
+          echo "matrix={\"include\": $content }" >> $GITHUB_OUTPUT
 
   build-framework:
     runs-on: kvm
