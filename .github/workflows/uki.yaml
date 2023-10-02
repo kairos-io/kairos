@@ -41,7 +41,7 @@ jobs:
           # Do fedora as its the smaller uki possible
           # Use immmucore master as it has patches not released for uki
           # Use kairos-agent uki_operations branch, which provides ongoing uki
-          earthly +iso-uki --FLAVOR=fedora --KAIROS_AGENT_DEV=true --KAIROS_AGENT_DEV_BRANCH=uki_operations --IMMUCORE_DEV=true --IMMUCORE_DEV_BRANCH=master
+          earthly +iso-uki --FLAVOR=opensuse-leap --KAIROS_AGENT_DEV=true --KAIROS_AGENT_DEV_BRANCH=uki_operations --IMMUCORE_DEV=true --IMMUCORE_DEV_BRANCH=master
       - name: Run tests
         env:
           USE_QEMU: true
@@ -50,7 +50,7 @@ jobs:
           CPUS: 2
           FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
         run: |
-          export ISO=$(ls $PWD/build/kairos-core-*fedora*.iso)
+          export ISO=$(ls $PWD/build/kairos-core-*opensuse-leap*.iso)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
       - uses: actions/upload-artifact@v3
