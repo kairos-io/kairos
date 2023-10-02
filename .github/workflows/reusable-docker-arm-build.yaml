@@ -143,7 +143,7 @@ jobs:
           # in-toto attestation
           cosign attest --type spdx --predicate $spdx $image_ref
       - name: Upload results
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor != 'ubuntu-20-lts-arm-nvidia-jetson-agx-orin' }}
         uses: actions/upload-artifact@v3
         with:
           name: ${{ inputs.flavor }}-image
