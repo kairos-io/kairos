@@ -48,8 +48,6 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			Expect(installOutput).Should(ContainSubstring("Running after-install hook"))
 			vm.Sudo("sync")
 
-			err = vm.DetachCD()
-			Expect(err).ToNot(HaveOccurred())
 			By("Rebooting")
 			vm.Reboot()
 		})
