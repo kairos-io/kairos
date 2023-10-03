@@ -13,9 +13,6 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 	var vm VM
 
 	BeforeAll(func() {
-		if os.Getenv("UKI_DRIVE") == "" {
-			Fail("UKI_DRIVE environment variable set to a UKI disk is needed for UKI test")
-		}
 		if os.Getenv("FIRMWARE") == "" {
 			Fail("FIRMWARE environment variable set to a EFI firmware is needed for UKI test")
 		}
@@ -23,7 +20,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 
 	BeforeEach(func() {
 		_, vm = startVM()
-		vm.EventuallyConnects(1200)
+		vm.EventuallyConnects(300)
 	})
 
 	AfterEach(func() {
@@ -35,6 +32,49 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 	It("passes checks", func() {
+		By("Checking SecureBoot is enabled", func() {
+			out, err := vm.Sudo(`dmesg|grep -i secure| grep -i enabled`)
+			Expect(err).ToNot(HaveOccurred(), out)
+		})
+		By("Checking the boot mode (install)", func() {
+			out, err := vm.Sudo("stat /run/cos/uki_install_mode")
+			Expect(err).ToNot(HaveOccurred(), out)
+		})
+		By("Checking OEM/PERSISTENT are not mounted", func() {
+			out, err := vm.Sudo("mount")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_OEM"))
+			Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
+		})
+		By("installing kairos", func() {
+			out, err := vm.Sudo(`kairos-agent --debug uki install --device /dev/vda`)
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).Should(ContainSubstring("Running after-install hook"))
+			vm.Sudo("sync")
+		})
+
+		By("Ejecting Cdrom", func() {
+			vm.DetachCD()
+		})
+
+		By("waiting for VM to reboot", func() {
+			vm.Reboot()
+			vm.EventuallyConnects(1200)
+		})
+		By("Checking the boot mode (boot)", func() {
+			out, err := vm.Sudo("stat /run/cos/uki_boot_mode")
+			Expect(err).ToNot(HaveOccurred(), out)
+		})
+		By("Checking SecureBoot is enabled", func() {
+			out, err := vm.Sudo(`dmesg|grep -i secure| grep -i enabled`)
+			Expect(err).ToNot(HaveOccurred(), out)
+		})
+		By("Checking OEM/PERSISTENT are mounted", func() {
+			out, err := vm.Sudo("df -h") // Shows the disk by label which is easier to check
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_OEM"))
+			Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
+		})
 
 		By("checking custom cmdline", func() {
 			out, err := vm.Sudo("cat /proc/cmdline")
@@ -81,7 +121,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		By("checking corresponding state", func() {
 			out, err := vm.Sudo("kairos-agent state")
 			Expect(err).ToNot(HaveOccurred())
-			// TODO: make agetn report uki_mode or something?
+			// TODO: make agent report uki_mode or something?
 			Expect(out).To(ContainSubstring("boot: unknown"))
 			currentVersion, err := vm.Sudo(getVersionCmd)
 			Expect(err).ToNot(HaveOccurred(), currentVersion)

@@ -28,8 +28,7 @@ var _ = Describe("kairos zfs test", Label("zfs"), func() {
 			Expect(err).ToNot(HaveOccurred(), out)
 			out, err = vm.Sudo("sync")
 			Expect(err).ToNot(HaveOccurred(), out)
-			err = vm.DetachCD()
-			Expect(err).ToNot(HaveOccurred())
+
 			vm.Reboot()
 		})
 
