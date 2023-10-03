@@ -40,8 +40,8 @@ jobs:
         run: |
           # Do fedora as its the smaller uki possible
           # Use immmucore master as it has patches not released for uki
-          # Use kairos-agent uki_operations branch, which provides ongoing uki
-          earthly +iso-uki --FLAVOR=opensuse-leap --KAIROS_AGENT_DEV=true --KAIROS_AGENT_DEV_BRANCH=uki_operations --IMMUCORE_DEV=true --IMMUCORE_DEV_BRANCH=master
+          # Use kairos-agent main branch as it has patches not released for uki
+          earthly +iso-uki --FLAVOR=opensuse-leap --KAIROS_AGENT_DEV=true --KAIROS_AGENT_DEV_BRANCH=main --IMMUCORE_DEV=true --IMMUCORE_DEV_BRANCH=master
       - name: Run tests
         env:
           USE_QEMU: true
