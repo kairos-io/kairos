@@ -26,6 +26,7 @@ jobs:
             cat .github/flavors.json
             echo EOF
           } >> $GITHUB_OUTPUT
+          echo $GITHUB_OUTPUT
   framework:
     uses: ./.github/workflows/reusable-build-framework-flavor.yaml
     secrets: inherit
