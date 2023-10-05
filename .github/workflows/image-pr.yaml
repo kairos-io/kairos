@@ -23,9 +23,9 @@ jobs:
           content=`cat .github/flavors.json`
           # the following lines are only required for multi line json
           # the following lines are only required for multi line json
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
+          # content="${content//'%'/'%25'}"
+          # content="${content//$'\n'/'%0A'}"
+          # content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           # end of optional handling for multi line json
           echo "matrix={\"include\": $content }" >> $GITHUB_OUTPUT
