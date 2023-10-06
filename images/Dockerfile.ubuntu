@@ -21,16 +21,13 @@ ARG HWE=""
 ###############################################################
 ####                     Upstream Images                   ####
 ###############################################################
-FROM ubuntu:rolling AS ubuntu-upstream
-
-FROM ubuntu:20.04 AS ubuntu-20-lts-upstream
-
-FROM ubuntu:22.04 AS ubuntu-22-lts-upstream
+ARG BASEIMAGE
+FROM ${BASEIMAGE} AS base
 
 ###############################################################
 ####                Pre-Process Common to All              ####
 ###############################################################
-FROM ${FLAVOR}-upstream AS common
+FROM base AS common
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
