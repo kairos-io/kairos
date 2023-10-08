@@ -27,6 +27,12 @@ jobs:
             echo EOF
           } >> $GITHUB_OUTPUT
           echo $GITHUB_OUTPUT
+  foo:
+    secrets: inherit
+    needs:
+      - get-framework-matrix
+    steps:
+    - run: echo ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
   framework:
     uses: ./.github/workflows/reusable-build-framework-flavor.yaml
     secrets: inherit
