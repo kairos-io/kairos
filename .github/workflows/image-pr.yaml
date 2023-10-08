@@ -21,11 +21,7 @@ jobs:
     - id: set-matrix
           # echo "matrix={\"include\": $content }" >> $GITHUB_OUTPUT
       run: |
-          {
-            echo 'JSON_RESPONSE<<EOF'
-            cat .github/flavors.json
-            echo EOF
-          } >> $GITHUB_OUTPUT
+          cat .github/flavors.json >> $GITHUB_OUTPUT
           echo $GITHUB_OUTPUT
   foo:
     runs-on: ubuntu-latest
