@@ -32,7 +32,7 @@ jobs:
     needs:
       - get-framework-matrix
     steps:
-    - run: echo ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
+    - run: echo ${{needs.get-framework-matrix.outputs.matrix}}
   framework:
     uses: ./.github/workflows/reusable-build-framework-flavor.yaml
     secrets: inherit
