@@ -20,10 +20,10 @@ jobs:
         git fetch --prune --unshallow
     - id: set-matrix
           # echo "matrix={\"include\": $content }" >> $GITHUB_OUTPUT
-      run: |
-          cat .github/flavors.json >> $GITHUB_OUTPUT
           # cat .github/flavors.json >> $GITHUB_OUTPUT
           # echo $GITHUB_OUTPUT
+      run: |
+          echo `cat .github/flavors.json`
   foo:
     runs-on: ubuntu-latest
     needs:
