@@ -24,7 +24,7 @@ jobs:
           # echo $GITHUB_OUTPUT
       run: |
           {
-            "matrix"=`cat .github/flavors.json`
+            echo "matrix"=`cat .github/flavors.json`
           } >> "$GITHUB_OUTPUT"
   foo:
     runs-on: ubuntu-latest
