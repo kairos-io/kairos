@@ -23,7 +23,7 @@ jobs:
           # cat .github/flavors.json >> $GITHUB_OUTPUT
           # echo $GITHUB_OUTPUT
       run: |
-          `cat .github/flavors.json` >> $GITHUB_OUTPUT
+          echo `cat .github/flavors.json` >> $GITHUB_OUTPUT
   foo:
     runs-on: ubuntu-latest
     needs:
