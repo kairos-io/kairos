@@ -27,8 +27,10 @@ jobs:
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
-          echo $content >> $GITHUB_OUTPUT
+          content2=echo "matrix={\"include\": $content }"
+          echo $content2 >> $GITHUB_OUTPUT
           echo $content
+          echo $content2
   foo:
     runs-on: ubuntu-latest
     needs:
