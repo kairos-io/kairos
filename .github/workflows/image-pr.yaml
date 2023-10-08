@@ -28,7 +28,7 @@ jobs:
           } >> $GITHUB_OUTPUT
           echo $GITHUB_OUTPUT
   foo:
-    secrets: inherit
+    runs-on: ubuntu-latest
     needs:
       - get-framework-matrix
     steps:
