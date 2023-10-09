@@ -1,5 +1,8 @@
 name: Build and test images
 on:
+  pull_request:
+    paths:
+      - '**'
   push:
     branches:
       - master
@@ -12,7 +15,7 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  get-matrix:
+  get-core-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -23,7 +26,7 @@ jobs:
           sudo apt update && sudo apt install -y jq
       - id: set-matrix
         run: |
-          content=`cat .github/flavors.json  | jq 'map(select(.frameworkonly != "true"))'`
+          content=`cat .github/flavors.json  | jq 'map(select(.variant == "core"))'`
           # the following lines are only required for multi line json
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
@@ -37,11 +40,17 @@ jobs:
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      base_image: ${{ matrix.baseImage }}
+      model: ${{ matrix.model }}
+      variant: ${{ matrix.variant }}
+      arch: ${{ matrix.arch }}
     needs:
-      - get-matrix
+      - get-core-matrix
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
   framework:
     uses: ./.github/workflows/reusable-build-framework-flavor.yaml
     secrets: inherit
@@ -57,17 +66,20 @@ jobs:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
     strategy:
       fail-fast: true
       matrix:
         include:
-          - flavor: opensuse-leap
+          - flavor: opensuse
+            flavorRelease: leap-15.5
   zfs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
     strategy:
@@ -75,10 +87,12 @@ jobs:
       matrix:
         include:
           - flavor: "ubuntu"
+            flavorRelease: "23.04"
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
     strategy:
@@ -86,27 +100,37 @@ jobs:
       matrix:
         include:
           - flavor: "alpine"
-          - flavor: "opensuse-leap"
-          - flavor: "opensuse-tumbleweed"
+            flavorRelease: "3.18"
+          - flavor: "opensuse"
+            flavorRelease: "leap-15.5"
+          - flavor: "opensuse"
+            flavorRelease: "tumbleweed"
           - flavor: "ubuntu"
+            flavorRelease: "23.04"
           - flavor: "debian"
-          - flavor: "ubuntu-20-lts"
+            flavorRelease: "testing"
+          - flavor: "ubuntu"
+            flavorRelease: "20.04"
           - flavor: "ubuntu-22-lts"
+            flavorRelease: "22.04"
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
     strategy:
       fail-fast: false
       matrix:
         include:
-          - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
+          - flavor: opensuse # Kubo test needs systemd version 252+ which atm is not available in Leap
+            flavorRelease: opensuse
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
     strategy:
@@ -114,11 +138,26 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-          - flavor: opensuse-leap
+            flavorRelease: "3.18"
+            family: alpine
+            base_image: alpine:3.18
+            model: generic
+            variant: core
+          - flavor: opensuse
+            flavorRelease: leap-15.5
+            family: opensuse-leap
+            base_image: opensuse/leap:15.5
+            model: generic
+            variant: core
   netboot:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      model: ${{ matrix.model }}
+      variant: ${{ matrix.variant }}
+      base_image: ${{ matrix.baseImage }}
     needs:
       - core
     strategy:
@@ -126,13 +165,28 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-          - flavor: opensuse-leap
+            flavorRelease: "3.18"
+            family: alpine
+            variant: core
+            model: generic
+            baseImage: alpine:3.18
+          - flavor: opensuse
+            flavorRelease: leap-15.5
+            family: opensuse-leap
+            variant: core
+            model: generic
+            baseImage: opensuse/leap:15.5
           - flavor: ubuntu
+            flavorRelease: "23.04"
+            family: ubuntu
+            variant: core
+            model: generic
+            baseImage: ubuntu/23.04
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
-
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
     strategy:
@@ -140,11 +194,14 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-          - flavor: opensuse-leap
+            flavorRelease: "3.18"
+          - flavor: opensuse
+            flavorRelease: leap-15.5
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
     - core
     strategy:
@@ -152,14 +209,14 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-          - flavor: opensuse-leap
-          # - flavor: "ubuntu"
-          # - flavor: "ubuntu"
-          # - flavor: "ubuntu"
+            flavorRelease: "3.18"
+          - flavor: opensuse
+            flavorRelease: leap-15.5
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
       label: ${{ matrix.label }}
     needs:
       - core
@@ -173,21 +230,37 @@ jobs:
           - "remote-https-pinned"
           - "remote-https-bad-cert"
         flavor:
-          - "opensuse-leap"
+          - "opensuse"
+        flavorRelease:
+          - "leap-15.5"
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      base_image: ${{ matrix.baseImage }}
+      variant: standard
+      model: generic
+      arch: amd64
     strategy:
       fail-fast: false
       matrix:
-        flavor:
-          - "opensuse-leap"
-          - "alpine-opensuse-leap"
+        include:
+          - flavor: opensuse
+            flavorRelease: leap-15.5
+            family: opensuse-leap
+            baseImage: opensuse/leap:15.5
+          - flavor: alpine
+            flavorRelease: "3.18"
+            family: alpine
+            baseImage: alpine:3.18
+
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
       label: ${{ matrix.label }}
     needs:
       - standard
@@ -195,32 +268,42 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        label:
-          - "provider-qrcode-install"
-          - "provider-upgrade"
-          - "provider-decentralized-k8s"
-          - "provider-upgrade-k8s"
-        flavor:
-          - "opensuse-leap"
-          - "alpine-opensuse-leap"
-        exclude: # looks like only the k8s stuff is tested on both flavors
-          - label: "provider-qrcode-install"
-            flavor: "alpine-opensuse-leap"
-          - label: "provider-upgrade"
-            flavor: "alpine-opensuse-leap"
+        include:
+          - flavor: "opensuse"
+            flavorRelease: "leap/15.5"
+            label: "provider-qrcode-install"
+          - flavor: "opensuse"
+            flavorRelease: "leap/15.5"
+            label: "provider-upgrade"
+          - flavor: "opensuse"
+            flavorRelease: "leap/15.5"
+            label: "provider-decentralized-k8s"
+          - flavor: "opensuse"
+            flavorRelease: "leap/15.5"
+            label: "provider-upgrade-k8s"
+          - flavor: "alpine"
+            flavorRelease: "3.18"
+            label: "provider-decentralized-k8s"
+          - flavor: "alpine"
+            flavorRelease: "3.18"
+            label: "provider-upgrade-k8s"
   standard-upgrade-latest:
     uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - standard
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix:
-        flavor:
-          - "opensuse-leap"
-          - "alpine-opensuse-leap"
+        include:
+          - flavor: "opensuse"
+            flavorRelease: "leap-15.5"
+          - flavor: "alpine"
+            flavorRelease: "3.18"
+
   test-uki:
     runs-on: kvm
     steps:

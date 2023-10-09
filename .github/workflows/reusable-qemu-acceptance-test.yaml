@@ -6,6 +6,9 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
       port:
         required: false
         type: string
@@ -53,7 +56,7 @@ jobs:
       id: iso
       uses: actions/download-artifact@v3
       with:
-        name: kairos-${{ inputs.flavor }}.iso.zip
+        name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
     - name: Display structure of downloaded files
       run: ls -las .
     - name: Install earthly
@@ -66,4 +69,4 @@ jobs:
         sudo iptables -I INPUT -s 169.254.169.254 -j DROP
         sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
     - run: |
-            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls kairos-core-*${{ inputs.flavor }}*.iso) --FLAVOR=${{ inputs.flavor }} --SSH_PORT=${{ inputs.port }}
+            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *${{ inputs.flavor }}*.iso) --FLAVOR=${{ inputs.flavor }} --SSH_PORT=${{ inputs.port }}

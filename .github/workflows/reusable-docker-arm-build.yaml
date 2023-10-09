@@ -1,5 +1,9 @@
 name: Reusable workflow - docker arm build
 
+# TODO: Merge this workflow with the reusable-build-flavor one
+# The same workflow should be able to build any combination of flavor,
+# model, architecture, etc.
+
 on:
   workflow_call:
     inputs:
@@ -9,7 +13,16 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
+      family:
+        required: true
+        type: string
       model:
+        required: true
+        type: string
+      base_image:
         required: true
         type: string
 
@@ -87,18 +100,16 @@ jobs:
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
-      - name: Shared runner build  🔧
-        if: ${{ inputs.worker != 'fast' }}
-        run: |
-          ./earthly.sh +all-arm --VARIANT=core --MODEL=${{ inputs.model }} \
-            --FLAVOR=${{ inputs.flavor }} \
-            --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
-      - name: fast runner Build  🔧
-        if: ${{ inputs.worker == 'fast' }}
+      - name: Build  🔧
         run: |
           earthly --allow-privileged +all-arm \
-              --VARIANT=core --MODEL=${{ inputs.model }} \
-              --FLAVOR=${{ inputs.flavor }} --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
+              --FAMILY=${{ inputs.family }} \
+              --FLAVOR=${{ inputs.flavor }} \
+              --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
+              --BASE_IMAGE=${{ inputs.base_image }} \
+              --MODEL=${{ inputs.model }} \
+              --VARIANT=core \
+              --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
       - name: Show img sizes
         run: |
           ls -ltra build

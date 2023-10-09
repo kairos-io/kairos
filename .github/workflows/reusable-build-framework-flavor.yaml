@@ -6,6 +6,9 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
 
 jobs:
   build:
@@ -48,6 +51,6 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
+          earthly +build-framework-image --FLAVOR=${FLAVOR} --FLAVOR_RELEASE=${FLAVOR_RELEASE} --VERSION=master
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")

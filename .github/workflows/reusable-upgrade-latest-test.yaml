@@ -6,6 +6,9 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
 
 jobs:
   test:
@@ -51,6 +54,7 @@ jobs:
           # A flag to set the download target as latest release
           # The default value is 'false'
           latest: true
+          # TODO: Until we publish with the new names, what should this be?
           fileName: 'kairos-core-${{ inputs.flavor }}-amd64-generic-v*.iso'
           out-file-path: ""
       - name: Display structure of downloaded files
@@ -67,10 +71,11 @@ jobs:
       - run: |
           # release-downloader globing matches more than one iso. Make sure
           # we use the right one.
+          # TODO: This needs to be adapted after we release with the new artifact names
           ISO=$(ls kairos-core-${{ inputs.flavor }}-amd64-generic-v*.iso | grep -v ipxe)
           earthly +run-qemu-test --PREBUILT_ISO=$ISO \
             --FLAVOR=${{ inputs.flavor }} \
-            --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}:24h \
+            --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
       - uses: actions/upload-artifact@v3
         if: failure()

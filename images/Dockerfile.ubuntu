@@ -3,9 +3,11 @@
 ###############################################################
 # Currently supported flavors are:
 #   - ubuntu
-#   - ubuntu-20-lts
-#   - ubuntu-22-lts
 ARG FLAVOR
+#   - 20.04
+#   - 22.04
+#   - 23.04
+ARG FLAVOR_RELEASE
 # Currently supported models are:
 #   - generic
 #   - rpi4
@@ -15,23 +17,26 @@ ARG MODEL=generic
 # the default value is empty, which means the HWE kernel WILL be installed
 # if you want to disable the HWE kernel, set HWE to "-non-hwe"
 ARG HWE=""
+ARG BASE_IMAGE=ubuntu:23.04
 # TARGETARCH is used to determine the architecture of the image
 # it is already set by Docker so it doesn't need to be defined here
 
 ###############################################################
 ####                     Upstream Images                   ####
 ###############################################################
-FROM ubuntu:rolling AS ubuntu-upstream
+FROM ${BASE_IMAGE} AS ubuntu-23.04-upstream
 
-FROM ubuntu:20.04 AS ubuntu-20-lts-upstream
+FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
 
-FROM ubuntu:22.04 AS ubuntu-22-lts-upstream
+FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
+
 
 ###############################################################
 ####                Pre-Process Common to All              ####
 ###############################################################
-FROM ${FLAVOR}-upstream AS common
+FROM ${FLAVOR}-${FLAVOR_RELEASE}-upstream AS common
 ENV DEBIAN_FRONTEND=noninteractive
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     gnupg \
@@ -126,7 +131,7 @@ RUN apt-get update \
 ###############################################################
 ####            Common to an Arch and Flavor               ####
 ###############################################################
-FROM ${TARGETARCH} AS base-ubuntu-20-lts
+FROM ${TARGETARCH} AS base-ubuntu-20.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     file \
     fuse \
@@ -134,7 +139,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     policykit-1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${TARGETARCH} AS base-ubuntu-22-lts
+FROM ${TARGETARCH} AS base-ubuntu-22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dracut-live \
     firmware-sof-signed \
@@ -143,73 +148,73 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM base-ubuntu-22-lts AS hwe-22-lts
+FROM base-ubuntu-22.04 AS hwe-22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-22.04 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM base-ubuntu-20-lts AS hwe-20-lts
+FROM base-ubuntu-20.04 AS hwe-20.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-20.04 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM hwe-22-lts AS amd64-ubuntu
-FROM hwe-22-lts AS amd64-ubuntu-22-lts
-FROM hwe-20-lts AS amd64-ubuntu-20-lts
+FROM hwe-22.04 AS amd64-ubuntu.23.04
+FROM hwe-22.04 AS amd64-ubuntu-22.04
+FROM hwe-20.04 AS amd64-ubuntu-20.04
 
-FROM base-${FLAVOR} AS amd64-non-hwe
+FROM base-${FLAVOR}-${FLAVOR_RELEASE} AS amd64-non-hwe
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM amd64-non-hwe AS amd64-ubuntu-22-lts-non-hwe
-FROM amd64-non-hwe AS amd64-ubuntu-20-lts-non-hwe
+FROM amd64-non-hwe AS amd64-ubuntu-22.04-non-hwe
+FROM amd64-non-hwe AS amd64-ubuntu-20.04-non-hwe
 
-FROM base-ubuntu-22-lts AS arm64-ubuntu
-FROM base-ubuntu-22-lts AS arm64-ubuntu-22-lts
-FROM base-ubuntu-20-lts AS arm64-ubuntu-20-lts
+FROM base-ubuntu-22.04 AS arm64-ubuntu-23.04
+FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
+FROM base-ubuntu-20.04 AS arm64-ubuntu-20.04
 
 ###############################################################
 ####               Common to a Single Model                ####
 ###############################################################
-FROM ${TARGETARCH}-${FLAVOR}${HWE} AS generic
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}${HWE} AS generic
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-base \
     qemu-guest-agent \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${TARGETARCH}-${FLAVOR} AS rpicommon
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE} AS rpicommon
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY rpi/config.txt /boot/config.txt
 
-FROM rpicommon AS ubuntu-20-lts-rpi
+FROM rpicommon AS ubuntu-20.04-rpi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi2 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM rpicommon AS ubuntu-rpi
+FROM rpicommon AS ubuntu-23.04-rpi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi \
     linux-modules-extra-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM generic AS amd64-ubuntu-generic
-FROM generic AS amd64-ubuntu-22-lts-generic
-FROM generic AS amd64-ubuntu-20-lts-generic
-FROM generic AS arm64-ubuntu-generic
-FROM ubuntu-rpi AS arm64-ubuntu-rpi3
-FROM ubuntu-rpi AS arm64-ubuntu-rpi4
-FROM ubuntu-rpi AS arm64-ubuntu-22-lts-rpi3
-FROM ubuntu-rpi AS arm64-ubuntu-22-lts-rpi4
-FROM ubuntu-20-lts-rpi AS arm64-ubuntu-20-lts-rpi3
-FROM ubuntu-20-lts-rpi AS arm64-ubuntu-20-lts-rpi4
+FROM generic AS amd64-ubuntu-23.04-generic
+FROM generic AS amd64-ubuntu-22.04-generic
+FROM generic AS amd64-ubuntu-20.04-generic
+FROM generic AS arm64-ubuntu-23.04-generic
+FROM ubuntu-23.04-rpi AS arm64-ubuntu-23.04-rpi3
+FROM ubuntu-23.04-rpi AS arm64-ubuntu-23.04-rpi4
+FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi3
+FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi4
+FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi3
+FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi4
 
 ###############################################################
 ####                Common to a Single Flavor              ####
 ###############################################################
-FROM ${TARGETARCH}-${FLAVOR}-${MODEL} AS ubuntu
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-23.04
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     dbus-user-session \
@@ -218,17 +223,17 @@ RUN apt-get update \
     systemd-resolved \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${TARGETARCH}-${FLAVOR}-${MODEL} AS ubuntu-20-lts
-FROM ${TARGETARCH}-${FLAVOR}-${MODEL} AS ubuntu-20-lts-non-hwe
-FROM ${TARGETARCH}-${FLAVOR}-${MODEL} AS ubuntu-22-lts-non-hwe
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-20.04
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-20.04-non-hwe
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-22.04-non-hwe
 
-FROM ubuntu-22-lts-non-hwe AS ubuntu-22-lts
+FROM ubuntu-22.04-non-hwe AS ubuntu-22.04
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     systemd-hwe-hwdb \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${FLAVOR}${HWE} AS all
+FROM ${FLAVOR}-${FLAVOR_RELEASE}${HWE} AS all
 
 ###############################################################
 ####               Post-Process Common to All              ####
@@ -244,3 +249,24 @@ RUN systemctl enable ssh
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
 RUN journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+
+# TODO: Consider installing luet packages here and skipping framework image altogether
+#
+# # Setup luet
+# COPY --from=quay.io/luet/base:latest /usr/bin/luet /usr/bin/luet
+# COPY framework-profile.yaml /etc/luet/luet.yaml
+
+# # Install luet packages
+# RUN luet install -y \
+#   static/grub-config \
+#   dracut/immucore \
+#   system/suc-upgrade \
+#   system/grub2-efi \
+#   static/kairos-overlay-files \
+#   system/kcrypt \
+#   system/kcrypt-challenger \
+#   system/immucore \
+#   system/kairos-agent \
+#   init-svc/systemd \
+#   dracut/network-legacy-compat
+

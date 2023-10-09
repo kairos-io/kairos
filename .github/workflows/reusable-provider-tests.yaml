@@ -6,6 +6,9 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
       label:
         required: true
         type: string
@@ -54,7 +57,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v3
         with:
-          name: kairos-${{ inputs.flavor }}-provider.iso.zip
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
       - name: Run tests
         env:
           USE_QEMU: true
@@ -62,7 +65,7 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}-provider:24h
         run: |
           ls *.iso
           export ISO=$PWD/$(ls *.iso)
@@ -72,6 +75,6 @@ jobs:
       - uses: actions/upload-artifact@v3
         if: failure()
         with:
-          name: ${{ inputs.flavor }}-${{ inputs.label }}-provider-test.logs.zip
+          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.label }}-provider-test.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
