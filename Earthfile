@@ -1,15 +1,9 @@
 VERSION 0.6
 FROM alpine
-ARG VARIANT=core # core, lite, framework
-ARG FLAVOR=opensuse-leap
 ARG BASE_URL=quay.io/kairos
 ARG IMAGE
-ARG MODEL=generic
 ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
 ARG GITHUB_REPO=kairos-io/kairos
-ARG OS_ID=kairos
-ARG OS_REPO=${BASE_URL}/${VARIANT}-${FLAVOR}
-ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
@@ -109,7 +103,9 @@ go-deps-test:
 CONTAINER_IMAGE_VERSION:
   COMMAND
 
-  ARG VERSION
+  ARG --required VERSION
+  ARG --required VARIANT
+  ARG --required FLAVOR
 
   # quay.io doesn't accept "+" in the repo name
   ARG _VERSION=$(echo $VERSION | sed 's/+/-/')
@@ -118,6 +114,9 @@ CONTAINER_IMAGE_VERSION:
     # TODO: This IF block should be deleted as soon as our repository names
     # follow our conventions.
     IF [ "$VARIANT" = "standard" ]
+      # TODO: Should we use the base image as the image name converted somehow?
+      # E.g. when base image is ubuntu:20.04 we use ubuntu-20-04 as a name
+      # or maybe combine the base image and the strategy in one name ??!@
       RUN echo ${BASE_URL}/kairos-${FLAVOR}:${_VERSION} > IMAGE
     ELSE
       RUN echo ${BASE_URL}/${VARIANT}-${FLAVOR}:${_VERSION} > IMAGE
@@ -130,15 +129,18 @@ CONTAINER_IMAGE_VERSION:
 
 OSRELEASE:
     COMMAND
-    ARG OS_ID
-    ARG OS_NAME
-    ARG OS_REPO
-    ARG OS_VERSION
     ARG VARIANT
     ARG FLAVOR
     ARG GITHUB_REPO
     ARG BUG_REPORT_URL
+    ARG BASE_URL
     ARG HOME_URL
+
+    ARG OS_ID=kairos
+    ARG OS_NAME
+    ARG OS_VERSION
+    ARG OS_REPO=${BASE_URL}/${VARIANT}-${FLAVOR}
+    ARG OS_NAME=${OS_ID}-${VARIANT}-${FLAVOR}
 
     COPY +version/VERSION ./
     ARG OS_LABEL=$(cat VERSION)
@@ -302,63 +304,47 @@ build-framework-image:
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FLAVOR}
 
 base-image:
-    ARG MODEL
-    ARG FLAVOR
-    ARG VARIANT
+    ARG --required FLAVOR # The build strategy E.g. "ubuntu-20"
+    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04 
+    ARG --required MODEL
+    ARG --required VARIANT
+
+    ARG TARGETARCH # Earthly built-in (not passed)
     ARG KAIROS_VERSION
     ARG BUILD_INITRD="true"
-    ARG TARGETARCH
     # HWE is used to determine if the HWE kernel should be installed on Ubuntu LTS.
     # The default value is empty, which means the HWE kernel WILL be installed
     # if you want to disable the HWE kernel, set HWE to "-non-hwe"
     ARG HWE
 
-    IF [ "$BASE_IMAGE" = "" ]
-        IF [ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]
-          ARG UPSTREAM_IMAGE=ubuntu:20.04
-          ARG DISTRO=ubuntu
-        ELSE IF [ "$FLAVOR" =~ ^ubuntu-20-lts* ] 
-          ARG UPSTREAM_IMAGE=ubuntu:20.04
-          ARG DISTRO=ubuntu
-        ELSE IF [ "$FLAVOR" =~ ^ubuntu-22-lts* ]
-          ARG UPSTREAM_IMAGE=ubuntu:22.04
-          ARG DISTRO=ubuntu
-        ELSE IF [ "$FLAVOR" =~ ^ubuntu* ]
-          ARG UPSTREAM_IMAGE=ubuntu:rolling
-          ARG DISTRO=ubuntu
-        ELSE IF [ "$FLAVOR" = "opensuse-leap" ]
-          ARG UPSTREAM_IMAGE=opensuse/leap:15.5
-          ARG DISTRO=opensuse
-        ELSE IF [ "$FLAVOR" = "opensuse-tumbleweed" ]
-          ARG UPSTREAM_IMAGE=opensuse/tumbleweed
-          ARG DISTRO=opensuse
-        ELSE IF [ "$FLAVOR" = "alpine-ubuntu" ]
-          ARG UPSTREAM_IMAGE=alpine
-          ARG DISTRO=alpine
-        ELSE IF [ "$FLAVOR" = "alpine-opensuse-leap" ]
-          ARG UPSTREAM_IMAGE=alpine
-          ARG DISTRO=alpine
-        ELSE IF [ "$FLAVOR" = "fedora" ]
-          ARG UPSTREAM_IMAGE=fedora:latest
-          ARG DISTRO=fedora
-        ELSE IF [ "$FLAVOR" = "debian" ] && [ "$TARGETARCH" = "amd64" ]
-          ARG UPSTREAM_IMAGE=debian:testing
-          ARG DISTRO=debian
-        ELSE IF [ "$FLAVOR" = "debian" ] && [ "$TARGETARCH" = "arm64" ]
-          ARG UPSTREAM_IMAGE=debian:bookworm-slim
-          ARG DISTRO=debian
-        ELSE IF [ "$FLAVOR" = "rockylinux" ]
-          ARG UPSTREAM_IMAGE=rockylinux:9
-          ARG DISTRO=rockylinux
-        ELSE IF [ "$FLAVOR" = "almalinux" ]
-          ARG UPSTREAM_IMAGE=almalinux:latest
-          ARG DISTRO=almalinux
-        END
-
-        FROM DOCKERFILE --build-arg BASE_IMAGE=$UPSTREAM_IMAGE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR --build-arg HWE=$HWE -f images/Dockerfile.$DISTRO images/
-    ELSE
-        FROM $BASE_IMAGE
+    # TODO: Come up with a rule one which dockerfile a strategy belongs to so
+    # that we simplify the selection of the dockerfile.
+    IF [ "$MODEL" = "nvidia-jetson-agx-orin" ]
+      ARG DOCKERFILE=ubuntu-20-lts-arm-nvidia-jetson-agx-orin
+    ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+      ARG DOCKERFILE=ubuntu
+    ELSE IF [ "$FLAVOR" = "opensuse-leap" ]
+      ARG DOCKERFILE=opensuse-leap
+    ELSE IF [ "$FLAVOR" = "opensuse-tumbleweed" ]
+      ARG DOCKERFILE=opensuse-tumbleweed
+    ELSE IF [[ "$FLAVOR" =~ ^alpine* ]]
+      ARG DOCKERFILE=alpine
+    ELSE IF [ "$FLAVOR" = "fedora" ]
+      ARG DOCKERFILE=fedora
+    ELSE IF [ "$FLAVOR" = "debian" ]
+      ARG DOCKERFILE=debian
+    ELSE IF [ "$FLAVOR" = "rockylinux" ]
+      ARG DOCKERFILE=rockylinux
+    ELSE IF [ "$FLAVOR" = "almalinux" ]
+      ARG DOCKERFILE=almalinux
     END
+
+    FROM DOCKERFILE \
+      --build-arg BASE_IMAGE=$BASE_IMAGE \
+      --build-arg MODEL=$MODEL \
+      --build-arg FLAVOR=$FLAVOR \
+      --build-arg HWE=$HWE \
+      -f images/Dockerfile.$DOCKERFILE images/
 
     # Includes overlay/files
     COPY (+framework/framework --FLAVOR=$FLAVOR) /
@@ -494,7 +480,7 @@ base-image:
 
     RUN rm -rf /tmp/*
 
-    DO +CONTAINER_IMAGE_VERSION -VERSION=${OS_VERSION}
+    DO +CONTAINER_IMAGE_VERSION -VERSION=${OS_VERSION} -FLAVOR=${FLAVOR} -VARIANT=${VARIANT}
     ARG _CIMG=$(cat IMAGE)
 
     # luet cleanup
@@ -507,10 +493,21 @@ base-image:
     SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
 
 image-rootfs:
+    ARG --required FLAVOR
+    ARG --required BASE_IMAGE
+    ARG --required MODEL
+    ARG --required VARIANT
+
     FROM +base-image
+
     SAVE ARTIFACT --keep-own /. rootfs
 
 uki-artifacts:
+    ARG --required FLAVOR
+    ARG --required BASE_IMAGE
+    ARG --required MODEL
+    ARG --required VARIANT
+
     FROM +base-image --BUILD_INITRD=false
     RUN /usr/bin/immucore version
     RUN ln -s /usr/bin/immucore /init
