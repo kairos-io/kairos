@@ -281,6 +281,9 @@ framework:
         END
     END
 
+    COPY kairos-network /framework/usr/lib/dracut/modules.d/29kairos-network
+    RUN mkdir -p /framework/etc/dracut.conf.d
+    COPY net.conf /framework/etc/dracut.conf.d/10-kairos-network.conf
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
