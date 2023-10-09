@@ -15,17 +15,19 @@ ARG MODEL=generic
 # the default value is empty, which means the HWE kernel WILL be installed
 # if you want to disable the HWE kernel, set HWE to "-non-hwe"
 ARG HWE=""
+ARG BASE_IMAGE=ubuntu:rolling
 # TARGETARCH is used to determine the architecture of the image
 # it is already set by Docker so it doesn't need to be defined here
 
 ###############################################################
 ####                     Upstream Images                   ####
 ###############################################################
-FROM ubuntu:rolling AS ubuntu-upstream
+FROM ${BASE_IMAGE} AS ubuntu-upstream
 
-FROM ubuntu:20.04 AS ubuntu-20-lts-upstream
+FROM ${BASE_IMAGE} AS ubuntu-20-lts-upstream
 
-FROM ubuntu:22.04 AS ubuntu-22-lts-upstream
+FROM ${BASE_IMAGE} AS ubuntu-22-lts-upstream
+
 
 ###############################################################
 ####                Pre-Process Common to All              ####

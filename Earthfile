@@ -314,25 +314,48 @@ base-image:
     ARG HWE
 
     IF [ "$BASE_IMAGE" = "" ]
-        # DISTRO is used to match the Linux distribution in the Dockerfile e.g. Dockerfile.ubuntu
-        # This is a bit messy at the moment, but it will be sorted out when we stop including the model and the arch in
-        # the flavor name e.g. ubuntu-20-lts-arm-rpi
-        IF [[ "$FLAVOR" =~ ^alpine* ]] # TODO: only needed while we don't have a pure alpine
-            ARG DISTRO=alpine
-        ELSE IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]] # TODO: needs to still be merged on Dockerfile.ubuntu (or not?)
-            ARG DISTRO=ubuntu-20-lts-arm-nvidia-jetson-agx-orin
-        ELSE IF [[ "$FLAVOR" =~ "ubuntu" ]] # TODO: need to find a better way to match the flavor and the distro in the dockerfile for Ubuntu
-            ARG DISTRO=ubuntu
-        ELSE
-            ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
+        IF [ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]
+          ARG UPSTREAM_IMAGE=ubuntu:20.04
+          ARG DISTRO=ubuntu
+        ELSE IF [ "$FLAVOR" =~ ^ubuntu-20-lts* ] 
+          ARG UPSTREAM_IMAGE=ubuntu:20.04
+          ARG DISTRO=ubuntu
+        ELSE IF [ "$FLAVOR" =~ ^ubuntu-22-lts* ]
+          ARG UPSTREAM_IMAGE=ubuntu:22.04
+          ARG DISTRO=ubuntu
+        ELSE IF [ "$FLAVOR" =~ ^ubuntu* ]
+          ARG UPSTREAM_IMAGE=ubuntu:rolling
+          ARG DISTRO=ubuntu
+        ELSE IF [ "$FLAVOR" = "opensuse-leap" ]
+          ARG UPSTREAM_IMAGE=opensuse/leap:15.5
+          ARG DISTRO=opensuse
+        ELSE IF [ "$FLAVOR" = "opensuse-tumbleweed" ]
+          ARG UPSTREAM_IMAGE=opensuse/tumbleweed
+          ARG DISTRO=opensuse
+        ELSE IF [ "$FLAVOR" = "alpine-ubuntu" ]
+          ARG UPSTREAM_IMAGE=alpine
+          ARG DISTRO=alpine
+        ELSE IF [ "$FLAVOR" = "alpine-opensuse-leap" ]
+          ARG UPSTREAM_IMAGE=alpine
+          ARG DISTRO=alpine
+        ELSE IF [ "$FLAVOR" = "fedora" ]
+          ARG UPSTREAM_IMAGE=fedora:latest
+          ARG DISTRO=fedora
+        ELSE IF [ "$FLAVOR" = "debian" ] && [ "$TARGETARCH" = "amd64" ]
+          ARG UPSTREAM_IMAGE=debian:testing
+          ARG DISTRO=debian
+        ELSE IF [ "$FLAVOR" = "debian" ] && [ "$TARGETARCH" = "arm64" ]
+          ARG UPSTREAM_IMAGE=debian:bookworm-slim
+          ARG DISTRO=debian
+        ELSE IF [ "$FLAVOR" = "rockylinux" ]
+          ARG UPSTREAM_IMAGE=rockylinux:9
+          ARG DISTRO=rockylinux
+        ELSE IF [ "$FLAVOR" = "almalinux" ]
+          ARG UPSTREAM_IMAGE=almalinux:latest
+          ARG DISTRO=almalinux
         END
 
-        # SIMPLE_FLAVOR is used to distinguish the flavor inside the Dockerfile, where it's important to make a distinction
-        # between e.g. ubuntu and ubuntu-20-lts, but we don't really need to know the model and the arch since this is
-        # defined using MODEL and TARGETARCH.
-        ARG SIMPLE_FLAVOR=$(echo $FLAVOR | sed 's/-arm-.*//')
-
-        FROM DOCKERFILE --build-arg MODEL=$MODEL --build-arg FLAVOR=$SIMPLE_FLAVOR --build-arg HWE=$HWE -f images/Dockerfile.$DISTRO images/
+        FROM DOCKERFILE --build-arg BASE_IMAGE=$UPSTREAM_IMAGE --build-arg MODEL=$MODEL --build-arg FLAVOR=$FLAVOR --build-arg HWE=$HWE -f images/Dockerfile.$DISTRO images/
     ELSE
         FROM $BASE_IMAGE
     END
