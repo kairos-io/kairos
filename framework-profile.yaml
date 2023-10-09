@@ -11,91 +11,71 @@ flavors:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy
   debian-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy
   ubuntu:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy
   ubuntu-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy
   ubuntu-20-lts-arm-nvidia-jetson-agx-orin:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   ubuntu-20-lts-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   ubuntu-22-lts-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   ubuntu-22-lts:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   ubuntu-20-lts:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   fips-systemd:
     - common-packages
     - kairos-toolchain-fips
     - systemd-base
-    - dracut-network-legacy-compat
   fedora:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   rockylinux:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   almalinux:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - dracut-network-legacy-compat
   opensuse-tumbleweed:
     - common-packages
     - kairos-toolchain
     - systemd-base
     - systemd-latest
-    - dracut-network-legacy
   opensuse-tumbleweed-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - systemd-latest
-    - dracut-network-legacy
   opensuse-leap:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - systemd-latest
-    - dracut-network-legacy
   opensuse-leap-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - systemd-latest
-    - dracut-network-legacy
   alpine:
     - common-packages
     - kairos-toolchain
@@ -113,18 +93,14 @@ alpine-pure:
 alpine-pure-rpi:
   packages:
     - distro-kernel/alpine-rpi
-dracut-network-legacy:
-  packages:
-    - dracut/network-legacy
-dracut-network-legacy-compat:
-  packages:
-    - dracut/network-legacy-compat
 openrc:
   packages:
     - init-svc/openrc
 systemd-base:
   packages:
     - init-svc/systemd
+    - dracut/kairos-network
+    - dracut/kairos-sysext
 opensuse-leap-kernel:
   packages:
     - distro-kernels/opensuse-leap
@@ -160,9 +136,6 @@ ubuntu-kernel:
   packages:
     - distro-kernels/ubuntu
     - distro-initrd/ubuntu
-systemd-latest:
-  packages:
-    - dracut/sysext
 repositories:
   - &kairos
     name: "kairos"
@@ -174,9 +147,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20231009132401-repository.yaml
+    reference: 20231017085609-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20231009133042-repository.yaml
+    reference: 20231017085108-repository.yaml
