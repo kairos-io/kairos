@@ -574,6 +574,20 @@ uki:
     SAVE ARTIFACT uki.signed.efi uki.signed.efi
     SAVE ARTIFACT uki.unsigned.efi uki.unsigned.efi
 
+# Copy uki artifacts into local build dir
+uki-local-artifacts:
+    FROM +uki
+    COPY +version/VERSION ./
+    ARG VERSION=$(cat VERSION)
+    COPY +uki/systemd-bootx64.efi systemd-bootx64.efi
+    COPY +uki/uki.signed.efi uki.signed.efi
+    RUN printf "title Kairos ${FLAVOR} ${VERSION}\nefi /EFI/kairos/kairos.efi" > kairos.conf
+    RUN printf "default kairos.conf" > loader.conf
+    SAVE ARTIFACT systemd-bootx64.efi systemd-bootx64.efi AS LOCAL build/systemd-bootx64.efi
+    SAVE ARTIFACT uki.signed.efi uki.signed.efi AS LOCAL build/uki.${FLAVOR}.${VERSION}.efi
+    SAVE ARTIFACT kairos.conf kairos.conf AS LOCAL build/kairos.conf
+    SAVE ARTIFACT loader.conf loader.conf AS LOCAL build/loader.conf
+
 ###
 ### Artifacts targets (ISO, netboot, ARM)
 ###
