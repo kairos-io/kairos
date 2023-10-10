@@ -281,6 +281,9 @@ framework:
         END
     END
 
+    COPY 90-kairos-sysext.conf /framework/etc/dracut.conf.d/90-kairos-sysext.conf
+    COPY 90kairos-sysext /framework/usr/lib/dracut/modules.d/90kairos-sysext
+
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:

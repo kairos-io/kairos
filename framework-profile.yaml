@@ -76,25 +76,21 @@ flavors:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - systemd-latest
     - dracut-network-legacy
   opensuse-tumbleweed-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - systemd-latest
     - dracut-network-legacy
   opensuse-leap:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - systemd-latest
     - dracut-network-legacy
   opensuse-leap-arm-rpi:
     - common-packages
     - kairos-toolchain
     - systemd-base
-    - systemd-latest
     - dracut-network-legacy
   alpine-arm-rpi:
     - common-packages
@@ -159,9 +155,6 @@ ubuntu-kernel:
   packages:
     - distro-kernels/ubuntu
     - distro-initrd/ubuntu
-systemd-latest:
-  packages:
-    - dracut/sysext
 repositories:
   - &kairos
     name: "kairos"
