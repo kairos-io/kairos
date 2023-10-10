@@ -15,6 +15,31 @@ jobs:
     with:
       flavor: ubuntu
 
+  core-opensuse-tumbleweed:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: opensuse-tumbleweed
+
+  core-alpine-ubuntu:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: alpine-ubuntu
+
+  core-almalinux:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: almalinux
+
+  core-fedora:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: fedora
+
+  core-ubuntu-20-lts:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: ubuntu-20-lts
+
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
