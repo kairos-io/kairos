@@ -273,17 +273,9 @@ framework:
     COPY +luet/luet /framework/usr/bin/luet
     COPY framework-profile.yaml /framework/etc/luet/luet.yaml
 
-    # Copy bootargs.cfg into the final framework as its needed to boot if its not there
-    IF [ ! -f /framework/etc/cos/bootargs.cfg ]
-        COPY ./images/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        IF [[ "$FLAVOR" =~ -rpi$ ]]
-            COPY ./images/rpi/config.txt /framework/boot/config.txt
-        END
-    END
 
     COPY 90-kairos-sysext.conf /framework/etc/dracut.conf.d/90-kairos-sysext.conf
     COPY 90kairos-sysext /framework/usr/lib/dracut/modules.d/90kairos-sysext
-
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
