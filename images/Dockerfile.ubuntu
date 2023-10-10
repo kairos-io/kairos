@@ -50,6 +50,7 @@ RUN apt-get update \
     dracut \
     dracut-network \
     e2fsprogs \
+    fdisk \
     gawk \
     gdisk \
     grub2-common \
