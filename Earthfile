@@ -273,14 +273,6 @@ framework:
     COPY +luet/luet /framework/usr/bin/luet
     COPY framework-profile.yaml /framework/etc/luet/luet.yaml
 
-    # Copy bootargs.cfg into the final framework as its needed to boot if its not there
-    IF [ ! -f /framework/etc/cos/bootargs.cfg ]
-        COPY ./images/bootargs.cfg /framework/etc/cos/bootargs.cfg
-        IF [[ "$FLAVOR" =~ -rpi$ ]]
-            COPY ./images/rpi/config.txt /framework/boot/config.txt
-        END
-    END
-
     SAVE ARTIFACT --keep-own /framework/ framework
 
 build-framework-image:
