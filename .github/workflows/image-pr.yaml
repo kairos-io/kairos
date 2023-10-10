@@ -19,16 +19,18 @@ jobs:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: opensuse-tumbleweed
-
-  core-alpine-ubuntu:
+  core-debian:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
-      flavor: alpine-ubuntu
-
+      flavor: debian
   core-almalinux:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: almalinux
+  core-rockylinux:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: rockylinux
 
   core-fedora:
     uses: ./.github/workflows/reusable-build-flavor.yaml
@@ -39,6 +41,11 @@ jobs:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: ubuntu-20-lts
+
+  core-ubuntu-22-lts:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: ubuntu-22-lts
 
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
