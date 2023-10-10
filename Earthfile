@@ -37,6 +37,13 @@ ARG K3S_VERSION
 
 all:
   ARG SECURITY_SCANS=true
+
+  # args for base-image target
+  ARG --required FLAVOR
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+
   BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD +image-sbom
@@ -50,6 +57,13 @@ all:
 # For PR building, only image and iso are needed
 ci:
   ARG SECURITY_SCANS=true
+
+  # args for base-image target
+  ARG --required FLAVOR
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+
   BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
     BUILD +image-sbom
@@ -61,6 +75,13 @@ ci:
 all-arm:
   ARG SECURITY_SCANS=true
   ARG MODEL=rpi4
+
+  # args for base-image target
+  ARG --required FLAVOR
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+
   BUILD --platform=linux/arm64 +base-image --MODEL=$MODEL
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD --platform=linux/arm64 +image-sbom --MODEL=$MODEL
@@ -76,10 +97,25 @@ all-arm:
 
 arm-container-image:
   ARG MODEL
+
+  # args for base-image target
+  ARG --required FLAVOR
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+
   BUILD --platform=linux/arm64 +base-image --MODEL=$MODEL
 
 all-arm-generic:
-  BUILD --platform=linux/arm64 +base-image --MODEL=generic
+
+  # args for base-image target
+  ARG --required FLAVOR
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+
+  # TODO: Remove this line? +iso calls it eventually
+  #BUILD --platform=linux/arm64 +base-image --MODEL=generic
   BUILD --platform=linux/arm64 +iso --MODEL=generic
 
 build-and-push-golang-testing:
@@ -861,6 +897,13 @@ trivy:
 
 trivy-scan:
     ARG TARGETARCH
+
+    # args for base-image target
+    ARG --required FLAVOR
+    ARG --required BASE_IMAGE
+    ARG --required MODEL
+    ARG --required VARIANT
+
     # Use base-image so it can read original os-release file
     FROM +base-image
     COPY +trivy/trivy /trivy
@@ -889,6 +932,13 @@ grype:
 
 grype-scan:
     ARG TARGETARCH
+
+    # args for base-image target
+    ARG --required FLAVOR
+    ARG --required BASE_IMAGE
+    ARG --required MODEL
+    ARG --required VARIANT
+
     # Use base-image so it can read original os-release file
     FROM +base-image
     COPY +grype/grype /grype
@@ -1146,6 +1196,12 @@ temp-image:
 
     ARG TTL_IMAGE = "ttl.sh/${NAME}:${EXPIRATION}"
 
+    # args for base-image target
+    ARG --required FLAVOR
+    ARG --required BASE_IMAGE
+    ARG --required MODEL
+    ARG --required VARIANT
+
     FROM +base-image
     SAVE IMAGE --push $TTL_IMAGE
 
@@ -1185,6 +1241,12 @@ bump-repositories:
     SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
 
 luet-versions:
+    # args for base-image target
+    ARG --required FLAVOR
+    ARG --required BASE_IMAGE
+    ARG --required MODEL
+    ARG --required VARIANT
+
     FROM +base-image
     SAVE ARTIFACT /framework/etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
 

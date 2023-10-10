@@ -1,90 +1,257 @@
 [
     {
         "flavor": "opensuse-leap",
-        "standard": "true"
-    },
-    {
-        "flavor": "opensuse-tumbleweed",
-        "standard": "true"
-    },
-    {
-        "flavor": "ubuntu",
-        "standard": "true"
-    },
-    {
-        "flavor": "ubuntu-20-lts",
-        "standard": "true"
-    },
-    {
-        "flavor": "fips-systemd",
-        "frameworkonly": "true"
-    },
-    {
-        "flavor": "ubuntu-22-lts",
-        "standard": "true"
-    },
-    {
-        "flavor": "alpine-ubuntu",
-        "standard": "true"
-    },
-    {
-        "flavor": "alpine-opensuse-leap",
-        "standard": "true"
-    },
-    {
-        "flavor": "fedora",
-        "standard": "true"
-    },
-    {
-        "flavor": "debian",
-        "standard": "true"
-    },
-    {
-        "flavor": "rockylinux",
-        "standard": "true"
-    },
-    {
-        "flavor": "almalinux"
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "opensuse/leap:15.5",
+        "arch": "amd64"
     },
     {
         "flavor": "opensuse-leap",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "opensuse/leap:15.5",
+        "arch": "amd64"
+    },
+    {
+        "flavor": "opensuse-leap",
+        "variant": "standard",
         "model": "rpi4",
-        "worker": "ubuntu-latest",
-        "standard": "true"
+        "baseImage": "opensuse/leap:15.5",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "flavor": "opensuse-leap",
+        "variant": "core",
+        "model": "rpi4",
+        "baseImage": "opensuse/leap:15.5",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
     },
     {
         "flavor": "opensuse-tumbleweed",
-        "model": "rpi4",
-        "worker": "ubuntu-latest",
-        "standard": "true"
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "opensuse/tumbleweed",
+        "arch": "amd64"
     },
     {
-        "flavor": "alpine",
-        "model": "rpi4",
-        "worker": "ubuntu-latest",
-        "standard": "true"
+        "flavor": "opensuse-tumbleweed",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "opensuse/tumbleweed",
+        "arch": "amd64"
     },
     {
-        "flavor": "ubuntu",
+        "flavor": "opensuse-tumbleweed",
+        "variant": "standard",
         "model": "rpi4",
-        "worker": "ubuntu-latest",
-        "standard": "true"
+        "baseImage": "opensuse/tumbleweed",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
     },
     {
-        "flavor": "ubuntu-20-lts",
+        "flavor": "opensuse-tumbleweed",
+        "variant": "core",
         "model": "rpi4",
-        "worker": "ubuntu-latest",
-        "standard": "true"
+        "baseImage": "opensuse/tumbleweed",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
     },
     {
-        "flavor": "ubuntu-22-lts",
-        "model": "rpi4",
-        "worker": "ubuntu-latest",
-        "standard": "true"
+        "flavor": "ubuntu-20.04",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "ubuntu:20.04"
     },
     {
-        "flavor": "ubuntu-20-lts",
-        "model": "jetson-agx-orin",
+        "flavor": "ubuntu-20.04",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "ubuntu:20.04"
+    },
+    {
+        "flavor": "ubuntu-20.04",
+        "variant": "standard",
+        "model": "rpi4",
+        "baseImage": "ubuntu:20.04",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "flavor": "ubuntu-20.04",
+        "variant": "core",
+        "model": "rpi4",
+        "baseImage": "ubuntu:20.04",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "flavor": "ubuntu-22.04",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "ubuntu:22.04"
+    },
+    {
+        "flavor": "ubuntu-22.04",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "ubuntu:22.04"
+    },
+    {
+        "flavor": "ubuntu-22.04",
+        "variant": "standard",
+        "model": "rpi4",
+        "baseImage": "ubuntu:22.04",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "flavor": "ubuntu-22.04",
+        "variant": "core",
+        "model": "rpi4",
+        "baseImage": "ubuntu:22.04",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "flavor": "ubuntu-23.04",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "ubuntu:23.04"
+    },
+    {
+        "flavor": "ubuntu-23.04",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "ubuntu:23.04"
+    },
+    {
+        "flavor": "ubuntu-23.04",
+        "variant": "standard",
+        "model": "rpi4",
+        "baseImage": "ubuntu:23.04",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "flavor": "ubuntu-23.04",
+        "variant": "core",
+        "model": "rpi4",
+        "baseImage": "ubuntu:23.04",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "flavor": "alpine-ubuntu",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "alpine:3.18"
+    },
+    {
+        "flavor": "alpine-ubuntu",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "alpine:3.18"
+    },
+    {
+        "flavor": "alpine-opensuse-leap",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "alpine:3.18"
+    },
+    {
+        "flavor": "alpine-opensuse-leap",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "alpine:3.18"
+    },
+    {
+        "flavor": "alpine-opensuse-leap",
+        "variant": "standard",
+        "model": "rpi4",
+        "baseImage": "alpine:3.18",
+        "arch": "arm64"
+    },
+    {
+        "flavor": "alpine-opensuse-leap",
+        "variant": "core",
+        "model": "rpi4",
+        "baseImage": "alpine:3.18",
+        "arch": "arm64"
+    },
+    {
+        "flavor": "fedora-38",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "fedora:38"
+    },
+    {
+        "flavor": "fedora-38",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "fedora:38"
+    },
+    {
+        "flavor": "debian-testing",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "debian:testing"
+    },
+    {
+        "flavor": "debian-testing",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "debian:testing"
+    },
+    {
+        "flavor": "debian-bookworm",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "debian:bookworm-slim"
+    },
+    {
+        "flavor": "debian-bookworm",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "debian:bookworm-slim"
+    },
+    {
+        "flavor": "rockylinux-9",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "rockylinux:9"
+    },
+    {
+        "flavor": "rockylinux-9",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "rockylinux:9"
+    },
+    {
+        "flavor": "almalinux-9",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "almalinux:9"
+    },
+    {
+        "flavor": "almalinux-9",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "almalinux:9"
+    },
+    {
+        "flavor": "ubuntu-20.04-nvidia",
+        "variant": "core",
+        "model": "nvidia-jetson-agx-orin",
+        "baseImage": "ubuntu:20.04",
+        "arch": "arm64",
         "worker": "fast"
+    },
+    {
+        "TODO": "Remove this, there is only going to be one framwork image",
+        "flavor": "fips-systemd",
+        "frameworkonly": "true"
     }
 ]
