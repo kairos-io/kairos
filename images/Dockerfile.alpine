@@ -89,7 +89,6 @@ RUN apk --no-cache add  \
 ####                    Common to a Model                  ####
 ###############################################################
 FROM common AS generic
-ARG TARGETARCH
 RUN if [ ${TARGETARCH} != "arm64" ];then apk --no-cache add grub-bios; fi
 RUN apk --no-cache add  \
       bonding \
