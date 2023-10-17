@@ -1,0 +1,16 @@
+name: Lint
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '**'
+env:
+  FORCE_COLOR: 1
+jobs:
+  call-workflow:
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@v0.0.8
+    with:
+      yamldirs: ".github/workflows/"
+      is-go: false
