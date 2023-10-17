@@ -255,10 +255,10 @@ framework:
     WORKDIR /build
 
     COPY ./profile-build /build
-    COPY framework-profile.yaml /build
     COPY +luet/luet /usr/bin/luet
 
     RUN go mod download
+    COPY framework-profile.yaml /build
     RUN go run main.go ${FLAVOR} framework-profile.yaml /framework
 
     RUN mkdir -p /framework/etc/kairos/
