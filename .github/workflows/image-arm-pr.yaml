@@ -15,6 +15,12 @@ jobs:
   docker:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
-      flavor: opensuse-leap-arm-rpi
+      flavor: ubuntu
+      model: rpi4
+      worker: fast
+  docker-alpine:
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    with:
+      flavor: alpine-arm-rpi
       model: rpi4
       worker: fast

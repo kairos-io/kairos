@@ -16,6 +16,7 @@ RUN dnf install -y \
     dracut-live \
     dracut-network \
     dracut-squash \
+    dhcp-client \
     e2fsprogs \
     efibootmgr \
     gawk \

@@ -24,7 +24,7 @@
         "standard": "true"
     },
     {
-        "flavor": "alpine-ubuntu",
+        "flavor": "alpine",
         "standard": "true"
     },
     {

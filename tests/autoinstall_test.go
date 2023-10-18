@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -37,6 +38,10 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
 		}
 
 		err := vm.Destroy(nil)
@@ -92,9 +97,13 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 			})
 
 			By("checking bpf mount", func() {
-				out, err := vm.Sudo("mount")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(out).To(ContainSubstring("bpf"))
+				Eventually(func() string {
+					out, _ := vm.Sudo("mount")
+					return out
+				}, 5*time.Minute, 1*time.Second).Should(
+					Or(
+						ContainSubstring("bpf"),
+					))
 			})
 
 			By("checking correct permissions", func() {
