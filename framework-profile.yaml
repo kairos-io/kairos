@@ -80,17 +80,17 @@ flavors:
     - common-packages
     - kairos-toolchain
     - openrc
-    - alpine-pure
+    - alpine-init
   alpine-arm-rpi:
     - common-packages
     - kairos-toolchain
     - openrc
-    - alpine-pure-rpi
+    - alpine-init-rpi
 # See https://github.com/kairos-io/packages/pull/67 for rationale
-alpine-pure:
+alpine-init:
   packages:
     - distro-kernel/alpine
-alpine-pure-rpi:
+alpine-init-rpi:
   packages:
     - distro-kernel/alpine-rpi
 openrc:
