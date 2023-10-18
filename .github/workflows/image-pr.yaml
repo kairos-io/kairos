@@ -109,7 +109,15 @@ jobs:
     with:
       flavor: ubuntu
     needs:
-    - core
+      - core
+
+  # enable once the first alpine only release is out as it currently cannot find the latest alpine release properly
+  #upgrade-latest-alpine:
+  #  uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
+  #  with:
+  #    flavor: alpine
+  #  needs:
+  #    - core-alpine
 
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
