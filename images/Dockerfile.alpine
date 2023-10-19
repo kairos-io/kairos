@@ -22,6 +22,7 @@ RUN apk --no-cache add  \
       coreutils \
       cryptsetup \
       curl \
+      device-mapper-udev \
       dbus \
       dmidecode \
       dosfstools \
@@ -29,8 +30,10 @@ RUN apk --no-cache add  \
       e2fsprogs-extra \
       efibootmgr \
       eudev \
+      eudev-hwids \
       fail2ban \
       findutils \
+      findmnt \
       gawk \
       gcompat \
       gettext \
@@ -76,6 +79,7 @@ RUN apk --no-cache add  \
       rbd-nbd \
       rng-tools \
       rsync \
+      sgdisk \
       smartmontools \
       squashfs-tools \
       strace \
@@ -88,6 +92,7 @@ RUN apk --no-cache add  \
       wireguard-tools \
       wpa_supplicant \
       xfsprogs \
+      xfsprogs-extra \
       xz
 
 ###############################################################
@@ -100,12 +105,15 @@ RUN apk --no-cache add  \
       bonding \
       bridge \
       rbd-nbd
+RUN apk --no-cache add linux-lts --no-scripts
 
 FROM common as rpicommon
 COPY rpi/config.txt /boot/config.txt
 
 FROM rpicommon AS rpi3
+RUN apk --no-cache add linux-rpi --no-scripts # use --no-scripts to avoid building initramfs
 FROM rpicommon AS rpi4
+RUN apk --no-cache add linux-rpi4 --no-scripts # use --no-scripts to avoid building initramfs
 
 
 ###############################################################

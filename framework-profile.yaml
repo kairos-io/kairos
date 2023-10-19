@@ -80,22 +80,14 @@ flavors:
     - common-packages
     - kairos-toolchain
     - openrc
-    - alpine-init
   alpine-arm-rpi:
     - common-packages
     - kairos-toolchain
     - openrc
-    - alpine-init-rpi
-# See https://github.com/kairos-io/packages/pull/67 for rationale
-alpine-init:
-  packages:
-    - distro-kernel/alpine
-alpine-init-rpi:
-  packages:
-    - distro-kernel/alpine-rpi
 openrc:
   packages:
     - init-svc/openrc
+    - initrd/alpine
 systemd-base:
   packages:
     - init-svc/systemd
@@ -147,9 +139,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20231018075943-repository.yaml
+    reference: 20231019093159-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20231018075844-repository.yaml
+    reference: 20231019092540-repository.yaml
