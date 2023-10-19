@@ -426,22 +426,24 @@ base-image:
 
       RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
 
+      RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+
       IF [ -f "/usr/bin/dracut" ]
           # Regenerate initrd if necessary
           RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
       END
 
       IF [ -f "/sbin/mkinitfs" ]
-        # Proper config files with immucore and custom initrd should already be in there installed by framework
+        # Proper config files with immucore and custom initrd should already be in there installled by framework
         RUN --no-cache kernel=$(ls /lib/modules | head -n1) && mkinitfs -o /boot/initrd $kernel
       END
     END
 
     # Set /boot/vmlinuz pointing to our kernel so kairos-agent can use it
     # https://github.com/kairos-io/kairos-agent/blob/0288fb111bc568a1bfca59cb09f39302220475b6/pkg/elemental/elemental.go#L548   q
-
-    # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
-    RUN rm -rf /boot/initramfs-* || true
+    IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "almalinux" ]
+        RUN rm -rf /boot/initramfs-*
+    END
 
     IF [ ! -e "/boot/vmlinuz" ]
         IF [ -e "/boot/vmlinuz-lts" ]

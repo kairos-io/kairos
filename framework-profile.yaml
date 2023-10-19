@@ -13,6 +13,57 @@ flavors:
   fips:
     - common-packages
     - kairos-toolchain-fips
+    - systemd-base
+  fedora:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+  rockylinux:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+  almalinux:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+  opensuse-tumbleweed:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+    - systemd-latest
+  opensuse-tumbleweed-arm-rpi:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+  opensuse-leap:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+  opensuse-leap-arm-rpi:
+    - common-packages
+    - kairos-toolchain
+    - systemd-base
+  alpine:
+    - common-packages
+    - kairos-toolchain
+    - openrc
+  alpine-arm-rpi:
+    - common-packages
+    - kairos-toolchain
+    - openrc
+openrc:
+  packages:
+    - init-svc/openrc
+    - initrd/alpine
+systemd-base:
+  packages:
+    - init-svc/systemd
+    - dracut/kairos-network
+    - dracut/kairos-sysext
+opensuse-leap-kernel:
+  packages:
+    - distro-kernels/opensuse-leap
+    - distro-initrd/opensuse-leap
 ## Packages (cat/name@version) that are added to ALL flavors
 ## Static files, no binary
 common-packages:
@@ -48,9 +99,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20231025093843-repository.yaml
+    reference: 20231019093159-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20231025093848-repository.yaml
+    reference: 20231019092540-repository.yaml
