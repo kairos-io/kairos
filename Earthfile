@@ -431,10 +431,16 @@ base-image:
       END
 
 
-      IF [ -e "/usr/bin/dracut" ]
+      RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+
+      IF [ -f "/usr/bin/dracut" ]
           # Regenerate initrd if necessary
-          RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
           RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
+      END
+
+      IF [ -f "/sbin/mkinitfs" ]
+        # Proper config files with immucore and custom initrd should already be in there installled by framework
+        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && mkinitfs -o /boot/initrd $kernel
       END
     END
 
@@ -442,12 +448,6 @@ base-image:
     # https://github.com/kairos-io/kairos-agent/blob/0288fb111bc568a1bfca59cb09f39302220475b6/pkg/elemental/elemental.go#L548   q
     IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "almalinux" ]
         RUN rm -rf /boot/initramfs-*
-    END
-
-    # Cleanup for alpine as this gets installed as a side-effect
-    # we already provide a /boot/initrd with the luet package
-    IF [ -e "/boot/initramfs-lts" ]
-        RUN rm /boot/initramfs-lts
     END
 
     IF [ ! -e "/boot/vmlinuz" ]
