@@ -24,10 +24,6 @@
         "standard": "true"
     },
     {
-        "flavor": "alpine-opensuse-leap",
-        "standard": "true"
-    },
-    {
         "flavor": "fedora",
         "standard": "true"
     },
