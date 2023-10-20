@@ -51,12 +51,14 @@ jobs:
   framework:
     uses: ./.github/workflows/reusable-build-framework-flavor.yaml
     secrets: inherit
+    with:
+      flavor: ${{ matrix.flavor }}
     strategy:
       fail-fast: false
       matrix:
-        flavor:
-          - "generic"
-          - "fips"
+        include:
+           - flavor: "generic"
+           - flavor: "fips"
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
