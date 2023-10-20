@@ -3,131 +3,40 @@
 ##  - category/name@version
 #
 # Apply arbitrary images (e.g. to stub a package to a specific version)
-# These are applyied after the packages.
+# These are applied after the packages.
 # images:
 #   - quay.io/kairos/packages:k9s-utils-0.27.4
 flavors:
-  debian:
+  generic:
     - common-packages
     - kairos-toolchain
-    - systemd-base
-  debian-arm-rpi:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  ubuntu:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  ubuntu-arm-rpi:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  ubuntu-20-lts-arm-nvidia-jetson-agx-orin:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  ubuntu-20-lts-arm-rpi:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  ubuntu-22-lts-arm-rpi:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  ubuntu-22-lts:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  ubuntu-20-lts:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  fips-systemd:
+  fips:
     - common-packages
     - kairos-toolchain-fips
-    - systemd-base
-  fedora:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  rockylinux:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  almalinux:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  opensuse-tumbleweed:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-    - systemd-latest
-  opensuse-tumbleweed-arm-rpi:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  opensuse-leap:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  opensuse-leap-arm-rpi:
-    - common-packages
-    - kairos-toolchain
-    - systemd-base
-  alpine:
-    - common-packages
-    - kairos-toolchain
-    - openrc
-  alpine-arm-rpi:
-    - common-packages
-    - kairos-toolchain
-    - openrc
-openrc:
-  packages:
-    - init-svc/openrc
-    - initrd/alpine
-systemd-base:
-  packages:
-    - init-svc/systemd
-    - dracut/kairos-network
-    - dracut/kairos-sysext
-opensuse-leap-kernel:
-  packages:
-    - distro-kernels/opensuse-leap
-    - distro-initrd/opensuse-leap
 ## Packages (cat/name@version) that are added to ALL flavors
 ## Static files, no binary
 common-packages:
   packages:
-    - static/grub-config
     - dracut/immucore
+    - dracut/kairos-network
+    - dracut/kairos-sysext
     - system/suc-upgrade
     - system/grub2-efi
+    - static/grub-config
     - static/kairos-overlay-files
+    - initrd/alpine
 kairos-toolchain-fips:
   packages:
     - fips/kcrypt
     - fips/kcrypt-challenger
     - fips/immucore
     - fips/kairos-agent
-kairos-toolchain-fips-static:
-  packages:
-    - fips-static/kcrypt
-    - fips-static/kcrypt-challenger
-    - fips-static/immucore
-    - fips-static/kairos-agent
 kairos-toolchain:
   packages:
     - system/kcrypt
     - system/kcrypt-challenger
     - system/immucore
     - system/kairos-agent
-ubuntu-kernel:
-  packages:
-    - distro-kernels/ubuntu
-    - distro-initrd/ubuntu
 repositories:
   - &kairos
     name: "kairos"
@@ -139,9 +48,9 @@ repositories:
     priority: 2
     urls:
       - "quay.io/kairos/packages"
-    reference: 20231019093159-repository.yaml
+    reference: 20231020075856-repository.yaml
   - !!merge <<: *kairos
     arch: arm64
     urls:
       - "quay.io/kairos/packages-arm64"
-    reference: 20231019092540-repository.yaml
+    reference: 20231020075759-repository.yaml

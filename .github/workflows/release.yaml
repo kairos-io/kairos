@@ -54,34 +54,17 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
-  get-framework-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - id: set-matrix
-      run: |
-          content=`cat .github/flavors.json`
-          # the following lines are only required for multi line json
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
-
   build-framework:
     runs-on: kvm
-    needs:
-    - get-framework-matrix
     permissions:
       id-token: write  # OIDC support
       contents: write
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-framework-matrix.outputs.matrix)}}
+      matrix:
+        flavor:
+          - "generic"
+          - "fips"
     steps:
       - uses: actions/checkout@v4
         with:
