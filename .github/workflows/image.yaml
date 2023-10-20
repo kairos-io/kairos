@@ -23,7 +23,7 @@ jobs:
           sudo apt update && sudo apt install -y jq
       - id: set-matrix
         run: |
-          content=`cat .github/flavors.json  | jq 'map(select(.variant == "core" and .arch == "amd64"))'`
+          content=`cat .github/flavors.json  | jq 'map(select(.frameworkonly != "true"))'`
           # the following lines are only required for multi line json
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
@@ -51,14 +51,12 @@ jobs:
   framework:
     uses: ./.github/workflows/reusable-build-framework-flavor.yaml
     secrets: inherit
-    with:
-      flavor: ${{ matrix.flavor }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - flavor: "generic"
-          - flavor: "fips"
+        flavor:
+          - "generic"
+          - "fips"
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:

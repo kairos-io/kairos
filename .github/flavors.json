@@ -233,16 +233,6 @@
         "family": "alpine",
         "flavor": "alpine",
         "flavorRelease": "3.18",
-        "variant": "core",
-        "model": "generic",
-        "baseImage": "alpine:3.18",
-        "arch": "amd64",
-        "worker": "self-hosted"
-    },
-    {
-        "family": "alpine",
-        "flavor": "alpine",
-        "flavorRelease": "3.18",
         "variant": "standard",
         "model": "rpi4",
         "baseImage": "alpine:3.18",
