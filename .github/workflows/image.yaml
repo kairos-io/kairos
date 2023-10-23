@@ -1,5 +1,6 @@
 name: Build and test images
 on:
+  pull_request: 
   push:
     branches:
       - master
