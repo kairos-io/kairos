@@ -1,4 +1,4 @@
-name: Reusable workflow that runs provider tess
+name: Reusable workflow that runs provider tests
 
 on:
   workflow_call:

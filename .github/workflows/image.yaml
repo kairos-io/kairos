@@ -57,13 +57,16 @@ jobs:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
+      label: ${{ matrix.label }}
     needs:
       - core
     strategy:
       fail-fast: true
       matrix:
-        include:
-          - flavor: opensuse-leap
+        label:
+          - "install-test"
+        flavor:
+          - opensuse-leap
   zfs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
@@ -183,7 +186,7 @@ jobs:
       matrix:
         flavor:
           - "opensuse-leap"
-          - "alpine-opensuse-leap"
+          - "alpine"
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
@@ -202,12 +205,12 @@ jobs:
           - "provider-upgrade-k8s"
         flavor:
           - "opensuse-leap"
-          - "alpine-opensuse-leap"
+          - "alpine"
         exclude: # looks like only the k8s stuff is tested on both flavors
           - label: "provider-qrcode-install"
-            flavor: "alpine-opensuse-leap"
+            flavor: "alpine"
           - label: "provider-upgrade"
-            flavor: "alpine-opensuse-leap"
+            flavor: "alpine"
   standard-upgrade-latest:
     uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
     with:
@@ -220,50 +223,6 @@ jobs:
       matrix:
         flavor:
           - "opensuse-leap"
-          - "alpine-opensuse-leap"
-  test-uki:
-    runs-on: kvm
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Go
-        uses: actions/setup-go@v4
-        with:
-          go-version-file: tests/go.mod
-          cache-dependency-path: tests/go.sum
-      - name: Enable KVM group perms
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev
-
-          # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
-          # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          # sudo udevadm control --reload-rules
-          # sudo udevadm trigger --name-match=kvm
-          # sudo usermod -a -G kvm,libvirt $USER
-          #
-          # TODO: Switch back to the above solution when we switch to the github runners
-          # https://askubuntu.com/a/1081326
-          sudo setfacl -m u:runner:rwx /dev/kvm
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Build uki disk 🔧
-        run: |
-          # Do fedora as its the smaller uki possible
-          earthly +prepare-uki-disk-image --FLAVOR=fedora
-      - name: Run tests
-        env:
-          USE_QEMU: true
-          KVM: true
-          MEMORY: 4000
-          CPUS: 2
-          FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
-        run: |
-          export UKI_DRIVE=${PWD}/build/disk.img
-          cp tests/go.* .
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
   notify:
     runs-on: ubuntu-latest
     if: failure()
