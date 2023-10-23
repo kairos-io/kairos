@@ -1,6 +1,6 @@
 name: Build and test images
 on:
-  pull_request: 
+  pull_request:
   push:
     branches:
       - master
@@ -242,7 +242,6 @@ jobs:
       - encryption
       - various
       - standard-upgrade-latest
-      - test-uki
     steps:
       - uses: actions/checkout@v4
       - run: |
