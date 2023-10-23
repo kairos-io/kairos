@@ -165,9 +165,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM amd64-non-hwe AS amd64-ubuntu-22-lts-non-hwe
 FROM amd64-non-hwe AS amd64-ubuntu-20-lts-non-hwe
 
-FROM base-22-lts AS arm64-ubuntu
-FROM base-22-lts AS arm64-ubuntu-22-lts
-FROM base-20-lts AS arm64-ubuntu-20-lts
+FROM base-ubuntu-22-lts AS arm64-ubuntu
+FROM base-ubuntu-22-lts AS arm64-ubuntu-22-lts
+FROM base-ubuntu-20-lts AS arm64-ubuntu-20-lts
 
 ###############################################################
 ####               Common to a Single Model                ####
