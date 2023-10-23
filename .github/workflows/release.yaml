@@ -92,7 +92,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +build-framework-image --FLAVOR=${{ matrix.flavor }} --FLAVOR_RELEASE=${{ matrix.flavorRelease }}
+          earthly +build-framework-image --FRAMEWORK_FLAVOR=${{ matrix.flavor }}
       - name: Push to quay
         env:
           COSIGN_YES: true
