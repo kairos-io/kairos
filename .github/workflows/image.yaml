@@ -51,8 +51,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-           - flavor: "generic"
-           - flavor: "fips"
+          - flavor: "generic"
+          - flavor: "fips"
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
