@@ -53,7 +53,8 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          fileName: 'kairos-standard-*${{ inputs.flavor }}-${{ inputs.flavor_release }}.*k3s1.iso'
+          #fileName: 'kairos-standard-*${{ inputs.flavor }}-${{ inputs.flavor_release }}.*k3s1.iso' # Enable once we have a release with the new naming
+          fileName: 'kairos-standard-*${{ inputs.flavor }}.*k3s1.iso'
           out-file-path: ""
       - name: Run tests
         run: |
@@ -64,6 +65,6 @@ jobs:
           export DRIVE_SIZE=30000
           export CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}-provider:24h
 
-          export ISO=$PWD/$(ls -1 *.iso | head -n 1)
+          export ISO=$PWD/$(ls -l *.iso | head -n 1)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "provider-upgrade-latest-k8s-with-kubernetes" --fail-fast -r ./tests
