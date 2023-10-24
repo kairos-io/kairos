@@ -162,20 +162,12 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Build  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
-          FLAVOR_RELEASE: ${{ matrix.flavorRelease }}
-          FAMILY: ${{ matrix.family }}
-          ARTIFACT: ${{ matrix.artifact }}
-          VARIANT: ${{ matrix.variant }}
-          MODEL: ${{ matrix.model }}
-          BASE_IMAGE: ${{ matrix.baseImage }}
         run: |
           earthly +all  \
             --VARIANT=${{ matrix.variant }} \
             --FAMILY=${{ matrix.family }} \
             --FLAVOR=${{ matrix.flavor }} \
-            --FLAVOR=${{ matrix.flavorRelease }} \
+            --FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
             --MODEL=${{ matrix.model }} \
             --BASE_IMAGE=${{ matrix.baseImage }}
 
