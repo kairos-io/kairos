@@ -1012,15 +1012,17 @@ trivy-scan:
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
     COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
-    ARG FLAVOR
-    ARG VARIANT
-    IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
-    ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
-    END
+    ARG KAIROS_VERSION=$(cat VERSION)
+    ARG TARGETARCH
+    ARG --required FAMILY # The dockerfile to use
+    ARG --required FLAVOR # The distribution E.g. "ubuntu"
+    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
+    ARG --required VARIANT
+    ARG --required MODEL
+    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
+    COPY ./naming.sh .
+    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
+
     WORKDIR /build
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
@@ -1040,15 +1042,17 @@ grype-scan:
     FROM +base-image
     COPY +grype/grype /grype
     COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
-    ARG FLAVOR
-    ARG VARIANT
-    IF [ "$TARGETARCH" = "arm64" ]
-        ARG DISTRO=$(echo $FLAVOR | sed 's/-arm-.*//')
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${DISTRO}-${TARGETARCH}-${MODEL}-${VERSION}
-    ELSE
-        ARG ISO_NAME=${OS_ID}-${VARIANT}-${FLAVOR}-${TARGETARCH}-${MODEL}-${VERSION}
-    END
+    ARG KAIROS_VERSION=$(cat VERSION)
+    ARG TARGETARCH
+    ARG --required FAMILY # The dockerfile to use
+    ARG --required FLAVOR # The distribution E.g. "ubuntu"
+    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
+    ARG --required VARIANT
+    ARG --required MODEL
+    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
+    COPY ./naming.sh .
+    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
+
     WORKDIR /build
     RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
     RUN /grype dir:/ --output json --add-cpes-if-none --file report.json
