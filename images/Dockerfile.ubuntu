@@ -17,7 +17,7 @@ ARG MODEL=generic
 # the default value is empty, which means the HWE kernel WILL be installed
 # if you want to disable the HWE kernel, set HWE to "-non-hwe"
 ARG HWE=""
-ARG BASE_IMAGE=ubuntu:23.04
+ARG BASE_IMAGE
 # TARGETARCH is used to determine the architecture of the image
 # it is already set by Docker so it doesn't need to be defined here
 

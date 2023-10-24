@@ -6,9 +6,6 @@ on:
       flavor:
         required: true
         type: string
-      flavor_release:
-        required: true
-        type: string
 
 jobs:
   build:
