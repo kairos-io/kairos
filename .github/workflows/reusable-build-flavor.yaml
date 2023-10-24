@@ -148,7 +148,9 @@ jobs:
             *.spdx.json
           if-no-files-found: error
       - name: Push to quay
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        # do not push to release channels for now
+        if: false()
+        #if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_YES: true
         run: |
