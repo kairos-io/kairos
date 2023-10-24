@@ -468,8 +468,8 @@ base-image:
     RUN rm -rf /tmp/*
 
     COPY ./naming.sh .
-    RUN ./naming.sh container_artifact_name
     RUN ./naming.sh container_artifact_name > ./IMAGE
+    RUN rm naming.sh
 
     # luet cleanup
     RUN luet cleanup
