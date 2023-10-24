@@ -170,8 +170,6 @@ jobs:
           VARIANT: ${{ matrix.variant }}
           MODEL: ${{ matrix.model }}
           BASE_IMAGE: ${{ matrix.baseImage }}
-        # TODO: Create a reusable script/workflow/something that generates the artifact name
-        # TODO: Use the naming.sh script
         run: |
           earthly +all  \
             --VARIANT=${{ matrix.variant }} \
@@ -179,8 +177,7 @@ jobs:
             --FLAVOR=${{ matrix.flavor }} \
             --FLAVOR=${{ matrix.flavorRelease }} \
             --MODEL=${{ matrix.model }} \
-            --BASE_IMAGE=${{ matrix.baseImage }} \
-            --IMAGE=quay.io/kairos/${{ matrix.variant }}-${{ inputs.flavor }}-${{ matrix.model }}:latest
+            --BASE_IMAGE=${{ matrix.baseImage }}
 
           sudo mv build release
       - name: Push to quay

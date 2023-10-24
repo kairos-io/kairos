@@ -699,7 +699,7 @@ iso-uki:
 
 # This target builds an iso using a remote docker image as rootfs instead of building the whole rootfs
 # This should be really fast as it uses an existing image. This requires a pushed image from the +image target
-# defaults to use the $IMAGE name (so ttl.sh/core-opensuse-leap:latest)
+# defaults to use the $REMOTE_IMG name (so ttl.sh/core-opensuse-leap:latest)
 # you can override either the full thing by setting --REMOTE_IMG=docker:REPO/IMAGE:TAG
 # or by --REMOTE_IMG=REPO/IMAGE:TAG
 iso-remote:
