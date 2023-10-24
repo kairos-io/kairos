@@ -6,6 +6,24 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
+      base_image:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+      family:
+        required: true
+        type: string
+      variant:
+        required: true
+        type: string
+      arch:
+        required: true
+        type: string
 
 jobs:
   build:
@@ -63,16 +81,21 @@ jobs:
       - name: Build PR 🔧
         run: |
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last')
-          earthly +ci \
+          earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=false \
-            --IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h \
+            --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
-            --VARIANT=standard -K3S_VERSION=${K3S_VERSION}
+            --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
+            --BASE_IMAGE=${{ inputs.base_image }} \
+            --MODEL=${{ inputs.model }} \
+            --FAMILY=${{ inputs.family }} \
+            --K3S_VERSION=${K3S_VERSION}
+
           sudo mv build/* .
           sudo rm -rf build
       - uses: actions/upload-artifact@v3
         with:
-          name: kairos-${{ inputs.flavor }}-provider.iso.zip
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
           path: |
             *.iso
             *.sha256
@@ -80,4 +103,7 @@ jobs:
           if-no-files-found: error
       - name: Push to testing
         run: |
-          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
+          _IMG=$(cat IMAGE)
+          TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}-provider:24h"
+          docker tag $_IMG $TEST_IMAGE
+          docker push $TEST_IMAGE

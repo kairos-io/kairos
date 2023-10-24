@@ -6,6 +6,9 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
 
 jobs:
   test:
@@ -50,7 +53,7 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          fileName: 'kairos-standard-*${{ inputs.flavor }}-*k3s1.iso'
+          fileName: 'kairos-standard-*${{ inputs.flavor }}-${{ inputs.flavor_release }}.*k3s1.iso'
           out-file-path: ""
       - name: Run tests
         run: |
@@ -59,7 +62,7 @@ jobs:
           export MEMORY=4000
           export CPUS=2
           export DRIVE_SIZE=30000
-          export CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ github.sha }}-provider:24h
+          export CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}-provider:24h
 
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq -r '.packages | map(.version) | unique | last' | cut -d+ -f1)
 

@@ -19,7 +19,7 @@ jobs:
         sudo apt update && sudo apt install -y jq
     - id: set-matrix
       run: |
-          content=`cat .github/flavors.json  | jq 'map(select(.frameworkonly != "true"))'`
+          content=`cat .github/flavors.json`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -45,7 +45,7 @@ jobs:
           sudo mv luet /usr/bin/luet
           # Construct an array like this from the found versions:
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique' >  k3s_versions.json
-          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.frameworkonly != "true")) | map(select(.standard == "true"))' .github/flavors.json k3s_versions.json)
+          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.variant == "standard"))' .github/flavors.json k3s_versions.json)
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -79,8 +79,6 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
@@ -94,7 +92,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +build-framework-image --FLAVOR=${FLAVOR}
+          earthly +build-framework-image --FRAMEWORK_FLAVOR=${{ matrix.flavor }}
       - name: Push to quay
         env:
           COSIGN_YES: true
@@ -164,10 +162,15 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Build  🔧
-        env:
-          FLAVOR: ${{ matrix.flavor }}
         run: |
-          earthly +all --VARIANT=core --FLAVOR=$FLAVOR
+          earthly +all  \
+            --VARIANT=${{ matrix.variant }} \
+            --FAMILY=${{ matrix.family }} \
+            --FLAVOR=${{ matrix.flavor }} \
+            --FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
+            --MODEL=${{ matrix.model }} \
+            --BASE_IMAGE=${{ matrix.baseImage }}
+
           sudo mv build release
       - name: Push to quay
         env:

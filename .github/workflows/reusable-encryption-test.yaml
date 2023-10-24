@@ -6,6 +6,9 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
       label:
         required: true
         type: string
@@ -74,7 +77,7 @@ jobs:
         id: iso
         uses: actions/download-artifact@v3
         with:
-          name: kairos-${{ inputs.flavor }}.iso.zip
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
       - name: Display structure of downloaded files
         run: ls -las .
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
@@ -87,5 +90,5 @@ jobs:
           EMULATE_TPM: true
           USE_QEMU: true
         run: |
-          export ISO=$(ls $PWD/kairos-core-*${{ inputs.flavor }}*.iso)
+          export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
           .github/encryption-tests.sh

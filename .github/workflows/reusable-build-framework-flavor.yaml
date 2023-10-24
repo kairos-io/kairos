@@ -48,6 +48,6 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +build-framework-image --FLAVOR=${FLAVOR} --VERSION=master
+          earthly +build-framework-image --FRAMEWORK_FLAVOR=${FLAVOR} --VERSION=master
           docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
