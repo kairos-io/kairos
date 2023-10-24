@@ -26,7 +26,7 @@ jobs:
           sudo apt update && sudo apt install -y jq
       - id: set-matrix
         run: |
-          content=`cat .github/flavors.json  | jq 'map(select(.variant == "core"))'`
+          content=`cat .github/flavors.json  | jq 'map(select(.variant == "core" and .arch == "amd64"))'`
           # the following lines are only required for multi line json
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"

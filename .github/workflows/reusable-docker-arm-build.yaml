@@ -116,10 +116,6 @@ jobs:
           ls -ltrh build
       - name: Push  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          FLAVOR: ${{ inputs.flavor }}
-          IMAGE: quay.io/kairos/core-$FLAVOR:latest
-          MODEL: ${{ inputs.model }}
         run: |
           export _IMG=$(cat build/IMAGE)
           export _NEW_IMG=$(echo $_IMG | cut -f1 -d:):latest
@@ -138,10 +134,6 @@ jobs:
           category: ${{ inputs.flavor }}
       - name: Sign image
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          IMAGE: "quay.io/kairos/core-${{ inputs.flavor }}"
-          TAG: "latest"
-          COSIGN_YES: true
         run: |
           # Avoid pushing a new image for every commit (re-use latest)
           export _IMG=$(cat build/IMAGE)
