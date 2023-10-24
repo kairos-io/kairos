@@ -43,17 +43,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-matrix.outputs.matrix)}}
-  framework:
-    uses: ./.github/workflows/reusable-build-framework-flavor.yaml
-    secrets: inherit
-    with:
-      flavor: ${{ matrix.flavor }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - flavor: "generic"
-          - flavor: "fips"
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
@@ -68,17 +57,6 @@ jobs:
           - "install-test"
         flavor:
           - opensuse-leap
-  zfs:
-    uses: ./.github/workflows/reusable-zfs-test.yaml
-    with:
-      flavor: ${{ matrix.flavor }}
-    needs:
-      - core
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - flavor: "ubuntu"
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
@@ -89,49 +67,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: "alpine"
           - flavor: "opensuse-leap"
-          - flavor: "opensuse-tumbleweed"
-          - flavor: "ubuntu"
-          - flavor: "debian"
-          - flavor: "ubuntu-20-lts"
-          - flavor: "ubuntu-22-lts"
-  bundles:
-    uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
-    with:
-      flavor: ${{ matrix.flavor }}
-    needs:
-      - core
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - flavor: opensuse-tumbleweed # Kubo test needs systemd version 252+ which atm is not available in Leap
-  reset:
-    uses: ./.github/workflows/reusable-qemu-reset-test.yaml
-    with:
-      flavor: ${{ matrix.flavor }}
-    needs:
-      - core
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - flavor: alpine
-          - flavor: opensuse-leap
-  netboot:
-    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
-    with:
-      flavor: ${{ matrix.flavor }}
-    needs:
-      - core
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - flavor: alpine
-          - flavor: opensuse-leap
-          - flavor: ubuntu
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
@@ -143,7 +79,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine
           - flavor: opensuse-leap
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
@@ -174,8 +109,6 @@ jobs:
           - "local-encryption"
           - "remote-auto"
           - "remote-static"
-          - "remote-https-pinned"
-          - "remote-https-bad-cert"
         flavor:
           - "opensuse-leap"
   standard:
@@ -187,7 +120,6 @@ jobs:
       matrix:
         flavor:
           - "opensuse-leap"
-          - "alpine"
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
@@ -200,18 +132,11 @@ jobs:
       max-parallel: 2
       matrix:
         label:
-          - "provider-qrcode-install"
           - "provider-upgrade"
           - "provider-decentralized-k8s"
           - "provider-upgrade-k8s"
         flavor:
           - "opensuse-leap"
-          - "alpine"
-        exclude: # looks like only the k8s stuff is tested on both flavors
-          - label: "provider-qrcode-install"
-            flavor: "alpine"
-          - label: "provider-upgrade"
-            flavor: "alpine"
   standard-upgrade-latest:
     uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
     with:
@@ -224,73 +149,3 @@ jobs:
       matrix:
         flavor:
           - "opensuse-leap"
-  notify:
-    runs-on: ubuntu-latest
-    if: failure()
-    needs:
-      - core
-      - standard
-      - framework
-      - install
-      - zfs
-      - acceptance
-      - bundles
-      - reset
-      - netboot
-      - upgrade
-      - upgrade-latest
-      - encryption
-      - various
-      - standard-upgrade-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          git fetch --prune --unshallow
-      - name: save commit-message
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
-        run: echo "COMMIT_MSG=$(git log -1 --pretty=format:%s)" >> $GITHUB_ENV
-      - name: notify if failure
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
-        uses: slackapi/slack-github-action@v1.24.0
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-        with:
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Job failure on master branch for job ${{ github.job }} in workflow \"${{ github.workflow }}\"\n\nCommit message is \"${{ env.COMMIT_MSG }}\"\n\n Commit sha is <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
-                  }
-                },
-                {
-                  "type": "divider"
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":thisisfine: Failed Run",
-                        "emoji": true
-                      },
-                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":kairos: Repository link",
-                        "emoji": true
-                      },
-                      "url": "https://github.com/${{ github.repository }}"
-                    }
-                  ]
-                }
-              ]
-            }

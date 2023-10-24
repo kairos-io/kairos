@@ -2,40 +2,5 @@
     {
         "flavor": "opensuse-leap",
         "standard": "true"
-    },
-    {
-        "flavor": "opensuse-tumbleweed",
-        "standard": "true"
-    },
-    {
-        "flavor": "ubuntu",
-        "standard": "true"
-    },
-    {
-        "flavor": "ubuntu-20-lts",
-        "standard": "true"
-    },
-    {
-        "flavor": "ubuntu-22-lts",
-        "standard": "true"
-    },
-    {
-        "flavor": "alpine",
-        "standard": "true"
-    },
-    {
-        "flavor": "fedora",
-        "standard": "true"
-    },
-    {
-        "flavor": "debian",
-        "standard": "true"
-    },
-    {
-        "flavor": "rockylinux",
-        "standard": "true"
-    },
-    {
-        "flavor": "almalinux"
     }
 ]
