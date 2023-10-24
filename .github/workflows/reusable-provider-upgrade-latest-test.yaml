@@ -50,7 +50,7 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          fileName: 'kairos-standard-*${{ inputs.flavor }}-*k3s1.iso'
+          fileName: 'kairos-standard-${{ inputs.flavor }}-*k3s1.iso'
           out-file-path: ""
       - name: Run tests
         run: |
@@ -64,12 +64,13 @@ jobs:
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq -r '.packages | map(.version) | unique | last' | cut -d+ -f1)
 
           export ISO=$PWD/$(ls *${K3S_VERSION}*.iso | head -n 1)
-          if [ -z "$ISO" ]; then
+          if [[ "$ISO" != *${K3S_VERSION}* ]]; then
             # IF we have bumped the versions they migth not match anymore and we have downloaded several versions
             # just ls in alphabetical order and get the latest
             export ISO=$PWD/$(ls -l *${{ inputs.flavor }}*.iso | tail -n 1)
-            if [ -z "$ISO" ]; then
+            if [[ "$ISO" != *.iso ]]; then
               echo "No ISO found"
+              ls -ltra
               exit 1
             fi
           fi

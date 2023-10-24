@@ -24,6 +24,7 @@ jobs:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ubuntu
+      label: "install-test"
     needs:
       - core
 
@@ -31,6 +32,7 @@ jobs:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: alpine
+      label: "install-test"
     needs:
       - core-alpine
 

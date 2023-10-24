@@ -155,7 +155,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine
+          # - flavor: alpine # enable once we have 1 alpine pure release, otherwise it cant find the latest released version for that flavor
           - flavor: opensuse-leap
           # - flavor: "ubuntu"
           # - flavor: "ubuntu"
