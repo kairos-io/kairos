@@ -131,7 +131,7 @@ RUN apt-get update \
 ###############################################################
 ####            Common to an Arch and Flavor               ####
 ###############################################################
-FROM ${TARGETARCH} AS base-ubuntu-20-lts
+FROM ${TARGETARCH} AS base-ubuntu-20.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     file \
     fuse \
@@ -139,7 +139,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     policykit-1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${TARGETARCH} AS base-ubuntu-22-lts
+FROM ${TARGETARCH} AS base-ubuntu-22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     dracut-live \
     firmware-sof-signed \
@@ -148,31 +148,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM base-ubuntu-22-lts AS hwe-22-lts
+FROM base-ubuntu-22.04 AS hwe-22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-22.04 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM base-ubuntu-20-lts AS hwe-20-lts
+FROM base-ubuntu-20.04 AS hwe-20.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-20.04 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM hwe-22-lts AS amd64-ubuntu
-FROM hwe-22-lts AS amd64-ubuntu-22-lts
-FROM hwe-20-lts AS amd64-ubuntu-20-lts
+FROM hwe-22.04 AS amd64-ubuntu-23.04
+FROM hwe-22.04 AS amd64-ubuntu-22.04
+FROM hwe-20.04 AS amd64-ubuntu-20.04
 
-FROM base-${FLAVOR} AS amd64-non-hwe
+FROM base-${FLAVOR}-${FLAVOR_RELEASE} AS amd64-non-hwe
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM amd64-non-hwe AS amd64-ubuntu-22-lts-non-hwe
-FROM amd64-non-hwe AS amd64-ubuntu-20-lts-non-hwe
+FROM amd64-non-hwe AS amd64-ubuntu-22.04-non-hwe
+FROM amd64-non-hwe AS amd64-ubuntu-20.04-non-hwe
 
-FROM base-ubuntu-22-lts AS arm64-ubuntu
-FROM base-ubuntu-22-lts AS arm64-ubuntu-22-lts
-FROM base-ubuntu-20-lts AS arm64-ubuntu-20-lts
+FROM base-ubuntu-22.04 AS arm64-ubuntu-23.04
+FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
+FROM base-ubuntu-20.04 AS arm64-ubuntu-20.04
 
 ###############################################################
 ####               Common to a Single Model                ####

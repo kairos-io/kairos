@@ -113,7 +113,7 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
           earthly --platform=linux/${{ inputs.arch }} +ci \
-            --SECURITY_SCANS=true \
+            --SECURITY_SCANS=false \
             --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \

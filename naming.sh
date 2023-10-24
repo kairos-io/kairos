@@ -79,22 +79,6 @@ container_artifact_name() {
   echo "$REGISTRY_AND_ORG/$FLAVOR:$tag"
 }
 
-# returns the repo name for the container artifact
-# for example quay.io/kairos/opensuse or quake.io/kairos/alpine
-container_artifact_repo() {
-  if [ -z "$FLAVOR" ]; then
-    echo 'FLAVOR must be defined'
-    exit 1
-  fi
-
-  if [ -z "$REGISTRY_AND_ORG" ]; then
-      echo 'REGISTRY_AND_ORG must be defined'
-      exit 1
-  fi
-
-  echo "$REGISTRY_AND_ORG/$FLAVOR"
-}
-
 
 if [ -n "$ARTIFACT_JSON" ]; then
   setEnvVarsFromJSON
@@ -109,9 +93,6 @@ case "$1" in
     ;;
   "common_artifact_name")
     common_artifact_name
-    ;;
-  "container_artifact_repo")
-    container_artifact_repo
     ;;
   *)
     echo "Function not found: $1"

@@ -10,7 +10,6 @@ ARG BASE_IMAGE=debian:testing
 
 # we use testing for amd64 because zfsutils-linux is not available in bookworm
 FROM $BASE_IMAGE AS amd64-upstream
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 RUN <<EOF
 echo "deb https://ftp.debian.org/debian bookworm main contrib" >> /etc/apt/sources.list.d/kairos.list
 EOF

@@ -9,9 +9,6 @@ on:
       flavor_release:
         required: true
         type: string
-      family:
-        required: true
-        type: string
 
 jobs:
   test:
@@ -56,8 +53,7 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          #fileName: 'kairos-standard-*${{ inputs.flavor }}-${{ inputs.flavor_release }}.*k3s1.iso' # Enable once we have a release with the new naming
-          fileName: 'kairos-standard-${{ inputs.family }}.*k3s1.iso'
+          fileName: 'kairos-standard-*${{ inputs.flavor }}-${{ inputs.flavor_release }}.*k3s1.iso'
           out-file-path: ""
       - name: Run tests
         run: |

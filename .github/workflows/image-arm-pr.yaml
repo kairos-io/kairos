@@ -15,7 +15,10 @@ jobs:
   docker:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
-      flavor: opensuse-leap-arm-rpi
+      flavor: opensuse
+      flavor_release: leap-15.5
+      family: opensuse-leap
+      base_image: opensuse/leap:15.5
       model: rpi4
       worker: fast
   docker-alpine:

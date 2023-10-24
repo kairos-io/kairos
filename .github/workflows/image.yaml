@@ -23,7 +23,7 @@ jobs:
           sudo apt update && sudo apt install -y jq
       - id: set-matrix
         run: |
-          content=`cat .github/flavors.json  | jq 'map(select(.frameworkonly != "true"))'`
+          content=`cat .github/flavors.json  | jq 'map(select(.variant == "core" and .arch == "amd64"))'`
           # the following lines are only required for multi line json
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
@@ -108,7 +108,7 @@ jobs:
             flavorRelease: "testing"
           - flavor: "ubuntu"
             flavorRelease: "20.04"
-          - flavor: "ubuntu"
+          - flavor: "ubuntu-22-lts"
             flavorRelease: "22.04"
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
@@ -122,7 +122,7 @@ jobs:
       matrix:
         include:
           - flavor: opensuse # Kubo test needs systemd version 252+ which atm is not available in Leap
-            flavorRelease: tumbleweed
+            flavorRelease: opensuse
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
@@ -178,7 +178,7 @@ jobs:
             family: ubuntu
             variant: core
             model: generic
-            baseImage: ubuntu:23.04
+            baseImage: ubuntu/23.04
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
@@ -199,19 +199,16 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
-      family: ${{ matrix.family }}
     needs:
     - core
     strategy:
       fail-fast: false
       matrix:
         include:
-          # cant do alpine yet as it hasnt been released with the proper name
-          #- flavor: alpine
-          #  flavorRelease: "3.18"
+          - flavor: alpine
+            flavorRelease: "3.18"
           - flavor: opensuse
             flavorRelease: leap-15.5
-            family: opensuse-leap
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
@@ -269,16 +266,16 @@ jobs:
       matrix:
         include:
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap/15.5"
             label: "provider-qrcode-install"
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap/15.5"
             label: "provider-upgrade"
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap/15.5"
             label: "provider-decentralized-k8s"
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap/15.5"
             label: "provider-upgrade-k8s"
           - flavor: "alpine"
             flavorRelease: "3.18"
@@ -291,7 +288,6 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
-      family: ${{ matrix.family }}
     needs:
       - standard
     strategy:
@@ -301,10 +297,52 @@ jobs:
         include:
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
-            family: "opensuse-leap"
-          # cant do alpine yet as it hasnt been released with the proper name
-          #- flavor: "alpine"
-          #  flavorRelease: "3.18"
+          - flavor: "alpine"
+            flavorRelease: "3.18"
+
+  test-uki:
+    runs-on: kvm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - name: Enable KVM group perms
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev
+
+          # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
+          # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          # sudo udevadm control --reload-rules
+          # sudo udevadm trigger --name-match=kvm
+          # sudo usermod -a -G kvm,libvirt $USER
+          #
+          # TODO: Switch back to the above solution when we switch to the github runners
+          # https://askubuntu.com/a/1081326
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Build uki disk 🔧
+        run: |
+          # Do fedora as its the smaller uki possible
+          earthly +prepare-uki-disk-image --FLAVOR=fedora
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+          FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
+        run: |
+          export UKI_DRIVE=${PWD}/build/disk.img
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
   notify:
     runs-on: ubuntu-latest
     if: failure()
