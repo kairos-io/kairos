@@ -92,17 +92,6 @@ jobs:
         env:
           VERSION: latest
         run: |
-          # Desired artifact names:
-          # container image: quay.io/kairos/ubuntu:22.04-core-amd64-generic-v2.4.0
-          # iso: kairos-ubuntu-20.04-core-amd64-generic-v2.4.1-ipxe.iso
-          #
-          # TODO:
-          # - New branch:
-          #   - Merge alma, rocky, fedora to one family dockerfile
-          #   - Move rest of logic from Earthfile to Dockerfiles
-          #   - Create a reusable worflow that simply calls docker build passing the required build-args
-          #   - Delete the earthly base-image target and force the use of the above workflow anywhere needed
-          #   - Make all remaining earthly targets to use a pre-cooked KAIROS_IMAGE rather than calling +base-image
           earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=false \
             --VARIANT=${{ inputs.variant }} \
