@@ -22,7 +22,7 @@ jobs:
         git fetch --prune --unshallow
     - id: set-matrix
       run: |
-          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "standard" and .model != "generic"))'`
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model != "generic"))'`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"

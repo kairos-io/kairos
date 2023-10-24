@@ -249,24 +249,3 @@ RUN systemctl enable ssh
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
 RUN journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
-
-# TODO: Consider installing luet packages here and skipping framework image altogether
-#
-# # Setup luet
-# COPY --from=quay.io/luet/base:latest /usr/bin/luet /usr/bin/luet
-# COPY framework-profile.yaml /etc/luet/luet.yaml
-
-# # Install luet packages
-# RUN luet install -y \
-#   static/grub-config \
-#   dracut/immucore \
-#   system/suc-upgrade \
-#   system/grub2-efi \
-#   static/kairos-overlay-files \
-#   system/kcrypt \
-#   system/kcrypt-challenger \
-#   system/immucore \
-#   system/kairos-agent \
-#   init-svc/systemd \
-#   dracut/network-legacy-compat
-
