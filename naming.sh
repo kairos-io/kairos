@@ -72,7 +72,7 @@ container_artifact_name() {
   fi
 
   # quay.io doesn't accept "+" in the repo name
-  export VERSION="${KAIROS_VERSION/+/-}"
+  export KAIROS_VERSION="${KAIROS_VERSION/+/-}"
   local tag
   tag=$(common_artifact_name)
 
