@@ -964,9 +964,15 @@ trivy-scan:
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
     COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
-    ARG FLAVOR
-    ARG VARIANT
+    ARG KAIROS_VERSION=$(cat VERSION)
+    ARG TARGETARCH
+    ARG --required FAMILY # The dockerfile to use
+    ARG --required FLAVOR # The distribution E.g. "ubuntu"
+    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
+    ARG --required VARIANT
+    ARG --required MODEL
+    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
+    COPY ./naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     WORKDIR /build
@@ -989,6 +995,14 @@ grype-scan:
     COPY +grype/grype /grype
     COPY +version/VERSION ./
     ARG KAIROS_VERSION=$(cat VERSION)
+    ARG TARGETARCH
+    ARG --required FAMILY # The dockerfile to use
+    ARG --required FLAVOR # The distribution E.g. "ubuntu"
+    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
+    ARG --required VARIANT
+    ARG --required MODEL
+    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
+    COPY ./naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     WORKDIR /build
