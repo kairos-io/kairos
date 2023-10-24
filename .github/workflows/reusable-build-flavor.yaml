@@ -149,7 +149,7 @@ jobs:
           if-no-files-found: error
       - name: Push to quay
         # do not push to release channels for now
-        if: ${{ false }}
+        if: false()
         #if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_YES: true
