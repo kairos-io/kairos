@@ -1,4 +1,3 @@
-name: Build and test PRs
 on:
   pull_request:
     paths:
@@ -14,16 +13,29 @@ jobs:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
+      family: ubuntu
+      base_image: ubuntu:23.04
+      model: generic
+      variant: core
+      arch: amd64
 
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: alpine
+      flavor_release: "3.18"
+      family: alpine
+      base_image: alpine:3.18
+      model: generic
+      variant: core
+      arch: amd64
 
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
     needs:
       - core
 
@@ -31,6 +43,7 @@ jobs:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: alpine
+      flavor_release: "3.18"
     needs:
       - core-alpine
 
@@ -38,6 +51,7 @@ jobs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
     needs:
       - core
 
@@ -45,6 +59,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
     needs:
       - core
 
@@ -52,6 +67,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: alpine
+      flavor_release: "3.18"
     needs:
       - core-alpine
 
@@ -59,6 +75,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
     needs:
       - core
 
@@ -66,6 +83,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
     needs:
       - core
 
@@ -73,6 +91,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: alpine
+      flavor_release: "3.18"
     needs:
       - core-alpine
 
@@ -80,6 +99,11 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
+      family: ubuntu
+      base_image: ubuntu:23.04
+      model: generic
+      variant: core
     needs:
       - core
 
@@ -87,6 +111,11 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: alpine
+      flavor_release: "3.18"
+      family: alpine
+      base_image: alpine:3.18
+      model: generic
+      variant: core
     needs:
       - core-alpine
 
@@ -94,6 +123,7 @@ jobs:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
     needs:
       - core
 
@@ -101,6 +131,7 @@ jobs:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: alpine
+      flavor_release: "3.18"
     needs:
       - core-alpine
 
@@ -108,6 +139,7 @@ jobs:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
     needs:
       - core
 
@@ -116,6 +148,7 @@ jobs:
   #  uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
   #  with:
   #    flavor: alpine
+  #    flavor_release: "3.18"
   #  needs:
   #    - core-alpine
 
@@ -123,6 +156,7 @@ jobs:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: ubuntu
+      flavor_release: "23.04"
       label: ${{ matrix.label }}
     needs:
       - core
@@ -140,6 +174,7 @@ jobs:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: alpine
+      flavor_release: "3.18"
       label: ${{ matrix.label }}
     needs:
       - core-alpine

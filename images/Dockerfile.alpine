@@ -2,12 +2,12 @@
 ####                           ARGS                        ####
 ###############################################################
 ARG MODEL=generic
+ARG BASE_IMAGE=alpine
 
 ###############################################################
 ####                          Common                       ####
 ###############################################################
-FROM alpine AS common
-
+FROM $BASE_IMAGE AS common
 RUN apk --no-cache add  \
       bash \
       bash-completion \

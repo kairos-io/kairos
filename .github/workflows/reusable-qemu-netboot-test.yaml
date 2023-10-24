@@ -6,6 +6,21 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
+      family:
+        required: true
+        type: string
+      base_image:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+      variant:
+        required: true
+        type: string
 
 jobs:
   test:
@@ -56,4 +71,11 @@ jobs:
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - run: |
-          earthly -P +run-qemu-netboot-test --TEST_SUITE=netboot-test --FLAVOR=${{ inputs.flavor }}
+          earthly -P +run-qemu-netboot-test \
+            --TEST_SUITE=netboot-test \
+            --FLAVOR=${{ inputs.flavor }} \
+            --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
+            --FAMILY=${{ inputs.family }} \
+            --BASE_IMAGE=${{ inputs.base_image}} \
+            --MODEL=${{ inputs.model }} \
+            --VARIANT=${{ inputs.variant }}

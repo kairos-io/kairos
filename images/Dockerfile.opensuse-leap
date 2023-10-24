@@ -2,11 +2,12 @@
 ####                           ARGS                        ####
 ###############################################################
 ARG MODEL=generic
+ARG BASE_IMAGE=opensuse/leap:15.5
 
 ###############################################################
 ####                          Common                       ####
 ###############################################################
-FROM opensuse/leap:15.5 AS common
+FROM $BASE_IMAGE AS common
 
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && \
     zypper ref
