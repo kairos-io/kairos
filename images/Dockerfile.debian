@@ -11,7 +11,7 @@ ARG BASE_IMAGE=debian:testing
 # we use testing for amd64 because zfsutils-linux is not available in bookworm
 FROM $BASE_IMAGE AS amd64-upstream
 RUN <<EOF
-echo "deb http://deb.debian.org/debian bookworm main contrib" >> /etc/apt/sources.list.d/kairos.list
+echo "deb https://ftp.debian.org/debian bookworm main contrib" >> /etc/apt/sources.list.d/kairos.list
 EOF
 
 FROM $BASE_IMAGE AS arm64-upstream
