@@ -2,21 +2,32 @@
 ####                           ARGS                        ####
 ###############################################################
 ARG MODEL=generic
-ARG BASE_IMAGE=opensuse/leap:15.5
+ARG BASE_IMAGE
+ARG FLAVOR_RELEASE
 
-###############################################################
-####                          Common                       ####
-###############################################################
-FROM $BASE_IMAGE AS common
+FROM $BASE_IMAGE AS base
 
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.4/utilities.repo && \
+FROM base AS leap-15.5-repo
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo && \
     zypper ref
 
+FROM base AS tumbleweed-repo-amd64
+RUN zypper removerepo repo-openh264 && \
+    zypper ref
+
+FROM base AS tumbleweed-repo-arm64
+RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && \
+    zypper ref
+
+FROM tumbleweed-repo-${TARGETARCH} AS tumbleweed-repo
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && \
+    zypper ref
+
+FROM ${FLAVOR_RELEASE}-repo AS common
 RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
     coreutils \
-    cryptsetup \
     curl \
     device-mapper \
     dhcp-client \
@@ -35,8 +46,6 @@ RUN zypper in --force-resolution -y \
     iputils \
     issue-generator \
     jq \
-    kernel-default \
-    kernel-firmware-all \
     less \
     logrotate \
     lsscsi \
@@ -44,9 +53,7 @@ RUN zypper in --force-resolution -y \
     mdadm \
     multipath-tools \
     nano \
-    nethogs \
     nohang \
-    nfs-utils \
     open-iscsi \
     openssh \
     open-vm-tools \
@@ -62,7 +69,6 @@ RUN zypper in --force-resolution -y \
     sudo \
     systemd \
     systemd-network \
-    systemd-sysvinit \
     tar \
     timezone \
     tmux \
@@ -70,24 +76,22 @@ RUN zypper in --force-resolution -y \
     which \
     && zypper cc
 
-###############################################################
-####                          Model                        ####
-###############################################################
-FROM common AS generic
+FROM common as amd64
 RUN zypper in --force-resolution -y \
+    cryptsetup \
     grub2-i386-pc \
     grub2-x86_64-efi \
     kernel-firmware-all \
-    lldpd \
-    qemu-guest-agent \
+    nethogs \
+    nfs-utils \
+    patch \
+    systemd-sysvinit \
     && zypper cc
 
-FROM common AS rpicommon
+FROM common as arm64
 RUN zypper in --force-resolution -y \
     bcm43xx-firmware \
     grub2-arm64-efi \
-    grub2-i386-pc \
-    grub2-x86_64-efi \
     iw \
     kernel-firmware-ath10k \
     kernel-firmware-ath11k \
@@ -99,20 +103,49 @@ RUN zypper in --force-resolution -y \
     kernel-firmware-realtek \
     kernel-firmware-serial \
     kernel-firmware-usb-network \
+    nethogs \
+    && zypper cc
+
+###############################################################
+####                          Model                        ####
+###############################################################
+FROM ${TARGETARCH} AS generic
+RUN zypper in --force-resolution -y \
+    lldpd \
+    qemu-guest-agent \
+    && zypper cc
+
+FROM ${TARGETARCH} AS rpicommon
+RUN zypper in --force-resolution -y \
     raspberrypi-eeprom \
     raspberrypi-firmware \
     raspberrypi-firmware-dt \
     sysconfig \
     sysconfig-netconfig \
+    sysvinit-tools \
     wireless-tools \
     wpa_supplicant \
     && zypper cc
 COPY rpi/config.txt /boot/config.txt
 
-FROM rpicommon as rpi3
-FROM rpicommon as rpi4
+FROM rpicommon AS rpi-leap-15.5
+# somehow these two are needed in leap
+RUN zypper in --force-resolution -y \
+    grub2-i386-pc \
+    grub2-x86_64-efi \
+    && zypper cc \
+
+FROM rpicommon AS rpi-tumbleweed
+
+FROM rpi-${FLAVOR_RELEASE} AS rpi3
+FROM rpi-${FLAVOR_RELEASE} AS rpi4
 
 ###############################################################
 ####               Post-Process Common to All              ####
 ###############################################################
 FROM ${MODEL} AS all
+# Not sure why but if I install kernel-defult at the common stage, it doesn't populate /boot so it's done here. Should
+# be investigated further.
+RUN zypper in --force-resolution -y \
+    kernel-default \
+    && zypper cc

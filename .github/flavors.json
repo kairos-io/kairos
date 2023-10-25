@@ -1,6 +1,6 @@
 [
     {
-        "family": "opensuse-leap",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "leap-15.5",
         "variant": "standard",
@@ -10,7 +10,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "opensuse-leap",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "leap-15.5",
         "variant": "core",
@@ -20,7 +20,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "opensuse-leap",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "leap-15.5",
         "variant": "standard",
@@ -30,7 +30,7 @@
         "worker": "ubuntu-latest"
     },
     {
-        "family": "opensuse-leap",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "leap-15.5",
         "variant": "core",
@@ -40,7 +40,7 @@
         "worker": "ubuntu-latest"
     },
     {
-        "family": "opensuse-leap",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "leap-15.5",
         "variant": "core",
@@ -50,7 +50,7 @@
         "worker": "ubuntu-latest"
     },
     {
-        "family": "opensuse-tumbleweed",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
         "variant": "standard",
@@ -60,7 +60,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "opensuse-tumbleweed",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
         "variant": "core",
@@ -70,7 +70,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "opensuse-tumbleweed",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
         "variant": "standard",
@@ -80,7 +80,7 @@
         "worker": "ubuntu-latest"
     },
     {
-        "family": "opensuse-tumbleweed",
+        "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
         "variant": "core",
