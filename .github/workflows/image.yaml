@@ -108,7 +108,7 @@ jobs:
             flavorRelease: "testing"
           - flavor: "ubuntu"
             flavorRelease: "20.04"
-          - flavor: "ubuntu-22-lts"
+          - flavor: "ubuntu"
             flavorRelease: "22.04"
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
@@ -122,7 +122,7 @@ jobs:
       matrix:
         include:
           - flavor: opensuse # Kubo test needs systemd version 252+ which atm is not available in Leap
-            flavorRelease: opensuse
+            flavorRelease: leap-15.5
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
@@ -178,7 +178,7 @@ jobs:
             family: ubuntu
             variant: core
             model: generic
-            baseImage: ubuntu/23.04
+            baseImage: ubuntu:23.04
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
@@ -205,8 +205,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: alpine
-            flavorRelease: "3.18"
+          # cant do alpine yet as it hasnt been released with the proper name
+          #- flavor: alpine
+          #  flavorRelease: "3.18"
           - flavor: opensuse
             flavorRelease: leap-15.5
   encryption:
