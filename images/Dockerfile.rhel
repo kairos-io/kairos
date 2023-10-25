@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=almalinux:latest
+ARG BASE_IMAGE
 
 FROM $BASE_IMAGE
 
@@ -7,6 +7,7 @@ RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 RUN dnf install -y epel-release && dnf clean all
 RUN dnf update -y
 RUN dnf makecache
+RUN dnf install -y "https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 RUN dnf install -y \
     audit \
     cloud-utils-growpart \
@@ -19,16 +20,17 @@ RUN dnf install -y \
     dhcp-client \
     e2fsprogs \
     efibootmgr \
-    epel-release \
     gawk \
     gdisk \
     grub2 \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
     grub2-pc \
+    haveged \
     kernel \
     kernel-modules \
     kernel-modules-extra \
+    less \
     livecd-tools \
     lvm2 \
     nano \
@@ -46,7 +48,7 @@ RUN dnf install -y \
     systemd-timesyncd \
     tar \
     which \
-    https://zfsonlinux.org/epel/zfs-release-2-2.el9.noarch.rpm && dnf clean all
+    zfs && dnf clean all
 
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep

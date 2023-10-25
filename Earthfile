@@ -66,6 +66,7 @@ ci:
   ARG --required BASE_IMAGE
   ARG --required MODEL
   ARG --required VARIANT
+  ARG --required FAMILY
 
   BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
@@ -435,7 +436,7 @@ base-image:
 
     # Set /boot/vmlinuz pointing to our kernel so kairos-agent can use it
     # https://github.com/kairos-io/kairos-agent/blob/0288fb111bc568a1bfca59cb09f39302220475b6/pkg/elemental/elemental.go#L548   q
-    IF [ "$FLAVOR" = "fedora" ] || [ "$FLAVOR" = "rockylinux" ] || [ "$FLAVOR" = "almalinux" ]
+    IF [ "$FLAVOR" = "fedora" ] || [ "$FAMILY" = "rhel" ]
         RUN rm -rf /boot/initramfs-*
     END
 

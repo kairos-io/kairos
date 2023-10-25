@@ -4,12 +4,13 @@ ARG BASE_IMAGE=fedora:latest
 FROM $BASE_IMAGE
 
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
+
+RUN dnf update -y
+RUN dnf makecache
 RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 RUN dnf install -y \
     audit \
-    coreutils \
     cloud-utils-growpart \
-    curl \
     device-mapper \
     dosfstools \
     dracut \
@@ -48,11 +49,12 @@ RUN dnf install -y \
     which \
     zfs && dnf clean all
 
-RUN mkdir -p /run/lock && \
-  touch /usr/libexec/.keep && \
-  systemctl enable getty@tty1.service && \
-  systemctl enable getty@tty2.service && \
-  systemctl enable getty@tty3.service && \
-  systemctl enable systemd-networkd && \
-  systemctl enable systemd-resolved && \
-  systemctl enable sshd
+RUN mkdir -p /run/lock
+RUN touch /usr/libexec/.keep
+RUN systemctl enable getty@tty1.service
+RUN systemctl enable getty@tty2.service
+RUN systemctl enable getty@tty3.service
+RUN systemctl enable systemd-networkd
+RUN systemctl enable systemd-resolved
+RUN systemctl disable dnf-makecache.service
+RUN systemctl enable sshd
