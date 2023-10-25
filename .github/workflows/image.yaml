@@ -210,6 +210,7 @@ jobs:
           #  flavorRelease: "3.18"
           - flavor: opensuse
             flavorRelease: leap-15.5
+            family: opensuse-leap
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
@@ -299,8 +300,10 @@ jobs:
         include:
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
-          - flavor: "alpine"
-            flavorRelease: "3.18"
+            family: "opensuse-leap"
+          # cant do alpine yet as it hasnt been released with the proper name
+          #- flavor: "alpine"
+          #  flavorRelease: "3.18"
 
   notify:
     runs-on: ubuntu-latest

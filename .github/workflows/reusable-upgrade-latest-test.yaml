@@ -9,6 +9,9 @@ on:
       flavor_release:
         required: true
         type: string
+      family:
+        required: true
+        type: string
 
 jobs:
   test:
@@ -55,7 +58,7 @@ jobs:
           # The default value is 'false'
           latest: true
           # TODO: This should change after we release with the new artifact names otherwise it won't work
-          fileName: 'kairos-core-${{ inputs.flavor }}*-amd64-generic-v*.iso'
+          fileName: 'kairos-core-${{ inputs.family }}*-amd64-generic-v*.iso'
           out-file-path: ""
       - name: Display structure of downloaded files
         run: ls -las .
@@ -72,7 +75,7 @@ jobs:
           # release-downloader globing matches more than one iso. Make sure
           # we use the right one.
           # TODO: This needs to be adapted after we release with the new artifact names
-          ISO=$(ls kairos-core-${{ inputs.flavor }}*-amd64-generic-v*.iso | grep -v ipxe)
+          ISO=$(ls kairos-core-${{ inputs.family }}-amd64-generic-v*.iso | grep -v ipxe | head -n 1)
           earthly +run-qemu-test --PREBUILT_ISO=$ISO \
             --FLAVOR=${{ inputs.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
