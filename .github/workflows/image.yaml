@@ -199,6 +199,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
     needs:
     - core
     strategy:
@@ -290,6 +291,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
     needs:
       - standard
     strategy:
