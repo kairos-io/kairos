@@ -135,8 +135,11 @@ OSRELEASE:
     ARG --required KAIROS_VERSION
 
     COPY ./naming.sh .
-    ARG OS_REPO=$(./naming.sh container_artifact_name)
-    ARG OS_NAME=$(./naming.sh common_artifact_name)
+
+    # quay.io/kairos/alpine or quay.io/kairos/ubuntu for example as this is just the repo
+    ARG OS_REPO=$(./naming.sh container_artifact_repo)
+    # kairos-core-alpine-3.18 or kairos-standard-ubuntu-20.04 for example
+    ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
 
     ARG OS_VERSION=$KAIROS_VERSION
     ARG OS_LABEL=$KAIROS_VERSION

@@ -141,6 +141,7 @@ jobs:
     with:
       flavor: ubuntu
       flavor_release: "23.04"
+      family: "ubuntu"
     needs:
       - core
 
