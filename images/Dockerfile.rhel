@@ -7,11 +7,12 @@ RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 
 # Install packages according to distro
 # epel-packages https://docs.fedoraproject.org/en-US/epel/
-FROM base AS rockylinux
+FROM base AS epel
 RUN dnf install -y epel-release && dnf clean all
 RUN dnf install -y "https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 
-FROM rockylinux AS almalinux
+FROM epel AS almalinux
+FROM epel AS rockylinux
 
 FROM base AS fedora
 RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
