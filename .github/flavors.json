@@ -260,7 +260,7 @@
         "worker": "ubuntu-latest"
     },
     {
-        "family": "fedora",
+        "family": "rhel",
         "flavor": "fedora",
         "flavorRelease": "38",
         "variant": "standard",
@@ -270,7 +270,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "fedora",
+        "family": "rhel",
         "flavor": "fedora",
         "flavorRelease": "38",
         "variant": "core",
@@ -320,7 +320,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "rockylinux",
+        "family": "rhel",
         "flavor": "rockylinux",
         "flavorRelease": "9",
         "variant": "standard",
@@ -330,7 +330,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "rockylinux",
+        "family": "rhel",
         "flavor": "rockylinux",
         "flavorRelease": "9",
         "variant": "core",
@@ -340,7 +340,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "almalinux",
+        "family": "rhel",
         "flavor": "almalinux",
         "flavorRelease": "9",
         "variant": "standard",
@@ -350,7 +350,7 @@
         "worker": "self-hosted"
     },
     {
-        "family": "almalinux",
+        "family": "rhel",
         "flavor": "almalinux",
         "flavorRelease": "9",
         "variant": "core",
