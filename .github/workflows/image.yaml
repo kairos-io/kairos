@@ -122,7 +122,7 @@ jobs:
       matrix:
         include:
           - flavor: opensuse # Kubo test needs systemd version 252+ which atm is not available in Leap
-            flavorRelease: leap-15.5
+            flavorRelease: tumbleweed
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
@@ -255,7 +255,6 @@ jobs:
             flavorRelease: "3.18"
             family: alpine
             baseImage: alpine:3.18
-
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
@@ -306,7 +305,6 @@ jobs:
           # cant do alpine yet as it hasnt been released with the proper name
           #- flavor: "alpine"
           #  flavorRelease: "3.18"
-
   notify:
     runs-on: ubuntu-latest
     if: failure()
