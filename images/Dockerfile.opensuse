@@ -133,7 +133,7 @@ FROM rpicommon AS rpi-leap-15.5
 RUN zypper in --force-resolution -y \
     grub2-i386-pc \
     grub2-x86_64-efi \
-    && zypper cc \
+    && zypper cc
 
 FROM rpicommon AS rpi-tumbleweed
 
