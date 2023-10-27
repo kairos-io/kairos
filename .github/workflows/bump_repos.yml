@@ -15,13 +15,27 @@ jobs:
           packages: utils/earthly
       - name: Old packages
         run: |
-          earthly +base-image --VARIANT=standard --FLAVOR=opensuse-leap --K3S_VERSION=latest
+          earthly +base-image \
+            --FAMILY=opensuse \
+            --FLAVOR=opensuse \
+            --FLAVOR_RELEASE=leap-15.5 \
+            --VARIANT=standard \
+            --MODEL=generic \
+            --BASE_IMAGE=opensuse/leap:15.5 \
+            --K3S_VERSION=latest
           mv build/versions.yaml build/versions.old.yaml
       - name: Bump cos 🔧
         run: earthly +bump-repositories
       - name: New packages
         run: |
-          earthly +base-image --VARIANT=standard --FLAVOR=opensuse-leap --K3S_VERSION=latest
+          earthly +base-image
+            --FAMILY=opensuse \
+            --FLAVOR=opensuse \
+            --FLAVOR_RELEASE=leap-15.5 \
+            --VARIANT=standard \
+            --MODEL=generic \
+            --BASE_IMAGE=opensuse/leap:15.5 \
+            --K3S_VERSION=latest
           mv build/versions.yaml build/versions.new.yaml
       - name: Diff versions and generate pr message
         run: .github/repo-diff-msg.sh
