@@ -142,7 +142,7 @@ jobs:
             variant: core
           - flavor: opensuse
             flavorRelease: leap-15.5
-            family: opensuse-leap
+            family: opensuse
             base_image: opensuse/leap:15.5
             model: generic
             variant: core
@@ -169,7 +169,7 @@ jobs:
             baseImage: alpine:3.18
           - flavor: opensuse
             flavorRelease: leap-15.5
-            family: opensuse-leap
+            family: opensuse
             variant: core
             model: generic
             baseImage: opensuse/leap:15.5
@@ -211,7 +211,7 @@ jobs:
           #  flavorRelease: "3.18"
           - flavor: opensuse
             flavorRelease: leap-15.5
-            family: opensuse-leap
+            family: opensuse
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
@@ -249,7 +249,7 @@ jobs:
         include:
           - flavor: opensuse
             flavorRelease: leap-15.5
-            family: opensuse-leap
+            family: opensuse
             baseImage: opensuse/leap:15.5
           - flavor: alpine
             flavorRelease: "3.18"
@@ -301,7 +301,7 @@ jobs:
         include:
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
-            family: "opensuse-leap"
+            family: "opensuse"
           # cant do alpine yet as it hasnt been released with the proper name
           #- flavor: "alpine"
           #  flavorRelease: "3.18"

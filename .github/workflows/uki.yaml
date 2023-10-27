@@ -43,7 +43,7 @@ jobs:
           earthly +iso-uki \
             --FLAVOR=opensuse \
             --FLAVOR_RELEASE=leap-15.5 \
-            --FAMILY=opensuse-leap \
+            --FAMILY=opensuse \
             --MODEL=generic \
             --VARIANT=core \
             --BASE_IMAGE=opensuse/leap:15.5 \

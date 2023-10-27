@@ -17,7 +17,7 @@ jobs:
     with:
       flavor: opensuse
       flavor_release: leap-15.5
-      family: opensuse-leap
+      family: opensuse
       base_image: opensuse/leap:15.5
       model: rpi4
       worker: fast

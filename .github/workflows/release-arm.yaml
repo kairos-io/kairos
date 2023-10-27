@@ -281,13 +281,24 @@ jobs:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
 
-  build-arm-generic-core:
+  build-arm-generic:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        flavor:
-          - "opensuse-leap"
+        include:
+          - flavor: opensuse
+            flavor_release: leap-15.5
+            family: opensuse
+            base_image: opensuse/leap:15.5
+            model: generic
+            variant: core
+          - flavor: opensuse
+            flavor_release: leap-15.5
+            family: opensuse
+            base_image: opensuse/leap:15.5
+            model: generic
+            variant: standard
     steps:
       - uses: actions/checkout@v4
         with:
@@ -308,47 +319,13 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
         run: |
-          earthly -P +all-arm-generic --VARIANT=core --FLAVOR=${{ matrix.flavor }}
-          sudo mv build release
-      - name: Push to quay
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          docker push $(cat release/IMAGE)
-      - name: Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            release/*iso*
-
-  build-arm-generic-standard:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        flavor:
-          - "opensuse-leap"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Login to Quay Registry
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Build iso  🔧
-        run: |
-          earthly -P +all-arm-generic --VARIANT=standard --FLAVOR=${{ matrix.flavor }} --K3S_VERSION=latest
+          earthly -P +all-arm-generic \
+            --FLAVOR=${{ matrix.flavor }} \
+            --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
+            --FAMILY=${{ matrix.family }} \
+            --BASE_IMAGE=${{ matrix.base_image}} \
+            --MODEL=${{ matrix.model }} \
+            --VARIANT=${{ matrix.variant }}
           sudo mv build release
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')
