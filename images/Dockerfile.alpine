@@ -106,6 +106,8 @@ RUN apk --no-cache add  \
       bridge \
       rbd-nbd
 RUN apk --no-cache add linux-lts --no-scripts
+# Enable tun module on boot for edgevpn/vpn services
+RUN echo "tun" >> /etc/modules
 
 FROM common as rpicommon
 COPY rpi/config.txt /boot/config.txt
