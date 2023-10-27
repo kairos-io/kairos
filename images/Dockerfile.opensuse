@@ -2,12 +2,10 @@
 ####                           ARGS                        ####
 ###############################################################
 ARG MODEL=generic
-ARG BASE_IMAGE=opensuse/tumbleweed
+ARG BASE_IMAGE
+ARG FLAVOR_RELEASE
 
-###############################################################
-####                        Upstream                       ####
-###############################################################
-FROM $BASE_IMAGE AS upstream
+FROM $BASE_IMAGE AS base
 
 FROM base AS leap-15.5-repo
 RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo && \
