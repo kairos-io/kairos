@@ -73,6 +73,11 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			}, 30*time.Second, 10*time.Second).Should(And(
 				ContainSubstring("kairos"),
 				ContainSubstring("kairos-agent")))
+			Eventually(func() string {
+				var out string
+				out, _ = vm.Sudo("rc-service kairos-agent status")
+				return out
+			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("status: started"))
 		} else {
 			Eventually(func() string {
 				out, _ := vm.Sudo("systemctl status kairos-agent")
@@ -87,16 +92,6 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 				"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled; vendor preset: disabled)"))
 		}
 
-		By("checking if kairos-agent has started")
-		Eventually(func() string {
-			var out string
-			if isFlavor(vm, "alpine") {
-				out, _ = vm.Sudo("rc-service kairos-agent status")
-			} else {
-				out, _ = vm.Sudo("systemctl status kairos-agent")
-			}
-			return out
-		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("status: started")))
 		By("Checking agent provider correct start")
 		Eventually(func() string {
 			out, _ := vm.Sudo("cat /var/log/kairos/agent-provider.log")
