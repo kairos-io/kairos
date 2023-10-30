@@ -271,9 +271,10 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
             label: "provider-qrcode-install"
-          - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
-            label: "provider-upgrade"
+          # Requires at least 1 release with the newer repositories to work as this test checks the release list
+          #- flavor: "opensuse"
+          #  flavorRelease: "leap-15.5"
+          #  label: "provider-upgrade"
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
             label: "provider-decentralized-k8s"
