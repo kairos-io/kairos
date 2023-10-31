@@ -86,7 +86,7 @@ all-arm:
       BUILD --platform=linux/arm64 +grype-scan
   END
 
-  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
     BUILD +prepare-arm-image
   ELSE
     BUILD +arm-image
@@ -793,11 +793,11 @@ arm-image:
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
-  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
     ENV STATE_SIZE="14000"
     ENV RECOVERY_SIZE="10000"
     ENV DEFAULT_ACTIVE_SIZE="4500"
-  ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+  ELSE IF [[ "$FLAVOR" = "ubuntu" ]]
     ENV DEFAULT_ACTIVE_SIZE="2700"
     ENV STATE_SIZE="8100" # Has to be DEFAULT_ACTIVE_SIZE * 3 due to upgrade
     ENV RECOVERY_SIZE="5400" # Has to be DEFAULT_ACTIVE_SIZE * 2 due to upgrade
@@ -840,7 +840,7 @@ prepare-arm-image:
   ARG --required FLAVOR_RELEASE
   ARG --required VARIANT
   ARG --required BASE_IMAGE
-  ARG MODEL=rpi4
+  ARG --required MODEL
 
   COPY ./naming.sh .
   ARG IMAGE_NAME=$(./naming.sh bootable_artifact_name).img
@@ -849,11 +849,11 @@ prepare-arm-image:
 
   ENV SIZE="15200"
 
-  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
     ENV STATE_SIZE="14000"
     ENV RECOVERY_SIZE="10000"
     ENV DEFAULT_ACTIVE_SIZE="4500"
-  ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+  ELSE IF [[ "$FLAVOR" = "ubuntu" ]]
     ENV DEFAULT_ACTIVE_SIZE="2700"
     ENV STATE_SIZE="8100" # Has to be DEFAULT_ACTIVE_SIZE * 3 due to upgrade
     ENV RECOVERY_SIZE="5400" # Has to be DEFAULT_ACTIVE_SIZE * 2 due to upgrade

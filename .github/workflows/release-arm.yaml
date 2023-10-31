@@ -120,7 +120,13 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build  🔧
         run: |
-          earthly -P +all-arm -VARIANT=core -MODEL=${{ matrix.model }} -FLAVOR=${{ matrix.flavor }}
+          earthly -P +all-arm \
+            -VARIANT=core \
+            -MODEL=${{ matrix.model }} \
+            -FLAVOR=${{ matrix.flavor }} \
+            -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
+            -FAMILY=${{ matrix.family }} \
+            -BASE_IMAGE=${{ matrix.baseImage }}
       - name: Convert all json files into a reports.tar.gz file
         run: |
           export VERSION=$(cat build/VERSION)
@@ -142,7 +148,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(cat build/IMAGE | sed 's/:/-img:/')
+          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
           sudo tar cvf build.tar build
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
@@ -236,7 +242,14 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build  🔧
         run: |
-          earthly -P +all-arm -VARIANT=standard -MODEL=${{ matrix.model }} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+          earthly -P +all-arm \
+            -VARIANT=standard \
+            -MODEL=${{ matrix.model }} \
+            -K3S_VERSION=${{ matrix.k3s_version }} \
+            -FLAVOR=${{ matrix.flavor }} \
+            -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
+            -FAMILY=${{ matrix.family }} \
+            -BASE_IMAGE=${{ matrix.baseImage }}
       - name: Convert all json files into a reports.tar.gz file
         run: |
           export VERSION=$(cat build/VERSION)
