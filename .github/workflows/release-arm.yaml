@@ -271,7 +271,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(cat build/IMAGE | sed 's/:/-img:/')
+          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
           sudo tar cvf build.tar build
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
