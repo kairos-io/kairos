@@ -80,8 +80,6 @@ jobs:
       flavor: "opensuse"
       flavor_release: "leap-15.5"
       family: opensuse
-      model: generic
-      arch: arm64
       base_image: opensuse/leap:15.5
       variant: core
 
