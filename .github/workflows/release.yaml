@@ -231,7 +231,14 @@ jobs:
       - name: Build uki image 🔧
         run: |
           # Do fedora as its the smaller uki possible
-          earthly +uki --VARIANT=core --FLAVOR=fedora
+          earthly +uki \
+            --FAMILY=rhel \
+            --FLAVOR=fedora \
+            --FLAVOR_RELEASE=38 \
+            --VARIANT=core \
+            --MODEL=generic \
+            --BASE_IMAGE=fedora:38
+
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
