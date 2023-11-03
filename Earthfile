@@ -495,6 +495,7 @@ image-rootfs:
     FROM +base-image
 
     SAVE ARTIFACT --keep-own /. rootfs
+    SAVE ARTIFACT IMAGE IMAGE
 
 uki-artifacts:
     ARG --required FAMILY # The dockerfile to use
@@ -642,10 +643,12 @@ iso:
     WORKDIR /build
     COPY . ./
     COPY --keep-own +image-rootfs/rootfs /build/image
+    COPY --keep-own +image-rootfs/IMAGE IMAGE
+
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --output /build/
+    SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
-
 
 iso-uki:
     FROM ubuntu
