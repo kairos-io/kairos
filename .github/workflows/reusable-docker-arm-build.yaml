@@ -142,7 +142,7 @@ jobs:
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$_LATEST")
           spdx=$(ls build/*.spdx.json)
           cosign attach sbom --sbom $spdx $image_ref
-          cosign -y sign $image_ref --attachment sbom
+          cosign sign -y $image_ref --attachment sbom
           # in-toto attestation
           cosign attest --type spdx --predicate $spdx $image_ref
       - name: Upload results
