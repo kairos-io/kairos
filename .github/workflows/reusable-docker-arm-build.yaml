@@ -144,7 +144,7 @@ jobs:
           cosign attach sbom --sbom $spdx $image_ref
           cosign sign -y $image_ref --attachment sbom
           # in-toto attestation
-          cosign attest --type spdx --predicate $spdx $image_ref
+          cosign attest -y --type spdx --predicate $spdx $image_ref
       - name: Upload results
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor != 'ubuntu-20-lts-arm-nvidia-jetson-agx-orin' }}
         uses: actions/upload-artifact@v3
