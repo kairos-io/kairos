@@ -743,6 +743,10 @@ netboot:
 
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
+    # For ipxe.tmpl to be able to substitute. It's called version but it references the release tag, this is why we need
+    # to remove the -k3s version
+    ARG VERSION=$(cat VERSION | sed 's/-k3s.*//')
+    # For naming.sh we need the complete version including the K3S version in order to build the artifact names
     ARG KAIROS_VERSION=$(cat VERSION)
 
     ARG TARGETARCH # Earthly built-in (not passed)
