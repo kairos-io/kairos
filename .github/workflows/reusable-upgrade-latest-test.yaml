@@ -59,7 +59,7 @@ jobs:
           latest: true
           # TODO: v2.4.2 Enable once we have a release with the new naming
           # fileName: 'kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}*core-amd64-generic*.iso'
-          fileName: 'kairos-core-${{ inputs.flavor }}-${{ inputs.flavor_release }}-amd64-generic*.iso'
+          fileName: 'kairos-core-${{ inputs.flavor }}*-amd64-generic*.iso'
           out-file-path: ""
       - name: Display structure of downloaded files
         run: ls -las .
@@ -77,7 +77,7 @@ jobs:
           # we use the right one.
           # TODO: v2.4.2 Enable once we have a release with the new naming
           # ISO=$(ls kairos-${{ inputs.family }}-${{ inputs.flavor_release }}*core-amd64-generic-v*.iso | grep -v ipxe | head -n 1)
-          ISO=$(ls kairos-core-${{ inputs.family }}-${{ inputs.flavor_release }}*-amd64-generic-v*.iso | grep -v ipxe | head -n 1)
+          ISO=$(ls kairos-core-${{ inputs.family }}*-amd64-generic-v*.iso | grep -v ipxe | head -n 1)
           earthly +run-qemu-test --PREBUILT_ISO=$ISO \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
