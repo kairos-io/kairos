@@ -87,6 +87,7 @@ RUN apt-get update \
     tar \
     ubuntu-advantage-tools \
     xz-utils \
+    zstd \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ###############################################################
@@ -116,7 +117,6 @@ RUN apt-get update \
     xxd \
     zerofree \
     zfsutils-linux \
-    zstd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM common AS arm64
