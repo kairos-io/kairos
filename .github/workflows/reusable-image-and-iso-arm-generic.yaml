@@ -60,8 +60,11 @@ jobs:
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
-          export IMAGE=$(cat build/IMAGE)
-          docker push "$IMAGE"
+          # Avoid pushing a new image for every commit (re-use latest)
+          export _IMG=$(cat build/IMAGE)
+          export _NEW_IMG=$(echo $_IMG | cut -f1 -d:):latest
+          docker tag $_IMG $_NEW_IMG
+          docker push $_NEW_IMG
       - uses: actions/upload-artifact@v3
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
