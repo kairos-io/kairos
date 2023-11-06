@@ -77,6 +77,13 @@ ci:
   BUILD +iso
 
 all-arm:
+  ARG --required FLAVOR
+  ARG --required FLAVOR_RELEASE
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+  ARG --required FAMILY
+
   ARG SECURITY_SCANS=true
 
   BUILD --platform=linux/arm64 +base-image
@@ -86,7 +93,7 @@ all-arm:
       BUILD --platform=linux/arm64 +grype-scan
   END
 
-  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
+  IF [[ "$FAMILY" = "nvidia" ]]
     BUILD +prepare-arm-image
   ELSE
     BUILD +arm-image
