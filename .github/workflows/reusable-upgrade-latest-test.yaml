@@ -75,7 +75,7 @@ jobs:
           # release-downloader globing matches more than one iso. Make sure
           # we use the right one.
           # TODO: This needs to be adapted after we release with the new artifact names
-          ISO=$(ls kairos-core-${{ inputs.family }}*-amd64-generic-v*.iso | grep -v ipxe | head -n 1)
+          ISO=$(ls kairos-${{ inputs.family }}*-core-amd64-generic-v*.iso | grep -v ipxe | head -n 1)
           earthly +run-qemu-test --PREBUILT_ISO=$ISO \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
