@@ -492,6 +492,7 @@ image-rootfs:
     ARG --required MODEL
     ARG --required VARIANT
 
+    BUILD +base-image # Make sure the image is also saved locally
     FROM +base-image
 
     SAVE ARTIFACT --keep-own /. rootfs
@@ -642,6 +643,8 @@ iso:
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
+
+    BUILD +image-rootfs # Make sure the image is also saved locally
     COPY --keep-own +image-rootfs/rootfs /build/image
     COPY --keep-own +image-rootfs/IMAGE IMAGE
 
