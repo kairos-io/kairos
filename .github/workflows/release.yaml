@@ -283,7 +283,7 @@ jobs:
             --FLAVOR=${{ matrix.flavor }} \
             --FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
             --MODEL=${{ matrix.model }} \
-            --K3S_VERSION=${{ matrix.k3s_version }}
+            --K3S_VERSION=${{ matrix.k3s_version }} \
             --BASE_IMAGE=${{ matrix.baseImage }}
 
           sudo mv build release
