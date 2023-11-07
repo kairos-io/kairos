@@ -14,7 +14,7 @@ jobs:
           fetch-depth: 0
       - id: set-matrix
         run: |
-          content=`cat ./.github/flavors.json | map(select(.arch == "arm64"))`
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64"))'`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -332,13 +332,16 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
         run: |
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last')
           earthly -P +all-arm-generic \
             --FLAVOR=${{ matrix.flavor }} \
             --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
             --FAMILY=${{ matrix.family }} \
             --BASE_IMAGE=${{ matrix.base_image}} \
             --MODEL=${{ matrix.model }} \
-            --VARIANT=${{ matrix.variant }}
+            --VARIANT=${{ matrix.variant }} \
+            --K3S_VERSION=${K3S_VERSION}
+
           sudo mv build release
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')
