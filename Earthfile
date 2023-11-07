@@ -1094,10 +1094,10 @@ run-qemu-netboot-test:
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
 
-    COPY (+netboot/squashfs --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.squashfs
-    COPY (+netboot/kernel --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-kernel
-    COPY (+netboot/initrd --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-initrd
-    COPY (+netboot/ipxe --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.ipxe
+    COPY (+netboot/squashfs --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME.squashfs
+    COPY (+netboot/kernel --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME-kernel
+    COPY (+netboot/initrd --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME-initrd
+    COPY (+netboot/ipxe --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME.ipxe
     COPY (+ipxe-iso/iso --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/${ISO_NAME}-ipxe.iso
 
     ENV ISO=/test/build/$ISO_NAME-ipxe.iso
