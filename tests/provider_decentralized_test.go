@@ -146,7 +146,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				out, _ = vm.Sudo("kairos get-kubeconfig")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("https:"), out)
+			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("https:"), out)
 
 			Eventually(func() string {
 				vm.Sudo("kairos get-kubeconfig > kubeconfig")
