@@ -145,6 +145,8 @@ OSRELEASE:
 
     # quay.io/kairos/alpine or quay.io/kairos/ubuntu for example as this is just the repo
     ARG OS_REPO=$(./naming.sh container_artifact_repo)
+    ARG ARTIFACT=$(./naming.sh bootable_artifact_name)
+
     # kairos-core-alpine-3.18 or kairos-standard-ubuntu-20.04 for example
     ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
 
