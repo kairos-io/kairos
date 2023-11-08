@@ -131,7 +131,8 @@ jobs:
         run: |
           export VERSION=$(cat build/VERSION)
           cd build
-          sudo tar cvf "kairos-core-${{matrix.flavor}}-arm64-${{matrix.model}}-${VERSION}-scan-reports.tar.gz" *.json
+          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
+          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -254,7 +255,8 @@ jobs:
         run: |
           export VERSION=$(cat build/VERSION)
           cd build
-          sudo tar cvf "kairos-standard-${{matrix.flavor}}-arm64-${{matrix.model}}-${VERSION}-scan-reports.tar.gz" *.json
+          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
+          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
