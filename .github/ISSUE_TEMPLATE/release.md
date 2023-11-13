@@ -34,12 +34,5 @@ assignees: mudler
     - [ ] ARM images /oem exists
 - [ ] **Stage 3 - Release**
   - [ ] Tag the release on master.
-- [ ] **Stage 4 - Update provider-kairos**
-  - [ ] Update go mod to consume `kairos-io/kairos`.
-  - [ ] Check if any changes on the pipelines and building pieces are required
-    - [ ] Flavor changes
-    - [ ] `osbuilder` version bumps
-  - [ ] Update the `CORE_VERSION` file of `kairos-io/provider` to match the release tag of `kairos-io/kairos`
-  - [ ] Tag the release on `provider-kairos`
-- [ ] **Stage 5 - Announcement**
+- [ ] **Stage 4 - Announcement**
   - [ ] Blog post announcement
