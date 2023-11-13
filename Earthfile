@@ -77,6 +77,13 @@ ci:
   BUILD +iso
 
 all-arm:
+  ARG --required FLAVOR
+  ARG --required FLAVOR_RELEASE
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+  ARG --required FAMILY
+
   ARG SECURITY_SCANS=true
 
   BUILD --platform=linux/arm64 +base-image
@@ -86,7 +93,7 @@ all-arm:
       BUILD --platform=linux/arm64 +grype-scan
   END
 
-  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+  IF [[ "$FAMILY" = "nvidia" ]]
     BUILD +prepare-arm-image
   ELSE
     BUILD +arm-image
@@ -138,6 +145,8 @@ OSRELEASE:
 
     # quay.io/kairos/alpine or quay.io/kairos/ubuntu for example as this is just the repo
     ARG OS_REPO=$(./naming.sh container_artifact_repo)
+    ARG ARTIFACT=$(./naming.sh bootable_artifact_name)
+
     # kairos-core-alpine-3.18 or kairos-standard-ubuntu-20.04 for example
     ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
 
@@ -492,9 +501,11 @@ image-rootfs:
     ARG --required MODEL
     ARG --required VARIANT
 
+    BUILD +base-image # Make sure the image is also saved locally
     FROM +base-image
 
     SAVE ARTIFACT --keep-own /. rootfs
+    SAVE ARTIFACT IMAGE IMAGE
 
 uki-artifacts:
     ARG --required FAMILY # The dockerfile to use
@@ -641,11 +652,15 @@ iso:
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
+
+    BUILD +image-rootfs # Make sure the image is also saved locally
     COPY --keep-own +image-rootfs/rootfs /build/image
+    COPY --keep-own +image-rootfs/IMAGE IMAGE
+
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --output /build/
+    SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
-
 
 iso-uki:
     FROM ubuntu
@@ -737,6 +752,10 @@ netboot:
 
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
+    # For ipxe.tmpl to be able to substitute. It's called version but it references the release tag, this is why we need
+    # to remove the -k3s version
+    ARG VERSION=$(cat VERSION | sed 's/-k3s.*//')
+    # For naming.sh we need the complete version including the K3S version in order to build the artifact names
     ARG KAIROS_VERSION=$(cat VERSION)
 
     ARG TARGETARCH # Earthly built-in (not passed)
@@ -793,11 +812,11 @@ arm-image:
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
-  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
     ENV STATE_SIZE="14000"
     ENV RECOVERY_SIZE="10000"
     ENV DEFAULT_ACTIVE_SIZE="4500"
-  ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+  ELSE IF [[ "$FLAVOR" = "ubuntu" ]]
     ENV DEFAULT_ACTIVE_SIZE="2700"
     ENV STATE_SIZE="8100" # Has to be DEFAULT_ACTIVE_SIZE * 3 due to upgrade
     ENV RECOVERY_SIZE="5400" # Has to be DEFAULT_ACTIVE_SIZE * 2 due to upgrade
@@ -840,7 +859,7 @@ prepare-arm-image:
   ARG --required FLAVOR_RELEASE
   ARG --required VARIANT
   ARG --required BASE_IMAGE
-  ARG MODEL=rpi4
+  ARG --required MODEL
 
   COPY ./naming.sh .
   ARG IMAGE_NAME=$(./naming.sh bootable_artifact_name).img
@@ -849,11 +868,11 @@ prepare-arm-image:
 
   ENV SIZE="15200"
 
-  IF [[ "$FLAVOR" = "ubuntu-20-lts-arm-nvidia-jetson-agx-orin" ]]
+  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
     ENV STATE_SIZE="14000"
     ENV RECOVERY_SIZE="10000"
     ENV DEFAULT_ACTIVE_SIZE="4500"
-  ELSE IF [[ "$FLAVOR" =~ ^ubuntu* ]]
+  ELSE IF [[ "$FLAVOR" = "ubuntu" ]]
     ENV DEFAULT_ACTIVE_SIZE="2700"
     ENV STATE_SIZE="8100" # Has to be DEFAULT_ACTIVE_SIZE * 3 due to upgrade
     ENV RECOVERY_SIZE="5400" # Has to be DEFAULT_ACTIVE_SIZE * 2 due to upgrade
@@ -1077,10 +1096,10 @@ run-qemu-netboot-test:
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
 
-    COPY (+netboot/squashfs --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.squashfs
-    COPY (+netboot/kernel --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-kernel
-    COPY (+netboot/initrd --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-initrd
-    COPY (+netboot/ipxe --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.ipxe
+    COPY (+netboot/squashfs --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME.squashfs
+    COPY (+netboot/kernel --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME-kernel
+    COPY (+netboot/initrd --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME-initrd
+    COPY (+netboot/ipxe --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME.ipxe
     COPY (+ipxe-iso/iso --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/${ISO_NAME}-ipxe.iso
 
     ENV ISO=/test/build/$ISO_NAME-ipxe.iso

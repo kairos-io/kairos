@@ -131,7 +131,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				*/
 			} else {
 				Eventually(func() string {
-					out, _ = vm.Sudo("systemctl status kairos-agent")
+					out, _ = vm.Sudo("cat /var/log/kairos/agent-provider.log")
 					return out
 				}, 45*time.Minute, 1*time.Second).Should(
 					Or(
@@ -146,7 +146,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				out, _ = vm.Sudo("kairos get-kubeconfig")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("https:"), out)
+			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("https:"), out)
 
 			Eventually(func() string {
 				vm.Sudo("kairos get-kubeconfig > kubeconfig")

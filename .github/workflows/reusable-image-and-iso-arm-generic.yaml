@@ -6,6 +6,18 @@ on:
       flavor:
         required: true
         type: string
+      flavor_release:
+        required: true
+        type: string
+      family:
+        required: true
+        type: string
+      base_image:
+        required: true
+        type: string
+      variant:
+        required: true
+        type: string
 
 jobs:
   build:
@@ -36,23 +48,27 @@ jobs:
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Build iso  🔧
-        env:
-          IMAGE: "quay.io/kairos/core-${{ inputs.flavor }}-arm-generic"
-          TAG: "master"
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
-          earthly -P +all-arm-generic --FLAVOR=${{ inputs.flavor }} --IMAGE=$IMAGE:$TAG --ISO_NAME=kairos-${{ inputs.flavor }}-arm-generic-$TAG
+          earthly -P +all-arm-generic \
+            --FAMILY=${{ inputs.family }} \
+            --FLAVOR=${{ inputs.flavor }} \
+            --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
+            --VARIANT=${{ inputs.variant }} \
+            --BASE_IMAGE=${{ inputs.base_image }}
+
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          IMAGE: "quay.io/kairos/core-${{ inputs.flavor }}-arm-generic"
-          TAG: "master"
         run: |
-          docker push "$IMAGE:$TAG"
+          # Avoid pushing a new image for every commit (re-use latest)
+          export _IMG=$(cat build/IMAGE)
+          export _NEW_IMG=$(echo $_IMG | cut -f1 -d:):latest
+          docker tag $_IMG $_NEW_IMG
+          docker push $_NEW_IMG
       - uses: actions/upload-artifact@v3
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
-          name: kairos-${{ inputs.flavor }}-arm64.iso.zip
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-arm64.iso.zip
           path: |
             build/*.iso
             build/*.sha256

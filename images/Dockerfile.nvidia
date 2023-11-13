@@ -98,7 +98,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     vim \
     xdg-user-dirs \
     xxd \
-    xz-utils
+    xz-utils \
+    zstd
 
 RUN apt-get remove -y unattended-upgrades
 

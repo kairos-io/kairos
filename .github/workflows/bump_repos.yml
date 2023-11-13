@@ -28,7 +28,7 @@ jobs:
         run: earthly +bump-repositories
       - name: New packages
         run: |
-          earthly +base-image
+          earthly +base-image \
             --FAMILY=opensuse \
             --FLAVOR=opensuse \
             --FLAVOR_RELEASE=leap-15.5 \

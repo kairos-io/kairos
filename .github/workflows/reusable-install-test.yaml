@@ -12,7 +12,7 @@ on:
 
 jobs:
   test:
-    runs-on: macos-12
+    runs-on: kvm
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -22,25 +22,44 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release}}.iso.zip
-      - name: Display structure of downloaded files
-        run: ls -las .
-      - name: Install deps
-        run: |
-          brew install cdrtools jq gsed
       - name: Install Go
         uses: actions/setup-go@v4
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-      - name: Ginkgo
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
-          export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
-          export GOPATH="/Users/runner/go"
-          export PATH=$PATH:$GOPATH/bin
-          export CREATE_VM=true
-          export FLAVOR=${{ inputs.flavor }}
-          cd tests
-          go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "install-test" --fail-fast -r ./...
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
+      - name: Enable KVM group perms
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev
+
+          # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
+          # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          # sudo udevadm control --reload-rules
+          # sudo udevadm trigger --name-match=kvm
+          # sudo usermod -a -G kvm,libvirt $USER
+          #
+          # TODO: Switch back to the above solution when we switch to the github runners
+          # https://askubuntu.com/a/1081326
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+          DRIVE_SIZE: 30000
+          CREATE_VM: true
+          FLAVOR: ${{ inputs.flavor }}
+        run: |
+          ls *.iso
+          export ISO=$PWD/$(ls *.iso)
+          echo "ISO is: $ISO"
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "install-test" --fail-fast -r ./tests
       - uses: actions/upload-artifact@v3
         if: failure()
         with:

@@ -19,7 +19,7 @@ jobs:
         sudo apt update && sudo apt install -y jq
     - id: set-matrix
       run: |
-          content=`cat .github/flavors.json`
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "amd64" and .variant == "core"))'`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -45,7 +45,7 @@ jobs:
           sudo mv luet /usr/bin/luet
           # Construct an array like this from the found versions:
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique' >  k3s_versions.json
-          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.variant == "standard"))' .github/flavors.json k3s_versions.json)
+          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.arch == "amd64" and .variant == "standard"))' .github/flavors.json k3s_versions.json)
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -201,7 +201,8 @@ jobs:
           mkdir reports
           mv release/*.json reports/
           cd reports
-          sudo tar cvf "kairos-core-${{matrix.flavor}}-amd64-generic-${VERSION}-scan-reports.tar.gz" *.json
+          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
+          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
           mv *.tar.gz ../release/
           cd ..
           rm release/VERSION release/IMAGE release/versions.yaml
@@ -231,7 +232,14 @@ jobs:
       - name: Build uki image 🔧
         run: |
           # Do fedora as its the smaller uki possible
-          earthly +uki --VARIANT=core --FLAVOR=fedora
+          earthly +uki \
+            --FAMILY=rhel \
+            --FLAVOR=fedora \
+            --FLAVOR_RELEASE=38 \
+            --VARIANT=core \
+            --MODEL=generic \
+            --BASE_IMAGE=fedora:38
+
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -270,7 +278,15 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧
         run: |
-          earthly +all -VARIANT=standard -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+          earthly +all  \
+            --VARIANT=${{ matrix.variant }} \
+            --FAMILY=${{ matrix.family }} \
+            --FLAVOR=${{ matrix.flavor }} \
+            --FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
+            --MODEL=${{ matrix.model }} \
+            --K3S_VERSION=${{ matrix.k3s_version }} \
+            --BASE_IMAGE=${{ matrix.baseImage }}
+
           sudo mv build release
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')

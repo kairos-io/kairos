@@ -14,7 +14,7 @@ jobs:
           fetch-depth: 0
       - id: set-matrix
         run: |
-          content=`cat ./.github/flavors.json | map(select(.arch == "arm64"))`
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model != "generic"))'`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -41,7 +41,7 @@ jobs:
           # Construct an array like this from the found versions:
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique' >  k3s_versions.json
           # Create a combination of flavors and k3s versions.
-          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.variant == "standard" and .arch == "arm64"))' .github/flavors.json k3s_versions.json)
+          content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.variant == "standard" and .arch == "arm64" and .model != "generic" ))' .github/flavors.json k3s_versions.json)
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
@@ -120,12 +120,19 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build  🔧
         run: |
-          earthly -P +all-arm -VARIANT=core -MODEL=${{ matrix.model }} -FLAVOR=${{ matrix.flavor }}
+          earthly -P +all-arm \
+            -VARIANT=core \
+            -MODEL=${{ matrix.model }} \
+            -FLAVOR=${{ matrix.flavor }} \
+            -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
+            -FAMILY=${{ matrix.family }} \
+            -BASE_IMAGE=${{ matrix.baseImage }}
       - name: Convert all json files into a reports.tar.gz file
         run: |
           export VERSION=$(cat build/VERSION)
           cd build
-          sudo tar cvf "kairos-core-${{matrix.flavor}}-arm64-${{matrix.model}}-${VERSION}-scan-reports.tar.gz" *.json
+          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
+          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -142,7 +149,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(cat build/IMAGE | sed 's/:/-img:/')
+          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
           sudo tar cvf build.tar build
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
@@ -236,12 +243,20 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build  🔧
         run: |
-          earthly -P +all-arm -VARIANT=standard -MODEL=${{ matrix.model }} -K3S_VERSION=${{ matrix.k3s_version }} -FLAVOR=${{ matrix.flavor }}
+          earthly -P +all-arm \
+            -VARIANT=standard \
+            -MODEL=${{ matrix.model }} \
+            -K3S_VERSION=${{ matrix.k3s_version }} \
+            -FLAVOR=${{ matrix.flavor }} \
+            -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
+            -FAMILY=${{ matrix.family }} \
+            -BASE_IMAGE=${{ matrix.baseImage }}
       - name: Convert all json files into a reports.tar.gz file
         run: |
           export VERSION=$(cat build/VERSION)
           cd build
-          sudo tar cvf "kairos-standard-${{matrix.flavor}}-arm64-${{matrix.model}}-${VERSION}-scan-reports.tar.gz" *.json
+          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
+          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -258,7 +273,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(cat build/IMAGE | sed 's/:/-img:/')
+          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
           sudo tar cvf build.tar build
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
@@ -319,13 +334,16 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
         run: |
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last')
           earthly -P +all-arm-generic \
             --FLAVOR=${{ matrix.flavor }} \
             --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
             --FAMILY=${{ matrix.family }} \
             --BASE_IMAGE=${{ matrix.base_image}} \
             --MODEL=${{ matrix.model }} \
-            --VARIANT=${{ matrix.variant }}
+            --VARIANT=${{ matrix.variant }} \
+            --K3S_VERSION=${K3S_VERSION}
+
           sudo mv build release
       - name: Push to quay
         if: startsWith(github.ref, 'refs/tags/')
