@@ -18,6 +18,7 @@ ARG MODEL=generic
 # if you want to disable the HWE kernel, set HWE to "-non-hwe"
 ARG HWE=""
 ARG BASE_IMAGE
+ARG VARIANT
 # TARGETARCH is used to determine the architecture of the image
 # it is already set by Docker so it doesn't need to be defined here
 
@@ -235,6 +236,10 @@ RUN apt-get update \
 
 FROM ${FLAVOR}-${FLAVOR_RELEASE}${HWE} AS all
 
+
+# TODO: missing to pass the right tag
+FROM quay.io/kairos/framework:v2.4.2_generic AS framework
+
 ###############################################################
 ####               Post-Process Common to All              ####
 ###############################################################
@@ -249,3 +254,36 @@ RUN systemctl enable ssh
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
 RUN journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+
+# Originally done in Earthly
+# it will probably be very repetitive between distros
+COPY --from=framework / /
+
+RUN rm -rf /etc/ssh/ssh_host_*
+
+COPY naming.sh /usr/local/bin/naming.sh
+
+RUN sed -i -n '/KAIROS_/!p' /etc/os-release
+
+# need to be defined after FROM for them to be replaced in the RUN bellow
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG VARIANT
+ARG OS_ID=kairos
+ARG HOME_URL="https://github.com/kairos-io/kairos"
+ARG BUG_REPORT_URL="https://github.com/kairos-io/kairos/issues"
+ARG GITHUB_REPO="kairos-io/kairos"
+# TODO: merge these
+ARG KAIROS_VERSION="2.4.2"
+ARG OS_VERSION="2.4.2"
+ARG OS_LABEL="2.4.2"
+ARG FAMILY
+ARG MODEL
+ARG REGISTRY_AND_ORG="quay.io/kairos"
+ARG TARGETARCH
+ENV OS_NAME=kairos-${VARIANT}-$FLAVOR-${FLAVOR_RELEASE}
+RUN OS_REPO=$(naming.sh container_artifact_repo) \
+    ARTIFACT=$(naming.sh bootable_artifact_name) \
+    envsubst >>/etc/os-release </usr/lib/os-release.tmpl
+
+RUN rm -rf /etc/machine-id
