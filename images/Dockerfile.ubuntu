@@ -234,7 +234,6 @@ RUN apt-get update \
     systemd-hwe-hwdb \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${FLAVOR}-${FLAVOR_RELEASE}${HWE} AS all
 
 
 # TODO: missing to pass the right tag
@@ -243,7 +242,7 @@ FROM quay.io/kairos/framework:v2.4.2_generic AS framework
 ###############################################################
 ####               Post-Process Common to All              ####
 ###############################################################
-FROM all
+FROM ${FLAVOR}-${FLAVOR_RELEASE}${HWE} AS all
 
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
 RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
@@ -281,9 +280,51 @@ ARG FAMILY
 ARG MODEL
 ARG REGISTRY_AND_ORG="quay.io/kairos"
 ARG TARGETARCH
-ENV OS_NAME=kairos-${VARIANT}-$FLAVOR-${FLAVOR_RELEASE}
 RUN OS_REPO=$(naming.sh container_artifact_repo) \
     ARTIFACT=$(naming.sh bootable_artifact_name) \
     envsubst >>/etc/os-release </usr/lib/os-release.tmpl
+RUN naming.sh container_artifact_repo > /IMAGE
+
+# TODO no benefit of keaping it?
+RUN rm /usr/local/bin/naming.sh
 
 RUN rm -rf /etc/machine-id
+
+# TODO dev kairos-agent?
+# TODO dev immucore?
+# TODO dev kcrypt?
+# TODO latest k3s?
+
+FROM all AS core
+
+FROM all AS standard
+ARG K3S_VERSION
+RUN luet install -y system/provider-kairos
+RUN luet install -y $(echo k8s/k3s-systemd@${K3S_VERSION}) utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+RUN luet database get-all-installed --output /etc/kairos/versions.yaml
+
+FROM ${VARIANT} AS final
+# compress firmware
+RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
+# compress modules
+RUN find /usr/lib/modules -type f -name "*.ko" -execdir zstd --rm -9 {} \+
+
+# TODO what about NOT building initrd for the UKI?
+# TODO what about caches?
+RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+# Regenerate initrd if necessary
+RUN if [ -f "/usr/bin/dracut" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
+      ln -sf "initrd-${kernel}" /boot/initrd; \
+    fi
+# Proper config files with immucore and custom initrd should already be in there installed by framework
+RUN if [ -f "/sbin/mkinitfs" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      mkinitfs -o /boot/initrd "${kernel}"; \
+    fi
+
+
+RUN rm -rf /tmp/*
+RUN luet cleanup
+RUN rm -rf /var/luet
