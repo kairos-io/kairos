@@ -79,6 +79,16 @@ container_artifact_name() {
   echo "$REGISTRY_AND_ORG/$FLAVOR:$tag"
 }
 
+container_artifact_label() {
+  if [ -z "$KAIROS_VERSION" ]; then
+    echo 'KAIROS_VERSION must be defined'
+    exit 1
+  fi
+
+  export KAIROS_VERSION="${KAIROS_VERSION/+/-}"
+  common_artifact_name
+}
+
 # returns the repo name for the container artifact
 # for example quay.io/kairos/opensuse or quake.io/kairos/alpine
 container_artifact_repo() {
@@ -103,6 +113,9 @@ fi
 case "$1" in
   "container_artifact_name")
     container_artifact_name
+    ;;
+  "container_artifact_label")
+    container_artifact_label
     ;;
   "bootable_artifact_name")
     bootable_artifact_name
