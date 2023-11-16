@@ -46,7 +46,7 @@ all:
   ARG --required MODEL
   ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
-  BUILD +base-image
+  BUILD +no-base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD +image-sbom
       BUILD +trivy-scan
@@ -68,7 +68,7 @@ ci:
   ARG --required VARIANT
   ARG --required FAMILY
 
-  BUILD +base-image
+  BUILD +no-base-image
   IF [ "$SECURITY_SCANS" = "true" ]
     BUILD +image-sbom
     BUILD +trivy-scan
@@ -86,7 +86,7 @@ all-arm:
 
   ARG SECURITY_SCANS=true
 
-  BUILD --platform=linux/arm64 +base-image
+  BUILD --platform=linux/arm64 +no-base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD --platform=linux/arm64 +image-sbom
       BUILD --platform=linux/arm64 +trivy-scan
@@ -100,7 +100,7 @@ all-arm:
   END
 
 arm-container-image:
-  BUILD --platform=linux/arm64 +base-image
+  BUILD --platform=linux/arm64 +no-base-image
 
 all-arm-generic:
   BUILD --platform=linux/arm64 +iso --MODEL=generic
@@ -167,13 +167,18 @@ uuidgen:
 
     SAVE ARTIFACT UUIDGEN UUIDGEN
 
-version:
+GIT_VERSION:
+    COMMAND
     FROM alpine
     RUN apk add git
-
     COPY . ./
+    RUN git describe --always --tags --dirty > GIT_VERSION
+    SAVE ARTIFACT GIT_VERSION GIT_VERSION
 
-    ARG _GIT_VERSION=$(git describe --always --tags --dirty)
+version:
+    ARG K3S_VERSION
+    DO +GIT_VERSION
+    ARG _GIT_VERSION=$(cat ./GIT_VERSION)
 
     # Remove luet rebuild numbers like we do here:
     # https://github.com/kairos-io/packages/blob/2fbc098d0499a0c34c587057ff8a9f00c2b7f575/packages/k8s/k3s/build.yaml#L11-L12
@@ -235,7 +240,7 @@ image-sbom:
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
     # Use base-image so it can read original os-release file
-    FROM +base-image
+    FROM +no-base-image
     WORKDIR /build
     ARG FLAVOR
     ARG VARIANT
@@ -330,6 +335,43 @@ build-framework-image:
     COPY (+framework/framework --SECURITY_PROFILE=$_SECUIRTY_PROFILE) /
 
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${_SECUIRTY_PROFILE}
+
+no-base-image:
+    ARG TARGETARCH # Earthly built-in (not passed)
+    ARG --required FAMILY # The dockerfile to use
+    ARG --required FLAVOR # The distribution E.g. "ubuntu"
+    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
+    ARG --required VARIANT
+    ARG --required MODEL
+    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
+    ARG K3S_VERSION
+    # HWE is used to determine if the HWE kernel should be installed on Ubuntu LTS.
+    # The default value is empty, which means the HWE kernel WILL be installed
+    # if you want to disable the HWE kernel, set HWE to "-non-hwe"
+    ARG HWE
+    # TODO for the framework image. Do we call the last stable version available or master?
+    ARG K3S_VERSION
+    DO +GIT_VERSION
+
+    ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
+
+    FROM DOCKERFILE \
+      --build-arg BASE_IMAGE=$BASE_IMAGE \
+      --build-arg MODEL=$MODEL \
+      --build-arg FLAVOR=$FLAVOR \
+      --build-arg FLAVOR_RELEASE=$FLAVOR_RELEASE \
+      --build-arg HWE=$HWE \
+      --build-arg VARIANT=$VARIANT \
+      --build-arg VERSION=$KAIROS_VERSION \
+      --build-arg K3S_VERSION=$K3S_VERSION \
+      -f images/Dockerfile.$FAMILY images/
+
+    COPY +version/VERSION ./
+    ARG _CIMG=$(cat ./IMAGE)
+    SAVE IMAGE $_CIMG
+    SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
+    SAVE ARTIFACT VERSION AS LOCAL build/VERSION
+    SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
 
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
@@ -518,8 +560,8 @@ image-rootfs:
     ARG --required MODEL
     ARG --required VARIANT
 
-    BUILD +base-image # Make sure the image is also saved locally
-    FROM +base-image
+    BUILD +no-base-image # Make sure the image is also saved locally
+    FROM +no-base-image
 
     SAVE ARTIFACT --keep-own /. rootfs
     SAVE ARTIFACT IMAGE IMAGE
@@ -532,7 +574,7 @@ uki-artifacts:
     ARG --required MODEL
     ARG --required BASE_IMAGE
 
-    FROM +base-image --BUILD_INITRD=false
+    FROM +no-base-image --BUILD_INITRD=false
     RUN /usr/bin/immucore version
     RUN ln -s /usr/bin/immucore /init
     RUN mkdir -p /oem # be able to mount oem under here if found
@@ -1017,7 +1059,7 @@ trivy-scan:
     ARG TARGETARCH
 
     # Use base-image so it can read original os-release file
-    FROM +base-image
+    FROM +no-base-image
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
     COPY +version/VERSION ./
@@ -1048,7 +1090,7 @@ grype-scan:
     ARG TARGETARCH
 
     # Use base-image so it can read original os-release file
-    FROM +base-image
+    FROM +no-base-image
     COPY +grype/grype /grype
     COPY +version/VERSION ./
     ARG KAIROS_VERSION=$(cat VERSION)
@@ -1321,7 +1363,7 @@ temp-image:
     ARG --required MODEL
     ARG --required VARIANT
 
-    FROM +base-image
+    FROM +no-base-image
     SAVE IMAGE --push $TTL_IMAGE
 
 generate-schema:
@@ -1366,7 +1408,7 @@ luet-versions:
     ARG --required MODEL
     ARG --required VARIANT
 
-    FROM +base-image
+    FROM +no-base-image
     SAVE ARTIFACT /framework/etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
 
 # Installs the needed bits for "standard" images (the provider ones)
