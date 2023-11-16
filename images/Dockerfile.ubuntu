@@ -282,10 +282,9 @@ ARG REGISTRY_AND_ORG="quay.io/kairos"
 ARG K3S_VERSION
 ARG TARGETARCH
 ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
-ENV KAIROS_VERSION="${K3S_VERSION:+$VERSION-k3s}$K3S_VERSION"
+ENV KAIROS_VERSION="${VERSION}${K3S_VERSION:+-k3s$K3S_VERSION}"
 ENV OS_VERSION=${KAIROS_VERSION}
 ENV OS_LABEL=${KAIROS_VERSION}
-RUN echo $(naming.sh container_artifact_label)
 RUN OS_LABEL=$(naming.sh container_artifact_label) \
     OS_REPO=$(naming.sh container_artifact_repo) \
     ARTIFACT=$(naming.sh bootable_artifact_name) \
