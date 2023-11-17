@@ -149,6 +149,7 @@ RUN rc-update add sshd boot && \
 RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install && \
     ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
 
+# Originally done in Earthly
 COPY --from=framework / /
 
 RUN rm -rf /etc/ssh/ssh_host_*
