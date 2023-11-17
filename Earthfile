@@ -788,6 +788,23 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
+artifact-name:
+    ARG TARGETARCH
+    ARG --required FAMILY
+    ARG --required FLAVOR
+    ARG --required FLAVOR_RELEASE
+    ARG --required VARIANT
+    ARG --required MODEL
+    ARG --required BASE_IMAGE
+    ARG --required NAMING_FUNC
+    ARG --required NAMING_EXT
+    ARG --required KAIROS_VERSION
+    FROM ubuntu
+
+    COPY ./naming.sh /usr/bin/local/naming.sh
+    RUN echo $(/usr/bin/local/naming.sh ${NAMING_FUNC})${NAMING_EXT} > /ARTIFACT_NAME
+    SAVE ARTIFACT /ARTIFACT_NAME ARTIFACT_NAME
+
 arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
@@ -795,8 +812,8 @@ arm-image:
   FROM $OSBUILDER_IMAGE
 
   COPY +version/VERSION ./
-  RUN echo "version ${VERSION}"
   ARG KAIROS_VERSION=$(cat VERSION)
+  RUN echo "version ${KAIROS_VERSION}"
 
   ARG TARGETARCH
   ARG --required FAMILY
@@ -806,9 +823,9 @@ arm-image:
   ARG --required MODEL
   ARG --required BASE_IMAGE
 
-  COPY ./naming.sh .
-  ARG IMAGE_NAME=$(./naming.sh bootable_artifact_name).img
-  RUN echo $IMAGE_NAME
+  COPY --platform=linux/arm64 (+artifact-name/ARTIFACT_NAME --KAIROS_VERSION=${KAIROS_VERSION} --NAMING_FUNC=bootable_artifact_name --NAMING_EXT=".img") /ARTIFACT_NAME
+  ARG IMAGE_NAME=$(cat /ARTIFACT_NAME)
+  RUN rm /ARTIFACT_NAME
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
@@ -861,8 +878,8 @@ prepare-arm-image:
   ARG --required BASE_IMAGE
   ARG --required MODEL
 
-  COPY ./naming.sh .
-  ARG IMAGE_NAME=$(./naming.sh bootable_artifact_name).img
+  COPY --platform=linux/arm64 (+artifact-name/ARTIFACT_NAME --KAIROS_VERSION=${KAIROS_VERSION} --NAMING_FUNC=bootable_artifact_name --NAMING_EXT=".img") /ARTIFACT_NAME
+  ARG IMAGE_NAME=$(cat /ARTIFACT_NAME)
   WORKDIR /build
   # These sizes are in MB
 
