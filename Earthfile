@@ -1148,6 +1148,12 @@ run-qemu-test:
     IF [ -n "$PREBUILT_ISO" ]
         ENV ISO=/test/$PREBUILT_ISO
     ELSE
+        ARG --required FLAVOR
+        ARG --required FLAVOR_RELEASE
+        ARG --required FAMILY
+        ARG --required BASE_IMAGE
+        ARG --required MODEL
+        ARG --required VARIANT
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/test/kairos.iso
     END

@@ -304,7 +304,8 @@ jobs:
           mkdir reports
           mv release/*.json reports/
           cd reports
-          sudo tar cvf "kairos-core-${{matrix.flavor}}-amd64-generic-${VERSION}-scan-reports.tar.gz" *.json
+          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
+          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
           mv *.tar.gz ../release/
           cd ..
           sudo rm -rf release/IMAGE release/VERSION release/versions.yaml
