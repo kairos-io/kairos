@@ -56,9 +56,7 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          # TODO: v2.4.2 Enable once we have a release with the new naming
-          # fileName: 'kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}*standard*.iso'
-          fileName: 'kairos-standard-${{ inputs.flavor }}*k3s1.iso' # Make sure we don't match `*k3s1-ipxe.iso`
+          fileName: 'kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}*standard*.iso'
           out-file-path: ""
       - name: Run tests
         run: |
