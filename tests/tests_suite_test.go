@@ -292,6 +292,27 @@ func expectStartedInstallation(vm VM) {
 	})
 }
 
+func expectInstallationFinished(vm VM) {
+	By("checking that installation has finished", func() {
+		Eventually(func() string {
+			out, _ := vm.Sudo("systemctl status kairos")
+			return out
+		}, 5*time.Minute, 1*time.Second).ShouldNot(MatchRegexp("Active: activating"))
+	})
+}
+
+func expectInstallationNotFailed(vm VM) {
+	By("checking that installation didn't fail", func() {
+		sysOut, sysErr := vm.Sudo("systemctl status kairos")
+
+		journalOut, journalErr := vm.Sudo("journalctl -u kairos")
+		Expect(journalErr).ToNot(HaveOccurred())
+
+		Expect(sysErr).ToNot(HaveOccurred(), journalOut)
+		Expect(sysOut).ToNot(MatchRegexp("Active: failed"), journalOut)
+	})
+}
+
 func expectRebootedToActive(vm VM) {
 	By("checking that vm has rebooted to 'active'", func() {
 		Eventually(func() string {
