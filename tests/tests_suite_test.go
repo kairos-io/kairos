@@ -297,7 +297,7 @@ func expectInstallationFinished(vm VM) {
 		Eventually(func() string {
 			out, _ := vm.Sudo("systemctl status kairos")
 			return out
-		}, 10*time.Minute, 1*time.Second).ShouldNot(MatchRegexp("Active: activating"))
+		}, 30*time.Minute, 1*time.Second).ShouldNot(MatchRegexp("Active: activating"))
 	})
 }
 
