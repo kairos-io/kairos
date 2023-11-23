@@ -84,6 +84,7 @@ all-arm:
   ARG --required VARIANT
   ARG --required FAMILY
 
+  ARG COMPRESS_IMG=true
   ARG SECURITY_SCANS=true
 
   BUILD --platform=linux/arm64 +no-base-image

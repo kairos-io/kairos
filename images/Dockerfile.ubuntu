@@ -175,9 +175,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM amd64-non-hwe AS amd64-ubuntu-22.04-non-hwe
 FROM amd64-non-hwe AS amd64-ubuntu-20.04-non-hwe
 
-FROM base-ubuntu-22.04 AS arm64-ubuntu-23.04
-FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
-FROM base-ubuntu-20.04 AS arm64-ubuntu-20.04
+FROM hwe-22.04 AS arm64-ubuntu-23.04
+FROM hwe-22.04 AS arm64-ubuntu-22.04
+FROM hwe-20.04 AS arm64-ubuntu-20.04
 
 ###############################################################
 ####               Common to a Single Model                ####
@@ -310,12 +310,12 @@ RUN luet install -y k8s/k3s-systemd@${K3S_VERSION} utils/edgevpn utils/k9s utils
 RUN luet database get-all-installed --output /etc/kairos/versions.yaml
 
 FROM ${VARIANT} AS final
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # compress firmware
 RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
 # compress modules
 RUN find /usr/lib/modules -type f -name "*.ko" -execdir zstd --rm -9 {} \+
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # TODO what about NOT building initrd for the UKI?
 # TODO what about caches?
 RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
