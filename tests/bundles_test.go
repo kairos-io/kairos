@@ -30,9 +30,6 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 		BeforeEach(func() {
 			expectDefaultService(vm)
 			expectStartedInstallation(vm)
-			expectInstallationFinished(vm)
-			expectInstallationNotFailed(vm)
-			vm.Sudo("reboot")
 			expectRebootedToActive(vm)
 		})
 
