@@ -132,6 +132,8 @@ github.com/kairos-io/kairos-sdk v0.0.14 h1:yVKaay70cjmAUY6m4uLoV9UguBv3Dx3JxAh2f
 github.com/kairos-io/kairos-sdk v0.0.14/go.mod h1:+fhVoCEA2hD7OFTmhDmy4pP3uC9q84OYhDa7irkEVWQ=
 github.com/kairos-io/kairos-sdk v0.0.15 h1:1hcnRfKlBzDWcZ8z7UrUqJ2v6GafCHZknPqm90iTZdU=
 github.com/kairos-io/kairos-sdk v0.0.15/go.mod h1:Ew3NKFuXByu3Y3yGu8Q92M3oMqsXrg2VilouubdhYqA=
+github.com/kairos-io/kairos-sdk v0.0.16 h1:Zq+ALQTpv6T8wghkNpFGWzeeGvzcAf/i5m89Vlo+4vA=
+github.com/kairos-io/kairos-sdk v0.0.16/go.mod h1:6Y9RGvKU/B99euFE32OYrabLLsSVjjemCfyRgiEHuKE=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/compress v1.16.5 h1:IFV2oUNUzZaz+XyusxpLzpzS8Pt5rh0Z16For/djlyI=
