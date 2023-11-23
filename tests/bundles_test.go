@@ -3,7 +3,6 @@ package mos_test
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -15,9 +14,10 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 	var vm VM
 
 	BeforeEach(func() {
-		if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
-			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
+		if os.Getenv("DATASOURCE") == "" {
+			Fail("DATASOURCE must be set and it should be the absolute path to a datasource iso")
 		}
+
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
 	})
