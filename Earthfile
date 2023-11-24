@@ -296,7 +296,7 @@ framework:
     SAVE ARTIFACT --keep-own /framework/ framework
 
 multi-build-framework-image:
-    ARG --required SECUIRTY_PROFILE
+    ARG --required SECURITY_PROFILE
 
     BUILD --platform=linux/amd64 --platform=linux/arm64 +build-framework-image
 
