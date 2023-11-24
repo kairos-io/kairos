@@ -264,7 +264,12 @@ luet:
 framework:
     FROM golang:alpine
 
-    ARG --required SECURITY_PROFILE
+    ARG SECURITY_PROFILE
+    IF [ "$SECURITY_PROFILE" = "fips" ]
+        ARG _SECUIRTY_PROFILE=fips
+    ELSE
+        ARG _SECUIRTY_PROFILE=generic
+    END
 
     WORKDIR /build
 
@@ -273,7 +278,7 @@ framework:
 
     RUN go mod download
     COPY framework-profile.yaml /build
-    RUN go run main.go ${SECURITY_PROFILE} framework-profile.yaml /framework
+    RUN go run main.go ${_SECURITY_PROFILE} framework-profile.yaml /framework
 
     RUN mkdir -p /framework/etc/kairos/
     RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
