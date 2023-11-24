@@ -83,6 +83,13 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 				Expect(err).ToNot(HaveOccurred(), ipfsV)
 				Expect(ipfsV).To(ContainSubstring("0.15.0"))
 			})
+
+			By("checking that there are no duplicate entries in the config (issue#2019)", func() {
+				out, _ := vm.Sudo("cat /oem/90_custom.yaml")
+				// https://pkg.go.dev/regexp/syntax
+				// ?s -> "let . match \n (default false)"
+				Expect(out).ToNot(MatchRegexp("(?s)ttl.sh.*ttl.sh"))
+			})
 		})
 	})
 })
