@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flavor:
+        security_profile:
           - "generic"
           - "fips"
     steps:
@@ -92,7 +92,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +build-framework-image --FRAMEWORK_FLAVOR=${{ matrix.flavor }}
+          earthly +multi-build-framework-image --SECURITY_PROFILE=${{ matrix.security_profile }}
       - name: Push to quay
         env:
           COSIGN_YES: true

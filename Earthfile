@@ -264,7 +264,7 @@ luet:
 framework:
     FROM golang:alpine
 
-    ARG FRAMEWORK_FLAVOR
+    ARG --required SECURITY_PROFILE
 
     WORKDIR /build
 
@@ -273,7 +273,7 @@ framework:
 
     RUN go mod download
     COPY framework-profile.yaml /build
-    RUN go run main.go ${FRAMEWORK_FLAVOR} framework-profile.yaml /framework
+    RUN go run main.go ${SECURITY_PROFILE} framework-profile.yaml /framework
 
     RUN mkdir -p /framework/etc/kairos/
     RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
@@ -290,29 +290,41 @@ framework:
 
     SAVE ARTIFACT --keep-own /framework/ framework
 
+multi-build-framework-image:
+    ARG --required SECUIRTY_PROFILE
+
+    BUILD --platform=linux/amd64 --platform=linux/arm64 +build-framework-image
+
 build-framework-image:
     FROM alpine
+    ARG SECURITY_PROFILE
 
-    ARG --required FRAMEWORK_FLAVOR
-
-    # Just in case, make sure this is valid
-    IF [ "$FRAMEWORK_FLAVOR" = "" ]
-        ARG FRAMEWORK_FLAVOR=generic
+    IF [ "$SECURITY_PROFILE" = "fips" ]
+        ARG _SECUIRTY_PROFILE=fips
+    ELSE
+        ARG _SECUIRTY_PROFILE=generic
     END
+
 
     COPY +version/VERSION ./
     ARG VERSION=$(cat VERSION)
 
-    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FRAMEWORK_FLAVOR}"
+    IF [ "$VERSION" ~= ".*dirty.*" ]
+        ARG FRAMEWORK_VERSION=master
+    ELSE
+        ARG FRAMEWORK_VERSION=$VERSION
+    END
+
+    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECUIRTY_PROFILE}"
     RUN echo $_IMG > FRAMEWORK_IMAGE
 
     SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
 
     FROM scratch
 
-    COPY (+framework/framework --FRAMEWORK_FLAVOR=$FRAMEWORK_FLAVOR) /
+    COPY (+framework/framework --SECURITY_PROFILE=$_SECUIRTY_PROFILE) /
 
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FRAMEWORK_FLAVOR}
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${_SECUIRTY_PROFILE}
 
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
