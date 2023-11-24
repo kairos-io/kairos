@@ -49,16 +49,16 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
   framework:
-    uses: ./.github/workflows/reusable-build-framework-flavor.yaml
+    uses: ./.github/workflows/reusable-build-framework.yaml
     secrets: inherit
     with:
-      flavor: ${{ matrix.flavor }}
+      security_profile: ${{ matrix.security_profile }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - flavor: "generic"
-          - flavor: "fips"
+          - security_profile: "generic"
+          - security_profile: "fips"
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
