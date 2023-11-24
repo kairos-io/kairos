@@ -266,9 +266,9 @@ framework:
 
     ARG SECURITY_PROFILE
     IF [ "$SECURITY_PROFILE" = "fips" ]
-        ARG _SECUIRTY_PROFILE=fips
+        ARG _SECURITY_PROFILE=fips
     ELSE
-        ARG _SECUIRTY_PROFILE=generic
+        ARG _SECURITY_PROFILE=generic
     END
 
     WORKDIR /build
