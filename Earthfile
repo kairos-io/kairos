@@ -316,14 +316,15 @@ build-framework-image:
         ARG _SECUIRTY_PROFILE=generic
     END
 
-
     COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
+    DO +GIT_VERSION
 
-    IF [ "$VERSION" ~= ".*dirty.*" ]
-        ARG FRAMEWORK_VERSION=master
-    ELSE
+    ARG VERSION=$(cat ./GIT_VERSION)
+
+    IF [ "$VERSION" ~= "v\d+\.\d+\d+" ]
         ARG FRAMEWORK_VERSION=$VERSION
+    ELSE
+        ARG FRAMEWORK_VERSION=master
     END
 
     ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECUIRTY_PROFILE}"
@@ -335,7 +336,7 @@ build-framework-image:
 
     COPY (+framework/framework --SECURITY_PROFILE=$_SECUIRTY_PROFILE) /
 
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${_SECUIRTY_PROFILE}
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECUIRTY_PROFILE}
 
 no-base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
@@ -356,6 +357,12 @@ no-base-image:
 
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
+    IF [ "$KAIROS_VERSION" ~= "v\d+\.\d+\d+" ]
+        ARG FRAMEWORK_VERSION=$KAIROS_VERSION
+    ELSE
+        ARG FRAMEWORK_VERSION=master
+    END
+
     FROM DOCKERFILE \
       --build-arg BASE_IMAGE=$BASE_IMAGE \
       --build-arg MODEL=$MODEL \
@@ -365,10 +372,12 @@ no-base-image:
       --build-arg VARIANT=$VARIANT \
       --build-arg VERSION=$KAIROS_VERSION \
       --build-arg K3S_VERSION=$K3S_VERSION \
+      --build-arg FRAMEWORK_VERSION=master \
       -f images/Dockerfile.$FAMILY images/
 
     COPY +version/VERSION ./
     ARG _CIMG=$(cat ./IMAGE)
+
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
@@ -557,6 +566,7 @@ base-image:
 image-rootfs:
     ARG --required FAMILY
     ARG --required FLAVOR
+    ARG --required FLAVOR_RELEASE
     ARG --required BASE_IMAGE
     ARG --required MODEL
     ARG --required VARIANT

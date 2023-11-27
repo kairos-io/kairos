@@ -194,11 +194,11 @@ FROM all AS standard
 ARG K3S_VERSION
 RUN luet install -y system/provider-kairos
 RUN luet install -y k8s/k3s-systemd@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
-RUN luet database get-all-installed --output /etc/kairos/versions.yaml
 
 FROM ${VARIANT} AS final
-
 SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+RUN luet database get-all-installed --output /etc/kairos/versions.yaml
+
 RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
 # Regenerate initrd if necessary
 RUN if [ -f "/usr/bin/dracut" ]; then \
