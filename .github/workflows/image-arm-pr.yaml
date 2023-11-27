@@ -12,7 +12,7 @@ env:
   FORCE_COLOR: 1
 
 jobs:
-  docker:
+  opensuse:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
       flavor: opensuse
@@ -21,7 +21,7 @@ jobs:
       base_image: opensuse/leap:15.5
       model: rpi4
       worker: fast
-  docker-alpine:
+  alpine:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
       flavor: alpine
@@ -30,3 +30,62 @@ jobs:
       base_image: alpine:3.18
       model: rpi4
       worker: fast
+  nvidia:
+    needs: build-nvidia-base
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    with:
+      flavor: ubuntu
+      flavor_release: "20.04"
+      family: ubuntu
+      base_image: ttl.sh/nvidia-base:24h
+      model: nvidia-jetson-agx-orin
+      worker: fast
+  build-nvidia-base:
+    runs-on: fast
+    steps:
+      - name: Release space from worker
+        if: ${{ inputs.worker != 'fast' }}
+        run: |
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          df -h
+          echo
+          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+          sudo rm -rf /usr/share/dotnet
+          sudo apt-get remove -y '^mono-.*' || true
+          sudo apt-get remove -y '^ghc-.*' || true
+          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+          sudo apt-get remove -y 'php.*' || true
+          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+          sudo apt-get remove -y '^google-.*' || true
+          sudo apt-get remove -y azure-cli || true
+          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+          sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          sudo rm -rfv build || true
+          df -h
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
+      - name: Build  🔧
+        run: |
+          docker build --push --platform=linux/arm64 -t ttl.sh/nvidia-base:24h -f Dockerfile.nvidia ./images
