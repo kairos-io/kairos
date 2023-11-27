@@ -88,7 +88,7 @@ jobs:
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Build  🔧
         run: |
-          docker build --platform=linux/arm64 -t ttl.sh/nvidia-base:24h -f Dockerfile.nvidia ./images
+          docker build --platform=linux/arm64 -t ttl.sh/nvidia-base:24h -f ./images/Dockerfile.nvidia ./images
       - name: Push 🚀
         run: |
           docker push ttl.sh/nvidia-base:24h
