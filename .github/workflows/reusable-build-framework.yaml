@@ -49,5 +49,5 @@ jobs:
           # Push with earthly so it pushes the multi-arch properly
           earthly --push +multi-build-framework-image --SECURITY_PROFILE=${{ inputs.security_profile }} --VERSION=master
           # Fetch the RepoDigests for the mutli-arch image
-          docker pull "$ARTIFACT" 
+          docker pull "$ARTIFACT"
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$ARTIFACT")
