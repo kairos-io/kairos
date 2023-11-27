@@ -404,11 +404,11 @@ uki-artifacts:
     RUN find . \( -path ./sys -prune -o -path ./run -prune -o -path ./dev -prune -o -path ./tmp -prune -o -path ./proc -prune \) -o -print | cpio -R root:root -H newc -o | gzip -2 > /tmp/initramfs.cpio.gz
     RUN echo "console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.debug rd.immucore.uki selinux=0" > /tmp/Cmdline
     RUN basename $(ls /boot/vmlinuz-* |grep -v rescue | head -n1)| sed --expression "s/vmlinuz-//g" > /tmp/Uname
-    SAVE ARTIFACT /boot/vmlinuz Kernel
-    SAVE ARTIFACT /etc/os-release Osrelease
-    SAVE ARTIFACT /tmp/Cmdline Cmdline
-    SAVE ARTIFACT /tmp/Uname Uname
-    SAVE ARTIFACT /tmp/initramfs.cpio.gz Initrd
+    SAVE ARTIFACT /boot/vmlinuz Kernel AS LOCAL build/Kernel
+    SAVE ARTIFACT /etc/os-release Osrelease AS LOCAL build/Osrelease
+    SAVE ARTIFACT /tmp/Cmdline Cmdline AS LOCAL build/Cmdline
+    SAVE ARTIFACT /tmp/Uname Uname AS LOCAL build/Uname
+    SAVE ARTIFACT /tmp/initramfs.cpio.gz Initrd AS LOCAL build/Initrd
 
 # Base image for uki operations so we only run the install once
 uki-tools-image:
@@ -434,7 +434,7 @@ uki-tools-image:
 # This is for easy testing SecureBoot locally for development purposes
 # Installing this keys in other place than a VM for testing SecureBoot is irresponsible
 uki:
-    FROM ubuntu
+    FROM +uki-tools-image
 
     ARG TARGETARCH
     COPY +version/VERSION ./
@@ -450,7 +450,6 @@ uki:
     ARG KAIROS_VERSION=$(cat VERSION)
     COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
-    FROM +uki-tools-image
     WORKDIR build
     COPY +uki-artifacts/Kernel Kernel
     COPY +uki-artifacts/Initrd Initrd
@@ -491,7 +490,6 @@ uki:
     SAVE ARTIFACT DB.der DB.der
     SAVE ARTIFACT systemd-bootx64.signed.efi systemd-bootx64.efi
     SAVE ARTIFACT uki.signed.efi uki.signed.efi
-    SAVE ARTIFACT uki.unsigned.efi uki.unsigned.efi
 
 # Copy uki artifacts into local build dir
 uki-local-artifacts:
