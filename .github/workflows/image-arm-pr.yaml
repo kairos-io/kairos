@@ -89,7 +89,15 @@ jobs:
       - name: Login to Quay Registry
         # if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files_yaml: |
+            nvidia:
+              - 'images/Dockerfile.nvidia'
       - name: Build  🔧
+        if: steps.changed-files.outputs.nvidia_any_changed == 'true'  
         run: |
           docker build --platform=linux/arm64 -t quay.io/kairos/nvidia-base:master -f ./images/Dockerfile.nvidia ./images
       - name: Push 🚀
