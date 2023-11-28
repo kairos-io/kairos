@@ -68,6 +68,10 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -75,19 +79,23 @@ jobs:
         uses: docker/setup-qemu-action@master
         with:
           platforms: all
-      - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
       - name: Install earthly
         uses: Luet-lab/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
+      - name: Login to DockerHub
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
       - name: Set compression for PR
         if: ${{ github.event_name == 'pull_request' }}
         run: |
@@ -96,24 +104,66 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
           echo "IMG_COMPRESSION=xz" >> $GITHUB_ENV
-      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
-        run: |
-          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
-          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Build  🔧
         run: |
-          earthly --allow-privileged +all-arm \
-              --FAMILY=${{ inputs.family }} \
+          earthly -P +all-arm \
+              --VARIANT=core \
+              --MODEL=${{ inputs.model }} \
               --FLAVOR=${{ inputs.flavor }} \
               --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
+              --FAMILY=${{ inputs.family }} \
               --BASE_IMAGE=${{ inputs.base_image }} \
-              --MODEL=${{ inputs.model }} \
-              --VARIANT=core \
               --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
       - name: Show img sizes
         run: |
           ls -ltra build
           ls -ltrh build
+      - name: Convert all json files into a reports.tar.gz file
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          export VERSION=$(cat build/VERSION)
+          cd build
+          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
+          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
+      - name: Push  🔧
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          docker push $(cat build/IMAGE)
+      - name: Sign image
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          COSIGN_YES: true
+        run: |
+          export IMAGE=$(cat build/IMAGE)
+          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+      - name: Upload Image
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          curl https://luet.io/install.sh | sudo sh
+          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
+          sudo tar cvf build.tar build
+          sudo luet util pack $IMAGE build.tar image.tar
+          sudo -E docker load -i image.tar
+          sudo -E docker push "$IMAGE"
+          sudo rm -rf build/IMAGE build/VERSION
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            build/*scan-reports.tar.gz
+      - name: Prepare sarif files  🔧
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          mkdir sarif
+          sudo mv build/*.sarif sarif/
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          sarif_file: 'sarif'
+          category: ${{ matrix.flavor }}
       - name: Prepare sarif files  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
@@ -126,7 +176,7 @@ jobs:
           sarif_file: 'sarif'
           category: ${{ inputs.flavor }}
       - name: Upload results
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor != 'ubuntu-20-lts-arm-nvidia-jetson-agx-orin' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.model != 'nvidia-jetson-agx-orin' }}
         uses: actions/upload-artifact@v3
         with:
           name: ${{ inputs.flavor }}-image
