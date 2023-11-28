@@ -142,7 +142,7 @@ OSRELEASE:
     ARG --required MODEL
     ARG --required KAIROS_VERSION
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
 
     # quay.io/kairos/alpine or quay.io/kairos/ubuntu for example as this is just the repo
     ARG OS_REPO=$(./naming.sh container_artifact_repo)
@@ -248,7 +248,7 @@ image-sbom:
     COPY +version/VERSION ./
     ARG KAIROS_VERSION=$(cat VERSION)
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     COPY +syft/syft /usr/bin/syft
@@ -321,7 +321,7 @@ build-framework-image:
 
     ARG VERSION=$(cat ./GIT_VERSION)
 
-    IF [[ "$VERSION" ~= "v\d+\.\d+\d+" ]]
+    IF [[ "$VERSION" =~ "v\d+\.\d+\.\d+" ]]
         ARG FRAMEWORK_VERSION=$VERSION
     ELSE
         ARG FRAMEWORK_VERSION=master
@@ -338,6 +338,12 @@ build-framework-image:
 
     SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECUIRTY_PROFILE}
 
+kairos-dockerfile:
+    ARG --required FAMILY
+    COPY ./images .
+    RUN cat Dockerfile.$FAMILY <(echo) Dockerfile.kairos > ./Dockerfile
+    SAVE ARTIFACT Dockerfile AS LOCAL images/Dockerfile.kairos-${FAMILY}
+
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
     ARG --required FAMILY # The dockerfile to use
@@ -347,17 +353,13 @@ base-image:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
     ARG K3S_VERSION
-    # HWE is used to determine if the HWE kernel should be installed on Ubuntu LTS.
-    # The default value is empty, which means the HWE kernel WILL be installed
-    # if you want to disable the HWE kernel, set HWE to "-non-hwe"
-    ARG HWE
     # TODO for the framework image. Do we call the last stable version available or master?
     ARG K3S_VERSION
     DO +GIT_VERSION
 
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
-    IF [[ "$KAIROS_VERSION" ~= "v\d+\.\d+\d+" ]]
+    IF [[ "$KAIROS_VERSION" =~ "v\d+\.\d+\.\d+" ]]
         ARG FRAMEWORK_VERSION=$KAIROS_VERSION
     ELSE
         ARG FRAMEWORK_VERSION=master
@@ -368,12 +370,12 @@ base-image:
       --build-arg MODEL=$MODEL \
       --build-arg FLAVOR=$FLAVOR \
       --build-arg FLAVOR_RELEASE=$FLAVOR_RELEASE \
-      --build-arg HWE=$HWE \
       --build-arg VARIANT=$VARIANT \
       --build-arg VERSION=$KAIROS_VERSION \
       --build-arg K3S_VERSION=$K3S_VERSION \
       --build-arg FRAMEWORK_VERSION=master \
-      -f images/Dockerfile.$FAMILY images/
+      -f images/Dockerfile.kairos-${FAMILY} \
+      ./images
 
     COPY +version/VERSION ./
     ARG _CIMG=$(cat ./IMAGE)
@@ -457,7 +459,7 @@ uki:
     ARG --required BASE_IMAGE
 
     ARG KAIROS_VERSION=$(cat VERSION)
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     FROM +uki-tools-image
     WORKDIR build
@@ -535,7 +537,7 @@ iso:
     ARG --required MODEL
     ARG --required VARIANT
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     ARG OSBUILDER_IMAGE
@@ -566,7 +568,7 @@ iso-uki:
     ARG --required MODEL
     ARG --required BASE_IMAGE
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -627,7 +629,7 @@ iso-remote:
     ARG --required MODEL
     ARG --required BASE_IMAGE
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -656,7 +658,7 @@ netboot:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     ARG OSBUILDER_IMAGE
 
@@ -691,7 +693,7 @@ artifact-name:
     ARG --required KAIROS_VERSION
     FROM ubuntu
 
-    COPY ./naming.sh /usr/bin/local/naming.sh
+    COPY ./images/naming.sh /usr/bin/local/naming.sh
     RUN echo $(/usr/bin/local/naming.sh ${NAMING_FUNC})${NAMING_EXT} > /ARTIFACT_NAME
     SAVE ARTIFACT /ARTIFACT_NAME ARTIFACT_NAME
 
@@ -825,7 +827,7 @@ ipxe-iso:
     ARG --required MODEL
     ARG --required VARIANT
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     # Used here: https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
@@ -853,7 +855,7 @@ raw-image:
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG IMG_NAME=$(./naming.sh bootable_artifact_name).raw
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -902,7 +904,7 @@ trivy-scan:
     ARG --required VARIANT
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     WORKDIR /build
@@ -932,7 +934,7 @@ grype-scan:
     ARG --required VARIANT
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     WORKDIR /build
@@ -997,7 +999,7 @@ run-qemu-netboot-test:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     # This is the IP at which qemu vm can see the host

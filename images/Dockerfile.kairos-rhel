@@ -1,3 +1,86 @@
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG MODEL=generic
+ARG BASE_IMAGE
+ARG VARIANT
+ARG VERSION
+ARG FRAMEWORK_VERSION=master
+# Not to be confused with the concept of MODEL, this is either fips or generic
+ARG SECURITY_PROFILE=generic
+# TARGETARCH is used to determine the architecture of the image
+# it is already set by Docker so it doesn't need to be defined here
+
+FROM $BASE_IMAGE AS base
+
+RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
+
+# Install packages according to distro
+# epel-packages https://docs.fedoraproject.org/en-US/epel/
+FROM base AS epel
+RUN dnf install -y epel-release && dnf clean all
+RUN dnf install -y "https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+
+FROM epel AS almalinux
+FROM epel AS rockylinux
+
+FROM base AS fedora
+RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+
+# install common packages
+FROM ${FLAVOR} AS common
+RUN dnf update -y
+RUN dnf makecache
+RUN dnf install -y \
+    audit \
+    cloud-utils-growpart \
+    device-mapper \
+    dosfstools \
+    dracut \
+    dracut-live \
+    dracut-network \
+    dracut-squash \
+    dhcp-client \
+    e2fsprogs \
+    efibootmgr \
+    gawk \
+    gdisk \
+    grub2 \
+    grub2-efi-x64 \
+    grub2-efi-x64-modules \
+    grub2-pc \
+    haveged \
+    kernel \
+    kernel-modules \
+    kernel-modules-extra \
+    less \
+    livecd-tools \
+    lvm2 \
+    nano \
+    openssh-server \
+    parted \
+    polkit \
+    qemu-guest-agent \
+    rsync \
+    shim-x64 \
+    squashfs-tools \
+    sudo \
+    systemd \
+    systemd-networkd \
+    systemd-resolved \
+    tar \
+    which \
+    zfs && dnf clean all
+
+FROM common AS all
+RUN mkdir -p /run/lock
+RUN touch /usr/libexec/.keep
+RUN systemctl enable getty@tty1.service
+RUN systemctl enable getty@tty2.service
+RUN systemctl enable getty@tty3.service
+RUN systemctl enable systemd-networkd
+RUN systemctl enable systemd-resolved
+RUN systemctl disable dnf-makecache.service
+RUN systemctl enable sshd
 # Do not build this image directly, it is supposed to be appended to any of the
 # distribution images in this directory.
 FROM quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
