@@ -216,6 +216,7 @@ FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi3
 FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi4
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi3
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi4
+FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
 
 ###############################################################
 ####                Common to a Single Flavor              ####
@@ -248,8 +249,8 @@ FROM --platform=${TARGETARCH} quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SE
 ###############################################################
 FROM ${FLAVOR}-${FLAVOR_RELEASE}${HWE} AS all
 
-RUN ln -s /usr/sbin/grub-install /usr/sbin/grub2-install
-RUN ln -s /usr/bin/grub-editenv /usr/bin/grub2-editenv
+RUN ln -sf /usr/sbin/grub-install /usr/sbin/grub2-install
+RUN ln -sf /usr/bin/grub-editenv /usr/bin/grub2-editenv
 RUN systemctl enable systemd-networkd
 RUN systemctl enable ssh
 
