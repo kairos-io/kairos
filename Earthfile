@@ -94,7 +94,7 @@ all-arm:
       BUILD --platform=linux/arm64 +grype-scan
   END
 
-  IF [[ "$FAMILY" = "nvidia" ]]
+  IF [ "$MODEL" = "nvidia-jetson-agx-orin" ]
     BUILD +prepare-arm-image
   ELSE
     BUILD +arm-image
@@ -321,7 +321,7 @@ build-framework-image:
 
     ARG VERSION=$(cat ./GIT_VERSION)
 
-    IF [ "$VERSION" ~= "v\d+\.\d+\d+" ]
+    IF [[ "$VERSION" ~= "v\d+\.\d+\d+" ]]
         ARG FRAMEWORK_VERSION=$VERSION
     ELSE
         ARG FRAMEWORK_VERSION=master
@@ -357,7 +357,7 @@ no-base-image:
 
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
-    IF [ "$KAIROS_VERSION" ~= "v\d+\.\d+\d+" ]
+    IF [[ "$KAIROS_VERSION" ~= "v\d+\.\d+\d+" ]]
         ARG FRAMEWORK_VERSION=$KAIROS_VERSION
     ELSE
         ARG FRAMEWORK_VERSION=master

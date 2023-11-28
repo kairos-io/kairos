@@ -114,13 +114,6 @@ jobs:
         run: |
           ls -ltra build
           ls -ltrh build
-      - name: Push  🔧
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: |
-          export _IMG=$(cat build/IMAGE)
-          export _NEW_IMG=$(echo $_IMG | cut -f1 -d:):latest
-          docker tag $_IMG $_NEW_IMG
-          docker push $_NEW_IMG
       - name: Prepare sarif files  🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
@@ -132,19 +125,6 @@ jobs:
         with:
           sarif_file: 'sarif'
           category: ${{ inputs.flavor }}
-      - name: Sign image
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: |
-          # Avoid pushing a new image for every commit (re-use latest)
-          export _IMG=$(cat build/IMAGE)
-          export _LATEST=$(echo $_IMG | cut -f1 -d:):latest
-          docker push $_LATEST
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$_LATEST")
-          spdx=$(ls build/*.spdx.json)
-          cosign attach sbom --sbom $spdx $image_ref
-          cosign sign -y $image_ref --attachment sbom
-          # in-toto attestation
-          cosign attest -y --type spdx --predicate $spdx $image_ref
       - name: Upload results
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor != 'ubuntu-20-lts-arm-nvidia-jetson-agx-orin' }}
         uses: actions/upload-artifact@v3
