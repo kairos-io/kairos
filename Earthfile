@@ -378,7 +378,7 @@ base-image:
       --build-arg VARIANT=$VARIANT \
       --build-arg VERSION=$KAIROS_VERSION \
       --build-arg K3S_VERSION=$K3S_VERSION \
-      --build-arg FRAMEWORK_VERSION=master \
+      --build-arg FRAMEWORK_VERSION=$FRAMEWORK_VERSION \
       -f +kairos-dockerfile/Dockerfile \
       ./images
 
