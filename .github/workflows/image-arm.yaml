@@ -115,14 +115,12 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.changed-files.outputs.nvidia_any_changed == 'true' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Build  🔧
+      - name: Build  🔧 & Push 🚀
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         run: |
-          docker build --platform=linux/arm64 -t quay.io/kairos/ubuntu:nvidia-jetson-agx-orin-master -f ./images/Dockerfile.nvidia ./images
-      - name: Push 🚀
-        if: steps.changed-files.outputs.nvidia_any_changed == 'true'
-        run: |
-          docker push quay.io/kairos/ubuntu:nvidia-jetson-agx-orin-master
+          export IMAGE=$(FAMILY=ubuntu FLAVOR=ubuntu FLAVOR_RELEASE="20.04" MODEL=nvidia-jetson-agx-orin VARIANT=core TARGETARCH=arm64 REGISTRY_AND_ORG="quay.io/kairos" ./images/naming.sh container_artifact_base_name)
+          docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
+          docker push $IMAGE 
 
   nvidia-arm-core:
     needs: build-nvidia-base
@@ -131,7 +129,8 @@ jobs:
       flavor: ubuntu
       flavor_release: "20.04"
       family: ubuntu
-      base_image: quay.io/kairos/ubuntu:nvidia-jetson-agx-orin-master
+      # is there a way to run the naming.sh script here?
+      base_image: quay.io/kairos/ubuntu:20.04-core-arm64-nvidia-jetson-agx-orin-master
       model: nvidia-jetson-agx-orin
       worker: fast
 
