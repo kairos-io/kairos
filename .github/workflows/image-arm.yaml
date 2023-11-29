@@ -120,7 +120,7 @@ jobs:
         run: |
           export IMAGE=$(FAMILY=ubuntu FLAVOR=ubuntu FLAVOR_RELEASE="20.04" MODEL=nvidia-jetson-agx-orin VARIANT=core TARGETARCH=arm64 REGISTRY_AND_ORG="quay.io/kairos" ./images/naming.sh container_artifact_base_name)
           docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
-          docker push $IMAGE 
+          docker push $IMAGE
 
   nvidia-arm-core:
     needs: build-nvidia-base
