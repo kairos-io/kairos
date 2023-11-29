@@ -311,9 +311,9 @@ build-framework-image:
     ARG SECURITY_PROFILE
 
     IF [ "$SECURITY_PROFILE" = "fips" ]
-        ARG _SECUIRTY_PROFILE=fips
+        ARG _SECURITY_PROFILE=fips
     ELSE
-        ARG _SECUIRTY_PROFILE=generic
+        ARG _SECURITY_PROFILE=generic
     END
 
     COPY +version/VERSION ./
@@ -327,16 +327,16 @@ build-framework-image:
         ARG FRAMEWORK_VERSION=master
     END
 
-    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECUIRTY_PROFILE}"
+    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECURITY_PROFILE}"
     RUN echo $_IMG > FRAMEWORK_IMAGE
 
     SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
 
     FROM scratch
 
-    COPY (+framework/framework --SECURITY_PROFILE=$_SECUIRTY_PROFILE) /
+    COPY (+framework/framework --SECURITY_PROFILE=$_SECURITY_PROFILE) /
 
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECUIRTY_PROFILE}
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECURITY_PROFILE}
 
 kairos-dockerfile:
     ARG --required FAMILY

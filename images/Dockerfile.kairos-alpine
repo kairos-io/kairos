@@ -1,0 +1,227 @@
+# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=alpine
+###############################################################
+####                           ARGS                        ####
+###############################################################
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG MODEL=generic
+ARG BASE_IMAGE=alpine
+ARG VARIANT
+ARG VERSION
+ARG FRAMEWORK_VERSION=master
+# Not to be confused with the concept of MODEL, this is either fips or generic
+ARG SECURITY_PROFILE=generic
+
+###############################################################
+####                          Common                       ####
+###############################################################
+FROM $BASE_IMAGE AS common
+RUN apk --no-cache add  \
+      bash \
+      bash-completion \
+      blkid \
+      cloud-utils-growpart \
+      bonding \
+      bridge \
+      busybox-openrc \
+      ca-certificates \
+      connman \
+      conntrack-tools \
+      coreutils \
+      cryptsetup \
+      curl \
+      device-mapper-udev \
+      dbus \
+      dmidecode \
+      dosfstools \
+      e2fsprogs \
+      e2fsprogs-extra \
+      efibootmgr \
+      eudev \
+      eudev-hwids \
+      fail2ban \
+      findutils \
+      findmnt \
+      gawk \
+      gcompat \
+      gettext \
+      grub \
+      grub-efi \
+      haveged \
+      htop \
+      hvtools \
+      iproute2 \
+      iptables \
+      irqbalance \
+      iscsi-scst \
+      jq \
+      kbd-bkeymaps \
+      libc6-compat \
+      libusb \
+      lm-sensors \
+      logrotate \
+      lsscsi \
+      lvm2 \
+      lvm2-extra \
+      mdadm \
+      mdadm-misc \
+      mdadm-udev \
+      multipath-tools \
+      nano \
+      ncurses \
+      ncurses-terminfo \
+      nfs-utils \
+      open-iscsi \
+      openrc \
+      openssh-client \
+      openssh-server \
+      open-vm-tools \
+      open-vm-tools-deploypkg \
+      open-vm-tools-guestinfo \
+      open-vm-tools-static \
+      open-vm-tools-vmbackup \
+      parted \
+      procps \
+      parted \
+      qemu-guest-agent \
+      rbd-nbd \
+      rng-tools \
+      rsync \
+      sgdisk \
+      smartmontools \
+      squashfs-tools \
+      strace \
+      sudo \
+      tar \
+      tzdata \
+      util-linux \
+      vim \
+      which \
+      wireguard-tools \
+      wpa_supplicant \
+      xfsprogs \
+      xfsprogs-extra \
+      xz
+
+###############################################################
+####                    Common to a Model                  ####
+###############################################################
+FROM common AS generic
+ARG TARGETARCH
+RUN if [ "${TARGETARCH}" = "amd64" ];then apk --no-cache add grub-bios; fi
+RUN apk --no-cache add  \
+      bonding \
+      bridge \
+      rbd-nbd
+# use --no-scripts to avoid building initramfs
+RUN apk --no-cache add linux-lts --no-scripts
+# Alpine provides the kernel under this name
+RUN ln -sf /boot/vmlinuz-lts /boot/vmlinuz
+# TODO: should this be part of rpi too?
+# Enable tun module on boot for edgevpn/vpn services
+RUN echo "tun" >> /etc/modules
+
+FROM common as rpicommon
+COPY rpi/config.txt /boot/config.txt
+
+FROM rpicommon AS rpi3
+# use --no-scripts to avoid building initramfs
+RUN apk --no-cache add linux-rpi --no-scripts
+FROM rpicommon AS rpi4
+# use --no-scripts to avoid building initramfs
+RUN apk --no-cache add linux-rpi4 --no-scripts
+# Alpine-rpi provides the kernel under this name
+RUN ln -sf /boot/vmlinuz-rpi4 /boot/vmlinuz
+
+###############################################################
+####               Post-Process Common to All              ####
+###############################################################
+FROM ${MODEL} AS all
+
+RUN rc-update add sshd boot && \
+    rc-update add connman boot  && \
+    rc-update add acpid boot && \
+    rc-update add hwclock boot && \
+    rc-update add syslog boot && \
+    rc-update add udev sysinit && \
+    rc-update add udev-trigger sysinit && \
+    rc-update add cgroups sysinit && \
+    rc-update add ntpd boot && \
+    rc-update add crond && \
+    rc-update add fail2ban
+FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
+
+FROM all AS base-kairos
+
+# Symlinks to make elemental installer work
+RUN ln -sf /usr/sbin/grub-install /usr/sbin/grub2-install
+RUN ln -sf /usr/bin/grub-editenv /usr/bin/grub2-editenv
+
+# Originally done in Earthly
+COPY --from=framework / /
+
+RUN rm -rf /etc/ssh/ssh_host_*
+
+COPY naming.sh /usr/local/bin/naming.sh
+
+RUN sed -i -n '/KAIROS_/!p' /etc/os-release
+
+# need to be defined after FROM for them to be replaced in the RUN bellow
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG VARIANT
+ARG OS_ID=kairos
+ARG HOME_URL="https://github.com/kairos-io/kairos"
+ARG BUG_REPORT_URL="https://github.com/kairos-io/kairos/issues"
+ARG GITHUB_REPO="kairos-io/kairos"
+# TODO: merge these
+ARG VERSION
+ARG FAMILY
+ARG MODEL
+ARG REGISTRY_AND_ORG="quay.io/kairos"
+ARG K3S_VERSION
+ARG TARGETARCH
+ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
+ENV KAIROS_VERSION="${VERSION}${K3S_VERSION:+-k3s$K3S_VERSION}"
+ENV OS_VERSION=${KAIROS_VERSION}
+ENV OS_LABEL=${KAIROS_VERSION}
+RUN OS_LABEL=$(naming.sh container_artifact_label) \
+    OS_REPO=$(naming.sh container_artifact_repo) \
+    ARTIFACT=$(naming.sh bootable_artifact_name) \
+    envsubst >>/etc/os-release </usr/lib/os-release.tmpl
+RUN naming.sh container_artifact_name > /IMAGE
+
+RUN rm -rf /etc/machine-id
+
+FROM base-kairos AS kairos-core
+
+FROM base-kairos AS kairos-standard
+ARG K3S_VERSION
+RUN luet install -y system/provider-kairos
+RUN luet install -y k8s/k3s-systemd@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+
+FROM kairos-${VARIANT} AS kairos-final
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN luet database get-all-installed --output /etc/kairos/versions.yaml
+
+# TODO what about caches?
+RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+# Regenerate initrd if necessary, proper config files with immucore and custom initrd should already be in there installed by framework
+# for systemd distros
+RUN if [ -f "/usr/bin/dracut" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
+      ln -sf "initrd-${kernel}" /boot/initrd; \
+    fi
+# for alpine
+RUN if [ -f "/sbin/mkinitfs" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      mkinitfs -o /boot/initrd "${kernel}"; \
+    fi
+
+# this is generally present on rhel based systems, but it doesn't hurt to remove in any case
+RUN rm -rf /boot/initramfs-* || true
+
+RUN rm -rf /tmp/*
+RUN luet cleanup
+RUN rm -rf /var/luet
