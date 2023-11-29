@@ -1,5 +1,4 @@
-# Do not build this image directly, it is supposed to be appended to any of the
-# distribution images in this directory.
+# WARNING: Do not build this image on its own, use the different Dockerfile.kairos-* instead
 FROM quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
 
 FROM all AS base-kairos

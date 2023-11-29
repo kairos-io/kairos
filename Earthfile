@@ -341,7 +341,11 @@ build-framework-image:
 kairos-dockerfile:
     ARG --required FAMILY
     COPY ./images .
-    RUN cat Dockerfile.$FAMILY <(echo) Dockerfile.kairos > ./Dockerfile
+    RUN --no-cache cat <(echo "# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=${FAMILY}") \
+        Dockerfile.$FAMILY \
+        <(echo) \
+        <(sed -n '/# WARNING:/!p' Dockerfile.kairos) \
+        > ./Dockerfile
     SAVE ARTIFACT Dockerfile AS LOCAL images/Dockerfile.kairos-${FAMILY}
 
 base-image:
@@ -364,6 +368,7 @@ base-image:
     ELSE
         ARG FRAMEWORK_VERSION=master
     END
+    RUN cat +kairos-dockerfile/Dockerfile
 
     FROM DOCKERFILE \
       --build-arg BASE_IMAGE=$BASE_IMAGE \
@@ -374,7 +379,7 @@ base-image:
       --build-arg VERSION=$KAIROS_VERSION \
       --build-arg K3S_VERSION=$K3S_VERSION \
       --build-arg FRAMEWORK_VERSION=master \
-      -f images/Dockerfile.kairos-${FAMILY} \
+      -f +kairos-dockerfile/Dockerfile \
       ./images
 
     COPY +version/VERSION ./
