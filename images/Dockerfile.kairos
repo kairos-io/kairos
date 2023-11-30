@@ -13,6 +13,7 @@ COPY --from=framework / /
 RUN rm -rf /etc/ssh/ssh_host_*
 
 COPY naming.sh /usr/local/bin/naming.sh
+COPY which-init.sh /usr/local/bin/which-init.sh
 
 RUN sed -i -n '/KAIROS_/!p' /etc/os-release
 
@@ -48,7 +49,7 @@ FROM base-kairos AS kairos-core
 FROM base-kairos AS kairos-standard
 ARG K3S_VERSION
 RUN luet install -y system/provider-kairos
-RUN luet install -y k8s/k3s-systemd@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+RUN luet install -y k8s/k3s-$(which-init.sh)@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
 
 FROM kairos-${VARIANT} AS kairos-final
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
