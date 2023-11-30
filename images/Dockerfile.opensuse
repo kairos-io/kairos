@@ -85,6 +85,7 @@ RUN zypper in --force-resolution -y \
     tmux \
     vim \
     which \
+    tpm2* \
     && zypper cc
 
 FROM common as amd64
