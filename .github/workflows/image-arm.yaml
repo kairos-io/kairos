@@ -125,6 +125,7 @@ jobs:
   nvidia-arm-core:
     needs: build-nvidia-base
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "20.04"
