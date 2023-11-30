@@ -16,3 +16,5 @@ ignored:
   - DL3041
   # Multiple consecutive RUN instructions. Consider consolidation: https://github.com/hadolint/hadolint/wiki/DL3059
   - DL3059
+  # Do not use --platform= with FROM. https://github.com/hadolint/hadolint/wiki/DL3029  
+  - DL3029

@@ -1,4 +1,4 @@
-build/*iso
+build/*
 # this is created by the strat_vm_qemu.sh script
-disk.img
+*.img
 *.raw

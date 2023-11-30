@@ -12,7 +12,7 @@ env:
   FORCE_COLOR: 1
 
 jobs:
-  docker:
+  opensuse:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
       flavor: opensuse
@@ -21,7 +21,7 @@ jobs:
       base_image: opensuse/leap:15.5
       model: rpi4
       worker: fast
-  docker-alpine:
+  alpine:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
       flavor: alpine

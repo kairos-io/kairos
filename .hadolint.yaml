@@ -17,4 +17,6 @@ override:
     # warning: Use WORKDIR to switch to a directory
     # Reason: Sometimes we don't want to change the workdir
     - DL3003
+    # Do not use --platform= with FROM. https://github.com/hadolint/hadolint/wiki/DL3029  
+    - DL3029
 failure-threshold: warning

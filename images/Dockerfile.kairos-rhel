@@ -1,0 +1,160 @@
+# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=rhel
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG MODEL=generic
+ARG BASE_IMAGE
+ARG VARIANT
+ARG VERSION
+ARG FRAMEWORK_VERSION=master
+# Not to be confused with the concept of MODEL, this is either fips or generic
+ARG SECURITY_PROFILE=generic
+# TARGETARCH is used to determine the architecture of the image
+# it is already set by Docker so it doesn't need to be defined here
+
+FROM $BASE_IMAGE AS base
+
+RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
+
+# Install packages according to distro
+# epel-packages https://docs.fedoraproject.org/en-US/epel/
+FROM base AS epel
+RUN dnf install -y epel-release && dnf clean all
+RUN dnf install -y "https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+
+FROM epel AS almalinux
+FROM epel AS rockylinux
+
+FROM base AS fedora
+RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+
+# install common packages
+FROM ${FLAVOR} AS common
+RUN dnf update -y
+RUN dnf makecache
+RUN dnf install -y \
+    audit \
+    cloud-utils-growpart \
+    device-mapper \
+    dosfstools \
+    dracut \
+    dracut-live \
+    dracut-network \
+    dracut-squash \
+    dhcp-client \
+    e2fsprogs \
+    efibootmgr \
+    gawk \
+    gdisk \
+    grub2 \
+    grub2-efi-x64 \
+    grub2-efi-x64-modules \
+    grub2-pc \
+    haveged \
+    kernel \
+    kernel-modules \
+    kernel-modules-extra \
+    less \
+    livecd-tools \
+    lvm2 \
+    nano \
+    openssh-server \
+    parted \
+    polkit \
+    qemu-guest-agent \
+    rsync \
+    shim-x64 \
+    squashfs-tools \
+    sudo \
+    systemd \
+    systemd-networkd \
+    systemd-resolved \
+    tar \
+    which \
+    zfs && dnf clean all
+
+FROM common AS all
+RUN mkdir -p /run/lock
+RUN touch /usr/libexec/.keep
+RUN systemctl enable getty@tty1.service
+RUN systemctl enable getty@tty2.service
+RUN systemctl enable getty@tty3.service
+RUN systemctl enable systemd-networkd
+RUN systemctl enable systemd-resolved
+RUN systemctl disable dnf-makecache.service
+RUN systemctl enable sshd
+FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
+
+FROM all AS base-kairos
+
+# Symlinks to make elemental installer work
+RUN ln -sf /usr/sbin/grub-install /usr/sbin/grub2-install
+RUN ln -sf /usr/bin/grub-editenv /usr/bin/grub2-editenv
+
+# Originally done in Earthly
+COPY --from=framework / /
+
+RUN rm -rf /etc/ssh/ssh_host_*
+
+COPY naming.sh /usr/local/bin/naming.sh
+
+RUN sed -i -n '/KAIROS_/!p' /etc/os-release
+
+# need to be defined after FROM for them to be replaced in the RUN bellow
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG VARIANT
+ARG OS_ID=kairos
+ARG HOME_URL="https://github.com/kairos-io/kairos"
+ARG BUG_REPORT_URL="https://github.com/kairos-io/kairos/issues"
+ARG GITHUB_REPO="kairos-io/kairos"
+# TODO: merge these
+ARG VERSION
+ARG FAMILY
+ARG MODEL
+ARG REGISTRY_AND_ORG="quay.io/kairos"
+ARG K3S_VERSION
+ARG TARGETARCH
+ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
+ENV KAIROS_VERSION="${VERSION}${K3S_VERSION:+-k3s$K3S_VERSION}"
+ENV OS_VERSION=${KAIROS_VERSION}
+ENV OS_LABEL=${KAIROS_VERSION}
+RUN OS_LABEL=$(naming.sh container_artifact_label) \
+    OS_REPO=$(naming.sh container_artifact_repo) \
+    ARTIFACT=$(naming.sh bootable_artifact_name) \
+    envsubst >>/etc/os-release </usr/lib/os-release.tmpl
+RUN naming.sh container_artifact_name > /IMAGE
+
+RUN rm -rf /etc/machine-id
+
+FROM base-kairos AS kairos-core
+
+FROM base-kairos AS kairos-standard
+ARG K3S_VERSION
+RUN luet install -y system/provider-kairos
+RUN luet install -y k8s/k3s-systemd@${K3S_VERSION} utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+
+FROM kairos-${VARIANT} AS kairos-final
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN luet database get-all-installed --output /etc/kairos/versions.yaml
+
+# TODO what about caches?
+RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+# Regenerate initrd if necessary, proper config files with immucore and custom initrd should already be in there installed by framework
+# for systemd distros
+RUN if [ -f "/usr/bin/dracut" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
+      ln -sf "initrd-${kernel}" /boot/initrd; \
+    fi
+# for alpine
+RUN if [ -f "/sbin/mkinitfs" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      mkinitfs -o /boot/initrd "${kernel}"; \
+    fi
+
+# this is generally present on rhel based systems, but it doesn't hurt to remove in any case
+RUN rm -rf /boot/initramfs-* || true
+
+RUN rm -rf /tmp/*
+RUN luet cleanup
+RUN rm -rf /var/luet

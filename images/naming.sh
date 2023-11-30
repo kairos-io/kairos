@@ -19,6 +19,15 @@ setEnvVarsFromJSON() {
 }
 
 common_artifact_name() {
+  if [ -z "$KAIROS_VERSION" ]; then
+    echo 'KAIROS_VERSION must be defined'
+    exit 1
+  fi
+
+  echo "$(common_artifact_base_name)-$KAIROS_VERSION"
+}
+
+common_artifact_base_name() {
   if [ -z "$FLAVOR_RELEASE" ]; then
     echo 'FLAVOR_RELEASE must be defined'
     exit 1
@@ -35,14 +44,9 @@ common_artifact_name() {
     echo 'MODEL must be defined'
     exit 1
   fi
-  if [ -z "$KAIROS_VERSION" ]; then
-    echo 'KAIROS_VERSION must be defined'
-    exit 1
-  fi
 
-  echo "$FLAVOR_RELEASE-$VARIANT-$TARGETARCH-$MODEL-$KAIROS_VERSION"
+  echo "$FLAVOR_RELEASE-$VARIANT-$TARGETARCH-$MODEL"
 }
-
 
 bootable_artifact_name() {
   if [ -z "$FLAVOR" ]; then
@@ -79,6 +83,39 @@ container_artifact_name() {
   echo "$REGISTRY_AND_ORG/$FLAVOR:$tag"
 }
 
+container_artifact_base_name() {
+  if [ -z "$BRANCH" ]; then
+    export BRANCH=master
+  fi
+
+  if [ -z "$FLAVOR" ]; then
+    echo 'FLAVOR must be defined'
+    exit 1
+  fi
+
+  if [ -z "$REGISTRY_AND_ORG" ]; then
+    echo 'REGISTRY_AND_ORG must be defined'
+    exit 1
+  fi
+
+  # quay.io doesn't accept "+" in the repo name
+  export KAIROS_VERSION="${KAIROS_VERSION/+/-}"
+  local tag
+  tag=$(common_artifact_base_name)
+
+  echo "$REGISTRY_AND_ORG/$FLAVOR:$tag-$BRANCH"
+}
+
+container_artifact_label() {
+  if [ -z "$KAIROS_VERSION" ]; then
+    echo 'KAIROS_VERSION must be defined'
+    exit 1
+  fi
+
+  export KAIROS_VERSION="${KAIROS_VERSION/+/-}"
+  common_artifact_name
+}
+
 # returns the repo name for the container artifact
 # for example quay.io/kairos/opensuse or quake.io/kairos/alpine
 container_artifact_repo() {
@@ -104,6 +141,9 @@ case "$1" in
   "container_artifact_name")
     container_artifact_name
     ;;
+  "container_artifact_label")
+    container_artifact_label
+    ;;
   "bootable_artifact_name")
     bootable_artifact_name
     ;;
@@ -112,6 +152,9 @@ case "$1" in
     ;;
   "container_artifact_repo")
     container_artifact_repo
+    ;;
+  "container_artifact_base_name")
+    container_artifact_base_name
     ;;
   *)
     echo "Function not found: $1"

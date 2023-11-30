@@ -1,5 +1,14 @@
-ARG BASE_IMAGE
 ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG MODEL=generic
+ARG BASE_IMAGE
+ARG VARIANT
+ARG VERSION
+ARG FRAMEWORK_VERSION=master
+# Not to be confused with the concept of MODEL, this is either fips or generic
+ARG SECURITY_PROFILE=generic
+# TARGETARCH is used to determine the architecture of the image
+# it is already set by Docker so it doesn't need to be defined here
 
 FROM $BASE_IMAGE AS base
 
@@ -62,8 +71,7 @@ RUN dnf install -y \
     which \
     zfs && dnf clean all
 
-# Final setup
-FROM common
+FROM common AS all
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
 RUN systemctl enable getty@tty1.service
