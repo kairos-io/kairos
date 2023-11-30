@@ -163,8 +163,8 @@ FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSI
 FROM all AS base-kairos
 
 # Symlinks to make elemental installer work
-RUN ln -sf /usr/sbin/grub-install /usr/sbin/grub2-install
-RUN ln -sf /usr/bin/grub-editenv /usr/bin/grub2-editenv
+RUN orig=/usr/sbin/grub-install dest=/usr/sbin/grub2-install [ -e origin_file ] && [ ! -e destination_file ] && ln -s orig dest
+RUN orig=/usr/bin/grub-editenv dest=/usr/sbin/grub2-editenv [ -e origin_file ] && [ ! -e destination_file ] && ln -s orig dest
 
 # Originally done in Earthly
 COPY --from=framework / /
