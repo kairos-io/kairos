@@ -393,7 +393,7 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
         run: |
-          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last')
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last' | tr -d '"')
           earthly -P +all-arm-generic \
             --FLAVOR=${{ matrix.flavor }} \
             --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
