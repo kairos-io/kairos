@@ -22,7 +22,7 @@ jobs:
             --VARIANT=standard \
             --MODEL=generic \
             --BASE_IMAGE=opensuse/leap:15.5 \
-            --K3S_VERSION=latest
+            --K3S_VERSION=1.28.2+1
           mv build/versions.yaml build/versions.old.yaml
       - name: Bump cos 🔧
         run: earthly +bump-repositories
@@ -35,7 +35,7 @@ jobs:
             --VARIANT=standard \
             --MODEL=generic \
             --BASE_IMAGE=opensuse/leap:15.5 \
-            --K3S_VERSION=latest
+            --K3S_VERSION=1.28.2+1
           mv build/versions.yaml build/versions.new.yaml
       - name: Diff versions and generate pr message
         run: .github/repo-diff-msg.sh
