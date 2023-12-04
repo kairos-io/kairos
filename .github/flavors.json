@@ -458,15 +458,5 @@
         "baseImage": "rockylinux:9",
         "arch": "amd64",
         "worker": "self-hosted"
-    },
-    {
-        "family": "nvidia",
-        "flavor": "ubuntu",
-        "flavorRelease": "20.04",
-        "variant": "core",
-        "model": "nvidia-jetson-agx-orin",
-        "baseImage": "ubuntu:20.04",
-        "arch": "arm64",
-        "worker": "fast"
     }
 ]

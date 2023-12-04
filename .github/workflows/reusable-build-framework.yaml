@@ -3,7 +3,7 @@ name: Reusable workflow that builds a specific Kairos framework image flavor
 on:
   workflow_call:
     inputs:
-      flavor:
+      security_profile:
         required: true
         type: string
 
@@ -31,9 +31,7 @@ jobs:
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Build framework image 🔧
         env:
-          FLAVOR: ${{ inputs.flavor }}
-          IMAGE: "quay.io/kairos/framework"
-          TAG: "master_${{ inputs.flavor }}"
+          ARTIFACT: "quay.io/kairos/framework:master_${{ inputs.security_profile }}"
           COSIGN_YES: true
         run: |
           # Configure earthly to use the docker mirror in CI
@@ -48,6 +46,8 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +build-framework-image --FRAMEWORK_FLAVOR=${FLAVOR} --VERSION=master
-          docker push "$IMAGE:$TAG" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE:$TAG")
+          # Push with earthly so it pushes the multi-arch properly
+          earthly --push +multi-build-framework-image --SECURITY_PROFILE=${{ inputs.security_profile }} --VERSION=master
+          # Fetch the RepoDigests for the mutli-arch image
+          docker pull "$ARTIFACT"
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$ARTIFACT")

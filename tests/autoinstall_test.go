@@ -27,8 +27,8 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 	var vm VM
 
 	BeforeEach(func() {
-		if os.Getenv("CLOUD_INIT") == "" || !filepath.IsAbs(os.Getenv("CLOUD_INIT")) {
-			Fail("CLOUD_INIT must be set and must be pointing to a file as an absolute path")
+		if os.Getenv("DATASOURCE") == "" {
+			Fail("DATASOURCE must be set and it should be the absolute path to a datasource iso")
 		}
 
 		_, vm = startVM()

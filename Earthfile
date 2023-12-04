@@ -7,7 +7,7 @@ ARG GITHUB_REPO=kairos-io/kairos
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.45.1
+ARG TRIVY_VERSION=0.47.0
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
@@ -19,7 +19,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.8.6
+ARG OSBUILDER_VERSION=v0.10.2
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -84,6 +84,7 @@ all-arm:
   ARG --required VARIANT
   ARG --required FAMILY
 
+  ARG COMPRESS_IMG=true
   ARG SECURITY_SCANS=true
 
   BUILD --platform=linux/arm64 +base-image
@@ -93,7 +94,7 @@ all-arm:
       BUILD --platform=linux/arm64 +grype-scan
   END
 
-  IF [[ "$FAMILY" = "nvidia" ]]
+  IF [ "$MODEL" = "nvidia-jetson-agx-orin" ]
     BUILD +prepare-arm-image
   ELSE
     BUILD +arm-image
@@ -141,7 +142,7 @@ OSRELEASE:
     ARG --required MODEL
     ARG --required KAIROS_VERSION
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
 
     # quay.io/kairos/alpine or quay.io/kairos/ubuntu for example as this is just the repo
     ARG OS_REPO=$(./naming.sh container_artifact_repo)
@@ -167,13 +168,18 @@ uuidgen:
 
     SAVE ARTIFACT UUIDGEN UUIDGEN
 
-version:
+GIT_VERSION:
+    COMMAND
     FROM alpine
     RUN apk add git
-
     COPY . ./
+    RUN git describe --always --tags --dirty > GIT_VERSION
+    SAVE ARTIFACT GIT_VERSION GIT_VERSION
 
-    ARG _GIT_VERSION=$(git describe --always --tags --dirty)
+version:
+    ARG K3S_VERSION
+    DO +GIT_VERSION
+    ARG _GIT_VERSION=$(cat ./GIT_VERSION)
 
     # Remove luet rebuild numbers like we do here:
     # https://github.com/kairos-io/packages/blob/2fbc098d0499a0c34c587057ff8a9f00c2b7f575/packages/k8s/k3s/build.yaml#L11-L12
@@ -242,7 +248,7 @@ image-sbom:
     COPY +version/VERSION ./
     ARG KAIROS_VERSION=$(cat VERSION)
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     COPY +syft/syft /usr/bin/syft
@@ -264,7 +270,12 @@ luet:
 framework:
     FROM golang:alpine
 
-    ARG FRAMEWORK_FLAVOR
+    ARG SECURITY_PROFILE
+    IF [ "$SECURITY_PROFILE" = "fips" ]
+        ARG _SECURITY_PROFILE=fips
+    ELSE
+        ARG _SECURITY_PROFILE=generic
+    END
 
     WORKDIR /build
 
@@ -273,7 +284,7 @@ framework:
 
     RUN go mod download
     COPY framework-profile.yaml /build
-    RUN go run main.go ${FRAMEWORK_FLAVOR} framework-profile.yaml /framework
+    RUN go run main.go ${_SECURITY_PROFILE} framework-profile.yaml /framework
 
     RUN mkdir -p /framework/etc/kairos/
     RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
@@ -290,29 +301,52 @@ framework:
 
     SAVE ARTIFACT --keep-own /framework/ framework
 
+multi-build-framework-image:
+    ARG --required SECURITY_PROFILE
+
+    BUILD --platform=linux/amd64 --platform=linux/arm64 +build-framework-image
+
 build-framework-image:
     FROM alpine
+    ARG SECURITY_PROFILE
 
-    ARG --required FRAMEWORK_FLAVOR
-
-    # Just in case, make sure this is valid
-    IF [ "$FRAMEWORK_FLAVOR" = "" ]
-        ARG FRAMEWORK_FLAVOR=generic
+    IF [ "$SECURITY_PROFILE" = "fips" ]
+        ARG _SECURITY_PROFILE=fips
+    ELSE
+        ARG _SECURITY_PROFILE=generic
     END
 
     COPY +version/VERSION ./
-    ARG VERSION=$(cat VERSION)
+    DO +GIT_VERSION
 
-    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FRAMEWORK_FLAVOR}"
+    ARG VERSION=$(cat ./GIT_VERSION)
+
+    IF [[ "$VERSION" =~ "v\d+\.\d+\.\d+$" ]]
+        ARG FRAMEWORK_VERSION=$VERSION
+    ELSE
+        ARG FRAMEWORK_VERSION=master
+    END
+
+    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECURITY_PROFILE}"
     RUN echo $_IMG > FRAMEWORK_IMAGE
 
     SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
 
     FROM scratch
 
-    COPY (+framework/framework --FRAMEWORK_FLAVOR=$FRAMEWORK_FLAVOR) /
+    COPY (+framework/framework --SECURITY_PROFILE=$_SECURITY_PROFILE) /
 
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${VERSION}_${FRAMEWORK_FLAVOR}
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECURITY_PROFILE}
+
+kairos-dockerfile:
+    ARG --required FAMILY
+    COPY ./images .
+    RUN --no-cache cat <(echo "# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=${FAMILY}") \
+        Dockerfile.$FAMILY \
+        <(echo) \
+        <(sed -n '/# WARNING:/!p' Dockerfile.kairos) \
+        > ./Dockerfile
+    SAVE ARTIFACT Dockerfile AS LOCAL images/Dockerfile.kairos-${FAMILY}
 
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
@@ -322,181 +356,44 @@ base-image:
     ARG --required VARIANT
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
+    ARG K3S_VERSION
+    # TODO for the framework image. Do we call the last stable version available or master?
+    ARG K3S_VERSION
+    DO +GIT_VERSION
 
-    ARG BUILD_INITRD="true"
-    # HWE is used to determine if the HWE kernel should be installed on Ubuntu LTS.
-    # The default value is empty, which means the HWE kernel WILL be installed
-    # if you want to disable the HWE kernel, set HWE to "-non-hwe"
-    ARG HWE
+    ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
-    # TODO: Pass the VARIANT here and let Dockerfiles handle it
+    IF [[ "$KAIROS_VERSION" =~ "v\d+\.\d+\.\d+$" ]]
+        ARG FRAMEWORK_VERSION=$KAIROS_VERSION
+    ELSE
+        ARG FRAMEWORK_VERSION=master
+    END
+    RUN cat +kairos-dockerfile/Dockerfile
+
     FROM DOCKERFILE \
       --build-arg BASE_IMAGE=$BASE_IMAGE \
       --build-arg MODEL=$MODEL \
       --build-arg FLAVOR=$FLAVOR \
       --build-arg FLAVOR_RELEASE=$FLAVOR_RELEASE \
-      --build-arg HWE=$HWE \
-      -f images/Dockerfile.$FAMILY images/
+      --build-arg VARIANT=$VARIANT \
+      --build-arg VERSION=$KAIROS_VERSION \
+      --build-arg K3S_VERSION=$K3S_VERSION \
+      --build-arg FRAMEWORK_VERSION=$FRAMEWORK_VERSION \
+      -f +kairos-dockerfile/Dockerfile \
+      ./images
 
-    # Includes overlay/files
-    # We only support non-fips for now, they are built separatedly and pushed for other to consume, not used in our workflows
-    COPY (+framework/framework --FRAMEWORK_FLAVOR=generic) /
-    # Avoid to accidentally push keys generated by package managers
-    RUN rm -rf /etc/ssh/ssh_host_*
-
-    # Set proper os-release file with all the info
-    IF [ "$KAIROS_VERSION" = "" ]
-        COPY +version/VERSION ./
-        ARG KAIROS_VERSION=$(cat VERSION)
-        ARG OS_VERSION=${KAIROS_VERSION}
-    ELSE
-        ARG OS_VERSION=${KAIROS_VERSION}
-        RUN echo $OS_VERSION > ./VERSION
-    END
-
-    DO +OSRELEASE \
-      --HOME_URL=https://github.com/kairos-io/kairos \
-      --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues \
-      --GITHUB_REPO=kairos-io/kairos \
-      --KAIROS_VERSION=${OS_VERSION} \
-      --FAMILY=${FAMILY} \
-      --FLAVOR=${FLAVOR} \
-      --FLAVOR_RELEASE=${FLAVOR_RELEASE} \
-      --VARIANT=${VARIANT} \
-      --MODEL=${MODEL}
-
-    # Fully remove machine-id, it will be generated on first boot
-    RUN rm -rf /etc/machine-id
-
-    # TEST KAIROS-AGENT FROM BRANCH
-    ARG KAIROS_AGENT_DEV
-    ARG KAIROS_AGENT_DEV_BRANCH=main
-    IF [ "$KAIROS_AGENT_DEV" = "true" ]
-        RUN rm -rf /usr/bin/kairos-agent
-        COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
-    END
-
-    # TEST IMMUCORE FROM BRANCH
-    ARG IMMUCORE_DEV
-    ARG IMMUCORE_DEV_BRANCH=master
-    IF [ "$IMMUCORE_DEV" = "true" ]
-        RUN rm -Rf /usr/lib/dracut/modules.d/28immucore
-        RUN rm /etc/dracut.conf.d/10-immucore.conf
-        RUN rm /etc/dracut.conf.d/02-kairos-setup-initramfs.conf || exit 0
-        RUN rm /etc/dracut.conf.d/50-kairos-initrd.conf || exit 0
-        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+build-immucore/immucore /usr/bin/immucore
-        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
-        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
-    END
-
-    # TEST KCRYPT FROM BRANCH
-    ARG KCRYPT_DEV
-    ARG KCRYPT_DEV_BRANCH=main
-    IF [ "$KCRYPT_DEV" = "true" ]
-        RUN rm /usr/bin/kcrypt
-        COPY github.com/kairos-io/kcrypt:$KCRYPT_DEV_BRANCH+build-kcrypt/kcrypt /usr/bin/kcrypt
-    END
-
-    ARG PROVIDER_KAIROS_BRANCH
-    IF [ "$VARIANT" = "standard" ]
-        DO +PROVIDER_INSTALL -PROVIDER_KAIROS_BRANCH=${PROVIDER_KAIROS_BRANCH}
-
-        DO +INSTALL_K3S --FLAVOR=$FLAVOR
-
-        # Redo os-release with override settings to point to provider-kairos stuff
-        # in earthly 0.7 we will be able to just override VARIANT here and just run the OSRELEASE once
-        # but currently on 0.6 you cant override args properly as it picks the first arg it founds
-        # https://docs.earthly.dev/docs/earthfile#arg
-        # Overrides GITHUB_REPO, VARIANT, OS_REPO and OS_NAME to add the kairos name in there
-        # which points to the provider-kairos repo
-        DO +OSRELEASE \
-          --HOME_URL=https://github.com/kairos-io/kairos \
-          --BUG_REPORT_URL=https://github.com/kairos-io/kairos/issues \
-          --GITHUB_REPO=kairos-io/provider-kairos \
-          --KAIROS_VERSION=${OS_VERSION} \
-          --FAMILY=${FAMILY} \
-          --FLAVOR=${FLAVOR} \
-          --FLAVOR_RELEASE=${FLAVOR_RELEASE} \
-          --VARIANT=${VARIANT} \
-          --MODEL=${MODEL}
-    END
-
-    IF expr "$FLAVOR" : '^ubuntu' > /dev/null
-        # compress firmware
-        RUN find /usr/lib/firmware -type f -execdir zstd --rm -9 {} \+
-        # compress modules
-        RUN find /usr/lib/modules -type f -name "*.ko" -execdir zstd --rm -9 {} \+
-    END
-
-    IF [ "$BUILD_INITRD" = "true" ]
-      IF [ "$FLAVOR" = "debian" ]
-        RUN rm -rf /boot/initrd.img-*
-      END
-
-      RUN --no-cache kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
-
-      IF [ -f "/usr/bin/dracut" ]
-          # Regenerate initrd if necessary
-          RUN --no-cache kernel=$(ls /lib/modules | head -n1) && dracut -f "/boot/initrd-${kernel}" "${kernel}" && ln -sf "initrd-${kernel}" /boot/initrd
-      END
-
-      IF [ -f "/sbin/mkinitfs" ]
-        # Proper config files with immucore and custom initrd should already be in there installed by framework
-        RUN --no-cache kernel=$(ls /lib/modules | head -n1) && mkinitfs -o /boot/initrd $kernel
-      END
-    END
-
-    # Set /boot/vmlinuz pointing to our kernel so kairos-agent can use it
-    # https://github.com/kairos-io/kairos-agent/blob/0288fb111bc568a1bfca59cb09f39302220475b6/pkg/elemental/elemental.go#L548   q
-
-    # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
-    RUN rm -rf /boot/initramfs-* || true
-
-    IF [ ! -e "/boot/vmlinuz" ]
-        IF [ -e "/boot/vmlinuz-lts" ]
-            # Alpine provides the kernel under this name
-            RUN ln -sf /boot/vmlinuz-lts /boot/vmlinuz
-        END
-        IF [ -e "/boot/vmlinuz-rpi4" ]
-            # Alpine-rpi provides the kernel under this name
-            RUN ln -sf /boot/vmlinuz-rpi4 /boot/vmlinuz
-        END
-        # If it's an ARM flavor, we want a symlink here from zImage/Image
-        # Check that its not a symlink already or grub will fail!
-        IF [ -e "/boot/Image" ] && [ ! -L "/boot/Image" ]
-            RUN ln -sf Image /boot/vmlinuz
-        ELSE IF [ -e "/boot/zImage" ]
-            IF  [ ! -L "/boot/zImage" ]
-                RUN ln -sf zImage /boot/vmlinuz
-            ELSE
-                RUN kernel=$(ls /boot/zImage-* | head -n1) && if [ -e "$kernel" ]; then ln -sf "${kernel#/boot/}" /boot/vmlinuz; fi
-            END
-        ELSE
-            # Debian has vmlinuz-VERSION
-            RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && if [ -e "$kernel" ]; then ln -sf "${kernel#/boot/}" /boot/vmlinuz; fi
-            RUN kernel=$(ls /boot/Image-* | head -n1) && if [ -e "$kernel" ]; then ln -sf "${kernel#/boot/}" /boot/vmlinuz; fi
-        END
-    END
-
-    RUN rm -rf /tmp/*
-
-    COPY ./naming.sh .
-    RUN ./naming.sh container_artifact_name > ./IMAGE
-    RUN rm naming.sh
-
-    # luet cleanup
-    RUN luet cleanup
-    RUN rm -rf /var/luet
-
+    COPY +version/VERSION ./
     ARG _CIMG=$(cat ./IMAGE)
+
     SAVE IMAGE $_CIMG
-    SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
+    SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
     SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
 
 image-rootfs:
     ARG --required FAMILY
     ARG --required FLAVOR
+    ARG --required FLAVOR_RELEASE
     ARG --required BASE_IMAGE
     ARG --required MODEL
     ARG --required VARIANT
@@ -521,7 +418,7 @@ uki-artifacts:
     RUN mkdir -p /oem # be able to mount oem under here if found
     RUN mkdir -p /efi # mount the esp under here if found
     RUN find . \( -path ./sys -prune -o -path ./run -prune -o -path ./dev -prune -o -path ./tmp -prune -o -path ./proc -prune \) -o -print | cpio -R root:root -H newc -o | gzip -2 > /tmp/initramfs.cpio.gz
-    RUN echo "console=tty1 console=ttyS0 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.debug rd.immucore.uki selinux=0" > /tmp/Cmdline
+    RUN echo "console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.debug rd.immucore.uki selinux=0" > /tmp/Cmdline
     RUN basename $(ls /boot/vmlinuz-* |grep -v rescue | head -n1)| sed --expression "s/vmlinuz-//g" > /tmp/Uname
     SAVE ARTIFACT /boot/vmlinuz Kernel
     SAVE ARTIFACT /etc/os-release Osrelease
@@ -567,7 +464,7 @@ uki:
     ARG --required BASE_IMAGE
 
     ARG KAIROS_VERSION=$(cat VERSION)
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     FROM +uki-tools-image
     WORKDIR build
@@ -645,7 +542,7 @@ iso:
     ARG --required MODEL
     ARG --required VARIANT
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     ARG OSBUILDER_IMAGE
@@ -676,7 +573,7 @@ iso-uki:
     ARG --required MODEL
     ARG --required BASE_IMAGE
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -737,7 +634,7 @@ iso-remote:
     ARG --required MODEL
     ARG --required BASE_IMAGE
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -766,7 +663,7 @@ netboot:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     ARG OSBUILDER_IMAGE
 
@@ -788,6 +685,23 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
+artifact-name:
+    ARG TARGETARCH
+    ARG --required FAMILY
+    ARG --required FLAVOR
+    ARG --required FLAVOR_RELEASE
+    ARG --required VARIANT
+    ARG --required MODEL
+    ARG --required BASE_IMAGE
+    ARG --required NAMING_FUNC
+    ARG --required NAMING_EXT
+    ARG --required KAIROS_VERSION
+    FROM ubuntu
+
+    COPY ./images/naming.sh /usr/bin/local/naming.sh
+    RUN echo $(/usr/bin/local/naming.sh ${NAMING_FUNC})${NAMING_EXT} > /ARTIFACT_NAME
+    SAVE ARTIFACT /ARTIFACT_NAME ARTIFACT_NAME
+
 arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
@@ -795,8 +709,8 @@ arm-image:
   FROM $OSBUILDER_IMAGE
 
   COPY +version/VERSION ./
-  RUN echo "version ${VERSION}"
   ARG KAIROS_VERSION=$(cat VERSION)
+  RUN echo "version ${KAIROS_VERSION}"
 
   ARG TARGETARCH
   ARG --required FAMILY
@@ -806,9 +720,9 @@ arm-image:
   ARG --required MODEL
   ARG --required BASE_IMAGE
 
-  COPY ./naming.sh .
-  ARG IMAGE_NAME=$(./naming.sh bootable_artifact_name).img
-  RUN echo $IMAGE_NAME
+  COPY --platform=linux/arm64 (+artifact-name/ARTIFACT_NAME --KAIROS_VERSION=${KAIROS_VERSION} --NAMING_FUNC=bootable_artifact_name --NAMING_EXT=".img") /ARTIFACT_NAME
+  ARG IMAGE_NAME=$(cat /ARTIFACT_NAME)
+  RUN rm /ARTIFACT_NAME
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
@@ -861,8 +775,8 @@ prepare-arm-image:
   ARG --required BASE_IMAGE
   ARG --required MODEL
 
-  COPY ./naming.sh .
-  ARG IMAGE_NAME=$(./naming.sh bootable_artifact_name).img
+  COPY --platform=linux/arm64 (+artifact-name/ARTIFACT_NAME --KAIROS_VERSION=${KAIROS_VERSION} --NAMING_FUNC=bootable_artifact_name --NAMING_EXT=".img") /ARTIFACT_NAME
+  ARG IMAGE_NAME=$(cat /ARTIFACT_NAME)
   WORKDIR /build
   # These sizes are in MB
 
@@ -918,7 +832,7 @@ ipxe-iso:
     ARG --required MODEL
     ARG --required VARIANT
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     # Used here: https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
@@ -946,7 +860,7 @@ raw-image:
     COPY +version/VERSION ./
     RUN echo "version ${VERSION}"
     ARG VERSION=$(cat VERSION)
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG IMG_NAME=$(./naming.sh bootable_artifact_name).raw
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -995,7 +909,7 @@ trivy-scan:
     ARG --required VARIANT
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     WORKDIR /build
@@ -1025,7 +939,7 @@ grype-scan:
     ARG --required VARIANT
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     WORKDIR /build
@@ -1090,7 +1004,7 @@ run-qemu-netboot-test:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
-    COPY ./naming.sh .
+    COPY ./images/naming.sh .
     ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     # This is the IP at which qemu vm can see the host
@@ -1131,6 +1045,12 @@ run-qemu-test:
     IF [ -n "$PREBUILT_ISO" ]
         ENV ISO=/test/$PREBUILT_ISO
     ELSE
+        ARG --required FLAVOR
+        ARG --required FLAVOR_RELEASE
+        ARG --required FAMILY
+        ARG --required BASE_IMAGE
+        ARG --required MODEL
+        ARG --required VARIANT
         COPY +iso/kairos.iso kairos.iso
         ENV ISO=/test/kairos.iso
     END
