@@ -59,6 +59,7 @@ LABEL org.opencontainers.image.url="https://github.com/kairos-io/kairos"
 LABEL org.opencontainers.image.source="https://github.com/kairos-io/kairos.git"
 LABEL io.kairos.base-image=$BASE_IMAGE
 LABEL io.kairos.variant=$VARIANT
+LABEL io.kairos.family=$FAMILY
 LABEL io.kairos.flavor=$FLAVOR
 LABEL io.kairos.flavor_release=$FLAVOR_RELEASE
 LABEL io.kairos.version=$VERSION
