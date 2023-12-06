@@ -43,6 +43,7 @@ jobs:
       family: ${{ matrix.family }}
       model: ${{ matrix.model }}
       base_image: ${{ matrix.baseImage }}
+      arch: ${{ matrix.arch }}
 
   get-core-matrix:
     runs-on: ubuntu-latest

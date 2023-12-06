@@ -1,7 +1,9 @@
 # This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=alpine
+# This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+ARG FAMILY=alpine
 ARG FLAVOR
 ARG FLAVOR_RELEASE
 ARG MODEL=generic
@@ -214,11 +216,15 @@ RUN if [ -f "/usr/bin/dracut" ]; then \
       dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
       ln -sf "initrd-${kernel}" /boot/initrd; \
     fi
-# for alpine
+# for alpine (openrc based)
 RUN if [ -f "/sbin/mkinitfs" ]; then \
       kernel=$(ls /lib/modules | head -n1) && \
       mkinitfs -o /boot/initrd "${kernel}"; \
     fi
+
+# symlink kernel to /boot/vmlinuz
+RUN kernel=$(ls /boot/vmlinuz-* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; then ln -sf "$kernel" /boot/vmlinuz; fi || true
+RUN kernel=$(ls /boot/Image-* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; then ln -sf "$kernel" /boot/vmlinuz; fi || true
 
 # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
 RUN rm -rf /boot/initramfs-* || true
