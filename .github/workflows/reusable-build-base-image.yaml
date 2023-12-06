@@ -1,0 +1,91 @@
+name: Reusable Build Base Image
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        required: true
+        type: string
+      flavor_release:
+        required: true
+        type: string
+      family:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+      base_image:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v40
+        with:
+          files_yaml: |
+            nvidia:
+              - 'images/Dockerfile.${{ inputs.family }}'
+      - name: Release space from worker
+        if: steps.changed-files.outputs.nvidia_any_changed == 'true'
+        run: |
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          df -h
+          echo
+          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+          sudo rm -rf /usr/share/dotnet
+          sudo apt-get remove -y '^mono-.*' || true
+          sudo apt-get remove -y '^ghc-.*' || true
+          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+          sudo apt-get remove -y 'php.*' || true
+          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+          sudo apt-get remove -y '^google-.*' || true
+          sudo apt-get remove -y azure-cli || true
+          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+          sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          sudo rm -rfv build || true
+          df -h
+      - name: Set up Docker Buildx
+        if: steps.changed-files.outputs.nvidia_any_changed == 'true'
+        id: buildx
+        uses: docker/setup-buildx-action@master
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        if: steps.changed-files.outputs.nvidia_any_changed == 'true'
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
+      - name: Login to Quay Registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.changed-files.outputs.nvidia_any_changed == 'true' }}
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Build  🔧 & Push 🚀
+        if: steps.changed-files.outputs.nvidia_any_changed == 'true'
+        run: |
+          export IMAGE=$(FAMILY=${{ inputs.family }} FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ./images/naming.sh container_artifact_base_name)
+          docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.${{ inputs.family }} ./images
+          docker push $IMAGE
