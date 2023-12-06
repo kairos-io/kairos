@@ -29,8 +29,9 @@ jobs:
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-  build-base:
+  base:
     uses: ./.github/workflows/reusable-build-base-image.yaml
+    secrets: inherit
     needs:
     - get-base-matrix
     strategy:
