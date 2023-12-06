@@ -1,4 +1,4 @@
-# This is a base image for Kairos, it is not meant to be used directly, instead use the images/Dockerfile.kairos-* files
+# This is a base image used internally for Kairos, it is not meant to be built directly, instead use the images/Dockerfile.kairos-* files
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################

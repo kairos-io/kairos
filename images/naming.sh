@@ -32,10 +32,6 @@ common_artifact_base_name() {
     echo 'FLAVOR_RELEASE must be defined'
     exit 1
   fi
-  if [ -z "$VARIANT" ]; then
-    echo 'VARIANT must be defined'
-    exit 1
-  fi
   if [ -z "$TARGETARCH" ]; then
     echo 'TARGETARCH must be defined'
     exit 1
@@ -45,7 +41,7 @@ common_artifact_base_name() {
     exit 1
   fi
 
-  echo "$FLAVOR_RELEASE-$VARIANT-$TARGETARCH-$MODEL"
+  echo "$FLAVOR_RELEASE-$TARGETARCH-$MODEL"
 }
 
 bootable_artifact_name() {

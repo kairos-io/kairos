@@ -18,6 +18,9 @@ on:
       base_image:
         required: true
         type: string
+      arch:
+        required: true
+        type: string
 
 jobs:
   build:
