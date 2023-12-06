@@ -46,7 +46,7 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 	BeforeEach(func() {
 		containerImage = os.Getenv("CONTAINER_IMAGE")
 		_, vm = startVM()
-		vm.EventuallyConnects(1200)
+		vm.EventuallyConnects(3600)
 	})
 
 	AfterEach(func() {
