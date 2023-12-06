@@ -10,6 +10,37 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
+  get-base-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        git fetch --prune --unshallow
+    - id: set-matrix
+      run: |
+          content=`cat ./.github/flavors.json | jq -r 'map(del(.variant,.worker)) | unique'`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+  base:
+    uses: ./.github/workflows/reusable-build-base-image.yaml
+    needs:
+    - get-base-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-base-matrix.outputs.matrix)}}
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      model: ${{ matrix.model }}
+      base_image: ${{ matrix.baseImage }}
+
   core:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
