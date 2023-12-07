@@ -345,7 +345,7 @@ kairos-dockerfile:
     ARG --required FAMILY
     COPY ./images .
     RUN --no-cache cat <(echo "# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=${FAMILY}") \
-        Dockerfile.$FAMILY \
+        <(sed -n '/# WARNING:/!p' Dockerfile.$FAMILY) \
         <(echo) \
         <(sed -n '/# WARNING:/!p' Dockerfile.kairos) \
         > ./Dockerfile

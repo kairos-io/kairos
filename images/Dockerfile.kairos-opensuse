@@ -1,5 +1,4 @@
 # This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=opensuse
-# This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
@@ -160,6 +159,7 @@ FROM ${MODEL} AS all
 RUN zypper in --force-resolution -y \
     kernel-default \
     && zypper cc
+
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
 
 FROM all AS base-kairos

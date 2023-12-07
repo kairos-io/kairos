@@ -1,5 +1,4 @@
 # This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=alpine
-# This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
@@ -151,6 +150,7 @@ RUN rc-update add sshd boot && \
     rc-update add ntpd boot && \
     rc-update add crond && \
     rc-update add fail2ban
+
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
 
 FROM all AS base-kairos

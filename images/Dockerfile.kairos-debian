@@ -1,5 +1,4 @@
 # This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=debian
-# This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
@@ -156,6 +155,7 @@ RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
 # Clear cache
 RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
 
 FROM all AS base-kairos
