@@ -89,9 +89,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - security_profile: "generic"
-          - security_profile: "fips"
+        security_profile: [generic, fips]
+        framework_version: [master]
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:

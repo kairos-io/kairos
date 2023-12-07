@@ -309,6 +309,7 @@ multi-build-framework-image:
 build-framework-image:
     FROM alpine
     ARG SECURITY_PROFILE
+    ARG FRAMEWORK_VERSION
 
     IF [ "$SECURITY_PROFILE" = "fips" ]
         ARG _SECURITY_PROFILE=fips
@@ -321,13 +322,13 @@ build-framework-image:
 
     ARG VERSION=$(cat ./GIT_VERSION)
 
-    IF [[ "$VERSION" =~ "v\d+\.\d+\.\d+$" ]]
-        ARG FRAMEWORK_VERSION=$VERSION
+    IF [ "$FRAMEWORK_VERSION" = "" ]
+        ARG _FRAMEWORK_VERSION=$VERSION
     ELSE
-        ARG FRAMEWORK_VERSION=master
+        ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
     END
 
-    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECURITY_PROFILE}"
+    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${_FRAMEWORK_VERSION}_${_SECURITY_PROFILE}"
     RUN echo $_IMG > FRAMEWORK_IMAGE
 
     SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
@@ -336,7 +337,7 @@ build-framework-image:
 
     COPY (+framework/framework --SECURITY_PROFILE=$_SECURITY_PROFILE) /
 
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${FRAMEWORK_VERSION}_${_SECURITY_PROFILE}
+    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${_FRAMEWORK_VERSION}_${_SECURITY_PROFILE}
 
 kairos-dockerfile:
     ARG --required FAMILY
@@ -357,16 +358,17 @@ base-image:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
     ARG K3S_VERSION
+    ARG FRAMEWORK_VERSION
     # TODO for the framework image. Do we call the last stable version available or master?
     ARG K3S_VERSION
     DO +GIT_VERSION
 
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
-    IF [[ "$KAIROS_VERSION" =~ "v\d+\.\d+\.\d+$" ]]
-        ARG FRAMEWORK_VERSION=$KAIROS_VERSION
+    IF [ "$FRAMEWORK_VERSION" = "" ]
+        ARG _FRAMEWORK_VERSION=$VERSION
     ELSE
-        ARG FRAMEWORK_VERSION=master
+        ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
     END
     RUN cat +kairos-dockerfile/Dockerfile
 
@@ -378,7 +380,7 @@ base-image:
       --build-arg VARIANT=$VARIANT \
       --build-arg VERSION=$KAIROS_VERSION \
       --build-arg K3S_VERSION=$K3S_VERSION \
-      --build-arg FRAMEWORK_VERSION=$FRAMEWORK_VERSION \
+      --build-arg FRAMEWORK_VERSION=$_FRAMEWORK_VERSION \
       -f +kairos-dockerfile/Dockerfile \
       ./images
 
