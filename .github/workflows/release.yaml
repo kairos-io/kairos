@@ -92,7 +92,7 @@ jobs:
                 insecure = true
                 http = true
           EOF
-          earthly +multi-build-framework-image --SECURITY_PROFILE=${{ matrix.security_profile }}
+          earthly +multi-build-framework-image --SECURITY_PROFILE=${{ matrix.security_profile }} --FRAMEWORK_VERSION="git"
       - name: Push to quay
         env:
           COSIGN_YES: true
