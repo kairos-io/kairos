@@ -99,7 +99,10 @@ if [ "$CREATE_ISO" = true ]; then
   test -f tests/keys/DB.key
   test -f tests/keys/DB.crt
   test -f tests/keys/private.pem
-  docker run --privileged -w /workspace -v /dev:/dev -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket -v $(pwd):/workspace fedora:39 /bin/bash -exc "\
+  # Have to do it like this becuase I cant pass the vars correctly, probably because of the /bin/bash -exc command
+  source build/Osrelease
+  KAIROS_V=${KAIROS_VERSION}
+  docker run --privileged --env-file build/Osrelease -w /workspace -v /dev:/dev -v /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket -v $(pwd):/workspace fedora:39 /bin/bash -exc "\
   dnf install -y binutils xorriso systemd-boot mtools efitools dosfstools sbsigntools shim openssl systemd-ukify && \
   /usr/lib/systemd/ukify build/Kernel build/Initrd \
     --cmdline @build/Cmdline \
@@ -113,8 +116,8 @@ if [ "$CREATE_ISO" = true ]; then
     --output build/uki.signed.efi && \
   sbsign --key tests/keys/DB.key --cert tests/keys/DB.crt --output build/systemd-bootx64.signed.efi /usr/lib/systemd/boot/efi/systemd-bootx64.efi && \
   mkdir -p /tmp/efi/ && \
-  printf 'title Kairos %s %s\nefi /EFI/kairos/kairos.efi' ${FLAVOR} ${VERSION} > build/kairos.conf && \
-  printf 'default kairos.conf' > build/loader.conf && \
+  printf 'title Kairos %s\nefi /EFI/kairos/kairos-%s.efi\nversion %s' ${KAIROS_V} ${KAIROS_V} ${KAIROS_V} > build/kairos-${KAIROS_V}.conf && \
+  printf 'default @saved\ntimeout 5\nconsole-mode max\neditor no\n' > build/loader.conf && \
   dd if=/dev/zero of=/tmp/efi/efiboot.img bs=1G count=1 && \
   mkfs.msdos -F 32 /tmp/efi/efiboot.img && \
   mmd -i /tmp/efi/efiboot.img ::EFI && \
@@ -128,11 +131,11 @@ if [ "$CREATE_ISO" = true ]; then
   mcopy -i /tmp/efi/efiboot.img tests/keys/PK.der ::loader/keys/kairos/PK.der && \
   mcopy -i /tmp/efi/efiboot.img tests/keys/KEK.der ::loader/keys/kairos/KEK.der && \
   mcopy -i /tmp/efi/efiboot.img tests/keys/DB.der ::loader/keys/kairos/DB.der && \
-  mcopy -i /tmp/efi/efiboot.img build/kairos.conf ::loader/entries/kairos.conf && \
+  mcopy -i /tmp/efi/efiboot.img build/kairos-${KAIROS_V}.conf ::loader/entries/kairos-${KAIROS_V}.conf && \
   mcopy -i /tmp/efi/efiboot.img build/loader.conf ::loader/loader.conf && \
-  mcopy -i /tmp/efi/efiboot.img build/uki.signed.efi ::EFI/kairos/kairos.EFI && \
+  mcopy -i /tmp/efi/efiboot.img build/uki.signed.efi ::EFI/kairos/kairos-${KAIROS_V}.EFI && \
   mcopy -i /tmp/efi/efiboot.img build/systemd-bootx64.signed.efi ::EFI/BOOT/BOOTX64.EFI && \
-  xorriso -as mkisofs -V 'UKI_ISO_INSTALL' -e efiboot.img -no-emul-boot -o build/uki.iso /tmp/efi
+  xorriso -as mkisofs -V 'UKI_ISO_INSTALL' -e efiboot.img -no-emul-boot -o build/uki-${KAIROS_V}.iso /tmp/efi
   "
 else
   echo "Not signing EFI or building ISO"
