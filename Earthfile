@@ -124,40 +124,6 @@ go-deps-test:
     SAVE ARTIFACT go.mod go.mod AS LOCAL go.mod
     SAVE ARTIFACT go.sum go.sum AS LOCAL go.sum
 
-
-OSRELEASE:
-    COMMAND
-    ARG GITHUB_REPO
-    ARG BUG_REPORT_URL
-    ARG HOME_URL
-
-    ARG OS_ID=kairos
-
-    # For naming.sh
-    ARG TARGETARCH # Earthly built-in (not passed)
-    ARG --required FAMILY
-    ARG --required FLAVOR
-    ARG --required FLAVOR_RELEASE
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required KAIROS_VERSION
-
-    COPY ./images/naming.sh .
-
-    # quay.io/kairos/alpine or quay.io/kairos/ubuntu for example as this is just the repo
-    ARG OS_REPO=$(./naming.sh container_artifact_repo)
-    ARG ARTIFACT=$(./naming.sh bootable_artifact_name)
-
-    # kairos-core-alpine-3.18 or kairos-standard-ubuntu-20.04 for example
-    ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
-
-    ARG OS_VERSION=$KAIROS_VERSION
-    ARG OS_LABEL=$KAIROS_VERSION
-
-    # update OS-release file
-    RUN sed -i -n '/KAIROS_/!p' /etc/os-release
-    RUN envsubst >>/etc/os-release </usr/lib/os-release.tmpl
-
 uuidgen:
     FROM alpine
     RUN apk add uuidgen
@@ -389,6 +355,18 @@ base-image:
       ./images
 
     COPY +version/VERSION ./
+    COPY ./images/naming.sh .
+
+    ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
+    RUN KAIROS_VERSION=$(cat ./VERSION) \
+        OS_VERSION=$(cat ./VERSION) \
+        OS_LABEL=$(cat ./VERSION) \
+        OS_LABEL=$(naming.sh container_artifact_label) \
+        OS_REPO=$(naming.sh container_artifact_repo) \
+        ARTIFACT=$(naming.sh bootable_artifact_name) \
+        envsubst >>/etc/os-release </usr/lib/os-release.tmpl
+    RUN KAIROS_VERSION=$(cat ./VERSION) naming.sh container_artifact_name > /IMAGE
+
     ARG _CIMG=$(cat ./IMAGE)
 
     SAVE IMAGE $_CIMG
