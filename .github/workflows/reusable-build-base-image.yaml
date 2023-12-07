@@ -90,5 +90,5 @@ jobs:
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         run: |
           export IMAGE=$(FAMILY=${{ inputs.family }} FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ./images/naming.sh container_artifact_base_name)
-          docker build --platform=linux/arm64 --build-arg=FAMILY=${{ inputs.family }} --build-arg=FLAVOR=${{ inputs.flavor }} --build-arg=FLAVOR_RELEASE="${{ inputs.flavor_release}}" --build-arg=MODEL=${{ inputs.model}} -t $IMAGE -f ./images/Dockerfile.${{ inputs.family }} ./images
+          docker build --platform=linux/${{ inputs.arch }} --build-arg="FAMILY=${{ inputs.family }}" --build-arg="FLAVOR=${{ inputs.flavor }}" --build-arg="FLAVOR_RELEASE=${{ inputs.flavor_release }}" --build-arg="MODEL=${{ inputs.model }}" --build-arg="BASE_IMAGE=${{ inputs.base_image }}" -t $IMAGE -f ./images/Dockerfile.${{ inputs.family }} ./images
           docker push $IMAGE

@@ -1,4 +1,7 @@
 # This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=rhel
+###############################################################
+####                           ARGS                        ####
+###############################################################
 ARG FAMILY=rhel
 ARG FLAVOR
 ARG FLAVOR_RELEASE
