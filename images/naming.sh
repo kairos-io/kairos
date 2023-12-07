@@ -23,8 +23,24 @@ common_artifact_name() {
     echo 'KAIROS_VERSION must be defined'
     exit 1
   fi
+  if [ -z "$FLAVOR_RELEASE" ]; then
+    echo 'FLAVOR_RELEASE must be defined'
+    exit 1
+  fi
+  if [ -z "$VARIANT" ]; then
+    echo 'VARIANT must be defined'
+    exit 1
+  fi
+  if [ -z "$TARGETARCH" ]; then
+    echo 'TARGETARCH must be defined'
+    exit 1
+  fi
+  if [ -z "$MODEL" ]; then
+    echo 'MODEL must be defined'
+    exit 1
+  fi
 
-  echo "$(common_artifact_base_name)-$KAIROS_VERSION"
+  echo "$FLAVOR_RELEASE-$VARIANT-$TARGETARCH-$MODEL-$KAIROS_VERSION"
 }
 
 common_artifact_base_name() {
