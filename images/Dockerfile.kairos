@@ -48,10 +48,34 @@ FROM base-kairos AS kairos-core
 
 FROM base-kairos AS kairos-standard
 ARG K3S_VERSION
+LABEL io.kairos.k3s_version="${K3S_VERSION}"
 RUN luet install -y system/provider-kairos
 RUN luet install -y "k8s/k3s-$(which-init.sh)@${K3S_VERSION}" utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
 
 FROM kairos-${VARIANT} AS kairos-final
+ARG BASE_IMAGE
+ARG VARIANT
+ARG FAMILY
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG MODEL
+ARG VERSION
+ARG FRAMEWORK_VERSION
+ARG SECURITY_PROFILE
+LABEL org.opencontainers.image.authors="Kairos Maintainers <team@kairos.io>"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.url="https://github.com/kairos-io/kairos"
+LABEL org.opencontainers.image.source="https://github.com/kairos-io/kairos.git"
+LABEL io.kairos.base_image="${BASE_IMAGE}"
+LABEL io.kairos.variant="${VARIANT}"
+LABEL io.kairos.family="${FAMILY}"
+LABEL io.kairos.flavor="${FLAVOR}"
+LABEL io.kairos.flavor_release="${FLAVOR_RELEASE}"
+LABEL io.kairos.model="${MODEL}"
+LABEL io.kairos.version="${VERSION}"
+LABEL io.kairos.framework-version="${FRAMEWORK_VERSION}"
+LABEL io.kairos.security-profile="${SECURITY_PROFILE}"
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN luet database get-all-installed --output /etc/kairos/versions.yaml
 
