@@ -9,7 +9,7 @@ ARG MODEL=generic
 ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=master
+ARG FRAMEWORK_VERSION=main
 # Not to be confused with the concept of MODEL, this is either fips or generic
 ARG SECURITY_PROFILE=generic
 # TARGETARCH is used to determine the architecture of the image
@@ -120,15 +120,6 @@ ARG MODEL
 ARG REGISTRY_AND_ORG="quay.io/kairos"
 ARG K3S_VERSION
 ARG TARGETARCH
-ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
-ENV KAIROS_VERSION="${VERSION}${K3S_VERSION:+-k3s$K3S_VERSION}"
-ENV OS_VERSION=${KAIROS_VERSION}
-ENV OS_LABEL=${KAIROS_VERSION}
-RUN OS_LABEL=$(naming.sh container_artifact_label) \
-    OS_REPO=$(naming.sh container_artifact_repo) \
-    ARTIFACT=$(naming.sh bootable_artifact_name) \
-    envsubst >>/etc/os-release </usr/lib/os-release.tmpl
-RUN naming.sh container_artifact_name > /IMAGE
 
 RUN rm -rf /etc/machine-id
 

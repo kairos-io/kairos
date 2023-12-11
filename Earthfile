@@ -230,83 +230,6 @@ luet:
 ### Image Build targets
 ###
 
-# This generates the framework base by installing luet packages generated with
-# the profile-build + framework-profile.yaml file.
-# Installs everything under the /framework dir and saves that as an artifact
-framework:
-    FROM golang:alpine
-
-    ARG SECURITY_PROFILE
-    IF [ "$SECURITY_PROFILE" = "fips" ]
-        ARG _SECURITY_PROFILE=fips
-    ELSE
-        ARG _SECURITY_PROFILE=generic
-    END
-
-    WORKDIR /build
-
-    COPY ./profile-build /build
-    COPY +luet/luet /usr/bin/luet
-
-    RUN go mod download
-    COPY framework-profile.yaml /build
-    RUN go run main.go ${_SECURITY_PROFILE} framework-profile.yaml /framework
-
-    RUN mkdir -p /framework/etc/kairos/
-    RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
-
-    # luet cleanup
-    RUN luet cleanup --system-target /framework
-    RUN rm -rf /var/luet
-    RUN rm -rf /var/cache
-
-    # COPY luet into the final framework
-    # TODO: Understand why?
-    COPY +luet/luet /framework/usr/bin/luet
-    COPY framework-profile.yaml /framework/etc/luet/luet.yaml
-
-    SAVE ARTIFACT --keep-own /framework/ framework
-
-multi-build-framework-image:
-    ARG --required SECURITY_PROFILE
-
-    BUILD --platform=linux/amd64 --platform=linux/arm64 +build-framework-image
-
-build-framework-image:
-    FROM alpine
-    ARG SECURITY_PROFILE
-    ARG FRAMEWORK_VERSION
-
-    IF [ "$SECURITY_PROFILE" = "fips" ]
-        ARG _SECURITY_PROFILE=fips
-    ELSE
-        ARG _SECURITY_PROFILE=generic
-    END
-
-    COPY +version/VERSION ./
-    DO +GIT_VERSION
-
-    ARG VERSION=$(cat ./GIT_VERSION)
-
-    IF [ "$FRAMEWORK_VERSION" = "" ]
-        ARG _FRAMEWORK_VERSION=master
-    ELSE IF [ "$FRAMEWORK_VERSION" = "git" ]
-        ARG _FRAMEWORK_VERSION=$VERSION
-    ELSE
-        ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
-    END
-
-    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${_FRAMEWORK_VERSION}_${_SECURITY_PROFILE}"
-    RUN echo $_IMG > FRAMEWORK_IMAGE
-
-    SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
-
-    FROM scratch
-
-    COPY (+framework/framework --SECURITY_PROFILE=$_SECURITY_PROFILE) /
-
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${_FRAMEWORK_VERSION}_${_SECURITY_PROFILE}
-
 kairos-dockerfile:
     ARG --required FAMILY
     COPY ./images .
@@ -334,7 +257,7 @@ base-image:
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
     IF [ "$FRAMEWORK_VERSION" = "" ]
-        ARG _FRAMEWORK_VERSION=master
+        ARG _FRAMEWORK_VERSION=main
     ELSE IF [ "$FRAMEWORK_VERSION" = "git" ]
         ARG _FRAMEWORK_VERSION=$VERSION
     ELSE
