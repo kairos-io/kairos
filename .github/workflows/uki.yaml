@@ -37,20 +37,13 @@ jobs:
           packages: utils/earthly
       - name: Build uki ISO 🔧
         run: |
-          # Do fedora as its the smaller uki possible
-          # Use immmucore master as it has patches not released for uki
-          # Use kairos-agent main branch as it has patches not released for uki
-          earthly +iso-uki \
+          earthly +uki-iso \
             --FLAVOR=opensuse \
             --FLAVOR_RELEASE=leap-15.5 \
             --FAMILY=opensuse \
             --MODEL=generic \
             --VARIANT=core \
-            --BASE_IMAGE=opensuse/leap:15.5 \
-            --KAIROS_AGENT_DEV=true \
-            --KAIROS_AGENT_DEV_BRANCH=main \
-            --IMMUCORE_DEV=true \
-            --IMMUCORE_DEV_BRANCH=master
+            --BASE_IMAGE=opensuse/leap:15.5
       - name: Run tests
         env:
           USE_QEMU: true
@@ -59,7 +52,7 @@ jobs:
           CPUS: 2
           FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
         run: |
-          export ISO=$(ls $PWD/build/kairos-*opensuse-leap*.iso)
+          export ISO=$(ls $PWD/build/kairos-opensuse-leap-15.5-core-amd64-generic-*.uki.iso)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
       - uses: actions/upload-artifact@v3
