@@ -127,7 +127,7 @@ jobs:
           mv *.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'sarif'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}

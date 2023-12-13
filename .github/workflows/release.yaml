@@ -165,7 +165,7 @@ jobs:
           files: |
             release/*
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'sarif'
