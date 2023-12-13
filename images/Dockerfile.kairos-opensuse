@@ -162,8 +162,6 @@ RUN zypper in --force-resolution -y \
 
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
 
-FROM quay.io/luet/base:0.35.0 AS luet
-
 FROM all AS base-kairos
 
 # Symlinks to make elemental installer work
@@ -172,8 +170,6 @@ RUN ORIG=/usr/bin/grub-editenv; DEST=/usr/sbin/grub2-editenv; [ -e $ORIG ] && [ 
 
 # Originally done in Earthly
 COPY --from=framework / /
-ENV LUET_NOLOCK=true
-COPY --from=luet /usr/bin/luet /usr/bin/luet
 
 RUN rm -rf /etc/ssh/ssh_host_*
 

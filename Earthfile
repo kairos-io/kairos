@@ -8,6 +8,8 @@ ARG GITHUB_REPO=kairos-io/kairos
 ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.47.0
+# renovate: datasource=github-releases depName=kairos-io/kairos-framework
+ARG KAIROS_FRAMEWORK_VERSION="2.4.4"
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
@@ -256,12 +258,10 @@ base-image:
 
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
-    IF [ "$FRAMEWORK_VERSION" = "" ]
-        ARG _FRAMEWORK_VERSION=main
-    ELSE IF [ "$FRAMEWORK_VERSION" = "git" ]
-        ARG _FRAMEWORK_VERSION=$VERSION
-    ELSE
+    IF [ "$FRAMEWORK_VERSION" != "" ]
         ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
+    ELSE
+        ARG _FRAMEWORK_VERSION=$KAIROS_FRAMEWORK_VERSION
     END
     RUN cat +kairos-dockerfile/Dockerfile
 
