@@ -11,8 +11,6 @@ ARG BASE_IMAGE=debian:testing
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
 # TARGETARCH is used to determine the architecture of the image
 # it is already set by Docker so it doesn't need to be defined here
 

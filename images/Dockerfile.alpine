@@ -11,8 +11,6 @@ ARG BASE_IMAGE=alpine
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
 
 ###############################################################
 ####                          Common                       ####

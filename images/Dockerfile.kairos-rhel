@@ -10,8 +10,6 @@ ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
 # TARGETARCH is used to determine the architecture of the image
 # it is already set by Docker so it doesn't need to be defined here
 
@@ -87,7 +85,7 @@ RUN systemctl enable systemd-resolved
 RUN systemctl disable dnf-makecache.service
 RUN systemctl enable sshd
 
-FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
+FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
 
 FROM all AS base-kairos
 
@@ -140,7 +138,6 @@ ARG FLAVOR_RELEASE
 ARG MODEL
 ARG VERSION
 ARG FRAMEWORK_VERSION
-ARG SECURITY_PROFILE
 LABEL org.opencontainers.image.authors="Kairos Maintainers <team@kairos.io>"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.url="https://github.com/kairos-io/kairos"
@@ -153,7 +150,6 @@ LABEL io.kairos.flavor_release="${FLAVOR_RELEASE}"
 LABEL io.kairos.model="${MODEL}"
 LABEL io.kairos.version="${VERSION}"
 LABEL io.kairos.framework-version="${FRAMEWORK_VERSION}"
-LABEL io.kairos.security-profile="${SECURITY_PROFILE}"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN luet database get-all-installed --output /etc/kairos/versions.yaml
