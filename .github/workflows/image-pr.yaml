@@ -32,6 +32,17 @@ jobs:
       variant: core
       arch: amd64
 
+  standard:
+    uses: ./.github/workflows/reusable-build-provider.yaml
+    with:
+      flavor: opensuse
+      flavor_release: "leap-15.5"
+      family: opensuse
+      base_image: opensuse/leap:15.5
+      model: generic
+      variant: standard
+      arch: amd64
+
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
