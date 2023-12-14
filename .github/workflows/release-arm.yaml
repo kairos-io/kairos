@@ -68,6 +68,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Install kairos-agent (for versioneer)
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
       - name: Release space from worker
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         run: |
@@ -112,7 +117,7 @@ jobs:
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧 & Push 🚀
         run: |
-          export IMAGE=$(FAMILY=ubuntu FLAVOR=ubuntu FLAVOR_RELEASE="20.04" MODEL=nvidia-jetson-agx-orin VARIANT=core TARGETARCH=arm64 REGISTRY_AND_ORG="quay.io/kairos" BRANCH=release ./images/naming.sh container_artifact_base_name)
+          export IMAGE=$(FLAVOR=ubuntu FLAVOR_RELEASE="20.04" MODEL=nvidia-jetson-agx-orin VARIANT=core TARGETARCH=arm64 REGISTRY_AND_ORG="quay.io/kairos" ID=release kairos-agent versioneer base-container-artifact-name)
           docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
           docker push $IMAGE
 
@@ -123,7 +128,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "20.04"
       family: ubuntu
-      # is there a way to run the naming.sh script here?
+      # is there a way to run versioneer here?
       base_image: quay.io/kairos/ubuntu:20.04-core-arm64-nvidia-jetson-agx-orin-release
       model: nvidia-jetson-agx-orin
       worker: fast
@@ -208,7 +213,6 @@ jobs:
             -BASE_IMAGE=${{ matrix.baseImage }}
       - name: Convert all json files into a reports.tar.gz file
         run: |
-          export VERSION=$(cat build/VERSION)
           cd build
           filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
@@ -233,7 +237,7 @@ jobs:
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
           sudo -E docker push "$IMAGE"
-          sudo rm -rf build/IMAGE build/VERSION
+          sudo rm -rf build/IMAGE
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -332,7 +336,6 @@ jobs:
             -BASE_IMAGE=${{ matrix.baseImage }}
       - name: Convert all json files into a reports.tar.gz file
         run: |
-          export VERSION=$(cat build/VERSION)
           cd build
           filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
@@ -357,7 +360,7 @@ jobs:
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
           sudo -E docker push "$IMAGE"
-          sudo rm -rf build/IMAGE build/VERSION
+          sudo rm -rf build/IMAGE
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')

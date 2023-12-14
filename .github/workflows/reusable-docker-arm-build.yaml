@@ -121,7 +121,6 @@ jobs:
       - name: Convert all json files into a reports.tar.gz file
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
-          export VERSION=$(cat build/VERSION)
           cd build
           filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
@@ -146,7 +145,7 @@ jobs:
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
           sudo -E docker push "$IMAGE"
-          sudo rm -rf build/IMAGE build/VERSION
+          sudo rm -rf build/IMAGE
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1

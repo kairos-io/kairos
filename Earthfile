@@ -136,30 +136,12 @@ uuidgen:
 
     SAVE ARTIFACT UUIDGEN UUIDGEN
 
-GIT_VERSION:
-    COMMAND
+git-version:
     FROM alpine
     RUN apk add git
     COPY . ./
     RUN git describe --always --tags --dirty > GIT_VERSION
     SAVE ARTIFACT GIT_VERSION GIT_VERSION
-
-version:
-    ARG K3S_VERSION
-    DO +GIT_VERSION
-    ARG _GIT_VERSION=$(cat ./GIT_VERSION)
-
-    # Remove luet rebuild numbers like we do here:
-    # https://github.com/kairos-io/packages/blob/2fbc098d0499a0c34c587057ff8a9f00c2b7f575/packages/k8s/k3s/build.yaml#L11-L12
-    IF [ "$K3S_VERSION" != "" ]
-      ARG _FIXED_VERSION=$(echo $K3S_VERSION | sed 's/+[[:digit:]]*//')
-      ARG _K3S_VERSION="-k3sv${_FIXED_VERSION}+k3s1"
-    END
-
-    RUN --no-cache echo ${_GIT_VERSION}${_K3S_VERSION} > VERSION
-
-    ARG VERSION=$(cat VERSION)
-    SAVE ARTIFACT VERSION VERSION
 
 hadolint:
     ARG HADOLINT_VERSION
@@ -200,24 +182,9 @@ syft:
     SAVE ARTIFACT /syft syft
 
 image-sbom:
-    ARG TARGETARCH
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-
-    # Use base-image so it can read original os-release file
     FROM +base-image
     WORKDIR /build
-    ARG FLAVOR
-    ARG VARIANT
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
 
     COPY +syft/syft /usr/bin/syft
     RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
@@ -253,6 +220,10 @@ extract-framework-profile:
     FROM quay.io/kairos/framework:${_FRAMEWORK_VERSION}
     SAVE ARTIFACT /etc/luet/luet.yaml framework-profile.yaml AS LOCAL ./framework-profile.yaml
 
+extract-kairos-agent-from-framework:
+    FROM quay.io/kairos/framework:${KAIROS_FRAMEWORK_VERSION}
+    SAVE ARTIFACT /usr/bin/kairos-agent kairos-agent
+
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
     ARG --required FAMILY # The dockerfile to use
@@ -261,13 +232,26 @@ base-image:
     ARG --required VARIANT
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-    ARG K3S_VERSION
     ARG FRAMEWORK_VERSION
     # TODO for the framework image. Do we call the last stable version available or master?
-    ARG K3S_VERSION
-    DO +GIT_VERSION
 
-    ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
+    ARG K3S_VERSION # As it comes from luet package
+    ARG SOFTWARE_VERSION_PREFIX="k3s"
+    ARG _SOFTWARE_LUET_VERSION=$K3S_VERSION
+    # Takes 1.28.2+1 and converts that to v1.18.2+k3s1
+    # Hack because we use a different version in the luet package and in the
+    # artifact names.
+    # TODO: Remove this when we change the package version to not have the
+    # hardcoded k3s1. Then we will use the version exactly as it comes from
+    # luet, in the artifact names. E.g. v1.28.2+k3s2+3 (including our build number)
+    IF [ "$K3S_VERSION" != "" ]
+      ARG _FIXED_VERSION=$(echo $K3S_VERSION | sed 's/+[[:digit:]]*//')
+      ARG SOFTWARE_VERSION="v${_FIXED_VERSION}+k3s1"
+    END
+
+    COPY +git-version/GIT_VERSION GIT_VERSION
+
+    ARG RELEASE=$(cat ./GIT_VERSION)
 
     IF [ "$FRAMEWORK_VERSION" != "" ]
         ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
@@ -281,26 +265,22 @@ base-image:
       --build-arg FLAVOR=$FLAVOR \
       --build-arg FLAVOR_RELEASE=$FLAVOR_RELEASE \
       --build-arg VARIANT=$VARIANT \
-      --build-arg VERSION=$KAIROS_VERSION \
-      --build-arg K3S_VERSION=$K3S_VERSION \
+      --build-arg FAMILY=$FAMILY \
+      --build-arg RELEASE=$RELEASE \
+      --build-arg SOFTWARE_VERSION=$SOFTWARE_VERSION \
+      --build-arg SOFTWARE_LUET_VERSION=$_SOFTWARE_LUET_VERSION \
+      --build-arg SOFTWARE_VERSION_PREFIX=$SOFTWARE_VERSION_PREFIX \
       --build-arg FRAMEWORK_VERSION=$_FRAMEWORK_VERSION \
       -f +kairos-dockerfile/Dockerfile \
       ./images
 
-    COPY +version/VERSION ./
-    COPY ./images/naming.sh .
 
-    ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
-    RUN KAIROS_VERSION=$(cat ./VERSION) \
-        OS_VERSION=$(cat ./VERSION) \
-        OS_LABEL=$(cat ./VERSION) \
-        OS_LABEL=$(naming.sh container_artifact_label) \
-        OS_REPO=$(naming.sh container_artifact_repo) \
-        ARTIFACT=$(naming.sh bootable_artifact_name) \
-        envsubst >>/etc/os-release </usr/lib/os-release.tmpl
-    RUN KAIROS_VERSION=$(cat ./VERSION) naming.sh container_artifact_name > /IMAGE
+    RUN kairos-agent versioneer container-artifact-name # To see the error if one occurs.
+    RUN kairos-agent versioneer container-artifact-name > /IMAGE
 
     ARG _CIMG=$(cat ./IMAGE)
+
+    COPY +git-version/GIT_VERSION VERSION
 
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
@@ -308,13 +288,6 @@ base-image:
     SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
 
 image-rootfs:
-    ARG --required FAMILY
-    ARG --required FLAVOR
-    ARG --required FLAVOR_RELEASE
-    ARG --required BASE_IMAGE
-    ARG --required MODEL
-    ARG --required VARIANT
-
     BUILD +base-image # Make sure the image is also saved locally
     FROM +base-image
 
@@ -356,13 +329,6 @@ uki-tools-image:
 # os-release
 # uname
 uki-base:
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE
-    ARG TARGETARCH
     WORKDIR build
     # Build kernel,uname, etc artifacts
     FROM +base-image --BUILD_INITRD=false
@@ -422,8 +388,9 @@ uki-build:
 # Then we generate the image from scratch to not ring anything else
 uki-image-artifacts:
     FROM +uki-tools-image
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
+    COPY +git-version/GIT_VERSION ./
+    ARG KAIROS_VERSION=$(cat GIT_VERSION)
+
     COPY +uki-build/systemd-bootx64.signed.efi /output/efi/EFI/BOOT/BOOTX64.EFI
     COPY +uki-build/uki.signed.efi /output/efi/EFI/kairos/${KAIROS_VERSION}.efi
     COPY +uki-build/${KAIROS_VERSION}.conf /output/efi/loader/entries/${KAIROS_VERSION}.conf
@@ -442,18 +409,15 @@ uki-image:
     SAVE IMAGE --push $_CIMG.uki
 
 uki-iso:
-    FROM ubuntu
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-    ARG TARGETARCH
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
+    # +base-image will be called again by +uki but will be cached.
+    # We just use it here to take a shortcut to the artifact name
+    FROM +base-image
+    WORKDIR /build
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+
+    COPY +git-version/GIT_VERSION ./
+    ARG KAIROS_VERSION=$(cat GIT_VERSION)
+
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
@@ -498,23 +462,6 @@ uki-iso:
 ###
 
 iso:
-    FROM ubuntu
-
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-    ARG TARGETARCH
-
-    # args for base-image target
-    ARG --required FAMILY
-    ARG --required FLAVOR
-    ARG --required FLAVOR_RELEASE
-    ARG --required BASE_IMAGE
-    ARG --required MODEL
-    ARG --required VARIANT
-
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
-
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
@@ -523,6 +470,8 @@ iso:
     BUILD +image-rootfs # Make sure the image is also saved locally
     COPY --keep-own +image-rootfs/rootfs /build/image
     COPY --keep-own +image-rootfs/IMAGE IMAGE
+
+    ARG ISO_NAME=$(source /build/image/etc/os-release; echo '$KAIROS_ARTIFACT')
 
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --output /build/
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
@@ -535,57 +484,31 @@ iso:
 # you can override either the full thing by setting --REMOTE_IMG=docker:REPO/IMAGE:TAG
 # or by --REMOTE_IMG=REPO/IMAGE:TAG
 iso-remote:
-    FROM ubuntu
+    ARG --required REMOTE_IMG
+    FROM $REMOTE_IMG
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
 
-    ARG TARGETARCH
-    ARG REMOTE_IMG
-
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE
-
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     COPY . ./
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false docker:$REMOTE_IMG --output /build/
+
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
 
 netboot:
-    FROM ubuntu
+    FROM +base-image
 
-    COPY +version/VERSION ./
-    RUN echo "version ${VERSION}"
-    # For ipxe.tmpl to be able to substitute. It's called version but it references the release tag, this is why we need
-    # to remove the -k3s version
-    ARG VERSION=$(cat VERSION | sed 's/-k3s.*//')
-    # For naming.sh we need the complete version including the K3S version in order to build the artifact names
-    ARG KAIROS_VERSION=$(cat VERSION)
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
 
-    ARG TARGETARCH # Earthly built-in (not passed)
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
-    ARG OSBUILDER_IMAGE
-
-    # Used here: https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
+    # Variables used here:
+    # https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
+    COPY +git-version/GIT_VERSION GIT_VERSION
+    ARG VERSION=$(cat ./GIT_VERSION)
     ARG RELEASE_URL=https://github.com/kairos-io/kairos/releases/download
 
+    ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
 
@@ -601,44 +524,16 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
-artifact-name:
-    ARG TARGETARCH
-    ARG --required FAMILY
-    ARG --required FLAVOR
-    ARG --required FLAVOR_RELEASE
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE
-    ARG --required NAMING_FUNC
-    ARG --required NAMING_EXT
-    ARG --required KAIROS_VERSION
-    FROM ubuntu
-
-    COPY ./images/naming.sh /usr/bin/local/naming.sh
-    RUN echo $(/usr/bin/local/naming.sh ${NAMING_FUNC})${NAMING_EXT} > /ARTIFACT_NAME
-    SAVE ARTIFACT /ARTIFACT_NAME ARTIFACT_NAME
-
 arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
+
+  FROM +base-image
+  ARG IMAGE_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT').img
+
   FROM $OSBUILDER_IMAGE
 
-  COPY +version/VERSION ./
-  ARG KAIROS_VERSION=$(cat VERSION)
-  RUN echo "version ${KAIROS_VERSION}"
-
-  ARG TARGETARCH
-  ARG --required FAMILY
-  ARG --required FLAVOR
-  ARG --required FLAVOR_RELEASE
-  ARG --required VARIANT
-  ARG --required MODEL
-  ARG --required BASE_IMAGE
-
-  COPY --platform=linux/arm64 (+artifact-name/ARTIFACT_NAME --KAIROS_VERSION=${KAIROS_VERSION} --NAMING_FUNC=bootable_artifact_name --NAMING_EXT=".img") /ARTIFACT_NAME
-  ARG IMAGE_NAME=$(cat /ARTIFACT_NAME)
-  RUN rm /ARTIFACT_NAME
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
@@ -677,25 +572,11 @@ arm-image:
 prepare-arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
+
   FROM $OSBUILDER_IMAGE
-
-  COPY +version/VERSION ./
-  RUN echo "version ${VERSION}"
-  ARG KAIROS_VERSION=$(cat VERSION)
-
-  ARG TARGETARCH
-  ARG --required FAMILY
-  ARG --required FLAVOR
-  ARG --required FLAVOR_RELEASE
-  ARG --required VARIANT
-  ARG --required BASE_IMAGE
-  ARG --required MODEL
-
-  COPY --platform=linux/arm64 (+artifact-name/ARTIFACT_NAME --KAIROS_VERSION=${KAIROS_VERSION} --NAMING_FUNC=bootable_artifact_name --NAMING_EXT=".img") /ARTIFACT_NAME
-  ARG IMAGE_NAME=$(cat /ARTIFACT_NAME)
   WORKDIR /build
-  # These sizes are in MB
 
+  # These sizes are in MB
   ENV SIZE="15200"
 
   IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
@@ -728,6 +609,17 @@ prepare-arm-image:
 
 ipxe-iso:
     ARG TARGETARCH
+
+    FROM +base-image
+
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+
+    # Variables used here:
+    # https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
+    COPY +git-version/GIT_VERSION GIT_VERSION
+    ARG VERSION=$(cat ./GIT_VERSION)
+    ARG RELEASE_URL=https://github.com/kairos-io/kairos/releases/download
+
     FROM ubuntu
     ARG ipxe_script
     RUN apt update
@@ -736,27 +628,9 @@ ipxe-iso:
                            # jq docker
     WORKDIR /build
 
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-    ARG TARGETARCH
-
-    # args for base-image target
-    ARG --required FAMILY
-    ARG --required FLAVOR
-    ARG --required FLAVOR_RELEASE
-    ARG --required BASE_IMAGE
-    ARG --required MODEL
-    ARG --required VARIANT
-
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
-
-    # Used here: https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
-    ARG RELEASE_URL
-
     RUN git clone https://github.com/ipxe/ipxe
     IF [ "$ipxe_script" = "" ]
-        COPY (+netboot/ipxe --VERSION=$KAIROS_VERSION --RELEASE_URL=$RELEASE_URL) /build/ipxe/script.ipxe
+        COPY (+netboot/ipxe --VERSION=$VERSION --RELEASE_URL=$RELEASE_URL) /build/ipxe/script.ipxe
     ELSE
         COPY $ipxe_script /build/ipxe/script.ipxe
     END
@@ -771,13 +645,12 @@ ipxe-iso:
 # is to boot from them and do a reset to get the latest system installed
 # This allows us to build a raw disk image locally to test the cloud workflow easily
 raw-image:
-    FROM ubuntu
-    ARG TARGETARCH
-    COPY +version/VERSION ./
-    RUN echo "version ${VERSION}"
-    ARG VERSION=$(cat VERSION)
-    COPY ./images/naming.sh .
-    ARG IMG_NAME=$(./naming.sh bootable_artifact_name).raw
+    # +base-image will be called again by +uki-artifacts but will be cached
+    # We just use it here to take a shortcut to the artifact name
+    FROM +base-image
+    WORKDIR /build
+    ARG IMG_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT').raw
+
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
@@ -814,19 +687,11 @@ trivy-scan:
 
     # Use base-image so it can read original os-release file
     FROM +base-image
+
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-    ARG TARGETARCH
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
 
     WORKDIR /build
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
@@ -846,17 +711,8 @@ grype-scan:
     # Use base-image so it can read original os-release file
     FROM +base-image
     COPY +grype/grype /grype
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-    ARG TARGETARCH
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
+
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
 
     WORKDIR /build
     RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
@@ -905,32 +761,24 @@ run-qemu-datasource-tests:
 
 
 run-qemu-netboot-test:
+    FROM +base-image
+    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+
+    COPY +git-version/GIT_VERSION GIT_VERSION
+    ARG VERSION=$(cat ./GIT_VERSION)
+
     FROM +go-deps-test
     COPY . /test
     WORKDIR /test
 
-    COPY +version/VERSION ./
-    ARG KAIROS_VERSION=$(cat VERSION)
-
-    ARG TARGETARCH # Earthly built-in (not passed)
-    ARG --required FAMILY # The dockerfile to use
-    ARG --required FLAVOR # The distribution E.g. "ubuntu"
-    ARG --required FLAVOR_RELEASE # The distribution release/version E.g. "20.04"
-    ARG --required VARIANT
-    ARG --required MODEL
-    ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
-
-    COPY ./images/naming.sh .
-    ARG ISO_NAME=$(./naming.sh bootable_artifact_name)
-
     # This is the IP at which qemu vm can see the host
     ARG IP="10.0.2.2"
 
-    COPY (+netboot/squashfs --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME.squashfs
-    COPY (+netboot/kernel --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME-kernel
-    COPY (+netboot/initrd --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME-initrd
-    COPY (+netboot/ipxe --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/$KAIROS_VERSION/$ISO_NAME.ipxe
-    COPY (+ipxe-iso/iso --VERSION=$KAIROS_VERSION --RELEASE_URL=http://$IP) ./build/${ISO_NAME}-ipxe.iso
+    COPY (+netboot/squashfs --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.squashfs
+    COPY (+netboot/kernel --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-kernel
+    COPY (+netboot/initrd --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME-initrd
+    COPY (+netboot/ipxe --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/$VERSION/$ISO_NAME.ipxe
+    COPY (+ipxe-iso/iso --VERSION=$VERSION --RELEASE_URL=http://$IP) ./build/${ISO_NAME}-ipxe.iso
 
     ENV ISO=/test/build/$ISO_NAME-ipxe.iso
 
@@ -993,7 +841,6 @@ pull-build-artifacts:
     FROM $OSBUILDER_IMAGE
     RUN zypper in -y jq docker
     COPY +uuidgen/UUIDGEN ./
-    COPY +version/VERSION ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
 
@@ -1007,7 +854,6 @@ push-build-artifacts:
     FROM $OSBUILDER_IMAGE
     RUN zypper in -y jq docker
     COPY +uuidgen/UUIDGEN ./
-    COPY +version/VERSION ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
 
@@ -1028,13 +874,9 @@ prepare-bundles-tests:
     FROM $OSBUILDER_IMAGE
     RUN zypper in -y jq docker
     COPY +uuidgen/UUIDGEN ./
-    COPY +version/VERSION ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
-   # BUILD +examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE
-    ARG VERSION=$(cat VERSION)
-    RUN echo "version ${VERSION}"
-    WITH DOCKER --load $IMG=(+examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE --VERSION=$VERSION)
+    WITH DOCKER --load $IMG=(+examples-bundle --BUNDLE_IMAGE=$BUNDLE_IMAGE)
         RUN docker push $BUNDLE_IMAGE
     END
     BUILD +examples-bundle-config --BUNDLE_IMAGE=$BUNDLE_IMAGE
@@ -1050,8 +892,7 @@ run-qemu-bundles-tests:
 ### ./earthly.sh +examples-bundle --BUNDLE_IMAGE=ttl.sh/testfoobar:8h
 examples-bundle:
     ARG BUNDLE_IMAGE
-    ARG VERSION
-    FROM DOCKERFILE --build-arg VERSION=$VERSION -f examples/bundle/Dockerfile .
+    FROM DOCKERFILE -f examples/bundle/Dockerfile .
     SAVE IMAGE $BUNDLE_IMAGE
 
 ## ./earthly.sh +examples-bundle-config --BUNDLE_IMAGE=ttl.sh/testfoobar:8h
@@ -1119,20 +960,6 @@ temp-image:
 
     FROM +base-image
     SAVE IMAGE --push $TTL_IMAGE
-
-generate-schema:
-    FROM alpine
-    COPY . ./
-    COPY +version/VERSION ./
-    COPY +luet/luet /usr/bin/luet
-    RUN mkdir -p /etc/luet/repos.conf.d/
-    RUN luet repo add kairos --yes --url quay.io/kairos/packages --type docker
-    RUN luet install -y system/kairos-agent
-    ARG RELEASE_VERSION=$(cat VERSION)
-    RUN mkdir "docs/static/$RELEASE_VERSION"
-    ARG SCHEMA_FILE="docs/static/$RELEASE_VERSION/cloud-config.json"
-    RUN kairos-agent print-schema > $SCHEMA_FILE
-    SAVE ARTIFACT ./docs/static/* AS LOCAL docs/static/
 
 last-commit-packages:
     FROM quay.io/skopeo/stable

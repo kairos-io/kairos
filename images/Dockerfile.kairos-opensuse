@@ -170,46 +170,51 @@ COPY --from=framework / /
 
 RUN rm -rf /etc/ssh/ssh_host_*
 
-COPY naming.sh /usr/local/bin/naming.sh
 COPY which-init.sh /usr/local/bin/which-init.sh
 
 RUN sed -i -n '/KAIROS_/!p' /etc/os-release
 
 # need to be defined after FROM for them to be replaced in the RUN bellow
-ARG FLAVOR
-ARG FLAVOR_RELEASE
-ARG VARIANT
-ARG OS_ID=kairos
 ARG HOME_URL="https://github.com/kairos-io/kairos"
 ARG BUG_REPORT_URL="https://github.com/kairos-io/kairos/issues"
 ARG GITHUB_REPO="kairos-io/kairos"
-# TODO: merge these
-ARG VERSION
+ARG ID=kairos
+ARG REGISTRY_AND_ORG="quay.io/kairos"
+
+ARG RELEASE
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG VARIANT
 ARG FAMILY
 ARG MODEL
-ARG REGISTRY_AND_ORG="quay.io/kairos"
-ARG K3S_VERSION
 ARG TARGETARCH
+ARG SOFTWARE_VERSION
+ARG SOFTWARE_VERSION_PREFIX
+ARG SOFTWARE_LUET_VERSION=""
 
 RUN rm -rf /etc/machine-id
 
 FROM base-kairos AS kairos-core
 
 FROM base-kairos AS kairos-standard
-ARG K3S_VERSION
-LABEL io.kairos.k3s_version="${K3S_VERSION}"
+ARG SOFTWARE_VERSION
+LABEL io.kairos.k3s_version="${SOFTWARE_VERSION}"
 RUN luet install -y system/provider-kairos
-RUN luet install -y "k8s/k3s-$(which-init.sh)@${K3S_VERSION}" utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+RUN luet install -y "k8s/k3s-$(which-init.sh)@${SOFTWARE_LUET_VERSION:-$SOFTWARE_VERSION}" utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
 
 FROM kairos-${VARIANT} AS kairos-final
 ARG BASE_IMAGE
-ARG VARIANT
-ARG FAMILY
+ARG FRAMEWORK_VERSION
+ARG RELEASE
 ARG FLAVOR
 ARG FLAVOR_RELEASE
+ARG VARIANT
+ARG FAMILY
 ARG MODEL
-ARG VERSION
-ARG FRAMEWORK_VERSION
+ARG TARGETARCH
+ARG SOFTWARE_VERSION
+ARG SOFTWARE_VERSION_PREFIX
+
 LABEL org.opencontainers.image.authors="Kairos Maintainers <team@kairos.io>"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.url="https://github.com/kairos-io/kairos"
@@ -220,8 +225,14 @@ LABEL io.kairos.family="${FAMILY}"
 LABEL io.kairos.flavor="${FLAVOR}"
 LABEL io.kairos.flavor_release="${FLAVOR_RELEASE}"
 LABEL io.kairos.model="${MODEL}"
-LABEL io.kairos.version="${VERSION}"
+LABEL io.kairos.release="${RELEASE}"
 LABEL io.kairos.framework-version="${FRAMEWORK_VERSION}"
+LABEL io.kairos.software-version="${SOFTWARE_VERSION}"
+LABEL io.kairos.software-version-prefix="${SOFTWARE_VERSION_PREFIX}"
+LABEL io.kairos.targetarch="${TARGETARCH}"
+
+RUN kairos-agent versioneer os-release-variables
+RUN kairos-agent versioneer os-release-variables >> /etc/os-release
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN luet database get-all-installed --output /etc/kairos/versions.yaml
