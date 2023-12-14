@@ -242,6 +242,17 @@ kairos-dockerfile:
         > ./Dockerfile
     SAVE ARTIFACT Dockerfile AS LOCAL images/Dockerfile.kairos-${FAMILY}
 
+extract-framework-profile:
+    ARG FRAMEWORK_VERSION
+    IF [ "$FRAMEWORK_VERSION" != "" ]
+        ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
+    ELSE
+        ARG _FRAMEWORK_VERSION=$KAIROS_FRAMEWORK_VERSION
+    END
+
+    FROM quay.io/kairos/framework:${_FRAMEWORK_VERSION}
+    SAVE ARTIFACT /etc/luet/luet.yaml framework-profile.yaml AS LOCAL ./framework-profile.yaml
+
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
     ARG --required FAMILY # The dockerfile to use
@@ -1133,18 +1144,6 @@ last-commit-packages:
     RUN skopeo list-tags docker://quay.io/kairos/packages-arm64 | jq -rc '.Tags | map(select( (. | contains("-repository.yaml")) )) | sort_by(. | sub("v";"") | sub("-repository.yaml";"") | sub("-";"") | split(".") | map(tonumber) ) | .[-1]' > REPO_ARM64
     SAVE ARTIFACT REPO_AMD64 REPO_AMD64
     SAVE ARTIFACT REPO_ARM64 REPO_ARM64
-
-bump-repositories:
-    FROM mikefarah/yq
-    WORKDIR build
-    COPY +last-commit-packages/REPO_AMD64 REPO_AMD64
-    COPY +last-commit-packages/REPO_ARM64 REPO_ARM64
-    ARG REPO_AMD64=$(cat REPO_AMD64)
-    ARG REPO_ARM64=$(cat REPO_ARM64)
-    COPY framework-profile.yaml framework-profile.yaml
-    RUN yq eval ".repositories[0] |= . * { \"reference\": \"${REPO_AMD64}\" }" -i framework-profile.yaml
-    RUN yq eval ".repositories[1] |= . * { \"reference\": \"${REPO_ARM64}\" }" -i framework-profile.yaml
-    SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
 
 luet-versions:
     # args for base-image target
