@@ -64,6 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iptables \
     iputils-ping \
     isc-dhcp-common \
+    isc-dhcp-client \
     jq \
     krb5-locales \
     less \
