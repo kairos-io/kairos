@@ -433,7 +433,14 @@ uki-base:
     WORKDIR build
     # Build kernel,uname, etc artifacts
     FROM +base-image --BUILD_INITRD=false
+
+    # Get Immucore from master branch
+    COPY github.com/kairos-io/immucore:master+build-immucore/immucore /usr/bin/immucore
+    COPY github.com/kairos-io/immucore:master+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
+    COPY github.com/kairos-io/immucore:master+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
+
     RUN /usr/bin/immucore version
+    RUN /usr/bin/kairos-agent version
     RUN ln -s /usr/bin/immucore /init
     RUN mkdir -p /oem # be able to mount oem under here if found
     RUN mkdir -p /efi # mount the esp under here if found
@@ -459,14 +466,15 @@ uki-build:
     COPY +uki-base/Osrelease .
     COPY +version/VERSION .
     ARG KAIROS_VERSION=$(cat VERSION)
+    ARG UNAME=$(cat Uname)
     RUN /usr/lib/systemd/ukify Kernel initrd \
-        --cmdline @Cmdline \
-        --os-release @Osrelease \
-        --uname @Uname \
+        --cmdline=@Cmdline \
+        --os-release=@Osrelease \
+        --uname="${UNAME}" \
         --stub /usr/lib/systemd/boot/efi/linuxx64.efi.stub \
         --secureboot-private-key DB.key \
         --secureboot-certificate DB.crt \
-        --pcr-private-key private.pem \
+        --pcr-private-key tpm2-pcr-private.pem \
         --measure \
         --output uki.signed.efi
     RUN sbsign --key DB.key --cert DB.crt --output systemd-bootx64.signed.efi /usr/lib/systemd/boot/efi/systemd-bootx64.efi

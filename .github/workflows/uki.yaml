@@ -38,12 +38,12 @@ jobs:
       - name: Build uki ISO 🔧
         run: |
           earthly +uki-iso \
-            --FLAVOR=opensuse \
-            --FLAVOR_RELEASE=leap-15.5 \
-            --FAMILY=opensuse \
+            --FLAVOR=ubuntu \
+            --FLAVOR_RELEASE=23.04 \
+            --FAMILY=ubuntu \
             --MODEL=generic \
             --VARIANT=core \
-            --BASE_IMAGE=opensuse/leap:15.5
+            --BASE_IMAGE=ubuntu:23.04
       - name: Run tests
         env:
           USE_QEMU: true
@@ -51,8 +51,9 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
+          EMULATE_TPM: true
         run: |
-          export ISO=$(ls $PWD/build/kairos-opensuse-leap-15.5-core-amd64-generic-*.uki.iso)
+          export ISO=$(ls $PWD/build/kairos-ubuntu-23.04-core-amd64-generic-*.uki.iso)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
       - uses: actions/upload-artifact@v3
