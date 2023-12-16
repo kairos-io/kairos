@@ -10,9 +10,7 @@ ARG MODEL=generic
 ARG BASE_IMAGE=debian:testing
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=master
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
+ARG FRAMEWORK_VERSION=main
 # TARGETARCH is used to determine the architecture of the image
 # it is already set by Docker so it doesn't need to be defined here
 
@@ -66,6 +64,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iptables \
     iputils-ping \
     isc-dhcp-common \
+    isc-dhcp-client \
     jq \
     krb5-locales \
     less \

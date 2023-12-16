@@ -8,6 +8,8 @@ ARG GITHUB_REPO=kairos-io/kairos
 ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.47.0
+# renovate: datasource=github-releases depName=kairos-io/kairos-framework
+ARG KAIROS_FRAMEWORK_VERSION="v2.4.4"
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
@@ -230,83 +232,6 @@ luet:
 ### Image Build targets
 ###
 
-# This generates the framework base by installing luet packages generated with
-# the profile-build + framework-profile.yaml file.
-# Installs everything under the /framework dir and saves that as an artifact
-framework:
-    FROM golang:alpine
-
-    ARG SECURITY_PROFILE
-    IF [ "$SECURITY_PROFILE" = "fips" ]
-        ARG _SECURITY_PROFILE=fips
-    ELSE
-        ARG _SECURITY_PROFILE=generic
-    END
-
-    WORKDIR /build
-
-    COPY ./profile-build /build
-    COPY +luet/luet /usr/bin/luet
-
-    RUN go mod download
-    COPY framework-profile.yaml /build
-    RUN go run main.go ${_SECURITY_PROFILE} framework-profile.yaml /framework
-
-    RUN mkdir -p /framework/etc/kairos/
-    RUN luet database --system-target /framework get-all-installed --output /framework/etc/kairos/versions.yaml
-
-    # luet cleanup
-    RUN luet cleanup --system-target /framework
-    RUN rm -rf /var/luet
-    RUN rm -rf /var/cache
-
-    # COPY luet into the final framework
-    # TODO: Understand why?
-    COPY +luet/luet /framework/usr/bin/luet
-    COPY framework-profile.yaml /framework/etc/luet/luet.yaml
-
-    SAVE ARTIFACT --keep-own /framework/ framework
-
-multi-build-framework-image:
-    ARG --required SECURITY_PROFILE
-
-    BUILD --platform=linux/amd64 --platform=linux/arm64 +build-framework-image
-
-build-framework-image:
-    FROM alpine
-    ARG SECURITY_PROFILE
-    ARG FRAMEWORK_VERSION
-
-    IF [ "$SECURITY_PROFILE" = "fips" ]
-        ARG _SECURITY_PROFILE=fips
-    ELSE
-        ARG _SECURITY_PROFILE=generic
-    END
-
-    COPY +version/VERSION ./
-    DO +GIT_VERSION
-
-    ARG VERSION=$(cat ./GIT_VERSION)
-
-    IF [ "$FRAMEWORK_VERSION" = "" ]
-        ARG _FRAMEWORK_VERSION=master
-    ELSE IF [ "$FRAMEWORK_VERSION" = "git" ]
-        ARG _FRAMEWORK_VERSION=$VERSION
-    ELSE
-        ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
-    END
-
-    ARG _IMG="$IMAGE_REPOSITORY_ORG/framework:${_FRAMEWORK_VERSION}_${_SECURITY_PROFILE}"
-    RUN echo $_IMG > FRAMEWORK_IMAGE
-
-    SAVE ARTIFACT FRAMEWORK_IMAGE AS LOCAL build/FRAMEWORK_IMAGE
-
-    FROM scratch
-
-    COPY (+framework/framework --SECURITY_PROFILE=$_SECURITY_PROFILE) /
-
-    SAVE IMAGE --push $IMAGE_REPOSITORY_ORG/framework:${_FRAMEWORK_VERSION}_${_SECURITY_PROFILE}
-
 kairos-dockerfile:
     ARG --required FAMILY
     COPY ./images .
@@ -316,6 +241,17 @@ kairos-dockerfile:
         <(sed -n '/# WARNING:/!p' Dockerfile.kairos) \
         > ./Dockerfile
     SAVE ARTIFACT Dockerfile AS LOCAL images/Dockerfile.kairos-${FAMILY}
+
+extract-framework-profile:
+    ARG FRAMEWORK_VERSION
+    IF [ "$FRAMEWORK_VERSION" != "" ]
+        ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
+    ELSE
+        ARG _FRAMEWORK_VERSION=$KAIROS_FRAMEWORK_VERSION
+    END
+
+    FROM quay.io/kairos/framework:${_FRAMEWORK_VERSION}
+    SAVE ARTIFACT /etc/luet/luet.yaml framework-profile.yaml AS LOCAL ./framework-profile.yaml
 
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
@@ -333,12 +269,10 @@ base-image:
 
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
 
-    IF [ "$FRAMEWORK_VERSION" = "" ]
-        ARG _FRAMEWORK_VERSION=master
-    ELSE IF [ "$FRAMEWORK_VERSION" = "git" ]
-        ARG _FRAMEWORK_VERSION=$VERSION
-    ELSE
+    IF [ "$FRAMEWORK_VERSION" != "" ]
         ARG _FRAMEWORK_VERSION=$FRAMEWORK_VERSION
+    ELSE
+        ARG _FRAMEWORK_VERSION=$KAIROS_FRAMEWORK_VERSION
     END
     RUN cat +kairos-dockerfile/Dockerfile
 
@@ -1214,18 +1148,6 @@ last-commit-packages:
     RUN skopeo list-tags docker://quay.io/kairos/packages-arm64 | jq -rc '.Tags | map(select( (. | contains("-repository.yaml")) )) | sort_by(. | sub("v";"") | sub("-repository.yaml";"") | sub("-";"") | split(".") | map(tonumber) ) | .[-1]' > REPO_ARM64
     SAVE ARTIFACT REPO_AMD64 REPO_AMD64
     SAVE ARTIFACT REPO_ARM64 REPO_ARM64
-
-bump-repositories:
-    FROM mikefarah/yq
-    WORKDIR build
-    COPY +last-commit-packages/REPO_AMD64 REPO_AMD64
-    COPY +last-commit-packages/REPO_ARM64 REPO_ARM64
-    ARG REPO_AMD64=$(cat REPO_AMD64)
-    ARG REPO_ARM64=$(cat REPO_ARM64)
-    COPY framework-profile.yaml framework-profile.yaml
-    RUN yq eval ".repositories[0] |= . * { \"reference\": \"${REPO_AMD64}\" }" -i framework-profile.yaml
-    RUN yq eval ".repositories[1] |= . * { \"reference\": \"${REPO_ARM64}\" }" -i framework-profile.yaml
-    SAVE ARTIFACT framework-profile.yaml AS LOCAL framework-profile.yaml
 
 luet-versions:
     # args for base-image target

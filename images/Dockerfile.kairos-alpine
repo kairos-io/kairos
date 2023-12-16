@@ -9,9 +9,7 @@ ARG MODEL=generic
 ARG BASE_IMAGE=alpine
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=master
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
+ARG FRAMEWORK_VERSION=main
 
 ###############################################################
 ####                          Common                       ####
@@ -151,7 +149,7 @@ RUN rc-update add sshd boot && \
     rc-update add crond && \
     rc-update add fail2ban
 
-FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION}_${SECURITY_PROFILE} AS framework
+FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
 
 FROM all AS base-kairos
 
@@ -184,15 +182,6 @@ ARG MODEL
 ARG REGISTRY_AND_ORG="quay.io/kairos"
 ARG K3S_VERSION
 ARG TARGETARCH
-ARG OS_NAME=kairos-${VARIANT}-${FLAVOR}-${FLAVOR_RELEASE}
-ENV KAIROS_VERSION="${VERSION}${K3S_VERSION:+-k3s$K3S_VERSION}"
-ENV OS_VERSION=${KAIROS_VERSION}
-ENV OS_LABEL=${KAIROS_VERSION}
-RUN OS_LABEL=$(naming.sh container_artifact_label) \
-    OS_REPO=$(naming.sh container_artifact_repo) \
-    ARTIFACT=$(naming.sh bootable_artifact_name) \
-    envsubst >>/etc/os-release </usr/lib/os-release.tmpl
-RUN naming.sh container_artifact_name > /IMAGE
 
 RUN rm -rf /etc/machine-id
 
@@ -213,7 +202,6 @@ ARG FLAVOR_RELEASE
 ARG MODEL
 ARG VERSION
 ARG FRAMEWORK_VERSION
-ARG SECURITY_PROFILE
 LABEL org.opencontainers.image.authors="Kairos Maintainers <team@kairos.io>"
 LABEL org.opencontainers.image.licenses="Apache-2.0"
 LABEL org.opencontainers.image.url="https://github.com/kairos-io/kairos"
@@ -226,7 +214,6 @@ LABEL io.kairos.flavor_release="${FLAVOR_RELEASE}"
 LABEL io.kairos.model="${MODEL}"
 LABEL io.kairos.version="${VERSION}"
 LABEL io.kairos.framework-version="${FRAMEWORK_VERSION}"
-LABEL io.kairos.security-profile="${SECURITY_PROFILE}"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN luet database get-all-installed --output /etc/kairos/versions.yaml
