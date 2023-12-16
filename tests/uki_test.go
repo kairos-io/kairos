@@ -49,6 +49,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		})
 		By("installing kairos", func() {
 			out, err := vm.Sudo(`kairos-agent --debug uki install --device /dev/vda`)
+			fmt.Println(string(out))
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("Running after-install hook"))
 			Expect(out).Should(ContainSubstring("Encrypting COS_OEM"))
@@ -57,7 +58,6 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Expect(out).Should(ContainSubstring("Done encrypting COS_PERSISTENT"))
 			Expect(out).Should(ContainSubstring("New TPM2 token enrolled as key slot 1."))
 			vm.Sudo("sync")
-			fmt.Println(string(out))
 		})
 
 		By("Ejecting Cdrom", func() {
