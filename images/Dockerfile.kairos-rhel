@@ -35,6 +35,7 @@ RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
     audit \
+    cracklib-dicts \
     cloud-utils-growpart \
     device-mapper \
     dosfstools \

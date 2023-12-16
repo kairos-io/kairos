@@ -368,6 +368,8 @@ uki-base:
     # Build kernel,uname, etc artifacts
     FROM +base-image --BUILD_INITRD=false
 
+    # Get Kairos Agent from master branch
+    COPY github.com/kairos-io/kairos-agent:main+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
     # Get Immucore from master branch
     COPY github.com/kairos-io/immucore:master+build-immucore/immucore /usr/bin/immucore
     COPY github.com/kairos-io/immucore:master+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
