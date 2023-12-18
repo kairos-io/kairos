@@ -377,11 +377,12 @@ uki-base:
 
     RUN /usr/bin/immucore version
     RUN /usr/bin/kairos-agent version
+    RUN ln -s /usr/bin/immucore /init
     RUN mkdir -p /oem # be able to mount oem under here if found
     RUN mkdir -p /efi # mount the esp under here if found
     # Put it under /tmp otherwise initramfs will contain itself. /tmp is excluded from the find
     RUN find . \( -path ./sys -prune -o -path ./run -prune -o -path ./dev -prune -o -path ./tmp -prune -o -path ./proc -prune \) -o -print | cpio -R root:root -H newc -o | gzip -2 > /tmp/initramfs.cpio.gz
-    RUN echo "init=/usr/bin/immucore console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.debug rd.immucore.uki selinux=0" > Cmdline
+    RUN echo "init=/init console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.uki selinux=0" > Cmdline
     RUN basename $(ls /boot/vmlinuz-* |grep -v rescue | head -n1)| sed --expression "s/vmlinuz-//g" > Uname
     SAVE ARTIFACT /tmp/initramfs.cpio.gz initrd
     SAVE ARTIFACT Cmdline Cmdline
