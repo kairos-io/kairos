@@ -369,7 +369,7 @@ uki-base:
     FROM +base-image --BUILD_INITRD=false
 
     # Get Kairos Agent from master branch
-    COPY github.com/itxaka/kairos-agent:uki_upgrade+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    COPY github.com/kairos-io/kairos-agent:main+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
     # Get Immucore from master branch
     COPY github.com/kairos-io/immucore:master+build-immucore/immucore /usr/bin/immucore
     COPY github.com/kairos-io/immucore:master+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
@@ -377,12 +377,11 @@ uki-base:
 
     RUN /usr/bin/immucore version
     RUN /usr/bin/kairos-agent version
-    RUN ln -s /usr/bin/immucore /init
     RUN mkdir -p /oem # be able to mount oem under here if found
     RUN mkdir -p /efi # mount the esp under here if found
     # Put it under /tmp otherwise initramfs will contain itself. /tmp is excluded from the find
     RUN find . \( -path ./sys -prune -o -path ./run -prune -o -path ./dev -prune -o -path ./tmp -prune -o -path ./proc -prune \) -o -print | cpio -R root:root -H newc -o | gzip -2 > /tmp/initramfs.cpio.gz
-    RUN echo "init=/init console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.debug rd.immucore.uki selinux=0" > Cmdline
+    RUN echo "init=/usr/bin/immucore console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.oemtimeout=2 rd.immucore.debug rd.immucore.uki selinux=0" > Cmdline
     RUN basename $(ls /boot/vmlinuz-* |grep -v rescue | head -n1)| sed --expression "s/vmlinuz-//g" > Uname
     SAVE ARTIFACT /tmp/initramfs.cpio.gz initrd
     SAVE ARTIFACT Cmdline Cmdline
@@ -414,14 +413,14 @@ uki-build:
         --measure \
         --output uki.signed.efi
     RUN sbsign --key DB.key --cert DB.crt --output systemd-bootx64.signed.efi /usr/lib/systemd/boot/efi/systemd-bootx64.efi
-    RUN printf 'title Kairos %s\nefi /EFI/kairos/kairos-%s.efi\nversion %s' ${KAIROS_VERSION} ${KAIROS_VERSION} ${KAIROS_VERSION} > kairos-${KAIROS_VERSION}.conf
+    RUN printf 'title Kairos %s\nefi /EFI/kairos/%s.efi\nversion %s' ${KAIROS_VERSION} ${KAIROS_VERSION} ${KAIROS_VERSION} > ${KAIROS_VERSION}.conf
     RUN printf 'default @saved\ntimeout 5\nconsole-mode max\neditor no\n' > loader.conf
     SAVE ARTIFACT PK.der PK.der
     SAVE ARTIFACT KEK.der KEK.der
     SAVE ARTIFACT DB.der DB.der
     SAVE ARTIFACT systemd-bootx64.signed.efi systemd-bootx64.signed.efi
     SAVE ARTIFACT uki.signed.efi uki.signed.efi
-    SAVE ARTIFACT kairos-${KAIROS_VERSION}.conf kairos-${KAIROS_VERSION}.conf
+    SAVE ARTIFACT ${KAIROS_VERSION}.conf ${KAIROS_VERSION}.conf
     SAVE ARTIFACT loader.conf loader.conf
 
 # Base target to set the directory structure for the image artifacts
@@ -433,8 +432,8 @@ uki-image-artifacts:
     RUN echo "version ${VERSION}"
     ARG KAIROS_VERSION=$(cat VERSION)
     COPY +uki-build/systemd-bootx64.signed.efi /output/efi/EFI/BOOT/BOOTX64.EFI
-    COPY +uki-build/uki.signed.efi /output/efi/EFI/kairos/kairos-${KAIROS_VERSION}.efi
-    COPY +uki-build/kairos-${KAIROS_VERSION}.conf /output/efi/loader/entries/kairos-${KAIROS_VERSION}.conf
+    COPY +uki-build/uki.signed.efi /output/efi/EFI/kairos/${KAIROS_VERSION}.efi
+    COPY +uki-build/${KAIROS_VERSION}.conf /output/efi/loader/entries/${KAIROS_VERSION}.conf
     COPY +uki-build/loader.conf /output/efi/loader/loader.conf
     COPY +uki-build/PK.der /output/efi/loader/keys/kairos/PK.der
     COPY +uki-build/KEK.der /output/efi/loader/keys/kairos/KEK.der
@@ -467,7 +466,7 @@ uki-iso:
     WORKDIR /build
     COPY +uki-build/systemd-bootx64.signed.efi .
     COPY +uki-build/uki.signed.efi .
-    COPY +uki-build/kairos-${KAIROS_VERSION}.conf .
+    COPY +uki-build/${KAIROS_VERSION}.conf .
     COPY +uki-build/loader.conf .
     COPY +uki-build/PK.der .
     COPY +uki-build/KEK.der .
@@ -490,9 +489,9 @@ uki-iso:
     RUN mcopy -i /tmp/efi/efiboot.img PK.der ::loader/keys/kairos/PK.der
     RUN mcopy -i /tmp/efi/efiboot.img KEK.der ::loader/keys/kairos/KEK.der
     RUN mcopy -i /tmp/efi/efiboot.img DB.der ::loader/keys/kairos/DB.der
-    RUN mcopy -i /tmp/efi/efiboot.img kairos-${KAIROS_VERSION}.conf ::loader/entries/kairos-${KAIROS_VERSION}.conf
+    RUN mcopy -i /tmp/efi/efiboot.img ${KAIROS_VERSION}.conf ::loader/entries/${KAIROS_VERSION}.conf
     RUN mcopy -i /tmp/efi/efiboot.img loader.conf ::loader/loader.conf
-    RUN mcopy -i /tmp/efi/efiboot.img uki.signed.efi ::EFI/kairos/kairos-${KAIROS_VERSION}.EFI
+    RUN mcopy -i /tmp/efi/efiboot.img uki.signed.efi ::EFI/kairos/${KAIROS_VERSION}.efi
     RUN mcopy -i /tmp/efi/efiboot.img systemd-bootx64.signed.efi ::EFI/BOOT/BOOTX64.EFI
     RUN xorriso -as mkisofs -V 'UKI_ISO_INSTALL' -e efiboot.img -no-emul-boot -o $ISO_NAME.iso /tmp/efi
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.uki.iso
