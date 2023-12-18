@@ -2,6 +2,7 @@
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
 ARG FAMILY=rhel
 ARG FLAVOR
 ARG FLAVOR_RELEASE
@@ -10,8 +11,6 @@ ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
 
 FROM $BASE_IMAGE AS base
 

@@ -3,6 +3,7 @@
 ####                           ARGS                        ####
 ###############################################################
 # WARNING: While some of the ARGs are not used in this file, they are used in the images/Dockerfile.kairos-* files
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
 ARG FAMILY=debian
 ARG FLAVOR
 ARG FLAVOR_RELEASE
@@ -11,8 +12,6 @@ ARG BASE_IMAGE=debian:testing
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
 
 ###############################################################
 ####                     Upstream Images                   ####
