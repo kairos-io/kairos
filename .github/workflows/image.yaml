@@ -106,7 +106,7 @@ jobs:
       matrix:
         include:
           - flavor: "ubuntu"
-            flavorRelease: "23.04"
+            flavorRelease: "23.10"
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
@@ -125,7 +125,7 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "tumbleweed"
           - flavor: "ubuntu"
-            flavorRelease: "23.04"
+            flavorRelease: "23.10"
           - flavor: "debian"
             flavorRelease: "testing"
           - flavor: "ubuntu"
@@ -196,11 +196,11 @@ jobs:
             model: generic
             baseImage: opensuse/leap:15.5
           - flavor: ubuntu
-            flavorRelease: "23.04"
+            flavorRelease: "23.10"
             family: ubuntu
             variant: core
             model: generic
-            baseImage: ubuntu:23.04
+            baseImage: ubuntu:23.10
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
