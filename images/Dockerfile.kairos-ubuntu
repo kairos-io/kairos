@@ -162,7 +162,7 @@ FROM base-ubuntu-22.04 AS amd64-base-ubuntu-22.04
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
-RUN [ -z "$(ls -A /lib/modules)" ] && apt-get install -y --no-install-recommends \
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -204,6 +204,11 @@ FROM generic AS amd64-ubuntu-23.10-generic
 FROM generic AS amd64-ubuntu-22.04-generic
 FROM generic AS amd64-ubuntu-20.04-generic
 FROM generic AS arm64-ubuntu-23.10-generic
+# If a kernel is already installed, don't try to install it again, this way the base image can
+# be non-hwe for older releases
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
+    linux-image-generic-hwe-22.04 || true
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM ubuntu-23.10-rpi AS arm64-ubuntu-23.10-rpi3
 FROM ubuntu-23.10-rpi AS arm64-ubuntu-23.10-rpi4
 FROM ubuntu-23.10-rpi AS arm64-ubuntu-22.04-rpi3
@@ -249,8 +254,6 @@ RUN systemctl enable ssh
 
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
-
-RUN journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
 
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
 
@@ -342,6 +345,14 @@ RUN kernel=$(ls /boot/Image-* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; th
 
 # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
 RUN rm -rf /boot/initramfs-* || true
+
+RUN rm /etc/machine-id || true
+RUN rm /var/lib/dbus/machine-id || true
+RUN rm /etc/hostname || true
+
+RUN if [ "$(which-init.sh)" = "systemd" ]; then \
+      journalctl --vacuum-size=1K || true; \
+    fi
 
 RUN rm -rf /tmp/*
 RUN luet cleanup
