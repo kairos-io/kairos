@@ -274,7 +274,6 @@ base-image:
     ELSE
         ARG _FRAMEWORK_VERSION=$KAIROS_FRAMEWORK_VERSION
     END
-    RUN cat +kairos-dockerfile/Dockerfile
 
     FROM DOCKERFILE \
       --build-arg BASE_IMAGE=$BASE_IMAGE \
