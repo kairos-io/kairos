@@ -9,7 +9,7 @@ ARG FAMILY=ubuntu
 ARG FLAVOR
 #   - 20.04
 #   - 22.04
-#   - 23.04
+#   - 23.10
 ARG FLAVOR_RELEASE
 # Currently supported models are:
 #   - generic
@@ -26,7 +26,7 @@ ARG FRAMEWORK_VERSION=main
 ###############################################################
 ####                     Upstream Images                   ####
 ###############################################################
-FROM ${BASE_IMAGE} AS ubuntu-23.04-upstream
+FROM ${BASE_IMAGE} AS ubuntu-23.10-upstream
 
 FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
 
@@ -167,11 +167,11 @@ RUN [ -z "$(ls -A /lib/modules)" ] && apt-get install -y --no-install-recommends
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.04
+FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.10
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-22.04
 FROM amd64-base-ubuntu-20.04 AS amd64-ubuntu-20.04
 
-FROM base-ubuntu-22.04 AS arm64-ubuntu-23.04
+FROM base-ubuntu-22.04 AS arm64-ubuntu-23.10
 FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
 FROM base-ubuntu-20.04 AS arm64-ubuntu-20.04
 
@@ -195,20 +195,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi2 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM rpicommon AS ubuntu-23.04-rpi
+FROM rpicommon AS ubuntu-23.10-rpi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi \
     linux-modules-extra-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM generic AS amd64-ubuntu-23.04-generic
+FROM generic AS amd64-ubuntu-23.10-generic
 FROM generic AS amd64-ubuntu-22.04-generic
 FROM generic AS amd64-ubuntu-20.04-generic
-FROM generic AS arm64-ubuntu-23.04-generic
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-23.04-rpi3
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-23.04-rpi4
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi3
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi4
+FROM generic AS arm64-ubuntu-23.10-generic
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-23.10-rpi3
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-23.10-rpi4
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-22.04-rpi3
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-22.04-rpi4
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi3
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi4
 FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
@@ -216,7 +216,7 @@ FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
 ###############################################################
 ####                Common to a Single Flavor              ####
 ###############################################################
-FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-23.04
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-23.10
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     dbus-user-session \
