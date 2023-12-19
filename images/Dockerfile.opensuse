@@ -16,7 +16,7 @@ ARG FRAMEWORK_VERSION=main
 FROM $BASE_IMAGE AS base
 
 FROM base AS leap-15.5-repo
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo && \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo || true && \
     zypper ref
 
 FROM base AS tumbleweed-repo-amd64
@@ -24,11 +24,11 @@ RUN zypper removerepo repo-openh264 && \
     zypper ref
 
 FROM base AS tumbleweed-repo-arm64
-RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && \
+RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 || true && \
     zypper ref
 
 FROM tumbleweed-repo-${TARGETARCH} AS tumbleweed-repo
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo || true && \
     zypper ref
 
 FROM ${FLAVOR_RELEASE}-repo AS common
