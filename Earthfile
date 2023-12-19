@@ -9,7 +9,7 @@ ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.47.0
 # renovate: datasource=github-releases depName=kairos-io/kairos-framework
-ARG KAIROS_FRAMEWORK_VERSION="v2.4.4"
+ARG KAIROS_FRAMEWORK_VERSION="main"
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
@@ -367,13 +367,6 @@ uki-base:
     WORKDIR build
     # Build kernel,uname, etc artifacts
     FROM +base-image --BUILD_INITRD=false
-
-    # Get Kairos Agent from master branch
-    COPY github.com/kairos-io/kairos-agent:main+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
-    # Get Immucore from master branch
-    COPY github.com/kairos-io/immucore:master+build-immucore/immucore /usr/bin/immucore
-    COPY github.com/kairos-io/immucore:master+dracut-artifacts/28immucore /usr/lib/dracut/modules.d/28immucore
-    COPY github.com/kairos-io/immucore:master+dracut-artifacts/10-immucore.conf /etc/dracut.conf.d/10-immucore.conf
 
     RUN /usr/bin/immucore version
     RUN /usr/bin/kairos-agent version
