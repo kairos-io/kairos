@@ -14,9 +14,9 @@ jobs:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
       family: ubuntu
-      base_image: ubuntu:23.04
+      base_image: ubuntu:23.10
       model: generic
       variant: core
       arch: amd64
@@ -47,7 +47,7 @@ jobs:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
     needs:
       - core
 
@@ -63,7 +63,7 @@ jobs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
     needs:
       - core
 
@@ -71,7 +71,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
     needs:
       - core
 
@@ -87,7 +87,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
     needs:
       - core
 
@@ -95,7 +95,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
     needs:
       - core
 
@@ -111,9 +111,9 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
       family: ubuntu
-      base_image: ubuntu:23.04
+      base_image: ubuntu:23.10
       model: generic
       variant: core
     needs:
@@ -135,7 +135,7 @@ jobs:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
     needs:
       - core
 
@@ -151,7 +151,7 @@ jobs:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
       family: "ubuntu"
     needs:
       - core
@@ -169,7 +169,7 @@ jobs:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.04"
+      flavor_release: "23.10"
       label: ${{ matrix.label }}
     needs:
       - core

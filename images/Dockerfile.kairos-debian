@@ -2,6 +2,7 @@
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
 ARG FAMILY=debian
 ARG FLAVOR
 ARG FLAVOR_RELEASE
@@ -10,8 +11,6 @@ ARG BASE_IMAGE=debian:testing
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
 
 ###############################################################
 ####                     Upstream Images                   ####
@@ -152,9 +151,6 @@ RUN systemctl enable ssh
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 
-# Clear cache
-RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
-
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
 
 FROM all AS base-kairos
@@ -245,6 +241,14 @@ RUN kernel=$(ls /boot/Image-* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; th
 
 # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
 RUN rm -rf /boot/initramfs-* || true
+
+RUN rm /etc/machine-id || true
+RUN rm /var/lib/dbus/machine-id || true
+RUN rm /etc/hostname || true
+
+RUN if [ "$(which-init.sh)" = "systemd" ]; then \
+      journalctl --vacuum-size=1K || true; \
+    fi
 
 RUN rm -rf /tmp/*
 RUN luet cleanup

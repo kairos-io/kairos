@@ -74,6 +74,10 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@master
+        with:
+          platforms: all
       - name: Set up Docker Buildx
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         id: buildx

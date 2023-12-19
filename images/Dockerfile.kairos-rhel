@@ -2,6 +2,7 @@
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
 ARG FAMILY=rhel
 ARG FLAVOR
 ARG FLAVOR_RELEASE
@@ -10,8 +11,6 @@ ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
 
 FROM $BASE_IMAGE AS base
 
@@ -176,6 +175,14 @@ RUN kernel=$(ls /boot/Image-* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; th
 
 # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
 RUN rm -rf /boot/initramfs-* || true
+
+RUN rm /etc/machine-id || true
+RUN rm /var/lib/dbus/machine-id || true
+RUN rm /etc/hostname || true
+
+RUN if [ "$(which-init.sh)" = "systemd" ]; then \
+      journalctl --vacuum-size=1K || true; \
+    fi
 
 RUN rm -rf /tmp/*
 RUN luet cleanup

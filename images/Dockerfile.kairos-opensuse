@@ -2,6 +2,7 @@
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
 ARG FAMILY=opensuse
 ARG FLAVOR
 ARG FLAVOR_RELEASE
@@ -10,13 +11,11 @@ ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
 
 FROM $BASE_IMAGE AS base
 
 FROM base AS leap-15.5-repo
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo && \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo || true && \
     zypper ref
 
 FROM base AS tumbleweed-repo-amd64
@@ -24,11 +23,11 @@ RUN zypper removerepo repo-openh264 && \
     zypper ref
 
 FROM base AS tumbleweed-repo-arm64
-RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && \
+RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 || true && \
     zypper ref
 
 FROM tumbleweed-repo-${TARGETARCH} AS tumbleweed-repo
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo || true && \
     zypper ref
 
 FROM ${FLAVOR_RELEASE}-repo AS common
@@ -248,6 +247,14 @@ RUN kernel=$(ls /boot/Image-* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; th
 
 # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
 RUN rm -rf /boot/initramfs-* || true
+
+RUN rm /etc/machine-id || true
+RUN rm /var/lib/dbus/machine-id || true
+RUN rm /etc/hostname || true
+
+RUN if [ "$(which-init.sh)" = "systemd" ]; then \
+      journalctl --vacuum-size=1K || true; \
+    fi
 
 RUN rm -rf /tmp/*
 RUN luet cleanup
