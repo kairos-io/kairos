@@ -30,6 +30,13 @@ FROM epel AS rockylinux
 FROM base AS fedora
 RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-4$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 
+FROM base as fedora-slim
+RUN dnf update -y
+RUN dnf makecache
+RUN dnf install -y dosfstools e2fsprogs device-mapper cracklib-dicts gdisk kernel-core openssh-server parted systemd systemd-networkd systemd-resolved gettext-envsubst
+RUN dnf install -y rsync cryptsetup
+RUN dnf clean all
+
 # install common packages
 FROM ${FLAVOR} AS common
 RUN dnf update -y
@@ -76,7 +83,7 @@ RUN dnf install -y \
     which \
     zfs && dnf clean all
 
-FROM common AS all
+FROM fedora-slim AS all
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
 RUN systemctl enable getty@tty1.service

@@ -265,6 +265,7 @@ base-image:
     ARG FRAMEWORK_VERSION
     # TODO for the framework image. Do we call the last stable version available or master?
     ARG K3S_VERSION
+    ARG DISABLE_INITRD
     DO +GIT_VERSION
 
     ARG KAIROS_VERSION=$(cat ./GIT_VERSION)
@@ -277,6 +278,7 @@ base-image:
     RUN cat +kairos-dockerfile/Dockerfile
 
     FROM DOCKERFILE \
+      --build-arg DISABLE_INITRD=$DISABLE_INITRD \
       --build-arg BASE_IMAGE=$BASE_IMAGE \
       --build-arg MODEL=$MODEL \
       --build-arg FLAVOR=$FLAVOR \
@@ -366,22 +368,22 @@ uki-base:
     ARG TARGETARCH
     WORKDIR build
     # Build kernel,uname, etc artifacts
-    FROM +base-image --BUILD_INITRD=false
-
+    FROM +base-image --DISABLE_INITRD=true
     RUN /usr/bin/immucore version
     RUN /usr/bin/kairos-agent version
     RUN ln -s /usr/bin/immucore /init
     RUN mkdir -p /oem # be able to mount oem under here if found
     RUN mkdir -p /efi # mount the esp under here if found
     RUN mkdir -p /usr/local/cloud-config/ # for install/upgrade they copy stuff there
+    ARG kernel=$(ls /lib/modules | head -n1)
     # Put it under /tmp otherwise initramfs will contain itself. /tmp is excluded from the find
     RUN find . \( -path ./sys -prune -o -path ./run -prune -o -path ./dev -prune -o -path ./tmp -prune -o -path ./proc -prune \) -o -print | cpio -R root:root -H newc -o | gzip -2 > /tmp/initramfs.cpio.gz
-    RUN echo "console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.debug rd.immucore.oemtimeout=2 rd.immucore.uki selinux=0" > Cmdline
+    RUN echo "init=/init console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.debug rd.immucore.oemtimeout=2 rd.immucore.uki selinux=0" > Cmdline
     RUN basename $(ls /boot/vmlinuz-* |grep -v rescue | head -n1)| sed --expression "s/vmlinuz-//g" > Uname
     SAVE ARTIFACT /tmp/initramfs.cpio.gz initrd
     SAVE ARTIFACT Cmdline Cmdline
     SAVE ARTIFACT Uname Uname
-    SAVE ARTIFACT /boot/vmlinuz Kernel
+    SAVE ARTIFACT /usr/lib/modules/$kernel/vmlinuz Kernel
     SAVE ARTIFACT /etc/os-release Osrelease
 
 # Now build, measure and sign the uki image
