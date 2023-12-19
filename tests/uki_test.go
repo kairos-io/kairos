@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -48,8 +49,14 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		})
 		By("installing kairos", func() {
 			out, err := vm.Sudo(`kairos-agent --debug uki install --device /dev/vda`)
+			fmt.Println(string(out))
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("Running after-install hook"))
+			Expect(out).Should(ContainSubstring("Encrypting COS_OEM"))
+			Expect(out).Should(ContainSubstring("Encrypting COS_PERSISTENT"))
+			Expect(out).Should(ContainSubstring("Done encrypting COS_OEM"))
+			Expect(out).Should(ContainSubstring("Done encrypting COS_PERSISTENT"))
+			Expect(out).Should(ContainSubstring("New TPM2 token enrolled as key slot 1."))
 			vm.Sudo("sync")
 		})
 
@@ -74,6 +81,14 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_OEM"))
 			Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
+		})
+		By("Checking OEM/PERSISTENT are encrypted", func() {
+			out, err := vm.Sudo("blkid /dev/vda2")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("crypto_LUKS"))
+			out, err = vm.Sudo("blkid /dev/vda3")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("crypto_LUKS"))
 		})
 
 		By("checking custom cmdline", func() {

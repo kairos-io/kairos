@@ -90,6 +90,7 @@ RUN apt-get update \
     ubuntu-advantage-tools \
     xz-utils \
     zstd \
+    tpm2-* \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ###############################################################

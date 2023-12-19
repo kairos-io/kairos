@@ -32,6 +32,7 @@ ARG MODEL
 ARG REGISTRY_AND_ORG="quay.io/kairos"
 ARG K3S_VERSION
 ARG TARGETARCH
+ARG DISABLE_INITRD
 
 RUN rm -rf /etc/machine-id
 
@@ -72,7 +73,7 @@ RUN luet database get-all-installed --output /etc/kairos/versions.yaml
 RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
 # Regenerate initrd if necessary, proper config files with immucore and custom initrd should already be in there installed by framework
 # for systemd distros
-RUN if [ -f "/usr/bin/dracut" ]; then \
+RUN if [ -f "/usr/bin/dracut" ] && [ "$DISABLE_INITRD" != "true" ]; then \
       kernel=$(ls /lib/modules | head -n1) && \
       dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
       ln -sf "initrd-${kernel}" /boot/initrd; \
