@@ -16,6 +16,7 @@ import (
 )
 
 var installationOutput string
+var installError error
 var vm VM
 
 var _ = Describe("kcrypt encryption", func() {
@@ -40,8 +41,7 @@ var _ = Describe("kcrypt encryption", func() {
 		err = vm.Scp(configFile.Name(), "/tmp/config.yaml", "0744")
 		Expect(err).ToNot(HaveOccurred())
 		By("Manually installing")
-		installationOutput, err = vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
-		Expect(err).ToNot(HaveOccurred(), installationOutput)
+		installationOutput, installError = vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
 	})
 
 	AfterEach(func() {
@@ -90,6 +90,7 @@ stages:
 		})
 
 		It("boots and has an encrypted partition", func() {
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			By("Rebooting")
 			vm.Reboot()
 			vm.EventuallyConnects(1200)
@@ -106,6 +107,7 @@ stages:
 		var err error
 
 		BeforeEach(func() {
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			tpmHash, err = vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
 			Expect(err).ToNot(HaveOccurred(), tpmHash)
 
@@ -152,6 +154,7 @@ kcrypt:
 		})
 
 		It("creates a passphrase and a key/pair to decrypt it", func() {
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			// Expect a LUKS partition
 			vm.Reboot(750)
 			vm.EventuallyConnects(1200)
@@ -245,6 +248,7 @@ kcrypt:
 		})
 
 		It("creates uses the existing passphrase to decrypt it", func() {
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			// Expect a LUKS partition
 			vm.Reboot()
 			vm.EventuallyConnects(1200)
@@ -256,6 +260,7 @@ kcrypt:
 	})
 
 	When("the key management server is listening on https", func() {
+		Expect(installError).ToNot(HaveOccurred(), installationOutput)
 		var tpmHash string
 		var err error
 
@@ -305,6 +310,7 @@ install:
 			})
 
 			It("successfully talks to the server", func() {
+				Expect(installError).ToNot(HaveOccurred(), installationOutput)
 				vm.Reboot()
 				vm.EventuallyConnects(1200)
 				out, err := vm.Sudo("blkid")
@@ -315,6 +321,7 @@ install:
 		})
 
 		When("the no certificate is set in the configuration", Label("remote-https-bad-cert"), func() {
+
 			BeforeEach(func() {
 				config = fmt.Sprintf(`#cloud-config
 
@@ -340,7 +347,9 @@ kcrypt:
 			})
 
 			It("fails to talk to the server", func() {
-				Expect(installationOutput).To(MatchRegexp("could not encrypt partition.*x509: certificate signed by unknown authority"))
+				// Should have failed the install
+				Expect(installError).To(HaveOccurred(), installationOutput)
+				Expect(installationOutput).To(MatchRegexp("failed to verify certificate: x509: certificate signed by unknown authority"))
 			})
 		})
 	})
