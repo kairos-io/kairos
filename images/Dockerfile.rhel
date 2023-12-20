@@ -27,7 +27,7 @@ FROM epel AS almalinux
 FROM epel AS rockylinux
 
 FROM base AS fedora
-RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-4$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 
 # install common packages
 FROM ${FLAVOR} AS common
@@ -35,6 +35,7 @@ RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
     audit \
+    cracklib-dicts \
     cloud-utils-growpart \
     device-mapper \
     dosfstools \
