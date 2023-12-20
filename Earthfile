@@ -359,8 +359,10 @@ uki-build:
     COPY +uki-base/Cmdline .
     COPY +uki-base/Uname .
     COPY +uki-base/Osrelease .
-    COPY +version/VERSION .
-    ARG KAIROS_VERSION=$(cat VERSION)
+
+    COPY +git-version/GIT_VERSION ./
+    ARG KAIROS_VERSION=$(cat GIT_VERSION)
+
     ARG UNAME=$(cat Uname)
     RUN /usr/lib/systemd/ukify Kernel initrd \
         --cmdline=@Cmdline \
