@@ -1,6 +1,9 @@
 name: UKI tests
 on:
   pull_request:
+  push:
+    branches:
+      - master
 
 concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
