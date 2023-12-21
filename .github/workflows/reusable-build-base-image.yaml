@@ -90,9 +90,15 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.changed-files.outputs.nvidia_any_changed == 'true' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Install kairos-agent (for versioneer)
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
       - name: Build  🔧 & Push 🚀
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         run: |
-          export IMAGE=$(FAMILY=${{ inputs.family }} FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ./images/naming.sh container_artifact_base_name)
+          export IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
+
           docker build --platform=linux/${{ inputs.arch }} --build-arg="FAMILY=${{ inputs.family }}" --build-arg="FLAVOR=${{ inputs.flavor }}" --build-arg="FLAVOR_RELEASE=${{ inputs.flavor_release }}" --build-arg="MODEL=${{ inputs.model }}" --build-arg="BASE_IMAGE=${{ inputs.base_image }}" -t $IMAGE -f ./images/Dockerfile.${{ inputs.family }} ./images
           docker push $IMAGE

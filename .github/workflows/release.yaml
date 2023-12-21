@@ -153,7 +153,6 @@ jobs:
                           --output-signature="${filename}.sig" "${filename}"
       - name: Prepare files for release
         run: |
-          export VERSION=$(cat release/VERSION)
           mkdir sarif
           mv release/*.sarif sarif/
           mkdir reports
@@ -163,7 +162,7 @@ jobs:
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
           mv *.tar.gz ../release/
           cd ..
-          rm release/VERSION release/IMAGE release/versions.yaml
+          rm release/IMAGE release/versions.yaml
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
@@ -256,7 +255,6 @@ jobs:
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
       - name: Prepare files for release
         run: |
-          export VERSION=$(cat release/VERSION)
           mkdir sarif
           mv release/*.sarif sarif/
           mkdir reports
@@ -266,7 +264,7 @@ jobs:
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
           mv *.tar.gz ../release/
           cd ..
-          sudo rm -rf release/IMAGE release/VERSION release/versions.yaml
+          sudo rm -rf release/IMAGE release/versions.yaml
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')

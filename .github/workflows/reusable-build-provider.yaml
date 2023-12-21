@@ -95,10 +95,15 @@ jobs:
 
           sudo mv build/* .
           sudo rm -rf build
+      - name: Install kairos-agent (for versioneer)
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
       - name: Build master 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
-          export BASE_IMAGE=$(FAMILY=${{ inputs.family }} FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ./images/naming.sh container_artifact_base_name)
+          export BASE_IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
           earthly --platform=linux/${{ inputs.arch }} +extract-framework-profile
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last' | tr -d '"')
           earthly --platform=linux/${{ inputs.arch }} +ci \
