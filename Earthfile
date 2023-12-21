@@ -1,5 +1,5 @@
 VERSION 0.6
-FROM alpine
+FROM alpine:3.18
 ARG REGISTRY_AND_ORG=quay.io/kairos
 ARG IMAGE
 ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
@@ -283,6 +283,7 @@ base-image:
     COPY +git-version/GIT_VERSION VERSION
 
     SAVE IMAGE $_CIMG
+    SAVE ARTIFACT /etc/os-release osrelease
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
     SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
@@ -526,15 +527,23 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
+foo:
+    FROM alpine
+    COPY +base-image/osrelease osrelease
+    RUN source osrelease && echo $KAIROS_ARTIFACT > foo
+    SAVE ARTIFACT foo foo AS LOCAL build/foo
+
 arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
 
-  FROM +base-image
-  ARG IMAGE_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT').img
+  COPY --platform=linux/arm64 +base-image/osrelease osrelease
+  ARG IMAGE_NAME=$(source osrelease && echo $KAIROS_ARTIFACT).img
+  RUN rm osrelease
 
   FROM $OSBUILDER_IMAGE
+  ARG --required MODEL
 
   WORKDIR /build
   # These sizes are in MB
