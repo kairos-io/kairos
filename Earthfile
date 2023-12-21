@@ -1,5 +1,5 @@
 VERSION 0.6
-FROM alpine:3.18
+FROM alpine
 ARG REGISTRY_AND_ORG=quay.io/kairos
 ARG IMAGE
 ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
@@ -106,6 +106,12 @@ arm-container-image:
   BUILD --platform=linux/arm64 +base-image
 
 all-arm-generic:
+  ARG --required FLAVOR
+  ARG --required FLAVOR_RELEASE
+  ARG --required BASE_IMAGE
+  ARG --required MODEL
+  ARG --required VARIANT
+  ARG --required FAMILY
   BUILD --platform=linux/arm64 +iso --MODEL=generic
 
 build-and-push-golang-testing:
@@ -527,12 +533,6 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME-initrd initrd AS LOCAL build/$ISO_NAME-initrd
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
-foo:
-    FROM alpine
-    COPY +base-image/osrelease osrelease
-    RUN source osrelease && echo $KAIROS_ARTIFACT > foo
-    SAVE ARTIFACT foo foo AS LOCAL build/foo
-
 arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
@@ -621,7 +621,9 @@ prepare-arm-image:
 ipxe-iso:
     ARG TARGETARCH
 
-    FROM +base-image
+    COPY +base-image/osrelease osrelease
+    ARG IMAGE_NAME=$(source osrelease && echo $KAIROS_ARTIFACT).img
+    RUN rm osrelease
 
     ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
 
