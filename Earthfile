@@ -109,7 +109,6 @@ all-arm-generic:
   ARG --required FLAVOR
   ARG --required FLAVOR_RELEASE
   ARG --required BASE_IMAGE
-  ARG --required MODEL
   ARG --required VARIANT
   ARG --required FAMILY
   BUILD --platform=linux/arm64 +iso --MODEL=generic
@@ -228,7 +227,7 @@ extract-framework-profile:
 
 extract-kairos-agent-from-framework:
     FROM quay.io/kairos/framework:${KAIROS_FRAMEWORK_VERSION}
-    SAVE ARTIFACT /usr/bin/kairos-agent kairos-agent
+    SAVE ARTIFACT /usr/bin/kairos-agent kairos-agent AS LOCAL ./kairos-agent
 
 base-image:
     ARG TARGETARCH # Earthly built-in (not passed)
