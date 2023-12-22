@@ -189,7 +189,7 @@ syft:
 image-sbom:
     FROM +base-image
     WORKDIR /build
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     COPY +syft/syft /usr/bin/syft
     RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
@@ -700,7 +700,7 @@ trivy-scan:
     # Use base-image so it can read original os-release file
     FROM +base-image
 
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
@@ -724,7 +724,7 @@ grype-scan:
     FROM +base-image
     COPY +grype/grype /grype
 
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     WORKDIR /build
     RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
