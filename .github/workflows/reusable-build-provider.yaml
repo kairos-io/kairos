@@ -103,7 +103,7 @@ jobs:
       - name: Build master 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
-          export BASE_IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
+          export BASE_IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
           earthly --platform=linux/${{ inputs.arch }} +extract-framework-profile
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last' | tr -d '"')
           earthly --platform=linux/${{ inputs.arch }} +ci \

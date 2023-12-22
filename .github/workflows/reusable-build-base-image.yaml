@@ -98,7 +98,7 @@ jobs:
       - name: Build  🔧 & Push 🚀
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         run: |
-          export IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
+          export IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
 
           docker build --platform=linux/${{ inputs.arch }} --build-arg="FAMILY=${{ inputs.family }}" --build-arg="FLAVOR=${{ inputs.flavor }}" --build-arg="FLAVOR_RELEASE=${{ inputs.flavor_release }}" --build-arg="MODEL=${{ inputs.model }}" --build-arg="BASE_IMAGE=${{ inputs.base_image }}" -t $IMAGE -f ./images/Dockerfile.${{ inputs.family }} ./images
           docker push $IMAGE
