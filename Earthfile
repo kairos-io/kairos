@@ -288,7 +288,6 @@ base-image:
     COPY +git-version/GIT_VERSION VERSION
 
     SAVE IMAGE $_CIMG
-    SAVE ARTIFACT /etc/os-release osrelease
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
     SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
@@ -537,9 +536,8 @@ arm-image:
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
 
-  COPY --platform=linux/arm64 +base-image/osrelease osrelease
-  ARG IMAGE_NAME=$(source osrelease && echo $KAIROS_ARTIFACT).img
-  RUN rm osrelease
+  FROM --platform=linux/arm64 +base-image
+  ARG IMAGE_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
   FROM $OSBUILDER_IMAGE
   ARG --required MODEL
@@ -619,10 +617,6 @@ prepare-arm-image:
 
 ipxe-iso:
     ARG TARGETARCH
-
-    COPY +base-image/osrelease osrelease
-    ARG IMAGE_NAME=$(source osrelease && echo $KAIROS_ARTIFACT).img
-    RUN rm osrelease
 
     ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
 
