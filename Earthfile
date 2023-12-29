@@ -620,6 +620,7 @@ prepare-arm-image:
 ipxe-iso:
     ARG TARGETARCH
 
+    FROM +base-image
     ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     # Variables used here:

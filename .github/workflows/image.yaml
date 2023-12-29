@@ -307,9 +307,10 @@ jobs:
           # - flavor: "alpine"
           #   flavorRelease: "3.19"
           #   label: "provider-decentralized-k8s"
-          - flavor: "alpine"
-            flavorRelease: "3.19"
-            label: "provider-upgrade-k8s"
+          # https://github.com/kairos-io/kairos/issues/2108
+          # - flavor: "alpine"
+          #   flavorRelease: "3.19"
+          #   label: "provider-upgrade-k8s"
   standard-upgrade-latest:
     uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
     with:
