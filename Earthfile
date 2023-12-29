@@ -420,7 +420,7 @@ uki-iso:
     # We just use it here to take a shortcut to the artifact name
     FROM +base-image
     WORKDIR /build
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     COPY +git-version/GIT_VERSION ./
     ARG KAIROS_VERSION=$(cat GIT_VERSION)
@@ -478,7 +478,7 @@ iso:
     COPY --keep-own +image-rootfs/rootfs /build/image
     COPY --keep-own +image-rootfs/IMAGE IMAGE
 
-    ARG ISO_NAME=$(source /build/image/etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --output /build/
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
@@ -493,7 +493,7 @@ iso:
 iso-remote:
     ARG --required REMOTE_IMG
     FROM $REMOTE_IMG
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -507,7 +507,7 @@ iso-remote:
 netboot:
     FROM +base-image
 
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     # Variables used here:
     # https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
@@ -618,7 +618,7 @@ prepare-arm-image:
 ipxe-iso:
     ARG TARGETARCH
 
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     # Variables used here:
     # https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
@@ -655,7 +655,7 @@ raw-image:
     # We just use it here to take a shortcut to the artifact name
     FROM +base-image
     WORKDIR /build
-    ARG IMG_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT').raw
+    ARG IMG_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').raw
 
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -768,7 +768,7 @@ run-qemu-datasource-tests:
 
 run-qemu-netboot-test:
     FROM +base-image
-    ARG ISO_NAME=$(source /etc/os-release; echo '$KAIROS_ARTIFACT')
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     COPY +git-version/GIT_VERSION GIT_VERSION
     ARG VERSION=$(cat ./GIT_VERSION)
