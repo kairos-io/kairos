@@ -222,40 +222,40 @@
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "standard",
         "model": "generic",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "amd64",
         "worker": "self-hosted"
     },
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "core",
         "model": "generic",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "amd64",
         "worker": "self-hosted"
     },
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "standard",
         "model": "rpi4",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "core",
         "model": "rpi4",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
