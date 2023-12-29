@@ -469,6 +469,9 @@ uki-iso:
 ###
 
 iso:
+    FROM +base-image
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
@@ -478,7 +481,6 @@ iso:
     COPY --keep-own +image-rootfs/rootfs /build/image
     COPY --keep-own +image-rootfs/IMAGE IMAGE
 
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --output /build/
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
