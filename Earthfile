@@ -547,11 +547,7 @@ arm-image:
   WORKDIR /build
   # These sizes are in MB
   ENV SIZE="15200"
-  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
-    ENV STATE_SIZE="14000"
-    ENV RECOVERY_SIZE="10000"
-    ENV DEFAULT_ACTIVE_SIZE="4500"
-  ELSE IF [[ "$FLAVOR" = "ubuntu" ]]
+  IF [[ "$FLAVOR" = "ubuntu" ]]
     ENV DEFAULT_ACTIVE_SIZE="2700"
     ENV STATE_SIZE="8100" # Has to be DEFAULT_ACTIVE_SIZE * 3 due to upgrade
     ENV RECOVERY_SIZE="5400" # Has to be DEFAULT_ACTIVE_SIZE * 2 due to upgrade
@@ -586,22 +582,12 @@ prepare-arm-image:
   FROM $OSBUILDER_IMAGE
   WORKDIR /build
 
-  # These sizes are in MB
+  # These sizes are in MB and are specific only for the nvidia-jetson-agx-orin
   ENV SIZE="15200"
-
-  IF [[ "$MODEL" = "nvidia-jetson-agx-orin" ]]
-    ENV STATE_SIZE="14000"
-    ENV RECOVERY_SIZE="10000"
-    ENV DEFAULT_ACTIVE_SIZE="4500"
-  ELSE IF [[ "$FLAVOR" = "ubuntu" ]]
-    ENV DEFAULT_ACTIVE_SIZE="2700"
-    ENV STATE_SIZE="8100" # Has to be DEFAULT_ACTIVE_SIZE * 3 due to upgrade
-    ENV RECOVERY_SIZE="5400" # Has to be DEFAULT_ACTIVE_SIZE * 2 due to upgrade
-  ELSE
-    ENV STATE_SIZE="6200"
-    ENV RECOVERY_SIZE="4200"
-    ENV DEFAULT_ACTIVE_SIZE="2000"
-  END
+  ENV STATE_SIZE="14000"
+  ENV RECOVERY_SIZE="10000"
+  ENV DEFAULT_ACTIVE_SIZE="4500"
+  
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
 
   ENV directory=/build/image
