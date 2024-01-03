@@ -29,12 +29,32 @@
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
+        {
+        "family": "opensuse",
+        "flavor": "opensuse",
+        "flavorRelease": "leap-15.5",
+        "variant": "standard",
+        "model": "rpi3",
+        "baseImage": "opensuse/leap:15.5",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
     {
         "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "leap-15.5",
         "variant": "core",
         "model": "rpi4",
+        "baseImage": "opensuse/leap:15.5",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "family": "opensuse",
+        "flavor": "opensuse",
+        "flavorRelease": "leap-15.5",
+        "variant": "core",
+        "model": "rpi3",
         "baseImage": "opensuse/leap:15.5",
         "arch": "arm64",
         "worker": "ubuntu-latest"
@@ -83,8 +103,28 @@
         "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
+        "variant": "standard",
+        "model": "rpi3",
+        "baseImage": "opensuse/tumbleweed",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "family": "opensuse",
+        "flavor": "opensuse",
+        "flavorRelease": "tumbleweed",
         "variant": "core",
         "model": "rpi4",
+        "baseImage": "opensuse/tumbleweed",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "family": "opensuse",
+        "flavor": "opensuse",
+        "flavorRelease": "tumbleweed",
+        "variant": "core",
+        "model": "rpi3",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
         "worker": "ubuntu-latest"
@@ -249,12 +289,32 @@
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
+        {
+        "family": "alpine",
+        "flavor": "alpine",
+        "flavorRelease": "3.19",
+        "variant": "standard",
+        "model": "rpi3",
+        "baseImage": "alpine:3.19",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
     {
         "family": "alpine",
         "flavor": "alpine",
         "flavorRelease": "3.19",
         "variant": "core",
         "model": "rpi4",
+        "baseImage": "alpine:3.19",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+        {
+        "family": "alpine",
+        "flavor": "alpine",
+        "flavorRelease": "3.19",
+        "variant": "core",
+        "model": "rpi3",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
         "worker": "ubuntu-latest"
