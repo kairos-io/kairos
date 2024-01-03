@@ -72,7 +72,7 @@ jobs:
           echo "ISO is: $ISO"
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.label }}" --fail-fast -r ./tests/
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.label }}-provider-test.logs.zip

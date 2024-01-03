@@ -118,7 +118,7 @@ jobs:
 
           sudo mv build/* .
           sudo rm -rf build
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
           path: |
