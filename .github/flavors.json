@@ -158,7 +158,7 @@
         "baseImage": "ubuntu:20.04",
         "arch": "arm64",
         "worker": "ubuntu-latest"
-    },        
+    },
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
