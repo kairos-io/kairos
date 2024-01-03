@@ -169,16 +169,6 @@
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
-        {
-        "family": "ubuntu",
-        "flavor": "ubuntu",
-        "flavorRelease": "20.04",
-        "variant": "core",
-        "model": "rpi3",
-        "baseImage": "ubuntu:20.04",
-        "arch": "arm64",
-        "worker": "ubuntu-latest"
-    },
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
