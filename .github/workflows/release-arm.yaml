@@ -237,6 +237,10 @@ jobs:
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
           sudo -E docker push "$IMAGE"
+
+          # Sign the -img image
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+
           sudo rm -rf build/IMAGE
       - name: Release
         uses: softprops/action-gh-release@v1
