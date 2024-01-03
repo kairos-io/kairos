@@ -49,7 +49,7 @@
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
-        {
+    {
         "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "leap-15.5",
