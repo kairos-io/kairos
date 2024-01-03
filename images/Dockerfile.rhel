@@ -1,14 +1,17 @@
+# WARNING: This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
+###############################################################
+####                           ARGS                        ####
+###############################################################
+# WARNING: While some of the ARGs are not used in this file, they are used in the images/Dockerfile.kairos-* files
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
+ARG FAMILY=rhel
 ARG FLAVOR
 ARG FLAVOR_RELEASE
 ARG MODEL=generic
 ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=master
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
+ARG FRAMEWORK_VERSION=main
 
 FROM $BASE_IMAGE AS base
 
@@ -24,7 +27,7 @@ FROM epel AS almalinux
 FROM epel AS rockylinux
 
 FROM base AS fedora
-RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-4$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 
 # install common packages
 FROM ${FLAVOR} AS common
@@ -32,6 +35,7 @@ RUN dnf update -y
 RUN dnf makecache
 RUN dnf install -y \
     audit \
+    cracklib-dicts \
     cloud-utils-growpart \
     device-mapper \
     dosfstools \

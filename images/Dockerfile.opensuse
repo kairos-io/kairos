@@ -1,22 +1,22 @@
+# WARNING: This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+# WARNING: While some of the ARGs are not used in this file, they are used in the images/Dockerfile.kairos-* files
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
+ARG FAMILY=opensuse
 ARG FLAVOR
 ARG FLAVOR_RELEASE
 ARG MODEL=generic
 ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=master
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
+ARG FRAMEWORK_VERSION=main
 
 FROM $BASE_IMAGE AS base
 
 FROM base AS leap-15.5-repo
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo && \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo || true && \
     zypper ref
 
 FROM base AS tumbleweed-repo-amd64
@@ -24,11 +24,11 @@ RUN zypper removerepo repo-openh264 && \
     zypper ref
 
 FROM base AS tumbleweed-repo-arm64
-RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 && \
+RUN zypper ar https://download.opensuse.org/ports/aarch64/tumbleweed/repo/oss/ aarch64 || true && \
     zypper ref
 
 FROM tumbleweed-repo-${TARGETARCH} AS tumbleweed-repo
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo && \
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_Factory/utilities.repo || true && \
     zypper ref
 
 FROM ${FLAVOR_RELEASE}-repo AS common
@@ -82,6 +82,7 @@ RUN zypper in --force-resolution -y \
     tmux \
     vim \
     which \
+    tpm2* \
     && zypper cc
 
 FROM common as amd64

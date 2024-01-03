@@ -41,12 +41,25 @@ jobs:
         fetch-depth: 0
     - run: |
         sudo apt update && sudo apt install -y jq
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@master
+      with:
+        platforms: all
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@master
+    - name: Install earthly
+      uses: Luet-lab/luet-install-action@v1.1
+      with:
+        repository: quay.io/kairos/packages
+        packages: utils/earthly
     - id: set-matrix
       run: |
           docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
           chmod +x luet
           sudo mv luet /usr/bin/luet
           # Construct an array like this from the found versions:
+          earthly --platform=linux/arm64 +extract-framework-profile
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique' >  k3s_versions.json
           # Create a combination of flavors and k3s versions.
           content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.arch == "arm64" and .variant == "standard" and .model != "generic"))' .github/flavors.json k3s_versions.json)
@@ -65,11 +78,17 @@ jobs:
           fetch-depth: 0
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v40
+        uses: tj-actions/changed-files@v41
         with:
           files_yaml: |
             nvidia:
               - 'images/Dockerfile.nvidia'
+
+      - name: Install kairos-agent (for versioneer)
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
       - name: Release space from worker
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         run: |
@@ -118,7 +137,7 @@ jobs:
       - name: Build  🔧 & Push 🚀
         if: steps.changed-files.outputs.nvidia_any_changed == 'true'
         run: |
-          export IMAGE=$(FAMILY=ubuntu FLAVOR=ubuntu FLAVOR_RELEASE="20.04" MODEL=nvidia-jetson-agx-orin VARIANT=core TARGETARCH=arm64 REGISTRY_AND_ORG="quay.io/kairos" ./images/naming.sh container_artifact_base_name)
+          export IMAGE=$(FLAVOR=ubuntu FLAVOR_RELEASE="20.04" MODEL=nvidia-jetson-agx-orin VARIANT=core TARGETARCH=arm64 REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
           docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
           docker push $IMAGE
 
@@ -130,7 +149,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "20.04"
       family: ubuntu
-      # is there a way to run the naming.sh script here?
+      # is there a way to run versioneer here?
       base_image: quay.io/kairos/ubuntu:20.04-core-arm64-nvidia-jetson-agx-orin-master
       model: nvidia-jetson-agx-orin
       worker: fast

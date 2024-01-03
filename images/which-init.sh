@@ -7,7 +7,7 @@ if [ -x /bin/systemctl ] || [ -x /usr/bin/systemctl ]; then
 fi
 
 # Check for OpenRC
-if [ -x /sbin/rc ] || [ -x /usr/sbin/rc ]; then
+if [ -x /sbin/openrc ] || [ -x /usr/sbin/rc ]; then
     echo "openrc"
     exit 0
 fi

@@ -125,22 +125,30 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		}, 900*time.Second, 10*time.Second).ShouldNot(Or(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
 
-		By("applying upgrade plan")
+		By("copy upgrade plan")
 		err = vm.Scp("assets/suc.yaml", "./suc.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
+		By("apply upgrade plan")
 		Eventually(func() string {
 			out, _ := kubectl(vm, "apply -f suc.yaml")
 			return out
 		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
 
+		By("check that plan is being executed")
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			return out
 		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"), out)
 
-		expectedVersion := getExpectedVersion()
+		By("wait for plan to finish")
+		Eventually(func() string {
+			out, _ = kubectl(vm, "get pods -A")
+			return out
+		}, 30*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("ContainerCreating"), out)
 
+		By("validate upgraded version")
+		expectedVersion := getExpectedVersion()
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			version, _ := vm.Sudo(getVersionCmd)

@@ -25,8 +25,8 @@ jobs:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     with:
       flavor: alpine
-      flavor_release: "3.18"
+      flavor_release: "3.19"
       family: alpine
-      base_image: alpine:3.18
+      base_image: alpine:3.19
       model: rpi4
       worker: fast

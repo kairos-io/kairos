@@ -1,12 +1,16 @@
+# WARNING: This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
+# WARNING: While some of the ARGs are not used in this file, they are used in the images/Dockerfile.kairos-* files
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
+ARG FAMILY=ubuntu
 # Currently supported flavors are:
 #   - ubuntu
 ARG FLAVOR
 #   - 20.04
 #   - 22.04
-#   - 23.04
+#   - 23.10
 ARG FLAVOR_RELEASE
 # Currently supported models are:
 #   - generic
@@ -16,16 +20,12 @@ ARG MODEL=generic
 ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=master
-# Not to be confused with the concept of MODEL, this is either fips or generic
-ARG SECURITY_PROFILE=generic
-# TARGETARCH is used to determine the architecture of the image
-# it is already set by Docker so it doesn't need to be defined here
+ARG FRAMEWORK_VERSION=main
 
 ###############################################################
 ####                     Upstream Images                   ####
 ###############################################################
-FROM ${BASE_IMAGE} AS ubuntu-23.04-upstream
+FROM ${BASE_IMAGE} AS ubuntu-23.10-upstream
 
 FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
 
@@ -90,6 +90,7 @@ RUN apt-get update \
     ubuntu-advantage-tools \
     xz-utils \
     zstd \
+    tpm2-* \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ###############################################################
@@ -162,15 +163,15 @@ FROM base-ubuntu-22.04 AS amd64-base-ubuntu-22.04
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
-RUN [ -z "$(ls -A /lib/modules)" ] && apt-get install -y --no-install-recommends \
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.04
+FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.10
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-22.04
 FROM amd64-base-ubuntu-20.04 AS amd64-ubuntu-20.04
 
-FROM base-ubuntu-22.04 AS arm64-ubuntu-23.04
+FROM base-ubuntu-22.04 AS arm64-ubuntu-23.10
 FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
 FROM base-ubuntu-20.04 AS arm64-ubuntu-20.04
 
@@ -194,20 +195,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi2 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM rpicommon AS ubuntu-23.04-rpi
+FROM rpicommon AS ubuntu-23.10-rpi
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi \
     linux-modules-extra-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM generic AS amd64-ubuntu-23.04-generic
+FROM generic AS amd64-ubuntu-23.10-generic
 FROM generic AS amd64-ubuntu-22.04-generic
 FROM generic AS amd64-ubuntu-20.04-generic
-FROM generic AS arm64-ubuntu-23.04-generic
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-23.04-rpi3
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-23.04-rpi4
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi3
-FROM ubuntu-23.04-rpi AS arm64-ubuntu-22.04-rpi4
+FROM generic AS arm64-ubuntu-23.10-generic
+# If a kernel is already installed, don't try to install it again, this way the base image can
+# be non-hwe for older releases
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
+    linux-image-generic-hwe-22.04 || true
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-23.10-rpi3
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-23.10-rpi4
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-22.04-rpi3
+FROM ubuntu-23.10-rpi AS arm64-ubuntu-22.04-rpi4
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi3
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi4
 FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
@@ -215,7 +221,7 @@ FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
 ###############################################################
 ####                Common to a Single Flavor              ####
 ###############################################################
-FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-23.04
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-23.10
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     dbus-user-session \
@@ -249,5 +255,3 @@ RUN systemctl enable ssh
 
 # Fixup sudo perms
 RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
-
-RUN journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname

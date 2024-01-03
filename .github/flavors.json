@@ -252,30 +252,30 @@
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
-        "flavorRelease": "23.04",
+        "flavorRelease": "23.10",
         "variant": "standard",
         "model": "generic",
-        "baseImage": "ubuntu:23.04",
+        "baseImage": "ubuntu:23.10",
         "arch": "amd64",
         "worker": "self-hosted"
     },
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
-        "flavorRelease": "23.04",
+        "flavorRelease": "23.10",
         "variant": "core",
         "model": "generic",
-        "baseImage": "ubuntu:23.04",
+        "baseImage": "ubuntu:23.10",
         "arch": "amd64",
         "worker": "self-hosted"
     },
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
-        "flavorRelease": "23.04",
+        "flavorRelease": "23.10",
         "variant": "standard",
         "model": "rpi4",
-        "baseImage": "ubuntu:23.04",
+        "baseImage": "ubuntu:23.10",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
@@ -292,10 +292,10 @@
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
-        "flavorRelease": "23.04",
+        "flavorRelease": "23.10",
         "variant": "core",
         "model": "rpi4",
-        "baseImage": "ubuntu:23.04",
+        "baseImage": "ubuntu:23.10",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
@@ -312,40 +312,40 @@
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
-        "flavorRelease": "23.04",
+        "flavorRelease": "23.10",
         "variant": "core",
         "model": "generic",
-        "baseImage": "ubuntu:23.04",
+        "baseImage": "ubuntu:23.10",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "standard",
         "model": "generic",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "amd64",
         "worker": "self-hosted"
     },
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "core",
         "model": "generic",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "amd64",
         "worker": "self-hosted"
     },
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "standard",
         "model": "rpi4",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
@@ -362,10 +362,10 @@
     {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "core",
         "model": "rpi4",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },

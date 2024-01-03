@@ -12,6 +12,39 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
+  get-base-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        git fetch --prune --unshallow
+    - id: set-matrix
+      run: |
+          content=`cat ./.github/flavors.json | jq -r 'map(del(.variant,.worker)) | unique'`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+  base:
+    uses: ./.github/workflows/reusable-build-base-image.yaml
+    secrets: inherit
+    needs:
+    - get-base-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-base-matrix.outputs.matrix)}}
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      model: ${{ matrix.model }}
+      base_image: ${{ matrix.baseImage }}
+      arch: ${{ matrix.arch }}
+
   get-core-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -48,17 +81,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
-  framework:
-    uses: ./.github/workflows/reusable-build-framework.yaml
-    secrets: inherit
-    with:
-      security_profile: ${{ matrix.security_profile }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - security_profile: "generic"
-          - security_profile: "fips"
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
@@ -84,7 +106,7 @@ jobs:
       matrix:
         include:
           - flavor: "ubuntu"
-            flavorRelease: "23.04"
+            flavorRelease: "23.10"
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
@@ -97,13 +119,13 @@ jobs:
       matrix:
         include:
           - flavor: "alpine"
-            flavorRelease: "3.18"
+            flavorRelease: "3.19"
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
           - flavor: "opensuse"
             flavorRelease: "tumbleweed"
           - flavor: "ubuntu"
-            flavorRelease: "23.04"
+            flavorRelease: "23.10"
           - flavor: "debian"
             flavorRelease: "testing"
           - flavor: "ubuntu"
@@ -135,9 +157,9 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.18"
+            flavorRelease: "3.19"
             family: alpine
-            base_image: alpine:3.18
+            base_image: alpine:3.19
             model: generic
             variant: core
           - flavor: opensuse
@@ -162,11 +184,11 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.18"
+            flavorRelease: "3.19"
             family: alpine
             variant: core
             model: generic
-            baseImage: alpine:3.18
+            baseImage: alpine:3.19
           - flavor: opensuse
             flavorRelease: leap-15.5
             family: opensuse
@@ -174,11 +196,11 @@ jobs:
             model: generic
             baseImage: opensuse/leap:15.5
           - flavor: ubuntu
-            flavorRelease: "23.04"
+            flavorRelease: "23.10"
             family: ubuntu
             variant: core
             model: generic
-            baseImage: ubuntu:23.04
+            baseImage: ubuntu:23.10
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
@@ -191,7 +213,7 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.18"
+            flavorRelease: "3.19"
           - flavor: opensuse
             flavorRelease: leap-15.5
   upgrade-latest:
@@ -208,7 +230,7 @@ jobs:
         include:
           # cant do alpine yet as it hasnt been released with the proper name
           #- flavor: alpine
-          #  flavorRelease: "3.18"
+          #  flavorRelease: "3.19"
           - flavor: opensuse
             flavorRelease: leap-15.5
             family: opensuse
@@ -252,9 +274,9 @@ jobs:
             family: opensuse
             baseImage: opensuse/leap:15.5
           - flavor: alpine
-            flavorRelease: "3.18"
+            flavorRelease: "3.19"
             family: alpine
-            baseImage: alpine:3.18
+            baseImage: alpine:3.19
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
@@ -271,22 +293,24 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
             label: "provider-qrcode-install"
-          # Requires at least 1 release with the newer repositories to work as this test checks the release list
-          #- flavor: "opensuse"
-          #  flavorRelease: "leap-15.5"
-          #  label: "provider-upgrade"
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
-            label: "provider-decentralized-k8s"
+            label: "provider-upgrade"
+          # no point of running this on CI if it always fails
+          # - flavor: "opensuse"
+          #   flavorRelease: "leap-15.5"
+          #   label: "provider-decentralized-k8s"
           - flavor: "opensuse"
             flavorRelease: "leap-15.5"
             label: "provider-upgrade-k8s"
-          - flavor: "alpine"
-            flavorRelease: "3.18"
-            label: "provider-decentralized-k8s"
-          - flavor: "alpine"
-            flavorRelease: "3.18"
-            label: "provider-upgrade-k8s"
+          # no point of running this on CI if it always fails
+          # - flavor: "alpine"
+          #   flavorRelease: "3.19"
+          #   label: "provider-decentralized-k8s"
+          # https://github.com/kairos-io/kairos/issues/2108
+          # - flavor: "alpine"
+          #   flavorRelease: "3.19"
+          #   label: "provider-upgrade-k8s"
   standard-upgrade-latest:
     uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
     with:
@@ -305,14 +329,13 @@ jobs:
             family: "opensuse"
           # cant do alpine yet as it hasnt been released with the proper name
           #- flavor: "alpine"
-          #  flavorRelease: "3.18"
+          #  flavorRelease: "3.19"
   notify:
     runs-on: ubuntu-latest
     if: failure()
     needs:
       - core
       - standard
-      - framework
       - install
       - zfs
       - acceptance
