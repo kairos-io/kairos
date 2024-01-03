@@ -352,10 +352,10 @@
         {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "standard",
         "model": "rpi3",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
@@ -372,10 +372,10 @@
         {
         "family": "alpine",
         "flavor": "alpine",
-        "flavorRelease": "3.18",
+        "flavorRelease": "3.19",
         "variant": "core",
         "model": "rpi3",
-        "baseImage": "alpine:3.18",
+        "baseImage": "alpine:3.19",
         "arch": "arm64",
         "worker": "ubuntu-latest"
     },
