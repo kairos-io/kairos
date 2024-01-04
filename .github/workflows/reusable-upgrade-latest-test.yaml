@@ -82,7 +82,7 @@ jobs:
           earthly +run-qemu-test --PREBUILT_ISO=$ISO \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: ${{ inputs.flavor }}-upgrade-test.logs.zip

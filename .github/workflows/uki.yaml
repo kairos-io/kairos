@@ -59,7 +59,7 @@ jobs:
           export ISO=$(ls $PWD/build/kairos-fedora-38-core-amd64-generic-*.uki.iso)
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: ${{ inputs.flavor }}.logs.zip

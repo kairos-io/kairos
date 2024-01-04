@@ -19,7 +19,7 @@ jobs:
           git fetch --prune --unshallow
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release}}.iso.zip
       - name: Install Go
@@ -60,7 +60,7 @@ jobs:
           echo "ISO is: $ISO"
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "install-test" --fail-fast -r ./tests
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: ${{ inputs.flavor }}-vbox.logs.zip

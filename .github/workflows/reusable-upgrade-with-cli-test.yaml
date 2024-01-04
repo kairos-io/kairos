@@ -56,7 +56,7 @@ jobs:
           git fetch --prune --unshallow
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
       - name: Display structure of downloaded files
@@ -70,7 +70,7 @@ jobs:
             --FLAVOR=${{ inputs.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-with-cli
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: ${{ inputs.flavor }}-upgrade-test.logs.zip
