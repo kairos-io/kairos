@@ -85,6 +85,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: ${{ inputs.flavor }}-upgrade-test.logs.zip
+          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-upgrade-test.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn

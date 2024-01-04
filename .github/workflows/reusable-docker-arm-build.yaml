@@ -178,6 +178,6 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.model != 'nvidia-jetson-agx-orin' }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.flavor }}-image
+          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-arm-${{ inputs.model }}
           path: build
           if-no-files-found: error
