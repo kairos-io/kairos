@@ -96,6 +96,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pynvim \
     rsync \
     shared-mime-info \
+    shim-signed \
     snapd \
     squashfs-tools \
     sudo \

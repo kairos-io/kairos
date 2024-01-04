@@ -60,7 +60,6 @@ RUN zypper in --force-resolution -y \
     mdadm \
     multipath-tools \
     nano \
-    nohang \
     open-iscsi \
     openssh \
     open-vm-tools \
@@ -71,6 +70,7 @@ RUN zypper in --force-resolution -y \
     procps \
     rng-tools \
     rsync \
+    shim \
     squashfs \
     strace \
     sudo \

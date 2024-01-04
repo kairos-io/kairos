@@ -9,7 +9,7 @@ ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.48.2
 # renovate: datasource=github-releases depName=kairos-io/kairos-framework
-ARG KAIROS_FRAMEWORK_VERSION="v2.6.0"
+ARG KAIROS_FRAMEWORK_VERSION="v2.6.3"
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
@@ -21,7 +21,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.10.2
+ARG OSBUILDER_VERSION=v0.11.1
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -207,12 +207,20 @@ luet:
 kairos-dockerfile:
     ARG --required FAMILY
     COPY ./images .
-    RUN --no-cache cat <(echo "# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=${FAMILY}") \
-        <(sed -n '/# WARNING:/!p' Dockerfile.$FAMILY) \
-        <(echo) \
-        <(sed -n '/# WARNING:/!p' Dockerfile.kairos) \
-        > ./Dockerfile
-    SAVE ARTIFACT Dockerfile AS LOCAL images/Dockerfile.kairos-${FAMILY}
+    IF [ "$FAMILY" == "all" ]
+        ARG FAMILY_LIST="alpine debian opensuse rhel ubuntu"
+    ELSE
+        ARG FAMILY_LIST=$FAMILY
+    END
+    FOR F IN $FAMILY_LIST
+        RUN --no-cache cat <(echo "# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=${F}") \
+            <(sed -n '/# WARNING:/!p' Dockerfile.$F) \
+            <(echo) \
+            <(sed -n '/# WARNING:/!p' Dockerfile.kairos) \
+            > ./Dockerfile
+        SAVE ARTIFACT Dockerfile AS LOCAL images/Dockerfile.kairos-${F}
+    END
+
 
 extract-framework-profile:
     ARG FRAMEWORK_VERSION
@@ -286,6 +294,14 @@ base-image:
     ARG _CIMG=$(cat ./IMAGE)
 
     COPY +git-version/GIT_VERSION VERSION
+    ARG KAIROS_AGENT_DEV_BRANCH
+
+    IF [ "$KAIROS_AGENT_DEV_BRANCH" != "" ]
+        RUN rm -rf /usr/bin/kairos-agent
+        COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
+    END
+
+    RUN --no-cache kairos-agent version
 
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
