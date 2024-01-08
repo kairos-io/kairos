@@ -39,6 +39,6 @@ docker build --build-arg="BASE_IMAGE=ubuntu-non-hwe:22.04" \
              -f Dockerfile.kairos-ubuntu .
 ```
 
-The `Dockerfile.kairos-ubuntu` Dockerfile will install all kairos dependencies if they are missing. When it ocmes to the kernel it will only install one if there's no existing kernel on your base image, then it will proceed to install the karios agent and do the rest of the process to convert the base image into a kairos image.
+The `Dockerfile.kairos-ubuntu` Dockerfile will install all kairos dependencies if they are missing. When it comes to the kernel it will only install one if there's no existing kernel on your base image, then it will proceed to install the karios agent and do the rest of the process to convert the base image into a kairos image.
 
 You should now be able to use your container image `kairos-ubuntu-non-hwe:22.04`. If you need an iso or other type of artifact, have a look at osbuilder-tools or AuroraBoot in the kairos documentation.
