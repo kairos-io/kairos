@@ -230,6 +230,8 @@ jobs:
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
       - name: Upload Image
         if: startsWith(github.ref, 'refs/tags/')
+        env:
+          COSIGN_YES: true
         run: |
           curl https://luet.io/install.sh | sudo sh
           IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
