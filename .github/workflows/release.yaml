@@ -49,7 +49,7 @@ jobs:
           chmod +x luet
           sudo mv luet /usr/bin/luet
           # Construct an array like this from the found versions:
-          earthly --platform=linux/${{ inputs.arch }} +extract-framework-profile
+          earthly --platform=linux/amd64 +extract-framework-profile
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique' >  k3s_versions.json
           content=$(jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}] | map(select(.arch == "amd64" and .variant == "standard"))' .github/flavors.json k3s_versions.json)
           # the following lines are only required for multi line json
@@ -189,7 +189,7 @@ jobs:
       - name: Build uki image 🔧
         run: |
           # Do fedora as its the smaller uki possible
-          earthly +uki \
+          earthly +uki-iso \
             --FAMILY=rhel \
             --FLAVOR=fedora \
             --FLAVOR_RELEASE=38 \
