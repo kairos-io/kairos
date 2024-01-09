@@ -96,7 +96,12 @@ jobs:
           sudo apt-get remove -y '^ghc-.*' || true
           sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
           sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm powershell firefox monodoc-manual msbuild || true
+          sudo apt-get remove -y hhvm || true
+          sudo apt-get remove -y powershell || true
+          sudo apt-get remove -y firefox || true
+          sudo apt-get remove -y monodoc-manual || true
+          sudo apt-get remove -y msbuild || true
+          sudo apt-get remove -y microsoft-edge-stable || true
           sudo apt-get remove -y '^google-.*' || true
           sudo apt-get remove -y azure-cli || true
           sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
@@ -264,7 +269,7 @@ jobs:
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
           mv *.tar.gz ../release/
           cd ..
-          sudo rm -rf release/IMAGE release/versions.yaml
+          sudo rm -rf release/VERSION release/IMAGE release/versions.yaml
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
