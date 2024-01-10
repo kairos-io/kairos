@@ -17,10 +17,11 @@ assignees: mudler
 ## ✅ Release Checklist
 
 - [ ] **Stage 0 - Finishing Touches**
-    - [ ] Check if Kairos-docs were updated and consider tagging them with the same version as Kairos
+    - [ ] Check if Kairos-docs has any open PRs that need to be merged.
     - [ ] Check if osbuilder is in the wanted version/latest
-    - [ ] Check if any kairos/packages was bumped and they were merged and repo updated (https://github.com/kairos-io/packages)
-    - [ ] Check latest repository update was merged, otherwise trigger its job (https://github.com/kairos-io/kairos/actions/workflows/bump_repos.yml)
+    - [ ] Check if any kairos/packages were bumped. Ensure they were merged and repo updated (https://github.com/kairos-io/kairos-framework/issues/2)
+    - [ ] Cut a new release of the kairos-framework images if any packages were bumped.
+    - [ ] Bump the [kairos-framework image in kairos](https://github.com/kairos-io/kairos/blob/b334bb013c0b3ad63740e5da27d896d5d5fea81e/Earthfile#L12)
     - [ ] Make sure CI tests are passing.
     - [ ] Consider cutting an `rc`, `alpha`, ... based on changes on the CI
 - [ ] **Stage 1 - Manual testing**
