@@ -237,7 +237,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:23.10",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "self-hosted"
     },
     {
         "family": "ubuntu",
