@@ -29,11 +29,14 @@ assignees: mudler
     - [ ] Fedora flavor install, and manual upgrade works
     - [ ] Any flavor interactive install
     - [ ] Any flavor recovery reset
+    - [ ] Any flavor k3s
     - [ ] ARM images (openSUSE, alpine) boots and manual upgrade works
     - [ ] ARM images passive and recovery booting
     - [ ] ARM images reset works
     - [ ] ARM images /oem exists
 - [ ] **Stage 3 - Release**
-  - [ ] Tag the release on master.
+  - [ ] Tag the release on master
+  - [ ] Update the release with any known issues
 - [ ] **Stage 4 - Announcement**
+  - [ ] Merge docs updates for kairos and k3s version updates
   - [ ] Blog post announcement
