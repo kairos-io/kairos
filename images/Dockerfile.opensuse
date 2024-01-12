@@ -61,6 +61,7 @@ RUN zypper in --force-resolution -y \
     mdadm \
     multipath-tools \
     nano \
+    nohang \
     open-iscsi \
     openssh \
     open-vm-tools \
