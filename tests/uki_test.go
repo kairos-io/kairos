@@ -48,7 +48,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
 		})
 		By("installing kairos", func() {
-			out, err := vm.Sudo(`kairos-agent --debug uki install --device /dev/vda`)
+			out, err := vm.Sudo(`kairos-agent --debug install --device /dev/vda`)
 			fmt.Println(string(out))
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("Running after-install hook"))
