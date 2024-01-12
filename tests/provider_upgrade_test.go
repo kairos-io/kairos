@@ -24,7 +24,7 @@ var _ = Describe("provider upgrade test", Label("provider", "provider-upgrade"),
 
 	Context("kairos-agent upgrade list-releases", func() {
 		It("returns at least one option to upgrade to", func() {
-			resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases | tail -1`)
+			resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases --all | tail -1`)
 
 			Expect(resultStr).To(ContainSubstring("quay.io/kairos"))
 		})
