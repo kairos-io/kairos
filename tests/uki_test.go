@@ -20,6 +20,9 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 	})
 
 	BeforeEach(func() {
+		if os.Getenv("DATASOURCE") == "" {
+			Fail("DATASOURCE must be set and it should be the absolute path to a datasource iso")
+		}
 		_, vm = startVM()
 		vm.EventuallyConnects(300)
 	})
@@ -48,7 +51,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
 		})
 		By("installing kairos", func() {
-			out, err := vm.Sudo(`kairos-agent --debug uki install --device /dev/vda`)
+			out, err := vm.Sudo(`kairos-agent --debug install`)
 			fmt.Println(string(out))
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("Running after-install hook"))

@@ -50,7 +50,10 @@ jobs:
             --MODEL=generic \
             --VARIANT=core \
             --BASE_IMAGE=fedora:38
-      - name: Run tests
+      - name: Create datasource iso 🔧
+        run: |
+          earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+      - name: Run tests 🔧
         env:
           USE_QEMU: true
           KVM: true
@@ -60,6 +63,7 @@ jobs:
           EMULATE_TPM: true
         run: |
           export ISO=$(ls $PWD/build/kairos-${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}-core-amd64-generic-*.uki.iso)
+          export DATASOURCE=${PWD}/build/datasource.iso
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
       - uses: actions/upload-artifact@v4
