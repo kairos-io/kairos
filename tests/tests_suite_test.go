@@ -304,6 +304,19 @@ func expectRebootedToActive(vm VM) {
 	})
 }
 
+func expectSecureBootEnabled(vm VM) {
+	// Check for secureboot before install, based on firmware env var
+	// if we set, then the test suite will load the secureboot firmware
+	secureboot := os.Getenv("FIRMWARE")
+
+	if secureboot == "true" {
+		By("checking that secureboot is enabled", func() {
+			out, _ := vm.Sudo("dmesge | grep -i secure")
+			Expect(out).To(ContainSubstring("Secure boot enabled"))
+		})
+	}
+}
+
 // return the PID of the swtpm (to be killed later) and the state directory
 func emulateTPM(stateDir string) {
 	t := path.Join(stateDir, "tpm")

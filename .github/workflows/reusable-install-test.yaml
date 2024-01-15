@@ -9,6 +9,9 @@ on:
       flavor_release:
         required: true
         type: string
+      secureboot:
+        required: false
+        type: boolean
 
 jobs:
   test:
@@ -55,6 +58,9 @@ jobs:
           CREATE_VM: true
           FLAVOR: ${{ inputs.flavor }}
         run: |
+          if [ "${{ inputs.secureboot }}" = "true" ]; then
+            export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
+          fi
           ls *.iso
           export ISO=$PWD/$(ls *.iso)
           echo "ISO is: $ISO"
@@ -63,6 +69,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: ${{ inputs.flavor }}-vbox.logs.zip
+          name: ${{ inputs.flavor }}.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn

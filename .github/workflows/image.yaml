@@ -94,6 +94,33 @@ jobs:
         include:
           - flavor: opensuse
             flavorRelease: leap-15.5
+            secureboot: false
+  install-secureboot:
+    uses: ./.github/workflows/reusable-install-test.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      secureboot: true
+    needs:
+      - core
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - flavor: "opensuse"
+            flavorRelease: "leap-15.5"
+          - flavor: "opensuse"
+            flavorRelease: "tumbleweed"
+          - flavor: "debian"
+            flavorRelease: "bookworm"
+          - flavor: "ubuntu"
+            flavorRelease: "20.04"
+          - flavor: "ubuntu"
+            flavorRelease: "22.04"
+          - flavor: "ubuntu"
+            flavorRelease: "23.10"
+          - flavor: "fedora"
+            flavorRelease: "38"
   zfs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:

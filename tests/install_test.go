@@ -69,6 +69,9 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 
 	Context("install", func() {
 		It("cloud-config syntax mixed with extended syntax", func() {
+
+			expectSecureBootEnabled(vm)
+
 			_ = testInstall(`#cloud-config
 install:
   bind_mounts:
@@ -93,6 +96,8 @@ bundles:
   targets:
   - container://quay.io/mocaccino/extra:edgevpn-utils-0.15.0
 `, vm)
+
+			expectSecureBootEnabled(vm)
 
 			Eventually(func() string {
 				out, _ := vm.Sudo("cat /etc/foo")
