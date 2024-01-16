@@ -309,9 +309,9 @@ func expectSecureBootEnabled(vm VM) {
 	// if we set, then the test suite will load the secureboot firmware
 	secureboot := os.Getenv("FIRMWARE")
 
-	if secureboot == "true" {
+	if secureboot != "" {
 		By("checking that secureboot is enabled", func() {
-			out, _ := vm.Sudo("dmesge | grep -i secure")
+			out, _ := vm.Sudo("dmesg | grep -i secure")
 			Expect(out).To(ContainSubstring("Secure boot enabled"))
 		})
 	}
