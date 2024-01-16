@@ -65,7 +65,7 @@ jobs:
           export ISO=$PWD/$(ls *.iso)
           echo "ISO is: $ISO"
           cp tests/go.* .
-          go run github.com/onsi/ginkgo/v2/ginkgo --label-filter "install-test" --fail-fast -r ./tests
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "install-test" --fail-fast -r ./tests
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
