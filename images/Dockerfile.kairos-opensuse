@@ -71,6 +71,7 @@ RUN zypper in --force-resolution -y \
     procps \
     rng-tools \
     rsync \
+    shim \
     squashfs \
     strace \
     sudo \
