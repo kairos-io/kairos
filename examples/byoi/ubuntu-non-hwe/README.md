@@ -34,7 +34,7 @@ docker build --build-arg="BASE_IMAGE=ubuntu-non-hwe:22.04" \
              --build-arg="VARIANT=core" \
              --build-arg="MODEL=generic" \
              --build-arg="FRAMEWORK_VERSION=v2.5.5" \
-             --build-arg="RELEASE=v0.0.1" 
+             --build-arg="RELEASE=v0.0.1" \
              -t kairos-ubuntu-non-hwe:22.04 \
              -f Dockerfile.kairos-ubuntu .
 ```
