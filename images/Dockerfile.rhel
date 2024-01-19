@@ -61,6 +61,7 @@ RUN dnf install -y \
     lvm2 \
     nano \
     openssh-server \
+    openssh-clients \
     parted \
     polkit \
     qemu-guest-agent \
