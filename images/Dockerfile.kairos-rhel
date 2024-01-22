@@ -72,8 +72,7 @@ RUN dnf install -y \
     systemd-networkd \
     systemd-resolved \
     tar \
-    which \
-    zfs && dnf clean all
+    which && dnf clean all
 
 FROM common AS all
 RUN mkdir -p /run/lock
