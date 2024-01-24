@@ -194,7 +194,7 @@ jobs:
       - name: Build uki image 🔧
         run: |
           # Do fedora as its the smaller uki possible
-          earthly +uki-iso \
+          earthly +uki-dev-iso \
             --FAMILY=rhel \
             --FLAVOR=fedora \
             --FLAVOR_RELEASE=38 \

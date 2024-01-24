@@ -43,7 +43,7 @@ jobs:
           packages: utils/earthly
       - name: Build uki ISO 🔧
         run: | # known flavors to work with uki+encryption: fedora >= 38, ubuntu >= 23.10, anything with systemd 253
-          earthly +uki-iso \
+          earthly +uki-dev-iso \
             --FLAVOR=fedora \
             --FLAVOR_RELEASE=38 \
             --FAMILY=rhel \
