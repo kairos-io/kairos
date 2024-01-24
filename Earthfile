@@ -322,7 +322,8 @@ image-rootfs:
 uki-tools-image:
     FROM fedora:39
     # objcopy from binutils and systemd-stub from systemd
-    RUN dnf install -y binutils systemd-boot mtools efitools sbsigntools shim openssl systemd-ukify
+    RUN dnf install -y binutils systemd-boot mtools efitools sbsigntools shim openssl systemd-ukify dosfstools xorriso
+    SAVE IMAGE uki-tools
 
 # HOW TO: Generate the keys
 # Platform key
@@ -342,36 +343,16 @@ uki-tools-image:
 # This is for easy testing SecureBoot locally for development purposes
 # Installing this keys in other place than a VM for testing SecureBoot is irresponsible
 
-# Base uki artifacts
-# we need:
-# kernel
-# initramfs
-# cmdline
-# os-release
-# uname
-uki-base:
-    WORKDIR build
-    # Build kernel,uname, etc artifacts
-    FROM +base-image --BUILD_INITRD=false
+enki-image:
+    FROM  quay.io/kairos/enki:v0.0.8
+    SAVE ARTIFACT /enki enki
 
-    RUN /usr/bin/immucore version
-    RUN /usr/bin/kairos-agent version
-    RUN ln -s /usr/bin/immucore /init
-    RUN mkdir -p /oem # be able to mount oem under here if found
-    RUN mkdir -p /efi # mount the esp under here if found
-    RUN mkdir -p /usr/local/cloud-config/ # for install/upgrade they copy stuff there
-    # Put it under /tmp otherwise initramfs will contain itself. /tmp is excluded from the find
-    RUN find . \( -path ./sys -prune -o -path ./run -prune -o -path ./dev -prune -o -path ./tmp -prune -o -path ./proc -prune \) -o -print | cpio -R root:root -H newc -o | gzip -2 > /tmp/initramfs.cpio.gz
-    RUN echo "console=ttyS0 console=tty1 net.ifnames=1 rd.immucore.oemlabel=COS_OEM rd.immucore.debug rd.immucore.oemtimeout=2 rd.immucore.uki selinux=0" > Cmdline
-    RUN basename $(ls /boot/vmlinuz-* |grep -v rescue | head -n1)| sed --expression "s/vmlinuz-//g" > Uname
-    SAVE ARTIFACT /tmp/initramfs.cpio.gz initrd
-    SAVE ARTIFACT Cmdline Cmdline
-    SAVE ARTIFACT Uname Uname
-    SAVE ARTIFACT /boot/vmlinuz Kernel
-    SAVE ARTIFACT /etc/os-release Osrelease
+uki-enki:
+        ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
+        FROM $BASE_IMAGE
+        ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-# Now build, measure and sign the uki image
-uki-build:
+    FROM +uki-tools-image
     FROM +uki-tools-image
     WORKDIR /build
     COPY tests/keys/* .
@@ -380,102 +361,22 @@ uki-build:
     COPY +uki-base/Cmdline .
     COPY +uki-base/Uname .
     COPY +uki-base/Osrelease .
-
-    COPY +git-version/GIT_VERSION ./
-    ARG KAIROS_VERSION=$(cat GIT_VERSION)
-
-    ARG UNAME=$(cat Uname)
-    RUN /usr/lib/systemd/ukify Kernel initrd \
-        --cmdline=@Cmdline \
-        --os-release=@Osrelease \
-        --uname="${UNAME}" \
-        --stub /usr/lib/systemd/boot/efi/linuxx64.efi.stub \
-        --secureboot-private-key DB.key \
-        --secureboot-certificate DB.crt \
-        --pcr-private-key tpm2-pcr-private.pem \
-        --measure \
-        --output uki.signed.efi
-    RUN sbsign --key DB.key --cert DB.crt --output systemd-bootx64.signed.efi /usr/lib/systemd/boot/efi/systemd-bootx64.efi
-    RUN printf 'title Kairos %s\nefi /EFI/kairos/%s.efi\nversion %s' ${KAIROS_VERSION} ${KAIROS_VERSION} ${KAIROS_VERSION} > ${KAIROS_VERSION}.conf
-    RUN printf 'default @saved\ntimeout 5\nconsole-mode max\neditor no\n' > loader.conf
-    SAVE ARTIFACT PK.der PK.der
-    SAVE ARTIFACT KEK.der KEK.der
-    SAVE ARTIFACT DB.der DB.der
-    SAVE ARTIFACT systemd-bootx64.signed.efi systemd-bootx64.signed.efi
-    SAVE ARTIFACT uki.signed.efi uki.signed.efi
-    SAVE ARTIFACT ${KAIROS_VERSION}.conf ${KAIROS_VERSION}.conf
-    SAVE ARTIFACT loader.conf loader.conf
-
-# Base target to set the directory structure for the image artifacts
-# as we need to create several dirs and copy files into them
-# Then we generate the image from scratch to not ring anything else
-uki-image-artifacts:
-    FROM +uki-tools-image
-    COPY +git-version/GIT_VERSION ./
-    ARG KAIROS_VERSION=$(cat GIT_VERSION)
-
-    COPY +uki-build/systemd-bootx64.signed.efi /output/efi/EFI/BOOT/BOOTX64.EFI
-    COPY +uki-build/uki.signed.efi /output/efi/EFI/kairos/${KAIROS_VERSION}.efi
-    COPY +uki-build/${KAIROS_VERSION}.conf /output/efi/loader/entries/${KAIROS_VERSION}.conf
-    COPY +uki-build/loader.conf /output/efi/loader/loader.conf
-    COPY +uki-build/PK.der /output/efi/loader/keys/kairos/PK.der
-    COPY +uki-build/KEK.der /output/efi/loader/keys/kairos/KEK.der
-    COPY +uki-build/DB.der /output/efi/loader/keys/kairos/DB.der
-    SAVE ARTIFACT /output/efi efi
-
-# This is the final artifact, only the files on it
-uki-image:
-    COPY +base-image/IMAGE .
-    ARG _CIMG=$(cat ./IMAGE)
-    FROM scratch
-    COPY +uki-image-artifacts/efi /
-    SAVE IMAGE --push $_CIMG.uki
-
-uki-iso:
-    # +base-image will be called again by +uki but will be cached.
-    # We just use it here to take a shortcut to the artifact name
-    FROM +base-image
+        FROM +uki-tools-image
     WORKDIR /build
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    COPY tests/keys/* .
+    COPY +uki-base/initrd .
+    COPY +uki-base/Kernel .
+    COPY +uki-base/Cmdline .
+    COPY +uki-base/Uname .
+    COPY +uki-base/Osrelease .
 
-    COPY +git-version/GIT_VERSION ./
-    ARG KAIROS_VERSION=$(cat GIT_VERSION)
+        COPY +enki-image/enki /usr/bin/enki
+        COPY ./tests/keys /keys
+        RUN echo $BASE_IMAGE > /IMAGE
 
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
-    WORKDIR /build
-    COPY +uki-build/systemd-bootx64.signed.efi .
-    COPY +uki-build/uki.signed.efi .
-    COPY +uki-build/${KAIROS_VERSION}.conf .
-    COPY +uki-build/loader.conf .
-    COPY +uki-build/PK.der .
-    COPY +uki-build/KEK.der .
-    COPY +uki-build/DB.der .
-    RUN mkdir -p /tmp/efi
-    RUN ls -ltra /build
-    # get the size of the artifacts
-    ARG SIZE=$(du -sm /build | cut -f1)
-    # Create just the size we need + 50MB just in case?
-    RUN dd if=/dev/zero of=/tmp/efi/efiboot.img bs=1M count=$((SIZE + 50))
-    RUN mkfs.msdos -F 32 /tmp/efi/efiboot.img
-    RUN mmd -i /tmp/efi/efiboot.img ::EFI
-    RUN mmd -i /tmp/efi/efiboot.img ::EFI/BOOT
-    RUN mmd -i /tmp/efi/efiboot.img ::EFI/kairos
-    RUN mmd -i /tmp/efi/efiboot.img ::EFI/tools
-    RUN mmd -i /tmp/efi/efiboot.img ::loader
-    RUN mmd -i /tmp/efi/efiboot.img ::loader/entries
-    RUN mmd -i /tmp/efi/efiboot.img ::loader/keys
-    RUN mmd -i /tmp/efi/efiboot.img ::loader/keys/kairos
-    RUN mcopy -i /tmp/efi/efiboot.img PK.der ::loader/keys/kairos/PK.der
-    RUN mcopy -i /tmp/efi/efiboot.img KEK.der ::loader/keys/kairos/KEK.der
-    RUN mcopy -i /tmp/efi/efiboot.img DB.der ::loader/keys/kairos/DB.der
-    RUN mcopy -i /tmp/efi/efiboot.img ${KAIROS_VERSION}.conf ::loader/entries/${KAIROS_VERSION}.conf
-    RUN mcopy -i /tmp/efi/efiboot.img loader.conf ::loader/loader.conf
-    RUN mcopy -i /tmp/efi/efiboot.img uki.signed.efi ::EFI/kairos/${KAIROS_VERSION}.efi
-    RUN mcopy -i /tmp/efi/efiboot.img systemd-bootx64.signed.efi ::EFI/BOOT/BOOTX64.EFI
-    RUN xorriso -as mkisofs -V 'UKI_ISO_INSTALL' -e efiboot.img -no-emul-boot -o $ISO_NAME.iso /tmp/efi
-    SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.uki.iso
-
+        RUN --no-cache enki build-uki $(cat /IMAGE) /tmp/fedora.uki.iso /keys
+        RUN ls -las /tmp
+        SAVE ARTIFACT /tmp/fedora.uki.iso fedora.uki.iso AS LOCAL build/$ISO_NAME.uki.iso
 # Uki stuff End
 
 
