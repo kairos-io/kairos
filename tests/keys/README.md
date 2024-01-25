@@ -24,9 +24,15 @@ Setup mode (No keys installed, no PK key installed) systemd-boot will auto-add t
  - KEK: KEK.auth
  - DB: DB.auth
 
+Adding secureboot keys manually to edk2 firmware:
+[![Adding secureboot keys manually to edk2 firmware](https://img.youtube.com/vi/ITlxqQkFbwk/0.jpg)](https://www.youtube.com/watch?v=ITlxqQkFbwk "Adding secureboot keys manually to edk2 firmware")
+
 User mode (PK key installed, other certs already in there) you need to manually add the following keys in the firmware:
  - KEK: KEK.der
  - DB: DB.der
+
+Auto secureBoot key enrollment via systemd-boot:
+[![Auto secureBoot key enrollment via systemd-boot](https://img.youtube.com/vi/zmxDNQ56P7s/0.jpg)](https://www.youtube.com/watch?v=zmxDNQ56P7s "Auto secureBoot key enrollment via systemd-boot")
 
 ## Generate keys from scratch (key+pem+der+esl)
 
