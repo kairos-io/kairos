@@ -71,6 +71,7 @@ jobs:
           CPUS: 2
           FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
           EMULATE_TPM: true
+          UKI_TEST: true
         run: |
           export ISO=$(ls $PWD/build/kairos-${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}-core-amd64-generic-*.uki.iso)
           export DATASOURCE=${PWD}/build/datasource.iso

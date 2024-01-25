@@ -201,10 +201,18 @@ func startVM() (context.Context, VM) {
 					fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
 				)
 
-				// Set custom vars file for efi config so we boot first from disk then from DVD
-				m.Args = append(m.Args, "-drive",
-					fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.fd")),
-				)
+				// Set custom vars file for efi config so we boot first from disk then from DVD with secureboot on
+				UKI := os.Getenv("UKI_TEST")
+				if UKI != "" {
+					// On uki use an empty efivars.fd so we can test the autoenrollment
+					m.Args = append(m.Args, "-drive",
+						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.empty.fd")),
+					)
+				} else {
+					m.Args = append(m.Args, "-drive",
+						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.fd")),
+					)
+				}
 				// Needed to be set for secureboot!
 				m.Args = append(m.Args, "-machine", "q35,smm=on")
 			}

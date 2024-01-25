@@ -421,8 +421,11 @@ uki-dev-build:
     RUN printf 'title Kairos %s\nefi /EFI/kairos/%s.efi\nversion %s' ${KAIROS_VERSION} ${KAIROS_VERSION} ${KAIROS_VERSION} > ${KAIROS_VERSION}.conf
     RUN printf 'default @saved\ntimeout 5\nconsole-mode max\neditor no\n' > loader.conf
     SAVE ARTIFACT PK.der PK.der
+    SAVE ARTIFACT PK.auth PK.auth
     SAVE ARTIFACT KEK.der KEK.der
+    SAVE ARTIFACT KEK.auth KEK.auth
     SAVE ARTIFACT DB.der DB.der
+    SAVE ARTIFACT DB.auth DB.auth
     SAVE ARTIFACT systemd-bootx64.signed.efi systemd-bootx64.signed.efi
     SAVE ARTIFACT uki.signed.efi uki.signed.efi
     SAVE ARTIFACT ${KAIROS_VERSION}.conf ${KAIROS_VERSION}.conf
@@ -441,8 +444,11 @@ uki-dev-image-artifacts:
     COPY +uki-dev-build/${KAIROS_VERSION}.conf /output/efi/loader/entries/${KAIROS_VERSION}.conf
     COPY +uki-dev-build/loader.conf /output/efi/loader/loader.conf
     COPY +uki-dev-build/PK.der /output/efi/loader/keys/kairos/PK.der
+    COPY +uki-dev-build/PK.der /output/efi/loader/keys/kairos/PK.auth
     COPY +uki-dev-build/KEK.der /output/efi/loader/keys/kairos/KEK.der
+    COPY +uki-dev-build/KEK.der /output/efi/loader/keys/kairos/KEK.auth
     COPY +uki-dev-build/DB.der /output/efi/loader/keys/kairos/DB.der
+    COPY +uki-dev-build/DB.der /output/efi/loader/keys/kairos/DB.auth
     SAVE ARTIFACT /output/efi efi
 
 # This is the final artifact, only the files on it
@@ -471,8 +477,11 @@ uki-dev-iso:
     COPY +uki-dev-build/${KAIROS_VERSION}.conf .
     COPY +uki-dev-build/loader.conf .
     COPY +uki-dev-build/PK.der .
+    COPY +uki-dev-build/PK.auth .
     COPY +uki-dev-build/KEK.der .
+    COPY +uki-dev-build/KEK.auth .
     COPY +uki-dev-build/DB.der .
+    COPY +uki-dev-build/DB.auth .
     RUN mkdir -p /tmp/efi
     RUN ls -ltra /build
     # get the size of the artifacts
@@ -488,10 +497,13 @@ uki-dev-iso:
     RUN mmd -i /tmp/efi/efiboot.img ::loader
     RUN mmd -i /tmp/efi/efiboot.img ::loader/entries
     RUN mmd -i /tmp/efi/efiboot.img ::loader/keys
-    RUN mmd -i /tmp/efi/efiboot.img ::loader/keys/kairos
-    RUN mcopy -i /tmp/efi/efiboot.img PK.der ::loader/keys/kairos/PK.der
-    RUN mcopy -i /tmp/efi/efiboot.img KEK.der ::loader/keys/kairos/KEK.der
-    RUN mcopy -i /tmp/efi/efiboot.img DB.der ::loader/keys/kairos/DB.der
+    RUN mmd -i /tmp/efi/efiboot.img ::loader/keys/auto
+    RUN mcopy -i /tmp/efi/efiboot.img PK.der ::loader/keys/auto/PK.der
+    RUN mcopy -i /tmp/efi/efiboot.img PK.auth ::loader/keys/auto/PK.auth
+    RUN mcopy -i /tmp/efi/efiboot.img KEK.der ::loader/keys/auto/KEK.der
+    RUN mcopy -i /tmp/efi/efiboot.img KEK.auth ::loader/keys/auto/KEK.auth
+    RUN mcopy -i /tmp/efi/efiboot.img DB.der ::loader/keys/auto/DB.der
+    RUN mcopy -i /tmp/efi/efiboot.img DB.auth ::loader/keys/auto/DB.auth
     RUN mcopy -i /tmp/efi/efiboot.img ${KAIROS_VERSION}.conf ::loader/entries/${KAIROS_VERSION}.conf
     RUN mcopy -i /tmp/efi/efiboot.img loader.conf ::loader/loader.conf
     RUN mcopy -i /tmp/efi/efiboot.img uki.signed.efi ::EFI/kairos/${KAIROS_VERSION}.efi
