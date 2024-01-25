@@ -32,6 +32,8 @@ ARG HADOLINT_VERSION=2.12.0-alpine
 ARG RENOVATE_VERSION=37
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
+# renovate: datasource=docker depName=quay.io/kairos/enki versioning=docker
+ARG ENKI_VERSION=v0.0.8
 
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
@@ -318,7 +320,7 @@ image-rootfs:
 
 ## UKI Stuff Start
 enki-image:
-    FROM  quay.io/kairos/enki:v0.0.8
+    FROM  quay.io/kairos/enki:${ENKI_VERSION}
     SAVE ARTIFACT /enki enki
 
 uki-iso:
@@ -333,7 +335,6 @@ uki-iso:
         RUN echo $BASE_IMAGE > /IMAGE
 
         RUN --no-cache enki build-uki $(cat /IMAGE) /tmp/kairos.uki.iso /keys
-        RUN ls -las /tmp
         SAVE ARTIFACT /tmp/kairos.uki.iso kairos.uki.iso AS LOCAL build/$ISO_NAME.uki.iso
 
 # WARNING the following targets are just for development purposes, use them at your own risk
