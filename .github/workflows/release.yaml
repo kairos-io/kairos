@@ -201,7 +201,7 @@ jobs:
           category: ${{ matrix.flavor }}
   build-core-uki:
     runs-on: ubuntu-latest
-    needs: 
+    needs:
       - build-core
       - get-uki-matrix
     strategy:
