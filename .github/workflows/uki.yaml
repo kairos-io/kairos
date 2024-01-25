@@ -41,15 +41,25 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - name: Build uki ISO 🔧
+      - name: Build base image 🔧
         run: | # known flavors to work with uki+encryption: fedora >= 38, ubuntu >= 23.10, anything with systemd 253
-          earthly +uki-dev-iso \
+          earthly +base-image \
             --FLAVOR=fedora \
             --FLAVOR_RELEASE=38 \
             --FAMILY=rhel \
             --MODEL=generic \
             --VARIANT=core \
             --BASE_IMAGE=fedora:38
+      - name: Push image to ttl.sh
+        env:
+          TEMP_IMAGE: ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h
+        run: |
+          docker tag $(cat build/IMAGE) $TEMP_IMAGE
+          docker push $TEMP_IMAGE
+      - name: Build uki ISO 🔧
+        run: |
+          earthly +uki-iso \
+            --BASE_IMAGE=ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
