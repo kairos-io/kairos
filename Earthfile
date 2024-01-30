@@ -33,7 +33,7 @@ ARG RENOVATE_VERSION=37
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
 # renovate: datasource=docker depName=quay.io/kairos/enki versioning=docker
-ARG ENKI_VERSION=v0.0.11
+ARG ENKI_VERSION=v0.0.12
 
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
