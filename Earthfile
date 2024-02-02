@@ -33,7 +33,7 @@ ARG RENOVATE_VERSION=37
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
 # renovate: datasource=docker depName=quay.io/kairos/enki versioning=docker
-ARG ENKI_VERSION=v0.0.13
+ARG ENKI_VERSION=v0.0.14
 
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
@@ -324,19 +324,19 @@ enki-image:
     SAVE ARTIFACT /enki enki
 
 uki-iso:
-        ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
-        FROM $BASE_IMAGE
-        ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
-        ARG ENKI_FLAGS
+    ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
+    FROM $BASE_IMAGE
+    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ENKI_FLAGS
 
-        FROM +uki-dev-tools-image
+    FROM +uki-dev-tools-image
 
-        COPY +enki-image/enki /usr/bin/enki
-        COPY ./tests/keys /keys
-        RUN echo $BASE_IMAGE > /IMAGE
-
-        RUN --no-cache enki build-uki $(cat /IMAGE) -o /tmp/kairos.uki.iso -k /keys ${ENKI_FLAGS}
-        SAVE ARTIFACT /tmp/kairos.uki.iso kairos.uki.iso AS LOCAL build/$ISO_NAME.uki.iso
+    COPY +enki-image/enki /usr/bin/enki
+    COPY ./tests/keys /keys
+    RUN echo $BASE_IMAGE > /IMAGE
+    WORKDIR /build
+    RUN --no-cache enki build-uki $(cat /IMAGE) --output-dir /build/ -k /keys --output-type iso ${ENKI_FLAGS}
+    SAVE ARTIFACT /build/*.iso AS LOCAL build/
 
 # WARNING the following targets are just for development purposes, use them at your own risk
 
