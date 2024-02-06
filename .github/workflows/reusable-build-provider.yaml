@@ -133,6 +133,8 @@ jobs:
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
