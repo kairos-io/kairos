@@ -130,6 +130,22 @@ jobs:
             *.sha256
             versions.yaml
           if-no-files-found: error
+      - name: Login to Quay Registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Push to quay
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        env:
+          COSIGN_YES: true
+        run: |
+          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          docker push $IMAGE
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          spdx=$(ls *.spdx.json)
+          cosign attach sbom --sbom $spdx $image_ref
+          cosign sign $image_ref --attachment sbom
+          # in-toto attestation
+          cosign attest --type spdx --predicate $spdx $image_ref
       - name: Push to testing
         run: |
           _IMG=$(cat IMAGE)
