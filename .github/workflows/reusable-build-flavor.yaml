@@ -120,13 +120,12 @@ jobs:
       - name: Build master 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
-          export BASE_IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release}}" MODEL=${{ inputs.model}} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="quay.io/kairos" ID=master kairos-agent versioneer base-container-artifact-name)
           earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=true \
             --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
-            --BASE_IMAGE=$BASE_IMAGE \
+            --BASE_IMAGE=${{ inputs.base_image }} \
             --MODEL=${{ inputs.model }} \
             --FAMILY=${{ inputs.family }}
 
