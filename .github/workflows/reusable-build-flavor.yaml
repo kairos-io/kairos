@@ -156,15 +156,11 @@ jobs:
             *.spdx.json
           if-no-files-found: error
       - name: Push to quay
-        # do not push to release channels for now
-        if: ${{ false }}
-        #if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         env:
           COSIGN_YES: true
         run: |
-          IMAGE=$(cat IMAGE)
-          VERSION=$(cat VERSION)
-          IMAGE="${IMAGE/$VERSION/latest}"
+          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           docker push $IMAGE
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           spdx=$(ls *.spdx.json)
