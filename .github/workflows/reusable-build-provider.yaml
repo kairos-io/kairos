@@ -139,6 +139,7 @@ jobs:
           COSIGN_YES: true
         run: |
           IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          docker tag $(cat IMAGE) $IMAGE
           docker push $IMAGE
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           spdx=$(ls *.spdx.json)

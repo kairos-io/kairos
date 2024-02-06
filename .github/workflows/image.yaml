@@ -252,6 +252,7 @@ jobs:
           - "leap-15.5"
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
+    secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
