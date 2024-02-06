@@ -24,6 +24,8 @@ ARG FRAMEWORK_VERSION=main
 ###############################################################
 ####                     Upstream Images                   ####
 ###############################################################
+FROM ${BASE_IMAGE} AS ubuntu-24.04-upstream
+
 FROM ${BASE_IMAGE} AS ubuntu-23.10-upstream
 
 FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
@@ -167,6 +169,7 @@ RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommend
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
+FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-24.04
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.10
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-22.04
 FROM amd64-base-ubuntu-20.04 AS amd64-ubuntu-20.04
@@ -201,6 +204,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-modules-extra-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+FROM generic AS amd64-ubuntu-24.04-generic
 FROM generic AS amd64-ubuntu-23.10-generic
 FROM generic AS amd64-ubuntu-22.04-generic
 FROM generic AS amd64-ubuntu-20.04-generic
@@ -221,6 +225,15 @@ FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
 ###############################################################
 ####                Common to a Single Flavor              ####
 ###############################################################
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-24.04
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dbus-user-session \
+    pkg-config \
+    systemd-hwe-hwdb \
+    systemd-resolved \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-23.10
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
