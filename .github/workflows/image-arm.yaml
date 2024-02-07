@@ -147,7 +147,7 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && (steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true') }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧 & Push 🚀
-        if: ${{ !steps.cache.outputs.cache_available || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
+        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
         run: |
           export IMAGE=quay.io/kairos/cache:nvidia-base
           docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
