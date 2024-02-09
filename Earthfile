@@ -9,7 +9,7 @@ ARG LUET_VERSION=0.35.0
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.49.1
 # renovate: datasource=github-releases depName=kairos-io/kairos-framework
-ARG KAIROS_FRAMEWORK_VERSION="v2.7.1"
+ARG KAIROS_FRAMEWORK_VERSION="main"
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
@@ -21,7 +21,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.15.0
+ARG OSBUILDER_VERSION=latest
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -32,8 +32,6 @@ ARG HADOLINT_VERSION=2.12.0-alpine
 ARG RENOVATE_VERSION=37
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
 ARG SHELLCHECK_VERSION=v0.9.0
-# renovate: datasource=docker depName=quay.io/kairos/enki versioning=docker
-ARG ENKI_VERSION=v0.0.14
 
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
@@ -297,11 +295,24 @@ base-image:
 
     COPY +git-version/GIT_VERSION VERSION
     ARG KAIROS_AGENT_DEV_BRANCH
+    ARG IMMUCORE_DEV_BRANCH
 
     IF [ "$KAIROS_AGENT_DEV_BRANCH" != "" ]
         RUN rm -rf /usr/bin/kairos-agent
         COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
     END
+
+    IF [ "$IMMUCORE_DEV_BRANCH" != "" ]
+        RUN rm -rf /usr/bin/immucore
+        COPY github.com/kairos-io/immucore:$IMMUCORE_DEV_BRANCH+build-immucore/immucore /usr/bin/immucore
+        # Rebuild the initrd
+        RUN if [ -f "/usr/bin/dracut" ]; then \
+          kernel=$(ls /lib/modules | head -n1) && \
+          dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
+          ln -sf "initrd-${kernel}" /boot/initrd; \
+        fi
+    END
+
 
     RUN --no-cache kairos-agent version
 
@@ -319,19 +330,13 @@ image-rootfs:
 
 
 ## UKI Stuff Start
-enki-image:
-    FROM  quay.io/kairos/enki:${ENKI_VERSION}
-    SAVE ARTIFACT /enki enki
-
 uki-iso:
     ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
     FROM $BASE_IMAGE
     ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
     ARG ENKI_FLAGS
 
-    FROM +uki-dev-tools-image
-
-    COPY +enki-image/enki /usr/bin/enki
+    FROM $OSBUILDER_IMAGE
     COPY ./tests/keys /keys
     RUN echo $BASE_IMAGE > /IMAGE
     WORKDIR /build
@@ -883,7 +888,6 @@ pull-release:
 pull-build-artifacts:
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
-    RUN zypper in -y jq docker
     COPY +uuidgen/UUIDGEN ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
@@ -896,7 +900,6 @@ pull-build-artifacts:
 push-build-artifacts:
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
-    RUN zypper in -y jq docker
     COPY +uuidgen/UUIDGEN ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
@@ -916,7 +919,6 @@ push-build-artifacts:
 prepare-bundles-tests:
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
-    RUN zypper in -y jq docker
     COPY +uuidgen/UUIDGEN ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
