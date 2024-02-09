@@ -143,6 +143,7 @@ jobs:
           IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           docker tag $(cat IMAGE) $IMAGE
           docker push $IMAGE
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
           # TODO: on master we don't want to push all the sbom files since the tag is always the same and we don't go back to clean the old sbom files
           # but we should also use this reusable job for releases and then it's important to do it
           # For master:
