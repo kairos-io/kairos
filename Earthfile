@@ -593,7 +593,7 @@ arm-image:
   ARG IMG_COMPRESSION=xz
 
   FROM --platform=linux/arm64 +base-image
-  ARG IMAGE_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+  ARG IMAGE_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').img
 
   FROM $OSBUILDER_IMAGE
   ARG --required MODEL
