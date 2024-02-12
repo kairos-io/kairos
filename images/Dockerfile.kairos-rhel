@@ -72,7 +72,8 @@ RUN dnf install -y \
     systemd-networkd \
     systemd-resolved \
     tar \
-    which && dnf clean all
+    which \
+    && dnf clean all
 
 FROM common AS all
 RUN mkdir -p /run/lock
@@ -159,8 +160,12 @@ LABEL io.kairos.software-version="${SOFTWARE_VERSION}"
 LABEL io.kairos.software-version-prefix="${SOFTWARE_VERSION_PREFIX}"
 LABEL io.kairos.targetarch="${TARGETARCH}"
 
+# not duplicated but used to see the error
 RUN kairos-agent versioneer os-release-variables
 RUN kairos-agent versioneer os-release-variables >> /etc/os-release
+# not duplicated but used to see the error
+RUN kairos-agent versioneer container-artifact-name
+RUN kairos-agent versioneer container-artifact-name > /IMAGE
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN luet database get-all-installed --output /etc/kairos/versions.yaml

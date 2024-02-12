@@ -287,10 +287,6 @@ base-image:
       -f +kairos-dockerfile/Dockerfile \
       ./images
 
-
-    RUN kairos-agent versioneer container-artifact-name # To see the error if one occurs.
-    RUN kairos-agent versioneer container-artifact-name > /IMAGE
-
     ARG _CIMG=$(cat ./IMAGE)
 
     COPY +git-version/GIT_VERSION VERSION
@@ -313,9 +309,7 @@ base-image:
         fi
     END
 
-
-    RUN --no-cache kairos-agent version
-
+    ARG _CIMG=$(cat /IMAGE)
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
