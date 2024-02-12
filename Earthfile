@@ -309,9 +309,7 @@ base-image:
         fi
     END
 
-
-    RUN --no-cache kairos-agent version
-
+    ARG _CIMG=$(cat /IMAGE)
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
