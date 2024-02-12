@@ -246,7 +246,8 @@ FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-20.04
 FROM ${FLAVOR}-${FLAVOR_RELEASE} AS all
 
 # compress firmware (from 23.10, fw files come compressed)
-RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \+
+# for some reason \+ is breaking. Using \; instead despite being slower
+RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \;
 # compress modules
 RUN find /usr/lib/modules -type f -name "*.ko" -execdir zstd --rm -9 {} \+
 
