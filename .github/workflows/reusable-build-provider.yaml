@@ -141,7 +141,7 @@ jobs:
           COSIGN_YES: true
         run: |
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last' | tr -d '"')
-          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master-k3sv${K3S_VERSION%%+*} kairos-agent versioneer container-artifact-name)
+          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master-k3sv${K3S_VERSION%%+*}-k3s1 kairos-agent versioneer container-artifact-name)
           docker tag $(cat IMAGE) $IMAGE
           docker push $IMAGE
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
