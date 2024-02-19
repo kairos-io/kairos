@@ -3,7 +3,7 @@ module main
 go 1.20
 
 require (
-	github.com/kairos-io/kairos-sdk v0.0.24
+	github.com/kairos-io/kairos-sdk v0.0.25
 	github.com/urfave/cli v1.22.14
 )
 
@@ -58,7 +58,7 @@ require (
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/net v0.13.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/sys v0.10.0 // indirect
+	golang.org/x/sys v0.12.0 // indirect
 	golang.org/x/term v0.10.0 // indirect
 	golang.org/x/text v0.11.0 // indirect
 	golang.org/x/tools v0.9.3 // indirect
