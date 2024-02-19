@@ -146,6 +146,8 @@ github.com/kairos-io/kairos-sdk v0.0.23 h1:2osQaqIPDB0Tj0a0v8NGOPrgQWve3D6r8nHRf
 github.com/kairos-io/kairos-sdk v0.0.23/go.mod h1:17dpFG2d3Q/TcT86DlLK5nNXEjlSrkYl7bsvO2cpYGE=
 github.com/kairos-io/kairos-sdk v0.0.24 h1:BhOPrn8Hf8SVEX3eQKS+oJi2UFVL4BYNIl6FjYlni9U=
 github.com/kairos-io/kairos-sdk v0.0.24/go.mod h1:17dpFG2d3Q/TcT86DlLK5nNXEjlSrkYl7bsvO2cpYGE=
+github.com/kairos-io/kairos-sdk v0.0.25 h1:/wQ8lHmmqJgKPaxzLllTgMQNWRje80XKdj8F0XlFXl0=
+github.com/kairos-io/kairos-sdk v0.0.25/go.mod h1:btSB2QAds/WSyIyPxnQ3jueMbkkZ75pHUUCj+yHpthQ=
 github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI2bnpBCr8=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/compress v1.16.5 h1:IFV2oUNUzZaz+XyusxpLzpzS8Pt5rh0Z16For/djlyI=
@@ -316,6 +318,8 @@ golang.org/x/sys v0.8.0 h1:EBmGv8NaZBZTWvrbjNoL6HVt+IVy3QDQpJs7VRIw3tU=
 golang.org/x/sys v0.8.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.10.0 h1:SqMFp9UcQJZa+pmYuAKjd9xq1f0j5rLcDIk0mj4qAsA=
 golang.org/x/sys v0.10.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.12.0 h1:CM0HF96J0hcLAwsHPJZjfdNzs0gftsLfgKt57wWHJ0o=
+golang.org/x/sys v0.12.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/term v0.0.0-20210615171337-6886f2dfbf5b/go.mod h1:jbD1KX2456YbFQfuXm/mYQcufACuNUgVhRMnK/tPxf8=
