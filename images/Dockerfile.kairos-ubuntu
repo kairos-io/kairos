@@ -234,6 +234,9 @@ RUN apt-get update \
     systemd-hwe-hwdb \
     systemd-resolved \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+# compress firmware (from 23.10, fw files come compressed)
+# for some reason \+ is breaking. Using \; instead despite being slower
+RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \;
 
 FROM ubuntu-latest AS ubuntu-24.04
 RUN apt-get update \
@@ -244,7 +247,10 @@ RUN apt-get update \
 
 FROM ubuntu-latest AS ubuntu-23.10
 
-FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-22.04
+FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-legacy
+RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \+
+
+FROM ubuntu-legacy AS ubuntu-22.04
 RUN apt-get update
 # If the generic kernel is installed we don't want to install HWE related packages
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -252,16 +258,13 @@ RUN apt-cache search linux-image-generic | grep hwe &> /dev/null && apt-get inst
     systemd-hwe-hwdb
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-20.04
+FROM ubuntu-legacy AS ubuntu-20.04
 
 ###############################################################
 ####               Post-Process Common to All              ####
 ###############################################################
 FROM ${FLAVOR}-${FLAVOR_RELEASE} AS all
 
-# compress firmware (from 23.10, fw files come compressed)
-# for some reason \+ is breaking. Using \; instead despite being slower
-RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \;
 # compress modules
 RUN find /usr/lib/modules -type f -name "*.ko" -execdir zstd --rm -9 {} \+
 
