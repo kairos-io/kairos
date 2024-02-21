@@ -1,1 +1,1 @@
-docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock --rm -t -v ${pwd}:/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.8.3 --allow-privileged @args
+docker run --privileged -v /var/run/docker.sock:/var/run/docker.sock --rm -t -v ${pwd}:/workspace -v earthly-tmp:/tmp/earthly:rw earthly/earthly:v0.8.4 --allow-privileged @args
