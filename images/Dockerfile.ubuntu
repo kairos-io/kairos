@@ -21,6 +21,7 @@ ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
+ARG BOOTLOADER=grub
 
 ###############################################################
 ####                     Upstream Images                   ####
@@ -50,7 +51,7 @@ RUN apt-get update \
     conntrack \
     console-data \
     cloud-guest-utils \
-    coreutils \
+    # coreutils \
     cryptsetup \
     curl \
     debianutils \
@@ -62,29 +63,31 @@ RUN apt-get update \
     file \
     gawk \
     gdisk \
-    grub2-common \
     haveged \
     iproute2 \
     iptables \
     iputils-ping \
     jq \
-    kbd \
+    # added in https://github.com/kairos-io/kairos/commit/d413f0ec9c420a4847105e8b531e948cf4ce3176
+    # kbd \
     krb5-locales \
     less \
-    lldpd \
+    # can I remove this? it brings perl
+    # lldpd \
     lvm2 \
     nano \
     nbd-client \
-    neovim \
+    # vim is even bigger, so maybe just use pico
+    # neovim \ 
     nohang \
     open-iscsi \
     open-vm-tools \
     openssh-server \
     parted \
     rsync \
-    shim-signed \
-    snapd \
-    snmpd \
+    # snapd \
+    # can I remove this? it brings perl
+    # snmpd \
     squashfs-tools \
     sudo \
     systemd \
@@ -96,25 +99,51 @@ RUN apt-get update \
     tpm2-* \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-###############################################################
-####           Common to a Single Architecture             ####
-###############################################################
+FROM common AS systemd-boot
 
-FROM common AS amd64
+FROM common AS grub
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    dmsetup \
-    efibootmgr \
+    grub2-common \
+    # this brings grub as a dependency
+    shim-signed \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM systemd-boot AS systemd-boot-amd64
+FROM systemd-boot AS systemd-boot-arm64
+
+FROM grub AS grub-amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
     grub2 \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     grub-pc-bin \
+    os-prober \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM grub AS grub-arm64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    grub-efi-arm64 \
+    grub-efi-arm64-bin \
+    grub-efi-arm64-signed \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+###############################################################
+####           Common to a Single Architecture             ####
+###############################################################
+
+FROM ${BOOTLOADER}-${TARGETARCH} AS amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dmsetup \
+    efibootmgr \
     isc-dhcp-common \
     mdadm \
     ncurses-term \
     networkd-dispatcher \
     nfs-common \
-    os-prober \
     packagekit-tools \
     publicsuffix \
     shared-mime-info \
@@ -125,12 +154,9 @@ RUN apt-get update \
     zfsutils-linux \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS arm64
+FROM ${BOOTLOADER}-${TARGETARCH} AS arm64
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    grub-efi-arm64 \
-    grub-efi-arm64-bin \
-    grub-efi-arm64-signed \
     keyutils \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
