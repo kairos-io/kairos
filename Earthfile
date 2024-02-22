@@ -246,6 +246,7 @@ base-image:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
     ARG FRAMEWORK_VERSION
+    ARG BOOTLOADER
     # TODO for the framework image. Do we call the last stable version available or master?
 
     ARG K3S_VERSION # As it comes from luet package
@@ -284,6 +285,7 @@ base-image:
       --build-arg SOFTWARE_LUET_VERSION=$_SOFTWARE_LUET_VERSION \
       --build-arg SOFTWARE_VERSION_PREFIX=$SOFTWARE_VERSION_PREFIX \
       --build-arg FRAMEWORK_VERSION=$_FRAMEWORK_VERSION \
+      --build-arg BOOTLOADER=$BOOTLOADER \
       -f +kairos-dockerfile/Dockerfile \
       ./images
 

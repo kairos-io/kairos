@@ -12,6 +12,7 @@ pr-message
 
 node_modules/
 
+.tmp-earthly-out/
 # editor and IDE paraphernalia
 .idea
 .envrc
