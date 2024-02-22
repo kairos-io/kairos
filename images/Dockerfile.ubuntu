@@ -116,6 +116,8 @@ FROM systemd-boot AS systemd-boot-arm64
 FROM grub AS grub-amd64
 RUN apt-get update \
   && apt-get install -y --no-install-recommends --no-install-suggests \
+    # this will probably break 20.04
+    dracut-live \
     grub2 \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
@@ -177,7 +179,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends --no-install-su
 
 FROM ${TARGETARCH} AS base-ubuntu-22.04
 RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
-    dracut-live \
     firmware-sof-signed \
     fuse3 \
     pigz \
