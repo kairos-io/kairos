@@ -56,8 +56,6 @@ RUN apt-get update \
     curl \
     debianutils \
     dosfstools \
-    dracut \
-    dracut-network \
     e2fsprogs \
     fdisk \
     file \
@@ -105,6 +103,8 @@ FROM common AS systemd-boot
 FROM common AS grub
 RUN apt-get update \
   && apt-get install -y --no-install-recommends --no-install-suggests \
+    dracut \
+    dracut-network \
     grub2-common \
     # this brings grub as a dependency
     shim-signed \
