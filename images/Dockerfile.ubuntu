@@ -66,26 +66,18 @@ RUN apt-get update \
     iptables \
     iputils-ping \
     jq \
-    # added in https://github.com/kairos-io/kairos/commit/d413f0ec9c420a4847105e8b531e948cf4ce3176
-    # kbd \
     krb5-locales \
     less \
-    # can I remove this? it brings perl
-    # lldpd \
     lvm2 \
     nano \
     nbd-client \
-    # vim is even bigger, so maybe just use pico
-    # neovim \ 
     nohang \
     open-iscsi \
     open-vm-tools \
     openssh-server \
     parted \
     rsync \
-    # snapd \
-    # can I remove this? it brings perl
-    # snmpd \
+    snapd \
     sudo \
     systemd \
     systemd-timesyncd \
@@ -96,6 +88,8 @@ RUN apt-get update \
     tpm2-* \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
+# to the image because there are limitations on the total size
 FROM common AS systemd-boot
 
 FROM common AS grub
@@ -104,12 +98,20 @@ RUN apt-get update \
     dracut \
     dracut-network \
     grub2-common \
+    kbd \
+    lldpd \
+    neovim \ 
     # this brings grub as a dependency
     shim-signed \
+    snmpd \
     squashfs-tools \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM systemd-boot AS systemd-boot-amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    shared-mime-info \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM systemd-boot AS systemd-boot-arm64
 
 FROM grub AS grub-amd64
@@ -147,15 +149,11 @@ RUN apt-get update \
     nfs-common \
     packagekit-tools \
     publicsuffix \
-    # added in https://github.com/kairos-io/kairos/commit/d413f0ec9c420a4847105e8b531e948cf4ce3176
-    shared-mime-info \
     # cloud we get rid of this and only add it on demand?
     thermald \
     xdg-user-dirs \
     xxd \
     zerofree \
-    # not a requirement already checked with mudler
-    # zfsutils-linux \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ${BOOTLOADER}-${TARGETARCH} AS arm64
@@ -202,7 +200,15 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-24.04
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.10
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-22.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # zfsutils-linux cannot be installed on 23+ because of a bug with nohang
+    zfsutils-linux \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM amd64-base-ubuntu-20.04 AS amd64-ubuntu-20.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # zfsutils-linux cannot be installed on 23+ because of a bug with nohang
+    zfsutils-linux \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM base-ubuntu-22.04 AS arm64-ubuntu-23.10
 FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
