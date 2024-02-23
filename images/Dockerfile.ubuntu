@@ -51,7 +51,6 @@ RUN apt-get update \
     conntrack \
     console-data \
     cloud-guest-utils \
-    # coreutils \
     cryptsetup \
     curl \
     debianutils \
@@ -92,9 +91,11 @@ RUN apt-get update \
 # to the image because there are limitations on the total size
 FROM common AS systemd-boot
 
+# This target is aimed at non-UKI images where size is not a concern
 FROM common AS grub
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+    coreutils \
     dracut \
     dracut-network \
     grub2-common \
@@ -114,11 +115,14 @@ RUN apt-get update \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM systemd-boot AS systemd-boot-arm64
 
+FROM systemd-boot-amd64 AS systemd-boot-amd64-24.04
+FROM systemd-boot-amd64 AS systemd-boot-amd64-23.10
+FROM systemd-boot-arm64 AS systemd-boot-arm64-24.04
+FROM systemd-boot-arm64 AS systemd-boot-arm64-23.10
+
 FROM grub AS grub-amd64
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    # this will probably break 20.04
-    dracut-live \
     grub2 \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
@@ -133,11 +137,27 @@ RUN apt-get update \
     grub-efi-arm64-signed \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+FROM grub-amd64 AS grub-amd64-current
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dracut-live \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM grub-amd64 AS grub-amd64-legacy
+
+FROM grub-amd64-current AS grub-amd64-24.04
+FROM grub-amd64-current AS grub-amd64-23.10
+FROM grub-amd64-current AS grub-amd64-22.04
+FROM grub-amd64-legacy AS grub-amd64-20.04
+FROM grub-arm64 AS grub-arm64-23.10
+FROM grub-arm64 AS grub-arm64-22.04
+FROM grub-arm64 AS grub-arm64-20.04
+
 ###############################################################
 ####           Common to a Single Architecture             ####
 ###############################################################
 
-FROM ${BOOTLOADER}-${TARGETARCH} AS amd64
+FROM ${BOOTLOADER}-${TARGETARCH}-${FLAVOR_RELEASE} AS amd64
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     dmsetup \
@@ -149,7 +169,6 @@ RUN apt-get update \
     nfs-common \
     packagekit-tools \
     publicsuffix \
-    # cloud we get rid of this and only add it on demand?
     thermald \
     xdg-user-dirs \
     xxd \

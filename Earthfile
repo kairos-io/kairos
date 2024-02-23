@@ -246,7 +246,7 @@ base-image:
     ARG --required MODEL
     ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
     ARG FRAMEWORK_VERSION
-    ARG BOOTLOADER
+    ARG BOOTLOADER=grub
     # TODO for the framework image. Do we call the last stable version available or master?
 
     ARG K3S_VERSION # As it comes from luet package
