@@ -42,12 +42,12 @@ FROM ${FLAVOR}-${FLAVOR_RELEASE}-upstream AS common
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     gnupg \
     software-properties-common \
   && add-apt-repository ppa:oibaf/test \
   && apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     conntrack \
     console-data \
     cloud-guest-utils \
@@ -73,8 +73,7 @@ RUN apt-get update \
     # can I remove this? it brings perl
     # lldpd \
     lvm2 \
-    # there's pico
-    # nano \
+    nano \
     nbd-client \
     # vim is even bigger, so maybe just use pico
     # neovim \ 
@@ -87,7 +86,6 @@ RUN apt-get update \
     # snapd \
     # can I remove this? it brings perl
     # snmpd \
-    squashfs-tools \
     sudo \
     systemd \
     systemd-timesyncd \
@@ -102,12 +100,13 @@ FROM common AS systemd-boot
 
 FROM common AS grub
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     dracut \
     dracut-network \
     grub2-common \
     # this brings grub as a dependency
     shim-signed \
+    squashfs-tools \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM systemd-boot AS systemd-boot-amd64
@@ -115,19 +114,18 @@ FROM systemd-boot AS systemd-boot-arm64
 
 FROM grub AS grub-amd64
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     # this will probably break 20.04
     dracut-live \
     grub2 \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     grub-pc-bin \
-    os-prober \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM grub AS grub-arm64
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     grub-efi-arm64 \
     grub-efi-arm64-bin \
     grub-efi-arm64-signed \
@@ -139,7 +137,7 @@ RUN apt-get update \
 
 FROM ${BOOTLOADER}-${TARGETARCH} AS amd64
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     dmsetup \
     efibootmgr \
     isc-dhcp-common \
@@ -162,7 +160,7 @@ RUN apt-get update \
 
 FROM ${BOOTLOADER}-${TARGETARCH} AS arm64
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     keyutils \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -170,7 +168,7 @@ RUN apt-get update \
 ####            Common to an Arch and Flavor               ####
 ###############################################################
 FROM ${TARGETARCH} AS base-ubuntu-20.04
-RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     file \
     fuse \
     patch \
@@ -178,7 +176,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends --no-install-su
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ${TARGETARCH} AS base-ubuntu-22.04
-RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     firmware-sof-signed \
     fuse3 \
     pigz \
@@ -189,7 +187,7 @@ FROM base-ubuntu-20.04 AS amd64-base-ubuntu-20.04
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
 RUN apt-get update
-RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-20.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -197,7 +195,7 @@ FROM base-ubuntu-22.04 AS amd64-base-ubuntu-22.04
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
-RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -214,24 +212,24 @@ FROM base-ubuntu-20.04 AS arm64-ubuntu-20.04
 ####               Common to a Single Model                ####
 ###############################################################
 FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE} AS generic
-RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-base \
     qemu-guest-agent \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM arm64-${FLAVOR}-${FLAVOR_RELEASE} AS rpicommon
-RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY rpi/config.txt /boot/config.txt
 
 FROM rpicommon AS ubuntu-20.04-rpi
-RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi2 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM rpicommon AS ubuntu-23.10-rpi
-RUN apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-firmware-raspi \
     linux-modules-extra-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -243,7 +241,7 @@ FROM generic AS amd64-ubuntu-20.04-generic
 FROM generic AS arm64-ubuntu-23.10-generic
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
-RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM ubuntu-23.10-rpi AS arm64-ubuntu-23.10-rpi3
@@ -260,7 +258,7 @@ FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
 # As soon as 24.04 is released, this can be renamed to ubuntu-24.04 directly and remove all 23.10 references
 FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-latest
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     dbus-user-session \
     pkg-config \
     systemd-hwe-hwdb \
@@ -272,7 +270,7 @@ RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \;
 
 FROM ubuntu-latest AS ubuntu-24.04
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends --no-install-suggests \
+  && apt-get install -y --no-install-recommends \
     isc-dhcp-common \
     isc-dhcp-client \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -286,7 +284,7 @@ FROM ubuntu-legacy AS ubuntu-22.04
 RUN apt-get update
 # If the generic kernel is installed we don't want to install HWE related packages
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN apt-cache search linux-image-generic | grep hwe &> /dev/null && apt-get install -y --no-install-recommends --no-install-suggests \
+RUN apt-cache search linux-image-generic | grep hwe &> /dev/null && apt-get install -y --no-install-recommends \
     systemd-hwe-hwdb
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
