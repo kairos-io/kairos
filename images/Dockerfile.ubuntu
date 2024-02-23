@@ -21,6 +21,7 @@ ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
+ARG BOOTLOADER=grub
 
 ###############################################################
 ####                     Upstream Images                   ####
@@ -50,42 +51,32 @@ RUN apt-get update \
     conntrack \
     console-data \
     cloud-guest-utils \
-    coreutils \
     cryptsetup \
     curl \
     debianutils \
     dosfstools \
-    dracut \
-    dracut-network \
     e2fsprogs \
     fdisk \
     file \
     gawk \
     gdisk \
-    grub2-common \
     haveged \
     iproute2 \
     iptables \
     iputils-ping \
     jq \
-    kbd \
     krb5-locales \
     less \
-    lldpd \
     lvm2 \
     nano \
     nbd-client \
-    neovim \
     nohang \
     open-iscsi \
     open-vm-tools \
     openssh-server \
     parted \
     rsync \
-    shim-signed \
     snapd \
-    snmpd \
-    squashfs-tools \
     sudo \
     systemd \
     systemd-timesyncd \
@@ -96,41 +87,97 @@ RUN apt-get update \
     tpm2-* \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-###############################################################
-####           Common to a Single Architecture             ####
-###############################################################
+# This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
+# to the image because there are limitations on the total size
+FROM common AS systemd-boot
 
-FROM common AS amd64
+# This target is aimed at non-UKI images where size is not a concern
+FROM common AS grub
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    dmsetup \
-    efibootmgr \
+    coreutils \
+    dracut \
+    dracut-network \
+    grub2-common \
+    kbd \
+    lldpd \
+    neovim \ 
+    # this brings grub as a dependency
+    shim-signed \
+    snmpd \
+    squashfs-tools \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM systemd-boot AS systemd-boot-amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    shared-mime-info \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM systemd-boot AS systemd-boot-arm64
+
+FROM systemd-boot-amd64 AS systemd-boot-amd64-24.04
+FROM systemd-boot-amd64 AS systemd-boot-amd64-23.10
+FROM systemd-boot-arm64 AS systemd-boot-arm64-24.04
+FROM systemd-boot-arm64 AS systemd-boot-arm64-23.10
+
+FROM grub AS grub-amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
     grub2 \
     grub-efi-amd64-bin \
     grub-efi-amd64-signed \
     grub-pc-bin \
-    isc-dhcp-common \
-    mdadm \
-    ncurses-term \
-    networkd-dispatcher \
-    nfs-common \
-    os-prober \
-    packagekit-tools \
-    publicsuffix \
-    shared-mime-info \
-    thermald \
-    xdg-user-dirs \
-    xxd \
-    zerofree \
-    zfsutils-linux \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS arm64
+FROM grub AS grub-arm64
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     grub-efi-arm64 \
     grub-efi-arm64-bin \
     grub-efi-arm64-signed \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM grub-amd64 AS grub-amd64-current
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dracut-live \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM grub-amd64 AS grub-amd64-legacy
+
+FROM grub-amd64-current AS grub-amd64-24.04
+FROM grub-amd64-current AS grub-amd64-23.10
+FROM grub-amd64-current AS grub-amd64-22.04
+FROM grub-amd64-legacy AS grub-amd64-20.04
+FROM grub-arm64 AS grub-arm64-23.10
+FROM grub-arm64 AS grub-arm64-22.04
+FROM grub-arm64 AS grub-arm64-20.04
+
+###############################################################
+####           Common to a Single Architecture             ####
+###############################################################
+
+FROM ${BOOTLOADER}-${TARGETARCH}-${FLAVOR_RELEASE} AS amd64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    dmsetup \
+    efibootmgr \
+    isc-dhcp-common \
+    mdadm \
+    ncurses-term \
+    networkd-dispatcher \
+    nfs-common \
+    packagekit-tools \
+    publicsuffix \
+    thermald \
+    xdg-user-dirs \
+    xxd \
+    zerofree \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ${BOOTLOADER}-${TARGETARCH} AS arm64
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
     keyutils \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -147,7 +194,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 FROM ${TARGETARCH} AS base-ubuntu-22.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    dracut-live \
     firmware-sof-signed \
     fuse3 \
     pigz \
@@ -173,7 +219,15 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-24.04
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.10
 FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-22.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # zfsutils-linux cannot be installed on 23+ because of a bug with nohang
+    zfsutils-linux \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM amd64-base-ubuntu-20.04 AS amd64-ubuntu-20.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # zfsutils-linux cannot be installed on 23+ because of a bug with nohang
+    zfsutils-linux \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM base-ubuntu-22.04 AS arm64-ubuntu-23.10
 FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
