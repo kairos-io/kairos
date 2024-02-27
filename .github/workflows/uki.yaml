@@ -18,7 +18,7 @@ jobs:
       contents: write
       actions: read
       security-events: write
-    steps: 
+    steps:
       - name: Release space from worker
         run: |
           echo "Listing top largest packages"

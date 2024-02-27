@@ -311,7 +311,7 @@ jobs:
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
           cosign sign $image_ref
-      - name: Build UKI ISO 
+      - name: Build UKI ISO
         run: |
           earthly +uki-iso \
             --BASE_IMAGE=quay.io/kairos/${{ matrix.flavor }}:${{ matrix.flavorRelease }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-${{ github.ref_name }}-uki
