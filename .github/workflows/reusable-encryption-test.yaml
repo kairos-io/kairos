@@ -80,7 +80,7 @@ jobs:
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d utils/earthly
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@v4.1.2
+        uses: actions/download-artifact@v4.1.3
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
       - name: Display structure of downloaded files
