@@ -165,7 +165,7 @@ jobs:
         env:
           COSIGN_YES: true
         run: |
-          SUFFIX=$([["${{ inputs.bootloader }}" == "systemd-boot" ]] && echo "-uki" || echo "")
+          SUFFIX=$([["${{ inputs.bootloader }}" == "systemd-boot" ]] && echo "uki" || echo "")
           IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           docker tag $(cat IMAGE) "$IMAGE$SUFFIX"
           docker push "$IMAGE$SUFFIX"
