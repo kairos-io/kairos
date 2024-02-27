@@ -87,7 +87,8 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           earthly --platform=linux/${{ inputs.arch }} +extract-framework-profile
-          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last' | tr -d '"')
+          INIT=[[ "{{ inputs.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd"
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq --arg INIT "$INIT" '.packages | map(select(.name == "k3s-" + $INIT)) | map(.version) | unique | last' | tr -d '"')
           earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=false \
             --VARIANT=${{ inputs.variant }} \
@@ -109,7 +110,8 @@ jobs:
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
           earthly --platform=linux/${{ inputs.arch }} +extract-framework-profile
-          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last' | tr -d '"')
+          INIT=[[ "{{ inputs.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd"
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq --arg INIT "$INIT" '.packages | map(select(.name == "k3s-" + $INIT)) | map(.version) | unique | last' | tr -d '"')
           earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=true \
             --VARIANT=${{ inputs.variant }} \
@@ -140,7 +142,8 @@ jobs:
         env:
           COSIGN_YES: true
         run: |
-          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(.version) | unique | last' | tr -d '"')
+          INIT=[[ "{{ inputs.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd"
+          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq --arg INIT "$INIT" '.packages | map(select(.name == "k3s-" + $INIT)) | map(.version) | unique | last' | tr -d '"')
           IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master-k3sv${K3S_VERSION%%+*}-k3s1 kairos-agent versioneer container-artifact-name)
           docker tag $(cat IMAGE) $IMAGE
           docker push $IMAGE
