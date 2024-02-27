@@ -213,6 +213,8 @@ jobs:
           category: ${{ matrix.flavor }}
   build-core-uki:
     runs-on: ubuntu-latest
+    needs:
+      - get-uki-matrix
     strategy:
       matrix: ${{ fromJson(needs.get-uki-matrix.outputs.matrix) }}
     steps:
