@@ -11,18 +11,6 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  core:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "23.10"
-      family: ubuntu
-      base_image: ubuntu:23.10
-      model: generic
-      variant: core
-      arch: amd64
-      bootloader: systemd-boot
   test-uki:
     runs-on: kvm
     env:

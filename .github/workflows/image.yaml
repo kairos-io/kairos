@@ -44,7 +44,6 @@ jobs:
       model: ${{ matrix.model }}
       variant: ${{ matrix.variant }}
       arch: ${{ matrix.arch }}
-      bootloader: grub
     needs:
       - get-core-matrix
     strategy:
