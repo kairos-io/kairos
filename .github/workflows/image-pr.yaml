@@ -20,6 +20,7 @@ jobs:
       model: generic
       variant: core
       arch: amd64
+      bootloader: grub
 
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
@@ -31,6 +32,7 @@ jobs:
       model: generic
       variant: core
       arch: amd64
+      bootloader: grub
 
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
