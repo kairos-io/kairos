@@ -94,7 +94,7 @@ FROM all AS base-kairos
 RUN ORIG=/usr/sbin/grub-install; DEST=/usr/sbin/grub2-install; [ -e $ORIG ] && [ ! -e $DEST ] && ln -s $ORIG $DEST || true
 RUN ORIG=/usr/bin/grub-editenv; DEST=/usr/sbin/grub2-editenv; [ -e $ORIG ] && [ ! -e $DEST ] && ln -s $ORIG $DEST || true
 
-# Originally done in Earthly
+# here we add 100Mb aprox
 COPY --from=framework / /
 
 RUN rm -rf /etc/ssh/ssh_host_*

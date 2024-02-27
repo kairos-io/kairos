@@ -60,6 +60,7 @@ RUN apt-get update \
     file \
     gawk \
     gdisk \
+    gettext \
     haveged \
     iproute2 \
     iptables \
