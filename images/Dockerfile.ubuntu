@@ -138,21 +138,26 @@ RUN apt-get update \
     grub-efi-arm64-signed \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM grub-amd64 AS grub-amd64-current
+FROM grub-${TARGETARCH} AS grub-current
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     dracut-live \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM grub-amd64 AS grub-amd64-legacy
+FROM grub-${TARGETARCH} AS grub-legacy
 
-FROM grub-amd64-current AS grub-amd64-24.04
-FROM grub-amd64-current AS grub-amd64-23.10
-FROM grub-amd64-current AS grub-amd64-22.04
-FROM grub-amd64-legacy AS grub-amd64-20.04
-FROM grub-arm64 AS grub-arm64-23.10
-FROM grub-arm64 AS grub-arm64-22.04
-FROM grub-arm64 AS grub-arm64-20.04
+FROM grub-current AS grub-amd64-current
+FROM grub-current AS grub-arm64-current
+FROM grub-legacy AS grub-amd64-legacy
+FROM grub-legacy AS grub-arm64-legacy
+
+FROM grub-current AS grub-amd64-24.04
+FROM grub-current AS grub-amd64-23.10
+FROM grub-current AS grub-amd64-22.04
+FROM grub-legacy AS grub-amd64-20.04
+FROM grub-current AS grub-arm64-23.10
+FROM grub-current AS grub-arm64-22.04
+FROM grub-legacy AS grub-arm64-20.04
 
 ###############################################################
 ####           Common to a Single Architecture             ####
@@ -176,7 +181,7 @@ RUN apt-get update \
     zerofree \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${BOOTLOADER}-${TARGETARCH} AS arm64
+FROM ${BOOTLOADER}-${TARGETARCH}-${FLAVOR_RELEASE} AS arm64
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     keyutils \
