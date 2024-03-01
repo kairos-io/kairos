@@ -1,9 +1,9 @@
 package mos_test
 
 import (
-	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -51,16 +51,23 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
 		})
 		By("installing kairos", func() {
-			out, err := vm.Sudo(`kairos-agent --debug install`)
-			fmt.Println(string(out))
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).Should(ContainSubstring("Running after-install hook"))
-			Expect(out).Should(ContainSubstring("Encrypting COS_OEM"))
-			Expect(out).Should(ContainSubstring("Encrypting COS_PERSISTENT"))
-			Expect(out).Should(ContainSubstring("Done encrypting COS_OEM"))
-			Expect(out).Should(ContainSubstring("Done encrypting COS_PERSISTENT"))
-			Expect(out).Should(ContainSubstring("New TPM2 token enrolled as key slot 1."))
+			// Install has already started, so we can use Eventually here to track the logs
+			Eventually(func() string {
+				out, err := vm.Sudo("cat /var/log/kairos/agent*.log")
+				Expect(err).ToNot(HaveOccurred())
+				return out
+			}).Should(And(
+				ContainSubstring("Running after-install hook"),
+				ContainSubstring("Encrypting COS_OEM"),
+				ContainSubstring("Encrypting COS_PERSISTENT"),
+				ContainSubstring("Done encrypting COS_OEM"),
+				ContainSubstring("Done encrypting COS_PERSISTENT"),
+				ContainSubstring("New TPM2 token enrolled as key slot 1."),
+				ContainSubstring("Done executing stage 'after-install.after'"),
+				ContainSubstring("Done executing stage 'kairos-uki-install.after.after'"),
+			))
 			vm.Sudo("sync")
+			time.Sleep(10 * time.Second)
 		})
 
 		By("Ejecting Cdrom", func() {
