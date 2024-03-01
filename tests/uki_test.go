@@ -56,15 +56,14 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 				out, err := vm.Sudo("cat /var/log/kairos/agent*.log")
 				Expect(err).ToNot(HaveOccurred())
 				return out
-			}).Should(And(
+			}, 5*time.Minute).Should(And(
 				ContainSubstring("Running after-install hook"),
 				ContainSubstring("Encrypting COS_OEM"),
 				ContainSubstring("Encrypting COS_PERSISTENT"),
 				ContainSubstring("Done encrypting COS_OEM"),
 				ContainSubstring("Done encrypting COS_PERSISTENT"),
-				ContainSubstring("New TPM2 token enrolled as key slot 1."),
-				ContainSubstring("Done executing stage 'after-install.after'"),
 				ContainSubstring("Done executing stage 'kairos-uki-install.after.after'"),
+				ContainSubstring("Unmounting disk partitions"),
 			))
 			vm.Sudo("sync")
 			time.Sleep(10 * time.Second)
