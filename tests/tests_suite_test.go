@@ -77,6 +77,9 @@ func gatherLogs(vm VM) {
 	vm.Sudo("blkid > /run/blkid")
 	vm.Sudo("dmesg > /run/dmesg.log")
 
+	// zip all files under /var/log/kairos
+	vm.Sudo("tar -czf /run/kairos-agent-logs.tar.gz /var/log/kairos")
+
 	vm.GatherAllLogs(
 		[]string{
 			"edgevpn@kairos",
@@ -105,6 +108,7 @@ func gatherLogs(vm VM) {
 			"/run/immucore/initramfs_stage.log",
 			"/run/immucore/rootfs_stage.log",
 			"/tmp/ovmf_debug.log",
+			"/run/kairos-agent-logs.tar.gz",
 		})
 }
 
