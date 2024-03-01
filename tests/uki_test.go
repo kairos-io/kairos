@@ -145,8 +145,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		By("checking corresponding state", func() {
 			out, err := vm.Sudo("kairos-agent state")
 			Expect(err).ToNot(HaveOccurred())
-			// TODO: make agent report uki_mode or something?
-			Expect(out).To(ContainSubstring("boot: unknown"))
+			Expect(out).To(ContainSubstring("boot: active_boot"))
 			currentVersion, err := vm.Sudo(getVersionCmd)
 			Expect(err).ToNot(HaveOccurred(), currentVersion)
 
