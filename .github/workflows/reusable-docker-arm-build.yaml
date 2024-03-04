@@ -153,7 +153,7 @@ jobs:
           sudo rm -rf build/IMAGE
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@975c1b2
         with:
           files: |
             build/*scan-reports.tar.gz
