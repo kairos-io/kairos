@@ -213,6 +213,11 @@ jobs:
           category: ${{ matrix.flavor }}
   build-core-uki:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     needs:
       - get-uki-matrix
     strategy:
