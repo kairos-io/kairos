@@ -72,13 +72,13 @@ jobs:
           # fetch "k3s-openrc" versions
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(select(.name == "k3s-openrc")) | map(.version) | unique' >  k3s_openrc.json
           # fetch alpine flavors
-          jq 'map(select(.arch == "amd64" and .variant == "standard" and .model != "generic" and .flavor == "alpine"))' .github/flavors.json >  flavors_openrc.json
+          jq 'map(select(.arch == "amd64" and .variant == "standard" and .model == "generic" and .flavor == "alpine"))' .github/flavors.json >  flavors_openrc.json
           # generate combinations
           jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}]' flavors_openrc.json k3s_openrc.json > combinations_openrc.json
           # fetch "k3s-systemd" versions
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(select(.name == "k3s-systemd")) | map(.version) | unique' >  k3s_systemd.json
           # fetch non-alpine flavors
-          jq 'map(select(.arch == "amd64" and .variant == "standard" and .model != "generic" and .flavor != "alpine"))' .github/flavors.json >  flavors_systemd.json
+          jq 'map(select(.arch == "amd64" and .variant == "standard" and .model == "generic" and .flavor != "alpine"))' .github/flavors.json >  flavors_systemd.json
           # generate combinations
           jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}]' flavors_systemd.json k3s_systemd.json > combinations_systemd.json
           # merge the two combinations
