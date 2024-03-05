@@ -273,6 +273,10 @@ jobs:
             flavorRelease: "3.19"
             family: alpine
             baseImage: alpine:3.19
+          - flavor: ubuntu
+            flavorRelease: "23.10"
+            family: ubuntu
+            baseImage: ubuntu:23.10
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
