@@ -198,7 +198,7 @@ jobs:
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
           mv *.tar.gz ../release/
           cd ..
-          rm release/IMAGE release/versions.yaml
+          rm release/IMAGE release/VERSION release/versions.yaml
       - name: Release
         uses: softprops/action-gh-release@975c1b2
         if: startsWith(github.ref, 'refs/tags/')
