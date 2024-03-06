@@ -328,15 +328,11 @@ image-rootfs:
 ## UKI Stuff Start
 uki-iso:
     ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
-    FROM $BASE_IMAGE
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
     ARG ENKI_FLAGS
-
     FROM $OSBUILDER_IMAGE
     COPY ./tests/keys /keys
-    RUN echo $BASE_IMAGE > /IMAGE
     WORKDIR /build
-    RUN --no-cache enki build-uki $(cat /IMAGE) --output-dir /build/ -k /keys --output-type iso ${ENKI_FLAGS}
+    RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type iso ${ENKI_FLAGS}
     SAVE ARTIFACT /build/*.iso AS LOCAL build/
 
 # WARNING the following targets are just for development purposes, use them at your own risk
