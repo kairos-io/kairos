@@ -101,7 +101,7 @@ jobs:
       matrix:
         include:
           - flavor: "ubuntu"
-            flavorRelease: "23.10"
+            flavorRelease: "22.04"
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
