@@ -73,7 +73,7 @@ jobs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ubuntu
-      flavor_release: "23.10"
+      flavor_release: "22.04"
     needs:
       - core
 
