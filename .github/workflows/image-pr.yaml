@@ -86,7 +86,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "22.04"
     needs:
-      - core
+      - core-ubuntu-lts
 
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
