@@ -21,6 +21,17 @@ jobs:
       variant: core
       arch: amd64
 
+  core-ubuntu-lts:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: ubuntu
+      flavor_release: "22.04"
+      family: ubuntu
+      base_image: ubuntu:22.04
+      model: generic
+      variant: core
+      arch: amd64
+
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
