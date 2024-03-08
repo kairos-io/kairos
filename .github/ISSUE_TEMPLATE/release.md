@@ -39,4 +39,5 @@ assignees: mudler
   - [ ] Update the release with any known issues
 - [ ] **Stage 4 - Announcement**
   - [ ] Merge docs updates for kairos and k3s version updates
+  - [ ] Create a branch `vX.Y.Z` on the docs (not tagging), so the new release can be built and displayed on the menu. Ideally open a PR so we can review and add/remove some commits if needed (in case we have documented WIP which is not available on the given release)
   - [ ] Blog post announcement
