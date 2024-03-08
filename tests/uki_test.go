@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -124,6 +125,11 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Expect(out).To(ContainSubstring("foo"))
 		})
 
+		By("checking non-writeable /", func() {
+			_, err := vm.Sudo("echo 'foo' > /bar")
+			Expect(err).To(HaveOccurred())
+		})
+
 		By("checking bpf mount", func() {
 			out, err := vm.Sudo("mount")
 			Expect(err).ToNot(HaveOccurred())
@@ -131,9 +137,21 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		})
 
 		By("checking rootfs shared mount", func() {
-			out, err := vm.Sudo(`cat /proc/1/mountinfo | grep ' / / '`)
+			out, err := vm.Sudo(`findmnt / -o PROPAGATION  -n`)
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(ContainSubstring("shared"))
+		})
+
+		By("checking /proc shared mount", func() {
+			out, err := vm.Sudo(`findmnt /proc -o PROPAGATION  -n`)
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("shared"))
+		})
+
+		By("checking that rootfs is mounted as tmpfs", func() {
+			out, err := vm.Sudo(`findmnt / -n -o FSTYPE`)
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("tmpfs"))
 		})
 
 		By("checking that networking is functional", func() {
@@ -152,6 +170,38 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			stateAssertVM(vm, "kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
 			stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "fedora")
 			stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "fedora")
+		})
+
+		By("Installing calico as network plugin", func() {
+			err := vm.Scp("assets/calico.yaml", "/tmp/calico.yaml", "0770")
+			Expect(err).ToNot(HaveOccurred())
+			out, err := vm.Sudo("k3s kubectl apply -f /tmp/calico.yaml")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Eventually(func() string {
+				out, err := vm.Sudo("k3s kubectl get pods -n kube-system -l k8s-app=calico-node")
+				Expect(err).ToNot(HaveOccurred())
+				fmt.Println(out)
+				return out
+			}, 5*time.Minute, 15*time.Second).Should(And(
+				ContainSubstring("calico-node-"),
+				ContainSubstring("Running"),
+			))
+
+			Eventually(func() string {
+				out, err := vm.Sudo("k3s kubectl get pods -n kube-system -l k8s-app=calico-kube-controllers")
+				Expect(err).ToNot(HaveOccurred())
+				fmt.Println(out)
+				return out
+			}, 5*time.Minute, 15*time.Second).Should(And(
+				ContainSubstring("calico-kube-controllers-"),
+				ContainSubstring("Running"),
+			))
+
+			Eventually(func() string {
+				out, err := vm.Sudo("k3s kubectl get nodes")
+				Expect(err).ToNot(HaveOccurred())
+				return out
+			}, 5*time.Minute, 15*time.Second).Should(ContainSubstring("Ready"))
 		})
 	})
 })

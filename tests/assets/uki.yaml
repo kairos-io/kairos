@@ -1,0 +1,22 @@
+#cloud-config
+
+install:
+  auto: true
+  reboot: true
+  device: /dev/vda
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
+
+
+k3s:
+  enabled: true
+  args:
+    - --disable=traefik --flannel-backend=none --disable-network-policy # config for calico
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+      hostname: kairos-{{ trunc 4 .Random }}
