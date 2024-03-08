@@ -34,6 +34,19 @@ FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
 
 FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
 
+###############################################################
+####                build nohang from source               ####
+###############################################################
+FROM ubuntu-22.04-upstream as nohang-builder
+WORKDIR /root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  make fakeroot git ca-certificates
+
+RUN git clone -b master --depth=1 https://github.com/hakavlad/nohang.git \
+  && cd nohang \
+  && echo > deb/DEBIAN/postinst \
+  && deb/build.sh
 
 ###############################################################
 ####                Pre-Process Common to All              ####
@@ -41,13 +54,9 @@ FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
 FROM ${FLAVOR}-${FLAVOR_RELEASE}-upstream AS common
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
+RUN  apt-get update \
   && apt-get install -y --no-install-recommends \
-    gnupg \
-    software-properties-common \
-  && add-apt-repository ppa:oibaf/test \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends \
+   gnupg \
     conntrack \
     console-data \
     cloud-guest-utils \
@@ -71,7 +80,6 @@ RUN apt-get update \
     lvm2 \
     nano \
     nbd-client \
-    nohang \
     open-iscsi \
     open-vm-tools \
     openssh-server \
@@ -85,8 +93,14 @@ RUN apt-get update \
     ubuntu-advantage-tools \
     xz-utils \
     zstd \
+    zfsutils-linux \
     tpm2-* \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install nohang
+COPY --from=nohang-builder  /root/nohang/deb/package.deb /tmp/nohang.deb
+RUN apt install -y --no-install-recommends /tmp/nohang.deb
+RUN rm -rf  /tmp/nohang.deb
 
 # This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
 # to the image because there are limitations on the total size
