@@ -175,7 +175,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		By("Installing calico as network plugin", func() {
 			err := vm.Scp("assets/calico.yaml", "/tmp/calico.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
-			out, err := vm.Sudo("k3s kubectl apply -f /tmp/calico.yaml")
+			out, err := vm.Sudo("k3s kubectl apply -f /tmp/calico.yaml --validate=false")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Eventually(func() string {
 				out, err := vm.Sudo("k3s kubectl get pods -n kube-system -l k8s-app=calico-node")
