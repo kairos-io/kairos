@@ -100,7 +100,7 @@ RUN  apt-get update \
 
 # Install nohang
 COPY --from=nohang-src /root/nohang/deb/package.deb /tmp/nohang.deb
-RUN apt install -y --no-install-recommends /tmp/nohang.deb
+RUN apt-get install -y --no-install-recommends /tmp/nohang.deb
 RUN rm -rf /tmp/nohang.deb
 
 # This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
