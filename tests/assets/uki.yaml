@@ -10,8 +10,6 @@ install:
 
 k3s:
   enabled: true
-  args:
-    - --flannel-backend=none --disable-network-policy # config for calico
 
 stages:
   initramfs:
