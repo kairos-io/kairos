@@ -33,6 +33,23 @@ FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
 
 FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
 
+###############################################################
+####                build nohang from source               ####
+###############################################################
+# There's an issue between the nohang package provided by
+# Ubuntu and the zfsutils-linux package, there is a fix in
+# nohang upstream but it's not yet available in the Ubuntu
+# package, so we build it from source
+FROM ubuntu:22.04 as nohang-src
+WORKDIR /root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  make fakeroot git ca-certificates gnupg
+
+RUN git clone -b master --depth=1 https://github.com/hakavlad/nohang.git \
+  && cd nohang \
+  && echo > deb/DEBIAN/postinst \
+  && deb/build.sh
 
 ###############################################################
 ####                Pre-Process Common to All              ####
@@ -40,12 +57,7 @@ FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
 FROM ${FLAVOR}-${FLAVOR_RELEASE}-upstream AS common
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    gnupg \
-    software-properties-common \
-  && add-apt-repository ppa:oibaf/test \
-  && apt-get update \
+RUN  apt-get update \
   && apt-get install -y --no-install-recommends \
     conntrack \
     console-data \
@@ -70,7 +82,6 @@ RUN apt-get update \
     lvm2 \
     nano \
     nbd-client \
-    nohang \
     open-iscsi \
     open-vm-tools \
     openssh-server \
@@ -86,6 +97,11 @@ RUN apt-get update \
     zstd \
     tpm2-* \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install nohang
+COPY --from=nohang-src /root/nohang/deb/package.deb /tmp/nohang.deb
+RUN apt-get install -y --no-install-recommends /tmp/nohang.deb
+RUN rm -rf /tmp/nohang.deb
 
 # This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
 # to the image because there are limitations on the total size
@@ -106,6 +122,7 @@ RUN apt-get update \
     shim-signed \
     snmpd \
     squashfs-tools \
+    zfsutils-linux \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM systemd-boot AS systemd-boot-amd64
@@ -189,7 +206,7 @@ RUN apt-get update \
 ###############################################################
 ####            Common to an Arch and Flavor               ####
 ###############################################################
-FROM ${TARGETARCH} AS base-ubuntu-20.04
+FROM ${TARGETARCH} AS base-ubuntu-legacy
 RUN apt-get update && apt-get install -y --no-install-recommends \
     file \
     fuse \
@@ -197,7 +214,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     policykit-1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM ${TARGETARCH} AS base-ubuntu-22.04
+FROM ${TARGETARCH} AS base-ubuntu-current
 RUN apt-get update && apt-get install -y --no-install-recommends \
     firmware-sof-signed \
     fuse3 \
@@ -205,15 +222,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM base-ubuntu-20.04 AS amd64-base-ubuntu-20.04
-# If a kernel is already installed, don't try to install it again, this way the base image can
-# be non-hwe for older releases
-RUN apt-get update
-RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
-    linux-image-generic-hwe-20.04 || true
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-
-FROM base-ubuntu-22.04 AS amd64-base-ubuntu-22.04
+FROM base-ubuntu-current AS amd64-base-ubuntu-current
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
@@ -221,22 +230,21 @@ RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommend
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-24.04
-FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-23.10
-FROM amd64-base-ubuntu-22.04 AS amd64-ubuntu-22.04
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    # zfsutils-linux cannot be installed on 23+ because of a bug with nohang
-    zfsutils-linux \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-FROM amd64-base-ubuntu-20.04 AS amd64-ubuntu-20.04
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    # zfsutils-linux cannot be installed on 23+ because of a bug with nohang
-    zfsutils-linux \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM base-ubuntu-legacy AS amd64-ubuntu-20.04
+# If a kernel is already installed, don't try to install it again, this way the base image can
+# be non-hwe for older releases
+RUN apt-get update
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
+    linux-image-generic-hwe-20.04 || true
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM base-ubuntu-22.04 AS arm64-ubuntu-23.10
-FROM base-ubuntu-22.04 AS arm64-ubuntu-22.04
-FROM base-ubuntu-20.04 AS arm64-ubuntu-20.04
+FROM amd64-base-ubuntu-current AS amd64-ubuntu-22.04
+FROM amd64-base-ubuntu-current AS amd64-ubuntu-23.10
+FROM amd64-base-ubuntu-current AS amd64-ubuntu-24.04
+
+FROM base-ubuntu-legacy AS arm64-ubuntu-20.04
+FROM base-ubuntu-legacy AS arm64-ubuntu-22.04
+FROM base-ubuntu-legacy AS arm64-ubuntu-23.10
 
 ###############################################################
 ####               Common to a Single Model                ####
