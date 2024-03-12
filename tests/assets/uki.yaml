@@ -11,7 +11,7 @@ install:
 k3s:
   enabled: true
   args:
-    - --disable=traefik,metrics-server --flannel-backend=none --disable-network-policy # config for calico
+    - --disable=traefik --cluster-cidr=192.168.0.0/16 --flannel-backend=none --disable-network-policy # config for calico
 
 stages:
   initramfs:
