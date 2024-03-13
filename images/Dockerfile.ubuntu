@@ -83,6 +83,7 @@ RUN  apt-get update \
     lvm2 \
     nano \
     nbd-client \
+    nfs-common \
     open-iscsi \
     open-vm-tools \
     openssh-server \
@@ -118,7 +119,7 @@ RUN apt-get update \
     grub2-common \
     kbd \
     lldpd \
-    neovim \ 
+    neovim \
     # this brings grub as a dependency
     shim-signed \
     snmpd \
@@ -189,7 +190,6 @@ RUN apt-get update \
     mdadm \
     ncurses-term \
     networkd-dispatcher \
-    nfs-common \
     packagekit-tools \
     publicsuffix \
     thermald \
