@@ -9,7 +9,7 @@ ARG LUET_VERSION=0.35.1
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.49.1
 # renovate: datasource=github-releases depName=kairos-io/kairos-framework
-ARG KAIROS_FRAMEWORK_VERSION=v2.7.16
+ARG KAIROS_FRAMEWORK_VERSION=v2.7.17
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
 # TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
 
