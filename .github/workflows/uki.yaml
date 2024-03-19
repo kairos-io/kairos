@@ -140,23 +140,24 @@ jobs:
           packages: utils/earthly
       - name: Build base image 🔧
         run: | # known flavors to work with uki+encryption: fedora >= 38, ubuntu >= 23.10, anything with systemd 253
-          earthly +base-image \
-            --FLAVOR=fedora \
-            --FLAVOR_RELEASE=38 \
-            --FAMILY=rhel \
+          earthly --platform=linux/amd64 +base-image \
+            --VARIANT=core \
+            --FLAVOR=ubuntu \
+            --FLAVOR_RELEASE="23.10" \
+            --BASE_IMAGE=ubuntu:23.10 \
             --MODEL=generic \
-            --VARIANT=standard \
-            --BASE_IMAGE=fedora:38
+            --FAMILY=ubuntu \
+            --BOOTLOADER=systemd-boot
       - name: Push image to ttl.sh
         env:
-          TEMP_IMAGE: ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h
+          TEMP_IMAGE: ttl.sh/ubuntu-2310-${{ github.head_ref || github.ref }}:24h
         run: |
           docker tag $(cat build/IMAGE) $TEMP_IMAGE
           docker push $TEMP_IMAGE
       - name: Build uki ISO 🔧
         run: |
           earthly +uki-iso \
-            --BASE_IMAGE=ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h
+            --BASE_IMAGE=ttl.sh/ubuntu-2310-${{ github.head_ref || github.ref }}:24h
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki.yaml
