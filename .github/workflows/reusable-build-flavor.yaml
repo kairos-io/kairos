@@ -109,7 +109,9 @@ jobs:
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
             --BASE_IMAGE=${{ inputs.base_image }} \
             --MODEL=${{ inputs.model }} \
-            --FAMILY=${{ inputs.family }}
+            --FAMILY=${{ inputs.family }} \
+            --KAIROS_AGENT_DEV_BRANCH=main \
+            --IMMUCORE_DEV_BRANCH=master
           sudo mv build/* .
           sudo rm -rf build
       - name: Install kairos-agent (for versioneer)
