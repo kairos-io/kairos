@@ -93,8 +93,8 @@ jobs:
             --BASE_IMAGE=ubuntu:23.10 \
             --MODEL=generic \
             --FAMILY=ubuntu \
-            --BOOTLOADER=systemd-boot
-          sudo mv build/* .
+            --BOOTLOADER=systemd-boot --KAIROS_AGENT_DEV_BRANCH=main \ 
+             --IMMUCORE_DEV_BRANCH=master          sudo mv build/* .
           sudo rm -rf build
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@v1.1
@@ -150,7 +150,8 @@ jobs:
             --FAMILY=ubuntu \
             --MODEL=generic \
             --VARIANT=core \
-            --BASE_IMAGE=ubuntu:23.10
+            --BASE_IMAGE=ubuntu:23.10 --KAIROS_AGENT_DEV_BRANCH=main \ 
+             --IMMUCORE_DEV_BRANCH=master
       - name: Push image to ttl.sh
         env:
           TEMP_IMAGE: ttl.sh/ubuntu-2310-${{ github.head_ref || github.ref }}:24h
