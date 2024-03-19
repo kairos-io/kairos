@@ -125,6 +125,12 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		}, 900*time.Second, 10*time.Second).ShouldNot(Or(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
 
+		// Opportunistic feature test here to avoid a full test just
+		// for this.
+		By("listing upgrade options")
+		resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases --all | tail -1`)
+		Expect(resultStr).To(ContainSubstring("quay.io/kairos"))
+
 		By("copy upgrade plan")
 		err = vm.Scp("assets/suc.yaml", "./suc.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
