@@ -141,7 +141,7 @@ jobs:
       - name: Build base image 🔧
         run: | # known flavors to work with uki+encryption: fedora >= 38, ubuntu >= 23.10, anything with systemd 253
           earthly --platform=linux/amd64 +base-image \
-            --VARIANT=core \
+            --VARIANT=standard \
             --FLAVOR=ubuntu \
             --FLAVOR_RELEASE="23.10" \
             --BASE_IMAGE=ubuntu:23.10 \
