@@ -7,6 +7,9 @@ install:
   grub_options:
     extra_cmdline: "rd.immucore.debug foobarzz"
 
+debug: true
+strict: true
+
 stages:
   initramfs:
     - name: "Set user and password"

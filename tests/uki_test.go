@@ -155,7 +155,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		})
 
 		By("rebooting to recovery")
-		out, err := vm.Sudo("kairos-agent bootentry --select recovery.conf")
+		out, err := vm.Sudo("kairos-agent bootentry --select recovery")
 		Expect(err).ToNot(HaveOccurred(), out)
 		vm.Reboot()
 		vm.EventuallyConnects(1200)
