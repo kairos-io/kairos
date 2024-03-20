@@ -12,6 +12,7 @@ ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
 ARG FRAMEWORK_VERSION=main
+ARG BOOTLOADER=grub
 
 FROM $BASE_IMAGE AS base
 
@@ -39,19 +40,11 @@ RUN dnf install -y \
     cloud-utils-growpart \
     device-mapper \
     dosfstools \
-    dracut \
-    dracut-live \
-    dracut-network \
-    dracut-squash \
     dhcp-client \
     e2fsprogs \
     efibootmgr \
     gawk \
     gdisk \
-    grub2 \
-    grub2-efi-x64 \
-    grub2-efi-x64-modules \
-    grub2-pc \
     haveged \
     kernel \
     kernel-modules \
@@ -66,8 +59,6 @@ RUN dnf install -y \
     polkit \
     qemu-guest-agent \
     rsync \
-    shim-x64 \
-    squashfs-tools \
     sudo \
     systemd \
     systemd-networkd \
@@ -76,7 +67,23 @@ RUN dnf install -y \
     which \
     && dnf clean all
 
-FROM common AS all
+FROM common AS grub
+RUN dnf install -y \
+    dracut \
+    dracut-live \
+    dracut-network \
+    dracut-squash \
+    grub2 \
+    grub2-efi-x64 \
+    grub2-efi-x64-modules \
+    grub2-pc \
+    shim-x64 \
+    squashfs-tools \
+    && dnf clean all
+
+FROM common AS systemd-boot
+
+FROM ${BOOTLOADER} AS all
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
 RUN systemctl enable getty@tty1.service
