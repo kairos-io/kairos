@@ -6,7 +6,7 @@ on:
         description: 'Immucore branch to build against'
         required: false
         type: string
-        default: "master"
+        default: "main"
       agent_branch:
         description: 'Kairos-agent branch to build against'
         required: false
