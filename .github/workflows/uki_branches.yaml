@@ -168,4 +168,3 @@ jobs:
           name: ${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warm
-  
