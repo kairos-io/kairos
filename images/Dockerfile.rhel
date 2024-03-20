@@ -46,9 +46,6 @@ RUN dnf install -y \
     gawk \
     gdisk \
     haveged \
-    kernel \
-    kernel-modules \
-    kernel-modules-extra \
     less \
     livecd-tools \
     lvm2 \
@@ -84,6 +81,12 @@ RUN dnf install -y \
 FROM common AS systemd-boot
 
 FROM ${BOOTLOADER} AS all
+RUN dnf install -y \
+    kernel \
+    kernel-modules \
+    kernel-modules-extra \
+    && dnf clean all
+
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
 RUN systemctl enable getty@tty1.service
