@@ -1,10 +1,8 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: ''
-labels: enhancement
-assignees: mudler
-
+title: 'feat: '
+labels: enhancement, triage
 ---
 
 <!-- Thanks for helping us to improve kairos! We welcome all feature requests. Please fill out each area of the template so we can better help you. Comments like this will be hidden when you post but you can delete them if you wish. -->
