@@ -7,7 +7,7 @@ ARG GITHUB_REPO=kairos-io/kairos
 # renovate: datasource=docker depName=quay.io/luet/base
 ARG LUET_VERSION=0.35.1
 # renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.49.1
+ARG TRIVY_VERSION=0.50.1
 # renovate: datasource=github-releases depName=kairos-io/kairos-framework
 ARG KAIROS_FRAMEWORK_VERSION=v2.7.19
 ARG COSIGN_SKIP=".*quay.io/kairos/.*"
