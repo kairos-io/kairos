@@ -1,0 +1,36 @@
+#cloud-config
+
+install:
+  auto: true
+  reboot: true
+  device: /dev/vda
+  grub_options:
+    extra_cmdline: "rd.immucore.debug foobarzz"
+
+debug: true
+strict: true
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+      hostname: kairos-{{ trunc 4 .Random }}
+  after-reset:
+      - commands:
+        - |
+          /bin/bash <<'EOF'
+          #!/bin/bash
+
+          set -e
+          echo "Creating a file in COS_PERSISTENT"
+          umount /oem || true
+          # Close all encrypted partitions
+          for p in $(ls /dev/mapper/vda*); do cryptsetup close $p; done
+          /usr/lib/systemd/systemd-cryptsetup attach persistent $(findfs PARTLABEL=persistent) - tpm2-device=auto
+          mount /dev/mapper/persistent /usr/local
+          touch /usr/local/after-reset-file
+          umount /dev/mapper/persistent
+          cryptsetup close /dev/mapper/persistent
+          EOF

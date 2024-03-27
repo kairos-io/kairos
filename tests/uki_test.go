@@ -153,5 +153,22 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "fedora")
 			stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "fedora")
 		})
+
+		By("rebooting to recovery")
+		out, err := vm.Sudo("kairos-agent bootentry --select recovery")
+		Expect(err).ToNot(HaveOccurred(), out)
+		vm.Reboot()
+		vm.EventuallyConnects(1200)
+
+		By("resetting")
+		out, err = vm.Sudo("kairos-agent --debug reset --unattended")
+		Expect(err).ToNot(HaveOccurred(), out)
+		vm.Reboot()
+		vm.EventuallyConnects(1200)
+
+		By("checking if after-reset was run")
+		out, err = vm.Sudo("ls /usr/local/after-reset-file")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).ToNot(MatchRegexp("No such file or directory"))
 	})
 })

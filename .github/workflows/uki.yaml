@@ -162,7 +162,7 @@ jobs:
           earthly +uki-iso --BASE_IMAGE=ttl.sh/ubuntu-2310-${{ github.head_ref || github.ref }}:24h
       - name: Create datasource iso 🔧
         run: |
-          earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+          earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
       - name: Run tests 🔧
         env:
           USE_QEMU: true
@@ -234,7 +234,7 @@ jobs:
             --BASE_IMAGE=ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h
       - name: Create datasource iso 🔧
         run: |
-          earthly +datasource-iso --CLOUD_CONFIG=tests/assets/autoinstall.yaml
+          earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
       - name: Run tests 🔧
         env:
           USE_QEMU: true
