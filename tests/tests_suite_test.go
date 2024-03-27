@@ -113,149 +113,12 @@ func gatherLogs(vm VM) {
 }
 
 func startVM() (context.Context, VM) {
-	if os.Getenv("ISO") == "" && os.Getenv("CREATE_VM") == "true" {
-		fmt.Println("ISO missing")
-		os.Exit(1)
-	}
-
-	var sshPort, spicePort int
-
-	vmName := uuid.New().String()
-
 	stateDir, err := os.MkdirTemp("", "")
 	Expect(err).ToNot(HaveOccurred())
 	fmt.Printf("State dir: %s\n", stateDir)
 
-	if os.Getenv("EMULATE_TPM") != "" {
-		emulateTPM(stateDir)
-	}
+	opts := defaultVMOpts(stateDir)
 
-	sshPort, err = getFreePort()
-	Expect(err).ToNot(HaveOccurred())
-	fmt.Printf("Using ssh port: %d\n", sshPort)
-
-	memory := os.Getenv("MEMORY")
-	if memory == "" {
-		memory = "2096"
-	}
-	cpus := os.Getenv("CPUS")
-	if cpus == "" {
-		cpus = "2"
-	}
-
-	driveSize := os.Getenv("DRIVE_SIZE")
-	if driveSize == "" {
-		driveSize = "25000"
-	}
-
-	opts := []types.MachineOption{
-		types.QEMUEngine,
-		types.WithISO(os.Getenv("ISO")),
-		types.WithMemory(memory),
-		types.WithCPU(cpus),
-		types.WithDriveSize(driveSize),
-		types.WithSSHPort(strconv.Itoa(sshPort)),
-		types.WithID(vmName),
-		types.WithSSHUser(user()),
-		types.WithSSHPass(pass()),
-		types.OnFailure(func(p *process.Process) {
-			var serial string
-
-			out, _ := os.ReadFile(p.StdoutPath())
-			err, _ := os.ReadFile(p.StderrPath())
-			status, _ := p.ExitCode()
-
-			if serialBytes, err := os.ReadFile(path.Join(p.StateDir(), "serial.log")); err != nil {
-				serial = fmt.Sprintf("Error reading serial log file: %s\n", err)
-			} else {
-				serial = string(serialBytes)
-			}
-
-			// We are explicitly killing the qemu process. We don't treat that as an error,
-			// but we just print the output just in case.
-			fmt.Printf("\nVM Aborted.\nstdout: %s\nstderr: %s\nserial: %s\nExit status: %s\n", out, err, serial, status)
-			Fail(fmt.Sprintf("\nVM Aborted.\nstdout: %s\nstderr: %s\nserial: %s\nExit status: %s\n",
-				out, err, serial, status))
-		}),
-		types.WithStateDir(stateDir),
-		// Serial output to file: https://superuser.com/a/1412150
-		func(m *types.MachineConfig) error {
-			m.Args = append(m.Args,
-				"-chardev", fmt.Sprintf("stdio,mux=on,id=char0,logfile=%s,signal=off", path.Join(stateDir, "serial.log")),
-				"-serial", "chardev:char0",
-				"-mon", "chardev=char0",
-			)
-			if os.Getenv("EMULATE_TPM") != "" {
-				m.Args = append(m.Args,
-					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
-					"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
-				)
-			}
-			return nil
-		},
-		// Firmware
-		func(m *types.MachineConfig) error {
-			FW := os.Getenv("FIRMWARE")
-			if FW != "" {
-				getwd, err := os.Getwd()
-				if err != nil {
-					return err
-				}
-				m.Args = append(m.Args, "-drive",
-					fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
-				)
-
-				// Set custom vars file for efi config so we boot first from disk then from DVD with secureboot on
-				UKI := os.Getenv("UKI_TEST")
-				if UKI != "" {
-					// On uki use an empty efivars.fd so we can test the autoenrollment
-					m.Args = append(m.Args, "-drive",
-						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.empty.fd")),
-					)
-				} else {
-					m.Args = append(m.Args, "-drive",
-						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.fd")),
-					)
-				}
-				// Needed to be set for secureboot!
-				m.Args = append(m.Args, "-machine", "q35,smm=on")
-			}
-
-			return nil
-		},
-		types.WithDataSource(os.Getenv("DATASOURCE")),
-	}
-	if os.Getenv("KVM") != "" {
-		opts = append(opts, func(m *types.MachineConfig) error {
-			m.Args = append(m.Args,
-				"-enable-kvm",
-			)
-			return nil
-		})
-	}
-
-	if os.Getenv("USE_QEMU") == "true" {
-		opts = append(opts, types.QEMUEngine)
-
-		// You can connect to it with "spicy" or other tool.
-		// DISPLAY is already taken on Linux X sessions
-		if os.Getenv("MACHINE_SPICY") != "" {
-			spicePort, _ = getFreePort()
-			for spicePort == sshPort { // avoid collision
-				spicePort, _ = getFreePort()
-			}
-			display := fmt.Sprintf("-spice port=%d,addr=127.0.0.1,disable-ticketing=yes", spicePort)
-			opts = append(opts, types.WithDisplay(display))
-
-			cmd := exec.Command("spicy",
-				"-h", "127.0.0.1",
-				"-p", strconv.Itoa(spicePort))
-			err = cmd.Start()
-			Expect(err).ToNot(HaveOccurred())
-		}
-	} else {
-		opts = append(opts, types.VBoxEngine)
-	}
 	m, err := machine.New(opts...)
 	Expect(err).ToNot(HaveOccurred())
 
@@ -412,4 +275,157 @@ func isReadable(fileName string) bool {
 	}
 	file.Close()
 	return true
+}
+
+func defaultVMOpts(stateDir string) []types.MachineOption {
+	opts := defaultVMOptsNoDrives(stateDir)
+
+	driveSize := os.Getenv("DRIVE_SIZE")
+	if driveSize == "" {
+		driveSize = "25000"
+	}
+
+	opts = append(opts, types.WithDriveSize(driveSize))
+
+	return opts
+}
+
+func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
+	var err error
+
+	if os.Getenv("ISO") == "" && os.Getenv("CREATE_VM") == "true" {
+		fmt.Println("ISO missing")
+		os.Exit(1)
+	}
+
+	var sshPort, spicePort int
+
+	vmName := uuid.New().String()
+
+	if os.Getenv("EMULATE_TPM") != "" {
+		emulateTPM(stateDir)
+	}
+
+	sshPort, err = getFreePort()
+	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("Using ssh port: %d\n", sshPort)
+
+	memory := os.Getenv("MEMORY")
+	if memory == "" {
+		memory = "2096"
+	}
+	cpus := os.Getenv("CPUS")
+	if cpus == "" {
+		cpus = "2"
+	}
+
+	opts := []types.MachineOption{
+		types.QEMUEngine,
+		types.WithISO(os.Getenv("ISO")),
+		types.WithMemory(memory),
+		types.WithCPU(cpus),
+		types.WithSSHPort(strconv.Itoa(sshPort)),
+		types.WithID(vmName),
+		types.WithSSHUser(user()),
+		types.WithSSHPass(pass()),
+		types.OnFailure(func(p *process.Process) {
+			var serial string
+
+			out, _ := os.ReadFile(p.StdoutPath())
+			err, _ := os.ReadFile(p.StderrPath())
+			status, _ := p.ExitCode()
+
+			if serialBytes, err := os.ReadFile(path.Join(p.StateDir(), "serial.log")); err != nil {
+				serial = fmt.Sprintf("Error reading serial log file: %s\n", err)
+			} else {
+				serial = string(serialBytes)
+			}
+
+			// We are explicitly killing the qemu process. We don't treat that as an error,
+			// but we just print the output just in case.
+			fmt.Printf("\nVM Aborted.\nstdout: %s\nstderr: %s\nserial: %s\nExit status: %s\n", out, err, serial, status)
+			Fail(fmt.Sprintf("\nVM Aborted.\nstdout: %s\nstderr: %s\nserial: %s\nExit status: %s\n",
+				out, err, serial, status))
+		}),
+		types.WithStateDir(stateDir),
+		// Serial output to file: https://superuser.com/a/1412150
+		func(m *types.MachineConfig) error {
+			m.Args = append(m.Args,
+				"-chardev", fmt.Sprintf("stdio,mux=on,id=char0,logfile=%s,signal=off", path.Join(stateDir, "serial.log")),
+				"-serial", "chardev:char0",
+				"-mon", "chardev=char0",
+			)
+			if os.Getenv("EMULATE_TPM") != "" {
+				m.Args = append(m.Args,
+					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
+					"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
+				)
+			}
+			return nil
+		},
+		// Firmware
+		func(m *types.MachineConfig) error {
+			FW := os.Getenv("FIRMWARE")
+			if FW != "" {
+				getwd, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				m.Args = append(m.Args, "-drive",
+					fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
+				)
+
+				// Set custom vars file for efi config so we boot first from disk then from DVD with secureboot on
+				UKI := os.Getenv("UKI_TEST")
+				if UKI != "" {
+					// On uki use an empty efivars.fd so we can test the autoenrollment
+					m.Args = append(m.Args, "-drive",
+						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.empty.fd")),
+					)
+				} else {
+					m.Args = append(m.Args, "-drive",
+						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.fd")),
+					)
+				}
+				// Needed to be set for secureboot!
+				m.Args = append(m.Args, "-machine", "q35,smm=on")
+			}
+
+			return nil
+		},
+		types.WithDataSource(os.Getenv("DATASOURCE")),
+	}
+	if os.Getenv("KVM") != "" {
+		opts = append(opts, func(m *types.MachineConfig) error {
+			m.Args = append(m.Args,
+				"-enable-kvm",
+			)
+			return nil
+		})
+	}
+
+	if os.Getenv("USE_QEMU") == "true" {
+		opts = append(opts, types.QEMUEngine)
+
+		// You can connect to it with "spicy" or other tool.
+		// DISPLAY is already taken on Linux X sessions
+		if os.Getenv("MACHINE_SPICY") != "" {
+			spicePort, _ = getFreePort()
+			for spicePort == sshPort { // avoid collision
+				spicePort, _ = getFreePort()
+			}
+			display := fmt.Sprintf("-spice port=%d,addr=127.0.0.1,disable-ticketing=yes", spicePort)
+			opts = append(opts, types.WithDisplay(display))
+
+			cmd := exec.Command("spicy",
+				"-h", "127.0.0.1",
+				"-p", strconv.Itoa(spicePort))
+			err = cmd.Start()
+			Expect(err).ToNot(HaveOccurred())
+		}
+	} else {
+		opts = append(opts, types.VBoxEngine)
+	}
+
+	return opts
 }
