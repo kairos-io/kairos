@@ -21,7 +21,7 @@ END
 ARG COSIGN_EXPERIMENTAL=0
 ARG CGO_ENABLED=0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.200.8
+ARG OSBUILDER_VERSION=v0.200.9
 ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG GOLINT_VERSION=1.52.2
 # renovate: datasource=docker depName=golang
@@ -329,9 +329,13 @@ image-rootfs:
 uki-iso:
     ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
     ARG ENKI_FLAGS
+    ARG ENKI_CREATE_CI_KEYS # If set, it will create keys for the UKI image. Good for testing
     FROM $OSBUILDER_IMAGE
-    COPY ./tests/keys /keys
     WORKDIR /build
+    RUN mkdir -p /keys
+    IF [ "$ENKI_CREATE_CI_KEYS" != "" ]
+        RUN enki genkey -e 7 --output /keys Test
+    END
     RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type iso ${ENKI_FLAGS}
     SAVE ARTIFACT /build/*.iso AS LOCAL build/
 

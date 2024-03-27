@@ -159,7 +159,7 @@ jobs:
           docker push $TEMP_IMAGE
       - name: Build uki ISO 🔧
         run: |
-          earthly +uki-iso --BASE_IMAGE=ttl.sh/ubuntu-2310-${{ github.head_ref || github.ref }}:24h
+          earthly +uki-iso --BASE_IMAGE=ttl.sh/ubuntu-2310-${{ github.head_ref || github.ref }}:24h --ENKI_CREATE_CI_KEYS=true
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
@@ -231,7 +231,7 @@ jobs:
       - name: Build uki ISO 🔧
         run: |
           earthly +uki-iso \
-            --BASE_IMAGE=ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h
+            --BASE_IMAGE=ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h --ENKI_CREATE_CI_KEYS=true
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml

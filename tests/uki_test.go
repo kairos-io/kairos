@@ -1,7 +1,9 @@
 package mos_test
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,6 +30,12 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 	})
 
 	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
+		}
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
 		}
