@@ -1,7 +1,6 @@
 package mos_test
 
 import (
-	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -164,7 +163,6 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		By("resetting")
 		out, err = vm.Sudo("kairos-agent --debug reset --unattended")
 		Expect(err).ToNot(HaveOccurred(), out)
-		fmt.Printf("reset output = %+v\n", out)
 		vm.Reboot()
 		vm.EventuallyConnects(1200)
 
