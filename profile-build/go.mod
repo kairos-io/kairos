@@ -4,7 +4,8 @@ go 1.20
 
 require (
 	github.com/kairos-io/kairos-sdk v0.0.28
-	github.com/urfave/cli v1.22.14
+	github.com/urfave/cli v1.22.12
+	github.com/urfave/cli/v2 v2.27.1
 )
 
 require (
