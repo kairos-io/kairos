@@ -85,6 +85,12 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			vm.Reboot()
 			vm.EventuallyConnects(1200)
 		})
+		By("waiting if rootfs is mounted RO", func() {
+			out, err := vm.Sudo("findmnt /")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("ro"))
+			Expect(out).ToNot(ContainSubstring("rw"))
+		})
 		By("Checking the boot mode (boot)", func() {
 			out, err := vm.Sudo("stat /run/cos/uki_boot_mode")
 			Expect(err).ToNot(HaveOccurred(), out)
