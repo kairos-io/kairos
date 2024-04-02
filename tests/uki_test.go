@@ -85,7 +85,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			vm.Reboot()
 			vm.EventuallyConnects(1200)
 		})
-		By("waiting if rootfs is mounted RO", func() {
+		By("Checking that rootfs is mounted RO", func() {
 			out, err := vm.Sudo("findmnt /")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(ContainSubstring("ro"))
