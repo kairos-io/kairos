@@ -88,7 +88,6 @@ RUN  apt-get update \
     openssh-server \
     parted \
     rsync \
-    snapd \
     sudo \
     systemd \
     systemd-timesyncd \
