@@ -150,7 +150,7 @@ jobs:
             --FAMILY=ubuntu \
             --MODEL=generic \
             --VARIANT=core \
-            --BASE_IMAGE=ubuntu:23.10
+            --BASE_IMAGE=ubuntu:23.10 --IMMUCORE_DEV_BRANCH=main
       - name: Push image to ttl.sh
         env:
           TEMP_IMAGE: ttl.sh/ubuntu-2310-${{ github.head_ref || github.ref }}:24h
@@ -223,7 +223,7 @@ jobs:
             --FAMILY=rhel \
             --MODEL=generic \
             --VARIANT=core \
-            --BASE_IMAGE=fedora:38
+            --BASE_IMAGE=fedora:38 --IMMUCORE_DEV_BRANCH=main
       - name: Push image to ttl.sh
         env:
           TEMP_IMAGE: ttl.sh/fedora-38-${{ github.head_ref || github.ref }}:24h
