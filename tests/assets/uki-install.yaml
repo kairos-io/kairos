@@ -25,9 +25,7 @@ stages:
 
           set -e
           echo "Creating a file in COS_PERSISTENT"
-          umount /oem || true
-          # Close all encrypted partitions
-          for p in $(ls /dev/mapper/vda*); do cryptsetup close $p; done
+          # Close persistent partition
           /usr/lib/systemd/systemd-cryptsetup attach persistent $(findfs PARTLABEL=persistent) - tpm2-device=auto
           mount /dev/mapper/persistent /usr/local
           touch /usr/local/after-reset-file
