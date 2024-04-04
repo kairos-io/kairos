@@ -28,10 +28,6 @@ ARG FRAMEWORK_VERSION=35.3
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 
-# nohang
-RUN add-apt-repository ppa:oibaf/test
-RUN apt-get install -y nohang
-
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
 RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub
 RUN apt-key adv --fetch-key https://repo.download.nvidia.com/jetson/jetson-ota-public.asc
@@ -79,7 +75,6 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ncurses-term \
     networkd-dispatcher \
     nfs-common \
-    nohang \
     open-iscsi \
     openssh-server \
     open-vm-tools \
