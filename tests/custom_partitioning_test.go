@@ -78,6 +78,9 @@ var _ = Describe("kairos custom partitioning install", Label("custom-partitionin
 		Expect(out).To(MatchRegexp("/dev/vdb3.*LABEL=\"COS_RECOVERY\""), out)
 		Expect(out).To(MatchRegexp("/dev/vdb4.*LABEL=\"COS_STATE\""), out)
 		Expect(out).To(MatchRegexp("/dev/vdb5.*LABEL=\"COS_PERSISTENT\""), out)
+
+		// Sanity check that the default disk is not touched
+		Expect(out).ToNot(MatchRegexp("/dev/vda.*LABEL=\"COS_PERSISTENT\""), out)
 	})
 })
 
@@ -106,8 +109,10 @@ stages:
     commands:
       - |
         parted --script --machine -- "/dev/vdb" mklabel gpt
-        parted --script "/dev/vdb" mkpart primary Data 0 1MB
+        sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb # for grub
     layout:
+      device:
+        path: "/dev/vdb"
       add_partitions:
         - fsLabel: COS_OEM
           size: 64
@@ -122,8 +127,5 @@ stages:
           pLabel: persistent
           size: 0
           filesystem: "ext4"
-  boot:
-    - systemd_firstboot:
-      keymap: us
 `
 }
