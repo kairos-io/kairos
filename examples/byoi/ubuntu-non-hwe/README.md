@@ -2,7 +2,7 @@
 
 Our Ubuntu based images, will use HWE kernels. If you need to use a non-HWE one, you can build an image of your own with the kernel of your choice, and then use it as your `BASE_IMAGE`. Here's an example:
 
-We are going to asume that you start the process at the root of the Kairos repo and that the non-HWE image is the one in the Dockerfile within the same directory as this README.md file.
+We are going to assume that you start the process at the root of the Kairos repo and that the non-HWE image is the one in the Dockerfile within the same directory as this README.md file.
 
 Let's start by building the base image.
 
