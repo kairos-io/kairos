@@ -88,7 +88,7 @@ jobs:
           - flavor: "ubuntu"
             flavorRelease: "23.10"
           - flavor: "fedora"
-            flavorRelease: "38"
+            flavorRelease: "39"
   zfs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
