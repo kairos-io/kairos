@@ -99,7 +99,7 @@ jobs:
     runs-on: kvm
     env:
       FLAVOR: fedora
-      FLAVOR_RELEASE: 38
+      FLAVOR_RELEASE: 39
     steps:
       - uses: actions/checkout@v4
       - name: Install Go
@@ -130,23 +130,23 @@ jobs:
         run: | # known flavors to work with uki+encryption: fedora >= 38, ubuntu >= 23.10, anything with systemd 253
           earthly +base-image \
             --FLAVOR=fedora \
-            --FLAVOR_RELEASE=38 \
+            --FLAVOR_RELEASE=39 \
             --FAMILY=rhel \
             --MODEL=generic \
             --VARIANT=core \
-            --BASE_IMAGE=fedora:38 \
+            --BASE_IMAGE=fedora:39 \
             --IMMUCORE_DEV_BRANCH=${{ github.event.inputs.immucore_branch }} \
             --KAIROS_AGENT_DEV_BRANCH=${{ github.event.inputs.agent_branch }}
       - name: Push image to ttl.sh
         env:
-          TEMP_IMAGE: ttl.sh/fedora-38-${{ github.sha }}:24h
+          TEMP_IMAGE: ttl.sh/fedora-39-${{ github.sha }}:24h
         run: |
           docker tag $(cat build/IMAGE) $TEMP_IMAGE
           docker push $TEMP_IMAGE
       - name: Build uki ISO 🔧
         run: |
           earthly +uki-iso \
-            --BASE_IMAGE=ttl.sh/fedora-38-${{ github.sha }}:24h \
+            --BASE_IMAGE=ttl.sh/fedora-39-${{ github.sha }}:24h \
             --ENKI_CREATE_CI_KEYS=true
       - name: Create datasource iso 🔧
         run: |
