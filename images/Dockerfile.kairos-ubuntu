@@ -9,7 +9,8 @@ ARG FAMILY=ubuntu
 ARG FLAVOR
 #   - 20.04
 #   - 22.04
-#   - 23.10
+#   - 23.10 to be removed when 24.04 is officially released
+#   - 24.04
 ARG FLAVOR_RELEASE
 # Currently supported models are:
 #   - generic
