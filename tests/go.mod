@@ -2,8 +2,6 @@ module kairos-tests
 
 go 1.20
 
-replace github.com/spectrocloud/peg => /home/dimitris/workspace/kairos/peg
-
 require (
 	github.com/google/uuid v1.3.0
 	github.com/kairos-io/go-nodepair v0.0.0-20230424150716-d8f0757542c3
