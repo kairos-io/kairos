@@ -198,9 +198,9 @@ jobs:
       fail-fast: true
       matrix:
         flavor:
-          - "opensuse"
+          - "ubuntu"
         flavorRelease:
-          - "leap-15.5"
+          - "23.10"
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
