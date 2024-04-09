@@ -224,6 +224,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+FROM base-ubuntu-current AS amd64-base-ubuntu-24.04
+RUN apt-get update
+# If a kernel is already installed, don't try to install it again, this way the base image can
+# be non-hwe for older releases
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
+    linux-image-generic-hwe-24.04 || true
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
 FROM base-ubuntu-current AS amd64-base-ubuntu-current
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
@@ -242,7 +250,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM amd64-base-ubuntu-current AS amd64-ubuntu-22.04
 FROM amd64-base-ubuntu-current AS amd64-ubuntu-23.10
-FROM amd64-base-ubuntu-current AS amd64-ubuntu-24.04
+FROM amd64-base-ubuntu-24.04 AS amd64-ubuntu-24.04
 
 FROM base-ubuntu-legacy AS arm64-ubuntu-20.04
 FROM base-ubuntu-legacy AS arm64-ubuntu-22.04
