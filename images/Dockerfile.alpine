@@ -143,10 +143,15 @@ RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
     rc-update add acpid boot && \
     rc-update add hwclock boot && \
+    rc-update add swclock boot && \
     rc-update add syslog boot && \
+    rc-update add modules boot && \
+    rc-update add sysctl boot && \
+    rc-update add ntpd boot && \
     rc-update add udev sysinit && \
     rc-update add udev-trigger sysinit && \
     rc-update add cgroups sysinit && \
-    rc-update add ntpd boot && \
+    rc-update add hwdrivers sysinit && \
+    rc-update add dmesg sysinit && \
     rc-update add crond && \
     rc-update add fail2ban
