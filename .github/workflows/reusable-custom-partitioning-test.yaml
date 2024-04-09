@@ -1,0 +1,67 @@
+name: Reusable workflow that runs the custom partitioning tests
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        required: true
+        type: string
+      flavor_release:
+        required: true
+        type: string
+
+jobs:
+  test:
+    runs-on: fast
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
+      - name: Enable KVM group perms
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Download artifacts
+        uses: actions/download-artifact@v4.1.4
+        with:
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h
+        run: |
+          ls *.iso
+          export ISO=$PWD/$(ls *.iso)
+          echo "ISO is: $ISO"
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "custom-partitioning" --fail-fast -r ./tests/
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.label }}-test.logs.zip
+          path: tests/**/logs/*
+          if-no-files-found: warn

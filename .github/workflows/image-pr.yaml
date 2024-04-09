@@ -187,6 +187,20 @@ jobs:
   #  needs:
   #    - core-alpine
 
+  custom-partitioning:
+    uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+    needs:
+      - core
+    strategy:
+      fail-fast: true
+      matrix:
+        flavor:
+          - "opensuse"
+        flavorRelease:
+          - "leap-15.5"
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
