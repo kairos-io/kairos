@@ -3,6 +3,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/spectrocloud/peg/matcher"
@@ -65,6 +66,13 @@ var _ = Describe("kairos install test", Label("install-test"), func() {
 	})
 
 	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
+		}
 		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
 	})
 
