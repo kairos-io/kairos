@@ -52,7 +52,7 @@ var _ = Describe("kairos custom partitioning install", Label("custom-partitionin
 		Expect(err).ToNot(HaveOccurred())
 
 		By("manually installing")
-		installationOutput, installError = vm.Sudo("kairos-agent --debug manual-install --device auto /tmp/config.yaml")
+		installationOutput, installError = vm.Sudo("kairos-agent --debug manual-install /tmp/config.yaml")
 	})
 
 	AfterEach(func() {
@@ -92,7 +92,7 @@ debug: true
 
 install:
   no-format: true
-  auto: true
+  auto: false
   poweroff: false
   reboot: false
   grub_options:
@@ -109,11 +109,15 @@ stages:
     commands:
       - |
         parted --script --machine -- "/dev/vdb" mklabel gpt
-        sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb # for grub
+        #sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb # for grub
     layout:
       device:
         path: "/dev/vdb"
       add_partitions:
+        - fsLabel: COS_GRUB
+          size: 64
+          pLabel: efi
+          filesystem: "fat"
         - fsLabel: COS_OEM
           size: 64
           pLabel: oem
