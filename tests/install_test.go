@@ -37,6 +37,7 @@ func testInstall(cloudConfig string, vm VM) string { //, actual interface{}, m t
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).Should(ContainSubstring("Running after-install hook"))
 		vm.Sudo("sync")
+		fmt.Println(out)
 	})
 
 	By("waiting for VM to reboot", func() {
@@ -115,8 +116,9 @@ bundles:
 
 			Eventually(func() string {
 				out, _ := vm.Sudo("/usr/local/bin/usr/bin/edgevpn --help | grep peer")
+				fmt.Println(out)
 				return out
-			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("peerguard"))
+			}, 5*time.Minute, 30*time.Second).Should(ContainSubstring("peerguard"))
 
 			stateAssertVM(vm, "persistent.found", "true")
 		})
