@@ -138,7 +138,7 @@ RUN ln -sf /boot/vmlinuz-rpi4 /boot/vmlinuz
 ####               Post-Process Common to All              ####
 ###############################################################
 FROM ${MODEL} AS all
-
+COPY 99_openrc_services.yaml /system/oem/99_openrc_services.yaml
 RUN rc-update add sshd boot && \
     rc-update add connman boot  && \
     rc-update add acpid boot && \

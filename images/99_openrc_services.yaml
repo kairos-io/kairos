@@ -1,0 +1,53 @@
+name: "Create openrc services"
+stages:
+  initramfs:
+    - name: "Create OpenRC services DEBUG"
+      if: |
+        [ -f "/sbin/openrc" ]
+      files:
+      - path: /etc/init.d/kairos-agent
+        content: |
+          #!/sbin/openrc-run
+
+          depend() {
+            provide kairos-agent
+            after cos-setup-network
+            use net
+          }
+
+          start() {
+              mkdir -p /var/log/kairos
+              kairos-agent --debug start &> /var/log/kairos/agent.log &
+              return 0
+          }
+
+          stop() {
+              kill -9 $(pgrep -f "kairos-agent start")
+              return 0
+          }
+        permissions: 0755
+        owner: 0
+        group: 0
+      - path: /etc/issue
+        content: |
+
+
+          ██╗  ██╗ █████╗ ██╗██████╗  ██████╗ ███████╗
+          ██║ ██╔╝██╔══██╗██║██╔══██╗██╔═══██╗██╔════╝
+          █████╔╝ ███████║██║██████╔╝██║   ██║███████╗
+          ██╔═██╗ ██╔══██║██║██╔══██╗██║   ██║╚════██║
+          ██║  ██╗██║  ██║██║██║  ██║╚██████╔╝███████║
+          ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+                                                      
+
+          Welcome to kairos (DEBUG)
+          Kernel \r on an \m (\l)
+        permissions: 0755
+        owner: 0
+        group: 0
+    - name: "Enable OpenRC services DEBUG"
+      if: |
+        [ -f "/sbin/openrc" ]
+      commands:
+        - mkdir -p /etc/runlevels/default
+        - ln -sf ../../init.d/kairos-agent /etc/runlevels/default/kairos-agent
