@@ -109,7 +109,7 @@ stages:
     commands:
       - |
         parted --script --machine -- "/dev/vdb" mklabel gpt
-        #sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb # for grub
+        #sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb # if using mbr instead of gpt
     layout:
       device:
         path: "/dev/vdb"
