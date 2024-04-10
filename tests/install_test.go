@@ -43,6 +43,10 @@ func testInstall(cloudConfig string, vm VM) string { //, actual interface{}, m t
 
 	By("waiting for VM to reboot", func() {
 		vm.Reboot()
+		err := vm.DetachCD()
+		if err != nil {
+			fmt.Printf("Failed to detach CD: %v\n", err)
+		}
 		vm.EventuallyConnects(1200)
 	})
 
