@@ -52,7 +52,7 @@ jobs:
           packages: utils/earthly
       - uses: actions/checkout@v4
       - name: Download artifacts
-        uses: robinraju/release-downloader@v1.9
+        uses: robinraju/release-downloader@v1.10
         with:
           latest: true
           repository: "kairos-io/kairos"

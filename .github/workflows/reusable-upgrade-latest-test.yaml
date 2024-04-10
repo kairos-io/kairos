@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: |
           git fetch --prune --unshallow
-      - uses: robinraju/release-downloader@v1.9
+      - uses: robinraju/release-downloader@v1.10
         with:
           # A flag to set the download target as latest release
           # The default value is 'false'
