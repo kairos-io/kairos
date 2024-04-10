@@ -295,8 +295,6 @@ base-image:
     ARG KAIROS_AGENT_DEV_BRANCH
     ARG IMMUCORE_DEV_BRANCH
 
-    # TODO: Remove this
-    ENV KAIROS_AGENT_DEV_BRANCH="2281-no-format-custom-partitioning"
     IF [ "$KAIROS_AGENT_DEV_BRANCH" != "" ]
         RUN rm -rf /usr/bin/kairos-agent
         COPY github.com/kairos-io/kairos-agent:$KAIROS_AGENT_DEV_BRANCH+build-kairos-agent/kairos-agent /usr/bin/kairos-agent
