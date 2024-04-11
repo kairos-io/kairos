@@ -52,7 +52,7 @@ var _ = Describe("kairos custom partitioning install", Label("custom-partitionin
 		Expect(err).ToNot(HaveOccurred())
 
 		By("manually installing")
-		installationOutput, installError = vm.Sudo("kairos-agent --debug manual-install /tmp/config.yaml")
+		installationOutput, installError = vm.Sudo("kairos-agent --strict-validation --debug manual-install /tmp/config.yaml")
 	})
 
 	AfterEach(func() {
@@ -67,7 +67,13 @@ var _ = Describe("kairos custom partitioning install", Label("custom-partitionin
 
 	It("installs on the pre-configured disks", func() {
 		Expect(installError).ToNot(HaveOccurred(), installationOutput)
-		By("Rebooting")
+		By("Rebooting into live CD again")
+		// In qemu it's tricky to boot the second disk. In multiple disk scenarios,
+		// setting "-boot=cd" will make qemu try to boot from the first disk and
+		// then from the cdrom.
+		// We want to make sure that kairos-agent selected the second disk so we
+		// simply let it boot from the cdrom again. Hopefully if the installation
+		// failed, we would see the error from the manual-install command.
 		vm.Reboot()
 		vm.EventuallyConnects(1200)
 
@@ -109,15 +115,17 @@ stages:
     commands:
       - |
         parted --script --machine -- "/dev/vdb" mklabel gpt
-        #sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb # if using mbr instead of gpt
+        # Legacy bios
+        sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb
     layout:
       device:
         path: "/dev/vdb"
       add_partitions:
-        - fsLabel: COS_GRUB
-          size: 64
-          pLabel: efi
-          filesystem: "fat"
+        # For efi (comment out the legacy bios partition above)
+        #- fsLabel: COS_GRUB
+        #  size: 64
+        #  pLabel: efi
+        #  filesystem: "fat"
         - fsLabel: COS_OEM
           size: 64
           pLabel: oem
