@@ -655,6 +655,7 @@ prepare-arm-image:
 
 ipxe-iso:
     ARG TARGETARCH
+    ARG ENABLE_HTTPS
 
     FROM +base-image
     ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
@@ -674,6 +675,13 @@ ipxe-iso:
     WORKDIR /build
 
     RUN git clone https://github.com/ipxe/ipxe
+
+    # https://ipxe.org/buildcfg/download_proto_https#examples
+    # https://github.com/ipxe/ipxe/blob/59f27d69358efc919b50760f3d6dac0b637b5488/src/config/general.h#L59
+    IF [ "$ENABLE_HTTPS" = "true" ]
+        RUN sed -i 's/#undef\tDOWNLOAD_PROTO_HTTPS/#define\tDOWNLOAD_PROTO_HTTPS/' ipxe/src/config/general.h
+    END
+
     IF [ "$ipxe_script" = "" ]
         COPY (+netboot/ipxe --VERSION=$VERSION --RELEASE_URL=$RELEASE_URL) /build/ipxe/script.ipxe
     ELSE
