@@ -18,6 +18,17 @@ jobs:
       contents: write
       actions: read
       security-events: write
+    strategy:
+      matrix:
+        include:
+          - flavor: ubuntu
+            flavor_release: "23.10"
+            base_image: "ubuntu:23.10"
+            family: ubuntu
+          - flavor: ubuntu
+            flavor_release: "24.04"
+            base_image: "ubuntu:24.10"
+            family: ubuntu
     steps:
       - name: Release space from worker
         run: |
@@ -88,11 +99,11 @@ jobs:
         run: |
           earthly --platform=linux/amd64 +base-image \
             --VARIANT=core \
-            --FLAVOR=ubuntu \
-            --FLAVOR_RELEASE="23.10" \
-            --BASE_IMAGE=ubuntu:23.10 \
+            --FLAVOR=${{ input.flavor }} \
+            --FLAVOR_RELEASE="${{ input.flavor_release }}" \
+            --BASE_IMAGE=${{ input.base_image }} \
             --MODEL=generic \
-            --FAMILY=ubuntu \
+            --FAMILY=${{ input.family }} \
             --BOOTLOADER=systemd-boot
           sudo mv build/* .
           sudo rm -rf build
@@ -107,7 +118,7 @@ jobs:
           COSIGN_YES: true
         run: |
           SUFFIX="-uki"
-          IMAGE=$(FLAVOR=ubuntu FLAVOR_RELEASE="23.10" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           docker tag $(cat IMAGE) "$IMAGE$SUFFIX"
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
