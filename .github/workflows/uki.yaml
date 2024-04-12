@@ -27,7 +27,7 @@ jobs:
             family: ubuntu
           - flavor: ubuntu
             flavor_release: "24.04"
-            base_image: "ubuntu:24.10"
+            base_image: "ubuntu:24.04"
             family: ubuntu
     steps:
       - name: Release space from worker
