@@ -87,6 +87,8 @@ jobs:
             flavorRelease: "22.04"
           - flavor: "ubuntu"
             flavorRelease: "23.10"
+          - flavor: "ubuntu"
+            flavorRelease: "24.04"
           - flavor: "fedora"
             flavorRelease: "39"
   zfs:
@@ -119,14 +121,16 @@ jobs:
             flavorRelease: "leap-15.5"
           - flavor: "opensuse"
             flavorRelease: "tumbleweed"
-          - flavor: "ubuntu"
-            flavorRelease: "23.10"
           - flavor: "debian"
             flavorRelease: "testing"
           - flavor: "ubuntu"
             flavorRelease: "20.04"
           - flavor: "ubuntu"
             flavorRelease: "22.04"
+          - flavor: "ubuntu"
+            flavorRelease: "23.10"
+          - flavor: "ubuntu"
+            flavorRelease: "24.04"
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
@@ -196,6 +200,12 @@ jobs:
             variant: core
             model: generic
             baseImage: ubuntu:23.10
+          - flavor: ubuntu
+            flavorRelease: "24.04"
+            family: ubuntu
+            variant: core
+            model: generic
+            baseImage: ubuntu:24.04
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
@@ -291,6 +301,10 @@ jobs:
             flavorRelease: "23.10"
             family: ubuntu
             baseImage: ubuntu:23.10
+          - flavor: ubuntu
+            flavorRelease: "24.04"
+            family: ubuntu
+            baseImage: ubuntu:24.04
   various:
     uses: ./.github/workflows/reusable-provider-tests.yaml
     with:
