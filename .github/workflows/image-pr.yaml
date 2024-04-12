@@ -193,14 +193,14 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
-      - core
+      - core-ubuntu-24-lts
     strategy:
       fail-fast: true
       matrix:
         flavor:
           - "ubuntu"
         flavorRelease:
-          - "23.10"
+          - "24.04"
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
