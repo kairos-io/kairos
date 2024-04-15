@@ -25,13 +25,21 @@ jobs:
           files_yaml: |
             nvidia:
               - 'images/Dockerfile.nvidia'
+      - name: Calculate if rest of steps should run
+        id: run_steps
+        run: |
+          if [[ "${{ steps.cache.outputs.cache_available }}" == "false" || "${{ steps.changed-files.outputs.nvidia_any_changed }}" == "true" || "${{ github.ref }}" == "refs/tags/v"* ]]; then
+            echo "run_steps=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_steps=false" >> $GITHUB_OUTPUT
+          fi
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
       - name: Release space from worker
-        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
+        if: ${{ steps.run_steps.outputs.run_steps == 'true' }}
         run: |
           echo "Listing top largest packages"
           pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
@@ -69,19 +77,19 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - name: Set up Docker Buildx
-        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
+        if: ${{ steps.run_steps.outputs.run_steps == 'true' }}
         id: buildx
         uses: docker/setup-buildx-action@master
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
-        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
+        if: ${{ steps.run_steps.outputs.run_steps == 'true' }}
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && (steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true') }}
+        if: ${{ github.ref == 'refs/heads/master' && startsWith(github.ref, 'refs/tags/v') }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧 & Push 🚀
-        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
+        if: ${{ steps.run_steps.outputs.run_steps == 'true' }}
         run: |
           export IMAGE=quay.io/kairos/cache:nvidia-base
           docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
@@ -98,6 +106,14 @@ jobs:
           files_yaml: |
             nvidia:
               - 'images/Dockerfile.nvidia'
+      - name: Calculate if rest of steps should run
+        id: run_steps
+        run: |
+          if [[ "${{ steps.changed-files.outputs.nvidia_any_changed }}" == "true" || "${{ github.ref }}" == "refs/tags/master" || "${{ github.ref }}" == "refs/tags/v"* ]]; then
+            echo "run_steps=true" >> $GITHUB_OUTPUT
+          else
+            echo "run_steps=false" >> $GITHUB_OUTPUT
+          fi
       - name: build
         uses: ./.github/workflows/reusable-docker-arm-build.yaml
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' || needs.base.outputs.changed-files.outputs.nvidia_any_changed == 'true' }}
