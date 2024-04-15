@@ -159,7 +159,7 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
         run: |
           curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(${{ env.IMAGE_REF }} | sed 's/$/-img/')
+          IMAGE=$(echo "${{ env.IMAGE_REF }}" | sed 's/$/-img/')
           sudo tar cvf build.tar build
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
