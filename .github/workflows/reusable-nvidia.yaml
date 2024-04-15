@@ -116,7 +116,7 @@ jobs:
           fi
       - name: build
         uses: ./.github/workflows/reusable-docker-arm-build.yaml
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' || needs.base.outputs.changed-files.outputs.nvidia_any_changed == 'true' }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || startsWith(github.ref, 'refs/tags/v') || needs.base.outputs.changed-files.outputs.nvidia_any_changed == 'true' }}
         with:
           flavor: ubuntu
           flavor_release: "20.04"
