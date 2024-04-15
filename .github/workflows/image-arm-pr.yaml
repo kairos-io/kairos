@@ -30,3 +30,6 @@ jobs:
       base_image: alpine:3.19
       model: rpi4
       worker: fast
+  nvidia:
+    uses: ./.github/workflows/reusable-nvidia.yaml
+
