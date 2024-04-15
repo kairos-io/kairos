@@ -32,4 +32,4 @@ jobs:
       worker: fast
   nvidia:
     uses: ./.github/workflows/reusable-nvidia.yaml
-
+    secrets: inherit
