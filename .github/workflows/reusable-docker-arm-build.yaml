@@ -129,23 +129,32 @@ jobs:
           cd build
           filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
-      - name: Push  🔧
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Set Image name (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
         run: |
-          docker push $(cat build/IMAGE)
+          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
+      - name: Set Image name (release)
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          echo "IMAGE_REF=$(cat build/IMAGE)" >> $GITHUB_ENV
+      - name: Push  🔧
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+        run: |
+          docker tag $(cat build/IMAGE) ${{ env.IMAGE_REF }}
+          docker push ${{ env.IMAGE_REF }}
       - name: Sign image
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
         env:
           COSIGN_YES: true
         run: |
-          export IMAGE=$(cat build/IMAGE)
-          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+          docker push "${{ env.IMAGE_REF }}" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "${{ env.IMAGE_REF }}")
       - name: Upload Image
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
         run: |
           curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
+          IMAGE=$(${{ env.IMAGE_REF }} | sed 's/$/-img/')
           sudo tar cvf build.tar build
           sudo luet util pack $IMAGE build.tar image.tar
           sudo -E docker load -i image.tar
