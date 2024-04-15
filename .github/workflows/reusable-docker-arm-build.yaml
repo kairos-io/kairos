@@ -129,6 +129,11 @@ jobs:
           cd build
           filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
           sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
+      - name: Install kairos-agent (for versioneer)
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
       - name: Set Image name (master)
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
