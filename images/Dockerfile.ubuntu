@@ -249,12 +249,12 @@ RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommend
     linux-image-generic-hwe-20.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM kernel-ubuntu-legacy AS amd64-ubuntu-20.04
+FROM kernel-ubuntu-20.04 AS amd64-ubuntu-20.04
 FROM kernel-ubuntu-current AS amd64-ubuntu-22.04
 FROM kernel-ubuntu-current AS amd64-ubuntu-23.10
 FROM kernel-ubuntu-24.04 AS amd64-ubuntu-24.04
 
-FROM kernel-ubuntu-legacy AS arm64-ubuntu-20.04
+FROM kernel-ubuntu-20.04 AS arm64-ubuntu-20.04
 FROM kernel-ubuntu-current AS arm64-ubuntu-22.04
 FROM kernel-ubuntu-current AS arm64-ubuntu-23.10
 FROM kernel-ubuntu-24.04 AS arm64-ubuntu-24.04
