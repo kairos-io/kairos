@@ -263,6 +263,16 @@
         "family": "ubuntu",
         "flavor": "ubuntu",
         "flavorRelease": "24.04",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "ubuntu:24.04",
+        "arch": "arm64",
+        "worker": "ubuntu-latest"
+    },
+    {
+        "family": "ubuntu",
+        "flavor": "ubuntu",
+        "flavorRelease": "24.04",
         "variant": "standard",
         "model": "generic",
         "baseImage": "ubuntu:24.04",
