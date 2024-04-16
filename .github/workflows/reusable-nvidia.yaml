@@ -110,7 +110,8 @@ jobs:
             nvidia:
               - 'images/Dockerfile.nvidia'
       - name: build
-        uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml
+        uses: kairos-io/kairos/.github/workflows/reusable-docker-arm-build.yaml@master
+        secrets: inherit
         # if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/master') || startsWith(github.ref, 'refs/tags/v') || needs.base.outputs.changed-files.outputs.nvidia_any_changed == 'true' }}
         with:
           flavor: ubuntu
