@@ -3,7 +3,7 @@ module main
 go 1.20
 
 require (
-	github.com/kairos-io/kairos-sdk v0.1.0
+	github.com/kairos-io/kairos-sdk v0.1.1
 	github.com/urfave/cli v1.22.14
 )
 
@@ -36,7 +36,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
-	github.com/klauspost/compress v1.16.5 // indirect
+	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect
@@ -59,7 +59,7 @@ require (
 	golang.org/x/net v0.22.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
 	golang.org/x/sys v0.19.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
+	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.17.0 // indirect
 	google.golang.org/genproto v0.0.0-20230711160842-782d3b101e98 // indirect
