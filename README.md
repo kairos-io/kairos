@@ -54,6 +54,12 @@ You can find us at:
 
 The [:handshake: community repository](https://github.com/kairos-io/community) contains information about how to get involved, Code of conduct, Maintainers, Contribution guidelines, including also links to our weekly meeting notes, roadmap, and more.
 
+## Governance
+
+The Kairos project governance can be found [in the community repository](https://github.com/kairos-io/community/blob/main/GOVERNANCE.md). 
+
+**Note:** Kairos adopts the CNCF Code of conduct - please make sure to read the CNCF [Code of Conduct document](https://github.com/kairos-io/community/blob/main/CODE_OF_CONDUCT.md).
+
 ### Project Office Hours
 
 Project Office Hours is an opportunity for attendees to meet the maintainers of the project, learn more about the project, ask questions, and learn about new features and upcoming updates.
