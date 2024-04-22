@@ -61,7 +61,7 @@ jobs:
           git fetch --prune --unshallow
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@v4.1.4
+        uses: actions/download-artifact@v4.1.5
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
       - name: Display structure of downloaded files
