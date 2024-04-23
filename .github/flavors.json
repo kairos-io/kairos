@@ -362,20 +362,20 @@
     {
         "family": "rhel",
         "flavor": "fedora",
-        "flavorRelease": "39",
+        "flavorRelease": "40",
         "variant": "standard",
         "model": "generic",
-        "baseImage": "fedora:39",
+        "baseImage": "fedora:40",
         "arch": "amd64",
         "worker": "self-hosted"
     },
     {
         "family": "rhel",
         "flavor": "fedora",
-        "flavorRelease": "39",
+        "flavorRelease": "40",
         "variant": "core",
         "model": "generic",
-        "baseImage": "fedora:39",
+        "baseImage": "fedora:40",
         "arch": "amd64",
         "worker": "self-hosted"
     },
