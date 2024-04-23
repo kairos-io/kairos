@@ -60,6 +60,7 @@ RUN zypper in --force-resolution -y \
     mdadm \
     multipath-tools \
     nano \
+    nfs-utils \
     nohang \
     open-iscsi \
     openssh \
@@ -92,7 +93,6 @@ RUN zypper in --force-resolution -y \
     grub2-x86_64-efi \
     kernel-firmware-all \
     nethogs \
-    nfs-utils \
     patch \
     systemd-sysvinit \
     && zypper cc
