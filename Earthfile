@@ -5,7 +5,7 @@ ARG IMAGE
 ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
 ARG GITHUB_REPO=kairos-io/kairos
 # renovate: datasource=docker depName=quay.io/luet/base
-ARG LUET_VERSION=0.35.1
+ARG LUET_VERSION=0.35.2
 # renovate: datasource=docker depName=aquasec/trivy
 ARG TRIVY_VERSION=0.50.1
 # renovate: datasource=github-releases depName=kairos-io/kairos-framework
