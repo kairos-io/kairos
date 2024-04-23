@@ -27,7 +27,8 @@ FROM epel AS almalinux
 FROM epel AS rockylinux
 
 FROM base AS fedora
-RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-4$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
+# Enable once zfs releases for fedora 40
+#RUN dnf install -y "https://zfsonlinux.org/fedora/zfs-release-2-4$(rpm --eval "%{dist}").noarch.rpm" && dnf clean all
 
 # install common packages
 FROM ${FLAVOR} AS common

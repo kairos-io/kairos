@@ -90,7 +90,7 @@ jobs:
           - flavor: "ubuntu"
             flavorRelease: "24.04"
           - flavor: "fedora"
-            flavorRelease: "39"
+            flavorRelease: "40"
   zfs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
