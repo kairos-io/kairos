@@ -55,7 +55,7 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Download artifacts
-        uses: actions/download-artifact@v4.1.6
+        uses: actions/download-artifact@v4.1.7
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
       - name: Run tests
