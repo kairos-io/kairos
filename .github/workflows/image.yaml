@@ -86,8 +86,6 @@ jobs:
           - flavor: "ubuntu"
             flavorRelease: "22.04"
           - flavor: "ubuntu"
-            flavorRelease: "23.10"
-          - flavor: "ubuntu"
             flavorRelease: "24.04"
           - flavor: "fedora"
             flavorRelease: "40"
@@ -127,8 +125,6 @@ jobs:
             flavorRelease: "20.04"
           - flavor: "ubuntu"
             flavorRelease: "22.04"
-          - flavor: "ubuntu"
-            flavorRelease: "23.10"
           - flavor: "ubuntu"
             flavorRelease: "24.04"
   bundles:
@@ -194,12 +190,6 @@ jobs:
             variant: core
             model: generic
             baseImage: opensuse/leap:15.5
-          - flavor: ubuntu
-            flavorRelease: "23.10"
-            family: ubuntu
-            variant: core
-            model: generic
-            baseImage: ubuntu:23.10
           - flavor: ubuntu
             flavorRelease: "24.04"
             family: ubuntu
@@ -297,10 +287,6 @@ jobs:
             flavorRelease: "3.19"
             family: alpine
             baseImage: alpine:3.19
-          - flavor: ubuntu
-            flavorRelease: "23.10"
-            family: ubuntu
-            baseImage: ubuntu:23.10
           - flavor: ubuntu
             flavorRelease: "24.04"
             family: ubuntu

@@ -22,10 +22,6 @@ jobs:
       matrix:
         include:
           - flavor: ubuntu
-            flavor_release: "23.10"
-            base_image: "ubuntu:23.10"
-            family: ubuntu
-          - flavor: ubuntu
             flavor_release: "24.04"
             base_image: "ubuntu:24.04"
             family: ubuntu
@@ -123,13 +119,6 @@ jobs:
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
           cosign sign $image_ref
-  test-uki-ubuntu:
-    uses: ./.github/workflows/reusable-uki-test.yaml
-    with:
-      base_image: ubuntu:23.10
-      family: ubuntu
-      flavor: ubuntu
-      flavor_release: "23.10"
   test-uki-ubuntu-lts:
     uses: ./.github/workflows/reusable-uki-test.yaml
     with:
