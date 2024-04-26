@@ -330,14 +330,23 @@ uki-iso:
     ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
     ARG ENKI_FLAGS
     ARG ENKI_CREATE_CI_KEYS # If set, it will create keys for the UKI image. Good for testing
+    ARG ENKI_OUTPUT_TYPE=iso # Set output type, iso, container, uki file
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     RUN mkdir -p /keys
     IF [ "$ENKI_CREATE_CI_KEYS" != "" ]
         RUN enki genkey -e 7 --output /keys Test
+    ELSE
+        COPY keys/ /keys
     END
-    RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type iso ${ENKI_FLAGS}
-    SAVE ARTIFACT /build/*.iso AS LOCAL build/
+    RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} ${ENKI_FLAGS}
+    IF [ "$ENKI_OUTPUT_TYPE" == "iso" ]
+        SAVE ARTIFACT /build/*.iso AS LOCAL build/
+    ELSE IF [ "$ENKI_OUTPUT_TYPE" == "container" ]
+        SAVE ARTIFACT /build/*.tar AS LOCAL build/
+    ELSE IF [ "$ENKI_OUTPUT_TYPE" == "uki" ]
+        SAVE ARTIFACT /build/*.efi AS LOCAL build/
+    END
 
 # WARNING the following targets are just for development purposes, use them at your own risk
 
