@@ -83,7 +83,6 @@ RUN zypper in --force-resolution -y \
     tmux \
     vim \
     which \
-    tpm2* \
     && zypper cc
 
 FROM common as amd64
@@ -123,6 +122,8 @@ FROM ${TARGETARCH} AS generic
 RUN zypper in --force-resolution -y \
     lldpd \
     qemu-guest-agent \
+    # This brings python in tumbleweed and the size is too big to be included in rpi
+    tpm2* \
     && zypper cc
 
 FROM ${TARGETARCH} AS rpicommon
