@@ -9,6 +9,9 @@ RUN ORIG=/usr/bin/grub-editenv; DEST=/usr/sbin/grub2-editenv; [ -e $ORIG ] && [ 
 
 # here we add 100Mb aprox
 COPY --from=framework / /
+RUN sed -i 's/\bsource\b/./g' /system/oem/00_rootfs.yaml
+RUN sed -i 's/\bsource\b/./g' /system/oem/09_openrc_services.yaml
+RUN sed -i 's/\bsource\b/./g' /system/oem/50_recovery.yaml
 
 RUN rm -rf /etc/ssh/ssh_host_*
 
