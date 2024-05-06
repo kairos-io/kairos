@@ -30,6 +30,6 @@ jobs:
     uses: ./.github/workflows/reusable-uki-test.yaml
     with:
       base_image: fedora:40
-      family: fedora
+      family: rhel
       flavor: fedora
       flavor_release: 40
