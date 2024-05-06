@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/kairos-io/kairos-sdk v0.1.1
-	github.com/urfave/cli v1.22.14
+	github.com/urfave/cli v1.22.15
 )
 
 require (
@@ -20,7 +20,7 @@ require (
 	github.com/containerd/continuity v0.4.2 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/denisbrodbeck/machineid v1.0.1 // indirect
 	github.com/docker/cli v24.0.0+incompatible // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
