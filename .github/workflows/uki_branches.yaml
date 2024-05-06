@@ -20,14 +20,14 @@ env:
   FORCE_COLOR: 1
 jobs:
   test-uki-ubuntu-lts:
-    uses: ./.github/workflows/reusable-uki-tests.yaml
+    uses: ./.github/workflows/reusable-uki-test.yaml
     with:
       base_image: ubuntu:24.04
       family: ubuntu
       flavor: ubuntu
       flavor_release: 24.04
   test-uki-fedora:
-    uses: ./.github/workflows/reusable-uki-tests.yaml
+    uses: ./.github/workflows/reusable-uki-test.yaml
     with:
       base_image: fedora:40
       family: fedora
