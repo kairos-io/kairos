@@ -116,7 +116,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ###############################################################
 ####                    Common to a Model                  ####
 ###############################################################
-FROM common AS  generic
+FROM common AS amd64-generic
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     grub2 \
@@ -128,24 +128,35 @@ RUN apt-get update \
     zfsutils-linux \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS rpicommon
-RUN sed -i 's/^Components: main.*$/& non-free-firmware/' /etc/apt/sources.list.d/debian.sources
+FROM common AS arm64-common
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     grub-efi-arm64-bin \
     grub-efi-arm64-signed \
     linux-image-arm64 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM arm64-common AS arm64-generic
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    qemu-guest-agent \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM arm64-common AS rpicommon
+RUN sed -i 's/^Components: main.*$/& non-free-firmware/' /etc/apt/sources.list.d/debian.sources
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
     raspi-firmware \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY rpi/config.txt /boot/config.txt
 
-FROM rpicommon AS rpi3
-FROM rpicommon AS rpi4
+FROM rpicommon AS arm64-rpi3
+FROM rpicommon AS arm64-rpi4
 
 ###############################################################
 ####               Post-Process Common to All              ####
 ###############################################################
-FROM ${MODEL} AS all
+FROM ${TARGETARCH}-${MODEL} AS all
 RUN systemctl enable systemd-networkd
 RUN systemctl enable ssh
 
