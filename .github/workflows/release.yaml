@@ -200,7 +200,7 @@ jobs:
           cd ..
           rm release/IMAGE release/VERSION release/versions.yaml
       - name: Release
-        uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45544c887983e9fa900f0564
+        uses: softprops/action-gh-release@v2.0.5
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -320,7 +320,7 @@ jobs:
             --BASE_IMAGE=quay.io/kairos/${{ matrix.flavor }}:${{ matrix.flavorRelease }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-${{ github.ref_name }}-uki \
             --ENKI_CREATE_CI_KEYS=true
       - name: Release
-        uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45544c887983e9fa900f0564
+        uses: softprops/action-gh-release@v2.0.5
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -421,7 +421,7 @@ jobs:
           cd ..
           sudo rm -rf release/VERSION release/IMAGE release/versions.yaml
       - name: Release
-        uses: softprops/action-gh-release@9d7c94cfd0a1f3ed45544c887983e9fa900f0564
+        uses: softprops/action-gh-release@v2.0.5
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
