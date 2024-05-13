@@ -96,6 +96,9 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
+      - name: Install Cosign
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
+        uses: sigstore/cosign-installer@main
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
