@@ -108,7 +108,7 @@ jobs:
           COSIGN_YES: true
         run: |
           SUFFIX="-uki"
-          IMAGE=$(FLAVOR=${{ matrix.flavor }} FLAVOR_RELEASE="${{ matrix.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           docker tag $(cat IMAGE) "$IMAGE$SUFFIX"
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
