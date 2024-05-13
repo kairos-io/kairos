@@ -24,6 +24,7 @@ jobs:
             flavor_release: 40
             base_image: fedora:40
     uses: ./.github/workflows/reusable-uki-test.yaml
+    secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       family: ${{ matrix.family }}

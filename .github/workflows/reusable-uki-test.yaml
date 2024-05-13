@@ -18,6 +18,11 @@ on:
 
 jobs:
   test-uki:
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     runs-on: kvm
     env:
       FLAVOR: ${{ inputs.flavor }}
