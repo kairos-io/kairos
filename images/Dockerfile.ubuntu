@@ -42,7 +42,7 @@ FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
 # Ubuntu and the zfsutils-linux package, there is a fix in
 # nohang upstream but it's not yet available in the Ubuntu
 # package, so we build it from source
-FROM ubuntu:22.04 as nohang-src
+FROM ubuntu:24.04 as nohang-src
 WORKDIR /root
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
