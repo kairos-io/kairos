@@ -11,125 +11,21 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  core:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
+  test-uki:
     strategy:
       matrix:
         include:
           - flavor: ubuntu
-            flavor_release: "24.04"
-            base_image: "ubuntu:24.04"
+            flavor_release: 24.04
             family: ubuntu
-    steps:
-      - name: Release space from worker
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm || true
-          sudo apt-get remove -y powershell || true
-          sudo apt-get remove -y firefox || true
-          sudo apt-get remove -y monodoc-manual || true
-          sudo apt-get remove -y msbuild || true
-          sudo apt-get remove -y microsoft-edge-stable || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
-      - uses: actions/checkout@v4
-      - run: |
-          git fetch --prune --unshallow
-      - name: Release space from worker
-        run: |
-          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
-          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
-        run: |
-          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
-          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
-      - name: Build 🔧
-        run: |
-          earthly --platform=linux/amd64 +base-image \
-            --VARIANT=core \
-            --FLAVOR=${{ matrix.flavor }} \
-            --FLAVOR_RELEASE="${{ matrix.flavor_release }}" \
-            --BASE_IMAGE=${{ matrix.base_image }} \
-            --MODEL=generic \
-            --FAMILY=${{ matrix.family }} \
-            --BOOTLOADER=systemd-boot
-          sudo mv build/* .
-          sudo rm -rf build
-      - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: system/kairos-agent
-      - name: Push to quay
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          COSIGN_YES: true
-        run: |
-          SUFFIX="-uki"
-          IMAGE=$(FLAVOR=${{ matrix.flavor }} FLAVOR_RELEASE="${{ matrix.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
-          docker tag $(cat IMAGE) "$IMAGE$SUFFIX"
-          docker push "$IMAGE$SUFFIX"
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
-          cosign sign $image_ref
-  test-uki-ubuntu-lts:
+            base_image: ubuntu:24.04
+          - flavor: fedora
+            family: rhel
+            flavor_release: 40
+            base_image: fedora:40
     uses: ./.github/workflows/reusable-uki-test.yaml
     with:
-      base_image: ubuntu:24.04
-      family: ubuntu
-      flavor: ubuntu
-      flavor_release: "24.04"
-  test-uki-fedora:
-    uses: ./.github/workflows/reusable-uki-test.yaml
-    with:
-      base_image: fedora:40
-      family: rhel
-      flavor: fedora
-      flavor_release: "40"
+      base_image: ${{ matrix.base_image }}
+      family: ${{ matrix.family }}
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavor_release }}

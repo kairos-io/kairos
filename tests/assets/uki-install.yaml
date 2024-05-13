@@ -2,7 +2,6 @@
 
 install:
   auto: true
-  reboot: true
   device: /dev/vda
   grub_options:
     extra_cmdline: "rd.immucore.debug foobarzz"

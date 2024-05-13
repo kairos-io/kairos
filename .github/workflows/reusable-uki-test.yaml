@@ -85,6 +85,20 @@ jobs:
           export DATASOURCE=${PWD}/build/datasource.iso
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
+      - name: Login to Quay Registry
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Push to quay
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
+        env:
+          COSIGN_YES: true
+        run: |
+          SUFFIX="-uki"
+          IMAGE=$(FLAVOR=${{ matrix.flavor }} FLAVOR_RELEASE="${{ matrix.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          docker tag $(cat IMAGE) "$IMAGE$SUFFIX"
+          docker push "$IMAGE$SUFFIX"
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
+          cosign sign $image_ref
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
