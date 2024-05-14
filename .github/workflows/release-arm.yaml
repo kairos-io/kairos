@@ -442,6 +442,7 @@ jobs:
       - name: Build iso  🔧
         run: |
           INIT=$([[ "${{ matrix.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd")
+          earthly --platform=linux/arm64 +extract-framework-profile
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq --arg INIT "$INIT" '.packages | map(select(.name == "k3s-" + $INIT)) | map(.version) | unique | last' | tr -d '"')
           earthly -P +all-arm-generic \
             --FLAVOR=${{ matrix.flavor }} \
