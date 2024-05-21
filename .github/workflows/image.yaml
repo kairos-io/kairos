@@ -82,8 +82,6 @@ jobs:
           - flavor: "debian"
             flavorRelease: "bookworm"
           - flavor: "ubuntu"
-            flavorRelease: "20.04"
-          - flavor: "ubuntu"
             flavorRelease: "22.04"
           - flavor: "ubuntu"
             flavorRelease: "24.04"
