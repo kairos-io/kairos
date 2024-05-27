@@ -438,5 +438,25 @@
         "baseImage": "rockylinux:9",
         "arch": "amd64",
         "worker": "self-hosted"
+    },
+    {
+        "family": "rhel",
+        "flavor": "almalinux",
+        "flavorRelease": "9",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "almalinux:9",
+        "arch": "amd64",
+        "worker": "self-hosted"
+    },
+    {
+        "family": "rhel",
+        "flavor": "almalinux",
+        "flavorRelease": "9",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "almalinux:9",
+        "arch": "amd64",
+        "worker": "self-hosted"
     }
 ]
