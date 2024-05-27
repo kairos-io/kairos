@@ -54,6 +54,10 @@ jobs:
           sudo apt-get remove -y azure-cli || true
           sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
           sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get remove -y 'vim-runtime' || true
+          sudo apt-get remove -y '^gcc-*' || true
+          sudo apt-get remove -y '^g++-*' || true
+          sudo apt-get remove -y '^cpp-*' || true
           sudo apt-get autoremove -y
           sudo apt-get clean
           echo
