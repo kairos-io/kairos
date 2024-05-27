@@ -80,7 +80,7 @@ jobs:
           # generate combinations
           jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}]' flavors_systemd.json k3s_systemd.json > combinations_systemd.json
           # merge the two combinations
-          content=$(jq -s combinations_systemd.json)
+          content=$(cat combinations_systemd.json)
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
