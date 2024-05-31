@@ -78,7 +78,7 @@ jobs:
           echo
           echo "Listing top largest packages"
           pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 100 <<< "${pkgs}"
+          head -n 90 <<< "${pkgs}"
           echo
           sudo rm -rfv build || true
           df -h
