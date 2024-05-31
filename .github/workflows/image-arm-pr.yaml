@@ -108,7 +108,7 @@ jobs:
             -MODEL=rpi4 \
             -K3S_VERSION=1.29.4 \
             -FLAVOR=ubuntu \
-            -FLAVOR_RELEASE=22.03 \
+            -FLAVOR_RELEASE=22.04 \
             -FAMILY=ubuntu \
             -BASE_IMAGE=ubuntu:22.04
       - name: Convert all json files into a reports.tar.gz file
