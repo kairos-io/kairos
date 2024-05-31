@@ -71,12 +71,14 @@ jobs:
           sudo apt-get remove -y '^cpp-*' || true
           sudo apt-get remove -y 'snapd' || true
           sudo apt-get remove -y 'linux-azure-6.5-headers-6.5.0-1021' || true
+          sudo apt-get remove -y 'r-base-core' || true
+          sudo apt-get remove -y 'vim-runtime' || true
           sudo apt-get autoremove -y
           sudo apt-get clean
           echo
           echo "Listing top largest packages"
           pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
+          head -n 100 <<< "${pkgs}"
           echo
           sudo rm -rfv build || true
           df -h
