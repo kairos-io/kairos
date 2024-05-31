@@ -69,7 +69,6 @@ jobs:
           sudo apt-get remove -y '^gcc-*' || true
           sudo apt-get remove -y '^g++-*' || true
           sudo apt-get remove -y '^cpp-*' || true
-          sudo apt-get remove -y 'linux-modules-6.5.0-1021-azure' || true
           sudo apt-get autoremove -y
           sudo apt-get clean
           echo
