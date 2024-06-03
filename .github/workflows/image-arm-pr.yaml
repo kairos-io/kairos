@@ -38,6 +38,9 @@ jobs:
       actions: read
       security-events: write
     steps:
+      - name: size of docker images
+        run: |
+          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
       - name: Release space from worker
         run: |
           echo "Listing top largest packages"
@@ -138,7 +141,7 @@ jobs:
           export IMAGE=$(cat build/IMAGE)
           docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-      - name: space
+      - name: size of docker images
         if: always()
         run: |
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
