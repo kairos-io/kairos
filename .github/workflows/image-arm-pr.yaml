@@ -79,6 +79,10 @@ jobs:
           sudo apt-get remove -y '*perl*' || true
           sudo apt-get remove -y '*python*' || true
           sudo apt-get remove -y '*ruby*' || true
+          sudo apt-get remove -y 'adwaita-icon-theme-full' || true
+          sudo apt-get remove -y 'perl-modules-5.34' || true
+          sudo apt-get remove -y 'skopeo' || true
+          sudo apt-get remove -y 'libperl5.34' || true
           sudo apt-get autoremove -y
           sudo apt-get clean
           echo
@@ -134,3 +138,7 @@ jobs:
           export IMAGE=$(cat build/IMAGE)
           docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+      - name: space
+        if: always()
+        run: |
+          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
