@@ -73,6 +73,12 @@ jobs:
           sudo apt-get remove -y 'linux-azure-6.5-headers-6.5.0-1021' || true
           sudo apt-get remove -y 'r-base-core' || true
           sudo apt-get remove -y 'vim-runtime' || true
+          sudo apt-get remove -y 'humanity-icon-theme' || true
+          sudo apt-get remove -y 'ruby3.0-doc' || true
+          sudo apt-get remove -y 'mercurial-common' || true
+          sudo apt-get remove -y '*perl*' || true
+          sudo apt-get remove -y '*python*' || true
+          sudo apt-get remove -y '*ruby*' || true
           sudo apt-get autoremove -y
           sudo apt-get clean
           echo
