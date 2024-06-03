@@ -41,6 +41,10 @@ jobs:
       - name: size of docker images
         run: |
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
+      - name: remove unused docker images
+        run: |
+          docker rmi node:18
+          docker rmi node:20
       - name: Release space from worker
         run: |
           echo "Listing top largest packages"
