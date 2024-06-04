@@ -30,28 +30,6 @@ jobs:
       base_image: alpine:3.19
       model: rpi4
       worker: fast
-  bar:
-    runs-on: ubuntu-latest-4-cores
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
-    steps:
-      - name: size of docker images
-        run: |
-          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
-  foo:
-    runs-on: foobar
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
-    steps:
-      - name: size of docker images
-        run: |
-          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
   ubuntu-standard:
     runs-on: equinix-2cpu-8gb
     permissions:
@@ -63,15 +41,6 @@ jobs:
       - name: size of docker images
         run: |
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
-      - name: remove unused docker images
-        run: |
-          docker rmi node:16
-          docker rmi node:18
-          docker rmi node:20
-          docker rmi node:16-alpine
-          docker rmi node:18-alpine
-          docker rmi node:20-alpine
-          docker rmi debian:10
       - name: Release space from worker
         run: |
           echo "Listing top largest packages"
