@@ -30,6 +30,17 @@ jobs:
       base_image: alpine:3.19
       model: rpi4
       worker: fast
+  bar:
+    runs-on: ubuntu-latest-4-cores
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    steps:
+      - name: size of docker images
+        run: |
+          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
   foo:
     runs-on: foobar
     permissions:
