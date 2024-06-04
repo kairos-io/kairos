@@ -41,6 +41,10 @@ jobs:
       - name: size of docker images
         run: |
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
+      - name: Install required packages
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            curl
       - name: Release space from worker
         run: |
           echo "Listing top largest packages"
