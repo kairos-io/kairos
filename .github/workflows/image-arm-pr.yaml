@@ -31,7 +31,7 @@ jobs:
       model: rpi4
       worker: fast
   ubuntu-standard:
-    runs-on: ubuntu-latest
+    runs-on: equinix-2cpu-8gb
     permissions:
       id-token: write  # OIDC support
       contents: write
