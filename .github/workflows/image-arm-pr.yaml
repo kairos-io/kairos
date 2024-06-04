@@ -31,7 +31,7 @@ jobs:
       model: rpi4
       worker: fast
   ubuntu-standard:
-    runs-on: oracle-aarch64-2cpu-8gb
+    runs-on: oracle-aarch64-4cpu-16gb
     permissions:
       id-token: write  # OIDC support
       contents: write
