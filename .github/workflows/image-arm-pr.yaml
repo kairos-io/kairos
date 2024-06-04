@@ -40,12 +40,13 @@ jobs:
     steps:
       - name: Install required packages
         run: |
-          sudo apt-get update && sudo apt-get install -y \
+          sudo apt-get update 
+          sudo apt-get install -y \
             curl
       - name: size of docker images
         run: |
-          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}" \
-            docker rmi quay.io/kairos/ubuntu:22.04-standard-arm64-rpi4-v3.0.4-96-g83cf366-k3sv1.29.4-k3s1
+          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
+          docker rmi quay.io/kairos/ubuntu:22.04-standard-arm64-rpi4-v3.0.4-96-g83cf366-k3sv1.29.4-k3s1
       - name: Available space
         run: |
           df -h
