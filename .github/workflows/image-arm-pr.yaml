@@ -99,9 +99,7 @@ jobs:
         if: always()
         run: |
           df -h
-          sudo rm -rfv build || true
       - name: Cleanup Image
         if: always()
         run: |
-          docker rmi $(cat build/IMAGE) || true
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
