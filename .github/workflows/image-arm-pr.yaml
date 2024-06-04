@@ -42,6 +42,13 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y \
             curl
+      - name: size of docker images
+        run: |
+          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}" \
+            docker rmi quay.io/kairos/ubuntu:22.04-standard-arm64-rpi4-v3.0.4-96-g83cf366-k3sv1.29.4-k3s1
+      - name: Available space
+        run: |
+          df -h
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -88,7 +95,13 @@ jobs:
           export IMAGE=$(cat build/IMAGE)
           docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-      - name: size of docker images
+      - name: Cleanup Image
         if: always()
         run: |
+          docker rmi $(cat build/IMAGE) || true
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
+      - name: Cleanup Build
+        if: always()
+        run: |
+          sudo rm -rfv build || true
+          df -h
