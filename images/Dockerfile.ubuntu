@@ -115,13 +115,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   kmod \
   linux-base \
   && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
-# for UKI, install the linux-image pkg if no kernel is found
-RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get update && apt-get install -y --no-install-recommends \
-  "$(apt-cache search linux-image | grep -oP 'linux-image-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
-  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 # for UKI, install the linux-modules pkg if no modules are found
 RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
   "$(apt-cache search linux-modules | grep -oP 'linux-modules-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+# for UKI, install the linux-image pkg if no kernel is found
+RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get update && apt-get install -y --no-install-recommends \
+  "$(apt-cache search linux-image | grep -oP 'linux-image-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
   && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # This target is aimed at non-UKI images where size is not a concern
