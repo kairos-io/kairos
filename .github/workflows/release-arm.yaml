@@ -387,6 +387,14 @@ jobs:
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
+      - name: Space stats
+        if: always()
+        run: |
+          df -h
+      - name: Image stats
+        if: always()
+        run: |
+          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
 
   build-arm-generic:
     runs-on: ubuntu-latest
