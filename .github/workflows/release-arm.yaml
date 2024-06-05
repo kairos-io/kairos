@@ -302,7 +302,7 @@ jobs:
     steps:
       - name: Install required packages
         run: |
-          sudo apt-get update 
+          sudo apt-get update
           sudo apt-get install -y \
             curl
       - uses: actions/checkout@v4
