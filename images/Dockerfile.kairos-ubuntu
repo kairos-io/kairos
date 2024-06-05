@@ -108,6 +108,20 @@ RUN rm -rf /tmp/nohang.deb
 # This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
 # to the image because there are limitations on the total size
 FROM common AS systemd-boot
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  iucode-tool \
+  kmod \
+  linux-base \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+# for UKI, install the linux-modules pkg if no modules are found
+RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
+  "$(apt-cache search linux-modules | grep -oP 'linux-modules-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+# for UKI, install the linux-image pkg if no kernel is found
+RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get update && apt-get install -y --no-install-recommends \
+  "$(apt-cache search linux-image | grep -oP 'linux-image-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # This target is aimed at non-UKI images where size is not a concern
 FROM common AS grub
@@ -132,6 +146,15 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     shared-mime-info \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN [ -z "$(ls -A /lib/firmware/amd/)" ] && apt-get update && apt-get install -y --no-install-recommends \
+  && apt-get install -y --no-install-recommends \
+    amd64-microcode \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN [ -z "$(ls -A /lib/firmware/intel-ucode/)" ] && apt-get update && apt-get install -y --no-install-recommends \
+  && apt-get install -y --no-install-recommends \
+    intel-microcode \
+    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 FROM systemd-boot AS systemd-boot-arm64
 
 FROM systemd-boot-amd64 AS systemd-boot-amd64-24.04
@@ -228,7 +251,7 @@ FROM base-ubuntu-current AS kernel-ubuntu-24.04
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
-RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
+RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-24.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -236,7 +259,7 @@ FROM base-ubuntu-current AS kernel-ubuntu-current
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
-RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
+RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-22.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -244,7 +267,7 @@ FROM base-ubuntu-legacy AS kernel-ubuntu-20.04
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
 RUN apt-get update
-RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get install -y --no-install-recommends \
+RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-20.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
