@@ -93,6 +93,7 @@ RUN  apt-get update \
     sudo \
     systemd \
     systemd-timesyncd \
+    systemd-container \
     tar \
     ubuntu-advantage-tools \
     xz-utils \
