@@ -72,7 +72,7 @@ jobs:
         run: |
           earthly +uki-iso \
             --BASE_IMAGE=ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.head_ref || github.ref }}:24h \
-            --ENKI_CREATE_CI_KEYS=true
+            --ENKI_OVERLAY_DIR=tests/assets/sysext/ --ENKI_KEYS_DIR=tests/assets/keys/
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml

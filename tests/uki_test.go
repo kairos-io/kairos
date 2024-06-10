@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
 		}
-
+		
 		err := vm.Destroy(nil)
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -168,11 +169,65 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "fedora")
 		})
 
+		By("Checking sysext was copied during install", func() {
+			out, err := vm.Sudo("ls /.extra/sysext")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(MatchRegexp("hello-broke.sysext.raw"))
+			Expect(out).To(MatchRegexp("work.sysext.raw"))
+		})
+
+		By("Checking sysext was copied during boot", func() {
+			out, err := vm.Sudo("ls /run/extensions")
+			Expect(err).ToNot(HaveOccurred(), out)
+			// Should not contain hello-broke.sysext.raw as it didn't pass validation
+			Expect(out).ToNot(MatchRegexp("hello-broke.sysext.raw"))
+			// Should contain work.sysext.raw as it passed validation
+			Expect(out).To(MatchRegexp("work.sysext.raw"))
+		})
+
+		By("Checking that sysext was loaded", func() {
+			type sysextStatus []struct {
+				Hierarchy  string `json:"hierarchy"`
+				Extensions any    `json:"extensions"`
+			}
+
+			// when calling the status we need to set the hierarchy env variable so it can find them
+			env := "SYSTEMD_SYSEXT_HIERARCHIES=\"/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin\""
+			out, err := vm.Sudo(fmt.Sprintf("%s systemd-sysext --json=short", env))
+			Expect(err).ToNot(HaveOccurred(), out)
+			// marshall output to struct
+			var sysexts sysextStatus
+			err = json.Unmarshal([]byte(out), &sysexts)
+			Expect(err).ToNot(HaveOccurred())
+			// check if sysexts are loaded
+			for _, sysext := range sysexts {
+				if sysext.Hierarchy == "/usr" {
+					Expect(sysext.Extensions).To(ContainElement("work"))
+				}
+			}
+		})
+
+		By("Checking that we can run a command from a sysext", func() {
+			out, err := vm.Sudo("hello.sh")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("Hello world"))
+		})
+
 		By("rebooting to recovery")
 		out, err := vm.Sudo("kairos-agent bootentry --select recovery")
 		Expect(err).ToNot(HaveOccurred(), out)
 		vm.Reboot()
 		vm.EventuallyConnects(1200)
+
+		By("Checking the boot mode (recovery)", func() {
+			out, err := vm.Sudo("stat /run/cos/recovery_mode")
+			Expect(err).ToNot(HaveOccurred(), out)
+		})
+
+		By("Checking sysext was not copied during boot", func() {
+			out, err := vm.Sudo("stat /.extra/sysext")
+			Expect(err).To(HaveOccurred(), out)
+		})
 
 		By("resetting")
 		out, err = vm.Sudo("kairos-agent --debug reset --unattended")
