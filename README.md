@@ -42,6 +42,10 @@ For comprehensive docs, tutorials, and examples see our [documentation](https://
 
 ## Project status
 
+Check the [Roadmap](https://github.com/orgs/kairos-io/projects/2) for a high-level view of what features are coming to Kairos.
+
+Or go to the [Project Board](https://github.com/orgs/kairos-io/projects/1/views/1) to check what the team is working on right now!
+
 To stay up-to-date, check out the [Kairos Blog](https://kairos.io/blog/). You will find also release announcements and deep-dive into Kairos features!
 
 ## Community
