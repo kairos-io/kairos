@@ -52,6 +52,7 @@ To stay up-to-date, check out the [Kairos Blog](https://kairos.io/blog/). You wi
 
 You can find us at:
 
+- [Cloud Native Slack #kairos channel](https://cloud-native.slack.com/archives/C0707M8UEU8)
 - [#kairos-io at matrix.org](https://matrix.to/#/#kairos-io:matrix.org)
 - [IRC #kairos in libera.chat](https://web.libera.chat/#kairos)
 - [GitHub Discussions](https://github.com/kairos-io/kairos/discussions)
