@@ -1,0 +1,12 @@
+# CLOMonitor metadata file
+# This file must be located at the root of the repository
+
+# Checks exemptions
+licenseScanning:
+  # URL with the repository's license scanning results
+  #
+  # CLOMonitor can extract license scanning results from FOSSA and Snyk badges
+  # in the repository README.md file automatically. If your repository uses a
+  # different scanning solution, this url can be set to pass the corresponding
+  # check.
+  url: https://app.snyk.io/org/kairos/reports/licenses
