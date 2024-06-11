@@ -2,6 +2,9 @@
 # This file must be located at the root of the repository
 
 # Checks exemptions
+exemptions:
+  - check: artifacthub_badge # Check identifier (see https://github.com/cncf/clomonitor/blob/main/docs/checks.md#exemptions)
+    reason: "Kairos is installed via ISOs or container images and does not offer Cloud Native packages at the moment."
 licenseScanning:
   # URL with the repository's license scanning results
   #
