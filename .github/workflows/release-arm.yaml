@@ -241,7 +241,7 @@ jobs:
         run: |
           cd build
           filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
-          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
+          sudo tar cvf "${filename}-sbom-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -348,7 +348,7 @@ jobs:
         run: |
           cd build
           filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
-          sudo tar cvf "${filename}-scan-reports.tar.gz" *.json
+          sudo tar cvf "${filename}-sbom-scan-reports.tar.gz" *.json
       - name: Push  🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
