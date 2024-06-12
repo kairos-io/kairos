@@ -157,3 +157,8 @@ a description that lets us know what work you did.
 Keep in mind that we like to see one issue addressed per pull request,
 as this helps keep our git history clean and we can more easily track
 down issues.
+
+Pull request requirements
+-------------------------
+
+All changes in our code, whether new features or bug fixes, must include a test. If you need some help don't hesitate to contact the team through one of our [community channels](https://kairos.io/community/)
