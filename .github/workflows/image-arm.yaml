@@ -200,9 +200,9 @@ jobs:
     secrets: inherit
     with:
       flavor: "opensuse"
-      flavor_release: "leap-15.5"
+      flavor_release: "leap-15.6"
       family: opensuse
-      base_image: opensuse/leap:15.5
+      base_image: opensuse/leap:15.6
       variant: core
 
   notify:
