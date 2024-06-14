@@ -112,7 +112,7 @@ jobs:
       matrix:
         include:
           - flavor: "alpine"
-            flavorRelease: "3.19"
+            flavorRelease: "3.20"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
           - flavor: "opensuse"
@@ -150,9 +150,9 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.20"
             family: alpine
-            base_image: alpine:3.19
+            base_image: alpine:3.20
             model: generic
             variant: core
           - flavor: opensuse
@@ -177,11 +177,11 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.20"
             family: alpine
             variant: core
             model: generic
-            baseImage: alpine:3.19
+            baseImage: alpine:3.20
           - flavor: opensuse
             flavorRelease: leap-15.6
             family: opensuse
@@ -206,7 +206,7 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.20"
           - flavor: opensuse
             flavorRelease: leap-15.6
             releaseMatcher: leap-15.5
@@ -285,9 +285,9 @@ jobs:
             family: opensuse
             baseImage: opensuse/leap:15.6
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.20"
             family: alpine
-            baseImage: alpine:3.19
+            baseImage: alpine:3.20
           - flavor: ubuntu
             flavorRelease: "24.04"
             family: ubuntu
@@ -323,7 +323,7 @@ jobs:
           #   flavorRelease: "3.19"
           #   label: "provider-decentralized-k8s"
           - flavor: "alpine"
-            flavorRelease: "3.19"
+            flavorRelease: "3.20"
             label: "provider-upgrade-k8s"
   standard-upgrade-latest:
     uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
