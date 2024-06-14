@@ -61,7 +61,7 @@ jobs:
       matrix:
         include:
           - flavor: opensuse
-            flavorRelease: leap-15.5
+            flavorRelease: leap-15.6
             secureboot: false
   install-secureboot:
     uses: ./.github/workflows/reusable-install-test.yaml
@@ -76,7 +76,7 @@ jobs:
       matrix:
         include:
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap-15.6"
           - flavor: "opensuse"
             flavorRelease: "tumbleweed"
           - flavor: "debian"
@@ -114,7 +114,7 @@ jobs:
           - flavor: "alpine"
             flavorRelease: "3.19"
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap-15.6"
           - flavor: "opensuse"
             flavorRelease: "tumbleweed"
           - flavor: "debian"
@@ -156,9 +156,9 @@ jobs:
             model: generic
             variant: core
           - flavor: opensuse
-            flavorRelease: leap-15.5
+            flavorRelease: leap-15.6
             family: opensuse
-            base_image: opensuse/leap:15.5
+            base_image: opensuse/leap:15.6
             model: generic
             variant: core
   netboot:
@@ -183,11 +183,11 @@ jobs:
             model: generic
             baseImage: alpine:3.19
           - flavor: opensuse
-            flavorRelease: leap-15.5
+            flavorRelease: leap-15.6
             family: opensuse
             variant: core
             model: generic
-            baseImage: opensuse/leap:15.5
+            baseImage: opensuse/leap:15.6
           - flavor: ubuntu
             flavorRelease: "24.04"
             family: ubuntu
@@ -208,7 +208,7 @@ jobs:
           - flavor: alpine
             flavorRelease: "3.19"
           - flavor: opensuse
-            flavorRelease: leap-15.5
+            flavorRelease: leap-15.6
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
@@ -225,7 +225,7 @@ jobs:
           #- flavor: alpine
           #  flavorRelease: "3.19"
           - flavor: opensuse
-            flavorRelease: leap-15.5
+            flavorRelease: leap-15.6
             family: opensuse
   custom-partitioning:
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
@@ -240,7 +240,7 @@ jobs:
         flavor:
           - "opensuse"
         flavorRelease:
-          - "leap-15.5"
+          - "leap-15.6"
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
@@ -261,7 +261,7 @@ jobs:
         flavor:
           - "opensuse"
         flavorRelease:
-          - "leap-15.5"
+          - "leap-15.6"
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
     secrets: inherit
@@ -278,9 +278,9 @@ jobs:
       matrix:
         include:
           - flavor: opensuse
-            flavorRelease: leap-15.5
+            flavorRelease: leap-15.6
             family: opensuse
-            baseImage: opensuse/leap:15.5
+            baseImage: opensuse/leap:15.6
           - flavor: alpine
             flavorRelease: "3.19"
             family: alpine
@@ -303,17 +303,17 @@ jobs:
       matrix:
         include:
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap-15.6"
             label: "provider-qrcode-install"
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap-15.6"
             label: "provider-upgrade"
           # no point of running this on CI if it always fails
           # - flavor: "opensuse"
-          #   flavorRelease: "leap-15.5"
+          #   flavorRelease: "leap-15.6"
           #   label: "provider-decentralized-k8s"
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap-15.6"
             label: "provider-upgrade-k8s"
           # no point of running this on CI if it always fails
           # - flavor: "alpine"
@@ -336,7 +336,7 @@ jobs:
       matrix:
         include:
           - flavor: "opensuse"
-            flavorRelease: "leap-15.5"
+            flavorRelease: "leap-15.6"
             family: "opensuse"
           # cant do alpine yet as it hasnt been released with the proper name
           #- flavor: "alpine"

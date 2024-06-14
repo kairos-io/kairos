@@ -14,8 +14,8 @@ ARG FRAMEWORK_VERSION=main
 
 FROM $BASE_IMAGE AS base
 
-FROM base AS leap-15.5-repo
-RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.5/utilities.repo || true && \
+FROM base AS leap-15.6-repo
+RUN zypper ar -G https://download.opensuse.org/repositories/utilities/15.6/utilities.repo || true && \
     zypper ref
 
 FROM base AS tumbleweed-repo-amd64
@@ -137,7 +137,7 @@ RUN zypper in --force-resolution -y \
     && zypper cc
 COPY rpi/config.txt /boot/config.txt
 
-FROM rpicommon AS rpi-leap-15.5
+FROM rpicommon AS rpi-leap-15.6
 # somehow these two are needed in leap
 RUN zypper in --force-resolution -y \
     grub2-i386-pc \
