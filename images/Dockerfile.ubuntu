@@ -84,6 +84,9 @@ RUN  apt-get update \
     less \
     lvm2 \
     nano \
+    selinux-utils \
+    selinux-basics \
+    selinux-policy-default \
     nbd-client \
     nfs-common \
     open-iscsi \
@@ -100,6 +103,10 @@ RUN  apt-get update \
     xz-utils \
     zstd \
     tpm2-* \
+    xfce4 \
+    xinit \
+    xorg \
+    xauth \
     && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install nohang
