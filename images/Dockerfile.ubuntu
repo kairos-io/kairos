@@ -346,6 +346,9 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     isc-dhcp-common \
     isc-dhcp-client \
+    selinux-utils \
+    selinux-basics \
+    selinux-policy-default \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 FROM ubuntu-latest AS ubuntu-23.10
