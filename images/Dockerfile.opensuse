@@ -32,7 +32,7 @@ RUN zypper ar -G https://download.opensuse.org/repositories/utilities/openSUSE_F
     zypper ref
 
 FROM ${FLAVOR_RELEASE}-repo AS common
-RUN zypper in -y \
+RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
     coreutils \
