@@ -1,0 +1,188 @@
+# This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=archlinux
+###############################################################
+####                           ARGS                        ####
+###############################################################
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
+ARG FAMILY=archlinux
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG MODEL=generic
+ARG BASE_IMAGE=archlinux:base
+ARG VARIANT=core
+ARG VERSION
+ARG FRAMEWORK_VERSION=main
+
+###############################################################
+####                          Common                       ####
+###############################################################
+FROM $BASE_IMAGE AS common
+RUN pacman -Syu --noconfirm
+RUN pacman -Syu --noconfirm \
+    bash \
+    bash-completion \
+    cloud-utils \
+    connman \
+    conntrack-tools \
+    coreutils \
+    cryptsetup \
+    curl \
+    dracut \
+    dbus \
+    dmidecode \
+    dosfstools \
+    e2fsprogs \
+    efibootmgr \
+    grub \
+    fail2ban \
+    findutils \
+    gawk \
+    gettext \
+    grub \
+    haveged \
+    htop \
+    iproute2 \
+    iptables \
+    irqbalance \
+    jq \
+    kbd \
+    less \
+    linux \
+    lvm2 \
+    tpm2-tools tpm2-tss \
+    rpcbind \
+    sudo \
+    parted rsync gptfdisk \
+    dhclient iproute2 iputils \
+    systemd
+
+
+FROM common AS generic
+
+
+###############################################################
+####               Post-Process Common to All              ####
+###############################################################
+FROM ${MODEL} AS all
+# WORKAROUND: its a soft link to /usr/bin and we cannot copy from framework into it
+# We should change everything to go into /usr/bin instead like suc-upgrade which currently goes into /usr/sbin
+RUN rm /usr/sbin && mkdir /usr/sbin
+# WORKAROUND: kernel is not copied into boot. link kernel from /usr/lib/modules to /boot
+RUN kernel=$(ls /lib/modules | head -n1) && ln -s ../usr/lib/modules/${kernel}/vmlinuz /boot/vmlinuz
+
+FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
+
+FROM all AS base-kairos
+
+# Symlinks to make elemental installer work
+RUN ORIG=/usr/sbin/grub-install; DEST=/usr/sbin/grub2-install; [ -e $ORIG ] && [ ! -e $DEST ] && ln -s $ORIG $DEST || true
+RUN ORIG=/usr/bin/grub-editenv; DEST=/usr/sbin/grub2-editenv; [ -e $ORIG ] && [ ! -e $DEST ] && ln -s $ORIG $DEST || true
+
+# here we add 100Mb aprox
+COPY --from=framework / /
+
+RUN rm -rf /etc/ssh/ssh_host_*
+
+COPY which-init.sh /usr/local/bin/which-init.sh
+
+RUN sed -i -n '/KAIROS_/!p' /etc/os-release
+
+# need to be defined after FROM for them to be replaced in the RUN bellow
+ARG HOME_URL="https://github.com/kairos-io/kairos"
+ARG BUG_REPORT_URL="https://github.com/kairos-io/kairos/issues"
+ARG GITHUB_REPO="kairos-io/kairos"
+ARG ID=kairos
+ARG REGISTRY_AND_ORG="quay.io/kairos"
+
+ARG RELEASE
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG VARIANT
+ARG FAMILY
+ARG MODEL
+ARG TARGETARCH
+ARG SOFTWARE_VERSION
+ARG SOFTWARE_VERSION_PREFIX
+ARG SOFTWARE_LUET_VERSION=""
+
+RUN rm -rf /etc/machine-id
+
+FROM base-kairos AS kairos-core
+
+FROM base-kairos AS kairos-standard
+ARG SOFTWARE_VERSION
+LABEL io.kairos.k3s_version="${SOFTWARE_VERSION}"
+RUN luet install -y system/provider-kairos
+RUN luet install -y "k8s/k3s-$(which-init.sh)@${SOFTWARE_LUET_VERSION:-$SOFTWARE_VERSION}" utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+
+FROM kairos-${VARIANT} AS kairos-final
+ARG BASE_IMAGE
+ARG FRAMEWORK_VERSION
+ARG RELEASE
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG VARIANT
+ARG FAMILY
+ARG MODEL
+ARG TARGETARCH
+ARG SOFTWARE_VERSION
+ARG SOFTWARE_VERSION_PREFIX
+
+LABEL org.opencontainers.image.authors="Kairos Maintainers <team@kairos.io>"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+LABEL org.opencontainers.image.url="https://github.com/kairos-io/kairos"
+LABEL org.opencontainers.image.source="https://github.com/kairos-io/kairos.git"
+LABEL io.kairos.base_image="${BASE_IMAGE}"
+LABEL io.kairos.variant="${VARIANT}"
+LABEL io.kairos.family="${FAMILY}"
+LABEL io.kairos.flavor="${FLAVOR}"
+LABEL io.kairos.flavor_release="${FLAVOR_RELEASE}"
+LABEL io.kairos.model="${MODEL}"
+LABEL io.kairos.release="${RELEASE}"
+LABEL io.kairos.framework-version="${FRAMEWORK_VERSION}"
+LABEL io.kairos.software-version="${SOFTWARE_VERSION}"
+LABEL io.kairos.software-version-prefix="${SOFTWARE_VERSION_PREFIX}"
+LABEL io.kairos.targetarch="${TARGETARCH}"
+
+# not duplicated but used to see the error
+RUN kairos-agent versioneer os-release-variables
+RUN kairos-agent versioneer os-release-variables >> /etc/os-release
+# not duplicated but used to see the error
+RUN kairos-agent versioneer container-artifact-name
+RUN kairos-agent versioneer container-artifact-name > /IMAGE
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN luet database get-all-installed --output /etc/kairos/versions.yaml
+
+# TODO what about caches?
+RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+# Regenerate initrd if necessary, proper config files with immucore and custom initrd should already be in there installed by framework
+# for systemd distros
+RUN if [ -f "/usr/bin/dracut" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
+      ln -sf "initrd-${kernel}" /boot/initrd; \
+    fi
+# for alpine (openrc based)
+RUN if [ -f "/sbin/mkinitfs" ]; then \
+      kernel=$(ls /lib/modules | head -n1) && \
+      mkinitfs -o /boot/initrd "${kernel}"; \
+    fi
+
+# symlink kernel to /boot/vmlinuz
+RUN kernel=$(ls /boot/vmlinuz-* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; then ln -sf "$kernel" /boot/vmlinuz; fi || true
+RUN kernel=$(ls /boot/Image* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; then ln -sf "$kernel" /boot/vmlinuz; fi || true
+
+# this is generally present on rhel based systems, but it doesn't hurt to remove in any case
+RUN rm -rf /boot/initramfs-* || true
+
+RUN rm /etc/machine-id || true
+RUN rm /var/lib/dbus/machine-id || true
+RUN rm /etc/hostname || true
+
+RUN if [ "$(which-init.sh)" = "systemd" ]; then \
+      journalctl --vacuum-size=1K || true; \
+    fi
+
+RUN rm -rf /tmp/*
+RUN luet cleanup
+RUN rm -rf /var/luet

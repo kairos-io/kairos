@@ -208,7 +208,7 @@ kairos-dockerfile:
     ARG --required FAMILY
     COPY ./images .
     IF [ "$FAMILY" == "all" ]
-        ARG FAMILY_LIST="alpine debian opensuse rhel ubuntu"
+        ARG FAMILY_LIST="alpine debian opensuse rhel ubuntu archlinux"
     ELSE
         ARG FAMILY_LIST=$FAMILY
     END

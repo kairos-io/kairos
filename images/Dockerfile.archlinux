@@ -1,0 +1,71 @@
+# WARNING: This is a base image used internally for Kairos, it is not meant to be built directly, use the images/Dockerfile.kairos-* files instead
+###############################################################
+####                           ARGS                        ####
+###############################################################
+# WARNING: While some of the ARGs are not used in this file, they are used in the images/Dockerfile.kairos-* files
+# TARGETARCH is used to determine the architecture of the image, it is already set by Docker so it doesn't need to be defined here
+ARG FAMILY=archlinux
+ARG FLAVOR
+ARG FLAVOR_RELEASE
+ARG MODEL=generic
+ARG BASE_IMAGE=archlinux:base
+ARG VARIANT=core
+ARG VERSION
+ARG FRAMEWORK_VERSION=main
+
+###############################################################
+####                          Common                       ####
+###############################################################
+FROM $BASE_IMAGE AS common
+RUN pacman -Syu --noconfirm
+RUN pacman -Syu --noconfirm \
+    bash \
+    bash-completion \
+    cloud-utils \
+    connman \
+    conntrack-tools \
+    coreutils \
+    cryptsetup \
+    curl \
+    dracut \
+    dbus \
+    dmidecode \
+    dosfstools \
+    e2fsprogs \
+    efibootmgr \
+    grub \
+    fail2ban \
+    findutils \
+    gawk \
+    gettext \
+    grub \
+    haveged \
+    htop \
+    iproute2 \
+    iptables \
+    irqbalance \
+    jq \
+    kbd \
+    less \
+    linux \
+    lvm2 \
+    tpm2-tools tpm2-tss \
+    rpcbind \
+    sudo \
+    parted rsync gptfdisk \
+    dhclient iproute2 iputils \
+    systemd
+
+
+FROM common AS generic
+
+
+###############################################################
+####               Post-Process Common to All              ####
+###############################################################
+FROM ${MODEL} AS all
+# WORKAROUND: its a soft link to /usr/bin and we cannot copy from framework into it
+# We should change everything to go into /usr/bin instead like suc-upgrade which currently goes into /usr/sbin
+RUN rm /usr/sbin && mkdir /usr/sbin
+# WORKAROUND: kernel is not copied into boot. link kernel from /usr/lib/modules to /boot
+RUN kernel=$(ls /lib/modules | head -n1) && ln -s ../usr/lib/modules/${kernel}/vmlinuz /boot/vmlinuz
