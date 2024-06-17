@@ -29,7 +29,7 @@ work.raw was built with systemd-repart so it would be verity+signed
 systemd-repart -S -s SOURCE_DIR OUTPUT_FILE --private-key=tests/assets/keys/db.key --certificate=tests/assets/keys/db.pem
 ```
 
-The other one was built with [sysext-bakery](https://github.com/flatcar/sysext-bakery) which makes it wasy to build sysextensions, but doesnt have support for signing or verity yet. So its simple to generate images with it but they wont work on UKI.
+The other one was built with [sysext-bakery](https://github.com/flatcar/sysext-bakery) which makes it easy to build sysextensions, but doesn't have support for signing or verity yet. So its simple to generate images with it but they wont work on UKI.
 ```bash
 bake.sh SOURCE_DIR
 ```
