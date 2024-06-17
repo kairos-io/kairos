@@ -15,14 +15,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - flavor: ubuntu
-            flavor_release: 24.04
-            family: ubuntu
-            base_image: ubuntu:24.04
-          - flavor: fedora
-            family: rhel
-            flavor_release: 40
-            base_image: fedora:40
+          - flavor: archlinux
+            family: archlinux
+            flavor_release: base
+            base_image: archlinux:base
     uses: ./.github/workflows/reusable-uki-test.yaml
     secrets: inherit
     with:

@@ -10,40 +10,7 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  core-ubuntu-22-lts:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
-    with:
-      flavor: ubuntu
-      flavor_release: "22.04"
-      family: ubuntu
-      base_image: ubuntu:22.04
-      model: generic
-      variant: core
-      arch: amd64
-
-  core-ubuntu-24-lts:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      family: ubuntu
-      base_image: ubuntu:24.04
-      model: generic
-      variant: core
-      arch: amd64
-
-  core-alpine:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      family: alpine
-      base_image: alpine:3.19
-      model: generic
-      variant: core
-      arch: amd64
-
-  core-archlinux:
+  core:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     with:
       flavor: archlinux
@@ -53,158 +20,54 @@ jobs:
       model: generic
       variant: core
       arch: amd64
-
-  standard:
-    uses: ./.github/workflows/reusable-build-provider.yaml
-    with:
-      flavor: opensuse
-      flavor_release: "leap-15.6"
-      family: opensuse
-      base_image: opensuse/leap:15.6
-      model: generic
-      variant: standard
-      arch: amd64
-
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      secureboot: false
+      flavor: archlinux
+      flavor_release: "base"
     needs:
-      - core-ubuntu-24-lts
-
-  install-secureboot:
-    uses: ./.github/workflows/reusable-install-test.yaml
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      secureboot: true
-    needs:
-      - core-ubuntu-24-lts
-
-  install-alpine:
-    uses: ./.github/workflows/reusable-install-test.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-    needs:
-      - core-alpine
-
-  zfs:
-    uses: ./.github/workflows/reusable-zfs-test.yaml
-    with:
-      flavor: ubuntu
-      flavor_release: "22.04"
-    needs:
-      - core-ubuntu-22-lts
-
+      - core
   acceptance:
-    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-    needs:
-      - core-ubuntu-24-lts
-
-  acceptance-alpine:
-    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-    needs:
-      - core-alpine
-      -
-  acceptance-archlinux:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: archlinux
       flavor_release: "base"
     needs:
-      - core-archlinux
+      - core
 
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
+      flavor: archlinux
+      flavor_release: "base"
     needs:
-      - core-ubuntu-24-lts
+      - core
 
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
+      flavor: archlinux
+      flavor_release: "base"
     needs:
-      - core-ubuntu-24-lts
-
-  reset-alpine:
-    uses: ./.github/workflows/reusable-qemu-reset-test.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-    needs:
-      - core-alpine
-
+      - core
   netboot:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      family: ubuntu
-      base_image: ubuntu:24.04
+      flavor: archlinux
+      flavor_release: "base"
+      family: archlinux
+      base_image: archlinux:24.04
       model: generic
       variant: core
     needs:
-      - core-ubuntu-24-lts
-
-  netboot-alpine:
-    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      family: alpine
-      base_image: alpine:3.19
-      model: generic
-      variant: core
-    needs:
-      - core-alpine
-
+      - core
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
+      flavor: archlinux
+      flavor_release: "base"
     needs:
-      - core-ubuntu-24-lts
-
-  upgrade-alpine:
-    uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-    needs:
-      - core-alpine
-
-  upgrade-latest:
-    uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      family: "ubuntu"
-      release_matcher: "23.10" # introduced so tests can be green while we wait for the kairos release with the latest flavor release
-    needs:
-      - core-ubuntu-24-lts
-
-  # enable once the first alpine only release is out as it currently cannot find the latest alpine release properly
-  #upgrade-latest-alpine:
-  #  uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
-  #  with:
-  #    flavor: alpine
-  #    flavor_release: "3.19"
-  #  needs:
-  #    - core-alpine
+      - core
 
   custom-partitioning:
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
@@ -212,40 +75,22 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
-      - core-ubuntu-24-lts
+      - core
     strategy:
       fail-fast: true
       matrix:
         flavor:
-          - "ubuntu"
+          - "archlinux"
         flavorRelease:
-          - "24.04"
+          - "base"
   encryption:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
+      flavor: archlinux
+      flavor_release: "base"
       label: ${{ matrix.label }}
     needs:
-      - core-ubuntu-24-lts
-    strategy:
-      fail-fast: true
-      matrix:
-        label:
-          - "local-encryption"
-          - "remote-auto"
-          - "remote-static"
-          - "remote-https-pinned"
-          - "remote-https-bad-cert"
-
-  encryption-alpine:
-    uses: ./.github/workflows/reusable-encryption-test.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      label: ${{ matrix.label }}
-    needs:
-      - core-alpine
+      - core
     strategy:
       fail-fast: true
       matrix:
