@@ -209,6 +209,7 @@ jobs:
             flavorRelease: "3.19"
           - flavor: opensuse
             flavorRelease: leap-15.6
+            releaseMatcher: leap-15.5
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
@@ -306,6 +307,7 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-qrcode-install"
+            releaseMatcher": "leap-15.5"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-upgrade"
@@ -316,6 +318,7 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-upgrade-k8s"
+            releaseMatcher": "leap-15.5"
           # no point of running this on CI if it always fails
           # - flavor: "alpine"
           #   flavorRelease: "3.19"
