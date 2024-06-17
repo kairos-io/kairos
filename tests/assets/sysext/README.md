@@ -8,7 +8,7 @@ Full path on the image should be `usr/lib/extension-release.d/extension-release.
 
 work.raw is verity+signed with the db.key and db.crt test keys found under tests/assets/keys
 
-The idea is to copy them intot he Kairos iso overlay folder and test the verity+signed sysextension loading.
+The idea is to copy them into the Kairos iso overlay folder and test the verity+signed sysextension loading.
 
 immucore should only copy the valid ones and ignore the invalid ones. A warning should be logged int he immucore log.
 
