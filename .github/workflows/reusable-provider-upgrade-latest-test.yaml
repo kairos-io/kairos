@@ -17,6 +17,8 @@ jobs:
   test:
     runs-on: kvm
 
+    env:
+      MATCHER: ${{ inputs.release_matcher || inputs.flavor_release }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,7 +58,7 @@ jobs:
         with:
           latest: true
           repository: "kairos-io/kairos"
-          fileName: 'kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}*standard*.iso'
+          fileName: 'kairos-${{ inputs.flavor }}-${{ env.MATCHER }}*standard*.iso'
           out-file-path: ""
       - name: Run tests
         run: |
