@@ -215,6 +215,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
       family: ${{ matrix.family }}
+      release_matcher: ${{ matrix.releaseMatcher }} # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
     - core
     strategy:
