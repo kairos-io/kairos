@@ -64,6 +64,7 @@ FROM common AS generic
 ####               Post-Process Common to All              ####
 ###############################################################
 FROM ${MODEL} AS all
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # WORKAROUND: its a soft link to /usr/bin and we cannot copy from framework into it
 # We should change everything to go into /usr/bin instead like suc-upgrade which currently goes into /usr/sbin
 RUN rm /usr/sbin && mkdir /usr/sbin

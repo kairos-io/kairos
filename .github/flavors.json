@@ -438,5 +438,15 @@
         "baseImage": "rockylinux:9",
         "arch": "amd64",
         "worker": "self-hosted"
+    },
+    {
+        "family": "archlinux",
+        "flavor": "archlinux",
+        "flavorRelease": "base",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "archlinux:base",
+        "arch": "amd64",
+        "worker": "self-hosted"
     }
 ]

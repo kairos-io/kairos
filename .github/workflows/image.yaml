@@ -125,6 +125,8 @@ jobs:
             flavorRelease: "22.04"
           - flavor: "ubuntu"
             flavorRelease: "24.04"
+          - flavor: "archlinux"
+            flavorRelease: "base"
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
