@@ -10,7 +10,7 @@ work.raw is verity+signed with the db.key and db.crt test keys found under tests
 
 The idea is to copy them into the Kairos iso overlay folder and test the verity+signed sysextension loading.
 
-immucore should only copy the valid ones and ignore the invalid ones. A warning should be logged int he immucore log.
+immucore should only copy the valid ones and ignore the invalid ones. A warning should be logged in the immucore log.
 
 The test idea is as follows:
 1. Copy the sysextensions to the overlay folder on test preparation
