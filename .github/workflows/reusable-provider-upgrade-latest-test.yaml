@@ -12,6 +12,9 @@ on:
       family:
         required: true
         type: string
+      release_matcher:
+        required: false
+        type: string
 
 jobs:
   test:
