@@ -47,7 +47,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				Expect(out).Should(ContainSubstring("kairos-agent"))
 			} else {
 				out, _ := vm.Sudo("systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; vendor preset: disabled)"))
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; preset: disabled)"))
 			}
 		})
 
@@ -78,13 +78,13 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					out, _ := vm.Sudo("systemctl status kairos-agent")
 					return out
 				}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
-					"loaded (/etc/systemd/system/kairos-agent.service; enabled; vendor preset: disabled)"))
+					"loaded (/etc/systemd/system/kairos-agent.service; enabled; preset: disabled)"))
 
 				Eventually(func() string {
 					out, _ := vm.Sudo("systemctl status systemd-timesyncd")
 					return out
 				}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
-					"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled; vendor preset: disabled)"))
+					"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled; preset: disabled)"))
 			}
 		})
 
