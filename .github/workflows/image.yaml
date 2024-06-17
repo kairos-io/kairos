@@ -341,7 +341,7 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             family: "opensuse"
-            releaseMatcher": "leap-15.5"
+            releaseMatcher: "leap-15.5"
           # cant do alpine yet as it hasnt been released with the proper name
           #- flavor: "alpine"
           #  flavorRelease: "3.19"
