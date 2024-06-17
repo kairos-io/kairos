@@ -43,6 +43,17 @@ jobs:
       variant: core
       arch: amd64
 
+  core-archlinux:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    with:
+      flavor: archlinux
+      flavor_release: "base"
+      family: archlinux
+      base_image: archlinux:base
+      model: generic
+      variant: core
+      arch: amd64
+
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
     with:
@@ -103,6 +114,14 @@ jobs:
       flavor_release: "3.19"
     needs:
       - core-alpine
+      -
+  acceptance-archlinux:
+    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
+    with:
+      flavor: archlinux
+      flavor_release: "base"
+    needs:
+      - core-archlinux
 
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
