@@ -229,6 +229,7 @@ jobs:
           - flavor: opensuse
             flavorRelease: leap-15.6
             family: opensuse
+            releaseMatcher: leap-15.5
   custom-partitioning:
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
     with:
