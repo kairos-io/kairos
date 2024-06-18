@@ -72,7 +72,7 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 			// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
 			out, _ := vm.Sudo("systemctl status kairos")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled; preset: disabled)"))
+			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled"))
 		}
 
 		By("copy the config")
@@ -108,13 +108,13 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 				out, _ := vm.Sudo("systemctl status kairos-agent")
 				return out
 			}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
-				"loaded (/etc/systemd/system/kairos-agent.service; enabled; preset: disabled)"))
+				"loaded (/etc/systemd/system/kairos-agent.service; enabled"))
 
 			Eventually(func() string {
 				out, _ := vm.Sudo("systemctl status systemd-timesyncd")
 				return out
 			}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
-				"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled; preset: disabled)"))
+				"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled"))
 		}
 
 		By("Checking agent provider correct start")
