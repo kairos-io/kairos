@@ -1,0 +1,10 @@
+Use cases:
+
+- labs (e.g. for students)
+- kiosks (e.g. for shared public devices that need to be kept updated and safe)
+- automotive UIs (media players and such) where upgrades should be made atomic
+
+TODO:
+
+- auto-login default user
+- make /home/kairos rw but volatile (so nothing persists reboots) - already true?
