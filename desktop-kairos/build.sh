@@ -12,6 +12,12 @@ cat << EOF > $SCRIPT_DIR/config.yaml
 users:
   - name: kairos
     passwd: kairos
+
+install:
+   auto: true
+   device: "auto"
+   reboot: true
+
 k3s:
   enabled: true
 EOF
