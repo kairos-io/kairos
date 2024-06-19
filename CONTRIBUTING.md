@@ -161,4 +161,12 @@ down issues.
 Pull request requirements
 -------------------------
 
+### Coding standard
+
+Our pipeline will run some linting to ensure your code additions meet the project standards. If you encounter any issues, please address them before asking for a review from the team. This applies to Go, Yaml and Dockerfile or any newer ones added in the future.
+
+When it comes to code, Kairos components use the Go programming language. In addition to the linting, do your best to write [Effective Go](https://go.dev/doc/effective_go) code. This is the standard that the core team tries to adhere to.
+
+### Testing
+
 All changes in our code, whether new features or bug fixes, must include a test. If you need some help don't hesitate to contact the team through one of our [community channels](https://kairos.io/community/)
