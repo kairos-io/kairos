@@ -8,3 +8,9 @@ TODO:
 
 - auto-login default user
 - make /home/kairos rw but volatile (so nothing persists reboots) - already true?
+- Try kiosk mode: https://www.hjdskes.nl/projects/cage/
+  e.g. with this: https://wails.io/docs/gettingstarted/building
+
+  ```
+  GDK_BACKEND=wayland cage -d /home/dimitris/workspace/wails-test/demo/build/bin/demo
+  ```
