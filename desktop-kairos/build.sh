@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 export SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 export IMAGE=kairos-desktop
 
