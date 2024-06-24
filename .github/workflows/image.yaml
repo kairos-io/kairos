@@ -136,7 +136,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: opensuse # Kubo test needs systemd version 252+ which atm is not available in Leap
+          - flavor: opensuse  # Kubo test needs systemd version 252+ which atm is not available in Leap
             flavorRelease: tumbleweed
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
@@ -216,7 +216,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
       family: ${{ matrix.family }}
-      release_matcher: ${{ matrix.releaseMatcher }} # introduced so tests can be green while we wait for the kairos release with the latest flavor release
+      release_matcher: ${{ matrix.releaseMatcher }}  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
     - core
     strategy:
@@ -224,8 +224,8 @@ jobs:
       matrix:
         include:
           # cant do alpine yet as it hasnt been released with the proper name
-          #- flavor: alpine
-          #  flavorRelease: "3.19"
+          # - flavor: alpine
+          #   flavorRelease: "3.19"
           - flavor: opensuse
             flavorRelease: leap-15.6
             family: opensuse
@@ -331,7 +331,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
       family: ${{ matrix.family }}
-      release_matcher: ${{ matrix.releaseMatcher }} # introduced so tests can be green while we wait for the kairos release with the latest flavor release
+      release_matcher: ${{ matrix.releaseMatcher }}  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
       - standard
     strategy:
@@ -339,13 +339,13 @@ jobs:
       max-parallel: 2
       matrix:
         include:
+          # cant do alpine yet as it hasnt been released with the proper name
+          # - flavor: "alpine"
+          #   flavorRelease: "3.19"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             family: "opensuse"
             releaseMatcher: "leap-15.5"
-          # cant do alpine yet as it hasnt been released with the proper name
-          #- flavor: "alpine"
-          #  flavorRelease: "3.19"
   notify:
     runs-on: ubuntu-latest
     if: failure()

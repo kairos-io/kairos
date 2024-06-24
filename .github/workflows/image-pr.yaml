@@ -174,18 +174,18 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
       family: "ubuntu"
-      release_matcher: "23.10" # introduced so tests can be green while we wait for the kairos release with the latest flavor release
+      release_matcher: "23.10"  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
       - core-ubuntu-24-lts
 
   # enable once the first alpine only release is out as it currently cannot find the latest alpine release properly
-  #upgrade-latest-alpine:
-  #  uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
-  #  with:
-  #    flavor: alpine
-  #    flavor_release: "3.19"
-  #  needs:
-  #    - core-alpine
+  # upgrade-latest-alpine:
+  #   uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
+  #   with:
+  #     flavor: alpine
+  #     flavor_release: "3.19"
+  #   needs:
+  #     - core-alpine
 
   custom-partitioning:
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml

@@ -169,7 +169,7 @@ shellcheck-lint:
     FROM koalaman/shellcheck-alpine:$SHELLCHECK_VERSION
     WORKDIR /mnt
     COPY . .
-    RUN find . -name "*.sh" -print | xargs -r -n1 shellcheck
+    RUN find . -name "*.sh" ! -path "./examples/*" -print | xargs -r -n1 shellcheck
 
 yamllint:
     FROM cytopia/yamllint

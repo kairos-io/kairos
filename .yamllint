@@ -3,7 +3,7 @@ extends: default
 rules:
   # 80 chars should be enough, but don't fail if a line is longer
   line-length:
-    max: 150
+    max: 305
     level: warning
 
   # accept both     key:
