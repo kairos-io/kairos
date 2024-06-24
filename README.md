@@ -10,6 +10,7 @@
   <a href="https://github.com/kairos-io/kairos/issues"><img src="https://img.shields.io/github/issues/kairos-io/kairos"></a>
   <a href="https://github.com/kairos-io/kairos/actions/workflows/image.yaml"> <img src="https://github.com/kairos-io/kairos/actions/workflows/image.yaml/badge.svg"></a>
   <a href="https://www.bestpractices.dev/projects/9100"><img src="https://www.bestpractices.dev/projects/9100/badge"></a>
+  <a href="https://clomonitor.io/projects/cncf/kairos"><img src="https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/kairos/badge"></a>
 </p>
 
 <p align="center">
