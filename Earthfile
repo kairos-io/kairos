@@ -345,7 +345,7 @@ uki-iso:
     ELSE IF [ "$ENKI_OUTPUT_TYPE" == "container" ]
         SAVE ARTIFACT /build/*.tar AS LOCAL build/
     ELSE IF [ "$ENKI_OUTPUT_TYPE" == "uki" ]
-        SAVE ARTIFACT /build/*.efi AS LOCAL build/
+        SAVE ARTIFACT /build/* AS LOCAL build/
     END
 
 # WARNING the following targets are just for development purposes, use them at your own risk
