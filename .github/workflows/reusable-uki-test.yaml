@@ -27,6 +27,7 @@ jobs:
     env:
       FLAVOR: ${{ inputs.flavor }}
       FLAVOR_RELEASE: ${{ inputs.flavor_release }}
+      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ github.head_ref || github.ref }}:24h
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: Install Go
@@ -63,15 +64,13 @@ jobs:
             --BASE_IMAGE=${{ inputs.base_image }} \
             --BOOTLOADER=systemd-boot
       - name: Push image to ttl.sh
-        env:
-          TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ github.head_ref || github.ref }}:24h
         run: |
           docker tag $(cat build/IMAGE) $TEMP_IMAGE
           docker push $TEMP_IMAGE
       - name: Build uki ISO 🔧
         run: |
           earthly +uki-iso \
-            --BASE_IMAGE=ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.head_ref || github.ref }}:24h \
+            --BASE_IMAGE=$TEMP_IMAGE \
             --ENKI_OVERLAY_DIR=tests/assets/sysext/ --ENKI_KEYS_DIR=tests/assets/keys/
       - name: Create datasource iso 🔧
         run: |
