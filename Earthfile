@@ -10,7 +10,7 @@ ARG KAIROS_FRAMEWORK_VERSION=v2.8.5@sha256:8c86a8f0bce689bc7dc9fb23f711b80c8b671
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
 ARG OSBUILDER_VERSION=v0.300.0-rc2
 # renovate: datasource=docker depName=golang versioning=semver
-ARG GO_VERSION=1.20.0@sha256:96788441ff71144c93fc67577f2ea99fd4474f8e45c084e9445fe3454387de5b
+ARG GO_VERSION=1.22.4@sha256:a66eda637829ce891e9cf61ff1ee0edf544e1f6c5b0e666c7310dce231a66f28
 # renovate: datasource=docker depName=hadolint/hadolint
 ARG HADOLINT_VERSION=2.12.0-alpine@sha256:6522f0ca555a7b14c46a2c9f50b86604a234cdc72452bf6a268cae6461d9000b
 # renovate: datasource=docker depName=renovate/renovate
