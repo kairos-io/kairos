@@ -1,37 +1,22 @@
 VERSION 0.6
-FROM alpine
-ARG REGISTRY_AND_ORG=quay.io/kairos
-ARG IMAGE
-ARG SUPPORT=official # not using until this is defined in https://github.com/kairos-io/kairos/issues/1527
-ARG GITHUB_REPO=kairos-io/kairos
-# renovate: datasource=docker depName=quay.io/luet/base
-ARG LUET_VERSION=0.35.2
-# renovate: datasource=docker depName=aquasec/trivy
-ARG TRIVY_VERSION=0.51.4
-# renovate: datasource=github-releases depName=kairos-io/kairos-framework
-ARG KAIROS_FRAMEWORK_VERSION=v2.8.5
-ARG COSIGN_SKIP=".*quay.io/kairos/.*"
-# TODO: rename ISO_NAME to something like ARTIFACT_NAME because there are place where we use ISO_NAME to refer to the artifact name
+FROM alpine:3.19@sha256:af4785ccdbcd5cde71bfd5b93eabd34250b98651f19fe218c91de6c8d10e21c5 # 3.19
 
-IF [ "$FLAVOR" = "ubuntu" ]
-    ARG COSIGN_REPOSITORY=raccos/releases-orange
-ELSE
-    ARG COSIGN_REPOSITORY=raccos/releases-teal
-END
-ARG COSIGN_EXPERIMENTAL=0
-ARG CGO_ENABLED=0
-# renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver-coerced
-ARG OSBUILDER_VERSION=v0.201.0
-ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
-ARG GOLINT_VERSION=1.52.2
-# renovate: datasource=docker depName=golang
-ARG GO_VERSION=1.20
-# renovate: datasource=docker depName=hadolint/hadolint versioning=docker
-ARG HADOLINT_VERSION=2.12.0-alpine
-# renovate: datasource=docker depName=renovate/renovate versioning=docker
-ARG RENOVATE_VERSION=37
-# renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=docker
-ARG SHELLCHECK_VERSION=v0.10.0
+# renovate: datasource=docker depName=quay.io/luet/base versioning=semver
+ARG LUET_VERSION=0.35.2@sha256:acdb78f01e0aa3e88aa4f28d2189cf66a735cc3c0605d7d22636cb1ecee57d4f
+# renovate: datasource=docker depName=aquasec/trivy versioning=semver
+ARG TRIVY_VERSION=0.51.4@sha256:8a1410542ef6c174336c9e15e0399ced6bb3c227b73641ccee24ec155ae878ba # 0.51.4
+# renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
+ARG KAIROS_FRAMEWORK_VERSION=v2.8.5@sha256:8c86a8f0bce689bc7dc9fb23f711b80c8b67155791278fe0a999e290fd4726d4
+# renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
+ARG OSBUILDER_VERSION=v0.300.0-rc2
+# renovate: datasource=docker depName=golang versioning=semver
+ARG GO_VERSION=1.20.0@sha256:96788441ff71144c93fc67577f2ea99fd4474f8e45c084e9445fe3454387de5b
+# renovate: datasource=docker depName=hadolint/hadolint
+ARG HADOLINT_VERSION=2.12.0-alpine@sha256:6522f0ca555a7b14c46a2c9f50b86604a234cdc72452bf6a268cae6461d9000b
+# renovate: datasource=docker depName=renovate/renovate
+ARG RENOVATE_VERSION=37@sha256:5b1d6dcc61fade60c894b131ff77d021ead718972ae338cdc388d1ac643cedf5
+# renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=semver
+ARG SHELLCHECK_VERSION=v0.10.0@sha256:5921d946dac740cbeec2fb1c898747b6105e585130cc7f0602eec9a10f7ddb63
 
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
 
