@@ -1,22 +1,22 @@
 VERSION 0.6
-FROM alpine:3.19@sha256:af4785ccdbcd5cde71bfd5b93eabd34250b98651f19fe218c91de6c8d10e21c5 # 3.19
+FROM alpine:3.19
 
 # renovate: datasource=docker depName=quay.io/luet/base versioning=semver
-ARG LUET_VERSION=0.35.2@sha256:acdb78f01e0aa3e88aa4f28d2189cf66a735cc3c0605d7d22636cb1ecee57d4f
+ARG LUET_VERSION=0.35.2
 # renovate: datasource=docker depName=aquasec/trivy versioning=semver
-ARG TRIVY_VERSION=0.51.4@sha256:8a1410542ef6c174336c9e15e0399ced6bb3c227b73641ccee24ec155ae878ba # 0.51.4
+ARG TRIVY_VERSION=0.51.4
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-ARG KAIROS_FRAMEWORK_VERSION=v2.8.5@sha256:8c86a8f0bce689bc7dc9fb23f711b80c8b67155791278fe0a999e290fd4726d4
+ARG KAIROS_FRAMEWORK_VERSION=v2.8.5
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
 ARG OSBUILDER_VERSION=v0.201.0
 # renovate: datasource=docker depName=golang versioning=semver
-ARG GO_VERSION=1.20.0@sha256:96788441ff71144c93fc67577f2ea99fd4474f8e45c084e9445fe3454387de5b
+ARG GO_VERSION=1.20.0
 # renovate: datasource=docker depName=hadolint/hadolint
-ARG HADOLINT_VERSION=2.12.0-alpine@sha256:6522f0ca555a7b14c46a2c9f50b86604a234cdc72452bf6a268cae6461d9000b
+ARG HADOLINT_VERSION=2.12.0-alpine
 # renovate: datasource=docker depName=renovate/renovate
-ARG RENOVATE_VERSION=37@sha256:5b1d6dcc61fade60c894b131ff77d021ead718972ae338cdc388d1ac643cedf5
+ARG RENOVATE_VERSION=37
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=semver
-ARG SHELLCHECK_VERSION=v0.10.0@sha256:5921d946dac740cbeec2fb1c898747b6105e585130cc7f0602eec9a10f7ddb63
+ARG SHELLCHECK_VERSION=v0.10.0
 
 ARG IMAGE
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
@@ -600,7 +600,7 @@ arm-image:
   FROM --platform=linux/arm64 +base-image
   ARG IMAGE_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').img
 
-  FROM $OSBUILDER_IMAGE
+  FROM --platform=linux/arm64 $OSBUILDER_IMAGE
   ARG --required MODEL
 
   WORKDIR /build
@@ -638,7 +638,7 @@ prepare-arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
 
-  FROM $OSBUILDER_IMAGE
+  FROM --platform=linux/arm64 $OSBUILDER_IMAGE
   WORKDIR /build
 
   # These sizes are in MB and are specific only for the nvidia-jetson-agx-orin

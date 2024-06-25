@@ -23,7 +23,7 @@
         "^Earthfile$"
       ],
       "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\sARG\\s+.+_VERSION=(?<currentValue>.*?)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\\s"
+        "#\\s*renovate:\\s*datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\sARG\\s+.+_VERSION=(?<currentValue>.*?)\\s"
       ],
       "versioningTemplate": "{{#if versioning}}{{versioning}}{{else}}docker{{/if}}"
     },
