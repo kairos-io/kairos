@@ -331,15 +331,28 @@ uki-iso:
     ARG ENKI_FLAGS
     ARG ENKI_CREATE_CI_KEYS # If set, it will create keys for the UKI image. Good for testing
     ARG ENKI_OUTPUT_TYPE=iso # Set output type, iso, container, uki file
+    ARG ENKI_OVERLAY_DIR # Overlay directory to be copied to the image
+    ARG ENKI_KEYS_DIR # Directory where the keys are stored
     FROM $OSBUILDER_IMAGE
     WORKDIR /build
     RUN mkdir -p /keys
     IF [ "$ENKI_CREATE_CI_KEYS" != "" ]
         RUN enki genkey -e 7 --output /keys Test
+    ELSE IF [ "$ENKI_KEYS_DIR" != "" ]
+        COPY $ENKI_KEYS_DIR /keys
     ELSE
-        COPY keys/ /keys
+        RUN echo "No keys provided, using the test ones"
+        COPY tests/keys/* /keys
     END
-    RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} ${ENKI_FLAGS}
+
+    IF [ "$ENKI_OVERLAY_DIR" != "" ]
+        COPY $ENKI_OVERLAY_DIR /overlay-iso
+        RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} --overlay-iso /overlay-iso ${ENKI_FLAGS}
+    ELSE
+        RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} ${ENKI_FLAGS}
+    END
+
+
     IF [ "$ENKI_OUTPUT_TYPE" == "iso" ]
         SAVE ARTIFACT /build/*.iso AS LOCAL build/
     ELSE IF [ "$ENKI_OUTPUT_TYPE" == "container" ]
