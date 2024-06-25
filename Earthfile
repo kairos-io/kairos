@@ -619,7 +619,7 @@ arm-image:
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
-    RUN /build-arm-image.sh --use-lvm --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
+    RUN /build-arm-image.sh --model $MODEL --directory "/build/image" /build/$IMAGE_NAME
   END
   IF [ "$COMPRESS_IMG" = "true" ]
     IF [ "$IMG_COMPRESSION" = "zstd" ]
