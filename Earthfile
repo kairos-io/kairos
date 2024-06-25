@@ -12,7 +12,7 @@ ARG OSBUILDER_VERSION=v0.300.0-rc2
 # renovate: datasource=docker depName=golang versioning=semver
 ARG GO_VERSION=1.20.0@sha256:96788441ff71144c93fc67577f2ea99fd4474f8e45c084e9445fe3454387de5b
 # renovate: datasource=docker depName=hadolint/hadolint
-ARG HADOLINT_VERSION=2.12.0-alpine@sha256:6522f0ca555a7b14c46a2c9f50b86604a234cdc72452bf6a268cae6461d9000b
+ARG HADOLINT_VERSION=2.12.0-alpine@sha256:3c206a451cec6d486367e758645269fd7d696c5ccb6ff59d8b03b0e45268a199
 # renovate: datasource=docker depName=renovate/renovate
 ARG RENOVATE_VERSION=37@sha256:5b1d6dcc61fade60c894b131ff77d021ead718972ae338cdc388d1ac643cedf5
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=semver
