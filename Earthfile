@@ -14,7 +14,7 @@ ARG GO_VERSION=1.20.0@sha256:96788441ff71144c93fc67577f2ea99fd4474f8e45c084e9445
 # renovate: datasource=docker depName=hadolint/hadolint
 ARG HADOLINT_VERSION=2.12.0-alpine@sha256:6522f0ca555a7b14c46a2c9f50b86604a234cdc72452bf6a268cae6461d9000b
 # renovate: datasource=docker depName=renovate/renovate
-ARG RENOVATE_VERSION=37@sha256:5b1d6dcc61fade60c894b131ff77d021ead718972ae338cdc388d1ac643cedf5
+ARG RENOVATE_VERSION=37@sha256:f2d7f6204d85539a8a81b4d8727f1d25e1b7f4bf751a317b041e623e2110514e
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=semver
 ARG SHELLCHECK_VERSION=v0.10.0@sha256:5921d946dac740cbeec2fb1c898747b6105e585130cc7f0602eec9a10f7ddb63
 
