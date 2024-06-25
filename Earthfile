@@ -8,7 +8,7 @@ ARG TRIVY_VERSION=0.51.4@sha256:8a1410542ef6c174336c9e15e0399ced6bb3c227b73641cc
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
 ARG KAIROS_FRAMEWORK_VERSION=v2.8.5@sha256:8c86a8f0bce689bc7dc9fb23f711b80c8b67155791278fe0a999e290fd4726d4
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
-ARG OSBUILDER_VERSION=v0.300.0-rc2
+ARG OSBUILDER_VERSION=v0.201.0
 # renovate: datasource=docker depName=golang versioning=semver
 ARG GO_VERSION=1.20.0@sha256:96788441ff71144c93fc67577f2ea99fd4474f8e45c084e9445fe3454387de5b
 # renovate: datasource=docker depName=hadolint/hadolint
