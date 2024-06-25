@@ -8,7 +8,7 @@
     "before 7am every weekday",
     "every weekend"
   ],
-  "ignorePresets": [":ignoreModulesAndTests"]
+  "ignorePresets": [":ignoreModulesAndTests"],
   "timezone": "Europe/Brussels",
   "packageRules": [
     {
