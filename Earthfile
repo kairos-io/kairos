@@ -18,9 +18,11 @@ ARG RENOVATE_VERSION=37@sha256:5b1d6dcc61fade60c894b131ff77d021ead718972ae338cdc
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=semver
 ARG SHELLCHECK_VERSION=v0.10.0@sha256:5921d946dac740cbeec2fb1c898747b6105e585130cc7f0602eec9a10f7ddb63
 
+ARG IMAGE
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
-
+ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
 ARG K3S_VERSION
+ARG CGO_ENABLED=0
 
 all:
   ARG SECURITY_SCANS=true
