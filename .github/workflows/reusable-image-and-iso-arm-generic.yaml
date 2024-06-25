@@ -23,11 +23,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
       - name: Install earthly
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -39,7 +39,7 @@ jobs:
       - name: Set up Docker Buildx
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
@@ -65,7 +65,7 @@ jobs:
           export _NEW_IMG=$(echo $_IMG | cut -f1 -d:):latest
           docker tag $_IMG $_NEW_IMG
           docker push $_NEW_IMG
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-arm64.iso.zip

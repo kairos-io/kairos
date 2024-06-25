@@ -10,7 +10,7 @@ env:
   FORCE_COLOR: 1
 jobs:
   call-workflow:
-    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@v0.0.8
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@46a1d906df5eb4706008e8f063038ba4746aefb6 # v0.0.8
     with:
       yamldirs: ".github/workflows/"
       is-go: false
