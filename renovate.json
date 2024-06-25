@@ -8,7 +8,9 @@
     "before 7am every weekday",
     "every weekend"
   ],
+  "ignorePresets": [":ignoreModulesAndTests"],
   "timezone": "Europe/Brussels",
+  "pinDigests": true,
   "packageRules": [
     {
       "matchUpdateTypes": ["patch"],
