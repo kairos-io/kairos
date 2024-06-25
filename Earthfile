@@ -600,7 +600,7 @@ arm-image:
   FROM --platform=linux/arm64 +base-image
   ARG IMAGE_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').img
 
-  FROM --platform=linux/arm64 $OSBUILDER_IMAGE
+  FROM $OSBUILDER_IMAGE
   ARG --required MODEL
 
   WORKDIR /build
@@ -638,7 +638,7 @@ prepare-arm-image:
   ARG OSBUILDER_IMAGE
   ARG COMPRESS_IMG=true
 
-  FROM --platform=linux/arm64 $OSBUILDER_IMAGE
+  FROM $OSBUILDER_IMAGE
   WORKDIR /build
 
   # These sizes are in MB and are specific only for the nvidia-jetson-agx-orin
