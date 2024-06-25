@@ -9,7 +9,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
       - id: set-matrix
@@ -28,13 +28,13 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       with:
         fetch-depth: 0
     - run: |
         sudo apt update && sudo apt install -y jq
     - name: Install earthly
-      uses: Luet-lab/luet-install-action@v1.1
+      uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
       with:
         repository: quay.io/kairos/packages
         packages: utils/earthly
@@ -76,11 +76,11 @@ jobs:
   build-nvidia-base:
     runs-on: fast
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
       - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
@@ -205,7 +205,7 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
       - name: Set up QEMU
@@ -215,7 +215,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -223,7 +223,7 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@master
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
@@ -271,7 +271,7 @@ jobs:
 
           sudo rm -rf build/IMAGE
       - name: Release
-        uses: softprops/action-gh-release@v2.0.6
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0 # v2.0.6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -281,7 +281,7 @@ jobs:
           mkdir sarif
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@23acc5c183826b7a8a97bce3cecc52db901f8251 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'sarif'
@@ -305,7 +305,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             curl
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
       - name: Set up QEMU
@@ -315,7 +315,7 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -329,7 +329,7 @@ jobs:
         run: |
           df -h
       - name: Login to DockerHub
-        uses: docker/login-action@v3
+        uses: docker/login-action@0d4c9c5ea7693da7b068278f7b52bda2a190a446 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
@@ -372,7 +372,7 @@ jobs:
           sudo -E docker push "$IMAGE"
           sudo rm -rf build/IMAGE
       - name: Release
-        uses: softprops/action-gh-release@v2.0.6
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0 # v2.0.6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -383,7 +383,7 @@ jobs:
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@23acc5c183826b7a8a97bce3cecc52db901f8251 # v3
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
@@ -409,11 +409,11 @@ jobs:
             model: generic
             variant: standard
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -423,7 +423,7 @@ jobs:
           platforms: all
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build iso  🔧
@@ -446,7 +446,7 @@ jobs:
         run: |
           docker push $(cat release/IMAGE)
       - name: Release
-        uses: softprops/action-gh-release@v2.0.6
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0 # v2.0.6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |

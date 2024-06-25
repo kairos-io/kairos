@@ -12,7 +12,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       with:
         fetch-depth: 0
     - run: |
@@ -31,7 +31,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       with:
         fetch-depth: 0
     - run: |
@@ -52,13 +52,13 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       with:
         fetch-depth: 0
     - run: |
         sudo apt update && sudo apt install -y jq wget
     - name: Install earthly
-      uses: Luet-lab/luet-install-action@v1.1
+      uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
       with:
         repository: quay.io/kairos/packages
         packages: utils/earthly
@@ -104,7 +104,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-core-matrix.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
       - name: Install Cosign
@@ -154,7 +154,7 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -203,13 +203,13 @@ jobs:
           cd ..
           rm release/IMAGE release/VERSION release/versions.yaml
       - name: Release
-        uses: softprops/action-gh-release@v2.0.6
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0 # v2.0.6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
             release/*
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@23acc5c183826b7a8a97bce3cecc52db901f8251 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'sarif'
@@ -266,7 +266,7 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - run: |
           git fetch --prune --unshallow
       - name: Release space from worker
@@ -285,7 +285,7 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -306,7 +306,7 @@ jobs:
           sudo mv build/* .
           sudo rm -rf build
       - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
@@ -326,7 +326,7 @@ jobs:
             --BASE_IMAGE=quay.io/kairos/${{ matrix.flavor }}:${{ matrix.flavorRelease }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-${{ github.ref_name }}-uki \
             --ENKI_CREATE_CI_KEYS=true
       - name: Release
-        uses: softprops/action-gh-release@v2.0.6
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0 # v2.0.6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -345,7 +345,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.get-standard-matrix.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
       - name: Install Cosign
@@ -391,7 +391,7 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -430,7 +430,7 @@ jobs:
           cd ..
           sudo rm -rf release/VERSION release/IMAGE release/versions.yaml
       - name: Release
-        uses: softprops/action-gh-release@v2.0.6
+        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0 # v2.0.6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |

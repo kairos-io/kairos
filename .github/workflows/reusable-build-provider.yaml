@@ -74,11 +74,11 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - run: |
           git fetch --prune --unshallow
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
@@ -105,7 +105,7 @@ jobs:
           sudo mv build/* .
           sudo rm -rf build
       - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@v1.1
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
@@ -127,7 +127,7 @@ jobs:
 
           sudo mv build/* .
           sudo rm -rf build
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
           path: |
