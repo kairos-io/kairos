@@ -53,7 +53,7 @@ qemu-system-x86_64 \
     -device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0 \
     -drive id=disk1,if=none,media=disk,file="$WORK_DIR/disk.img" \
     -device virtio-blk-pci,drive=disk1,bootindex=0 \
-    -netdev user,id=net0,hostfwd=tcp::2224-:23 \
+    -netdev user,id=net0,hostfwd=tcp::2224-:22 \
     -device e1000,netdev=net0 \
     -drive id=cdrom1,if=none,media=cdrom,file="${CDROM}" \
     -device ide-cd,drive=cdrom1,bootindex=1 \
