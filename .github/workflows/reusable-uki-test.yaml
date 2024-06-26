@@ -27,7 +27,7 @@ jobs:
     env:
       FLAVOR: ${{ inputs.flavor }}
       FLAVOR_RELEASE: ${{ inputs.flavor_release }}
-      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ github.head_ref || github.ref }}:24h
+      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ github.sha }}:24h
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: Install Go
