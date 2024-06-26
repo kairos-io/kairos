@@ -34,6 +34,8 @@ stages:
       commands:
         - systemctl start cage@tty1.service
 
+
+# https://github.com/cage-kiosk/cage/wiki/Starting-Cage-on-boot-with-systemd
 write_files:
 - path: /etc/pam.d/cage
   content: |
@@ -46,7 +48,6 @@ write_files:
   persmissions: "0644"
   owner: "root"
   content: |
-    # https://github.com/cage-kiosk/cage/wiki/Starting-Cage-on-boot-with-systemd
     # This is a system unit for launching Cage with auto-login as the
     # user configured here. For this to work, wlroots must be built
     # with systemd logind support.
@@ -71,9 +72,8 @@ write_files:
 
     [Service]
     Type=simple
-    #ExecStart=/usr/bin/cage thunar
-    #ExecStart=/bin/sh -c 'WLR_RENDERER_ALLOW_SOFTWARE=1 XDG_RUNTIME_DIR=/tmp exec /usr/bin/cage thunar'
-    ExecStart=/bin/sh -c '/usr/bin/cage thunar'
+    #ExecStart=/usr/bin/cage firefox https://kairos.io -- --kiosk
+    ExecStart=/usr/bin/cage chrome https://kairos.io -- --kiosk --enable-features=UseOzonePlatform --ozone-platform=wayland
     Restart=always
     User=kairos
     # Log this user with utmp, letting it show up with commands 'w' and
@@ -87,6 +87,9 @@ write_files:
     TTYVTDisallocate=yes
     # Fail to start if not controlling the virtual terminal.
     StandardInput=tty-fail
+
+    StandardOutput=file:/home/kairos/cage.log
+    StandardError=file:/home/kairos/cage.err.log
 
     # Set up a full (custom) user session for the user, required by Cage.
     PAMName=kairos
