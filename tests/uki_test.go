@@ -40,7 +40,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
 		}
-		
+
 		err := vm.Destroy(nil)
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -63,7 +63,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			// Install has already started, so we can use Eventually here to track the logs
 			Eventually(func() string {
 				out, err := vm.Sudo("cat /var/log/kairos/agent*.log")
-				Expect(err).ToNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred(), out)
 				return out
 			}, 5*time.Minute).Should(And(
 				ContainSubstring("Running after-install hook"),
