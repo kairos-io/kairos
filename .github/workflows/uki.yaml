@@ -15,10 +15,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - flavor: ubuntu
-            flavor_release: 24.04
-            family: ubuntu
-            base_image: ubuntu:24.04
           - flavor: fedora
             family: rhel
             flavor_release: 40
