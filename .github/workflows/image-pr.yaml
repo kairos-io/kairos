@@ -17,6 +17,7 @@ jobs:
       contents: write
       security-events: write
       id-token: write
+      actions: read
     with:
       flavor: ubuntu
       flavor_release: "22.04"
