@@ -29,6 +29,11 @@ jobs:
 
   core-ubuntu-24-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -40,6 +45,11 @@ jobs:
 
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
     with:
       flavor: alpine
       flavor_release: "3.19"
