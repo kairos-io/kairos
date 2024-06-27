@@ -13,6 +13,10 @@ env:
 jobs:
   core-ubuntu-22-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
     with:
       flavor: ubuntu
       flavor_release: "22.04"
