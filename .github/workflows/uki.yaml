@@ -25,6 +25,11 @@ jobs:
             flavor_release: 40
             base_image: fedora:40
     uses: ./.github/workflows/reusable-uki-test.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
