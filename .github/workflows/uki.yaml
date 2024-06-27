@@ -5,6 +5,7 @@ on:
     branches:
       - master
 
+permissions: read-all
 concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true

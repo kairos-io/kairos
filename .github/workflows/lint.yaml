@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - '**'
+permissions: read-all
 env:
   FORCE_COLOR: 1
 jobs:
