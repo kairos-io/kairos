@@ -7,10 +7,10 @@ ARG FAMILY=debian
 ARG FLAVOR
 ARG FLAVOR_RELEASE
 ARG MODEL=generic
-ARG BASE_IMAGE=debian:testing
+ARG BASE_IMAGE=debian:testing@sha256:aaa92941460dd5ae0698c1671556a32b9c4fea0062e0dd8ec50833611bde33a3
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=main
+ARG FRAMEWORK_VERSION=main@sha256:7e438d5fb512c018e8e61ade911501752311a98be25437f7d6fb0ca653f41580
 
 ###############################################################
 ####                     Upstream Images                   ####
