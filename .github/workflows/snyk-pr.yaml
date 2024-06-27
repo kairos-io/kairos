@@ -1,0 +1,16 @@
+name: 'Check for vulnerabilities on pull requests'
+on:
+  pull_request:
+    paths:
+      - '**'
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - run: |
+          git fetch --prune --unshallow
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/golang@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
