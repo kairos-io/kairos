@@ -4,6 +4,7 @@ on:
     paths:
       - '**'
 
+permissions: read-all
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
