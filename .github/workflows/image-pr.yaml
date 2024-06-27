@@ -61,6 +61,11 @@ jobs:
 
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     with:
       flavor: opensuse
       flavor_release: "leap-15.6"
@@ -205,6 +210,11 @@ jobs:
 
   custom-partitioning:
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
