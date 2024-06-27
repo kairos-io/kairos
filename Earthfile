@@ -6,7 +6,7 @@ ARG LUET_VERSION=0.35.2
 # renovate: datasource=docker depName=aquasec/trivy versioning=semver
 ARG TRIVY_VERSION=0.51.4
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-ARG KAIROS_FRAMEWORK_VERSION=v2.8.5
+ARG KAIROS_FRAMEWORK_VERSION=v2.9.0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
 ARG OSBUILDER_VERSION=v0.300.1
 # renovate: datasource=docker depName=golang versioning=semver
