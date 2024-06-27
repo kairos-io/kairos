@@ -5,6 +5,7 @@ on:
     paths:
       - '**'
 
+permissions: read-all
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
@@ -14,6 +15,11 @@ env:
 jobs:
   opensuse:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     with:
       flavor: opensuse
       flavor_release: leap-15.6
@@ -23,6 +29,11 @@ jobs:
       worker: fast
   alpine:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
     with:
       flavor: alpine
       flavor_release: "3.19"
