@@ -25,8 +25,18 @@ jobs:
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     with:
       base_image: ubuntu:24.04
       family: ubuntu
@@ -37,8 +47,18 @@ jobs:
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     with:
       base_image: fedora:40
       family: rhel
