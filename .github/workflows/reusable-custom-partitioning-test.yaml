@@ -28,8 +28,6 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-      - name: Install dependencies
-        run: cd tests && go mod download
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
@@ -60,6 +58,7 @@ jobs:
           export ISO=$PWD/$(ls *.iso)
           echo "ISO is: $ISO"
           cp tests/go.* .
+          go mod download
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "custom-partitioning" --fail-fast -r ./tests/
       - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         if: failure()
