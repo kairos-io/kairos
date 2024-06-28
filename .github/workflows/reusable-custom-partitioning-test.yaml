@@ -29,6 +29,7 @@ jobs:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
       - name: Install dependencies
+        workdir: tests
         run: go mod download
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
