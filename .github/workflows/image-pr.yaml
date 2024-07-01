@@ -4,6 +4,7 @@ on:
     paths:
       - '**'
 
+permissions: read-all
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
@@ -12,6 +13,21 @@ env:
 jobs:
   core-ubuntu-22-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     with:
       flavor: ubuntu
       flavor_release: "22.04"
@@ -23,6 +39,21 @@ jobs:
 
   core-ubuntu-24-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -34,6 +65,21 @@ jobs:
 
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     with:
       flavor: alpine
       flavor_release: "3.19"
@@ -45,6 +91,21 @@ jobs:
 
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     with:
       flavor: opensuse
       flavor_release: "leap-15.6"
@@ -189,6 +250,21 @@ jobs:
 
   custom-partitioning:
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}

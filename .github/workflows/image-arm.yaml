@@ -5,6 +5,7 @@ on:
     branches:
       - master
 
+permissions: read-all
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
@@ -169,6 +170,21 @@ jobs:
 
   nvidia-arm-core:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     needs: build-nvidia-base
     secrets: inherit
     with:
@@ -181,6 +197,21 @@ jobs:
 
   build-arm-core:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}

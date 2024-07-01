@@ -6,6 +6,7 @@ on:
     paths:
       - '**'
 
+permissions: read-all
 concurrency:
   group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
@@ -35,6 +36,21 @@ jobs:
           echo "::set-output name=matrix::{\"include\": $content }"
   core:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}
@@ -267,6 +283,21 @@ jobs:
           - "leap-15.6"
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     secrets: inherit
     with:
       flavor: ${{ matrix.flavor }}

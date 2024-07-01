@@ -6,6 +6,7 @@ on:
     tags:
       - v*
 
+permissions: read-all
 jobs:
   get-core-matrix:
     runs-on: ubuntu-latest

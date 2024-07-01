@@ -16,6 +16,7 @@ on:
         required: true
         type: string
 
+permissions: read-all
 jobs:
   test-uki:
     permissions:
