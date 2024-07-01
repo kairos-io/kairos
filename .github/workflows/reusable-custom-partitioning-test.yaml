@@ -59,6 +59,7 @@ jobs:
           export ISO=$PWD/$(ls *.iso)
           echo "ISO is: $ISO"
           cp tests/go.* .
+          go mod download
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "custom-partitioning" --fail-fast -r ./tests/
       - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
         if: failure()
