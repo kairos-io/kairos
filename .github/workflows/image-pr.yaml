@@ -82,9 +82,9 @@ jobs:
       statuses: read
     with:
       flavor: alpine
-      flavor_release: "3.19"
+      flavor_release: "3.20"
       family: alpine
-      base_image: alpine:3.19
+      base_image: alpine:3.20
       model: generic
       variant: core
       arch: amd64
@@ -137,7 +137,7 @@ jobs:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: alpine
-      flavor_release: "3.19"
+      flavor_release: "3.20"
     needs:
       - core-alpine
 
@@ -161,7 +161,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: alpine
-      flavor_release: "3.19"
+      flavor_release: "3.20"
     needs:
       - core-alpine
 
@@ -185,7 +185,7 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: alpine
-      flavor_release: "3.19"
+      flavor_release: "3.20"
     needs:
       - core-alpine
 
@@ -205,9 +205,9 @@ jobs:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: alpine
-      flavor_release: "3.19"
+      flavor_release: "3.20"
       family: alpine
-      base_image: alpine:3.19
+      base_image: alpine:3.20
       model: generic
       variant: core
     needs:
@@ -225,7 +225,7 @@ jobs:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: alpine
-      flavor_release: "3.19"
+      flavor_release: "3.20"
     needs:
       - core-alpine
 
@@ -299,7 +299,7 @@ jobs:
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: alpine
-      flavor_release: "3.19"
+      flavor_release: "3.20"
       label: ${{ matrix.label }}
     needs:
       - core-alpine
