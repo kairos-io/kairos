@@ -207,6 +207,8 @@ github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/kairos-io/go-nodepair v0.0.0-20240502023759-0f117ce8d47e h1:myqvzF1dh08dqYHDbxyvB4Ty+gLXqBACnG6CbhRZbrU=
 github.com/kairos-io/go-nodepair v0.0.0-20240502023759-0f117ce8d47e/go.mod h1:dPmJiW2gLvcj9qBFFUrXlskpp3WNAL5RiaoWKWJbFZE=
+github.com/kairos-io/go-nodepair v0.0.0-20240703103608-ff991182c337 h1:xkMmK2zPyceZEKE6wm4SFFUCZtLfZUDpEVkXT8DfZjc=
+github.com/kairos-io/go-nodepair v0.0.0-20240703103608-ff991182c337/go.mod h1:dPmJiW2gLvcj9qBFFUrXlskpp3WNAL5RiaoWKWJbFZE=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 h1:YOp8St+CM/AQ9Vp4XYm4272E77MptJDHkwypQHIRl9Q=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237/go.mod h1:e7qQlOY68wOz4b82D7n+DdaptZAi+SHW0+yKiWZzEYE=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
