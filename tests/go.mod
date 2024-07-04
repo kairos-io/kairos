@@ -6,7 +6,7 @@ toolchain go1.22.4
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/kairos-io/go-nodepair v0.0.0-20240502023759-0f117ce8d47e
+	github.com/kairos-io/go-nodepair v0.0.0-20240703103608-ff991182c337
 	github.com/lmittmann/ppm v1.0.2
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/mudler/edgevpn v0.26.1
