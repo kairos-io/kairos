@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=fedora:36
+ARG BASE_IMAGE=fedora:36@sha256:64cd00a0e2b92d527c0a0954162a73e85f160e3a53c38325b51e87d6aab4e266
 
 FROM $BASE_IMAGE
 
@@ -46,7 +46,7 @@ RUN dnf install -y \
 RUN mkdir -p /run/lock
 RUN touch /usr/libexec/.keep
 
-COPY --from=quay.io/kairos/framework:master_fedora / /
+COPY --from=quay.io/kairos/framework:master_fedora@sha256:e4d8facc9464a2cfdf0b32cf7bf9832ed7f76cd7113f194975d9278d89c7e6a6 / /
 
 # Activate Kairos services
 RUN systemctl enable cos-setup-reconcile.timer && \
