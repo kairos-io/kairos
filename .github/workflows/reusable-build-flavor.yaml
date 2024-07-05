@@ -143,7 +143,7 @@ jobs:
         with:
           sarif_file: 'sarif'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}
-      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+      - uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b # v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
           path: |
@@ -151,7 +151,7 @@ jobs:
             *.sha256
             versions.yaml
           if-no-files-found: error
-      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4
+      - uses: actions/upload-artifact@0b2256b8c012f0828dc542b3febcab082c67f72b # v4
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.sbom.zip
