@@ -12,6 +12,7 @@ permissions:
   security-events: write
   # Only need to read contents
   contents: read
+  actions: read
 
 jobs:
   scan-pr:
