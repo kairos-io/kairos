@@ -35,6 +35,7 @@ assignees: mudler
     - [ ] ARM images passive and recovery booting
     - [ ] ARM images reset works
     - [ ] ARM images /oem exists
+    - [ ] ARM K3s is running
 - [ ] **Stage 3 - Release**
   - [ ] Tag the release on master
   - [ ] Update the release with any known issues
