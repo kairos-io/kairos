@@ -9,7 +9,7 @@ require (
 	github.com/kairos-io/go-nodepair v0.0.0-20240703103608-ff991182c337
 	github.com/lmittmann/ppm v1.0.2
 	github.com/makiuchi-d/gozxing v0.1.1
-	github.com/mudler/edgevpn v0.26.2-0.20240710092812-447a4e976831
+	github.com/mudler/edgevpn v0.26.2
 	github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
