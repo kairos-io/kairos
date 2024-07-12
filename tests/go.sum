@@ -323,6 +323,8 @@ github.com/mudler/edgevpn v0.26.1 h1:vU7maxgMij+txPFbhiR8FJk1Twzj/J4m3FrZwdqMaMI
 github.com/mudler/edgevpn v0.26.1/go.mod h1:BUjRlX11ddqRtYtmwyHaanneemYq5WRdnD6wXDbRf+8=
 github.com/mudler/edgevpn v0.26.2-0.20240710092812-447a4e976831 h1:do0eKS/+/gbRJJOHORlWU4Tzs6HwTmO6J5rFUP8l3o4=
 github.com/mudler/edgevpn v0.26.2-0.20240710092812-447a4e976831/go.mod h1:lplntB9N6LzGNqeSM3XHCq8kyDPsNhY3jqEbWGD2WaQ=
+github.com/mudler/edgevpn v0.26.2 h1:OK4jfk7sYjuU7vCh+geUJk38lsxRgMk+EdsS9s0hioE=
+github.com/mudler/edgevpn v0.26.2/go.mod h1:lplntB9N6LzGNqeSM3XHCq8kyDPsNhY3jqEbWGD2WaQ=
 github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c h1:CI5uGwqBpN8N7BrSKC+nmdfw+9nPQIDyjHHlaIiitZI=
 github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c/go.mod h1:gY3wyrhkRySJtmtI/JPt4a2mKv48h/M9pEZIW+SjeC0=
 github.com/mudler/water v0.0.0-20221010214108-8c7313014ce0 h1:Qh6ghkMgTu6siFbTf7L3IszJmshMhXxNL4V+t7IIA6w=
