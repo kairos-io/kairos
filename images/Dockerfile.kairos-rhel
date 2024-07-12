@@ -95,6 +95,7 @@ RUN systemctl enable getty@tty3.service
 RUN systemctl enable systemd-networkd
 RUN systemctl enable systemd-resolved
 RUN systemctl disable dnf-makecache.service
+RUN systemctl disable dnf-makecache.timer
 RUN systemctl enable sshd
 
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
