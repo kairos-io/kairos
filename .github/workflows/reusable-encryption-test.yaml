@@ -97,7 +97,10 @@ jobs:
         env:
           LABEL: ${{ inputs.label }}
           EMULATE_TPM: true
+          CREATE_VM: true
           USE_QEMU: true
+          MEMORY: 4000
+          CPUS: 2
         run: |
           export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
           .github/encryption-tests.sh
