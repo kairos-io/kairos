@@ -372,10 +372,9 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-upgrade"
-          # no point of running this on CI if it always fails
-          # - flavor: "opensuse"
-          #   flavorRelease: "leap-15.6"
-          #   label: "provider-decentralized-k8s"
+          - flavor: "opensuse"
+            flavorRelease: "leap-15.6"
+            label: "provider-decentralized-k8s"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-upgrade-k8s"
