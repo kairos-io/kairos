@@ -128,7 +128,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		// Opportunistic feature test here to avoid a full test just
 		// for this.
 		By("listing upgrade options")
-		resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases --all | tail -1`)
+		resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases --all --pre | tail -1`)
 		Expect(resultStr).To(ContainSubstring("quay.io/kairos"))
 
 		By("copy upgrade plan")
