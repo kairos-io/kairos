@@ -215,6 +215,8 @@ github.com/kairos-io/go-nodepair v0.0.0-20240502023759-0f117ce8d47e h1:myqvzF1dh
 github.com/kairos-io/go-nodepair v0.0.0-20240502023759-0f117ce8d47e/go.mod h1:dPmJiW2gLvcj9qBFFUrXlskpp3WNAL5RiaoWKWJbFZE=
 github.com/kairos-io/go-nodepair v0.0.0-20240703103608-ff991182c337 h1:xkMmK2zPyceZEKE6wm4SFFUCZtLfZUDpEVkXT8DfZjc=
 github.com/kairos-io/go-nodepair v0.0.0-20240703103608-ff991182c337/go.mod h1:dPmJiW2gLvcj9qBFFUrXlskpp3WNAL5RiaoWKWJbFZE=
+github.com/kairos-io/go-nodepair v0.2.0 h1:G47RZb/BF1bj/NMl3JZFelUifC4uCTnrFE9mK+z4x7U=
+github.com/kairos-io/go-nodepair v0.2.0/go.mod h1:9e1YCP7Wa8Un5ZVHcVrRfnnkiuiBgJGJ7EdtaPhBhAA=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 h1:YOp8St+CM/AQ9Vp4XYm4272E77MptJDHkwypQHIRl9Q=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237/go.mod h1:e7qQlOY68wOz4b82D7n+DdaptZAi+SHW0+yKiWZzEYE=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
@@ -455,6 +457,8 @@ github.com/quic-go/qpack v0.4.0 h1:Cr9BXA1sQS2SmDUWjSofMPNKmvF6IiIfDRmgU0w1ZCo=
 github.com/quic-go/qpack v0.4.0/go.mod h1:UZVnYIfi5GRk+zI9UMaCPsmZ2xKJP7XBUvVyT1Knj9A=
 github.com/quic-go/quic-go v0.44.0 h1:So5wOr7jyO4vzL2sd8/pD9Kesciv91zSk8BoFngItQ0=
 github.com/quic-go/quic-go v0.44.0/go.mod h1:z4cx/9Ny9UtGITIPzmPTXh1ULfOyWh4qGQlpnPcWmek=
+github.com/quic-go/quic-go v0.45.1 h1:tPfeYCk+uZHjmDRwHHQmvHRYL2t44ROTujLeFVBmjCA=
+github.com/quic-go/quic-go v0.45.1/go.mod h1:1dLehS7TIR64+vxGR70GDcatWTOtMX2PUtnKsjbTurI=
 github.com/quic-go/webtransport-go v0.8.0 h1:HxSrwun11U+LlmwpgM1kEqIqH90IT4N8auv/cD7QFJg=
 github.com/quic-go/webtransport-go v0.8.0/go.mod h1:N99tjprW432Ut5ONql/aUhSLT0YVSlwHohQsuac9WaM=
 github.com/raulk/go-watchdog v1.3.0 h1:oUmdlHxdkXRJlwfG0O9omj8ukerm8MEQavSiDTEtBsk=

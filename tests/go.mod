@@ -6,7 +6,7 @@ toolchain go1.22.5
 
 require (
 	github.com/google/uuid v1.6.0
-	github.com/kairos-io/go-nodepair v0.0.0-20240703103608-ff991182c337
+	github.com/kairos-io/go-nodepair v0.2.0
 	github.com/lmittmann/ppm v1.0.2
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/mudler/edgevpn v0.26.2
@@ -140,7 +140,7 @@ require (
 	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
-	github.com/quic-go/quic-go v0.44.0 // indirect
+	github.com/quic-go/quic-go v0.45.1 // indirect
 	github.com/quic-go/webtransport-go v0.8.0 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
