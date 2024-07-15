@@ -16,7 +16,7 @@ on:
 permissions: read-all
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: kvm
     defaults:
       run:
         shell: bash -eo pipefail {0}
@@ -97,7 +97,11 @@ jobs:
         env:
           LABEL: ${{ inputs.label }}
           EMULATE_TPM: true
+          CREATE_VM: true
           USE_QEMU: true
+          MEMORY: 4000
+          CPUS: 2
+          KVM: true
         run: |
           export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
           .github/encryption-tests.sh
