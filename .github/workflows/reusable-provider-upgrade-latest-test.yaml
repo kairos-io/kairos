@@ -16,6 +16,7 @@ on:
         required: false
         type: string
 
+permissions: read-all
 jobs:
   test:
     runs-on: kvm
@@ -28,7 +29,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@cdcb36043654635271a94b9a6d1392de5bb323a7 # v5
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
@@ -57,7 +58,7 @@ jobs:
           packages: utils/earthly
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - name: Download artifacts
-        uses: robinraju/release-downloader@c39a3b234af58f0cf85888573d361fb6fa281534 # v1.10
+        uses: robinraju/release-downloader@a96f54c1b5f5e09e47d9504526e96febd949d4c2 # v1.11
         with:
           latest: true
           repository: "kairos-io/kairos"

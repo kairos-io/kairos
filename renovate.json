@@ -11,6 +11,7 @@
   "ignorePresets": [":ignoreModulesAndTests"],
   "timezone": "Europe/Brussels",
   "pinDigests": true,
+  "reviewers": [ "team:maintainers" ],
   "packageRules": [
     {
       "matchUpdateTypes": ["patch"],

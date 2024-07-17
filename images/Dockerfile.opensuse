@@ -35,6 +35,7 @@ FROM ${FLAVOR_RELEASE}-repo AS common
 RUN zypper in --force-resolution -y \
     bash-completion \
     conntrack-tools \
+    cryptsetup \
     coreutils \
     curl \
     device-mapper \
@@ -89,7 +90,6 @@ RUN zypper in --force-resolution -y \
 
 FROM common as amd64
 RUN zypper in --force-resolution -y \
-    cryptsetup \
     grub2-i386-pc \
     grub2-x86_64-efi \
     kernel-firmware-all \
