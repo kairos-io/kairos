@@ -62,22 +62,30 @@ RUN dnf install -y \
     systemd-networkd \
     systemd-resolved \
     tar \
-    which \
-    && dnf clean all
+    which
 
-FROM common AS grub
+
+FROM common as amd64
+RUN dnf install -y \
+    grub2-pc \
+    grub2-efi-x64 \
+    grub2-efi-x64-modules \
+    shim-x64
+
+FROM common as arm64
+RUN dnf install -y \
+    grub2-efi-aa64 \
+    grub2-efi-aa64-modules \
+    shim-aa64
+
+FROM ${TARGETARCH} AS grub
 RUN dnf install -y \
     dracut \
     dracut-live \
     dracut-network \
     dracut-squash \
     grub2 \
-    grub2-efi-x64 \
-    grub2-efi-x64-modules \
-    grub2-pc \
-    shim-x64 \
-    squashfs-tools \
-    && dnf clean all
+    squashfs-tools
 
 FROM common AS systemd-boot
 
