@@ -1,6 +1,6 @@
 name: Build and test images
 on:
-  pull_request: 
+  pull_request:
 
 permissions: read-all
 concurrency:
