@@ -231,6 +231,7 @@ func vmForEach(description string, vms []VM, action func(vm VM)) {
 
 	for i, vm := range vms {
 		go func() {
+			defer GinkgoRecover()
 			defer wg.Done()
 			By(fmt.Sprintf("%s [%s]", description, strconv.Itoa(i+1)))
 			action(vm)
