@@ -52,7 +52,6 @@ jobs:
       - name: Create and Show bridge
         run: |
           sudo ip link add br0 type bridge
-          sudo ip link set eth0 master br0
           sudo ip address add dev br0 192.168.150.0/24
           ip a
           brctl show
