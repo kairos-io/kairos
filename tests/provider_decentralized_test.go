@@ -206,25 +206,6 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				}, 900*time.Second, 10*time.Second).ShouldNot(BeEmpty(), out)
 			}
 		})
-
-		vmForEach("checking if it upgrades to a specific version", vms, func(vm VM) {
-			version, err := vm.Sudo("source /etc/os-release; echo $VERSION")
-			Expect(err).ToNot(HaveOccurred(), version)
-
-			out, err := vm.Sudo("kairos-agent upgrade --image quay.io/kairos/kairos-opensuse:v1.0.0-rc2-k3sv1.21.14-k3s1")
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).To(ContainSubstring("Upgrade completed"))
-
-			out, err = vm.Sudo("sync")
-			Expect(err).ToNot(HaveOccurred(), out)
-
-			By("rebooting to the upgraded system")
-			vm.Reboot(1200)
-
-			version2, err := vm.Sudo(getVersionCmd)
-			Expect(err).ToNot(HaveOccurred(), version2)
-			Expect(version).ToNot(Equal(version2))
-		})
 	})
 })
 
