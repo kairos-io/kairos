@@ -57,7 +57,7 @@ jobs:
           brctl show
           brctl show | awk 'NF>1 && NR>1 {print $1}' |grep -v docker|xargs
           sudo mkdir -p /etc/qemu/
-          sudo echo "allow br0" > /etc/qemu/bridge.conf
+          echo "allow br0" | sudo tee /etc/qemu/bridge.conf
           export BRIDGE_NETWORK=$(brctl show | awk 'NF>1 && NR>1 {print $1}' |grep -v docker|xargs)
           if [ "$BRIDGE_NETWORK" = "" ]; then exit 1;fi
       - name: Install earthly
