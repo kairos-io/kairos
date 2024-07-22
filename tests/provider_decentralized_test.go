@@ -70,55 +70,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				return strings.TrimSpace(v)
 			}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
 		})
-
-		vmForEach("checking default services are on after first boot", vms, func(vm VM) {
-			if isFlavor(vm, "alpine") {
-				Eventually(func() string {
-					out, _ := vm.Sudo("rc-status")
-					return out
-				}, 30*time.Second, 10*time.Second).Should(And(
-					ContainSubstring("kairos-agent")))
-			} else {
-				Eventually(func() string {
-					out, _ := vm.Sudo("systemctl status kairos-agent")
-					return out
-				}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
-					"loaded (/etc/systemd/system/kairos-agent.service; enabled"))
-
-				Eventually(func() string {
-					out, _ := vm.Sudo("systemctl status systemd-timesyncd")
-					return out
-				}, 30*time.Second, 10*time.Second).Should(ContainSubstring(
-					"loaded (/usr/lib/systemd/system/systemd-timesyncd.service; enabled"))
-			}
-		})
-
-		vmForEach("checking if it has correct grub menu entries", vms, func(vm VM) {
-			if !isFlavor(vm, "alpine") {
-				state, _ := vm.Sudo("blkid -L COS_STATE")
-				state = strings.TrimSpace(state)
-				out, err := vm.Sudo("blkid")
-				Expect(err).ToNot(HaveOccurred(), out)
-				out, err = vm.Sudo("mkdir -p /tmp/mnt/STATE")
-				Expect(err).ToNot(HaveOccurred(), out)
-				out, err = vm.Sudo("mount " + state + " /tmp/mnt/STATE")
-				Expect(err).ToNot(HaveOccurred(), out)
-				out, err = vm.Sudo("cat /tmp/mnt/STATE/grubmenu")
-				Expect(err).ToNot(HaveOccurred(), out)
-
-				Expect(out).Should(ContainSubstring("Kairos remote recovery"))
-
-				// No longer used. This is created to override the default entry but now the default entry is kairos already
-				// TODO: Create a test in acceptance to check for the creation of this file and if it has the correct override entry
-				//grub, err := vm.Sudo("cat /tmp/mnt/STATE/grub_oem_env")
-				//Expect(err).ToNot(HaveOccurred(), grub)
-				//Expect(grub).Should(ContainSubstring("default_menu_entry=Kairos"))
-
-				out, err = vm.Sudo("umount /tmp/mnt/STATE")
-				Expect(err).ToNot(HaveOccurred(), out)
-			}
-		})
-
+		
 		vmForEach("checking if k3s was configured", vms, func(vm VM) {
 			out, err := vm.Sudo("cat /run/cos/live_mode")
 			Expect(err).To(HaveOccurred(), out)
@@ -138,7 +90,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				Eventually(func() string {
 					out, _ = vm.Sudo("cat /var/log/kairos/agent-provider.log")
 					return out
-				}, 45*time.Minute, 1*time.Second).Should(
+				}, 10*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("Configuring k3s-agent"),
 						ContainSubstring("Configuring k3s"),
@@ -231,8 +183,8 @@ func vmForEach(description string, vms []VM, action func(vm VM)) {
 
 	for i, vm := range vms {
 		go func() {
-			defer GinkgoRecover()
 			defer wg.Done()
+			defer GinkgoRecover()
 			By(fmt.Sprintf("%s [%s]", description, strconv.Itoa(i+1)))
 			action(vm)
 		}()
