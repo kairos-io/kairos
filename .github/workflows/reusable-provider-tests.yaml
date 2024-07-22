@@ -27,11 +27,6 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
-      - name: Install Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
-        with:
-          go-version-file: tests/go.mod
-          cache-dependency-path: tests/go.sum
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
@@ -54,8 +49,13 @@ jobs:
         run: |
           ip a
           brctl show
-      - name: Show bridge
+      - name: Create and Show bridge
         run: |
+          sudo ip link add br0 type bridge
+          sudo ip link set eth0 master br0
+          sudo ip address add dev br0 192.168.150.0/24
+          ip a
+          brctl show
           brctl show | awk 'NF>1 && NR>1 {print $1}' |grep -v docker|xargs
           export BRIDGE_NETWORK=$(brctl show | awk 'NF>1 && NR>1 {print $1}' |grep -v docker|xargs)
           if [ "$BRIDGE_NETWORK" = "" ]; then exit 1;fi
@@ -72,6 +72,11 @@ jobs:
           #  kairos-opensuse-leap-15.6-standard-amd64-generic-v3.1.1-k3sv1.30.2+k3s1.iso
           fileName: 'kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}*standard-amd64-generic*k3sv1.30.2+k3s1.iso'
           out-file-path: ""
+      - name: Install Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
       - name: Run tests
         env:
           USE_QEMU: true
