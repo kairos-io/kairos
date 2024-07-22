@@ -2,6 +2,7 @@ package mos_test
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net"
 	"os"
@@ -118,6 +119,42 @@ func startVM() (context.Context, VM) {
 	fmt.Printf("State dir: %s\n", stateDir)
 
 	opts := defaultVMOpts(stateDir)
+
+	m, err := machine.New(opts...)
+	Expect(err).ToNot(HaveOccurred())
+
+	vm := NewVM(m, stateDir)
+
+	ctx, err := vm.Start(context.Background())
+	Expect(err).ToNot(HaveOccurred())
+
+	return ctx, vm
+}
+
+func createRandomMac() net.HardwareAddr {
+	var mac net.HardwareAddr
+	buf := make([]byte, 6)
+	_, _ = rand.Read(buf)
+	// clear multicast bit (&^), ensure local bit (|)
+	buf[0] = buf[0]&^0b1 | 0b10
+	mac = append(mac, buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
+	return mac
+}
+
+// startVMWithBridgeNetwork is the same as startVM but it links the vm to a bridged network
+func startVMWithBridgeNetwork(bridge string) (context.Context, VM) {
+	stateDir, err := os.MkdirTemp("", "")
+	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("State dir: %s\n", stateDir)
+
+	opts := defaultVMOpts(stateDir)
+
+	opts = append(opts, func(config *types.MachineConfig) error {
+		config.Args = append(config.Args,
+			"-net", fmt.Sprintf("nic,model=virtio,macaddr=%s", createRandomMac().String()), "-net", fmt.Sprintf("bridge,br=%s", bridge),
+		)
+		return nil
+	})
 
 	m, err := machine.New(opts...)
 	Expect(err).ToNot(HaveOccurred())

@@ -19,8 +19,12 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 	var configPath string
 
 	BeforeEach(func() {
-		_, vm1 := startVM()
-		_, vm2 := startVM()
+		bridge := os.Getenv("BRIDGE_NETWORK")
+		if bridge == "" {
+			panic("BRIDGE_NETWORK environment variable not set for provider-decentralized-k8s test")
+		}
+		_, vm1 := startVMWithBridgeNetwork(bridge)
+		_, vm2 := startVMWithBridgeNetwork(bridge)
 		vms = append(vms, vm1, vm2)
 
 		configPath = cloudConfig()
