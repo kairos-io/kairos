@@ -58,10 +58,14 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - name: Download artifacts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+      - uses: robinraju/release-downloader@a96f54c1b5f5e09e47d9504526e96febd949d4c2 # v1.11
         with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
+          # A flag to set the download target as latest release
+          # The default value is 'false'
+          latest: true
+          #  kairos-opensuse-leap-15.6-standard-amd64-generic-v3.1.1-k3sv1.30.2+k3s1.iso
+          fileName: 'kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}*standard-amd64-generic*k3sv1.30.2+k3s1.iso'
+          out-file-path: ""
       - name: Run tests
         env:
           USE_QEMU: true
@@ -69,7 +73,6 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}-provider:24h
         run: |
           ls *.iso
           export ISO=$PWD/$(ls *.iso)
