@@ -45,17 +45,12 @@ jobs:
           # TODO: Switch back to the above solution when we switch to the github runners
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
-      - name: Show network devices and bridges
-        run: |
-          ip a
-          brctl show
       - name: Create and Show bridge
         run: |
           sudo ip link add br0 type bridge
           sudo ip address add dev br0 192.168.150.0/24
           ip a
           brctl show
-          brctl show | awk 'NF>1 && NR>1 {print $1}' |grep -v docker|xargs
           sudo mkdir -p /etc/qemu/
           echo "allow br0" | sudo tee /etc/qemu/bridge.conf
           export BRIDGE_NETWORK=$(brctl show | awk 'NF>1 && NR>1 {print $1}' |grep -v docker|xargs)
