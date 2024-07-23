@@ -70,7 +70,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				return strings.TrimSpace(v)
 			}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
 		})
-		
+
 		vmForEach("checking if k3s was configured", vms, func(vm VM) {
 			out, err := vm.Sudo("cat /run/cos/live_mode")
 			Expect(err).To(HaveOccurred(), out)
@@ -148,9 +148,11 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				Eventually(func() string {
 					var err error
 					out, err = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+					fmt.Println(out)
 					Expect(err).ToNot(HaveOccurred(), out)
 
 					out, _ = vm.Sudo("dig +short foo.bar")
+					fmt.Println(out)
 					return strings.TrimSpace(out)
 				}, 900*time.Second, 10*time.Second).Should(Equal("2.2.2.2"), out)
 				Eventually(func() string {
@@ -199,7 +201,7 @@ func cloudConfig() string {
 	Expect(err).ToNot(HaveOccurred())
 
 	config := fmt.Sprintf(`%s
-
+RE
 p2p:
   network_token: %s
   dns: true
