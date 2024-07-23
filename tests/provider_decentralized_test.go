@@ -179,19 +179,11 @@ func HaveMinMaxRole(name string, min, max int) types.GomegaMatcher {
 }
 
 func vmForEach(description string, vms []VM, action func(vm VM)) {
-	var wg sync.WaitGroup
-
-	wg.Add(len(vms))
-
 	for i, vm := range vms {
-		go func() {
-			defer wg.Done()
-			defer GinkgoRecover()
 			By(fmt.Sprintf("%s [%s]", description, strconv.Itoa(i+1)))
 			action(vm)
-		}()
+		}
 	}
-	wg.Wait()
 }
 
 func cloudConfig() string {
