@@ -225,7 +225,7 @@ jobs:
             flavorRelease: "3.20"
           - flavor: opensuse
             flavorRelease: leap-15.6
-            releaseMatcher: leap-15.5
+            # releaseMatcher: leap-15.5
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
@@ -245,7 +245,7 @@ jobs:
           - flavor: opensuse
             flavorRelease: leap-15.6
             family: opensuse
-            releaseMatcher: leap-15.5
+            # releaseMatcher: leap-15.5
   custom-partitioning:
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
     permissions:
@@ -406,7 +406,7 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             family: "opensuse"
-            releaseMatcher: "leap-15.5"
+            # releaseMatcher: "leap-15.5"
   notify:
     runs-on: ubuntu-latest
     if: failure()

@@ -27,15 +27,20 @@ assignees: mudler
     - [ ] Consider cutting an `rc`, `alpha`, ... based on changes on the CI
 - [ ] **Stage 1 - Manual testing**
   - How: Using the assets from master, make sure that test scenarios not covered by automatic tests are passing, and that docs are still aligned
-    - [ ] Fedora flavor install, and manual upgrade works
-    - [ ] Any flavor interactive install
-    - [ ] Any flavor recovery reset
-    - [ ] Any flavor k3s
-    - [ ] ARM images (openSUSE, alpine) boots and manual upgrade works
-    - [ ] ARM images passive and recovery booting
-    - [ ] ARM images reset works
-    - [ ] ARM images /oem exists
-    - [ ] ARM K3s is running
+    - [ ] Generic hardware install
+      - [ ] Manual upgrade
+      - [ ] Interactive install
+      - [ ] Manual recovery reset
+      - [ ] Automatic reset
+    - [ ] RPi Standard Install (helps validate that partition expansion is working)
+      - [ ] Manual upgrade
+      - [ ] Passive booting
+      - [ ] Recovery booting
+      - [ ] Manual recovery reset
+      - [ ] Automatic reset
+      - [ ] /oem exists
+      - [ ] k3s is running
+    - [ ] Go through any of the known issues https://kairos.io/docs/
 - [ ] **Stage 3 - Release**
   - [ ] Tag the release on master
   - [ ] Update the release with any known issues
