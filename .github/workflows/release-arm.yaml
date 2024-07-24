@@ -297,7 +297,7 @@ jobs:
           mkdir sarif
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@4fa2a7953630fd2f3fb380f21be14ede0169dd4f # v3
+        uses: github/codeql-action/upload-sarif@2d790406f505036ef40ecba973cc774a50395aac # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'sarif'
@@ -399,7 +399,7 @@ jobs:
           sudo mv build/*.sarif sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@4fa2a7953630fd2f3fb380f21be14ede0169dd4f # v3
+        uses: github/codeql-action/upload-sarif@2d790406f505036ef40ecba973cc774a50395aac # v3
         with:
           sarif_file: 'sarif'
           category: ${{ matrix.flavor }}
