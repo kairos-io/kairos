@@ -36,7 +36,7 @@ jobs:
       family: opensuse
       base_image: opensuse/leap:15.6
       model: rpi4
-      worker: fast
+      worker: ARM64
   alpine:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     permissions:
@@ -60,4 +60,4 @@ jobs:
       family: alpine
       base_image: alpine:3.19
       model: rpi4
-      worker: fast
+      worker: ARM64

@@ -27,7 +27,7 @@
         "model": "rpi4",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
@@ -37,7 +37,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
@@ -47,7 +47,7 @@
         "model": "rpi4",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
@@ -57,7 +57,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
@@ -67,23 +67,13 @@
         "model": "generic",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
         "variant": "standard",
-        "model": "generic",
-        "baseImage": "opensuse/tumbleweed",
-        "arch": "amd64",
-        "worker": "self-hosted"
-    },
-    {
-        "family": "opensuse",
-        "flavor": "opensuse",
-        "flavorRelease": "tumbleweed",
-        "variant": "core",
         "model": "generic",
         "baseImage": "opensuse/tumbleweed",
         "arch": "amd64",
@@ -93,11 +83,21 @@
         "family": "opensuse",
         "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "opensuse/tumbleweed",
+        "arch": "amd64",
+        "worker": "self-hosted"
+    },
+    {
+        "family": "opensuse",
+        "flavor": "opensuse",
+        "flavorRelease": "tumbleweed",
         "variant": "standard",
         "model": "rpi4",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
@@ -107,7 +107,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
@@ -117,7 +117,7 @@
         "model": "rpi4",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "opensuse",
@@ -127,7 +127,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "ubuntu",
@@ -157,7 +157,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:20.04",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "ubuntu",
@@ -167,7 +167,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:20.04",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "ubuntu",
@@ -197,7 +197,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:22.04",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "ubuntu",
@@ -207,7 +207,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:22.04",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "ubuntu",
@@ -217,7 +217,7 @@
         "model": "generic",
         "baseImage": "ubuntu:24.04",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "ubuntu",
@@ -247,7 +247,7 @@
         "model": "generic",
         "baseImage": "ubuntu:24.04",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "alpine",
@@ -277,7 +277,7 @@
         "model": "rpi4",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "alpine",
@@ -287,7 +287,7 @@
         "model": "rpi3",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "alpine",
@@ -297,7 +297,7 @@
         "model": "rpi4",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "alpine",
@@ -307,7 +307,7 @@
         "model": "rpi3",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ubuntu-latest"
+        "worker": "ARM64"
     },
     {
         "family": "rhel",
