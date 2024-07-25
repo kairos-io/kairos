@@ -438,12 +438,22 @@ LABEL io.kairos.software-version="${SOFTWARE_VERSION}"
 LABEL io.kairos.software-version-prefix="${SOFTWARE_VERSION_PREFIX}"
 LABEL io.kairos.targetarch="${TARGETARCH}"
 
-# not duplicated but used to see the error
-RUN kairos-agent versioneer os-release-variables
-RUN kairos-agent versioneer os-release-variables >> /etc/os-release
-# not duplicated but used to see the error
-RUN kairos-agent versioneer container-artifact-name
-RUN kairos-agent versioneer container-artifact-name > /IMAGE
+# TODO: Remove this
+COPY kairos-agent /usr/bin/kairos-agent
+
+# Set BOOT_TYPE env variable for versioneer
+RUN <<BOOT_TYPE
+  if [ "$BOOTLOADER" = "grub" ]; then
+      export BOOT_TYPE=nonuki;
+  else
+      export BOOT_TYPE=uki;
+  fi
+  # not duplicated but used to see the error
+  kairos-agent versioneer os-release-variables
+  kairos-agent versioneer os-release-variables >> /etc/os-release
+  kairos-agent versioneer container-artifact-name
+  kairos-agent versioneer container-artifact-name > /IMAGE
+BOOT_TYPE
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN luet database get-all-installed --output /etc/kairos/versions.yaml
