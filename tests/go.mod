@@ -11,8 +11,8 @@ require (
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/mudler/edgevpn v0.26.2
 	github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c
-	github.com/onsi/ginkgo/v2 v2.19.0
-	github.com/onsi/gomega v1.33.1
+	github.com/onsi/ginkgo/v2 v2.19.1
+	github.com/onsi/gomega v1.34.0
 	github.com/spectrocloud/peg v0.0.0-20240405075800-c5da7125e30f
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -40,7 +40,7 @@ require (
 	github.com/flynn/noise v1.1.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gen2brain/shm v0.0.0-20230802011745-f2460f5984f7 // indirect
-	github.com/go-logr/logr v1.4.1 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
