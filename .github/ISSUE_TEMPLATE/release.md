@@ -32,6 +32,7 @@ assignees: mudler
       - [ ] Interactive install
       - [ ] Manual recovery reset
       - [ ] Automatic reset
+      - [ ] Provider decentralized test ([like we used to run automatically](https://github.com/kairos-io/kairos/issues/2709))
     - [ ] RPi Standard Install (helps validate that partition expansion is working)
       - [ ] Manual upgrade
       - [ ] Passive booting
