@@ -72,10 +72,33 @@ jobs:
         run: |
           earthly +uki-iso \
             --BASE_IMAGE=$TEMP_IMAGE \
-            --ENKI_OVERLAY_DIR=tests/assets/sysext/ --ENKI_KEYS_DIR=tests/assets/keys/
+            --ENKI_OVERLAY_DIR=tests/assets/sysext/ \
+            --ENKI_KEYS_DIR=tests/assets/keys/ \
+            --ENKI_FLAGS="--single-efi-cmdline \"MyEntry: nothing\""
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
+      - name: Build uki upgrade image 🔧
+        run: |
+          rm -rf /tmp/unpacked
+          luet util unpack "${TEMP_IMAGE}" /tmp/unpacked
+          new_version="mynewversion"
+          sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION=/'$new_version /tmp/unpacked/etc/os-release
+          echo "$new_version" > "${PWD}/build/expected_new_version"
+
+          earthly +uki-iso \
+            --BASE_IMAGE=dir:/tmp/unpacked \
+            --ENKI_OVERLAY_DIR=tests/assets/sysext/ \
+            --ENKI_KEYS_DIR=tests/assets/keys/ \
+            --ENKI_OUTPUT_TYPE=container
+
+          docker load -i build/*.tar
+          image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}')
+          rand=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 7)
+          temp_image=$(echo $image | sed "s/:6h/-${rand}:6h/")
+          docker tag $image $temp_image
+          docker push $temp_image
+          echo $temp_image > build/upgrade_image_name
       - name: Run tests 🔧
         env:
           USE_QEMU: true
@@ -88,6 +111,8 @@ jobs:
         run: |
           export ISO=$(ls $PWD/build/kairos_*.iso)
           export DATASOURCE=${PWD}/build/datasource.iso
+          export UPGRADE_IMAGE=$(cat "${PWD}/build/upgrade_image_name")
+          export EXPECTED_NEW_VERSION=$(cat "${PWD}/build/expected_new_version")
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
       - name: Install kairos-agent (for versioneer)

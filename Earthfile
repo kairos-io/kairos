@@ -352,9 +352,10 @@ uki-iso:
 
     IF [ "$ENKI_OVERLAY_DIR" != "" ]
         COPY $ENKI_OVERLAY_DIR /overlay-iso
-        RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} --overlay-iso /overlay-iso ${ENKI_FLAGS}
+
+        RUN --no-cache echo $ENKI_FLAGS | xargs enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} --overlay-iso /overlay-iso
     ELSE
-        RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} ${ENKI_FLAGS}
+        RUN --no-cache echo $ENKI_FLAGS | xargs enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE}
     END
 
 

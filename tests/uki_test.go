@@ -20,6 +20,14 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		if os.Getenv("FIRMWARE") == "" {
 			Fail("FIRMWARE environment variable set to a EFI firmware is needed for UKI test")
 		}
+
+		if os.Getenv("EXPECTED_NEW_VERSION") == "" {
+			Fail("EXPECTED_NEW_VERSION environment variable is needed for the UKI upgrade test")
+		}
+
+		if os.Getenv("UPGRADE_IMAGE") == "" {
+			Fail("UPGRADE_IMAGE environment variable is needed for the UKI upgrade test")
+		}
 	})
 
 	BeforeEach(func() {
@@ -256,5 +264,19 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		out, err = vm.Sudo("ls /usr/local/after-reset-file")
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).ToNot(MatchRegexp("No such file or directory"))
+
+		By("upgrading a single boot entry")
+		upgradeImage := os.Getenv("UPGRADE_IMAGE")
+		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source oci:%s --single-entry myentry", upgradeImage))
+		Expect(err).ToNot(HaveOccurred(), out)
+		out, err = vm.Sudo("kairos-agent --debug bootentry --select myentry")
+		Expect(err).ToNot(HaveOccurred(), out)
+		vm.Reboot()
+		vm.EventuallyConnects(1200)
+
+		By("checking if upgrade worked")
+		out, err = vm.Sudo("cat /etc/os-release")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(MatchRegexp(fmt.Sprintf("KAIROS_VERSION=\"%s\"", os.Getenv("EXPECTED_NEW_VERSION"))))
 	})
 })
