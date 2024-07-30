@@ -14,7 +14,7 @@ ARG GO_VERSION=1.22
 # renovate: datasource=docker depName=hadolint/hadolint
 ARG HADOLINT_VERSION=2.12.0-alpine
 # renovate: datasource=docker depName=renovate/renovate
-ARG RENOVATE_VERSION=37
+ARG RENOVATE_VERSION=38
 # renovate: datasource=docker depName=koalaman/shellcheck-alpine versioning=semver
 ARG SHELLCHECK_VERSION=v0.10.0
 
