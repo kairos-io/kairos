@@ -40,7 +40,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
 		}
-		
+
 		err := vm.Destroy(nil)
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -167,6 +167,23 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			stateAssertVM(vm, "kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
 			stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "fedora")
 			stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "fedora")
+		})
+
+		By("Checking install/recovery services are disabled", func() {
+			if !isFlavor(vm, "alpine") {
+				for _, service := range []string{"kairos-interactive", "kairos-recovery"} {
+					By(fmt.Sprintf("Checking that service %s is disabled", service), func() {})
+					Eventually(func() string {
+						out, _ := vm.Sudo(fmt.Sprintf("systemctl status %s", service))
+						return out
+					}, 3*time.Minute, 2*time.Second).Should(
+						And(
+							ContainSubstring(fmt.Sprintf("loaded (/etc/systemd/system/%s.service; disabled;", service)),
+							ContainSubstring("Active: inactive (dead)"),
+						),
+					)
+				}
+			}
 		})
 
 		By("Checking sysext was copied during install", func() {
