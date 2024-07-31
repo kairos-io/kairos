@@ -72,3 +72,8 @@ The Kairos project governance can be found [in the community repository](https:/
 Project Office Hours is an opportunity for attendees to meet the maintainers of the project, learn more about the project, ask questions, and learn about new features and upcoming updates.
 
 [Add to Google Calendar](https://calendar.google.com/calendar/embed?src=c_6d65f26502a5a67c9570bb4c16b622e38d609430bce6ce7fc1d8064f2df09c11%40group.calendar.google.com&ctz=Europe%2FRome)
+
+---
+
+Kairos is a [Cloud Native Computing Foundation (CNCF) Sandbox project](https://www.cncf.io/sandbox-projects/) and was contributed by [Spectrocloud](https://spectrocloud.com).
+
