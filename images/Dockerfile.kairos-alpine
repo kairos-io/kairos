@@ -260,7 +260,11 @@ RUN rm /etc/machine-id || true
 RUN rm /var/lib/dbus/machine-id || true
 RUN rm /etc/hostname || true
 
+# Disable the make-policy service that its on by default on some systemd versions
+# it creates a pcrlock.json policy that conflicts with our mesurements when trying to enroll it
 RUN if [ "$(which-init.sh)" = "systemd" ]; then \
+      systemctl disable systemd-pcrlock-make-policy || true; \
+      systemctl mask systemd-pcrlock-make-policy || true; \
       journalctl --vacuum-size=1K || true; \
     fi
 
