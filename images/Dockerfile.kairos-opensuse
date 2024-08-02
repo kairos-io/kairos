@@ -245,6 +245,12 @@ RUN luet database get-all-installed --output /etc/kairos/versions.yaml
 
 # TODO what about caches?
 RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
+
+# Set empty machine-id
+# This prevents systemd from thinking that the machine is on first boot
+# and recreating /etc/ dependencies in services and such
+# do this before initramfs so its in the initramfs
+RUN echo "" > /etc/machine-id || true
 # Regenerate initrd if necessary, proper config files with immucore and custom initrd should already be in there installed by framework
 # for systemd distros
 RUN if [ -f "/usr/bin/dracut" ]; then \
@@ -265,7 +271,6 @@ RUN kernel=$(ls /boot/Image* 2>/dev/null | head -n1) && if [ -e "$kernel" ]; the
 # this is generally present on rhel based systems, but it doesn't hurt to remove in any case
 RUN rm -rf /boot/initramfs-* || true
 
-RUN rm /etc/machine-id || true
 RUN rm /var/lib/dbus/machine-id || true
 RUN rm /etc/hostname || true
 
