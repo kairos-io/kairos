@@ -25,6 +25,10 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Fail("EXPECTED_NEW_VERSION environment variable is needed for the UKI upgrade test")
 		}
 
+		if os.Getenv("EXPECTED_SINGLE_ENTRY") == "" {
+			Fail("EXPECTED_SINGLE_ENTRY environment variable is needed for the UKI upgrade test")
+		}
+
 		if os.Getenv("UPGRADE_IMAGE") == "" {
 			Fail("UPGRADE_IMAGE environment variable is needed for the UKI upgrade test")
 		}
@@ -267,9 +271,9 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 
 		By("upgrading a single boot entry")
 		upgradeImage := os.Getenv("UPGRADE_IMAGE")
-		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source oci:%s --single-entry myentry", upgradeImage))
+		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source oci:%s --single-entry %s", upgradeImage, os.Getenv("EXPECTED_SINGLE_ENTRY")))
 		Expect(err).ToNot(HaveOccurred(), out)
-		out, err = vm.Sudo("kairos-agent --debug bootentry --select myentry")
+		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug bootentry --select %s", os.Getenv("EXPECTED_SINGLE_ENTRY")))
 		Expect(err).ToNot(HaveOccurred(), out)
 		vm.Reboot()
 		vm.EventuallyConnects(1200)

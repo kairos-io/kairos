@@ -74,14 +74,14 @@ jobs:
             --BASE_IMAGE=$TEMP_IMAGE \
             --ENKI_OVERLAY_DIR=tests/assets/sysext/ \
             --ENKI_KEYS_DIR=tests/assets/keys/ \
-            --ENKI_FLAGS="--single-efi-cmdline \"MyEntry: nothing\""
+            --ENKI_FLAGS="--single-efi-cmdline \"testentry: nothing\""
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
       - name: Build uki upgrade image 🔧
         run: |
           rm -rf /tmp/unpacked
-          luet util unpack "${TEMP_IMAGE}" /tmp/unpacked
+          sudo luet util unpack "${TEMP_IMAGE}" /tmp/unpacked
           new_version="mynewversion"
           sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION=/'$new_version /tmp/unpacked/etc/os-release
           echo "$new_version" > "${PWD}/build/expected_new_version"
@@ -113,6 +113,7 @@ jobs:
           export DATASOURCE=${PWD}/build/datasource.iso
           export UPGRADE_IMAGE=$(cat "${PWD}/build/upgrade_image_name")
           export EXPECTED_NEW_VERSION=$(cat "${PWD}/build/expected_new_version")
+          export EXPECTED_SINGLE_ENTRY="testentry"
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
       - name: Install kairos-agent (for versioneer)
