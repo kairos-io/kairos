@@ -281,6 +281,7 @@ base-image:
     COPY +git-version/GIT_VERSION VERSION
     ARG KAIROS_AGENT_DEV_BRANCH
     ARG IMMUCORE_DEV_BRANCH
+    ARG OVERLAY_FILES_DEV_BRANCH
 
     IF [ "$KAIROS_AGENT_DEV_BRANCH" != "" ]
         RUN rm -rf /usr/bin/kairos-agent
@@ -298,11 +299,24 @@ base-image:
         fi
     END
 
+    IF [ "$OVERLAY_FILES_DEV_BRANCH" != "" ]
+        COPY +overlay-files/files /
+    END
+
     ARG _CIMG=$(cat /IMAGE)
     SAVE IMAGE $_CIMG
     SAVE ARTIFACT /IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT VERSION AS LOCAL build/VERSION
     SAVE ARTIFACT /etc/kairos/versions.yaml versions.yaml AS LOCAL build/versions.yaml
+
+# Dev target to extract overlay files from specific commit or branch for testing
+overlay-files:
+    ARG OVERLAY_FILES_DEV_BRANCH
+    WORKDIR /build
+    RUN apk --no-cache add git
+    RUN --no-cache git clone --branch $OVERLAY_FILES_DEV_BRANCH https://github.com/kairos-io/packages.git /build/
+    SAVE ARTIFACT /build/packages/static/kairos-overlay-files/files/ files
+
 
 image-rootfs:
     BUILD +base-image # Make sure the image is also saved locally
