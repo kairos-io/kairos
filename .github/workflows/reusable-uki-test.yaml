@@ -95,9 +95,9 @@ jobs:
             --single-efi-cmdline "myentry: foobar"
 
           docker load -i build/*.tar
-          image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}')
-          rand=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 7)
-          temp_image=$(echo $image | sed "s/:6h/-${rand}:6h/")
+          image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | xargs)
+          rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
+          temp_image=ttl.sh/$(echo $image | sed "s/:latest/-${rand}:6h/")
           docker tag $image $temp_image
           docker push $temp_image
           echo $temp_image > build/upgrade_image_name
