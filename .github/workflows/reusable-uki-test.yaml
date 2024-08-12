@@ -88,7 +88,6 @@ jobs:
 
           earthly +uki-iso \
             --BASE_IMAGE=dir:/tmp/unpacked \
-            --ENKI_OVERLAY_DIR=tests/assets/sysext/ \
             --ENKI_KEYS_DIR=tests/assets/keys/ \
             --ENKI_OUTPUT_TYPE=container
 
