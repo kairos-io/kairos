@@ -83,7 +83,7 @@ jobs:
           rm -rf /tmp/unpacked
           sudo luet util unpack "${TEMP_IMAGE}" /tmp/unpacked
           new_version="mynewversion"
-          sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION=/'$new_version /tmp/unpacked/etc/os-release
+          sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION='$new_version'/' /tmp/unpacked/etc/os-release
           echo "$new_version" > "${PWD}/build/expected_new_version"
 
           earthly +uki-iso \
