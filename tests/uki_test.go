@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -285,6 +286,16 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 
 		out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
 		Expect(err).ToNot(HaveOccurred(), out)
-		Expect(out).To(MatchRegexp(fmt.Sprintf("%s.conf", os.Getenv("EXPECTED_SINGLE_ENTRY"))))
+		selectedEntry := removeSpecialChars(out)
+		Expect(selectedEntry).To(Equal(fmt.Sprintf("%s.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
 	})
 })
+
+func removeSpecialChars(str string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, str)
+}
