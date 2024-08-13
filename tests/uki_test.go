@@ -281,7 +281,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		By("checking if upgrade worked")
 		out, err = vm.Sudo("cat /etc/os-release")
 		Expect(err).ToNot(HaveOccurred(), out)
-		Expect(out).To(MatchRegexp(fmt.Sprintf("KAIROS_VERSION=\"%s\"", os.Getenv("EXPECTED_NEW_VERSION"))))
+		Expect(out).To(MatchRegexp(fmt.Sprintf("KAIROS_VERSION=\"?%s\"?", os.Getenv("EXPECTED_NEW_VERSION"))))
 
 		out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
 		Expect(err).ToNot(HaveOccurred(), out)
