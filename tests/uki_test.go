@@ -271,7 +271,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 
 		By("upgrading a single boot entry")
 		upgradeImage := os.Getenv("UPGRADE_IMAGE")
-		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source oci:%s --single-entry %s", upgradeImage, os.Getenv("EXPECTED_SINGLE_ENTRY")))
+		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source oci:%s --boot-entry %s", upgradeImage, os.Getenv("EXPECTED_SINGLE_ENTRY")))
 		Expect(err).ToNot(HaveOccurred(), out)
 		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug bootentry --select %s", os.Getenv("EXPECTED_SINGLE_ENTRY")))
 		Expect(err).ToNot(HaveOccurred(), out)
