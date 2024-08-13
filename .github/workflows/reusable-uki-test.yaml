@@ -62,6 +62,7 @@ jobs:
             --FAMILY=${{ inputs.family }} \
             --MODEL=generic \
             --VARIANT=core \
+            --KAIROS_AGENT_DEV_BRANCH=2385-upgrade-single-entries \
             --BASE_IMAGE=${{ inputs.base_image }} \
             --BOOTLOADER=systemd-boot
       - name: Push image to ttl.sh
