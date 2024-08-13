@@ -278,12 +278,13 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		vm.Reboot()
 		vm.EventuallyConnects(1200)
 
-		// TODO: This should also check that we are booted in that single entry
-		// Right now it may upgrade the active partition and boot that too. We
-		// wouldn't know if it did.
 		By("checking if upgrade worked")
 		out, err = vm.Sudo("cat /etc/os-release")
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).To(MatchRegexp(fmt.Sprintf("KAIROS_VERSION=\"%s\"", os.Getenv("EXPECTED_NEW_VERSION"))))
+
+		out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(MatchRegexp(fmt.Sprintf("%s.conf", os.Getenv("EXPECTED_SINGLE_ENTRY"))))
 	})
 })
