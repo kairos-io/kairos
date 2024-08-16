@@ -92,7 +92,10 @@ write_files:
     StandardError=file:/home/kairos/cage.err.log
 
     # Set up a full (custom) user session for the user, required by Cage.
-    PAMName=kairos
+    #PAMName=kairos
+
+    # This should match the name of the /etc/pam.d file
+    PAMName=cage
 
     [Install]
     WantedBy=graphical.target
