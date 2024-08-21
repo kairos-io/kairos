@@ -191,9 +191,13 @@ luet:
 ### Image Build targets
 ###
 
+kairos-dockerfile-context:
+    COPY --dir images/ .
+    SAVE ARTIFACT images
+
 kairos-dockerfile:
     ARG --required FAMILY
-    COPY ./images .
+    COPY +kairos-dockerfile-context/images .
     IF [ "$FAMILY" == "all" ]
         ARG FAMILY_LIST="alpine debian opensuse rhel ubuntu"
     ELSE
@@ -274,7 +278,7 @@ base-image:
       --build-arg FRAMEWORK_VERSION=$_FRAMEWORK_VERSION \
       --build-arg BOOTLOADER=$BOOTLOADER \
       -f +kairos-dockerfile/Dockerfile \
-      ./images
+      +kairos-dockerfile-context/images/*
 
     ARG _CIMG=$(cat ./IMAGE)
 
