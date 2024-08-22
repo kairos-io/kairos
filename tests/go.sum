@@ -351,6 +351,8 @@ github.com/mudler/edgevpn v0.27.0 h1:FnBVzPs098DTgbUkiwm22n30hmEVBAq+PVpXanqx6qo
 github.com/mudler/edgevpn v0.27.0/go.mod h1:Hwvr+i+dePgn/Yh+EMMvqcw9ByUCLAWD9TgYtJYV95Y=
 github.com/mudler/edgevpn v0.27.2 h1:FsQ95jPCDJP9LzKJYCHx70z08DGXK5yrHMzH9Qok3nE=
 github.com/mudler/edgevpn v0.27.2/go.mod h1:PK7rl0QQQTdlpie9rlaS7DguH500ogqproQli/QwrxU=
+github.com/mudler/edgevpn v0.27.3 h1:9g6M7Q+2GdwDN12KmjhYJDi69cttvDW7luBmZioD2ZM=
+github.com/mudler/edgevpn v0.27.3/go.mod h1:PK7rl0QQQTdlpie9rlaS7DguH500ogqproQli/QwrxU=
 github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c h1:CI5uGwqBpN8N7BrSKC+nmdfw+9nPQIDyjHHlaIiitZI=
 github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c/go.mod h1:gY3wyrhkRySJtmtI/JPt4a2mKv48h/M9pEZIW+SjeC0=
 github.com/mudler/go-processmanager v0.0.0-20240820160718-8b802d3ecf82 h1:FVT07EI8njvsD4tC2Hw8Xhactp5AWhsQWD4oTeQuSAU=
