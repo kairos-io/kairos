@@ -11,18 +11,20 @@ users:
 
 stages:
   initramfs:
-    - path: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
-      content: |
-        # This file should be generated using wpa_passphrase
-        ctrl_interface=/var/run/wpa_supplicant
-        ctrl_interface_group=admin
-        network={
-                ssid="$SSID_GOES_HERE"
-                psk=$PSK_GOES_HERE
-        }
-      permissions: 0600
-      owner: 0
-      group: 0
+    - name: "Setup wireless"
+      files:
+      - path: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+        content: |
+          # This file should be generated using wpa_passphrase
+          ctrl_interface=/var/run/wpa_supplicant
+          ctrl_interface_group=admin
+          network={
+                  ssid="$SSID_GOES_HERE"
+                  psk="$PSK_GOES_HERE"
+          }
+        permissions: 0600
+        owner: 0
+        group: 0
 
   boot:
     - name: "Enabling wireless"
