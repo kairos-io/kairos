@@ -10,6 +10,10 @@ RUN ORIG=/usr/bin/grub-editenv; DEST=/usr/sbin/grub2-editenv; [ -e $ORIG ] && [ 
 # here we add 100Mb aprox
 COPY --from=framework / /
 
+# TODO: temp change to test disabling selinux
+RUN sed -i 's/selinux=1/selinux=0/' /etc/cos/bootargs.cfg
+RUN echo "# edited by dimitris" >> /etc/cos/bootargs.cfg
+
 RUN rm -rf /etc/ssh/ssh_host_*
 
 COPY which-init.sh /usr/local/bin/which-init.sh
