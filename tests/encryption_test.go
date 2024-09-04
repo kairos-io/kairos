@@ -2,10 +2,6 @@ package mos_test
 
 import (
 	"fmt"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	. "github.com/spectrocloud/peg/matcher"
-	"gopkg.in/yaml.v3"
 	"os"
 	"os/exec"
 	"path"
@@ -13,6 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	. "github.com/spectrocloud/peg/matcher"
+	"gopkg.in/yaml.v3"
 )
 
 var installationOutput string
@@ -316,7 +317,7 @@ install:
 				out, err := vm.Sudo("blkid")
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
-				Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"COS_PERSISTENT\""), out)
+				Expect(out).To(MatchRegexp("/dev/(mapper|dm).*LABEL=\"COS_PERSISTENT\""), out)
 			})
 		})
 
