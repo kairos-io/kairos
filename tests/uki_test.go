@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -19,6 +20,18 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 	BeforeAll(func() {
 		if os.Getenv("FIRMWARE") == "" {
 			Fail("FIRMWARE environment variable set to a EFI firmware is needed for UKI test")
+		}
+
+		if os.Getenv("EXPECTED_NEW_VERSION") == "" {
+			Fail("EXPECTED_NEW_VERSION environment variable is needed for the UKI upgrade test")
+		}
+
+		if os.Getenv("EXPECTED_SINGLE_ENTRY") == "" {
+			Fail("EXPECTED_SINGLE_ENTRY environment variable is needed for the UKI upgrade test")
+		}
+
+		if os.Getenv("UPGRADE_IMAGE") == "" {
+			Fail("UPGRADE_IMAGE environment variable is needed for the UKI upgrade test")
 		}
 	})
 
@@ -256,5 +269,33 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		out, err = vm.Sudo("ls /usr/local/after-reset-file")
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).ToNot(MatchRegexp("No such file or directory"))
+
+		By("upgrading a single boot entry")
+		upgradeImage := os.Getenv("UPGRADE_IMAGE")
+		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source oci:%s --boot-entry %s", upgradeImage, os.Getenv("EXPECTED_SINGLE_ENTRY")))
+		Expect(err).ToNot(HaveOccurred(), out)
+		out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug bootentry --select %s", os.Getenv("EXPECTED_SINGLE_ENTRY")))
+		Expect(err).ToNot(HaveOccurred(), out)
+		vm.Reboot()
+		vm.EventuallyConnects(1200)
+
+		By("checking if upgrade worked")
+		out, err = vm.Sudo("cat /etc/os-release")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(MatchRegexp(fmt.Sprintf("KAIROS_VERSION=\"?%s\"?", os.Getenv("EXPECTED_NEW_VERSION"))))
+
+		out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
+		Expect(err).ToNot(HaveOccurred(), out)
+		selectedEntry := removeSpecialChars(out)
+		Expect(selectedEntry).To(Equal(fmt.Sprintf("%s.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
 	})
 })
+
+func removeSpecialChars(str string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.IsPrint(r) {
+			return r
+		}
+		return -1
+	}, str)
+}
