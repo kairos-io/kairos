@@ -1,8 +1,8 @@
-ARG BASE_IMAGE=rockylinux:9
+ARG BASE_IMAGE=rockylinux:9@sha256:d7be1c094cc5845ee815d4632fe377514ee6ebcf8efaed6892889657e5ddaaa6
 FROM $BASE_IMAGE as base
 
 # Generate os-release file
-FROM quay.io/kairos/osbuilder-tools:latest as osbuilder
+FROM quay.io/kairos/osbuilder-tools:latest@sha256:9b8da01a69f208e4066c04ab0b5c4c3382ec2f06cb508ccb08f0437d6539e10c as osbuilder
 RUN zypper install -y gettext && zypper clean
 RUN mkdir /workspace
 COPY --from=base /etc/os-release /workspace/os-release
@@ -78,7 +78,7 @@ RUN systemctl enable sshd
 # Copy the os-release file to identify the OS
 COPY --from=osbuilder /workspace/os-release /etc/os-release
 
-COPY --from=quay.io/kairos/framework:master_fips-systemd / /
+COPY --from=quay.io/kairos/framework:master_fips-systemd@sha256:b4c475bba210cff0ba503ba15da67d463f2a93b470cb3432b4e2d755af25f64c / /
 
 # Copy the custom dracut config file
 COPY dracut.conf /etc/dracut.conf.d/kairos-fips.conf
