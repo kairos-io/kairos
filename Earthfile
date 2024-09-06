@@ -4,7 +4,9 @@ FROM alpine:3.19
 # renovate: datasource=docker depName=quay.io/luet/base versioning=semver
 ARG LUET_VERSION=0.35.5
 # renovate: datasource=docker depName=aquasec/trivy versioning=semver
-ARG TRIVY_VERSION=0.53.0
+ARG TRIVY_VERSION=0.55.0
+# renovate: datasource=docker depName=anchore/grype versioning=semver
+ARG GRYPE_VERSION=v0.80.0
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
 ARG KAIROS_FRAMEWORK_VERSION=v2.11.3
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
@@ -783,7 +785,8 @@ trivy-scan:
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${ISO_NAME}-trivy.json
 
 grype:
-    FROM anchore/grype
+    ARG GRYPE_VERSION
+    FROM anchore/grype:$GRYPE_VERSION
     SAVE ARTIFACT /grype /grype
 
 grype-scan:
@@ -791,13 +794,16 @@ grype-scan:
 
     # Use base-image so it can read original os-release file
     FROM +base-image
-    COPY +grype/grype /grype
+
+    WORKDIR /
+
+    COPY +grype/grype grype
 
     ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-    WORKDIR /build
-    RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
-    RUN /grype dir:/ --output json --add-cpes-if-none --file report.json
+    RUN mkdir build
+    RUN ./grype dir:. --output sarif --add-cpes-if-none --file /build/report.sarif
+    RUN ./grype dir:. --output json --add-cpes-if-none --file /build/report.json
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-grype.sarif
     SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${ISO_NAME}-grype.json
 
