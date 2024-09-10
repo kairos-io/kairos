@@ -1,0 +1,26 @@
+#cloud-config
+
+hostname: metal-{{ trunc 4 .MachineID }}
+users:
+  - name: kairos
+    # Change to your pass here
+    passwd: kairos
+    ssh_authorized_keys:
+    # Replace with your github user and un-comment the line below:
+    # - github:mudler
+
+stages:
+  initramfs:
+    - name: Setup wireless
+      files:
+        # Generate manually by following https://wiki.archlinux.org/title/ConnMan and add contents below
+        - path: /var/lib/connman/wifi_xxxxxxxxxxxx_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz_managed_psk/settings
+          permissions: 0600
+          content: |
+            [wifi_xxxxxxxxxxxx_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz_managed_psk]
+            Name=Your_SSID
+            ...etc...
+  boot:
+    - name: Enable wireless
+      commands:
+        - connmanctl enable wifi
