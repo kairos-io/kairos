@@ -25,7 +25,8 @@ on:
       base_image:
         required: true
         type: string
-
+env:
+  FORCE_COLOR: 1
 permissions: read-all
 jobs:
   build:
