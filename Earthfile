@@ -5,8 +5,10 @@ FROM alpine:3.19
 ARG LUET_VERSION=0.35.5
 # renovate: datasource=docker depName=aquasec/trivy versioning=semver
 ARG TRIVY_VERSION=0.55.0
+# renovate: datasource=docker depName=anchore/grype versioning=semver
+ARG GRYPE_VERSION=v0.80.1
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-ARG KAIROS_FRAMEWORK_VERSION=v2.11.2
+ARG KAIROS_FRAMEWORK_VERSION=v2.11.4
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
 ARG OSBUILDER_VERSION=v0.300.3
 # renovate: datasource=docker depName=golang versioning=semver
@@ -352,9 +354,10 @@ uki-iso:
 
     IF [ "$ENKI_OVERLAY_DIR" != "" ]
         COPY $ENKI_OVERLAY_DIR /overlay-iso
-        RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} --overlay-iso /overlay-iso ${ENKI_FLAGS}
+
+        RUN --no-cache echo $ENKI_FLAGS | xargs enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} --overlay-iso /overlay-iso
     ELSE
-        RUN --no-cache enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} ${ENKI_FLAGS}
+        RUN --no-cache echo $ENKI_FLAGS | xargs enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE}
     END
 
 
@@ -782,7 +785,8 @@ trivy-scan:
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${ISO_NAME}-trivy.json
 
 grype:
-    FROM anchore/grype
+    ARG GRYPE_VERSION
+    FROM anchore/grype:$GRYPE_VERSION
     SAVE ARTIFACT /grype /grype
 
 grype-scan:
@@ -790,13 +794,16 @@ grype-scan:
 
     # Use base-image so it can read original os-release file
     FROM +base-image
-    COPY +grype/grype /grype
+
+    WORKDIR /
+
+    COPY +grype/grype grype
 
     ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-    WORKDIR /build
-    RUN /grype dir:/ --output sarif --add-cpes-if-none --file report.sarif
-    RUN /grype dir:/ --output json --add-cpes-if-none --file report.json
+    RUN mkdir build
+    RUN ./grype dir:. --output sarif --add-cpes-if-none --file /build/report.sarif
+    RUN ./grype dir:. --output json --add-cpes-if-none --file /build/report.json
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-grype.sarif
     SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${ISO_NAME}-grype.json
 
