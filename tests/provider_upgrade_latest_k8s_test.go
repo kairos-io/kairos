@@ -160,12 +160,12 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		Eventually(func() string {
 			out, _ = kubectl(vm, "apply -f suc.yaml")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("created"), out)
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("created"))
 
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"), out)
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"))
 
 		By("checking upgraded version")
 		Eventually(func() string {

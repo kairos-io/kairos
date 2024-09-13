@@ -56,7 +56,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Expect(err).ToNot(HaveOccurred())
 
 			out, _ := vm.Sudo("kairos-agent manual-install --device auto /tmp/config.yaml")
-			Expect(out).Should(ContainSubstring("Running after-install hook"), out)
+			Expect(out).Should(ContainSubstring("Running after-install hook"))
 			vm.Reboot()
 
 			By("waiting until it reboots to installed system")
@@ -146,13 +146,13 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				out, _ = vm.Sudo("kairos get-kubeconfig")
 				return out
-			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("https:"), out)
+			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
 			Eventually(func() string {
 				vm.Sudo("kairos get-kubeconfig > kubeconfig")
 				out, _ = vm.Sudo("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"), out)
+			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
 		})
 
 		vmForEach("checking roles", vms, func(vm VM) {
@@ -195,11 +195,11 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 
 					out, _ = vm.Sudo("dig +short foo.bar")
 					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).Should(Equal("2.2.2.2"), out)
+				}, 900*time.Second, 10*time.Second).Should(Equal("2.2.2.2"))
 				Eventually(func() string {
 					out, _ = vm.Sudo("dig +short google.com")
 					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).ShouldNot(BeEmpty(), out)
+				}, 900*time.Second, 10*time.Second).ShouldNot(BeEmpty())
 			}
 		})
 
