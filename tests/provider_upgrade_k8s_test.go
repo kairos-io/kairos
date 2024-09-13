@@ -145,13 +145,13 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"), out)
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"))
 
 		By("wait for plan to finish")
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			return out
-		}, 30*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("ContainerCreating"), out)
+		}, 30*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("ContainerCreating"))
 
 		By("validate upgraded version")
 		expectedVersion := getExpectedVersion()
@@ -160,7 +160,9 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			version, _ := vm.Sudo(getVersionCmd)
 			fmt.Printf("version = %+v\n", version)
 			return version
-		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(expectedVersion), out)
+		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(expectedVersion), func() string {
+			return out
+		})
 	})
 })
 
