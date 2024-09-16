@@ -135,20 +135,20 @@ jobs:
 
           sudo mv build/* .
           sudo rm -rf build
-          mkdir trivy-sarif grype-sarif
-          sudo mv release/*trivy.sarif trivy-sarif/
-          sudo mv release/*grype.sarif grype-sarif/
+          mkdir trivy-results grype-results
+          sudo mv *trivy.sarif trivy-results/
+          sudo mv *grype.sarif grype-results/
       - name: Upload Trivy scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
         with:
-          sarif_file: 'trivy-sarif'
+          sarif_file: 'trivy-results'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
         with:
-          sarif_file: 'grype-sarif'
+          sarif_file: 'grype-results'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-grype
       - uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029 # v4
         with:
