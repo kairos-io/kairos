@@ -294,15 +294,21 @@ jobs:
             build/*scan-reports.tar.gz
       - name: Prepare sarif files  🔧
         run: |
-          mkdir sarif
-          sudo mv build/*.sarif sarif/
+          mkdir trivy-sarif grype-sarif
+          sudo mv build/*trivy.sarif trivy-sarif/
+          sudo mv build/*grype.sarif grype-sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          sarif_file: 'sarif'
-          category: ${{ matrix.flavor }}
-
+          sarif_file: 'trivy-sarif'
+          category: ${{ matrix.flavor }}-trivy
+      - name: Upload Grype scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          sarif_file: 'grype-sarif'
+          category: ${{ matrix.flavor }}-grype
   build-arm-standard:
     runs-on: ARM64
     needs:
@@ -395,14 +401,21 @@ jobs:
             build/*scan-reports.tar.gz
       - name: Prepare sarif files  🔧
         run: |
-          mkdir sarif
-          sudo mv build/*.sarif sarif/
+          mkdir trivy-sarif grype-sarif
+          sudo mv build/*trivy.sarif trivy-sarif/
+          sudo mv build/*grype.sarif grype-sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         if: startsWith(github.ref, 'refs/tags/')
         uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
         with:
-          sarif_file: 'sarif'
-          category: ${{ matrix.flavor }}
+          sarif_file: 'trivy-sarif'
+          category: ${{ matrix.flavor }}-trivy
+      - name: Upload Grype scan results to GitHub Security tab
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
+        with:
+          sarif_file: 'grype-sarif'
+          category: ${{ matrix.flavor }}-grype
       - name: Space stats
         if: always()
         run: |
