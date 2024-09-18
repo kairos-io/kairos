@@ -777,9 +777,9 @@ trivy-scan:
     COPY +trivy/contrib /contrib
 
     WORKDIR /build
-    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --severity CRITICAL --exit-code 255 --timeout 30m --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --severity CRITICAL --exit-code 255--timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --severity CRITICAL --exit-code 255 --timeout 30m -f json -o results.json --no-progress /
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${ISO_NAME}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${ISO_NAME}-trivy.json
@@ -802,8 +802,8 @@ grype-scan:
     ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     RUN mkdir build
-    RUN ./grype dir:. --output sarif --add-cpes-if-none --file /build/report.sarif
-    RUN ./grype dir:. --output json --add-cpes-if-none --file /build/report.json
+    RUN ./grype dir:. --fail-on CRITICAL --output sarif --add-cpes-if-none --file /build/report.sarif
+    RUN ./grype dir:. --fail-on CRITICAL --output json --add-cpes-if-none --file /build/report.json
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-grype.sarif
     SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${ISO_NAME}-grype.json
 
