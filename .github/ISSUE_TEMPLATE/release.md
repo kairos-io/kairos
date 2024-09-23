@@ -19,6 +19,7 @@ assignees: mudler
 - [ ] **Stage 0 - Finishing Touches**
     - [ ] Check if Kairos-docs has any open PRs that need to be merged
     - [ ] Check if osbuilder is in the wanted version/latest
+    - [ ] Check if k3s versions are correct (latest 3 versions should be available)
     - [ ] Check if any kairos/packages were bumped. Ensure they were merged and repo updated (https://github.com/kairos-io/kairos-framework/issues/2)
       - [ ] Cut a new release of the kairos-framework images
       - [ ] Bump the [kairos-framework image in kairos](https://github.com/kairos-io/kairos/blob/b334bb013c0b3ad63740e5da27d896d5d5fea81e/Earthfile#L12)
