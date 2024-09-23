@@ -32,18 +32,18 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			uuid, err := vm.Sudo("lsblk /dev/vda -o UUID -n")
 
 			cc := fmt.Sprintf(`#cloud-config
-				install:
-				  auto: true
-				  reboot: true
-				  device: /dev/disk/by-uuid/%s
-				
-				stages:
-				  initramfs:
-					- name: "Set user and password"
-					  users:
-						kairos:
-						  passwd: "kairos"
-					  hostname: kairos-{{ trunc 4 .Random }}
+install:
+  auto: true
+  reboot: true
+  device: /dev/disk/by-uuid/%s
+
+stages:
+  initramfs:
+	- name: "Set user and password"
+	  users:
+		kairos:
+		  passwd: "kairos"
+	  hostname: kairos-{{ trunc 4 .Random }}
 				`, uuid)
 
 			By("Using the following config")
@@ -74,18 +74,18 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			label, err := vm.Sudo("lsblk /dev/vda -o LABEL -n")
 
 			cc := fmt.Sprintf(`#cloud-config
-				install:
-				  auto: true
-				  reboot: true
-				  device: /dev/disk/by-label/%s
-				
-				stages:
-				  initramfs:
-					- name: "Set user and password"
-					  users:
-						kairos:
-						  passwd: "kairos"
-					  hostname: kairos-{{ trunc 4 .Random }}
+install:
+  auto: true
+  reboot: true
+  device: /dev/disk/by-label/%s
+
+stages:
+  initramfs:
+	- name: "Set user and password"
+	  users:
+		kairos:
+		  passwd: "kairos"
+	  hostname: kairos-{{ trunc 4 .Random }}
 				`, label)
 
 			By("Using the following config")
