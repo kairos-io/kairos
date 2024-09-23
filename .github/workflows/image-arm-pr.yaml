@@ -11,10 +11,11 @@ concurrency:
   cancel-in-progress: true
 env:
   FORCE_COLOR: 1
-
+  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
   opensuse:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -39,6 +40,7 @@ jobs:
       worker: ARM64
   alpine:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write

@@ -5,7 +5,9 @@ on:
   push:
     tags:
       - v*
-
+env:
+  FORCE_COLOR: 1
+  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 permissions: read-all
 jobs:
   get-core-matrix:
