@@ -33,10 +33,7 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			// Get uuid of main disk
 			uuid, err := vm.Sudo("lsblk /dev/vda -o UUID -n")
 
-			cc := fmt.Sprintf(`#cloud-config
-install:
-  device: /dev/disk/by-uuid/%s
-
+			cc := `#cloud-config
 stages:
   initramfs:
 	- name: "Set user and password"
@@ -44,7 +41,7 @@ stages:
 		kairos:
 		  passwd: "kairos"
 	  hostname: kairos-{{ trunc 4 .Random }}
-				`, uuid)
+`
 
 			By("Using the following config")
 			fmt.Fprint(GinkgoWriter, cc)
@@ -62,7 +59,7 @@ stages:
 			var out string
 			// Test that install works
 			By("installing kairos", func() {
-				out, err = vm.Sudo(`kairos-agent --debug manual-install /tmp/config.yaml`)
+				out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug manual-install --device /dev/disk/by-uuid/%s /tmp/config.yaml", uuid))
 				fmt.Fprint(GinkgoWriter, out)
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).Should(ContainSubstring("Running after-install hook"))
@@ -115,10 +112,7 @@ stages:
 			// Get label of main disk
 			label, err := vm.Sudo("lsblk /dev/vda -o LABEL -n")
 
-			cc := fmt.Sprintf(`#cloud-config
-install:
-  device: /dev/disk/by-label/%s
-
+			cc := `#cloud-config
 stages:
   initramfs:
 	- name: "Set user and password"
@@ -126,7 +120,7 @@ stages:
 		kairos:
 		  passwd: "kairos"
 	  hostname: kairos-{{ trunc 4 .Random }}
-				`, label)
+`
 
 			By("Using the following config")
 			fmt.Fprintf(GinkgoWriter, cc)
@@ -143,7 +137,7 @@ stages:
 
 			var out string
 			By("installing kairos", func() {
-				out, err = vm.Sudo(`kairos-agent --debug manual-install /tmp/config.yaml`)
+				out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug manual-install --device /dev/disk/by-label/%s /tmp/config.yaml", label))
 				Expect(err).ToNot(HaveOccurred(), out)
 				fmt.Fprint(GinkgoWriter, out)
 				Expect(out).Should(ContainSubstring("Running after-install hook"))
