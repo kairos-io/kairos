@@ -770,7 +770,7 @@ trivy:
     FROM aquasec/trivy:$TRIVY_VERSION
     RUN /usr/local/bin/trivy fs --download-db-only
     SAVE ARTIFACT /contrib contrib
-    SAVE ARTIFACT /root cache
+    SAVE ARTIFACT /root/.cache cache
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
