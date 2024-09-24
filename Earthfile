@@ -288,6 +288,7 @@ base-image:
     ARG KAIROS_AGENT_DEV_BRANCH
     ARG IMMUCORE_DEV_BRANCH
     ARG OVERLAY_FILES_DEV_BRANCH
+    ARG KAIROS_PROVIDER_DEV_BRANCH
 
     IF [ "$KAIROS_AGENT_DEV_BRANCH" != "" ]
         RUN rm -rf /usr/bin/kairos-agent
@@ -303,6 +304,11 @@ base-image:
           dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
           ln -sf "initrd-${kernel}" /boot/initrd; \
         fi
+    END
+
+    IF [ "$KAIROS_PROVIDER_DEV_BRANCH" != "" ]
+        RUN rm -rf /system/providers/agent-provider-kairos
+        COPY github.com/kairos-io/provider-kairos:$KAIROS_PROVIDER_DEV_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
     END
 
     IF [ "$OVERLAY_FILES_DEV_BRANCH" != "" ]
