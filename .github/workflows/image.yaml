@@ -13,7 +13,6 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-
   get-core-matrix:
     runs-on: ubuntu-latest
     outputs:

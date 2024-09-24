@@ -10,9 +10,11 @@ concurrency:
   cancel-in-progress: true
 env:
   FORCE_COLOR: 1
+  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
   core-ubuntu-22-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -39,6 +41,7 @@ jobs:
 
   core-ubuntu-24-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -65,6 +68,7 @@ jobs:
 
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -91,6 +95,7 @@ jobs:
 
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -117,6 +122,7 @@ jobs:
 
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -135,6 +141,7 @@ jobs:
 
   install-secureboot:
     uses: ./.github/workflows/reusable-install-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -144,6 +151,7 @@ jobs:
 
   install-alpine:
     uses: ./.github/workflows/reusable-install-test.yaml
+    secrets: inherit
     with:
       flavor: alpine
       flavor_release: "3.19"
@@ -152,6 +160,7 @@ jobs:
 
   zfs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "22.04"
@@ -160,6 +169,7 @@ jobs:
 
   acceptance:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -168,6 +178,7 @@ jobs:
 
   acceptance-alpine:
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
+    secrets: inherit
     with:
       flavor: alpine
       flavor_release: "3.19"
@@ -176,6 +187,7 @@ jobs:
 
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -184,6 +196,7 @@ jobs:
 
   reset:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -192,6 +205,7 @@ jobs:
 
   reset-alpine:
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
+    secrets: inherit
     with:
       flavor: alpine
       flavor_release: "3.19"
@@ -200,6 +214,7 @@ jobs:
 
   netboot:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -212,6 +227,7 @@ jobs:
 
   netboot-alpine:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
+    secrets: inherit
     with:
       flavor: alpine
       flavor_release: "3.19"
@@ -224,6 +240,7 @@ jobs:
 
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"
@@ -232,6 +249,7 @@ jobs:
 
   upgrade-alpine:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
+    secrets: inherit
     with:
       flavor: alpine
       flavor_release: "3.19"
@@ -240,6 +258,7 @@ jobs:
 
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
+    secrets: inherit
     with:
       flavor: ubuntu
       flavor_release: "24.04"

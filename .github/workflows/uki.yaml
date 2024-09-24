@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 env:
   FORCE_COLOR: 1
+  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
   test-uki:
     strategy:
