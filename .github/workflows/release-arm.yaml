@@ -247,13 +247,6 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Cache trivy DB
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 3
-          retry_on: error
-          timeout_minutes: 5
-          command: earthly +trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
@@ -366,13 +359,6 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Cache trivy DB
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 3
-          retry_on: error
-          timeout_minutes: 5
-          command: earthly +trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
@@ -487,13 +473,6 @@ jobs:
         uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Cache trivy DB
-        uses: nick-fields/retry@v3
-        with:
-          max_attempts: 3
-          retry_on: error
-          timeout_minutes: 5
-          command: earthly +trivy
       - name: Build iso  🔧
         run: |
           INIT=$([[ "${{ matrix.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd")

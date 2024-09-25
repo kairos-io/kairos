@@ -768,9 +768,7 @@ datasource-iso:
 trivy:
     ARG TRIVY_VERSION
     FROM aquasec/trivy:$TRIVY_VERSION
-    RUN /usr/local/bin/trivy fs --download-db-only
     SAVE ARTIFACT /contrib contrib
-    SAVE ARTIFACT /root/.cache cache
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
@@ -783,7 +781,6 @@ trivy-scan:
 
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
-    COPY +trivy/cache /root/.cache
 
     WORKDIR /build
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
