@@ -124,6 +124,13 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
+      - name: Cache trivy DB
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        uses: nick-fields/retry@v3
+        with:
+          max_attempts: 3
+          retry_on: error
+          command: earthly +trivy
       - name: Build master 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         run: |
