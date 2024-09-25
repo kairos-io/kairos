@@ -78,6 +78,19 @@ jobs:
           - flavor: opensuse
             flavorRelease: leap-15.6
             secureboot: false
+  install-target:
+    uses: ./.github/workflows/reusable-install-test-target.yaml
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+    needs:
+      - core
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - flavor: "ubuntu"
+            flavorRelease: "24.04"
   install-secureboot:
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
@@ -413,6 +426,8 @@ jobs:
       - core
       - standard
       - install
+      - install-target
+      - install-secureboot
       - zfs
       - acceptance
       - bundles
