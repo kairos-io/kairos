@@ -252,6 +252,7 @@ jobs:
         with:
           max_attempts: 3
           retry_on: error
+          timeout_minutes: 5
           command: earthly +trivy
       - name: Build  🔧
         run: |
@@ -370,6 +371,7 @@ jobs:
         with:
           max_attempts: 3
           retry_on: error
+          timeout_minutes: 5
           command: earthly +trivy
       - name: Build  🔧
         run: |
@@ -490,6 +492,7 @@ jobs:
         with:
           max_attempts: 3
           retry_on: error
+          timeout_minutes: 5
           command: earthly +trivy
       - name: Build iso  🔧
         run: |
