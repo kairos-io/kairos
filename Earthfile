@@ -288,6 +288,7 @@ base-image:
     ARG KAIROS_AGENT_DEV_BRANCH
     ARG IMMUCORE_DEV_BRANCH
     ARG OVERLAY_FILES_DEV_BRANCH
+    ARG KAIROS_PROVIDER_DEV_BRANCH
 
     IF [ "$KAIROS_AGENT_DEV_BRANCH" != "" ]
         RUN rm -rf /usr/bin/kairos-agent
@@ -303,6 +304,11 @@ base-image:
           dracut -f "/boot/initrd-${kernel}" "${kernel}" && \
           ln -sf "initrd-${kernel}" /boot/initrd; \
         fi
+    END
+
+    IF [ "$KAIROS_PROVIDER_DEV_BRANCH" != "" ]
+        RUN rm -rf /system/providers/agent-provider-kairos
+        COPY github.com/kairos-io/provider-kairos:$KAIROS_PROVIDER_DEV_BRANCH+build-kairos-agent-provider/agent-provider-kairos /system/providers/agent-provider-kairos
     END
 
     IF [ "$OVERLAY_FILES_DEV_BRANCH" != "" ]
@@ -762,7 +768,9 @@ datasource-iso:
 trivy:
     ARG TRIVY_VERSION
     FROM aquasec/trivy:$TRIVY_VERSION
+    RUN /usr/local/bin/trivy fs --download-db-only
     SAVE ARTIFACT /contrib contrib
+    SAVE ARTIFACT /root/.cache cache
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
 trivy-scan:
@@ -775,6 +783,7 @@ trivy-scan:
 
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
+    COPY +trivy/cache /root/.cache
 
     WORKDIR /build
     RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
