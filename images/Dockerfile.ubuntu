@@ -286,8 +286,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM arm64-${FLAVOR}-${FLAVOR_RELEASE} AS rpicommon
 RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-raspi \
+    wget \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY rpi/config.txt /boot/config.txt
+
+# TODO: Make this more dynamic?
+RUN wget https://archive.raspberrypi.org/debian/pool/main/r/raspberrypi-firmware/raspberrypi-kernel_1.20230405-1_arm64.deb
+RUN dpkg -i raspberrypi-kernel*.deb
 
 FROM rpicommon AS ubuntu-20.04-rpi
 RUN apt-get update && apt-get install -y --no-install-recommends \
