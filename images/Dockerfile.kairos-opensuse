@@ -1,4 +1,5 @@
 # This file is auto-generated with the command: earthly +kairos-dockerfile --FAMILY=opensuse
+
 ###############################################################
 ####                           ARGS                        ####
 ###############################################################
@@ -71,7 +72,6 @@ RUN zypper in --force-resolution -y \
     policycoreutils \
     polkit \
     procps \
-    rng-tools \
     rsync \
     shim \
     squashfs \

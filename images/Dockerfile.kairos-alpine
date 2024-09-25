@@ -85,7 +85,6 @@ RUN apk --no-cache add  \
       parted \
       qemu-guest-agent \
       rbd-nbd \
-      rng-tools \
       rsync \
       sgdisk \
       smartmontools \
