@@ -1,9 +1,13 @@
 package mos_test
 
 import (
+	"context"
 	"fmt"
 	"github.com/google/uuid"
 	. "github.com/spectrocloud/peg/matcher"
+	"github.com/spectrocloud/peg/pkg/machine"
+	"github.com/spectrocloud/peg/pkg/machine/types"
+	"os"
 	"strings"
 	"time"
 
@@ -19,10 +23,23 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 	BeforeEach(func() {
 		label = "TESTDISK"
 		diskUUID = uuid.New()
-		_, vm = startVM()
+		stateDir, err := os.MkdirTemp("", "")
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Printf("State dir: %s\n", stateDir)
+
+		opts := defaultVMOptsNoDrives(stateDir)
+		opts = append(opts, types.WithDriveSize("40000"))
+		opts = append(opts, types.WithDriveSize("30000"))
+
+		m, err := machine.New(opts...)
+		Expect(err).ToNot(HaveOccurred())
+		vm = NewVM(m, stateDir)
+		_, err = vm.Start(context.Background())
+		Expect(err).ToNot(HaveOccurred())
+
 		vm.EventuallyConnects(1200)
-		// Format the disk so it gets an uuid and label
-		_, err := vm.Sudo(fmt.Sprintf("mkfs.ext4 -L %s -U %s /dev/vda", label, diskUUID.String()))
+		// Format the second disk so it gets an uuid and label
+		_, err = vm.Sudo(fmt.Sprintf("mkfs.ext4 -L %s -U %s /dev/vda", label, diskUUID.String()))
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -30,6 +47,8 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
 	})
 
+	// TODO: Install on second disk instead of first and check that it worked.
+	// Missing the bootindex check, it will only try to boot from the first disk it seems
 	Context("Selects the disk by uuid/label", func() {
 		It("Selects the correct disk if using uuid for target", func() {
 			expectSecureBootEnabled(vm)
@@ -49,7 +68,9 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			})
 
 			By("waiting for VM to reboot", func() {
-				vm.Reboot()
+
+				_, _ = vm.Sudo("reboot")
+				Expect(vm.DetachCD()).ToNot(HaveOccurred())
 				vm.EventuallyConnects(1200)
 			})
 
@@ -64,12 +85,10 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			})
 
 			By("checking corresponding state", func() {
-				out, err := vm.Sudo("kairos-agent state")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(out).To(ContainSubstring("boot: active_boot"))
 				currentVersion, err := vm.Sudo(getVersionCmd)
 				Expect(err).ToNot(HaveOccurred(), currentVersion)
 
+				stateAssertVM(vm, "boot", "active_boot")
 				stateAssertVM(vm, "oem.mounted", "true")
 				stateAssertVM(vm, "oem.found", "true")
 				stateAssertVM(vm, "persistent.mounted", "true")
@@ -79,7 +98,7 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 				stateAssertVM(vm, "state.type", "ext4")
 				stateAssertVM(vm, "oem.mount_point", "/oem")
 				stateAssertVM(vm, "persistent.mount_point", "/usr/local")
-				stateAssertVM(vm, "persistent.name", "/dev/vda")
+				stateAssertVM(vm, "persistent.name", "/dev/vda5")
 				stateAssertVM(vm, "state.mount_point", "/run/initramfs/cos-state")
 				stateAssertVM(vm, "oem.read_only", "false")
 				stateAssertVM(vm, "persistent.read_only", "false")
@@ -122,12 +141,10 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			})
 
 			By("checking corresponding state", func() {
-				out, err := vm.Sudo("kairos-agent state")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(out).To(ContainSubstring("boot: active_boot"))
 				currentVersion, err := vm.Sudo(getVersionCmd)
 				Expect(err).ToNot(HaveOccurred(), currentVersion)
 
+				stateAssertVM(vm, "boot", "active_boot")
 				stateAssertVM(vm, "oem.mounted", "true")
 				stateAssertVM(vm, "oem.found", "true")
 				stateAssertVM(vm, "persistent.mounted", "true")
@@ -137,7 +154,7 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 				stateAssertVM(vm, "state.type", "ext4")
 				stateAssertVM(vm, "oem.mount_point", "/oem")
 				stateAssertVM(vm, "persistent.mount_point", "/usr/local")
-				stateAssertVM(vm, "persistent.name", "/dev/vda")
+				stateAssertVM(vm, "persistent.name", "/dev/vda5")
 				stateAssertVM(vm, "state.mount_point", "/run/initramfs/cos-state")
 				stateAssertVM(vm, "oem.read_only", "false")
 				stateAssertVM(vm, "persistent.read_only", "false")
