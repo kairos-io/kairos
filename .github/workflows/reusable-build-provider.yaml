@@ -119,6 +119,7 @@ jobs:
         with:
           max_attempts: 3
           retry_on: error
+          timeout_minutes: 5
           command: earthly +trivy
       - name: Build master 🔧
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
