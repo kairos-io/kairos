@@ -38,7 +38,7 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 		Expect(err).ToNot(HaveOccurred())
 
 		vm.EventuallyConnects(1200)
-		// Format the second disk so it gets an uuid and label
+		// Format the first disk so it gets an uuid and label
 		_, err = vm.Sudo(fmt.Sprintf("mkfs.ext4 -L %s -U %s /dev/vda", label, diskUUID.String()))
 		Expect(err).NotTo(HaveOccurred())
 	})
@@ -120,7 +120,6 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 				By(fmt.Sprintf("Running %s", installCmd))
 				out, err = vm.Sudo(installCmd)
 				Expect(err).ToNot(HaveOccurred(), out)
-				fmt.Fprint(GinkgoWriter, out)
 				Expect(out).Should(ContainSubstring("Running after-install hook"))
 				vm.Sudo("sync")
 			})
