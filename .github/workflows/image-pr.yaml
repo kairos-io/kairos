@@ -131,6 +131,7 @@ jobs:
       - core-ubuntu-24-lts
 
   install-target:
+    secrets: inherit
     uses: ./.github/workflows/reusable-install-test-target.yaml
     with:
       flavor: ubuntu
@@ -277,6 +278,7 @@ jobs:
   #     - core-alpine
 
   custom-partitioning:
+    secrets: inherit
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -306,6 +308,7 @@ jobs:
         flavorRelease:
           - "24.04"
   encryption:
+    secrets: inherit
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: ubuntu
@@ -324,6 +327,7 @@ jobs:
           - "remote-https-bad-cert"
 
   encryption-alpine:
+    secrets: inherit
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       flavor: alpine
