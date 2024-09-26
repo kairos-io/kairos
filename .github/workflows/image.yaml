@@ -65,6 +65,7 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
   install:
+    secrets: inherit
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -79,6 +80,7 @@ jobs:
             flavorRelease: leap-15.6
             secureboot: false
   install-target:
+    secrets: inherit
     uses: ./.github/workflows/reusable-install-test-target.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -92,6 +94,7 @@ jobs:
           - flavor: "ubuntu"
             flavorRelease: "24.04"
   install-secureboot:
+    secrets: inherit
     uses: ./.github/workflows/reusable-install-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -116,6 +119,7 @@ jobs:
           - flavor: "fedora"
             flavorRelease: "40"
   zfs:
+    secrets: inherit
     uses: ./.github/workflows/reusable-zfs-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -129,6 +133,7 @@ jobs:
           - flavor: "ubuntu"
             flavorRelease: "22.04"
   acceptance:
+    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -154,6 +159,7 @@ jobs:
           - flavor: "ubuntu"
             flavorRelease: "24.04"
   bundles:
+    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -167,6 +173,7 @@ jobs:
           - flavor: opensuse  # Kubo test needs systemd version 252+ which atm is not available in Leap
             flavorRelease: tumbleweed
   reset:
+    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -190,6 +197,7 @@ jobs:
             model: generic
             variant: core
   netboot:
+    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -223,6 +231,7 @@ jobs:
             model: generic
             baseImage: ubuntu:24.04
   upgrade:
+    secrets: inherit
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -239,6 +248,7 @@ jobs:
             flavorRelease: leap-15.6
             # releaseMatcher: leap-15.5
   upgrade-latest:
+    secrets: inherit
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
@@ -259,6 +269,7 @@ jobs:
             family: opensuse
             # releaseMatcher: leap-15.5
   custom-partitioning:
+    secrets: inherit
     uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -351,6 +362,7 @@ jobs:
             family: ubuntu
             baseImage: ubuntu:24.04
   various:
+    secrets: inherit
     uses: ./.github/workflows/reusable-provider-tests.yaml
     permissions:
       contents: write
@@ -399,6 +411,7 @@ jobs:
             flavorRelease: "3.19"
             label: "provider-upgrade-k8s"
   standard-upgrade-latest:
+    secrets: inherit
     uses: ./.github/workflows/reusable-provider-upgrade-latest-test.yaml
     with:
       flavor: ${{ matrix.flavor }}
