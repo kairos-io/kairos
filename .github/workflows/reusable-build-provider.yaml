@@ -104,7 +104,7 @@ jobs:
             --BASE_IMAGE=${{ inputs.base_image }} \
             --MODEL=${{ inputs.model }} \
             --FAMILY=${{ inputs.family }} \
-            --K3S_VERSION=${K3S_VERSION}
+            --K3S_VERSION=${K3S_VERSION} --KAIROS_AGENT_DEV_BRANCH=main
 
           sudo mv build/* .
           sudo rm -rf build
