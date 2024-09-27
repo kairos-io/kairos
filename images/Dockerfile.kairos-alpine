@@ -7,10 +7,10 @@ ARG FAMILY=alpine
 ARG FLAVOR
 ARG FLAVOR_RELEASE
 ARG MODEL=generic
-ARG BASE_IMAGE=alpine:3.19
+ARG BASE_IMAGE=alpine:3.19@sha256:ae65dbf8749a7d4527648ccee1fa3deb6bfcae34cbc30fc67aa45c44dcaa90ee
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=main
+ARG FRAMEWORK_VERSION=main@sha256:45b932c4e84ffbd42a977d3a2851e31dfcd1c84adcbce5890613269c68aa96d2
 
 ###############################################################
 ####                          Common                       ####
