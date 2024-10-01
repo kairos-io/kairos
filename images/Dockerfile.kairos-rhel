@@ -114,7 +114,7 @@ RUN rm -rf /etc/ssh/ssh_host_*
 COPY which-init.sh /usr/local/bin/which-init.sh
 
 RUN sed -i -n '/KAIROS_/!p' /etc/os-release
-RUN sed -i -n '/KAIROS_/!p' /etc/kairos-release
+RUN if [ -f "/etc/kairos-release" ]; then sed -i -n '/KAIROS_/!p' /etc/kairos-release; fi
 
 # need to be defined after FROM for them to be replaced in the RUN bellow
 ARG HOME_URL="https://github.com/kairos-io/kairos"
