@@ -14,7 +14,6 @@ RUN rm -rf /etc/ssh/ssh_host_*
 
 COPY which-init.sh /usr/local/bin/which-init.sh
 
-RUN sed -i -n '/KAIROS_/!p' /etc/os-release
 RUN if [ -f "/etc/kairos-release" ]; then sed -i -n '/KAIROS_/!p' /etc/kairos-release; fi
 
 # need to be defined after FROM for them to be replaced in the RUN bellow
@@ -74,7 +73,6 @@ LABEL io.kairos.software-version="${SOFTWARE_VERSION}"
 LABEL io.kairos.software-version-prefix="${SOFTWARE_VERSION_PREFIX}"
 LABEL io.kairos.targetarch="${TARGETARCH}"
 
-RUN kairos-agent versioneer os-release-variables >> /etc/os-release
 RUN kairos-agent versioneer os-release-variables > /etc/kairos-release
 RUN kairos-agent versioneer container-artifact-name > /IMAGE
 
