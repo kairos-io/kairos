@@ -5,6 +5,7 @@
 /kairos
 /dist
 /build
+/trivy-cache
 coverage.out
 .DS_Store
 internal/webui/public/cypress/videos/

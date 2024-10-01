@@ -106,11 +106,16 @@ jobs:
       - name: Login to earthly
         run: |
           earthly account login --token ${{ secrets.EARTHLY_TOKEN }}  && earthly org select Kairos
+      - name: Trivy Cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build PR 🔧
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=false \
+            --TRIVY_CACHE_DIR=.trivy \
             --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
@@ -129,6 +134,7 @@ jobs:
         run: |
           earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=true \
+            --TRIVY_CACHE_DIR=.trivy \
             --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \

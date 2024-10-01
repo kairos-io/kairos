@@ -59,10 +59,12 @@ ci:
   ARG --required VARIANT
   ARG --required FAMILY
 
+  ARG TRIVY_CACHE_DIR
+
   BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
     BUILD +image-sbom
-    BUILD +trivy-scan
+    BUILD +trivy-scan --CACHEDIR=$TRIVY_CACHE_DIR
     BUILD +grype-scan
   END
   BUILD +iso
@@ -762,30 +764,44 @@ datasource-iso:
   RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
   SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
 
-###
-### Security target scan
-###
+trivy-download-db:
+    ARG TRIVY_VERSION
+    ARG DIR=trivy-cache
+    FROM aquasec/trivy:$TRIVY_VERSION
+
+    RUN /usr/local/bin/trivy --cache-dir /trivy-cache fs --download-db-only
+    SAVE ARTIFACT /trivy-cache AS LOCAL $DIR
+
 trivy:
     ARG TRIVY_VERSION
     FROM aquasec/trivy:$TRIVY_VERSION
     SAVE ARTIFACT /contrib contrib
     SAVE ARTIFACT /usr/local/bin/trivy /trivy
 
+###
+### Security target scan
+###
 trivy-scan:
     ARG TARGETARCH
+    ARG CACHEDIR
 
     # Use base-image so it can read original os-release file
     FROM +base-image
 
     ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
+    ENV TRIVY_CACHE=/trivy-cache
+    IF [ -n "$CACHEDIR" ]
+      COPY $CACHEDIR $TRIVY_CACHE
+    END
+
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
 
     WORKDIR /build
-    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
-    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
+    RUN /trivy --cache-dir "${TRIVY_CACHE}" filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
+    RUN /trivy --cache-dir "${TRIVY_CACHE}" filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy --cache-dir "${TRIVY_CACHE}" filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${ISO_NAME}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${ISO_NAME}-trivy.json
