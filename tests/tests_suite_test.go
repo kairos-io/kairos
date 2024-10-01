@@ -29,7 +29,7 @@ func TestSuite(t *testing.T) {
 	RunSpecs(t, "kairos Test Suite")
 }
 
-var getVersionCmd = ". /etc/kairos-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION || echo $VERSION"
+var getVersionCmd = ". /etc/kairos-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION"
 
 // https://gist.github.com/sevkin/96bdae9274465b2d09191384f86ef39d
 // GetFreePort asks the kernel for a free open port that is ready to use.
