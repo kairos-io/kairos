@@ -115,7 +115,6 @@ jobs:
         run: |
           earthly --platform=linux/${{ inputs.arch }} +ci \
             --SECURITY_SCANS=false \
-            --TRIVY_CACHE_DIR=.trivy \
             --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \

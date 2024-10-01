@@ -37,10 +37,12 @@ all:
   ARG --required MODEL
   ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
+  ARG TRIVY_CACHE_DIR
+
   BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD +image-sbom
-      BUILD +trivy-scan
+      BUILD +trivy-scan --CACHEDIR=$TRIVY_CACHE_DIR
       BUILD +grype-scan
   END
   BUILD +iso
@@ -79,11 +81,12 @@ all-arm:
 
   ARG COMPRESS_IMG=true
   ARG SECURITY_SCANS=true
+  ARG TRIVY_CACHE_DIR
 
   BUILD --platform=linux/arm64 +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD --platform=linux/arm64 +image-sbom
-      BUILD --platform=linux/arm64 +trivy-scan
+      BUILD --platform=linux/arm64 +trivy-scan --CACHEDIR=$TRIVY_CACHE_DIR
       BUILD --platform=linux/arm64 +grype-scan
   END
 

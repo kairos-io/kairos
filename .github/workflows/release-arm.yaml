@@ -247,10 +247,15 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Trivy Cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
             -VARIANT=core \
+            --TRIVY_CACHE_DIR=.trivy \
             -MODEL=${{ matrix.model }} \
             -FLAVOR=${{ matrix.flavor }} \
             -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
@@ -359,10 +364,15 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Trivy Cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
             -VARIANT=standard \
+            --TRIVY_CACHE_DIR=.trivy \
             -MODEL=${{ matrix.model }} \
             -K3S_VERSION=${{ matrix.k3s_version }} \
             -FLAVOR=${{ matrix.flavor }} \
