@@ -161,10 +161,13 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - name: Trivy Cache
+      - name: Restore trivy cache
         uses: yogeshlonkar/trivy-cache-action@v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly +all  \
@@ -412,10 +415,13 @@ jobs:
           packages: utils/earthly
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Trivy Cache
+      - name: Restore trivy cache
         uses: yogeshlonkar/trivy-cache-action@v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly +all  \

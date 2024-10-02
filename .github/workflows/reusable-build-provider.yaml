@@ -90,10 +90,13 @@ jobs:
       - name: Login to earthly
         run: |
           earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
-      - name: Trivy Cache
+      - name: Restore trivy cache
         uses: yogeshlonkar/trivy-cache-action@v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          earthly +trivy-download-db --DIR .trivy
       - name: Build PR 🔧
         if: ${{ github.event_name == 'pull_request' }}
         run: |

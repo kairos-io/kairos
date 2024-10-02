@@ -247,10 +247,13 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Trivy Cache
+      - name: Restore trivy cache
         uses: yogeshlonkar/trivy-cache-action@v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
@@ -364,10 +367,13 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Trivy Cache
+      - name: Restore trivy cache
         uses: yogeshlonkar/trivy-cache-action@v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \

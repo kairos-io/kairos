@@ -772,6 +772,7 @@ trivy-download-db:
     ARG DIR=trivy-cache
     FROM aquasec/trivy:$TRIVY_VERSION
 
+    COPY $DIR /trivy-cache
     RUN /usr/local/bin/trivy --cache-dir /trivy-cache fs --download-db-only
     SAVE ARTIFACT /trivy-cache AS LOCAL $DIR
 
