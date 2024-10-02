@@ -137,6 +137,7 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Populate trivy Cache
         run: |
+          [ ! -d ".trivy" ] && mkdir -p ".trivy"
           earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
