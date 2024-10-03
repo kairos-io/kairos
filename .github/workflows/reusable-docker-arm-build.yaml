@@ -131,9 +131,18 @@ jobs:
       - name: Login to earthly
         run: |
           earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
+      - name: Restore trivy cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          [ ! -d ".trivy" ] && mkdir -p ".trivy"
+          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
+              --TRIVY_CACHE_DIR=.trivy \
               --VARIANT=core \
               --MODEL=${{ inputs.model }} \
               --FLAVOR=${{ inputs.flavor }} \
