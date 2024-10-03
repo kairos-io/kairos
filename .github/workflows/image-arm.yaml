@@ -81,8 +81,31 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
+  # Populate the trivy cache once for all later jobs to use
+  trivy-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        with:
+          fetch-depth: 0
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Restore trivy cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          [ ! -d ".trivy" ] && mkdir -p ".trivy"
+          earthly +trivy-download-db --DIR .trivy
+
   build-nvidia-base:
     runs-on: fast
+    needs:
+      - trivy-cache
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
@@ -184,7 +207,9 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
-    needs: build-nvidia-base
+    needs:
+      - build-nvidia-base
+      - trivy-cache
     secrets: inherit
     with:
       flavor: ubuntu
@@ -220,13 +245,16 @@ jobs:
       base_image: ${{ matrix.baseImage }}
       worker: ${{ matrix.worker }}
     needs:
-    - get-core-matrix
+      - get-core-matrix
+      - trivy-cache
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
 
   image_and_iso_arm64_generic:
     uses: ./.github/workflows/reusable-image-and-iso-arm-generic.yaml
+    needs:
+      - trivy-cache
     secrets: inherit
     with:
       flavor: "opensuse"
