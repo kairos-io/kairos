@@ -57,6 +57,7 @@ jobs:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     needs:
       - trivy-cache
+      - get-core-matrix
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -81,8 +82,6 @@ jobs:
       model: ${{ matrix.model }}
       variant: ${{ matrix.variant }}
       arch: ${{ matrix.arch }}
-    needs:
-      - get-core-matrix
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
