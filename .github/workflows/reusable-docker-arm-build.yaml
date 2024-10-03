@@ -93,7 +93,7 @@ jobs:
       - name: Install earthly
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
-          repository: quay.io/kairos/packages
+          repository: quay.io/kairos/packages-arm64 # change to quay.io/kairos/packages if running this on non-native amd64 workers
           packages: utils/earthly
       - name: Set up Docker Buildx
         id: buildx
