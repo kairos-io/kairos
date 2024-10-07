@@ -38,6 +38,7 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 				Or(
 					ContainSubstring("foobarzz"),
 				))
+			By("Creating files on persistent and oem")
 			_, err := vm.Sudo("touch /usr/local/test")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -46,12 +47,15 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 
 			vm.HasFile("/oem/test")
 			vm.HasFile("/usr/local/test")
-
+			By("Setting the next entry to statereset")
 			_, err = vm.Sudo("grub2-editenv /oem/grubenv set next_entry=statereset")
 			Expect(err).ToNot(HaveOccurred())
-
+			By("Rebooting")
 			vm.Reboot()
 
+			expectRebootedToActive(vm)
+
+			By("Checking that persistent file is gone")
 			Eventually(func() string {
 				out, _ := vm.Sudo("if [ -f /usr/local/test ]; then echo ok; else echo wrong; fi")
 				return out
@@ -59,6 +63,7 @@ var _ = Describe("kairos reset test", Label("reset-test"), func() {
 				Or(
 					ContainSubstring("wrong"),
 				))
+			By("Checking that oem file is still there")
 			Eventually(func() string {
 				out, _ := vm.Sudo("if [ -f /oem/test ]; then echo ok; else echo wrong; fi")
 				return out

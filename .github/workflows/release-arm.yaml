@@ -77,6 +77,27 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
+  # Populate the trivy cache once for all later jobs to use
+  trivy-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        with:
+          fetch-depth: 0
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
+      - name: Restore trivy cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          [ ! -d ".trivy" ] && mkdir -p ".trivy"
+          earthly +trivy-download-db --DIR .trivy
+
   build-nvidia-base:
     runs-on: ARM64
     steps:
@@ -86,48 +107,8 @@ jobs:
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
-          repository: quay.io/kairos/packages
+          repository: quay.io/kairos/packages-arm64
           packages: system/kairos-agent
-      - name: Release space from worker
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm || true
-          sudo apt-get remove -y powershell || true
-          sudo apt-get remove -y firefox || true
-          sudo apt-get remove -y monodoc-manual || true
-          sudo apt-get remove -y msbuild || true
-          sudo apt-get remove -y microsoft-edge-stable || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get remove -y '^gcc-*' || true
-          sudo apt-get remove -y '^g++-*' || true
-          sudo apt-get remove -y '^cpp-*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
@@ -142,7 +123,6 @@ jobs:
           export IMAGE=quay.io/kairos/cache:nvidia-base
           docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
           docker push $IMAGE
-
   nvidia-arm-core:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     permissions:
@@ -169,10 +149,10 @@ jobs:
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
       worker: ARM64
-
   build-arm-core:
     runs-on: ${{ matrix.worker }}
     needs:
+      - trivy-cache
       - get-core-matrix
     permissions:
       id-token: write  # OIDC support
@@ -183,47 +163,6 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
     steps:
-      - name: Release space from worker
-        if: ${{ matrix.worker != 'kvm' }}
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm || true
-          sudo apt-get remove -y powershell || true
-          sudo apt-get remove -y firefox || true
-          sudo apt-get remove -y monodoc-manual || true
-          sudo apt-get remove -y msbuild || true
-          sudo apt-get remove -y microsoft-edge-stable || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get remove -y '^gcc-*' || true
-          sudo apt-get remove -y '^g++-*' || true
-          sudo apt-get remove -y '^cpp-*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
@@ -236,7 +175,7 @@ jobs:
       - name: Install earthly
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
-          repository: quay.io/kairos/packages
+          repository: quay.io/kairos/packages-arm64
           packages: utils/earthly
       - name: Set up Docker Buildx
         id: buildx
@@ -247,10 +186,19 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Restore trivy cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          [ ! -d ".trivy" ] && mkdir -p ".trivy"
+          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
             -VARIANT=core \
+            --TRIVY_CACHE_DIR=.trivy \
             -MODEL=${{ matrix.model }} \
             -FLAVOR=${{ matrix.flavor }} \
             -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
@@ -315,6 +263,7 @@ jobs:
   build-arm-standard:
     runs-on: ARM64
     needs:
+      - trivy-cache
       - get-standard-matrix
     permissions:
       id-token: write  # OIDC support
@@ -333,16 +282,12 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Install earthly
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
-          repository: quay.io/kairos/packages
+          repository: quay.io/kairos/packages-arm64
           packages: utils/earthly
       - name: Set up Docker Buildx
         id: buildx
@@ -350,19 +295,25 @@ jobs:
       - name: size of docker images
         run: |
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
-      - name: Available space
-        run: |
-          df -h
       - name: Login to DockerHub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Restore trivy cache
+        uses: yogeshlonkar/trivy-cache-action@v0
+        with:
+          gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Populate trivy Cache
+        run: |
+          [ ! -d ".trivy" ] && mkdir -p ".trivy"
+          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
             -VARIANT=standard \
+            --TRIVY_CACHE_DIR=.trivy \
             -MODEL=${{ matrix.model }} \
             -K3S_VERSION=${{ matrix.k3s_version }} \
             -FLAVOR=${{ matrix.flavor }} \
@@ -462,12 +413,8 @@ jobs:
       - name: Install earthly
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
-          repository: quay.io/kairos/packages
+          repository: quay.io/kairos/packages-arm64
           packages: utils/earthly
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3
