@@ -8,9 +8,9 @@ ARG TRIVY_VERSION=0.55.2
 # renovate: datasource=docker depName=anchore/grype versioning=semver
 ARG GRYPE_VERSION=v0.80.1
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-ARG KAIROS_FRAMEWORK_VERSION=v2.12.4
+ARG KAIROS_FRAMEWORK_VERSION=v2.13.0
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
-ARG OSBUILDER_VERSION=v0.300.3
+ARG OSBUILDER_VERSION=v0.400.0
 # renovate: datasource=docker depName=golang versioning=semver
 ARG GO_VERSION=1.22
 # renovate: datasource=docker depName=hadolint/hadolint
@@ -183,7 +183,7 @@ syft:
 image-sbom:
     FROM +base-image
     WORKDIR /build
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     COPY +syft/syft /usr/bin/syft
     RUN syft / -o json=sbom.syft.json -o spdx-json=sbom.spdx.json
@@ -507,7 +507,7 @@ uki-dev-iso:
     # We just use it here to take a shortcut to the artifact name
     FROM +base-image
     WORKDIR /build
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     COPY +git-version/GIT_VERSION ./
     ARG KAIROS_VERSION=$(cat GIT_VERSION)
@@ -561,7 +561,7 @@ uki-dev-iso:
 
 iso:
     FROM +base-image
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -586,7 +586,7 @@ iso:
 iso-remote:
     ARG --required REMOTE_IMG
     FROM $REMOTE_IMG
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -600,7 +600,7 @@ iso-remote:
 netboot:
     FROM +base-image
 
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     # Variables used here:
     # https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
@@ -630,7 +630,7 @@ arm-image:
   ARG IMG_COMPRESSION=xz
 
   FROM --platform=linux/arm64 +base-image
-  ARG IMAGE_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').img
+  ARG IMAGE_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').img
 
   FROM $OSBUILDER_IMAGE
   ARG --required MODEL
@@ -699,7 +699,7 @@ ipxe-iso:
     ARG ENABLE_HTTPS
 
     FROM +base-image
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     # Variables used here:
     # https://github.com/kairos-io/osbuilder/blob/66e9e7a9403a413e310f462136b70d715605ab09/tools-image/ipxe.tmpl#L5
@@ -743,7 +743,7 @@ raw-image:
     # We just use it here to take a shortcut to the artifact name
     FROM +base-image
     WORKDIR /build
-    ARG IMG_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').raw
+    ARG IMG_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').raw
 
     ARG OSBUILDER_IMAGE
     FROM $OSBUILDER_IMAGE
@@ -792,7 +792,7 @@ trivy-scan:
     # Use base-image so it can read original os-release file
     FROM +base-image
 
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     ENV TRIVY_CACHE=/trivy-cache
     IF [ -n "$CACHEDIR" ]
@@ -825,7 +825,7 @@ grype-scan:
 
     COPY +grype/grype grype
 
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     RUN mkdir build
     RUN ./grype dir:. --output sarif --add-cpes-if-none --file /build/report.sarif
@@ -875,7 +875,7 @@ run-qemu-datasource-tests:
 
 run-qemu-netboot-test:
     FROM +base-image
-    ARG ISO_NAME=$(cat /etc/os-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
     COPY +git-version/GIT_VERSION GIT_VERSION
     ARG VERSION=$(cat ./GIT_VERSION)

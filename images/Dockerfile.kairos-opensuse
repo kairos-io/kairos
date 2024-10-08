@@ -174,7 +174,7 @@ RUN rm -rf /etc/ssh/ssh_host_*
 
 COPY which-init.sh /usr/local/bin/which-init.sh
 
-RUN sed -i -n '/KAIROS_/!p' /etc/os-release
+RUN if [ -f "/etc/kairos-release" ]; then sed -i -n '/KAIROS_/!p' /etc/kairos-release; fi
 
 # need to be defined after FROM for them to be replaced in the RUN bellow
 ARG HOME_URL="https://github.com/kairos-io/kairos"
@@ -233,11 +233,7 @@ LABEL io.kairos.software-version="${SOFTWARE_VERSION}"
 LABEL io.kairos.software-version-prefix="${SOFTWARE_VERSION_PREFIX}"
 LABEL io.kairos.targetarch="${TARGETARCH}"
 
-# not duplicated but used to see the error
-RUN kairos-agent versioneer os-release-variables
-RUN kairos-agent versioneer os-release-variables >> /etc/os-release
-# not duplicated but used to see the error
-RUN kairos-agent versioneer container-artifact-name
+RUN kairos-agent versioneer os-release-variables > /etc/kairos-release
 RUN kairos-agent versioneer container-artifact-name > /IMAGE
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

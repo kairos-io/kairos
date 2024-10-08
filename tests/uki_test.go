@@ -280,7 +280,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		vm.EventuallyConnects(1200)
 
 		By("checking if upgrade worked")
-		out, err = vm.Sudo("cat /etc/os-release")
+		out, err = vm.Sudo("cat /etc/kairos-release")
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).To(MatchRegexp(fmt.Sprintf("KAIROS_VERSION=\"?%s\"?", os.Getenv("EXPECTED_NEW_VERSION"))))
 
