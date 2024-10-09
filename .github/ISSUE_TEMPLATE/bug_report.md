@@ -9,6 +9,7 @@ labels: bug, unconfirmed, triage
 
 **Kairos version:**
 <!-- Provide the output from "cat /etc/os-release" -->
+<!-- Provide the output from "cat /etc/kairos-release" -->
 
 **CPU architecture, OS, and Version:**
 <!-- Provide the output from "uname -a"  -->

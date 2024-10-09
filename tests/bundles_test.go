@@ -64,8 +64,8 @@ var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
 				}, 3*time.Minute, 10*time.Second).Should(ContainSubstring("kubo"), func() string {
 					// Debug output in case of an error
 					result := ""
-					out, _ := vm.Sudo("cat /etc/os-release")
-					result = result + fmt.Sprintf("os-release:\n%s\n", out)
+					out, _ := vm.Sudo("cat /etc/kairos-release")
+					result = result + fmt.Sprintf("kairos-release:\n%s\n", out)
 
 					out, _ = vm.Sudo("cat /oem/90_custom.yaml")
 					result = result + fmt.Sprintf("90_custom.yaml:\n%s\n", out)

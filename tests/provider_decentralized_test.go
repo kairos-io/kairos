@@ -204,7 +204,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		})
 
 		vmForEach("checking if it upgrades to a specific version", vms, func(vm VM) {
-			version, err := vm.Sudo("source /etc/os-release; echo $VERSION")
+			version, err := vm.Sudo(getVersionCmd)
 			Expect(err).ToNot(HaveOccurred(), version)
 
 			out, err := vm.Sudo("kairos-agent upgrade --image quay.io/kairos/kairos-opensuse:v1.0.0-rc2-k3sv1.21.14-k3s1")
