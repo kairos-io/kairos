@@ -7,9 +7,10 @@ ARG FAMILY=ubuntu
 # Currently supported flavors are:
 #   - ubuntu
 ARG FLAVOR
-#   - 20.04
-#   - 22.04
+#   - 24.10
 #   - 24.04
+#   - 22.04
+#   - 20.04
 ARG FLAVOR_RELEASE
 # Currently supported models are:
 #   - generic
@@ -25,11 +26,10 @@ ARG BOOTLOADER=grub
 ###############################################################
 ####                     Upstream Images                   ####
 ###############################################################
-FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
-
-FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
-
+FROM ${BASE_IMAGE} AS ubuntu-24.10-upstream
 FROM ${BASE_IMAGE} AS ubuntu-24.04-upstream
+FROM ${BASE_IMAGE} AS ubuntu-22.04-upstream
+FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
 
 ###############################################################
 ####                build nohang from source               ####
@@ -155,7 +155,9 @@ RUN [ -z "$(ls -A /lib/firmware/intel-ucode/)" ] && apt-get update && apt-get in
 
 FROM systemd-boot AS systemd-boot-arm64
 
+FROM systemd-boot-amd64 AS systemd-boot-amd64-24.10
 FROM systemd-boot-amd64 AS systemd-boot-amd64-24.04
+FROM systemd-boot-arm64 AS systemd-boot-arm64-24.10
 FROM systemd-boot-arm64 AS systemd-boot-arm64-24.04
 
 FROM grub AS grub-amd64
@@ -188,9 +190,11 @@ FROM grub-current AS grub-arm64-current
 FROM grub-legacy AS grub-amd64-legacy
 FROM grub-legacy AS grub-arm64-legacy
 
+FROM grub-current AS grub-amd64-24.10
 FROM grub-current AS grub-amd64-24.04
 FROM grub-current AS grub-amd64-22.04
 FROM grub-legacy AS grub-amd64-20.04
+FROM grub-current AS grub-arm64-24.10
 FROM grub-current AS grub-arm64-24.04
 FROM grub-current AS grub-arm64-22.04
 FROM grub-legacy AS grub-arm64-20.04
@@ -241,13 +245,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     polkitd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM base-ubuntu-current AS kernel-ubuntu-24.04
+FROM base-ubuntu-current AS kernel-ubuntu-current
 RUN apt-get update
 # If a kernel is already installed, don't try to install it again, this way the base image can
 # be non-hwe for older releases
 RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get install -y --no-install-recommends \
     linux-image-generic-hwe-24.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM kernel-ubuntu-current AS kernel-ubuntu-24.10
+FROM kernel-ubuntu-current AS kernel-ubuntu-24.04
 
 FROM base-ubuntu-current AS kernel-ubuntu-22.04
 RUN apt-get update
@@ -265,13 +272,15 @@ RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get install -y --no-install-recommen
     linux-image-generic-hwe-20.04 || true
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM kernel-ubuntu-20.04 AS amd64-ubuntu-20.04
-FROM kernel-ubuntu-22.04 AS amd64-ubuntu-22.04
+FROM kernel-ubuntu-24.10 AS amd64-ubuntu-24.10
 FROM kernel-ubuntu-24.04 AS amd64-ubuntu-24.04
+FROM kernel-ubuntu-22.04 AS amd64-ubuntu-22.04
+FROM kernel-ubuntu-20.04 AS amd64-ubuntu-20.04
 
-FROM kernel-ubuntu-20.04 AS arm64-ubuntu-20.04
-FROM kernel-ubuntu-22.04 AS arm64-ubuntu-22.04
+FROM kernel-ubuntu-24.10 AS arm64-ubuntu-24.10
 FROM kernel-ubuntu-24.04 AS arm64-ubuntu-24.04
+FROM kernel-ubuntu-22.04 AS arm64-ubuntu-22.04
+FROM kernel-ubuntu-20.04 AS arm64-ubuntu-20.04
 
 ###############################################################
 ####               Common to a Single Model                ####
@@ -299,10 +308,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     linux-modules-extra-raspi \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+FROM generic AS amd64-ubuntu-24.10-generic
 FROM generic AS amd64-ubuntu-24.04-generic
 FROM generic AS amd64-ubuntu-22.04-generic
 FROM generic AS amd64-ubuntu-20.04-generic
 
+FROM generic AS arm64-ubuntu-24.10-generic
 FROM generic AS arm64-ubuntu-24.04-generic
 FROM ubuntu-22.04-rpi AS arm64-ubuntu-24.04-rpi4
 FROM ubuntu-22.04-rpi AS arm64-ubuntu-22.04-rpi3
@@ -314,7 +325,6 @@ FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
 ###############################################################
 ####                Common to a Single Flavor              ####
 ###############################################################
-# As soon as 24.04 is released, this can be renamed to ubuntu-24.04 directly and remove all 23.10 references
 FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-latest
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -327,7 +337,7 @@ RUN apt-get update \
 # for some reason \+ is breaking. Using \; instead despite being slower
 RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \;
 
-FROM ubuntu-latest AS ubuntu-24.04
+FROM ubuntu-latest AS ubuntu-latest-selinux
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     isc-dhcp-common \
@@ -336,6 +346,9 @@ RUN apt-get update \
     selinux-basics \
     selinux-policy-default \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+FROM ubuntu-latest-selinux AS ubuntu-24.10
+FROM ubuntu-latest-selinux AS ubuntu-24.04
 
 FROM ${TARGETARCH}-${FLAVOR}-${FLAVOR_RELEASE}-${MODEL} AS ubuntu-legacy
 RUN find /usr/lib/firmware -type f ! -name "*.zst" -execdir zstd --rm -9 {} \+

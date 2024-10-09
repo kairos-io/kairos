@@ -90,6 +90,35 @@ jobs:
       variant: core
       arch: amd64
 
+  core-ubuntu-24-10:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
+    needs:
+      - trivy-cache
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      flavor: ubuntu
+      flavor_release: "24.10"
+      family: ubuntu
+      base_image: ubuntu:24.10
+      model: generic
+      variant: core
+      arch: amd64
+
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
