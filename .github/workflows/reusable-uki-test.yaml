@@ -145,7 +145,7 @@ jobs:
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
           cosign sign $image_ref
-      - uses: actions/upload-artifact@89ef406dd8d7e03cfd12d9e0a4a378f454709029 # v4
+      - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
         if: failure()
         with:
           name: ${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}.logs.zip
