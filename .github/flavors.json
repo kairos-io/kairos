@@ -227,6 +227,17 @@
         "model": "generic",
         "baseImage": "ubuntu:24.04",
         "arch": "amd64",
+        "bootloader": "systemd-boot",
+        "worker": "self-hosted"
+    },
+    {
+        "family": "ubuntu",
+        "flavor": "ubuntu",
+        "flavorRelease": "24.04",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "ubuntu:24.04",
+        "arch": "amd64",
         "worker": "self-hosted"
     },
     {

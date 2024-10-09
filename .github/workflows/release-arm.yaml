@@ -320,6 +320,7 @@ jobs:
             -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
             -FAMILY=${{ matrix.family }} \
             -BASE_IMAGE=${{ matrix.baseImage }}
+            -BOOTLOADER=${{ matrix.bootloader || "grub" }}
       - name: Convert all json files into a reports.tar.gz file
         run: |
           cd build
