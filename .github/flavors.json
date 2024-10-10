@@ -265,7 +265,7 @@
         "flavorRelease": "24.10",
         "variant": "standard",
         "model": "generic",
-        "baseImage": "ubuntu:24.04",
+        "baseImage": "ubuntu:24.10",
         "arch": "amd64",
         "worker": "self-hosted"
     },
@@ -282,7 +282,7 @@
     {
         "family": "ubuntu",
         "flavor": "ubuntu",
-        "flavorRelease": "24.04",
+        "flavorRelease": "24.10",
         "variant": "core",
         "model": "generic",
         "baseImage": "ubuntu:24.10",
