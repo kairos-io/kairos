@@ -146,6 +146,8 @@ config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae
 users:
 - name: "kairos"
   passwd: "kairos"
+  groups:
+    - "admin"
 `, vm)
 
 				Eventually(func() string {
@@ -161,6 +163,8 @@ config_url: "https://thisurldoesntexist.org"
 users:
 - name: "kairos"
   passwd: "kairos"
+  groups:
+    - "admin"
 `, vm)
 				Expect(out).ToNot(ContainSubstring("kairos-agent.service: Failed with result"))
 				Expect(out).To(ContainSubstring("WARNING: Couldn't fetch config_url"))
