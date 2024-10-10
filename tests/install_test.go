@@ -89,6 +89,8 @@ stages:
     users:
       kairos:
          passwd: "kairos"
+         groups:
+           - "admin"
     commands:
     - echo "bar" > /etc/foo
 bundles:

@@ -13,4 +13,6 @@ stages:
       users:
         kairos:
           passwd: "kairos"
+          groups:
+            - "admin"
       hostname: kairos-{{ trunc 4 .Random }}
