@@ -142,7 +142,7 @@ bundles:
 		Context("with config_url", func() {
 			It("succeeds when config_url is accessible", func() {
 				testInstall(`#cloud-config
-config_url: "https://gist.githubusercontent.com/mudler/6db795bad8f9e29ebec14b6ae331e5c0/raw/01137c458ad62cfcdfb201cae2f8814db702c6f9/testgist.yaml"
+config_url: "https://gist.githubusercontent.com/Itxaka/c94e42bd52a67e2c9bffd11b8e633e38/raw/255d17fce7ed6857f82e907d261ce4a717662773/testgist.yaml"
 users:
 - name: "kairos"
   passwd: "kairos"
