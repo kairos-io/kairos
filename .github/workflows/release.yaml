@@ -457,6 +457,7 @@ jobs:
             --MODEL=${{ matrix.model }} \
             --K3S_VERSION=${{ matrix.k3s_version }} \
             --BASE_IMAGE=${{ matrix.baseImage }}
+            --BOOTLOADER=${{ matrix.bootloader || "grub" }}
 
           sudo mv build release
       - name: Push to quay
