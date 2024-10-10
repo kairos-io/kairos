@@ -8,7 +8,7 @@ ARG TRIVY_VERSION=0.55.2
 # renovate: datasource=docker depName=anchore/grype versioning=semver
 ARG GRYPE_VERSION=v0.80.1
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-ARG KAIROS_FRAMEWORK_VERSION=v2.13.0
+ARG KAIROS_FRAMEWORK_VERSION=main
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
 ARG OSBUILDER_VERSION=v0.400.0
 # renovate: datasource=docker depName=golang versioning=semver
@@ -290,7 +290,7 @@ base-image:
     ARG _CIMG=$(cat ./IMAGE)
 
     COPY +git-version/GIT_VERSION VERSION
-    ARG KAIROS_AGENT_DEV_BRANCH
+    ARG KAIROS_AGENT_DEV_BRANCH=main
     ARG IMMUCORE_DEV_BRANCH
     ARG OVERLAY_FILES_DEV_BRANCH
     ARG KAIROS_PROVIDER_DEV_BRANCH
