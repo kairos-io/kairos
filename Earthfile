@@ -290,9 +290,9 @@ base-image:
     ARG _CIMG=$(cat ./IMAGE)
 
     COPY +git-version/GIT_VERSION VERSION
-    ARG KAIROS_AGENT_DEV_BRANCH=main
+    ARG KAIROS_AGENT_DEV_BRANCH
     ARG IMMUCORE_DEV_BRANCH
-    ARG OVERLAY_FILES_DEV_BRANCH=fix_livecd_user
+    ARG OVERLAY_FILES_DEV_BRANCH
     ARG KAIROS_PROVIDER_DEV_BRANCH
 
     IF [ "$KAIROS_AGENT_DEV_BRANCH" != "" ]
@@ -328,7 +328,7 @@ base-image:
 
 # Dev target to extract overlay files from specific commit or branch for testing
 overlay-files:
-    ARG OVERLAY_FILES_DEV_BRANCH=fix_livecd_user
+    ARG OVERLAY_FILES_DEV_BRANCH
     WORKDIR /build
     RUN apk --no-cache add git
     RUN --no-cache git clone --branch $OVERLAY_FILES_DEV_BRANCH https://github.com/kairos-io/packages.git /build/
