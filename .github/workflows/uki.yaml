@@ -21,10 +21,6 @@ jobs:
             flavor_release: 24.04
             family: ubuntu
             base_image: ubuntu:24.04
-          - flavor: ubuntu
-            flavor_release: 24.10
-            family: ubuntu
-            base_image: ubuntu:24.10
           - flavor: fedora
             family: rhel
             flavor_release: 40
