@@ -83,7 +83,9 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 				Expect(out).To(ContainSubstring("boot_assessment_blk"))
 
 				cmdline, _ := vm.Sudo("cat /proc/cmdline")
-				Expect(cmdline).To(ContainSubstring("rd.emergency=reboot rd.shell=0 panic=5"))
+				Expect(cmdline).To(ContainSubstring("rd.emergency=reboot rd.shell=0"))
+				Expect(cmdline).To(ContainSubstring("panic=5"))
+				Expect(cmdline).To(ContainSubstring("rd.shell=0"))
 			})
 
 			By("checking writeable tmp", func() {
