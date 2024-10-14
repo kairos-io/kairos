@@ -20,7 +20,7 @@ concurrency:
 env:
   FORCE_COLOR: 1
 jobs:
-  test-uki-ubuntu-lts:
+  test-uki-ubuntu-lts-core:
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -42,6 +42,30 @@ jobs:
       family: ubuntu
       flavor: ubuntu
       flavor_release: 24.04
+      variant: core
+  test-uki-ubuntu-lts-standard:
+    uses: ./.github/workflows/reusable-uki-test.yaml
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      base_image: ubuntu:24.04
+      family: ubuntu
+      flavor: ubuntu
+      flavor_release: 24.04
+      variant: standard
   test-uki-fedora:
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
@@ -64,3 +88,4 @@ jobs:
       family: rhel
       flavor: fedora
       flavor_release: 40
+      variant: core

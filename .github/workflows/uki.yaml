@@ -21,10 +21,17 @@ jobs:
             flavor_release: 24.04
             family: ubuntu
             base_image: ubuntu:24.04
+            variant: core
+          - flavor: ubuntu
+            flavor_release: 24.04
+            family: ubuntu
+            base_image: ubuntu:24.04
+            variant: standard
           - flavor: fedora
             family: rhel
             flavor_release: 40
             base_image: fedora:40
+            variant: core
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
