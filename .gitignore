@@ -5,6 +5,7 @@
 /kairos
 /dist
 /build
+/keys
 /trivy-cache
 coverage.out
 .DS_Store
