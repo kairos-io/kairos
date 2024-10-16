@@ -54,3 +54,4 @@ jobs:
       family: ${{ matrix.family }}
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavor_release }}
+      variant: ${{ matrix.variant }}

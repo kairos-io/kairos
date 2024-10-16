@@ -15,6 +15,9 @@ on:
       flavor_release:
         required: true
         type: string
+      variant:
+        required: true
+        type: string
 
 permissions: read-all
 jobs:
@@ -148,6 +151,6 @@ jobs:
       - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
         if: failure()
         with:
-          name: ${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}-${{ env.VARIANT }}.logs.zip
+          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
