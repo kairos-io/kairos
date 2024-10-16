@@ -6,6 +6,8 @@
 users:
   - name: "kairos"
     passwd: "kairos"
+    groups:
+      - "admin"
 name: "Default deployment"
 stages:
   boot:
