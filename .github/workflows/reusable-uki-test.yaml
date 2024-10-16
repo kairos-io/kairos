@@ -64,7 +64,7 @@ jobs:
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
             --FAMILY=${{ inputs.family }} \
             --MODEL=generic \
-            --VARIANT=core \
+            --VARIANT=${{ inputs.variant }} \
             --BASE_IMAGE=${{ inputs.base_image }} \
             --BOOTLOADER=systemd-boot
       - name: Push image to ttl.sh
@@ -140,7 +140,7 @@ jobs:
           COSIGN_YES: true
         run: |
           SUFFIX="-uki"
-          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           docker tag $(cat build/IMAGE) "$IMAGE$SUFFIX"
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
@@ -148,6 +148,6 @@ jobs:
       - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
         if: failure()
         with:
-          name: ${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}.logs.zip
+          name: ${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}-${{ env.VARIANT }}.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
