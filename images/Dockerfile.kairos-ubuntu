@@ -115,11 +115,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # for UKI, install the linux-modules pkg if no modules are found
 RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
   "$(apt-cache search linux-modules | grep -oP 'linux-modules-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
-  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 # for UKI, install the linux-image pkg if no kernel is found
 RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get update && apt-get install -y --no-install-recommends \
   "$(apt-cache search linux-image | grep -oP 'linux-image-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
-  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 
 # This target is aimed at non-UKI images where size is not a concern
 FROM common AS grub
@@ -141,23 +141,22 @@ RUN apt-get update \
 
 FROM systemd-boot AS systemd-boot-amd64
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    shared-mime-info \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends shared-mime-info \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN [ -z "$(ls -A /lib/firmware/amd/)" ] && apt-get update && apt-get install -y --no-install-recommends \
-  && apt-get install -y --no-install-recommends \
-    amd64-microcode \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends amd64-microcode \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 RUN [ -z "$(ls -A /lib/firmware/intel-ucode/)" ] && apt-get update && apt-get install -y --no-install-recommends \
-  && apt-get install -y --no-install-recommends \
-    intel-microcode \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends intel-microcode \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 
 FROM systemd-boot AS systemd-boot-arm64
 
 FROM systemd-boot-amd64 AS systemd-boot-amd64-24.10
+RUN apt-get update && apt-get install -y systemd-cryptsetup && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM systemd-boot-amd64 AS systemd-boot-amd64-24.04
 FROM systemd-boot-arm64 AS systemd-boot-arm64-24.10
+RUN apt-get update && apt-get install -y systemd-cryptsetup && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 FROM systemd-boot-arm64 AS systemd-boot-arm64-24.04
 
 FROM grub AS grub-amd64
