@@ -4,10 +4,9 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -132,7 +131,22 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Expect(resultStr).To(ContainSubstring("quay.io/kairos"))
 
 		By("copy upgrade plan")
-		err = vm.Scp("assets/suc.yaml", "./suc.yaml", "0770")
+
+		version := "v3.2.1"
+		fullArtifact := fmt.Sprintf("leap-15.6-standard-amd64-generic-%s-k3sv1.31.1-k3s1", version)
+
+		tempDir, err := os.MkdirTemp("", "suc-*")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(tempDir)
+
+		b, err := os.ReadFile("assets/suc.yaml")
+		Expect(err).ToNot(HaveOccurred())
+
+		suc := fmt.Sprintf(string(b), fullArtifact)
+		err = os.WriteFile(filepath.Join(tempDir, "suc.yaml"), []byte(suc), 0777)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = vm.Scp(filepath.Join(tempDir, "suc.yaml"), "./suc.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
 		By("apply upgrade plan")
@@ -154,27 +168,13 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		}, 30*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("ContainerCreating"))
 
 		By("validate upgraded version")
-		expectedVersion := getExpectedVersion()
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			version, _ := vm.Sudo(getVersionCmd)
 			fmt.Printf("version = %+v\n", version)
 			return version
-		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(expectedVersion), func() string {
+		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(version), func() string {
 			return out
 		})
 	})
 })
-
-func getExpectedVersion() string {
-	b, err := os.ReadFile("assets/suc.yaml")
-	Expect(err).ToNot(HaveOccurred())
-
-	yamlData := make(map[string]interface{})
-	err = yaml.Unmarshal(b, &yamlData)
-
-	Expect(err).ToNot(HaveOccurred())
-	spec := yamlData["spec"].(map[string]interface{})
-
-	return strings.TrimSuffix(spec["version"].(string), "-k3s1")
-}

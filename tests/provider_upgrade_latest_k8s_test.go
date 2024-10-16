@@ -172,9 +172,13 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 			out, _ = kubectl(vm, "get pods -A")
 			version, err := vm.Sudo(getVersionCmd)
 			if err != nil || !strings.Contains(version, "v") {
-				// If we met error, keep going with the Eventually
-				return currentVersion
+				version, err = vm.Sudo(getVersionCmdOsRelease)
+				if err != nil || !strings.Contains(version, "v") {
+					// If we met error, keep going with the Eventually
+					return currentVersion
+				}
 			}
+
 			return version
 		}, 50*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion), func() string {
 			out, _ := kubectl(vm, "get pods -A")
