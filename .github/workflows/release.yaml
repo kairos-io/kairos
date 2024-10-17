@@ -106,7 +106,7 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
+        uses: yogeshlonkar/trivy-cache-action@b89810131e7efaff0ab831e058f4564e6d2bfb3a # v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Populate trivy Cache
@@ -182,7 +182,7 @@ jobs:
           repository: quay.io/kairos/packages
           packages: utils/earthly
       - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
+        uses: yogeshlonkar/trivy-cache-action@b89810131e7efaff0ab831e058f4564e6d2bfb3a # v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Populate trivy Cache
@@ -439,7 +439,7 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
+        uses: yogeshlonkar/trivy-cache-action@b89810131e7efaff0ab831e058f4564e6d2bfb3a # v0
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Populate trivy Cache

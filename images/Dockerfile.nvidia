@@ -1,4 +1,4 @@
-FROM ubuntu:20.04 as base
+FROM ubuntu:20.04@sha256:e341aa0d58bb9480bd092a137658bd1a7a5e8ae4fca31769df0eb7d6c4b8266e as base
 
 RUN apt-get update
 RUN apt-get install -y ca-certificates

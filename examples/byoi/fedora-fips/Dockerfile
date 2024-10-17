@@ -1,8 +1,8 @@
-ARG BASE_IMAGE=fedora:36
+ARG BASE_IMAGE=fedora:36@sha256:64cd00a0e2b92d527c0a0954162a73e85f160e3a53c38325b51e87d6aab4e266
 FROM $BASE_IMAGE as base
 
 # Generate os-release file
-FROM quay.io/kairos/osbuilder-tools:latest as osbuilder
+FROM quay.io/kairos/osbuilder-tools:latest@sha256:0499fecc425e2eb31d3f96e50672b100a6a8f8d2689aa33ef2b4b0fa91ad316a as osbuilder
 RUN zypper install -y gettext && zypper clean
 RUN mkdir /workspace
 COPY --from=base /etc/os-release /workspace/os-release
@@ -76,7 +76,7 @@ RUN mkdir -p /run/lock && \
 # Copy the os-release file to identify the OS
 COPY --from=osbuilder /workspace/os-release /etc/os-release
 
-COPY --from=quay.io/kairos/framework:master_fips-systemd / /
+COPY --from=quay.io/kairos/framework:master_fips-systemd@sha256:b4c475bba210cff0ba503ba15da67d463f2a93b470cb3432b4e2d755af25f64c / /
 
 # Copy the custom dracut config file
 COPY dracut.conf /etc/dracut.conf.d/kairos-fips.conf
