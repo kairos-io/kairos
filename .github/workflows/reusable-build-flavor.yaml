@@ -162,7 +162,7 @@ jobs:
         with:
           sarif_file: 'grype-results'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-grype
-      - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
           path: |
@@ -170,7 +170,7 @@ jobs:
             *.sha256
             versions.yaml
           if-no-files-found: error
-      - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.sbom.zip
