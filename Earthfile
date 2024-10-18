@@ -4,7 +4,7 @@ FROM alpine:3.19
 # renovate: datasource=docker depName=quay.io/luet/base versioning=semver
 ARG LUET_VERSION=0.35.5
 # renovate: datasource=docker depName=aquasec/trivy versioning=semver
-ARG TRIVY_VERSION=0.55.2
+ARG TRIVY_VERSION=0.56.2
 # renovate: datasource=docker depName=anchore/grype versioning=semver
 ARG GRYPE_VERSION=v0.82.1
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
