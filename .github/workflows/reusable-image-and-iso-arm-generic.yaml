@@ -69,7 +69,7 @@ jobs:
           export _NEW_IMG=$(echo $_IMG | cut -f1 -d:):latest
           docker tag $_IMG $_NEW_IMG
           docker push $_NEW_IMG
-      - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-arm64.iso.zip
