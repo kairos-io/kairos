@@ -1,0 +1,51 @@
+#cloud-config
+
+install:
+  auto: true
+  reboot: true
+  device: /dev/vda
+  bind_mounts:
+    - /var/lib/keylime
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
+
+# Keylime needs several things to work
+# User keylime which is part of the tss group. Does not need to be able to login or have password,
+# its mainly used for the agent to drop pivs to when runs as a service
+# the /var/lib/keylime dir writable and owned by the keylime user
+# the keylime registrar generated public CAs if any
+# Any config dropped at /etc/keylime/agent.conf.d/
+# So registrar IP for example or verifier, etc...
+# any extra config needs to be dropped there
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+        keylime:
+          groups:
+            - "tss"
+      hostname: kairos-{{ trunc 4 .Random }}
+  boot:  # Do it on boot, at this point the bind mount for /var/lib/keylime is done and the user created
+    - name: "Set keylime owner to /var/lib/keylime"
+      commands:
+      - chown keyline /var/lib/keylime
+    - name: "Keylime config"
+      files:
+        - path: /path/to/server_key  # Add whatever public keys you need from the registrar/verifier
+          content: KEY
+          owner_string: "keylime"
+        - path: /etc/keylime/agent.conf.d/10-config.conf
+          content: |
+            [agent]
+            ip = '0.0.0.0'
+            registrar_ip = '<registrar_IP_address>'
+            uuid = '<agent_UUID>'
+            server_key = '</path/to/server_key>'
+            server_key_password = '<passphrase1>'
+            server_cert = '</path/to/server_cert>'
+            trusted_client_ca = '[</path/to/ca/cert3>, </path/to/ca/cert4>]'
+          owner_string: "keylime"
