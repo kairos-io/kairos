@@ -7,7 +7,8 @@ install:
   bind_mounts:
     - /var/lib/keylime
   grub_options:
-    extra_cmdline: "rd.immucore.debug"
+    # This is needed for IMA to work and measure stuff
+    extra_cmdline: "ima_appraise=fix ima_template=ima-sig ima_policy=tcb"
 
 # Keylime needs several things to work
 # User keylime which is part of the tss group. Does not need to be able to login or have password,
@@ -30,22 +31,94 @@ stages:
             - "tss"
       hostname: kairos-{{ trunc 4 .Random }}
   boot:  # Do it on boot, at this point the bind mount for /var/lib/keylime is done and the user created
-    - name: "Set keylime owner to /var/lib/keylime"
-      commands:
-      - chown keyline /var/lib/keylime
-    - name: "Keylime config"
+    - name: "Set Keylime config"
       files:
-        - path: /path/to/server_key  # Add whatever public keys you need from the registrar/verifier
-          content: KEY
+        - path: /var/lib/keylime/cv_ca/cacert.crt
+          # This is the ROOT CA the agent needs otherwise the tenant and verifier cannot connect to the agent!
+          # This is provided by the registrar and it gets generated on the registrar side ont he first boot
+          # or you can provide your own Root CA. In any case, the agent needs to have it otherwise no connection will be possible to it
+          content: |
+            -----BEGIN CERTIFICATE-----
+            MIID8zCCAtugAwIBAgIBATANBgkqhkiG9w0BAQsFADBzMQswCQYDVQQGEwJVUzEm
+            MCQGA1UEAwwdS2V5bGltZSBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkxCzAJBgNVBAgM
+            Ak1BMRIwEAYDVQQHDAlMZXhpbmd0b24xDjAMBgNVBAoMBU1JVExMMQswCQYDVQQL
+            DAI1MzAeFw0yNDEwMzAxMTQyNDNaFw0zNDEwMjgxMTQyNDNaMHMxCzAJBgNVBAYT
+            AlVTMSYwJAYDVQQDDB1LZXlsaW1lIENlcnRpZmljYXRlIEF1dGhvcml0eTELMAkG
+            A1UECAwCTUExEjAQBgNVBAcMCUxleGluZ3RvbjEOMAwGA1UECgwFTUlUTEwxCzAJ
+            BgNVBAsMAjUzMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjiRxfpyt
+            ro1FSEprtrDOUo66AmobNO4j2oNeFBbwG31a4bZqHcD7Tjke9V9cwFRM8TtBrg0r
+            L5dlZZyM5betmGbgZTwGtPFZthbPvusEOHUrNrwR0imTJtYbqUk5nsRtyyxDJdec
+            kh4ibfugyYJu1gEKkZe4BiUisAp5tNifaEdfs9uTz4Ijr4jSniveL1Kio6ngARvM
+            xpQgYj4M7fn5q1rIVeZyTFNWFBUY13rViQkvK69b2oz+RwARPgDYkl6kRW/7Z07f
+            T7CrEzhbxfbAlPKpfAhcgusHUcajQXfh8T8OtlTNNbTedlFS4dHWkEUKRfoUA09h
+            p2ZNCIaGPqQ34QIDAQABo4GRMIGOMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE
+            FHxXU4zLckC2WtgM6kxL4c1nxmB1MCsGA1UdHwQkMCIwIKAeoByGGmh0dHA6Ly9s
+            b2NhbGhvc3Q6MzgwODAvY3JsMA4GA1UdDwEB/wQEAwIBBjAfBgNVHSMEGDAWgBR8
+            V1OMy3JAtlrYDOpMS+HNZ8ZgdTANBgkqhkiG9w0BAQsFAAOCAQEAb9ZyuWPLQDd+
+            H2MHr4VEADuXY/EXlBKf+YH9tfWfiWkUkOVPFanX9+dO/EDcOMKItTd6u8FI05SL
+            UCjLsjLSwufxC8SpCo3XgkL/1q2wRlZ0IZcHPZV+7qATkqBl54k/ImZwENs0oXuT
+            uDcfdJ4FgP/M47HnJaP9/8IRxOgLn370zhxrjx56+A1BPiRAYfWyqCYOEHbFd+Cf
+            q9pFQQOHdmarzF/EScq6UvndtXRAthu1I1ArqzSisLV55O5eu6L+5h2ZAoBHlCD6
+            Imgvg/m5BbmUo3G5QlfGpU1H7edNsn+OPfC9SDI9jYSKJ8lbyb/fn1QRnjEEnzqs
+            AV0t3VsfgQ==
+            -----END CERTIFICATE-----
           owner_string: "keylime"
+          permissions: 0640
         - path: /etc/keylime/agent.conf.d/10-config.conf
+          # This is the agent config, it needs to know the registrar IP
+          # If the ip is not set, the agent will listen on localhost only
+          # The UUID is the agent UUID, it needs to be unique per agent. You can leave it empty and the agent will generate one on boot
           content: |
             [agent]
             ip = '0.0.0.0'
-            registrar_ip = '<registrar_IP_address>'
-            uuid = '<agent_UUID>'
-            server_key = '</path/to/server_key>'
-            server_key_password = '<passphrase1>'
-            server_cert = '</path/to/server_cert>'
-            trusted_client_ca = '[</path/to/ca/cert3>, </path/to/ca/cert4>]'
+            registrar_ip = '192.168.100.184'
+            uuid = '61388a67-baa4-4f2b-8221-d539b7b4d98b'
           owner_string: "keylime"
+          permissions: 0640
+    - name: "Set keylime owner to /var/lib/keylime"
+      commands:
+        - chown -R keylime:keylime /var/lib/keylime
+    - name: "Set default IMA policy"
+      path: /etc/ima/ima-policy
+      permissions: 0644
+      content: |
+        # PROC_SUPER_MAGIC
+        dont_measure fsmagic=0x9fa0
+        # SYSFS_MAGIC
+        dont_measure fsmagic=0x62656572
+        # DEBUGFS_MAGIC
+        dont_measure fsmagic=0x64626720
+        # TMPFS_MAGIC
+        dont_measure fsmagic=0x01021994
+        # RAMFS_MAGIC
+        dont_measure fsmagic=0x858458f6
+        # SECURITYFS_MAGIC
+        dont_measure fsmagic=0x73636673
+        # SELINUX_MAGIC
+        dont_measure fsmagic=0xf97cff8c
+        # CGROUP_SUPER_MAGIC
+        dont_measure fsmagic=0x27e0eb
+        # OVERLAYFS_MAGIC
+        # when containers are used we almost always want to ignore them
+        dont_measure fsmagic=0x794c7630
+        # Don't measure log, audit or tmp files
+        dont_measure obj_type=var_log_t
+        dont_measure obj_type=auditd_log_t
+        dont_measure obj_type=tmp_t
+        # MEASUREMENTS
+        measure func=BPRM_CHECK
+        measure func=FILE_MMAP mask=MAY_EXEC
+        measure func=MODULE_CHECK uid=0
+
+
+# Then you can run on your tenant something like this to add that agent with a tpm policy
+# Note that you can add more than one tpm to the policy, this uses 15 as an example
+# keylime_tenant -c update --uuid UID_OF_AGENT -t IP_OF_AGENT  --tpm_policy '{"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}'
+#
+# Then to test, you can manually extend the PCR for example to trigger a failure un attestation
+# tpm2_pcrextend 15:sha256=f1d2d2f924e986ac86fdf7b36c94bcdf32beec15324234324234234333333333
+# When it fails you will see something like this on the verifier:
+# {"61388a67-baa4-4f2b-8221-d539b7b4d98b": {"operational_state": "Invalid Quote", "v": null, "ip": "192.168.100.164", "port": 9002, "tpm_policy": "{\"22\": [\"0000000000000000000000000000000000000001\", \"0000000000000000000000000000000000000000000000000000000000000001\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001\", \"ffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\", \"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\"], \"15\": [\"0000000000000000000000000000000000000000\", \"0000000000000000000000000000000000000000000000000000000000000000\", \"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000\"], \"mask\": \"0x408000\"}", "meta_data": "{}", "has_mb_refstate": 0, "has_runtime_policy": 0, "accept_tpm_hash_algs": ["sha512", "sha384", "sha256"], "accept_tpm_encryption_algs": ["ecc", "rsa"], "accept_tpm_signing_algs": ["ecschnorr", "rsassa"], "hash_alg": "sha256", "enc_alg": "rsa", "sign_alg": "rsassa", "verifier_id": "default", "verifier_ip": "127.0.0.1", "verifier_port": 8881, "severity_level": 6, "last_event_id": "pcr_validation.invalid_pcr_15", "attestation_count": 158, "last_received_quote": 1730388195, "last_successful_attestation": 1730388193}}
+# And supposedly the agent runs a revocation script. You can see the logs on the agent side
+# INFO  keylime_agent::notifications_handler > Received revocation
+# WARN  keylime_agent::revocation            > Revocation certificate not yet available
