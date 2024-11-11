@@ -71,7 +71,7 @@ stages:
           content: |
             [agent]
             ip = '0.0.0.0'
-            registrar_ip = '192.168.100.184'
+            registrar_ip = '192.168.100.184' # change to the keylime remote attestation server IP
             uuid = '61388a67-baa4-4f2b-8221-d539b7b4d98b'
           owner_string: "keylime"
           permissions: 0640
