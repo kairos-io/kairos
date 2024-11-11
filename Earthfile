@@ -6,11 +6,11 @@ ARG LUET_VERSION=0.35.5
 # renovate: datasource=docker depName=aquasec/trivy versioning=semver
 ARG TRIVY_VERSION=0.56.2
 # renovate: datasource=docker depName=anchore/grype versioning=semver
-ARG GRYPE_VERSION=v0.82.1
+ARG GRYPE_VERSION=v0.82.2
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
 ARG KAIROS_FRAMEWORK_VERSION=v2.14.1
 # renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
-ARG OSBUILDER_VERSION=v0.400.2
+ARG OSBUILDER_VERSION=v0.400.3
 # renovate: datasource=docker depName=golang versioning=semver
 ARG GO_VERSION=1.22
 # renovate: datasource=docker depName=hadolint/hadolint

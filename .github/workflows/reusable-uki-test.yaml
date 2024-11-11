@@ -18,6 +18,9 @@ on:
       variant:
         required: true
         type: string
+      k3s_version:
+        required: false
+        type: string
 
 permissions: read-all
 jobs:
@@ -31,7 +34,7 @@ jobs:
     env:
       FLAVOR: ${{ inputs.flavor }}
       FLAVOR_RELEASE: ${{ inputs.flavor_release }}
-      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ github.sha }}:6h
+      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ inputs.variant }}-${{ github.sha }}:6h
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
       - name: Install Go
@@ -69,7 +72,8 @@ jobs:
             --MODEL=generic \
             --VARIANT=${{ inputs.variant }} \
             --BASE_IMAGE=${{ inputs.base_image }} \
-            --BOOTLOADER=systemd-boot
+            --BOOTLOADER=systemd-boot \
+            --K3S_VERSION=${{ inputs.k3s_version }}
       - name: Push image to ttl.sh
         run: |
           docker tag $(cat build/IMAGE) $TEMP_IMAGE
