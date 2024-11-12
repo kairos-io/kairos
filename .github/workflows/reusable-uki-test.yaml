@@ -116,8 +116,8 @@ jobs:
         env:
           USE_QEMU: true
           KVM: true
-          MEMORY: 4000
-          CPUS: 2
+          MEMORY: 6000
+          CPUS: 4
           FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
           EMULATE_TPM: true
           UKI_TEST: true
