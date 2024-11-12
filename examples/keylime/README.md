@@ -130,7 +130,7 @@ Lets go a bit into detail of some of the options.
  - `extra_cmdline`: This is required to enable the IMA appraisal in the kernel. This is required for keylime to work if you expect to use runtime attestation.
  - `users`: We add the keylime user as the default keylime agent service will drop privileges to this user. Has to have the `tss` group as well.
  - `/etc/ima/ima-policy`: This is the default IMA policy that the kernel will use. The one provided is just a generic example.
- - `/var/lib/keylime/cv_ca/cacert.crt`: This is the CA certificate that the verifier, tenant, and registrar will use to communicate with the agent. This comes from the registrar server and its either self-signed or signed by a CA that the verifier trusts. You have to make sure that this is deployed properly, otherwise the agent will not be able to communicate with the verifier/tenant/registrar correcttly.
+ You have to make sure that this is deployed properly, otherwise the agent will not be able to communicate with the verifier/tenant/registrar correctly.
  - Ownership of /var/lib/keylime: The keylime agent will need to write to this directory. It is important to set the correct ownership. We do it at the end so all the writen files are owned by the keylime user.
  - `systemctl`: We want to enable and start the keylime-agent service so it starts on boot and is running.
  - `/etc/keylime/agent.conf.d/10-config.conf`: This is the keylime agent configuration. Keylime agent provides a default config and we use this to override those default values. Minimal values that need configuring here are as follows: 
