@@ -12,7 +12,7 @@
     ":ignoreModulesAndTests"
   ],
   "timezone": "Europe/Brussels",
-  "pinDigests": true,
+  "pinDigests": false,
   "reviewers": [
     "team:maintainers"
   ],
