@@ -13,6 +13,7 @@
   ],
   "timezone": "Europe/Brussels",
   "pinDigests": false,
+  "commitMessage": ":arrow_up: {{{commitMessagePrefix}}} {{{commitMessageAction}}} {{{commitMessageTopic}}} {{{commitMessageExtra}}} {{{commitMessageSuffix}}}",
   "reviewers": [
     "team:maintainers"
   ],
