@@ -1,25 +1,32 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:base"
+    "config:recommended"
   ],
   "schedule": [
     "after 11pm every weekday",
     "before 7am every weekday",
     "every weekend"
   ],
-  "ignorePresets": [":ignoreModulesAndTests"],
+  "ignorePresets": [
+    ":ignoreModulesAndTests"
+  ],
   "timezone": "Europe/Brussels",
   "pinDigests": true,
-  "reviewers": [ "team:maintainers" ],
+  "reviewers": [
+    "team:maintainers"
+  ],
   "packageRules": [
     {
-      "matchUpdateTypes": ["patch"],
+      "matchUpdateTypes": [
+        "patch"
+      ],
       "automerge": true
     }
   ],
-  "regexManagers": [
+  "customManagers": [
     {
+      "customType": "regex",
       "fileMatch": [
         "^Earthfile$"
       ],
@@ -29,6 +36,7 @@
       "versioningTemplate": "{{#if versioning}}{{versioning}}{{else}}docker{{/if}}"
     },
     {
+      "customType": "regex",
       "fileMatch": [
         "^earthly\\.(sh|ps1)$"
       ],
