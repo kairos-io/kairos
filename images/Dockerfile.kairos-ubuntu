@@ -20,7 +20,7 @@ ARG MODEL=generic
 ARG BASE_IMAGE
 ARG VARIANT
 ARG VERSION
-ARG FRAMEWORK_VERSION=main
+ARG FRAMEWORK_VERSION=main@sha256:0f6ae32a2688b4087ba7c89b0d329372d9e0360c1f1fe2a5f7d01259d2fb3cd4
 ARG BOOTLOADER=grub
 
 ###############################################################
@@ -38,7 +38,7 @@ FROM ${BASE_IMAGE} AS ubuntu-20.04-upstream
 # Ubuntu and the zfsutils-linux package, there is a fix in
 # nohang upstream but it's not yet available in the Ubuntu
 # package, so we build it from source
-FROM ubuntu:22.04 as nohang-src
+FROM ubuntu:22.04@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 as nohang-src
 WORKDIR /root
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
