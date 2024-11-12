@@ -249,13 +249,13 @@ jobs:
           sudo mv build/*trivy.sarif trivy-sarif/
           sudo mv build/*grype.sarif grype-sarif/
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@f779452ac5af1c261dce0346a8f964149f49322b # v3
+        uses: github/codeql-action/upload-sarif@9278e421667d5d90a2839487a482448c4ec7df4d # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'trivy-sarif'
           category: ${{ matrix.flavor }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@f779452ac5af1c261dce0346a8f964149f49322b # v3
+        uses: github/codeql-action/upload-sarif@9278e421667d5d90a2839487a482448c4ec7df4d # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'grype-sarif'
@@ -360,13 +360,13 @@ jobs:
           sudo mv build/*grype.sarif grype-sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@f779452ac5af1c261dce0346a8f964149f49322b # v3
+        uses: github/codeql-action/upload-sarif@9278e421667d5d90a2839487a482448c4ec7df4d # v3
         with:
           sarif_file: 'trivy-sarif'
           category: ${{ matrix.flavor }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
         if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@f779452ac5af1c261dce0346a8f964149f49322b # v3
+        uses: github/codeql-action/upload-sarif@9278e421667d5d90a2839487a482448c4ec7df4d # v3
         with:
           sarif_file: 'grype-sarif'
           category: ${{ matrix.flavor }}-grype
