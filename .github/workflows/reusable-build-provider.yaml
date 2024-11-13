@@ -90,14 +90,6 @@ jobs:
       - name: Login to earthly
         run: |
           earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
       - name: Build PR 🔧
         if: ${{ github.event_name == 'pull_request' }}
         run: |
@@ -128,7 +120,6 @@ jobs:
           INIT=$([[ "${{ inputs.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd")
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq --arg INIT "$INIT" '.packages | map(select(.name == "k3s-" + $INIT)) | map(.version) | unique | last' | tr -d '"')
           earthly --platform=linux/${{ inputs.arch }} +ci \
-            --TRIVY_CACHE_DIR=.trivy \
             --SECURITY_SCANS=true \
             --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
