@@ -3,7 +3,7 @@
 Most of the steps are already covered in the [Keylime documentation](https://keylime-docs.readthedocs.io/en/latest/). Here we will cover the steps that are specific to Kairos.
 
 
-We provide thee keylime agent as a luet package for ease of installation.
+We provide the keylime agent as a luet package for ease of installation.
 For it to be installeed you need to create your own derivative of the Kairos image and add the keylime-agent package to it.
 
 
