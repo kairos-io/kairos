@@ -37,12 +37,11 @@ all:
   ARG --required MODEL
   ARG --required BASE_IMAGE # BASE_IMAGE is the image to apply the strategy (aka FLAVOR) on. E.g. ubuntu:20.04
 
-  ARG TRIVY_CACHE_DIR
 
   BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD +image-sbom
-      BUILD +trivy-scan --CACHEDIR=$TRIVY_CACHE_DIR
+      BUILD +trivy-scan
       BUILD +grype-scan
   END
   BUILD +iso
@@ -61,12 +60,11 @@ ci:
   ARG --required VARIANT
   ARG --required FAMILY
 
-  ARG TRIVY_CACHE_DIR
 
   BUILD +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
     BUILD +image-sbom
-    BUILD +trivy-scan --CACHEDIR=$TRIVY_CACHE_DIR
+    BUILD +trivy-scan
     BUILD +grype-scan
   END
   BUILD +iso
@@ -81,12 +79,11 @@ all-arm:
 
   ARG COMPRESS_IMG=true
   ARG SECURITY_SCANS=true
-  ARG TRIVY_CACHE_DIR
 
   BUILD --platform=linux/arm64 +base-image
   IF [ "$SECURITY_SCANS" = "true" ]
       BUILD --platform=linux/arm64 +image-sbom
-      BUILD --platform=linux/arm64 +trivy-scan --CACHEDIR=$TRIVY_CACHE_DIR
+      BUILD --platform=linux/arm64 +trivy-scan
       BUILD --platform=linux/arm64 +grype-scan
   END
 
@@ -767,15 +764,6 @@ datasource-iso:
   RUN mkisofs -output ci.iso -volid cidata -joliet -rock user-data meta-data
   SAVE ARTIFACT /build/ci.iso iso.iso AS LOCAL build/datasource.iso
 
-trivy-download-db:
-    ARG TRIVY_VERSION
-    ARG DIR=trivy-cache
-    FROM aquasec/trivy:$TRIVY_VERSION
-
-    COPY $DIR /trivy-cache
-    RUN /usr/local/bin/trivy --cache-dir /trivy-cache fs --download-db-only
-    SAVE ARTIFACT /trivy-cache AS LOCAL $DIR
-
 trivy:
     ARG TRIVY_VERSION
     FROM aquasec/trivy:$TRIVY_VERSION
@@ -787,25 +775,21 @@ trivy:
 ###
 trivy-scan:
     ARG TARGETARCH
-    ARG CACHEDIR
 
     # Use base-image so it can read original os-release file
     FROM +base-image
 
     ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-    ENV TRIVY_CACHE=/trivy-cache
-    IF [ -n "$CACHEDIR" ]
-      COPY $CACHEDIR $TRIVY_CACHE
-    END
-
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
+    # This repo seems to have no request limit
+    ENV TRIVY_DB_REPOSITORY=public.ecr.aws/aquasecurity/trivy-db:2
 
     WORKDIR /build
-    RUN /trivy --cache-dir "${TRIVY_CACHE}" filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
-    RUN /trivy --cache-dir "${TRIVY_CACHE}" filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
-    RUN /trivy --cache-dir "${TRIVY_CACHE}" filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
     SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-trivy.sarif
     SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${ISO_NAME}-trivy.html
     SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${ISO_NAME}-trivy.json

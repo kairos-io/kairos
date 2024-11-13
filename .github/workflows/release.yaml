@@ -93,30 +93,9 @@ jobs:
 
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-  # Populate the trivy cache once for all later jobs to use
-  trivy-cache:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
   build-core:
     runs-on: ubuntu-latest
     needs:
-      - trivy-cache
       - get-core-matrix
     permissions:
       id-token: write  # OIDC support
@@ -181,18 +160,9 @@ jobs:
         with:
           repository: quay.io/kairos/packages
           packages: utils/earthly
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly +all  \
-            --TRIVY_CACHE_DIR=.trivy \
             --VARIANT=${{ matrix.variant }} \
             --FAMILY=${{ matrix.family }} \
             --FLAVOR=${{ matrix.flavor }} \
@@ -261,7 +231,6 @@ jobs:
       actions: read
       security-events: write
     needs:
-      - trivy-cache
       - get-uki-matrix
     strategy:
       matrix: ${{ fromJson(needs.get-uki-matrix.outputs.matrix) }}
@@ -375,7 +344,6 @@ jobs:
   build-standard:
     runs-on: ubuntu-latest
     needs:
-      - trivy-cache
       - get-standard-matrix
     permissions:
       id-token: write  # OIDC support
@@ -438,18 +406,9 @@ jobs:
           packages: utils/earthly
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly +all  \
-            --TRIVY_CACHE_DIR=.trivy \
             --VARIANT=${{ matrix.variant }} \
             --FAMILY=${{ matrix.family }} \
             --FLAVOR=${{ matrix.flavor }} \
