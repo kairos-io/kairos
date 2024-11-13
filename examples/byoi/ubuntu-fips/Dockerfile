@@ -3,7 +3,7 @@
 FROM quay.io/kairos/framework:master_fips-systemd as kairos-fips
 
 # Base ubuntu image (focal)
-FROM ubuntu:focal as base
+FROM ubuntu:noble as base
 
 # Generate os-release file
 FROM quay.io/kairos/osbuilder-tools:latest as osbuilder
