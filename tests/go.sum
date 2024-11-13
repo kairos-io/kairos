@@ -369,6 +369,8 @@ github.com/mudler/edgevpn v0.27.3 h1:9g6M7Q+2GdwDN12KmjhYJDi69cttvDW7luBmZioD2ZM
 github.com/mudler/edgevpn v0.27.3/go.mod h1:PK7rl0QQQTdlpie9rlaS7DguH500ogqproQli/QwrxU=
 github.com/mudler/edgevpn v0.27.4 h1:T/irkShcnU6h9OZqtvWXpNo+3gQVPUMBEoUutxJ3YUg=
 github.com/mudler/edgevpn v0.27.4/go.mod h1:NFs/RpDHCaltPFnZmOLCiUmVpTQloER1LbAtptOzqrw=
+github.com/mudler/edgevpn v0.28.3 h1:yIuoMExwKHy/mNMBXIsm6FUFbnB9ELIxw9KXrK9KHDk=
+github.com/mudler/edgevpn v0.28.3/go.mod h1:HWcdIwj5zBgOD04Hn3I+J5E5Yb3kK1CwwWaEe6/QERo=
 github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c h1:CI5uGwqBpN8N7BrSKC+nmdfw+9nPQIDyjHHlaIiitZI=
 github.com/mudler/go-processmanager v0.0.0-20230818213616-f204007f963c/go.mod h1:gY3wyrhkRySJtmtI/JPt4a2mKv48h/M9pEZIW+SjeC0=
 github.com/mudler/go-processmanager v0.0.0-20240820160718-8b802d3ecf82 h1:FVT07EI8njvsD4tC2Hw8Xhactp5AWhsQWD4oTeQuSAU=
@@ -649,6 +651,8 @@ github.com/viant/assertly v0.4.8/go.mod h1:aGifi++jvCrUaklKEKT0BU95igDNaqkvz+49u
 github.com/viant/toolbox v0.24.0/go.mod h1:OxMCG57V0PXuIP2HNQrtJf2CjqdmbrOx5EkMILuUhzM=
 github.com/vishvananda/netlink v1.1.0 h1:1iyaYNBLmP6L0220aDnYQpo1QEV4t4hJ+xEEhhJH8j0=
 github.com/vishvananda/netlink v1.1.0/go.mod h1:cTgwzPIzzgDAYoQrMm0EdrjRUBkTqKYppBueQtXaqoE=
+github.com/vishvananda/netlink v1.3.0 h1:X7l42GfcV4S6E4vHTsw48qbrV+9PVojNfIhZcwQdrZk=
+github.com/vishvananda/netlink v1.3.0/go.mod h1:i6NetklAujEcC6fK0JPjT8qSwWyO0HLn4UKG+hGqeJs=
 github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df/go.mod h1:JP3t17pCcGlemwknint6hfoeCVQrEMVwxRLRjXpq+BU=
 github.com/vishvananda/netns v0.0.4 h1:Oeaw1EM2JMxD51g9uhtC0D7erkIjgmj8+JZc26m1YX8=
 github.com/vishvananda/netns v0.0.4/go.mod h1:SpkAiCQRtJ6TvvxPnOSyH3BMl6unz3xZlaprSwhNNJM=
