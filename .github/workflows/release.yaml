@@ -212,13 +212,13 @@ jobs:
           files: |
             release/*
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@396bb3e45325a47dd9ef434068033c6d5bb0d11a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'trivy-sarif'
           category: ${{ matrix.flavor }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@396bb3e45325a47dd9ef434068033c6d5bb0d11a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'grype-sarif'
