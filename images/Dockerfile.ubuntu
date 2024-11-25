@@ -106,12 +106,14 @@ RUN rm -rf /tmp/nohang.deb
 
 # This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
 # to the image because there are limitations on the total size
+# systemd-boot is neccesary as it brings the /usr/lib/systemd/systemd-bless-boot for boot assesment
 FROM common AS systemd-boot
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
   iucode-tool \
   kmod \
   linux-base \
+  systemd-boot \
   && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 # for UKI, install the linux-modules pkg if no modules are found
 RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \

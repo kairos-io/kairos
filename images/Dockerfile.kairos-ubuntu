@@ -105,21 +105,23 @@ RUN rm -rf /tmp/nohang.deb
 
 # This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
 # to the image because there are limitations on the total size
+# systemd-boot is neccesary as it brings the /usr/lib/systemd/systemd-bless-boot for boot assesment
 FROM common AS systemd-boot
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
   iucode-tool \
   kmod \
   linux-base \
+  systemd-boot \
   && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 # for UKI, install the linux-modules pkg if no modules are found
 RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
   "$(apt-cache search linux-modules | grep -oP 'linux-modules-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
-  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 # for UKI, install the linux-image pkg if no kernel is found
 RUN [ -z "$(ls -A /boot/vmlinuz*)" ] && apt-get update && apt-get install -y --no-install-recommends \
   "$(apt-cache search linux-image | grep -oP 'linux-image-\d+.\d+.\d+-\d+-generic' | sort -V | tail -1)" \
-  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 
 # This target is aimed at non-UKI images where size is not a concern
 FROM common AS grub
@@ -141,17 +143,14 @@ RUN apt-get update \
 
 FROM systemd-boot AS systemd-boot-amd64
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    shared-mime-info \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends shared-mime-info \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN [ -z "$(ls -A /lib/firmware/amd/)" ] && apt-get update && apt-get install -y --no-install-recommends \
-  && apt-get install -y --no-install-recommends \
-    amd64-microcode \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends amd64-microcode \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 RUN [ -z "$(ls -A /lib/firmware/intel-ucode/)" ] && apt-get update && apt-get install -y --no-install-recommends \
-  && apt-get install -y --no-install-recommends \
-    intel-microcode \
-    && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
+  && apt-get install -y --no-install-recommends intel-microcode \
+  && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/* || true
 
 FROM systemd-boot AS systemd-boot-arm64
 
