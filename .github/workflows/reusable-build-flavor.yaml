@@ -143,13 +143,13 @@ jobs:
           sudo mv *grype.sarif grype-results/
       - name: Upload Trivy scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: github/codeql-action/upload-sarif@396bb3e45325a47dd9ef434068033c6d5bb0d11a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         with:
           sarif_file: 'trivy-results'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: github/codeql-action/upload-sarif@396bb3e45325a47dd9ef434068033c6d5bb0d11a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         with:
           sarif_file: 'grype-results'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-grype
