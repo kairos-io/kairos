@@ -9,8 +9,8 @@ ARG TRIVY_VERSION=0.57.1
 ARG GRYPE_VERSION=v0.85.0
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
 ARG KAIROS_FRAMEWORK_VERSION=v2.14.4
-# renovate: datasource=docker depName=quay.io/kairos/osbuilder-tools versioning=semver
-ARG OSBUILDER_VERSION=v0.400.3
+# renovate: datasource=docker depName=quay.io/kairos/auroraboot versioning=semver
+ARG AURORABOOT_VERSION=v0.3.3
 # renovate: datasource=docker depName=golang versioning=semver
 ARG GO_VERSION=1.22
 # renovate: datasource=docker depName=hadolint/hadolint
@@ -22,7 +22,7 @@ ARG SHELLCHECK_VERSION=v0.10.0
 
 ARG IMAGE
 ARG IMAGE_REPOSITORY_ORG=quay.io/kairos
-ARG OSBUILDER_IMAGE=quay.io/kairos/osbuilder-tools:$OSBUILDER_VERSION
+ARG AURORABOOT_IMAGE=quay.io/kairos/auroraboot:$AURORABOOT_VERSION
 ARG K3S_VERSION
 ARG CGO_ENABLED=0
 
@@ -343,37 +343,37 @@ image-rootfs:
 ## UKI Stuff Start
 uki-iso:
     ARG --required BASE_IMAGE # BASE_IMAGE is existing kairos image which needs to be converted to uki
-    ARG ENKI_FLAGS
-    ARG ENKI_CREATE_CI_KEYS # If set, it will create keys for the UKI image. Good for testing
-    ARG ENKI_OUTPUT_TYPE=iso # Set output type, iso, container, uki file
-    ARG ENKI_OVERLAY_DIR # Overlay directory to be copied to the image
-    ARG ENKI_KEYS_DIR # Directory where the keys are stored
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_FLAGS
+    ARG AURORABOOT_CREATE_CI_KEYS # If set, it will create keys for the UKI image. Good for testing
+    ARG AURORABOOT_OUTPUT_TYPE=iso # Set output type, iso, container, uki file
+    ARG AURORABOOT_OVERLAY_DIR # Overlay directory to be copied to the image
+    ARG AURORABOOT_KEYS_DIR # Directory where the keys are stored
+    FROM $AURORABOOT_IMAGE
     WORKDIR /build
     RUN mkdir -p /keys
-    IF [ "$ENKI_CREATE_CI_KEYS" != "" ]
-        RUN enki genkey -e 7 --output /keys Test
-    ELSE IF [ "$ENKI_KEYS_DIR" != "" ]
-        COPY $ENKI_KEYS_DIR /keys
+    IF [ "$AURORABOOT_CREATE_CI_KEYS" != "" ]
+        RUN auroraboot genkey -e 7 --output /keys Test
+    ELSE IF [ "$AURORABOOT_KEYS_DIR" != "" ]
+        COPY $AURORABOOT_KEYS_DIR /keys
     ELSE
         RUN echo "No keys provided, using the test ones"
         COPY tests/keys/* /keys
     END
 
-    IF [ "$ENKI_OVERLAY_DIR" != "" ]
-        COPY $ENKI_OVERLAY_DIR /overlay-iso
+    IF [ "$AURORABOOT_OVERLAY_DIR" != "" ]
+        COPY $AURORABOOT_OVERLAY_DIR /overlay-iso
 
-        RUN --no-cache echo $ENKI_FLAGS | xargs enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE} --overlay-iso /overlay-iso
+        RUN --no-cache echo $AURORABOOT_FLAGS | xargs auroraboot build-uki --output-dir /build/ -k /keys --output-type ${AURORABOOT_OUTPUT_TYPE} --overlay-iso /overlay-iso $BASE_IMAGE 
     ELSE
-        RUN --no-cache echo $ENKI_FLAGS | xargs enki build-uki $BASE_IMAGE --output-dir /build/ -k /keys --output-type ${ENKI_OUTPUT_TYPE}
+        RUN --no-cache echo $AURORABOOT_FLAGS | xargs auroraboot build-uki --output-dir /build/ -k /keys --output-type ${AURORABOOT_OUTPUT_TYPE} $BASE_IMAGE 
     END
 
 
-    IF [ "$ENKI_OUTPUT_TYPE" == "iso" ]
+    IF [ "$AURORABOOT_OUTPUT_TYPE" == "iso" ]
         SAVE ARTIFACT /build/*.iso AS LOCAL build/
-    ELSE IF [ "$ENKI_OUTPUT_TYPE" == "container" ]
+    ELSE IF [ "$AURORABOOT_OUTPUT_TYPE" == "container" ]
         SAVE ARTIFACT /build/*.tar AS LOCAL build/
-    ELSE IF [ "$ENKI_OUTPUT_TYPE" == "uki" ]
+    ELSE IF [ "$AURORABOOT_OUTPUT_TYPE" == "uki" ]
         SAVE ARTIFACT /build/* AS LOCAL build/
     END
 
@@ -509,8 +509,8 @@ uki-dev-iso:
     COPY +git-version/GIT_VERSION ./
     ARG KAIROS_VERSION=$(cat GIT_VERSION)
 
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     WORKDIR /build
     COPY +uki-dev-build/systemd-bootx64.signed.efi .
     COPY +uki-dev-build/uki.signed.efi .
@@ -560,8 +560,8 @@ iso:
     FROM +base-image
     ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     WORKDIR /build
     COPY . ./
 
@@ -569,8 +569,7 @@ iso:
     COPY --keep-own +image-rootfs/rootfs /build/image
     COPY --keep-own +image-rootfs/IMAGE IMAGE
 
-
-    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false dir:/build/image --output /build/
+    RUN auroraboot --debug build-iso --name $ISO_NAME --date=false --output /build dir:/build/image
     SAVE ARTIFACT IMAGE AS LOCAL build/IMAGE
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
@@ -585,11 +584,12 @@ iso-remote:
     FROM $REMOTE_IMG
     ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     WORKDIR /build
     COPY . ./
-    RUN /entrypoint.sh --name $ISO_NAME --debug build-iso --squash-no-compression --date=false docker:$REMOTE_IMG --output /build/
+
+    RUN auroraboot --debug build-iso --name $ISO_NAME --date=false --output /build/ docker:$REMOTE_IMG
 
     SAVE ARTIFACT /build/$ISO_NAME.iso kairos.iso AS LOCAL build/$ISO_NAME.iso
     SAVE ARTIFACT /build/$ISO_NAME.iso.sha256 kairos.iso.sha256 AS LOCAL build/$ISO_NAME.iso.sha256
@@ -605,8 +605,8 @@ netboot:
     ARG VERSION=$(cat ./GIT_VERSION)
     ARG RELEASE_URL=https://github.com/kairos-io/kairos/releases/download
 
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     WORKDIR /build
 
     COPY +iso/kairos.iso kairos.iso
@@ -622,14 +622,14 @@ netboot:
     SAVE ARTIFACT /build/$ISO_NAME.ipxe ipxe AS LOCAL build/$ISO_NAME.ipxe
 
 arm-image:
-  ARG OSBUILDER_IMAGE
+  ARG AURORABOOT_IMAGE
   ARG COMPRESS_IMG=true
   ARG IMG_COMPRESSION=xz
 
   FROM --platform=linux/arm64 +base-image
   ARG IMAGE_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').img
 
-  FROM $OSBUILDER_IMAGE
+  FROM $AURORABOOT_IMAGE
   ARG --required MODEL
 
   WORKDIR /build
@@ -664,10 +664,10 @@ arm-image:
   SAVE ARTIFACT /build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
 prepare-arm-image:
-  ARG OSBUILDER_IMAGE
+  ARG AURORABOOT_IMAGE
   ARG COMPRESS_IMG=true
 
-  FROM $OSBUILDER_IMAGE
+  FROM $AURORABOOT_IMAGE
   WORKDIR /build
 
   # These sizes are in MB and are specific only for the nvidia-jetson-agx-orin
@@ -742,8 +742,8 @@ raw-image:
     WORKDIR /build
     ARG IMG_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//').raw
 
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     WORKDIR /build
     COPY tests/assets/raw_image.yaml /raw_image.yaml
     COPY --keep-own +image-rootfs/rootfs /rootfs
@@ -754,9 +754,9 @@ raw-image:
 # Generic targets
 # usage e.g. ./earthly.sh +datasource-iso --CLOUD_CONFIG=tests/assets/qrcode.yaml
 datasource-iso:
-  ARG OSBUILDER_IMAGE
+  ARG AURORABOOT_IMAGE
   ARG CLOUD_CONFIG
-  FROM $OSBUILDER_IMAGE
+  FROM $AURORABOOT_IMAGE
   WORKDIR /build
   RUN touch meta-data
   COPY ${CLOUD_CONFIG} user-data
@@ -934,8 +934,8 @@ pull-release:
 
 ## Pull build artifacts from BUNDLE_IMAGE (expected arg)
 pull-build-artifacts:
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     COPY +uuidgen/UUIDGEN ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
@@ -946,8 +946,8 @@ pull-build-artifacts:
 
 ## Push build artifacts as BUNDLE_IMAGE (expected arg, common is to use ttl.sh/$(uuidgen):24h)
 push-build-artifacts:
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     COPY +uuidgen/UUIDGEN ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h
@@ -965,8 +965,8 @@ push-build-artifacts:
 # +prepare-bundles-tests
 # +run-bundles-tests
 prepare-bundles-tests:
-    ARG OSBUILDER_IMAGE
-    FROM $OSBUILDER_IMAGE
+    ARG AURORABOOT_IMAGE
+    FROM $AURORABOOT_IMAGE
     COPY +uuidgen/UUIDGEN ./
     ARG UUIDGEN=$(cat UUIDGEN)
     ARG BUNDLE_IMAGE=ttl.sh/$UUIDGEN:24h

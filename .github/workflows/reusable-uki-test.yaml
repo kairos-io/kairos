@@ -82,9 +82,9 @@ jobs:
         run: |
           earthly +uki-iso \
             --BASE_IMAGE=$TEMP_IMAGE \
-            --ENKI_OVERLAY_DIR=tests/assets/sysext/ \
-            --ENKI_KEYS_DIR=tests/assets/keys/ \
-            --ENKI_FLAGS="--single-efi-cmdline \"testentry: nothing\""
+            --AURORABOOT_OVERLAY_DIR=tests/assets/sysext/ \
+            --AURORABOOT_KEYS_DIR=tests/assets/keys/ \
+            --AURORABOOT_FLAGS="--single-efi-cmdline \"testentry: nothing\""
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
