@@ -363,11 +363,10 @@ uki-iso:
     IF [ "$AURORABOOT_OVERLAY_DIR" != "" ]
         COPY $AURORABOOT_OVERLAY_DIR /overlay-iso
 
-        RUN --no-cache echo $AURORABOOT_FLAGS | xargs auroraboot build-uki --output-dir /build/ -k /keys --output-type ${AURORABOOT_OUTPUT_TYPE} --overlay-iso /overlay-iso $BASE_IMAGE 
+        RUN eval auroraboot build-uki --output-dir /build/ -k /keys --output-type ${AURORABOOT_OUTPUT_TYPE} --overlay-iso /overlay-iso ${AURORABOOT_FLAGS} $BASE_IMAGE
     ELSE
-        RUN --no-cache echo $AURORABOOT_FLAGS | xargs auroraboot build-uki --output-dir /build/ -k /keys --output-type ${AURORABOOT_OUTPUT_TYPE} $BASE_IMAGE 
+        RUN eval auroraboot build-uki --output-dir /build/ -k /keys --output-type ${AURORABOOT_OUTPUT_TYPE} ${AURORABOOT_FLAGS} $BASE_IMAGE
     END
-
 
     IF [ "$AURORABOOT_OUTPUT_TYPE" == "iso" ]
         SAVE ARTIFACT /build/*.iso AS LOCAL build/
