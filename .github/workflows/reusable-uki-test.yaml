@@ -82,9 +82,9 @@ jobs:
         run: |
           earthly +uki-iso \
             --BASE_IMAGE=$TEMP_IMAGE \
-            --ENKI_OVERLAY_DIR=tests/assets/sysext/ \
-            --ENKI_KEYS_DIR=tests/assets/keys/ \
-            --ENKI_FLAGS="--single-efi-cmdline \"testentry: nothing\""
+            --AURORABOOT_OVERLAY_DIR=tests/assets/sysext/ \
+            --AURORABOOT_KEYS_DIR=tests/assets/keys/ \
+            --AURORABOOT_FLAGS="--single-efi-cmdline=\"testentry: nothing\""
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
@@ -101,9 +101,10 @@ jobs:
             -v $PWD/unpacked:/unpacked \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/osbuilder-tools:latest build-uki dir:/unpacked \
+            quay.io/kairos/auroraboot:latest build-uki \
             --output-dir /result --keys /keys --output-type container \
-            --single-efi-cmdline "myentry: foobar"
+            --single-efi-cmdline "myentry: foobar" \
+            dir:/unpacked
 
           docker load -i build/*.tar
           image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | xargs)
