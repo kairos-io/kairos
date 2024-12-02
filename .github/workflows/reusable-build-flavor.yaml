@@ -57,6 +57,18 @@ jobs:
         if: ${{ github.event_name == 'pull_request' }}
         run: |
           docker build -t ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h --build-arg=FLAVOR=${{ inputs.flavor_release }} -f images/Dockerfile.init .
+      - name: Build ISO
+        run: |
+          docker run -v $PWD/build:/build -v /var/run/docker.sock:/var/run/docker.sock quay.io/kairos/auroraboot:v0.3.3 --debug build-iso --name kairos --date=false --output /build oci://ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h
       - name: Push to testing
         run: |
           docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h
+            - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
+      - name: Upload ISO
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
+        with:
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
+          path: |
+            build/*.iso
+            build/*.sha256
+          if-no-files-found: error
