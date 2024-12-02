@@ -63,7 +63,6 @@ jobs:
       - name: Push to testing
         run: |
           docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h
-            - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
       - name: Upload ISO
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         with:
