@@ -59,7 +59,7 @@ jobs:
           docker build -t ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h --build-arg=FLAVOR=${{ inputs.flavor_release }} -f images/Dockerfile.init .
       - name: Build ISO
         run: |
-          docker run -v $PWD/build:/build -v /var/run/docker.sock:/var/run/docker.sock quay.io/kairos/auroraboot:v0.3.3 --debug build-iso --name kairos --date=false --output /build oci://ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h
+          docker run -v $PWD/build:/build -v /var/run/docker.sock:/var/run/docker.sock quay.io/kairos/osbuilder-tools:v0.400.3 --debug build-iso --name kairos --date=false --output /build oci://ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h
       - name: Push to testing
         run: |
           docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h
