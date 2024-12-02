@@ -78,7 +78,7 @@ jobs:
         run: |
           earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
       - run: |
-          earthly +run-qemu-test --PREBUILT_ISO=$(ls *${{ inputs.flavor }}*.iso) \
+          earthly +run-qemu-test --PREBUILT_ISO=$(ls *kairos*.iso) \
             --FLAVOR=${{ inputs.flavor }} \
             --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-with-cli

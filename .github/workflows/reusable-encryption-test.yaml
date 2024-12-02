@@ -102,5 +102,5 @@ jobs:
           MEMORY: 4000
           CPUS: 2
         run: |
-          export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
+          export ISO=$(ls $PWD/*kairos*.iso)
           .github/encryption-tests.sh
