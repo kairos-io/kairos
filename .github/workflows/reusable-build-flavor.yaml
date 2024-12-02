@@ -59,4 +59,4 @@ jobs:
           docker build -t ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h --build-arg=FLAVOR=${{ inputs.flavor_release }} -f images/Dockerfile.init .
       - name: Push to testing
         run: |
-          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h"
+          docker push ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h

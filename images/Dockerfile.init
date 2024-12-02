@@ -1,4 +1,4 @@
-ARG FLAVOR
+ARG FLAVOR=24.04
 
 FROM golang AS build
 WORKDIR /app
