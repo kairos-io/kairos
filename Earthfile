@@ -10,7 +10,7 @@ ARG GRYPE_VERSION=v0.85.0
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
 ARG KAIROS_FRAMEWORK_VERSION=v2.14.4
 # renovate: datasource=docker depName=quay.io/kairos/auroraboot versioning=semver
-ARG AURORABOOT_VERSION=v0.3.3
+ARG AURORABOOT_VERSION=v0.4.0
 # renovate: datasource=docker depName=golang versioning=semver
 ARG GO_VERSION=1.22
 # renovate: datasource=docker depName=hadolint/hadolint
