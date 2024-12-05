@@ -12,7 +12,7 @@ ARG KAIROS_FRAMEWORK_VERSION=v2.14.4
 # renovate: datasource=docker depName=quay.io/kairos/auroraboot versioning=semver
 ARG AURORABOOT_VERSION=v0.4.1
 # renovate: datasource=docker depName=golang versioning=semver
-ARG GO_VERSION=1.22
+ARG GO_VERSION=1.23
 # renovate: datasource=docker depName=hadolint/hadolint
 ARG HADOLINT_VERSION=2.12.0-alpine
 # renovate: datasource=docker depName=renovate/renovate
