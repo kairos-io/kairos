@@ -115,7 +115,7 @@ build-and-push-golang-testing:
 
 go-deps-test:
     ARG GO_VERSION
-    FROM +build-and-push-golang-testing
+    FROM $IMAGE_REPOSITORY_ORG/golang-testing:$GO_VERSION
     WORKDIR /build
     COPY tests/go.mod tests/go.sum ./
     RUN go mod download
