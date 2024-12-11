@@ -101,6 +101,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     squashfs-tools \
     sudo \
     systemd \
+    systemd-cryptsetup \
     systemd-resolved \
     systemd-sysv \
     systemd-timesyncd \
