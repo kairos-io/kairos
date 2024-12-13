@@ -102,7 +102,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     squashfs-tools \
     sudo \
     systemd \
-    systemd-cryptsetup \
     systemd-resolved \
     systemd-sysv \
     systemd-timesyncd \
@@ -116,9 +115,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ###############################################################
+####          bookworm vs testing differences              ####
+###############################################################
+FROM common AS common-bookworm
+FROM common AS common-testing
+RUN apt-get update && apt-get install -y systemd-cryptsetup && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+###############################################################
 ####                    Common to a Model                  ####
 ###############################################################
-FROM common AS amd64-generic
+FROM common-${FLAVOR_RELEASE} AS amd64-generic
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     grub2 \
@@ -130,7 +136,7 @@ RUN apt-get update \
     zfsutils-linux \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-FROM common AS arm64-common
+FROM common-${FLAVOR_RELEASE} AS arm64-common
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     grub-efi-arm64-bin \
