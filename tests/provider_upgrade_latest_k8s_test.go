@@ -119,7 +119,7 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 
 		By("Checking agent provider correct start")
 		Eventually(func() string {
-			out, _ := vm.Sudo("cat /var/log/kairos/agent-provider.log")
+			out, _ := vm.Sudo("cat /var/log/kairos/provider-*.log")
 			return out
 		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
 
