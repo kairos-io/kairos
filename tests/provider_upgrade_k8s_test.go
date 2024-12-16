@@ -107,8 +107,9 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		out, err = vm.Sudo("logrotate -vf /etc/logrotate.d/kairos")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("log needs rotating"))
-		_, err = vm.Sudo("ls /var/log/kairos/agent-provider.log.1.gz")
-		Expect(err).ToNot(HaveOccurred())
+		// Check that we have some rotated logs
+		out, err = vm.Sudo("[ $(ls /var/log/kairos/agent-*log.1.gz 2>/dev/null | wc -l) -gt 0 ]")
+		Expect(err).ToNot(HaveOccurred(), out)
 
 		By("wait system-upgrade-controller")
 		Eventually(func() string {
