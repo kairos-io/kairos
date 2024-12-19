@@ -159,7 +159,7 @@ RUN echo 'omit_dracutmodules+=" iscsi "' > /etc/dracut.conf.d/iscsi.conf
 # nvidia-l4t-xusb-firmware/stable,now 35.3.1-20230319081403 arm64 [installed]
 # openvpn/focal-updates,focal-security,now 2.4.7-1ubuntu2.20.04.4 arm64 [installed,automatic]
 
-RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-overwrite" \
     cuda-cudart-12-6 \
     cuda-cudart-dev-12-6 \
     cuda-nvcc-12-6 \
