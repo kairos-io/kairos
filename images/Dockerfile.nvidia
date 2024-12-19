@@ -24,7 +24,7 @@ RUN mkdir -p /opt/nvidia/l4t-packages
 RUN touch /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
 #jetson orin 
 ARG BOARD_MODEL=t234 
-ARG FRAMEWORK_VERSION=35.3
+ARG FRAMEWORK_VERSION=36.4
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 
