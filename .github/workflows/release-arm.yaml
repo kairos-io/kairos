@@ -123,7 +123,7 @@ jobs:
     secrets: inherit
     with:
       flavor: ubuntu
-      flavor_release: "20.04"
+      flavor_release: "22.04"
       family: ubuntu
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
