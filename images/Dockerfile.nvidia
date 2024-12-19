@@ -105,13 +105,13 @@ RUN echo 'omit_dracutmodules+=" iscsi "' > /etc/dracut.conf.d/iscsi.conf
 
 # https://docs.nvidia.com/jetson/l4t/index.html#page/Tegra%20Linux%20Driver%20Package%20Development%20Guide/updating_jetson_and_host.html
 # root@orin:~# apt list --installed | grep nv
-# cuda-nvcc-11-4/stable,now 11.4.315-1 arm64 [installed]
-# cuda-nvdisasm-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
-# cuda-nvml-dev-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
-# cuda-nvprune-11-4/stable,now 11.4.298-1 arm64 [installed,automatic]
-# cuda-nvrtc-11-4/stable,now 11.4.300-1 arm64 [installed,automatic]
-# cuda-nvrtc-dev-11-4/stable,now 11.4.300-1 arm64 [installed,automatic]
-# cuda-nvtx-11-4/stable,now 11.4.300-1 arm64 [installed,automatic]
+# cuda-nvcc-12-6/stable,now 11.4.315-1 arm64 [installed]
+# cuda-nvdisasm-12-6/stable,now 11.4.298-1 arm64 [installed,automatic]
+# cuda-nvml-dev-12-6/stable,now 11.4.298-1 arm64 [installed,automatic]
+# cuda-nvprune-12-6/stable,now 11.4.298-1 arm64 [installed,automatic]
+# cuda-nvrtc-12-6/stable,now 11.4.300-1 arm64 [installed,automatic]
+# cuda-nvrtc-dev-12-6/stable,now 11.4.300-1 arm64 [installed,automatic]
+# cuda-nvtx-12-6/stable,now 11.4.300-1 arm64 [installed,automatic]
 # libtext-iconv-perl/focal,now 1.7-7 arm64 [installed,automatic]
 # libuno-purpenvhelpergcc3-3/now 1:6.4.7-0ubuntu0.20.04.6 arm64 [installed,upgradable to: 1:6.4.7-0ubuntu0.20.04.8]
 # libv4lconvert0/focal,now 1.18.0-2build1 arm64 [installed,automatic]
@@ -160,17 +160,17 @@ RUN echo 'omit_dracutmodules+=" iscsi "' > /etc/dracut.conf.d/iscsi.conf
 # openvpn/focal-updates,focal-security,now 2.4.7-1ubuntu2.20.04.4 arm64 [installed,automatic]
 
 RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
-    cuda-cudart-11-4 \
-    cuda-cudart-dev-11-4 \
-    cuda-nvcc-11-4 \
-    cuda-nvdisasm-11-4 \
-    cuda-nvml-dev-11-4 \
-    cuda-nvprune-11-4 \
-    cuda-nvrtc-11-4 \
-    cuda-nvrtc-dev-11-4 \
-    cuda-nvtx-11-4 \
-    libcublas-11-4 \
-    libcublas-dev-11-4 \
+    cuda-cudart-12-6 \
+    cuda-cudart-dev-12-6 \
+    cuda-nvcc-12-6 \
+    cuda-nvdisasm-12-6 \
+    cuda-nvml-dev-12-6 \
+    cuda-nvprune-12-6 \
+    cuda-nvrtc-12-6 \
+    cuda-nvrtc-dev-12-6 \
+    cuda-nvtx-12-6 \
+    libcublas-12-6 \
+    libcublas-dev-12-6 \
     nvidia-l4t-3d-core \
     nvidia-l4t-apt-source \
     nvidia-l4t-bootloader \
@@ -190,7 +190,6 @@ RUN apt-get install -y -o Dpkg::Options::="--force-overwrite" \
     nvidia-l4t-kernel-dtbs \
     nvidia-l4t-kernel-headers \
     nvidia-l4t-kernel \
-    nvidia-l4t-libvulkan \
     nvidia-l4t-multimedia-utils \
     nvidia-l4t-multimedia \
     nvidia-l4t-nvfancontrol \
