@@ -319,7 +319,7 @@ FROM ubuntu-22.04-rpi AS arm64-ubuntu-22.04-rpi3
 FROM ubuntu-22.04-rpi AS arm64-ubuntu-22.04-rpi4
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi3
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi4
-FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
+FROM ubuntu-22.04-upstream AS arm64-ubuntu-22.04-nvidia-jetson-agx-orin
 
 ###############################################################
 ####                Common to a Single Flavor              ####
