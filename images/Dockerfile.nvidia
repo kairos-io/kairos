@@ -189,6 +189,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--forc
     nvidia-l4t-jetsonpower-gui-tools \
     nvidia-l4t-kernel-dtbs \
     nvidia-l4t-kernel-headers \
+    nvidia-l4t-kernel-oot-modules \
     nvidia-l4t-kernel \
     nvidia-l4t-multimedia-utils \
     nvidia-l4t-multimedia \
