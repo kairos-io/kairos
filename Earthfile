@@ -613,7 +613,12 @@ netboot:
     RUN isoinfo -x /rootfs.squashfs -R -i kairos.iso > ${ISO_NAME}.squashfs
     RUN isoinfo -x /boot/kernel -R -i kairos.iso > ${ISO_NAME}-kernel
     RUN isoinfo -x /boot/initrd -R -i kairos.iso > ${ISO_NAME}-initrd
-    RUN envsubst >> ${ISO_NAME}.ipxe < /ipxe.tmpl
+    RUN printf "#!ipxe\n" > ${ISO_NAME}.ipxe
+    RUN printf "set dns 8.8.8.8\n" >> ${ISO_NAME}.ipxe
+    RUN printf "ifconf\n" >> ${ISO_NAME}.ipxe
+    RUN printf "kernel ${RELEASE_URL}/${VERSION}/${ISO_NAME}-kernel root=live:${RELEASE_URL}/${VERSION}/${ISO_NAME}.squashfs initrd=${ISO_NAME}-initrd rd.neednet=1 ip=dhcp rd.cos.disable netboot install-mode config_url=${config} console=tty1 console=ttyS0 rd.live.overlay.overlayfs\n" >> ${ISO_NAME}.ipxe
+    RUN printf "initrd ${RELEASE_URL}/${VERSION}/${ISO_NAME}-initrd\n" >> ${ISO_NAME}.ipxe
+    RUN printf "boot\n" >> ${ISO_NAME}.ipxe
 
     SAVE ARTIFACT /build/$ISO_NAME.squashfs squashfs AS LOCAL build/$ISO_NAME.squashfs
     SAVE ARTIFACT /build/$ISO_NAME-kernel kernel AS LOCAL build/$ISO_NAME-kernel

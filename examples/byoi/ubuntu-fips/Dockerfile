@@ -1,32 +1,6 @@
-
-# Kairos framework packages for ubuntu fips
-FROM quay.io/kairos/framework:master_fips-systemd as kairos-fips
-
-# Base ubuntu image (focal)
-FROM ubuntu:focal as base
-
-# Generate os-release file
-FROM quay.io/kairos/osbuilder-tools:latest as osbuilder
-RUN zypper install -y gettext && zypper clean
-RUN mkdir /workspace
-COPY --from=base /etc/os-release /workspace/os-release
-# You should change the following values according to your own versioning and other details
-RUN OS_NAME=kairos-core-ubuntu-fips \
-  OS_VERSION=v9.9.9 \
-  OS_ID="kairos" \
-  OS_NAME=kairos-ubuntu-fips \
-  BUG_REPORT_URL="https://github.com/YOUR_ORG/YOUR_PROJECT/issues" \
-  HOME_URL="https://github.com/YOUR_ORG/YOUR_PROJECT" \
-  OS_REPO="quay.io/YOUR_ORG/ubuntu-fips" \
-  OS_LABEL="latest" \
-  GITHUB_REPO="YOUR_ORG/YOUR_PROJECT" \
-  VARIANT="fips" \
-  FLAVOR="ubuntu" \
-  /update-os-release.sh
-
 # Build the custom ubuntu image
-FROM base
-
+FROM ubuntu:24.04 AS base
+ARG TARGETARCH
 # Don't get asked while running apt commands
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -118,21 +92,31 @@ RUN apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the Kairos framework files. We use master builds here for fedora. See https://quay.io/repository/kairos/framework?tab=tags for a list
-COPY --from=kairos-fips / /
-# Copy the os-release file to identify the OS
-COPY --from=osbuilder /workspace/os-release /etc/os-release
+COPY --from=quay.io/kairos/framework:latest-fips / /
 
-# Activate Kairos services
-RUN systemctl enable cos-setup-reconcile.timer && \
-          systemctl enable cos-setup-fs.service && \
-          systemctl enable cos-setup-boot.service && \
-          systemctl enable cos-setup-network.service
+# This is the version of your image
+ENV RELEASE=v9.9.9
+# This is the version of the upstream image
+ENV FLAVOR_RELEASE=24.04
+# This is the remote repository where you push your images to. It will be used for upgrades and such to search for latest releases
+ENV REGISTRY_AND_ORG="quay.io/YOUR_ORG/ubuntu-fips"
+# This is the model for which the os was built, i.e. rpi4, rpi3 or generic for x86/arm64
+ENV MODEL="generic"
+# This is the variant of the image, i.e. fips, core, standard
+ENV VARIANT="fips"
+# Flavor being used, i.e. fedora, ubuntu, alpine
+ENV FLAVOR="ubuntu"
+# Family being used, i.e. debian, rhel, arch, suse
+ENV FAMILY="debian"
+# This is the architecture of the image, i.e. x86_64, arm64. Gets autofilled by docker
+ENV TARGETARCH=$TARGETARCH
+
+# Create the kairos-release file to identify the OS
+RUN kairos-agent --debug versioneer os-release-variables > /etc/kairos-release
+# Empty the /etc/machine-id file
+RUN printf "" > /etc/machine-id || true
 
 ## Configuration
-## Took from: https://github.com/kairos-io/kairos/blob/master/images/Dockerfile.ubuntu-20-lts
-# workaround https://github.com/kairos-io/kairos/issues/949
-COPY dracut-broken-iscsi-ubuntu-20.patch /
-RUN cd /usr/lib/dracut/modules.d/95iscsi && patch < /dracut-broken-iscsi-ubuntu-20.patch && rm -rf /dracut-broken-iscsi-ubuntu-20.patch
 
 COPY dracut.conf /etc/dracut.conf.d/kairos-fips.conf
 # CLEANUP
@@ -158,5 +142,8 @@ RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo
 # Symlink kernel HMAC
 RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && ln -sf ."${kernel#/boot/}".hmac /boot/.vmlinuz.hmac
 
-# Clear cache
+# Cleanup
 RUN rm -rf /var/cache/* && journalctl --vacuum-size=1K && rm /etc/machine-id && rm /var/lib/dbus/machine-id && rm /etc/hostname
+RUN rm -rf /boot/initramfs-*
+RUN rm /var/lib/dbus/machine-id || true
+RUN rm /etc/hostname || true
