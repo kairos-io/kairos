@@ -1,35 +1,17 @@
 ARG BASE_IMAGE=fedora:36
-FROM $BASE_IMAGE as base
 
-# Generate os-release file
-FROM quay.io/kairos/osbuilder-tools:latest as osbuilder
-RUN zypper install -y gettext && zypper clean
-RUN mkdir /workspace
-COPY --from=base /etc/os-release /workspace/os-release
-# You should change the following values according to your own versioning and other details
-RUN OS_NAME=kairos-core-fedora-fips \
-  OS_VERSION=v9.9.9 \
-  OS_ID="kairos" \
-  OS_NAME=kairos-fedora-fips \
-  BUG_REPORT_URL="https://github.com/YOUR_ORG/YOUR_PROJECT/issues" \
-  HOME_URL="https://github.com/YOUR_ORG/YOUR_PROJECT" \
-  OS_REPO="quay.io/YOUR_ORG/fedora-fips" \
-  OS_LABEL="latest" \
-  GITHUB_REPO="YOUR_ORG/YOUR_PROJECT" \
-  VARIANT="fips" \
-  FLAVOR="fedora" \
-  /update-os-release.sh
-
-FROM base
-
+FROM $BASE_IMAGE AS base
+ARG TARGETARCH
 RUN echo "install_weak_deps=False" >> /etc/dnf/dnf.conf
 
 RUN dnf install -y \
     audit \
     coreutils \
+    cloud-utils-growpart \
     curl \
     device-mapper \
     dosfstools \
+    dhcp-client \
     dracut \
     dracut-live \
     dracut-network \
@@ -64,28 +46,45 @@ RUN dnf install -y \
     which \
     && dnf clean all
 
-RUN mkdir -p /run/lock && \
-  touch /usr/libexec/.keep && \
-  systemctl enable getty@tty1.service && \
-  systemctl enable getty@tty2.service && \
-  systemctl enable getty@tty3.service && \
-  systemctl enable systemd-networkd && \
-  systemctl enable systemd-resolved && \
-  systemctl enable sshd
+RUN mkdir -p /run/lock
+RUN touch /usr/libexec/.keep
+RUN systemctl enable getty@tty1.service
+RUN systemctl enable getty@tty2.service
+RUN systemctl enable getty@tty3.service
+RUN systemctl enable systemd-networkd
+RUN systemctl enable systemd-resolved
+RUN systemctl disable dnf-makecache.service
+RUN systemctl disable dnf-makecache.timer
+RUN systemctl enable sshd
 
-# Copy the os-release file to identify the OS
-COPY --from=osbuilder /workspace/os-release /etc/os-release
 
-COPY --from=quay.io/kairos/framework:master_fips-systemd / /
+COPY --from=quay.io/kairos/framework:latest-fips / /
+
+# This is the version of your image
+ENV RELEASE=v9.9.9
+# This is the version of the upstream image
+ENV FLAVOR_RELEASE=36
+# This is the remote repository where you push your images to. It will be used for upgrades and such to search for latest releases
+ENV REGISTRY_AND_ORG="quay.io/YOUR_ORG/fedora-fips"
+# This is the model for which the os was built, i.e. rpi4, rpi3 or generic for x86/arm64
+ENV MODEL="generic"
+# This is the variant of the image, i.e. fips, core, standard
+ENV VARIANT="fips"
+# Flavor being used, i.e. fedora, ubuntu, alpine
+ENV FLAVOR="fedora"
+# Family being used, i.e. debian, rhel, arch, suse
+ENV FAMILY="rhel"
+# This is the architecture of the image, i.e. x86_64, arm64. Gets autofilled by docker
+ENV TARGETARCH=$TARGETARCH
+
+# Create the kairos-release file to identify the OS
+RUN kairos-agent --debug versioneer os-release-variables > /etc/kairos-release
 
 # Copy the custom dracut config file
 COPY dracut.conf /etc/dracut.conf.d/kairos-fips.conf
 
-# Activate Kairos services
-RUN systemctl enable cos-setup-reconcile.timer && \
-          systemctl enable cos-setup-fs.service && \
-          systemctl enable cos-setup-boot.service && \
-          systemctl enable cos-setup-network.service
+# Empty the /etc/machine-id file
+RUN printf "" > /etc/machine-id || true
 
 ## Generate initrd
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -98,4 +97,7 @@ RUN kernel=$(ls /lib/modules | head -n1) && \
 # Symlink kernel HMAC
 RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && ln -sf ."${kernel#/boot/}".hmac /boot/.vmlinuz.hmac
 
+# Cleanup
 RUN rm -rf /boot/initramfs-*
+RUN rm /var/lib/dbus/machine-id || true
+RUN rm /etc/hostname || true
