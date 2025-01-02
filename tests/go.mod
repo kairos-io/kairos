@@ -53,7 +53,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/huin/goupnp v1.3.0 // indirect
-	github.com/ipfs/boxo v0.24.3 // indirect
+	github.com/ipfs/boxo v0.24.1 // indirect
 	github.com/ipfs/go-cid v0.4.1 // indirect
 	github.com/ipfs/go-datastore v0.6.0 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
@@ -70,9 +70,9 @@ require (
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.2.0 // indirect
-	github.com/libp2p/go-libp2p v0.37.0 // indirect
+	github.com/libp2p/go-libp2p v0.36.5 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
-	github.com/libp2p/go-libp2p-kad-dht v0.28.1 // indirect
+	github.com/libp2p/go-libp2p-kad-dht v0.27.0 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.6.4 // indirect
 	github.com/libp2p/go-libp2p-pubsub v0.12.0 // indirect
 	github.com/libp2p/go-libp2p-record v0.2.0 // indirect
@@ -134,9 +134,9 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.60.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/quic-go/qpack v0.5.1 // indirect
-	github.com/quic-go/quic-go v0.48.1 // indirect
-	github.com/quic-go/webtransport-go v0.8.1-0.20241018022711-4ac2c9250e66 // indirect
+	github.com/quic-go/qpack v0.4.0 // indirect
+	github.com/quic-go/quic-go v0.46.0 // indirect
+	github.com/quic-go/webtransport-go v0.8.0 // indirect
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.24.7 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
