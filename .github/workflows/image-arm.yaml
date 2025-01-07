@@ -30,6 +30,24 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
+  get-core-matrix-generic:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      - id: set-matrix
+        run: |
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model == "generic"))'`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+
   # The matrix for standard (provider) images
   get-standard-matrix:
     runs-on: ubuntu-latest
@@ -193,7 +211,6 @@ jobs:
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
       worker: fast
-
   build-arm-core:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
     permissions:
@@ -224,16 +241,83 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
-
-  image_and_iso_arm64_generic:
-    uses: ./.github/workflows/reusable-image-and-iso-arm-generic.yaml
-    secrets: inherit
-    with:
-      flavor: "opensuse"
-      flavor_release: "leap-15.6"
-      family: opensuse
-      base_image: opensuse/leap:15.6
-      variant: core
+  build-arm-generic:
+    needs:
+      - get-core-matrix-generic
+    runs-on: ARM64
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages-arm64
+          packages: utils/earthly
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
+      - name: Login to Quay Registry
+        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Set local mirror
+        if: ${{ inputs.worker == 'ARM64' }}
+        run: |
+          # Configure earthly to use the docker mirror in CI
+          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+          mkdir -p ~/.earthly/
+          cat << EOF > ~/.earthly/config.yml
+          global:
+            buildkit_additional_config: |
+              [registry."docker.io"]
+                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+              [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                insecure = true
+                http = true
+          EOF
+      - name: Set Image name (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        run: |
+          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
+      - name: Build container 🔧
+        run: |
+          earthly -P +arm-container-image \
+            --FLAVOR=${{ matrix.flavor }} \
+            --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
+            --FAMILY=${{ matrix.family }} \
+            --BASE_IMAGE=${{ matrix.base_image}} \
+            --MODEL=${{ matrix.model }} \
+            --VARIANT=${{ matrix.variant }}
+      - name: Push  🔧
+        if:  ${{ github.ref == 'refs/heads/master' }}
+        run: |
+          docker tag $(cat build/IMAGE) ${{ env.IMAGE_REF }}
+          docker push ${{ env.IMAGE_REF }}
+      - name: Sign image
+        if: ${{ github.ref == 'refs/heads/master' }}
+        env:
+          COSIGN_YES: true
+        run: |
+          docker push "${{ env.IMAGE_REF }}" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "${{ env.IMAGE_REF }}")
 
   notify:
     runs-on: ubuntu-latest
