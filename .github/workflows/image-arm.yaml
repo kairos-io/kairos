@@ -192,7 +192,7 @@ jobs:
       family: ubuntu
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
-      worker: fast
+      worker: ARM64
 
   build-arm-core:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
