@@ -1,4 +1,4 @@
-name: Release
+name: Release artifacts
 
 on:
   # Bump the CI

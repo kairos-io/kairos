@@ -94,6 +94,12 @@ all-arm:
   END
 
 arm-container-image:
+  ARG --required FLAVOR
+  ARG --required FLAVOR_RELEASE
+  ARG --required BASE_IMAGE
+  ARG --required VARIANT
+  ARG --required FAMILY
+  ARG --required MODEL
   BUILD --platform=linux/arm64 +base-image
 
 all-arm-generic:

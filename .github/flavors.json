@@ -72,6 +72,16 @@
     {
         "family": "opensuse",
         "flavor": "opensuse",
+        "flavorRelease": "leap-15.6",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "opensuse/leap:15.6",
+        "arch": "arm64",
+        "worker": "ARM64"
+    },
+    {
+        "family": "opensuse",
+        "flavor": "opensuse",
         "flavorRelease": "tumbleweed",
         "variant": "standard",
         "model": "generic",
@@ -213,16 +223,6 @@
         "family": "ubuntu",
         "flavor": "ubuntu",
         "flavorRelease": "24.04",
-        "variant": "core",
-        "model": "generic",
-        "baseImage": "ubuntu:24.04",
-        "arch": "arm64",
-        "worker": "ARM64"
-    },
-    {
-        "family": "ubuntu",
-        "flavor": "ubuntu",
-        "flavorRelease": "24.04",
         "variant": "standard",
         "model": "generic",
         "baseImage": "ubuntu:24.04",
@@ -238,16 +238,6 @@
         "baseImage": "ubuntu:24.04",
         "arch": "amd64",
         "worker": "self-hosted"
-    },
-    {
-        "family": "ubuntu",
-        "flavor": "ubuntu",
-        "flavorRelease": "24.04",
-        "variant": "core",
-        "model": "generic",
-        "baseImage": "ubuntu:24.04",
-        "arch": "arm64",
-        "worker": "ARM64"
     },
     {
         "family": "ubuntu",
@@ -283,7 +273,7 @@
         "family": "ubuntu",
         "flavor": "ubuntu",
         "flavorRelease": "24.10",
-        "variant": "core",
+        "variant": "standard",
         "model": "generic",
         "baseImage": "ubuntu:24.10",
         "arch": "arm64",
@@ -368,6 +358,26 @@
         "baseImage": "fedora:40",
         "arch": "amd64",
         "worker": "self-hosted"
+    },
+    {
+        "family": "rhel",
+        "flavor": "fedora",
+        "flavorRelease": "40",
+        "variant": "core",
+        "model": "generic",
+        "baseImage": "fedora:40",
+        "arch": "arm64",
+        "worker": "ARM64"
+    },
+    {
+        "family": "rhel",
+        "flavor": "fedora",
+        "flavorRelease": "40",
+        "variant": "standard",
+        "model": "generic",
+        "baseImage": "fedora:40",
+        "arch": "arm64",
+        "worker": "ARM64"
     },
     {
         "family": "debian",
