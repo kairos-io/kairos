@@ -307,7 +307,7 @@ jobs:
             --MODEL=${{ matrix.model }} \
             --VARIANT=${{ matrix.variant }}
       - name: Push  🔧
-        if:  ${{ github.ref == 'refs/heads/master' }}
+        if: ${{ github.ref == 'refs/heads/master' }}
         run: |
           docker tag $(cat build/IMAGE) ${{ env.IMAGE_REF }}
           docker push ${{ env.IMAGE_REF }}
