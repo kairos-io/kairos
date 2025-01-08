@@ -682,9 +682,9 @@ prepare-arm-image:
 
   # These sizes are in MB and are specific only for the nvidia-jetson-agx-orin
   ENV SIZE="15200"
-  ENV STATE_SIZE="14000"
-  ENV RECOVERY_SIZE="10000"
-  ENV DEFAULT_ACTIVE_SIZE="4500"
+  ENV STATE_SIZE="16500"
+  ENV RECOVERY_SIZE="11000"
+  ENV DEFAULT_ACTIVE_SIZE="5500"
   
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
 
