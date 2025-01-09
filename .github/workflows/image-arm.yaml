@@ -292,6 +292,11 @@ jobs:
                 insecure = true
                 http = true
           EOF
+      - name: Install kairos-agent
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
       - name: Set Image name (master)
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
