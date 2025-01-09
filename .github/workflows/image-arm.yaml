@@ -278,7 +278,7 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Set local mirror
-        if: ${{ inputs.worker == 'ARM64' }}
+        if: ${{ matrix.worker == 'ARM64' }}
         run: |
           # Configure earthly to use the docker mirror in CI
           # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
@@ -300,15 +300,15 @@ jobs:
       - name: Set Image name (master)
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
-          IMAGE_REF=$(FLAVOR=${{ matrix.flavor }} FLAVOR_RELEASE="${{ matrix.flavor_release }}" MODEL=${{ matrix.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          IMAGE_REF=$(FLAVOR=${{ matrix.flavor }} FLAVOR_RELEASE="${{ matrix.flavorRelease }}" MODEL=${{ matrix.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
       - name: Build container 🔧
         run: |
           earthly -P +arm-container-image \
             --FLAVOR=${{ matrix.flavor }} \
-            --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
+            --FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
             --FAMILY=${{ matrix.family }} \
-            --BASE_IMAGE=${{ matrix.base_image}} \
+            --BASE_IMAGE=${{ matrix.baseImage}} \
             --MODEL=${{ matrix.model }} \
             --VARIANT=${{ matrix.variant }}
       - name: Push  🔧
