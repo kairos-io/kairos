@@ -300,7 +300,7 @@ jobs:
       - name: Set Image name (master)
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
-          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          IMAGE_REF=$(FLAVOR=${{ matrix.flavor }} FLAVOR_RELEASE="${{ matrix.flavor_release }}" MODEL=${{ matrix.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
       - name: Build container 🔧
         run: |
