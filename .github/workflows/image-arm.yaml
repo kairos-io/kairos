@@ -262,7 +262,7 @@ jobs:
       statuses: read
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
+      matrix: ${{fromJson(needs.get-core-matrix-generic.outputs.matrix)}}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
