@@ -1,0 +1,81 @@
+name: Reusable workflow - docker arm build - testPR
+on:
+  workflow_call:
+    inputs:
+      worker:
+        required: true
+        type: string
+      flavor:
+        required: true
+        type: string
+      flavor_release:
+        required: true
+        type: string
+      family:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+      base_image:
+        required: true
+        type: string
+
+permissions: read-all
+jobs:
+  build:
+    runs-on: ${{ inputs.worker }}
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    steps:
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@main
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages-arm64 # change to quay.io/kairos/packages if running this on non-native amd64 workers
+          packages: utils/earthly
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
+      - name: Login to Quay Registry
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Set local mirror
+        if: ${{ inputs.worker == 'ARM64' }}
+        run: |
+          # Configure earthly to use the docker mirror in CI
+          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
+          mkdir -p ~/.earthly/
+          cat << EOF > ~/.earthly/config.yml
+          global:
+            buildkit_additional_config: |
+              [registry."docker.io"]
+                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+              [registry."registry.docker-mirror.svc.cluster.local:5000"]
+                insecure = true
+                http = true
+          EOF
+      - name: Build  🔧
+        run: |
+          earthly -P +arm-container-image \
+              --VARIANT=core \
+              --MODEL=${{ inputs.model }} \
+              --FLAVOR=${{ inputs.flavor }} \
+              --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
+              --FAMILY=${{ inputs.family }} \
+              --BASE_IMAGE=${{ inputs.base_image }}
