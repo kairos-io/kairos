@@ -40,14 +40,29 @@ jobs:
           fetch-depth: 0
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
-      - name: Install earthly
+      - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
-          repository: quay.io/kairos/packages-arm64 # change to quay.io/kairos/packages if running this on non-native amd64 workers
-          packages: utils/earthly
+          repository: quay.io/kairos/packages-arm64
+          packages: system/kairos-agent
+      - name: Set Image name (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        run: |
+          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=${{ github.sha }} kairos-agent versioneer container-artifact-name)
+          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
       - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
+        if: ${{ inputs.worker != 'ARM64' }}
+        uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx with mirror
+        if: ${{ inputs.worker == 'ARM64' }}
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+            [registry."registry.docker-mirror.svc.cluster.local:5000"]
+              insecure = true
+              http = true
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
@@ -55,27 +70,18 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Set local mirror
-        if: ${{ inputs.worker == 'ARM64' }}
-        run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
-      - name: Build  🔧
-        run: |
-          earthly -P +arm-container-image \
-              --VARIANT=core \
-              --MODEL=${{ inputs.model }} \
-              --FLAVOR=${{ inputs.flavor }} \
-              --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
-              --FAMILY=${{ inputs.family }} \
-              --BASE_IMAGE=${{ inputs.base_image }}
+      - name: Build the docker image
+        uses: docker/build-push-action@v2
+        with:
+          context: images/
+          file: images/Dockerfile.kairos-${{ inputs.family }}
+          platforms: linux/arm64
+          push: false
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            VARIANT=core
+            MODEL=${{ inputs.model }}
+            FLAVOR=${{ inputs.flavor }}
+            FLAVOR_RELEASE=${{ inputs.flavor_release }}
+            FAMILY=${{ inputs.family }}
+            BASE_IMAGE=${{ inputs.base_image }}
