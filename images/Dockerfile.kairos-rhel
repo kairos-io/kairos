@@ -71,16 +71,28 @@ RUN dnf install -y \
     dracut-network \
     dracut-squash \
     grub2 \
+    squashfs-tools \
+    && dnf clean all
+
+FROM grub AS grub-amd64
+RUN dnf install -y \
     grub2-efi-x64 \
     grub2-efi-x64-modules \
     grub2-pc \
     shim-x64 \
-    squashfs-tools \
     && dnf clean all
 
-FROM common AS systemd-boot
+FROM grub AS grub-arm64
+RUN dnf install -y \
+    grub2-efi-aa64 \
+    grub2-efi-aa64-modules \
+    shim-aa64 \
+    && dnf clean all
 
-FROM ${BOOTLOADER} AS all
+FROM common AS systemd-boot-arm64
+FROM common AS systemd-boot-amd64
+
+FROM ${BOOTLOADER}-${TARGETARCH} AS all
 RUN dnf install -y \
     kernel \
     kernel-modules \
