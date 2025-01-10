@@ -98,7 +98,7 @@ jobs:
       - name: Build raw image
         if: ${{ inputs.model != 'rpi3' }}
         run: |
-          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock -v $PWD/build/:/output auroraboot:latest \
+          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock -v $PWD/build/:/output quay.io/kairos/auroraboot:latest \
           --debug \
           --set "disable_http_server=true" \
           --set "disable_netboot=true" \
