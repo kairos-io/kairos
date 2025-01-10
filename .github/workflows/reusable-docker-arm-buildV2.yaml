@@ -45,11 +45,12 @@ jobs:
         with:
           repository: quay.io/kairos/packages-arm64
           packages: system/kairos-agent
-      - name: Set Image name (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
+      - name: Set Image name (master) and version
+        #if: ${{ github.ref == 'refs/heads/master' }}
         run: |
           IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=${{ github.sha }} kairos-agent versioneer container-artifact-name)
           echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
+          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
       - name: Set up Docker Buildx
         if: ${{ inputs.worker != 'ARM64' }}
         uses: docker/setup-buildx-action@v3
@@ -85,3 +86,4 @@ jobs:
             FLAVOR_RELEASE=${{ inputs.flavor_release }}
             FAMILY=${{ inputs.family }}
             BASE_IMAGE=${{ inputs.base_image }}
+            RELEASE=${{ env.GIT_VERSION }}
