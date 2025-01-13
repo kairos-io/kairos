@@ -76,7 +76,7 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
   build-arm-core:
-    uses: ./.github/workflows/reusable-docker-arm-buildV2.yaml
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
     name: ${{ matrix.variant }}-${{ matrix.model }}
     permissions:
       id-token: write  # OIDC support
@@ -108,7 +108,7 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
   build-arm-standard:
-    uses: ./.github/workflows/reusable-docker-arm-buildV2.yaml
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
     name: ${{ matrix.variant }}-${{ matrix.model }}
     permissions:
       id-token: write  # OIDC support
@@ -191,3 +191,4 @@ jobs:
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
       worker: ARM64
+      variant: core
