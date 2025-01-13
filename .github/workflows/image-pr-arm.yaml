@@ -75,6 +75,8 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
+      - name: Setup earthly
+        uses: earthly/actions-setup@v1.0.13
       - id: set-matrix
         run: |
           docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
