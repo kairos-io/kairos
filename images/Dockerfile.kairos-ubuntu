@@ -105,12 +105,14 @@ RUN rm -rf /tmp/nohang.deb
 
 # This target is aimed at UKI images and avoids to install GRUB and any other unnecesary packages
 # to the image because there are limitations on the total size
+# systemd-boot is neccesary as it brings the /usr/lib/systemd/systemd-bless-boot for boot assesment
 FROM common AS systemd-boot
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
   iucode-tool \
   kmod \
   linux-base \
+  systemd-boot \
   && apt-get remove -y unattended-upgrades && apt-get clean && rm -rf /var/lib/apt/lists/*
 # for UKI, install the linux-modules pkg if no modules are found
 RUN [ -z "$(ls -A /lib/modules/)" ] && apt-get update && apt-get install -y --no-install-recommends \
@@ -319,7 +321,7 @@ FROM ubuntu-22.04-rpi AS arm64-ubuntu-22.04-rpi3
 FROM ubuntu-22.04-rpi AS arm64-ubuntu-22.04-rpi4
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi3
 FROM ubuntu-20.04-rpi AS arm64-ubuntu-20.04-rpi4
-FROM ubuntu-20.04-upstream AS arm64-ubuntu-20.04-nvidia-jetson-agx-orin
+FROM generic AS arm64-ubuntu-22.04-nvidia-jetson-agx-orin
 
 ###############################################################
 ####                Common to a Single Flavor              ####
@@ -463,7 +465,7 @@ RUN kernel=$(ls /lib/modules | head -n1) && depmod -a "${kernel}"
 # This prevents systemd from thinking that the machine is on first boot
 # and recreating /etc/ dependencies in services and such
 # do this before initramfs so its in the initramfs
-RUN echo "" > /etc/machine-id || true
+RUN printf "" > /etc/machine-id || true
 # Regenerate initrd if necessary, proper config files with immucore and custom initrd should already be in there installed by framework
 # for systemd distros
 RUN if [ -f "/usr/bin/dracut" ]; then \

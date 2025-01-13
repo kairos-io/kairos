@@ -12,31 +12,9 @@ env:
   FORCE_COLOR: 1
   EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
-  # Populate the trivy cache once for all later jobs to use
-  trivy-cache:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
-        with:
-          fetch-depth: 0
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
   core-ubuntu-22-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
-    needs:
-      - trivy-cache
     permissions:
       contents: write
       security-events: write
@@ -64,8 +42,6 @@ jobs:
   core-ubuntu-24-lts:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
-    needs:
-      - trivy-cache
     permissions:
       contents: write
       security-events: write
@@ -93,8 +69,6 @@ jobs:
   core-ubuntu-24-10:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
-    needs:
-      - trivy-cache
     permissions:
       contents: write
       security-events: write
@@ -122,8 +96,6 @@ jobs:
   core-alpine:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
-    needs:
-      - trivy-cache
     permissions:
       contents: write
       security-events: write
@@ -151,8 +123,6 @@ jobs:
   standard:
     uses: ./.github/workflows/reusable-build-provider.yaml
     secrets: inherit
-    needs:
-      - trivy-cache
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -185,7 +155,6 @@ jobs:
       flavor_release: "24.04"
       secureboot: false
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   install-target:
@@ -196,7 +165,6 @@ jobs:
       flavor_release: "24.04"
       secureboot: false
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   install-secureboot:
@@ -207,7 +175,6 @@ jobs:
       flavor_release: "24.04"
       secureboot: true
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   install-alpine:
@@ -217,7 +184,6 @@ jobs:
       flavor: alpine
       flavor_release: "3.19"
     needs:
-      - trivy-cache
       - core-alpine
 
   zfs:
@@ -227,7 +193,6 @@ jobs:
       flavor: ubuntu
       flavor_release: "22.04"
     needs:
-      - trivy-cache
       - core-ubuntu-22-lts
 
   acceptance:
@@ -237,7 +202,6 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   acceptance-alpine:
@@ -247,7 +211,6 @@ jobs:
       flavor: alpine
       flavor_release: "3.19"
     needs:
-      - trivy-cache
       - core-alpine
 
   bundles:
@@ -257,7 +220,6 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   reset:
@@ -267,7 +229,6 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   reset-alpine:
@@ -277,7 +238,6 @@ jobs:
       flavor: alpine
       flavor_release: "3.19"
     needs:
-      - trivy-cache
       - core-alpine
 
   netboot:
@@ -291,7 +251,6 @@ jobs:
       model: generic
       variant: core
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   netboot-alpine:
@@ -305,7 +264,6 @@ jobs:
       model: generic
       variant: core
     needs:
-      - trivy-cache
       - core-alpine
 
   upgrade:
@@ -315,7 +273,6 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   upgrade-alpine:
@@ -325,7 +282,6 @@ jobs:
       flavor: alpine
       flavor_release: "3.19"
     needs:
-      - trivy-cache
       - core-alpine
 
   upgrade-latest:
@@ -337,7 +293,6 @@ jobs:
       family: "ubuntu"
       # release_matcher: "23.10"  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
 
   # enable once the first alpine only release is out as it currently cannot find the latest alpine release properly
@@ -347,7 +302,6 @@ jobs:
   #     flavor: alpine
   #     flavor_release: "3.19"
   #   needs:
-  #     - trivy-cache
   #     - core-alpine
 
   custom-partitioning:
@@ -372,7 +326,6 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
     strategy:
       fail-fast: true
@@ -389,7 +342,6 @@ jobs:
       flavor_release: "24.04"
       label: ${{ matrix.label }}
     needs:
-      - trivy-cache
       - core-ubuntu-24-lts
     strategy:
       fail-fast: true
@@ -409,7 +361,6 @@ jobs:
       flavor_release: "3.19"
       label: ${{ matrix.label }}
     needs:
-      - trivy-cache
       - core-alpine
     strategy:
       fail-fast: true

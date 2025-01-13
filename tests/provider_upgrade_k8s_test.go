@@ -4,10 +4,9 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
-
-	"gopkg.in/yaml.v3"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -94,7 +93,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		By("Checking agent provider correct start")
 		Eventually(func() string {
-			out, _ := vm.Sudo("cat /var/log/kairos/agent-provider.log")
+			out, _ := vm.Sudo("cat /var/log/kairos/provider-*.log")
 			return out
 		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
 
@@ -108,8 +107,9 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		out, err = vm.Sudo("logrotate -vf /etc/logrotate.d/kairos")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("log needs rotating"))
-		_, err = vm.Sudo("ls /var/log/kairos/agent-provider.log.1.gz")
-		Expect(err).ToNot(HaveOccurred())
+		// Check that we have some rotated logs
+		out, err = vm.Sudo("[ $(ls /var/log/kairos/agent-*log.1.gz 2>/dev/null | wc -l) -gt 0 ]")
+		Expect(err).ToNot(HaveOccurred(), out)
 
 		By("wait system-upgrade-controller")
 		Eventually(func() string {
@@ -132,7 +132,22 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Expect(resultStr).To(ContainSubstring("quay.io/kairos"))
 
 		By("copy upgrade plan")
-		err = vm.Scp("assets/suc.yaml", "./suc.yaml", "0770")
+
+		version := "v3.2.1"
+		fullArtifact := fmt.Sprintf("leap-15.6-standard-amd64-generic-%s-k3sv1.31.1-k3s1", version)
+
+		tempDir, err := os.MkdirTemp("", "suc-*")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(tempDir)
+
+		b, err := os.ReadFile("assets/suc.yaml")
+		Expect(err).ToNot(HaveOccurred())
+
+		suc := fmt.Sprintf(string(b), fullArtifact)
+		err = os.WriteFile(filepath.Join(tempDir, "suc.yaml"), []byte(suc), 0777)
+		Expect(err).ToNot(HaveOccurred())
+
+		err = vm.Scp(filepath.Join(tempDir, "suc.yaml"), "./suc.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
 		By("apply upgrade plan")
@@ -154,27 +169,13 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		}, 30*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("ContainerCreating"))
 
 		By("validate upgraded version")
-		expectedVersion := getExpectedVersion()
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
-			version, _ := vm.Sudo(getVersionCmd)
+			version, _ := vm.Sudo(getVersionCmdOsRelease)
 			fmt.Printf("version = %+v\n", version)
 			return version
-		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(expectedVersion), func() string {
+		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(version), func() string {
 			return out
 		})
 	})
 })
-
-func getExpectedVersion() string {
-	b, err := os.ReadFile("assets/suc.yaml")
-	Expect(err).ToNot(HaveOccurred())
-
-	yamlData := make(map[string]interface{})
-	err = yaml.Unmarshal(b, &yamlData)
-
-	Expect(err).ToNot(HaveOccurred())
-	spec := yamlData["spec"].(map[string]interface{})
-
-	return strings.TrimSuffix(spec["version"].(string), "-k3s1")
-}

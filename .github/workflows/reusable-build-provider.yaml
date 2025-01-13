@@ -75,7 +75,7 @@ jobs:
           echo
           sudo rm -rfv build || true
           df -h
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow
       - name: Install earthly
@@ -90,14 +90,6 @@ jobs:
       - name: Login to earthly
         run: |
           earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
       - name: Build PR 🔧
         if: ${{ github.event_name == 'pull_request' }}
         run: |
@@ -128,7 +120,6 @@ jobs:
           INIT=$([[ "${{ inputs.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd")
           K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq --arg INIT "$INIT" '.packages | map(select(.name == "k3s-" + $INIT)) | map(.version) | unique | last' | tr -d '"')
           earthly --platform=linux/${{ inputs.arch }} +ci \
-            --TRIVY_CACHE_DIR=.trivy \
             --SECURITY_SCANS=true \
             --VARIANT=${{ inputs.variant }} \
             --FLAVOR=${{ inputs.flavor }} \
@@ -140,7 +131,7 @@ jobs:
 
           sudo mv build/* .
           sudo rm -rf build
-      - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
           path: |

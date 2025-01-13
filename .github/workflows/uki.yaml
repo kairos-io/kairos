@@ -21,14 +21,25 @@ jobs:
             flavor_release: 24.04
             family: ubuntu
             base_image: ubuntu:24.04
+
           - flavor: ubuntu
             flavor_release: "24.10"
             family: ubuntu
             base_image: "ubuntu:24.10"
+
+            variant: core
+          - flavor: ubuntu
+            flavor_release: 24.04
+            family: ubuntu
+            base_image: ubuntu:24.04
+            variant: standard
+            k3s_version: 1.31.4 # we need to use a matrix like we do in the other pipelines, but adding manually now just to see if this makes it work
+
           - flavor: fedora
             family: rhel
             flavor_release: 40
             base_image: fedora:40
+            variant: core
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -51,3 +62,5 @@ jobs:
       family: ${{ matrix.family }}
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavor_release }}
+      variant: ${{ matrix.variant }}
+      k3s_version: ${{ matrix.k3s_version }}

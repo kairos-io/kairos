@@ -1,4 +1,4 @@
-name: Build arm images
+name: Release ARM artifacts
 on:
   push:
     tags:
@@ -8,12 +8,12 @@ env:
   EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 permissions: read-all
 jobs:
-  get-core-matrix:
+  get-core-matrix-model:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - id: set-matrix
@@ -25,14 +25,31 @@ jobs:
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-
-  # The matrix for standard (provider) images
-  get-standard-matrix:
+  get-core-matrix-generic:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      - id: set-matrix
+        run: |
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model == "generic"))'`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+
+  # The matrix for standard (provider) images
+  get-standard-matrix-model:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       with:
         fetch-depth: 0
     - run: |
@@ -77,31 +94,10 @@ jobs:
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
-  # Populate the trivy cache once for all later jobs to use
-  trivy-cache:
-    runs-on: ARM64
-    steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
-        with:
-          fetch-depth: 0
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
-
   build-nvidia-base:
     runs-on: ARM64
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Install kairos-agent (for versioneer)
@@ -144,7 +140,7 @@ jobs:
     secrets: inherit
     with:
       flavor: ubuntu
-      flavor_release: "20.04"
+      flavor_release: "22.04"
       family: ubuntu
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
@@ -152,8 +148,7 @@ jobs:
   build-arm-core:
     runs-on: ${{ matrix.worker }}
     needs:
-      - trivy-cache
-      - get-core-matrix
+      - get-core-matrix-model
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -163,7 +158,7 @@ jobs:
       fail-fast: false
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Set up QEMU
@@ -186,19 +181,10 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
             -VARIANT=core \
-            --TRIVY_CACHE_DIR=.trivy \
             -MODEL=${{ matrix.model }} \
             -FLAVOR=${{ matrix.flavor }} \
             -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
@@ -238,7 +224,7 @@ jobs:
 
           sudo rm -rf build/IMAGE
       - name: Release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -249,22 +235,21 @@ jobs:
           sudo mv build/*trivy.sarif trivy-sarif/
           sudo mv build/*grype.sarif grype-sarif/
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'trivy-sarif'
-          category: ${{ matrix.flavor }}-trivy
+          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
           sarif_file: 'grype-sarif'
-          category: ${{ matrix.flavor }}-grype
+          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-grype
   build-arm-standard:
     runs-on: ARM64
     needs:
-      - trivy-cache
-      - get-standard-matrix
+      - get-standard-matrix-model
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -279,7 +264,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             curl
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Install Cosign
@@ -301,19 +286,10 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
       - name: Build  🔧
         run: |
           earthly -P +all-arm \
             -VARIANT=standard \
-            --TRIVY_CACHE_DIR=.trivy \
             -MODEL=${{ matrix.model }} \
             -K3S_VERSION=${{ matrix.k3s_version }} \
             -FLAVOR=${{ matrix.flavor }} \
@@ -348,7 +324,7 @@ jobs:
           sudo -E docker push "$IMAGE"
           sudo rm -rf build/IMAGE
       - name: Release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
+        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
@@ -360,16 +336,16 @@ jobs:
           sudo mv build/*grype.sarif grype-sarif/
       - name: Upload Trivy scan results to GitHub Security tab
         if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         with:
           sarif_file: 'trivy-sarif'
-          category: ${{ matrix.flavor }}-trivy
+          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
         if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@afb54ba388a7dca6ecae48f608c4ff05ff4cc77a # v3
+        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         with:
           sarif_file: 'grype-sarif'
-          category: ${{ matrix.flavor }}-grype
+          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-grype
       - name: Space stats
         if: always()
         run: |
@@ -380,6 +356,8 @@ jobs:
           docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
 
   build-arm-generic:
+    needs:
+      - get-core-matrix-generic
     runs-on: ARM64
     permissions:
       id-token: write  # OIDC support
@@ -398,16 +376,9 @@ jobs:
       statuses: read
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - flavor: opensuse
-            flavor_release: leap-15.6
-            family: opensuse
-            base_image: opensuse/leap:15.6
-            model: generic
-            variant: standard
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Install earthly
@@ -417,31 +388,21 @@ jobs:
           packages: utils/earthly
       - name: Set up Docker Buildx
         id: buildx
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3
+        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Build iso  🔧
+      - name: Build container 🔧
         run: |
-          INIT=$([[ "${{ matrix.flavor }}" == "alpine" ]] && echo "openrc" || echo "systemd")
-          earthly --platform=linux/arm64 +extract-framework-profile
-          K3S_VERSION=$(sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq --arg INIT "$INIT" '.packages | map(select(.name == "k3s-" + $INIT)) | map(.version) | unique | last' | tr -d '"')
-          earthly -P +all-arm-generic \
+          earthly -P +arm-container-image \
             --FLAVOR=${{ matrix.flavor }} \
             --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
             --FAMILY=${{ matrix.family }} \
             --BASE_IMAGE=${{ matrix.base_image}} \
             --MODEL=${{ matrix.model }} \
-            --VARIANT=${{ matrix.variant }} \
-            --K3S_VERSION=${K3S_VERSION}
-
-          sudo mv build release
-      - name: Push to quay
+            --VARIANT=${{ matrix.variant }}
+      - name: Push and sign 🔧
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          docker push $(cat release/IMAGE)
-      - name: Release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.0.8
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            release/*iso*
+          export IMAGE=$(cat build/IMAGE)
+          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
+          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")

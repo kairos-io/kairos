@@ -15,6 +15,12 @@ on:
       flavor_release:
         required: true
         type: string
+      variant:
+        required: true
+        type: string
+      k3s_version:
+        required: false
+        type: string
 
 permissions: read-all
 jobs:
@@ -28,11 +34,11 @@ jobs:
     env:
       FLAVOR: ${{ inputs.flavor }}
       FLAVOR_RELEASE: ${{ inputs.flavor_release }}
-      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ github.sha }}:6h
+      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ inputs.variant }}-${{ github.sha }}:6h
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Install Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
@@ -64,9 +70,10 @@ jobs:
             --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
             --FAMILY=${{ inputs.family }} \
             --MODEL=generic \
-            --VARIANT=core \
+            --VARIANT=${{ inputs.variant }} \
             --BASE_IMAGE=${{ inputs.base_image }} \
-            --BOOTLOADER=systemd-boot
+            --BOOTLOADER=systemd-boot \
+            --K3S_VERSION=${{ inputs.k3s_version }}
       - name: Push image to ttl.sh
         run: |
           docker tag $(cat build/IMAGE) $TEMP_IMAGE
@@ -75,9 +82,9 @@ jobs:
         run: |
           earthly +uki-iso \
             --BASE_IMAGE=$TEMP_IMAGE \
-            --ENKI_OVERLAY_DIR=tests/assets/sysext/ \
-            --ENKI_KEYS_DIR=tests/assets/keys/ \
-            --ENKI_FLAGS="--single-efi-cmdline \"testentry: nothing\""
+            --AURORABOOT_OVERLAY_DIR=tests/assets/sysext/ \
+            --AURORABOOT_KEYS_DIR=tests/assets/keys/ \
+            --AURORABOOT_FLAGS="--single-efi-cmdline=\"testentry: nothing\""
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
@@ -94,9 +101,10 @@ jobs:
             -v $PWD/unpacked:/unpacked \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/osbuilder-tools:latest build-uki dir:/unpacked \
+            quay.io/kairos/auroraboot:latest build-uki \
             --output-dir /result --keys /keys --output-type container \
-            --single-efi-cmdline "myentry: foobar"
+            --single-efi-cmdline "myentry: foobar" \
+            dir:/unpacked
 
           docker load -i build/*.tar
           image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | xargs)
@@ -109,8 +117,8 @@ jobs:
         env:
           USE_QEMU: true
           KVM: true
-          MEMORY: 4000
-          CPUS: 2
+          MEMORY: 6000
+          CPUS: 4
           FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
           EMULATE_TPM: true
           UKI_TEST: true
@@ -140,14 +148,14 @@ jobs:
           COSIGN_YES: true
         run: |
           SUFFIX="-uki"
-          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
+          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
           docker tag $(cat build/IMAGE) "$IMAGE$SUFFIX"
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
           cosign sign $image_ref
-      - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         if: failure()
         with:
-          name: ${{ env.FLAVOR }}-${{ env.FLAVOR_RELEASE }}.logs.zip
+          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn

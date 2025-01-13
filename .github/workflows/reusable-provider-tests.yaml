@@ -24,11 +24,11 @@ jobs:
       security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5
+        uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
@@ -73,7 +73,7 @@ jobs:
           echo "ISO is: $ISO"
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.label }}" --fail-fast -r ./tests/
-      - uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4
+      - uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
         if: failure()
         with:
           name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.label }}-provider-test.logs.zip

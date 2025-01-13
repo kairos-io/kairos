@@ -107,6 +107,8 @@ install:
 users:
   - name: "kairos"
     passwd: "kairos"
+    groups:
+      - "admin"
 
 stages:
   kairos-install.pre.before:

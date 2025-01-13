@@ -86,6 +86,8 @@ stages:
       users:
         kairos:
           passwd: "kairos"
+          groups:
+            - "admin"
       hostname: kairos-{{ trunc 4 .Random }}
 `
 		})
@@ -131,6 +133,8 @@ hostname: metal-{{ trunc 4 .MachineID }}
 users:
 - name: kairos
   passwd: kairos
+  groups:
+    - "admin"
 
 install:
   encrypted_partitions:
@@ -219,6 +223,8 @@ stages:
       users:
         kairos:
           passwd: "kairos"
+          groups:
+            - "admin"
       hostname: kairos-{{ trunc 4 .Random }}
 
 install:
@@ -297,6 +303,8 @@ stages:
       users:
         kairos:
           passwd: "kairos"
+          groups:
+            - "admin"
       hostname: kairos-{{ trunc 4 .Random }}
 install:
   encrypted_partitions:
@@ -330,6 +338,8 @@ hostname: metal-{{ trunc 4 .MachineID }}
 users:
 - name: kairos
   passwd: kairos
+  groups:
+    - "admin"
 
 install:
   encrypted_partitions:

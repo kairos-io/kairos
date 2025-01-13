@@ -6,6 +6,8 @@ stages:
       users:
         kairos:
           passwd: kairos
+          groups:
+            - "admin"
 k3s:
   enabled: true
 write_files:

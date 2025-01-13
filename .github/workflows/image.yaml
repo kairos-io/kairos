@@ -18,7 +18,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow
           sudo apt update && sudo apt install -y jq
@@ -33,30 +33,9 @@ jobs:
           # end of optional handling for multi line json
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-  # Populate the trivy cache once for all later jobs to use
-  trivy-cache:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
-        with:
-          fetch-depth: 0
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Restore trivy cache
-        uses: yogeshlonkar/trivy-cache-action@v0
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Populate trivy Cache
-        run: |
-          [ ! -d ".trivy" ] && mkdir -p ".trivy"
-          earthly +trivy-download-db --DIR .trivy
   core:
     uses: ./.github/workflows/reusable-build-flavor.yaml
     needs:
-      - trivy-cache
       - get-core-matrix
     permissions:
       id-token: write  # OIDC support
@@ -93,7 +72,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: true
       matrix:
@@ -109,7 +87,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: true
       matrix:
@@ -125,7 +102,6 @@ jobs:
       secureboot: true
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: true
       matrix:
@@ -150,7 +126,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: false
       matrix:
@@ -165,7 +140,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: false
       matrix:
@@ -192,7 +166,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: false
       matrix:
@@ -207,7 +180,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: false
       matrix:
@@ -236,7 +208,6 @@ jobs:
       base_image: ${{ matrix.baseImage }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: false
       matrix:
@@ -267,7 +238,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: false
       matrix:
@@ -287,7 +257,6 @@ jobs:
       release_matcher: ${{ matrix.releaseMatcher }}  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: false
       matrix:
@@ -322,7 +291,6 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: true
       matrix:
@@ -338,7 +306,6 @@ jobs:
       label: ${{ matrix.label }}
     needs:
       - core
-      - trivy-cache
     strategy:
       fail-fast: true
       matrix:
@@ -356,7 +323,6 @@ jobs:
     uses: ./.github/workflows/reusable-build-provider.yaml
     needs:
       - core
-      - trivy-cache
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -421,7 +387,6 @@ jobs:
       label: ${{ matrix.label }}
     needs:
       - standard
-      - trivy-cache
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -457,7 +422,6 @@ jobs:
       release_matcher: ${{ matrix.releaseMatcher }}  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
       - standard
-      - trivy-cache
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -474,7 +438,6 @@ jobs:
     runs-on: ubuntu-latest
     if: failure()
     needs:
-      - trivy-cache
       - core
       - standard
       - install
@@ -491,7 +454,7 @@ jobs:
       - various
       - standard-upgrade-latest
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow
       - name: save commit-message
@@ -499,7 +462,7 @@ jobs:
         run: echo "COMMIT_MSG=$(git log -1 --pretty=format:%s)" >> $GITHUB_ENV
       - name: notify if failure
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
-        uses: slackapi/slack-github-action@70cd7be8e40a46e8b0eced40b0de447bdb42f68e # v1.26.0
+        uses: slackapi/slack-github-action@fcfb566f8b0aab22203f066d80ca1d7e4b5d05b3 # v1.27.1
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

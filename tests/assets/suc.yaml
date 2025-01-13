@@ -8,15 +8,13 @@ metadata:
     k3s-upgrade: server
 spec:
   concurrency: 1
-  #version:  latest
-  version: "v2.3.1-k3sv1.25.11-k3s1"
-
+  version: "%s"
   nodeSelector:
     matchExpressions:
       - {key: kubernetes.io/hostname, operator: Exists}
   serviceAccountName: system-upgrade
   cordon: false
   upgrade:
-    image: quay.io/kairos/kairos-opensuse-leap
+    image: quay.io/kairos/opensuse
     command:
     - "/usr/sbin/suc-upgrade"

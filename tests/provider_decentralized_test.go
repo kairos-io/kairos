@@ -131,7 +131,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				*/
 			} else {
 				Eventually(func() string {
-					out, _ = vm.Sudo("cat /var/log/kairos/agent-provider.log")
+					out, _ = vm.Sudo("cat /var/log/kairos/*.log")
 					return out
 				}, 45*time.Minute, 1*time.Second).Should(
 					Or(
@@ -207,7 +207,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			version, err := vm.Sudo(getVersionCmd)
 			Expect(err).ToNot(HaveOccurred(), version)
 
-			out, err := vm.Sudo("kairos-agent upgrade --image quay.io/kairos/kairos-opensuse:v1.0.0-rc2-k3sv1.21.14-k3s1")
+			out, err := vm.Sudo("kairos-agent upgrade --source oci:quay.io/kairos/opensuse:leap-15.6-standard-amd64-generic-v3.2.3-k3sv1.31.2-k3s1")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(ContainSubstring("Upgrade completed"))
 

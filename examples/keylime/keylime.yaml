@@ -1,0 +1,97 @@
+#cloud-config
+
+install:
+  auto: true
+  reboot: true
+  device: /dev/vda
+  bind_mounts:
+    - /var/lib/keylime
+  grub_options:
+    extra_cmdline: "ima_appraise=fix ima_template=ima-sig ima_policy=tcb"
+
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+        keylime:
+          groups:
+            - "tss"
+  boot:
+    - name: "Set Keylime config"
+      files:
+        - path: /var/lib/keylime/cv_ca/cacert.crt
+          content: |
+            -----BEGIN CERTIFICATE-----
+            MIID8zCCAtugAwIBAgIBATANBgkqhkiG9w0BAQsFADBzMQswCQYDVQQGEwJVUzEm
+            MCQGA1UEAwwdS2V5bGltZSBDZXJ0aWZpY2F0ZSBBdXRob3JpdHkxCzAJBgNVBAgM
+            Ak1BMRIwEAYDVQQHDAlMZXhpbmd0b24xDjAMBgNVBAoMBU1JVExMMQswCQYDVQQL
+            DAI1MzAeFw0yNDEwMzAxMTQyNDNaFw0zNDEwMjgxMTQyNDNaMHMxCzAJBgNVBAYT
+            AlVTMSYwJAYDVQQDDB1LZXlsaW1lIENlcnRpZmljYXRlIEF1dGhvcml0eTELMAkG
+            A1UECAwCTUExEjAQBgNVBAcMCUxleGluZ3RvbjEOMAwGA1UECgwFTUlUTEwxCzAJ
+            BgNVBAsMAjUzMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAjiRxfpyt
+            ro1FSEprtrDOUo66AmobNO4j2oNeFBbwG31a4bZqHcD7Tjke9V9cwFRM8TtBrg0r
+            L5dlZZyM5betmGbgZTwGtPFZthbPvusEOHUrNrwR0imTJtYbqUk5nsRtyyxDJdec
+            kh4ibfugyYJu1gEKkZe4BiUisAp5tNifaEdfs9uTz4Ijr4jSniveL1Kio6ngARvM
+            xpQgYj4M7fn5q1rIVeZyTFNWFBUY13rViQkvK69b2oz+RwARPgDYkl6kRW/7Z07f
+            T7CrEzhbxfbAlPKpfAhcgusHUcajQXfh8T8OtlTNNbTedlFS4dHWkEUKRfoUA09h
+            p2ZNCIaGPqQ34QIDAQABo4GRMIGOMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYE
+            FHxXU4zLckC2WtgM6kxL4c1nxmB1MCsGA1UdHwQkMCIwIKAeoByGGmh0dHA6Ly9s
+            b2NhbGhvc3Q6MzgwODAvY3JsMA4GA1UdDwEB/wQEAwIBBjAfBgNVHSMEGDAWgBR8
+            V1OMy3JAtlrYDOpMS+HNZ8ZgdTANBgkqhkiG9w0BAQsFAAOCAQEAb9ZyuWPLQDd+
+            H2MHr4VEADuXY/EXlBKf+YH9tfWfiWkUkOVPFanX9+dO/EDcOMKItTd6u8FI05SL
+            UCjLsjLSwufxC8SpCo3XgkL/1q2wRlZ0IZcHPZV+7qATkqBl54k/ImZwENs0oXuT
+            uDcfdJ4FgP/M47HnJaP9/8IRxOgLn370zhxrjx56+A1BPiRAYfWyqCYOEHbFd+Cf
+            q9pFQQOHdmarzF/EScq6UvndtXRAthu1I1ArqzSisLV55O5eu6L+5h2ZAoBHlCD6
+            Imgvg/m5BbmUo3G5QlfGpU1H7edNsn+OPfC9SDI9jYSKJ8lbyb/fn1QRnjEEnzqs
+            AV0t3VsfgQ==
+            -----END CERTIFICATE-----
+          owner_string: "keylime"
+          permissions: 0640
+        - path: /etc/keylime/agent.conf.d/10-config.conf
+          content: |
+            [agent]
+            ip = '0.0.0.0'
+            registrar_ip = '192.168.100.184' # change to the keylime remote attestation server IP
+            uuid = '61388a67-baa4-4f2b-8221-d539b7b4d98b'
+          owner_string: "keylime"
+          permissions: 0640
+    - name: "Set keylime owner to /var/lib/keylime"
+      commands:
+        - chown -R keylime:keylime /var/lib/keylime
+    - name: "Set default IMA policy"
+      path: /etc/ima/ima-policy
+      permissions: 0644
+      content: |
+        # PROC_SUPER_MAGIC
+        dont_measure fsmagic=0x9fa0
+        # SYSFS_MAGIC
+        dont_measure fsmagic=0x62656572
+        # DEBUGFS_MAGIC
+        dont_measure fsmagic=0x64626720
+        # TMPFS_MAGIC
+        dont_measure fsmagic=0x01021994
+        # RAMFS_MAGIC
+        dont_measure fsmagic=0x858458f6
+        # SECURITYFS_MAGIC
+        dont_measure fsmagic=0x73636673
+        # SELINUX_MAGIC
+        dont_measure fsmagic=0xf97cff8c
+        # CGROUP_SUPER_MAGIC
+        dont_measure fsmagic=0x27e0eb
+        # OVERLAYFS_MAGIC
+        # when containers are used we almost always want to ignore them
+        dont_measure fsmagic=0x794c7630
+        # Don't measure log, audit or tmp files
+        dont_measure obj_type=var_log_t
+        dont_measure obj_type=auditd_log_t
+        dont_measure obj_type=tmp_t
+        # MEASUREMENTS
+        measure func=BPRM_CHECK
+        measure func=FILE_MMAP mask=MAY_EXEC
+        measure func=MODULE_CHECK uid=0
+

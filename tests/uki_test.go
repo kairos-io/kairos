@@ -287,7 +287,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
 		Expect(err).ToNot(HaveOccurred(), out)
 		selectedEntry := removeSpecialChars(out)
-		Expect(selectedEntry).To(Equal(fmt.Sprintf("%s.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
+		Expect(selectedEntry).To(Equal(fmt.Sprintf("%s+3.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
 	})
 })
 
