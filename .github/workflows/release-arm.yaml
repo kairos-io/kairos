@@ -109,7 +109,7 @@ jobs:
       matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
   build-arm-standard:
     uses: ./.github/workflows/reusable-docker-arm-build.yaml
-    name: ${{ matrix.variant }}-${{ matrix.model }}
+    name: ${{ matrix.variant }}-${{ matrix.model }}-${{ matrix.k3s_version }}
     permissions:
       id-token: write  # OIDC support
       contents: write
