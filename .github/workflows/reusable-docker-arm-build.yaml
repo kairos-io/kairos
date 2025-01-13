@@ -100,14 +100,14 @@ jobs:
           load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ env.IMAGE_REF }}
           build-args: |
-            VARIANT=core
+            VARIANT=${{ inputs.variant }}
             MODEL=${{ inputs.model }}
             FLAVOR=${{ inputs.flavor }}
             FLAVOR_RELEASE=${{ inputs.flavor_release }}
             FAMILY=${{ inputs.family }}
             BASE_IMAGE=${{ inputs.base_image }}
             RELEASE=${{ env.GIT_VERSION }}
-            K3S_VERSION=${{ inputs.k3s_version }}
+            SOFTWARE_VERSION=${{ inputs.k3s_version }}
       - name: Grype
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: anchore/scan-action@v6.0.0
@@ -133,13 +133,14 @@ jobs:
           push: "true"
           tags: ${{ env.IMAGE_REF }}
           build-args: |
-            VARIANT=core
+            VARIANT=${{ inputs.variant }}
             MODEL=${{ inputs.model }}
             FLAVOR=${{ inputs.flavor }}
             FLAVOR_RELEASE=${{ inputs.flavor_release }}
             FAMILY=${{ inputs.family }}
             BASE_IMAGE=${{ inputs.base_image }}
             RELEASE=${{ env.GIT_VERSION }}
+            SOFTWARE_VERSION=${{ inputs.k3s_version }}
       - name: Sign image
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         env:
