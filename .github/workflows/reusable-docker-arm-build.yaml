@@ -108,7 +108,7 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             RELEASE=${{ env.GIT_VERSION }}
             SOFTWARE_VERSION=${{ inputs.k3s_version }}
-            SOFTWARE_VERSION_PREFIX="k3s"
+            SOFTWARE_VERSION_PREFIX=k3s
       - name: Grype
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: anchore/scan-action@v6.0.0
@@ -142,7 +142,7 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             RELEASE=${{ env.GIT_VERSION }}
             SOFTWARE_VERSION=${{ inputs.k3s_version }}
-            SOFTWARE_VERSION_PREFIX="k3s"
+            SOFTWARE_VERSION_PREFIX=k3s
       - name: Sign image
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         env:
