@@ -194,9 +194,11 @@ jobs:
                           --output-signature="${filename}.sig" "${filename}"
       - name: Prepare files for release
         run: |
-          mkdir trivy-sarif grype-sarif
-          sudo mv release/*trivy.sarif trivy-sarif/
-          sudo mv release/*grype.sarif grype-sarif/
+          mkdir trivy-results grype-results
+          trivy=$(ls build/*trivy.sarif 2>/dev/null | head -n 1)
+          grype=$(ls build/*grype.sarif 2>/dev/null | head -n 1)
+          sudo mv $trivy trivy-results/result.sarif
+          sudo mv $grype grype-results/result.sarif
           mkdir reports
           mv release/*.json reports/
           cd reports
@@ -205,6 +207,18 @@ jobs:
           mv *.tar.gz ../release/
           cd ..
           rm release/IMAGE release/VERSION release/versions.yaml
+      - uses: itxaka/sarif-filter@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          input: trivy-results/result.sarif
+          output: trivy-results/result.sarif
+          severity: high
+      - uses: itxaka/sarif-filter@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          input: grype-results/result.sarif
+          output: grype-results/result.sarif
+          severity: high
       - name: Release
         uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
         if: startsWith(github.ref, 'refs/tags/')
@@ -215,13 +229,13 @@ jobs:
         uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          sarif_file: 'trivy-sarif'
+          sarif_file: 'trivy-results'
           category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-trivy
       - name: Upload Grype scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          sarif_file: 'grype-sarif'
+          sarif_file: 'grype-results'
           category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-grype
   build-uki-container-image:
     runs-on: ubuntu-latest
