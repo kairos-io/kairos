@@ -182,7 +182,7 @@ jobs:
           category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-grype
       - name: Upload results
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.model != 'nvidia-jetson-agx-orin' }}
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
           name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-arm-${{ inputs.model }}
           path: build
