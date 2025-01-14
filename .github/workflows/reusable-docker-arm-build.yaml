@@ -170,6 +170,18 @@ jobs:
           sudo -E docker load -i image.tar
           sudo -E docker push "$IMAGE"
           sudo rm -rf build/IMAGE
+      - uses: itxaka/sarif-filter@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          input: trivy.sarif
+          output: trivy.sarif
+          severity: high
+      - uses: itxaka/sarif-filter@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          input: grype.sarif
+          output: grype.sarif
+          severity: high
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: startsWith(github.ref, 'refs/tags/')
