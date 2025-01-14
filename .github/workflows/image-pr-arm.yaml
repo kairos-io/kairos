@@ -1,0 +1,64 @@
+name: 'Push latest ARM images (PR)'
+
+on:
+  pull_request:
+    paths:
+      - '**'
+
+permissions: read-all
+concurrency:
+  group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+env:
+  FORCE_COLOR: 1
+  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
+jobs:
+  get-core-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - run: |
+          git fetch --prune --unshallow
+      - id: set-matrix
+        run: |
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core"))'`
+          # the following lines are only required for multi line json
+          content="${content//'%'/'%25'}"
+          content="${content//$'\n'/'%0A'}"
+          content="${content//$'\r'/'%0D'}"
+          # end of optional handling for multi line json
+          echo "::set-output name=matrix::{\"include\": $content }"
+  build-arm-core:
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    name: ${{ matrix.variant }}-${{ matrix.model }}
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    secrets: inherit
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      model: ${{ matrix.model }}
+      base_image: ${{ matrix.baseImage }}
+      worker: ${{ matrix.worker }}
+      variant: ${{ matrix.variant }}
+    needs:
+      - get-core-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}

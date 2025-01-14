@@ -22,82 +22,45 @@ jobs:
         git fetch --prune --unshallow
     - id: set-matrix
       run: |
-          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model != "generic"))'`
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core"))'`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-
-  get-core-matrix-generic:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-      - id: set-matrix
-        run: |
-          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model == "generic"))'`
-          # the following lines are only required for multi line json
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
-
-  # The matrix for standard (provider) images
-  get-standard-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      with:
-        fetch-depth: 0
-    - run: |
-        sudo apt update && sudo apt install -y jq
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@master
-      with:
-        platforms: all
-    - name: Set up Docker Buildx
-      id: buildx
-      uses: docker/setup-buildx-action@master
-    - name: Install earthly
-      uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-      with:
-        repository: quay.io/kairos/packages
-        packages: utils/earthly
-    - id: set-matrix
-      run: |
-          docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
-          chmod +x luet
-          sudo mv luet /usr/bin/luet
-          # Construct an array like this from the found versions:
-          earthly --platform=linux/arm64 +extract-framework-profile
-          # fetch "k3s-openrc" versions
-          sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(select(.name == "k3s-openrc")) | map(.version) | unique' >  k3s_openrc.json
-          # fetch alpine flavors
-          jq 'map(select(.arch == "arm64" and .variant == "standard" and .model != "generic" and .flavor == "alpine"))' .github/flavors.json >  flavors_openrc.json
-          # generate combinations
-          jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}]' flavors_openrc.json k3s_openrc.json > combinations_openrc.json
-          # fetch "k3s-systemd" versions
-          sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(select(.name == "k3s-systemd")) | map(.version) | unique' >  k3s_systemd.json
-          # fetch non-alpine flavors
-          jq 'map(select(.arch == "arm64" and .variant == "standard" and .model != "generic" and .flavor != "alpine"))' .github/flavors.json >  flavors_systemd.json
-          # generate combinations
-          jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}]' flavors_systemd.json k3s_systemd.json > combinations_systemd.json
-          # merge the two combinations
-          content=$(jq -s 'add' combinations_openrc.json combinations_systemd.json)
-          # the following lines are only required for multi line json
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
+  build-arm-core:
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    name: ${{ matrix.variant }}-${{ matrix.model }}
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    secrets: inherit
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      model: ${{ matrix.model }}
+      base_image: ${{ matrix.baseImage }}
+      worker: ${{ matrix.worker }}
+      variant: ${{ matrix.variant }}
+    needs:
+      - get-core-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
   build-nvidia-base:
     runs-on: fast
     steps:
@@ -211,121 +174,7 @@ jobs:
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
       worker: ARM64
-  build-arm-core:
-    uses: ./.github/workflows/reusable-docker-arm-build.yaml
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    secrets: inherit
-    with:
-      flavor: ${{ matrix.flavor }}
-      flavor_release: ${{ matrix.flavorRelease }}
-      family: ${{ matrix.family }}
-      model: ${{ matrix.model }}
-      base_image: ${{ matrix.baseImage }}
-      worker: ${{ matrix.worker }}
-    needs:
-      - get-core-matrix
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
-  build-arm-generic:
-    needs:
-      - get-core-matrix-generic
-    runs-on: ARM64
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.get-core-matrix-generic.outputs.matrix)}}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages-arm64
-          packages: utils/earthly
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
-      - name: Login to Quay Registry
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Set local mirror
-        if: ${{ matrix.worker == 'ARM64' }}
-        run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
-      - name: Install kairos-agent
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: system/kairos-agent
-      - name: Set Image name (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
-        run: |
-          IMAGE_REF=$(FLAVOR=${{ matrix.flavor }} FLAVOR_RELEASE="${{ matrix.flavorRelease }}" MODEL=${{ matrix.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
-          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
-      - name: Build container 🔧
-        run: |
-          earthly -P +arm-container-image \
-            --FLAVOR=${{ matrix.flavor }} \
-            --FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
-            --FAMILY=${{ matrix.family }} \
-            --BASE_IMAGE=${{ matrix.baseImage}} \
-            --MODEL=${{ matrix.model }} \
-            --VARIANT=${{ matrix.variant }}
-      - name: Push  🔧
-        if: ${{ github.ref == 'refs/heads/master' }}
-        run: |
-          docker tag $(cat build/IMAGE) ${{ env.IMAGE_REF }}
-          docker push ${{ env.IMAGE_REF }}
-      - name: Sign image
-        if: ${{ github.ref == 'refs/heads/master' }}
-        env:
-          COSIGN_YES: true
-        run: |
-          docker push "${{ env.IMAGE_REF }}" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "${{ env.IMAGE_REF }}")
-
+      variant: core
   notify:
     runs-on: ubuntu-latest
     if: failure()
