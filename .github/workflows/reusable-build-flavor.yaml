@@ -139,8 +139,22 @@ jobs:
           sudo mv build/* .
           sudo rm -rf build
           mkdir trivy-results grype-results
-          sudo mv *trivy.sarif trivy-results/
-          sudo mv *grype.sarif grype-results/
+          trivy=$(ls *trivy.sarif 2>/dev/null | head -n 1)
+          grype=$(ls *grype.sarif 2>/dev/null | head -n 1)
+          sudo mv $trivy trivy-results/result.sarif
+          sudo mv $grype grype-results/result.sarif
+      - uses: itxaka/sarif-filter@v1
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        with:
+          input: trivy-results/result.sarif
+          output: trivy-results/result.sarif
+          severity: high
+      - uses: itxaka/sarif-filter@v1
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        with:
+          input: grype-results/result.sarif
+          output: grype-results/result.sarif
+          severity: high
       - name: Upload Trivy scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
