@@ -1,0 +1,78 @@
+name: Reusable workflow that builds a specific Kairos flavor
+
+on:
+  workflow_call:
+    inputs:
+      flavor:
+        required: true
+        type: string
+      flavor_release:
+        required: true
+        type: string
+      family:
+        required: true
+        type: string
+      base_image:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
+      variant:
+        required: true
+        type: string
+      arch:
+        required: true
+        type: string
+
+permissions: read-all
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - run: |
+          git fetch --prune --unshallow
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
+      - name: Set Version
+        run: |
+          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
+      - name: Build container 🔧
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          docker build -t ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} \
+          --build-arg BASE_IMAGE=${{ inputs.base_image }} \
+          --build-arg MODEL=${{ inputs.model }} \
+          --build-arg VARIANT=${{ inputs.variant }} \
+          -f images/Dockerfile.ubuntu .
+      - name: Build iso 📦
+        run: |
+          kairos-ubuntu-20.04-core-amd64-generic-v3.2.4-34-g4c7eaa5.iso
+          docker run --rm -ti -v /var/run/docker.sock:/var/run/docker.sock \
+          -v $PWD/build/:/output \
+          quay.io/kairos/auroraboot:v0.4.3 \ 
+          --debug \
+          build-iso \
+          --output /output/ \
+          --name kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
+          docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        with:
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
+          path: |
+            *.iso
+            *.sha256
+            versions.yaml
+          if-no-files-found: error
+      - name: Push to testing
+        run: |
+          TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h"
+          docker tag docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }} $TEST_IMAGE
+          docker push $TEST_IMAGE
