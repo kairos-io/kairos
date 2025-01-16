@@ -54,7 +54,6 @@ jobs:
           -f images/Dockerfile.ubuntu .
       - name: Build iso 📦
         run: |
-          kairos-ubuntu-20.04-core-amd64-generic-v3.2.4-34-g4c7eaa5.iso
           docker run --rm -ti -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
           quay.io/kairos/auroraboot:v0.4.3 \ 
