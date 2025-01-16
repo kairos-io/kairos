@@ -97,7 +97,7 @@ jobs:
           context: images/
           file: images/Dockerfile.kairos-${{ inputs.family }}
           platforms: linux/arm64
-          load: ${{ github.event_name == 'pull_request' }}
+          load: true
           tags: ${{ env.IMAGE_REF }}, kairos:${{ env.GIT_VERSION }}
           build-args: |
             VARIANT=${{ inputs.variant }}
