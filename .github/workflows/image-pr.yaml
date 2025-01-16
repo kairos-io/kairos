@@ -13,7 +13,7 @@ env:
   EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
   core-ubuntu-22-lts:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
+    uses: ./.github/workflows/reusable-build-flavor-init.yaml
     secrets: inherit
     permissions:
       contents: write
@@ -40,7 +40,7 @@ jobs:
       arch: amd64
 
   core-ubuntu-24-lts:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
+    uses: ./.github/workflows/reusable-build-flavor-init.yaml
     secrets: inherit
     permissions:
       contents: write
@@ -67,7 +67,7 @@ jobs:
       arch: amd64
 
   core-ubuntu-24-10:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
+    uses: ./.github/workflows/reusable-build-flavor-init.yaml
     secrets: inherit
     permissions:
       contents: write
