@@ -57,10 +57,7 @@ jobs:
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:v0.4.3 \ 
-          --debug \
-          build-iso \
-          --output /output/ \
+          quay.io/kairos/auroraboot:v0.4.3 --debug build-iso --output /output/ \
           --name kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
           docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
