@@ -1,9 +1,4 @@
-name: Reusable workflow - docker arm build
-
-# TODO: Merge this workflow with the reusable-build-flavor one
-# The same workflow should be able to build any combination of flavor,
-# model, architecture, etc.
-
+name: Reusable workflow - docker arm build - testPR
 on:
   workflow_call:
     inputs:
@@ -25,17 +20,30 @@ on:
       base_image:
         required: true
         type: string
+      variant:
+        required: true
+        type: string
+      k3s_version:
+        required: false
+        type: string
 
 permissions: read-all
 jobs:
   build:
     runs-on: ${{ inputs.worker }}
+    name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}
     permissions:
       id-token: write  # OIDC support
       contents: write
       actions: read
       security-events: write
+    env:
+      # Set the registry based on the event type. For PR, we set ttl.sh
+      REGISTRY: "ttl.sh"
     steps:
+      - name: Set REGISTRY for master/release
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+        run: echo "REGISTRY=quay.io/kairos" >> $GITHUB_ENV
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
@@ -45,14 +53,37 @@ jobs:
           fetch-depth: 0
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
-      - name: Install earthly
+      - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
-          repository: quay.io/kairos/packages-arm64 # change to quay.io/kairos/packages if running this on non-native amd64 workers
-          packages: utils/earthly
+          repository: quay.io/kairos/packages-arm64
+          packages: system/kairos-agent
+      - name: Set Version
+        run: |
+          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
+      - name: Set Image name (master)
+        if: ${{ github.ref == 'refs/heads/master' }}
+        run: |
+          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=master kairos-agent versioneer container-artifact-name)
+          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
+      - name: Set Image name (release/PR)
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' }}
+        run: |
+          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=${{ env.GIT_VERSION }} kairos-agent versioneer container-artifact-name)
+          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
       - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
+        if: ${{ inputs.worker != 'ARM64' }}
+        uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx with mirror
+        if: ${{ inputs.worker == 'ARM64' }}
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+            [registry."registry.docker-mirror.svc.cluster.local:5000"]
+              insecure = true
+              http = true
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
@@ -60,80 +91,77 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Set local mirror
-        if: ${{ inputs.worker == 'ARM64' }}
-        run: |
-          # Configure earthly to use the docker mirror in CI
-          # https://docs.earthly.dev/ci-integration/pull-through-cache#configuring-earthly-to-use-the-cache
-          mkdir -p ~/.earthly/
-          cat << EOF > ~/.earthly/config.yml
-          global:
-            buildkit_additional_config: |
-              [registry."docker.io"]
-                mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-              [registry."registry.docker-mirror.svc.cluster.local:5000"]
-                insecure = true
-                http = true
-          EOF
-      - name: Set compression for PR
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          echo "IMG_COMPRESSION=zstd" >> $GITHUB_ENV
-      - name: Set compression for master
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: |
-          echo "IMG_COMPRESSION=xz" >> $GITHUB_ENV
-      - name: Login to earthly
-        run: |
-          earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
-      - name: Build  🔧
-        run: |
-          earthly -P +all-arm \
-              --VARIANT=core \
-              --MODEL=${{ inputs.model }} \
-              --FLAVOR=${{ inputs.flavor }} \
-              --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
-              --FAMILY=${{ inputs.family }} \
-              --BASE_IMAGE=${{ inputs.base_image }} \
-              --IMG_COMPRESSION=${{env.IMG_COMPRESSION}}
-      - name: Show img sizes
-        run: |
-          ls -ltrh build
-          uname -a
-      - name: Convert all json files into a reports.tar.gz file
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          cd build
-          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
-          sudo tar cvf "${filename}-sbom-scan-reports.tar.gz" *.json
-      - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+      - name: Build the docker image
+        uses: docker/build-push-action@v6
         with:
-          repository: quay.io/kairos/packages-arm64
-          packages: system/kairos-agent
-      - name: Set Image name (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
-        run: |
-          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=core REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
-          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
-      - name: Set Image name (release)
-        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        run: |
-          echo "IMAGE_REF=$(cat build/IMAGE)" >> $GITHUB_ENV
-      - name: Push  🔧
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
-        run: |
-          docker tag $(cat build/IMAGE) ${{ env.IMAGE_REF }}
-          docker push ${{ env.IMAGE_REF }}
+          context: images/
+          file: images/Dockerfile.kairos-${{ inputs.family }}
+          platforms: linux/arm64
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            VARIANT=${{ inputs.variant }}
+            MODEL=${{ inputs.model }}
+            FLAVOR=${{ inputs.flavor }}
+            FLAVOR_RELEASE=${{ inputs.flavor_release }}
+            FAMILY=${{ inputs.family }}
+            BASE_IMAGE=${{ inputs.base_image }}
+            RELEASE=${{ env.GIT_VERSION }}
+            SOFTWARE_VERSION=${{ inputs.k3s_version }}
+            SOFTWARE_VERSION_PREFIX=k3s
+      - name: Grype
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+        uses: anchore/scan-action@v6.0.0
+        with:
+          image: ${{ env.IMAGE_REF }}
+          output-format: sarif
+          output-file: grype.sarif
+          add-cpes-if-none: true
+      - name: Trivy
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          format: sarif
+          output: trivy.sarif
+      - name: Push the docker image
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
+        uses: docker/build-push-action@v6
+        with:
+          context: images/
+          file: images/Dockerfile.kairos-${{ inputs.family }}
+          platforms: linux/arm64
+          push: "true"
+          tags: ${{ env.IMAGE_REF }}
+          build-args: |
+            VARIANT=${{ inputs.variant }}
+            MODEL=${{ inputs.model }}
+            FLAVOR=${{ inputs.flavor }}
+            FLAVOR_RELEASE=${{ inputs.flavor_release }}
+            FAMILY=${{ inputs.family }}
+            BASE_IMAGE=${{ inputs.base_image }}
+            RELEASE=${{ env.GIT_VERSION }}
+            SOFTWARE_VERSION=${{ inputs.k3s_version }}
+            SOFTWARE_VERSION_PREFIX=k3s
       - name: Sign image
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+        if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         env:
           COSIGN_YES: true
         run: |
           docker push "${{ env.IMAGE_REF }}" # Otherwise .RepoDigests will be empty for some reason
           cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "${{ env.IMAGE_REF }}")
-      - name: Upload Image
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' }}
+      - name: Build raw image
+        if: ${{ inputs.model != 'rpi3' }}
+        run: |
+          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock -v $PWD/build/:/output quay.io/kairos/auroraboot:latest \
+          --debug \
+          --set "disable_http_server=true" \
+          --set "disable_netboot=true" \
+          --set "container_image=${{ env.IMAGE_REF }}" \
+          --set "state_dir=/output" \
+          --set "disk.raw=true"
+      - name: Upload Image as OCI artifact on release
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         run: |
           curl https://luet.io/install.sh | sudo sh
           IMAGE=$(echo "${{ env.IMAGE_REF }}" | sed 's/$/-img/')
@@ -142,48 +170,27 @@ jobs:
           sudo -E docker load -i image.tar
           sudo -E docker push "$IMAGE"
           sudo rm -rf build/IMAGE
-      - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
-        with:
-          files: |
-            build/*scan-reports.tar.gz
-      - name: Prepare sarif files  🔧
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          mkdir trivy-results grype-results
-          trivy=$(ls *trivy.sarif 2>/dev/null | head -n 1)
-          grype=$(ls *grype.sarif 2>/dev/null | head -n 1)
-          sudo mv $trivy trivy-results/result.sarif
-          sudo mv $grype grype-results/result.sarif
       - uses: itxaka/sarif-filter@v1
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          input: trivy-results/result.sarif
-          output: trivy-results/result.sarif
+          input: trivy.sarif
+          output: trivy.sarif
           severity: high
       - uses: itxaka/sarif-filter@v1
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          input: grype-results/result.sarif
-          output: grype-results/result.sarif
+          input: grype.sarif
+          output: grype.sarif
           severity: high
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        if: startsWith(github.ref, 'refs/tags/v')
+        uses: github/codeql-action/upload-sarif@v3
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          sarif_file: 'trivy-results'
-          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-trivy
+          sarif_file: 'trivy.sarif'
+          category: ${{ matrix.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-arm64-${{ inputs.model }}
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        if: startsWith(github.ref, 'refs/tags/v')
+        uses: github/codeql-action/upload-sarif@v3
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          sarif_file: 'grype-results'
-          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-grype
-      - name: Upload results
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.model != 'nvidia-jetson-agx-orin' }}
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
-        with:
-          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-arm-${{ inputs.model }}
-          path: build
-          if-no-files-found: error
+          sarif_file: 'grype.sarif'
+          category: ${{ matrix.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-arm64-${{ inputs.model }}
