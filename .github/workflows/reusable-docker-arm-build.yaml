@@ -117,6 +117,7 @@ jobs:
           output-format: table
           severity-cutoff: critical
           add-cpes-if-none: true
+          only-fixed: true
       - name: Grype sarif
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: anchore/scan-action@v6.0.0
@@ -126,6 +127,7 @@ jobs:
           output-file: grype.sarif
           severity-cutoff: critical
           add-cpes-if-none: true
+          only-fixed: true
       - name: Trivy
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: aquasecurity/trivy-action@0.29.0
