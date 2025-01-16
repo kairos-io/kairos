@@ -8,7 +8,7 @@ env:
   EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 permissions: read-all
 jobs:
-  get-core-matrix-model:
+  get-core-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -18,33 +18,15 @@ jobs:
           fetch-depth: 0
       - id: set-matrix
         run: |
-          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model != "generic"))'`
+          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core"))'`
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-  get-core-matrix-generic:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-      - id: set-matrix
-        run: |
-          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core" and .model == "generic"))'`
-          # the following lines are only required for multi line json
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
-
   # The matrix for standard (provider) images
-  get-standard-matrix-model:
+  get-standard-matrix:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -82,7 +64,7 @@ jobs:
           # fetch "k3s-systemd" versions
           sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(select(.name == "k3s-systemd")) | map(.version) | unique' >  k3s_systemd.json
           # fetch non-alpine flavors
-          jq 'map(select(.arch == "arm64" and .variant == "standard" and .model != "generic" and .flavor != "alpine"))' .github/flavors.json >  flavors_systemd.json
+          jq 'map(select(.arch == "arm64" and .variant == "standard" and .model and .flavor != "alpine"))' .github/flavors.json >  flavors_systemd.json
           # generate combinations
           jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}]' flavors_systemd.json k3s_systemd.json > combinations_systemd.json
           # merge the two combinations
@@ -93,7 +75,71 @@ jobs:
           content="${content//$'\r'/'%0D'}"
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
-
+  build-arm-core:
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    name: ${{ matrix.variant }}-${{ matrix.model }}
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    secrets: inherit
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      model: ${{ matrix.model }}
+      base_image: ${{ matrix.baseImage }}
+      worker: ${{ matrix.worker }}
+      variant: ${{ matrix.variant }}
+    needs:
+      - get-core-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
+  build-arm-standard:
+    uses: ./.github/workflows/reusable-docker-arm-build.yaml
+    name: ${{ matrix.variant }}-${{ matrix.model }}-${{ matrix.k3s_version }}
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    secrets: inherit
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      family: ${{ matrix.family }}
+      model: ${{ matrix.model }}
+      base_image: ${{ matrix.baseImage }}
+      worker: ${{ matrix.worker }}
+      variant: ${{ matrix.variant }}
+      k3s_version: ${{ matrix.k3s_version }}
+    needs:
+      - get-standard-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.get-standard-matrix.outputs.matrix)}}
   build-nvidia-base:
     runs-on: ARM64
     steps:
@@ -145,293 +191,4 @@ jobs:
       base_image: quay.io/kairos/cache:nvidia-base
       model: nvidia-jetson-agx-orin
       worker: ARM64
-  build-arm-core:
-    runs-on: ${{ matrix.worker }}
-    needs:
-      - get-core-matrix-model
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages-arm64
-          packages: utils/earthly
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
-      - name: Login to DockerHub
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Build  🔧
-        run: |
-          earthly -P +all-arm \
-            -VARIANT=core \
-            -MODEL=${{ matrix.model }} \
-            -FLAVOR=${{ matrix.flavor }} \
-            -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
-            -FAMILY=${{ matrix.family }} \
-            -BASE_IMAGE=${{ matrix.baseImage }}
-      - name: Convert all json files into a reports.tar.gz file
-        run: |
-          cd build
-          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
-          sudo tar cvf "${filename}-sbom-scan-reports.tar.gz" *.json
-      - name: Push  🔧
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          docker push $(cat build/IMAGE)
-      - name: Sign image
-        env:
-          COSIGN_YES: true
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          export IMAGE=$(cat build/IMAGE)
-          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-      - name: Upload Image
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          COSIGN_YES: true
-        run: |
-          curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
-          sudo tar cvf build.tar build
-          sudo luet util pack $IMAGE build.tar image.tar
-          sudo -E docker load -i image.tar
-          sudo -E docker push "$IMAGE"
-
-          # Sign the -img image
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-
-          sudo rm -rf build/IMAGE
-      - name: Release
-        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            build/*scan-reports.tar.gz
-      - name: Prepare sarif files  🔧
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          mkdir trivy-results grype-results
-          trivy=$(ls build/*trivy.sarif 2>/dev/null | head -n 1)
-          grype=$(ls build/*grype.sarif 2>/dev/null | head -n 1)
-          sudo mv $trivy trivy-results/result.sarif
-          sudo mv $grype grype-results/result.sarif
-      - uses: itxaka/sarif-filter@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          input: trivy-results/result.sarif
-          output: trivy-results/result.sarif
-          severity: high
-      - uses: itxaka/sarif-filter@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          input: grype-results/result.sarif
-          output: grype-results/result.sarif
-          severity: high
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          sarif_file: 'trivy-results'
-          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-trivy
-      - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          sarif_file: 'grype-results'
-          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-grype
-  build-arm-standard:
-    runs-on: ARM64
-    needs:
-      - get-standard-matrix-model
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      actions: read
-      security-events: write
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.get-standard-matrix.outputs.matrix)}}
-    steps:
-      - name: Install required packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            curl
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages-arm64
-          packages: utils/earthly
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@master
-      - name: size of docker images
-        run: |
-          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
-      - name: Login to DockerHub
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Build  🔧
-        run: |
-          earthly -P +all-arm \
-            -VARIANT=standard \
-            -MODEL=${{ matrix.model }} \
-            -K3S_VERSION=${{ matrix.k3s_version }} \
-            -FLAVOR=${{ matrix.flavor }} \
-            -FLAVOR_RELEASE=${{ matrix.flavorRelease }} \
-            -FAMILY=${{ matrix.family }} \
-            -BASE_IMAGE=${{ matrix.baseImage }}
-      - name: Convert all json files into a reports.tar.gz file
-        run: |
-          cd build
-          filename=$(ls *-grype.json | head -n 1) && filename=${filename%%-grype.json}
-          sudo tar cvf "${filename}-sbom-scan-reports.tar.gz" *.json
-      - name: Push  🔧
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          docker push $(cat build/IMAGE)
-      - name: Sign image
-        env:
-          COSIGN_YES: true
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          export IMAGE=$(cat build/IMAGE)
-          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-      - name: Upload Image
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          curl https://luet.io/install.sh | sudo sh
-          IMAGE=$(cat build/IMAGE | sed 's/$/-img/')
-          sudo tar cvf build.tar build
-          sudo luet util pack $IMAGE build.tar image.tar
-          sudo -E docker load -i image.tar
-          sudo -E docker push "$IMAGE"
-          sudo rm -rf build/IMAGE
-      - name: Release
-        uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            build/*scan-reports.tar.gz
-      - name: Prepare sarif files  🔧
-        run: |
-          mkdir trivy-results grype-results
-          trivy=$(ls build/*trivy.sarif 2>/dev/null | head -n 1)
-          grype=$(ls build/*grype.sarif 2>/dev/null | head -n 1)
-          sudo mv $trivy trivy-results/result.sarif
-          sudo mv $grype grype-results/result.sarif
-      - uses: itxaka/sarif-filter@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          input: trivy-results/result.sarif
-          output: trivy-results/result.sarif
-          severity: high
-      - uses: itxaka/sarif-filter@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          input: grype-results/result.sarif
-          output: grype-results/result.sarif
-          severity: high
-      - name: Upload Trivy scan results to GitHub Security tab
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        with:
-          sarif_file: 'trivy-results'
-          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-trivy
-      - name: Upload Grype scan results to GitHub Security tab
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        with:
-          sarif_file: 'grype-results'
-          category: ${{ matrix.flavor }}-${{ matrix.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-grype
-      - name: Space stats
-        if: always()
-        run: |
-          df -h
-      - name: Image stats
-        if: always()
-        run: |
-          docker images --format "{{.Size}} - {{.Repository}}:{{.Tag}}"
-
-  build-arm-generic:
-    needs:
-      - get-core-matrix-generic
-    runs-on: ARM64
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    strategy:
-      fail-fast: false
-      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          fetch-depth: 0
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages-arm64
-          packages: utils/earthly
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3
-      - name: Login to Quay Registry
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Build container 🔧
-        run: |
-          earthly -P +arm-container-image \
-            --FLAVOR=${{ matrix.flavor }} \
-            --FLAVOR_RELEASE=${{ matrix.flavor_release }} \
-            --FAMILY=${{ matrix.family }} \
-            --BASE_IMAGE=${{ matrix.base_image}} \
-            --MODEL=${{ matrix.model }} \
-            --VARIANT=${{ matrix.variant }}
-      - name: Push and sign 🔧
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          export IMAGE=$(cat build/IMAGE)
-          docker push "$IMAGE" # Otherwise .RepoDigests will be empty for some reason
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
+      variant: core
