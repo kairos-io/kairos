@@ -71,5 +71,5 @@ jobs:
       - name: Push to testing
         run: |
           TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h"
-          docker tag docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }} $TEST_IMAGE
+          docker tag ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} $TEST_IMAGE
           docker push $TEST_IMAGE
