@@ -54,7 +54,7 @@ jobs:
           -f images/Dockerfile.ubuntu .
       - name: Build iso 📦
         run: |
-          docker run --rm -ti -v /var/run/docker.sock:/var/run/docker.sock \
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
           quay.io/kairos/auroraboot:v0.4.3 \ 
           --debug \
