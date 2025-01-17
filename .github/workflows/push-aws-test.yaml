@@ -2,8 +2,8 @@ name: Push to AWS
 
 on:
   pull_request:
-    branches:
-      - master
+    paths:
+      - '**'
 
 permissions: read-all
 jobs:
