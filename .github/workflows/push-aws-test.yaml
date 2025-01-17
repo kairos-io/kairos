@@ -88,10 +88,10 @@ jobs:
           role-session-name: AWSCIPush
 
       - name: Push to AWS
-          env:
-            AWS_S3_BUCKET: kairos-cloud-images
-            AWS_PROFILE: default
-            AWS_REGION: eu-central-1
-          run: |
-            AWS_PROFILE=kairos
-            .github/upload-image-to-aws.sh $(ls *.raw)
+        env:
+          AWS_S3_BUCKET: kairos-cloud-images
+          AWS_PROFILE: default
+          AWS_REGION: eu-central-1
+        run: |
+          AWS_PROFILE=kairos
+          .github/upload-image-to-aws.sh $(ls *.raw)
