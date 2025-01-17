@@ -228,7 +228,8 @@ makeAMIpublic() {
 baseName=$(basename "$1")
 checkEnvVars
 checkArguments "$@"
-ensureVmImportRole
+# This is an one-off operation and require additional permissions which we don't need to give to CI.
+#ensureVmImportRole
 uploadImageToS3 "$1"
 output=$(importAsSnapshot "$baseName" | tee /dev/tty)
 snapshotID=$(echo "$output" | tail -1)
