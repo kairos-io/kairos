@@ -27,24 +27,18 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow
-      - name: Release space from worker
-        run: |
-          ./.github/release-space-from-ubuntu-runners.sh
+      # - name: Release space from worker
+      #   run: |
+      #     ./.github/release-space-from-ubuntu-runners.sh
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
       - name: Build 🔧
+        shell: bash
         run: |
-          # REPLACE_IN_FINAL
-          # TODO: Does "sort" work correctly on k3s versions? Which version do we want?
-          #k3s_version=$(echo '${{ needs.get-standard-matrix.outputs.matrix }}' | \
-          #  jq -r '[.[].k3s_version] | unique | sort | .[0]')
           k3s_version=v1.32.0-k3s1
-
-          # REPLACE_IN_FINAL
-          #version=$(git describe --always --tags --dirty)
           version=master
 
           containerImage=$(kairos-agent versioneer container-artifact-name \
@@ -58,10 +52,11 @@ jobs:
             --software-version "$k3s_version" \
             --version "$version"
           )
+          echo "Using $containerImage to build a cloud image"
 
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm -ti quay.io/kairos/auroraboot \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${containerImage}" \
@@ -69,11 +64,11 @@ jobs:
             --set "disk.raw=true" \
             --set "state_dir=/aurora"
 
-      - name: Install AWS cli
-        run: |
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          sudo ./aws/install
+      # - name: Install AWS cli
+      #   run: |
+      #     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+      #     unzip awscliv2.zip
+      #     sudo ./aws/install
 
       # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
       - name: Configure AWS Credentials
@@ -82,8 +77,8 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
+          #role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          #role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
           role-duration-seconds: 1200
           role-session-name: AWSCIPush
 
@@ -93,5 +88,4 @@ jobs:
           AWS_PROFILE: default
           AWS_REGION: eu-central-1
         run: |
-          AWS_PROFILE=kairos
           .github/upload-image-to-aws.sh $(ls *.raw)

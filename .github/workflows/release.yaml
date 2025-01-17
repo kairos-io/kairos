@@ -377,6 +377,8 @@ jobs:
           k3s_version=$(echo '${{ needs.get-standard-matrix.outputs.matrix }}' | \
             jq -r '[.[].k3s_version] | unique | sort | .[0]')
 
+          version=$(git describe --always --tags --dirty)
+
           containerImage=$(kairos-agent versioneer container-artifact-name \
             --flavor ${{ matrix.flavor }} \
             --flavor-release ${{ matrix.flavor_release }} \
@@ -386,12 +388,13 @@ jobs:
             --software-version-prefix k3s \
             --registry-and-org quay.io/kairos \
             --software-version "$k3s_version" \
-            --version $(git describe --always --tags --dirty)
+            --version "$version"
           )
+          echo "Using $containerImage to build a cloud image"
 
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm -ti quay.io/kairos/auroraboot \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${IMAGE}" \
