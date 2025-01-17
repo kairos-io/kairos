@@ -48,9 +48,9 @@ jobs:
           version=master
 
           containerImage=$(kairos-agent versioneer container-artifact-name \
-            --flavor ${{ .matrix.flavor }} \
-            --flavor-release ${{ .matrix.flavor_release }} \
-            --variant ${{ .matrix.variant }} \
+            --flavor ${{ matrix.flavor }} \
+            --flavor-release ${{ matrix.flavor_release }} \
+            --variant ${{ matrix.variant }} \
             --model generic \
             --arch amd64 \
             --software-version-prefix k3s \
