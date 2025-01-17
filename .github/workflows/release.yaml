@@ -113,7 +113,7 @@ jobs:
         uses: sigstore/cosign-installer@main
       - name: Release space from worker
         run: |
-          ./github/release-space-from-ubuntu-runners.sh
+          ./.github/release-space-from-ubuntu-runners.sh
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
@@ -215,7 +215,7 @@ jobs:
           git fetch --prune --unshallow
       - name: Release space from worker
         run: |
-          ./github/release-space-from-ubuntu-runners.sh
+          ./.github/release-space-from-ubuntu-runners.sh
       - name: Set up QEMU
         uses: docker/setup-qemu-action@master
         with:
@@ -294,7 +294,7 @@ jobs:
         uses: sigstore/cosign-installer@main
       - name: Release space from worker
         run: |
-          ./github/release-space-from-ubuntu-runners.sh
+          ./.github/release-space-from-ubuntu-runners.sh
       - name: Install earthly
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
@@ -365,7 +365,7 @@ jobs:
           git fetch --prune --unshallow
       - name: Release space from worker
         run: |
-          ./github/release-space-from-ubuntu-runners.sh
+          ./.github/release-space-from-ubuntu-runners.sh
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
