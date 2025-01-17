@@ -38,7 +38,7 @@ checkEnvVars() {
 }
 
 AWS() {
-  aws --profile $AWS_PROFILE --region $AWS_REGION "$@"
+  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" "$@"
 }
 
 # https://docs.aws.amazon.com/vm-import/latest/userguide/required-permissions.html#vmimport-role
@@ -108,15 +108,16 @@ EOF
 }
 
 uploadImageToS3() {
-  local file="$1"
-  local baseName=$(basename "$file")
-  local s3Path="s3://$AWS_S3_BUCKET/$file"
+  local file
+  local baseName
+  file="$1"
+  baseName=$(basename "$file")
 
   if AWS s3 ls "$AWS_S3_BUCKET/$baseName" > /dev/null 2>&1; then
     echo "File '$baseName' already exists in S3 bucket '$AWS_S3_BUCKET'."
   else
     echo "File '$baseName' does not exist in S3 bucket '$AWS_S3_BUCKET'. Uploading now."
-    AWS s3 cp $1 s3://$AWS_S3_BUCKET/$baseName
+    AWS s3 cp "$1" "s3://$AWS_S3_BUCKET/$baseName"
   fi
 }
 
@@ -139,7 +140,7 @@ waitForSnapshotCompletion() {
     fi
   done
 
-  echo $(AWS ec2 describe-import-snapshot-tasks --import-task-ids "$taskID" --query 'ImportSnapshotTasks[0].SnapshotTaskDetail.SnapshotId' --output text)
+  AWS ec2 describe-import-snapshot-tasks --import-task-ids "$taskID" --query 'ImportSnapshotTasks[0].SnapshotTaskDetail.SnapshotId' --output text
 }
 
 importAsSnapshot() {
@@ -149,7 +150,7 @@ importAsSnapshot() {
   snapshotID=$(AWS ec2 describe-snapshots --filters "Name=tag:SourceFile,Values=$file" --query "Snapshots[0].SnapshotId" --output text)
   if [ "$snapshotID" != "None" ]; then
     echo "Snapshot $snapshotID already exists for file $file"
-    echo $snapshotID
+    echo "$snapshotID"
     return 0
   fi
 
@@ -163,17 +164,13 @@ importAsSnapshot() {
   }
 }
 EOF
-  ) --query 'ImportTaskId' --output text)
-  if [ $? -ne 0 ]; then
-    echo "Failed to import snapshot"
-    return 1
-  fi
+  ) --query 'ImportTaskId' --output text | tee /dev/tty) || return 1
 
   echo "Snapshot import task started with ID: $taskID"
 
   snapshotID=$(waitForSnapshotCompletion "$taskID" | tail -1 | tee /dev/tty)
   echo "Adding tag to the snapshot with ID: $snapshotID"
-  AWS ec2 create-tags --resources $snapshotID --tags Key=SourceFile,Value=$file
+  AWS ec2 create-tags --resources "$snapshotID" --tags "Key=SourceFile,Value=$file"
 
   echo "$snapshotID" # Return the snapshot ID so that we can grab it with `tail -1`
 }
@@ -219,7 +216,7 @@ makeAMIpublic() {
   fi
 
   echo "Making image '$imageName' public..."
-  AWS ec2 modify-image-attribute --image-id $imageID --launch-permission "{\"Add\":[{\"Group\":\"all\"}]}"
+  AWS ec2 modify-image-attribute --image-id "$imageID" --launch-permission "{\"Add\":[{\"Group\":\"all\"}]}"
   echo "Image '$imageName' is now public."
 }
 
@@ -228,8 +225,8 @@ baseName=$(basename "$1")
 checkEnvVars
 checkArguments "$@"
 ensureVmImportRole
-uploadImageToS3 $1
-output=$(importAsSnapshot $baseName | tee /dev/tty)
+uploadImageToS3 "$1"
+output=$(importAsSnapshot "$baseName" | tee /dev/tty)
 snapshotID=$(echo "$output" | tail -1)
-checkImageExistsOrCreate $baseName $snapshotID
-makeAMIpublic $baseName
+checkImageExistsOrCreate "$baseName" "$snapshotID"
+makeAMIpublic "$baseName"
