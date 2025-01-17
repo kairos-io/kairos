@@ -168,11 +168,11 @@ importAsSnapshot() {
   }
 }
 EOF
-  ) --query 'ImportTaskId' --output text | tee /dev/tty) || return 1
+  ) --query 'ImportTaskId' --output text | tee  /dev/fd/2) || return 1
 
   echo "Snapshot import task started with ID: $taskID"
 
-  snapshotID=$(waitForSnapshotCompletion "$taskID" | tail -1 | tee /dev/tty)
+  snapshotID=$(waitForSnapshotCompletion "$taskID" | tail -1 | tee /dev/fd/2)
   echo "Adding tag to the snapshot with ID: $snapshotID"
   AWS ec2 create-tags --resources "$snapshotID" --tags "Key=SourceFile,Value=$file"
 
@@ -231,7 +231,7 @@ checkArguments "$@"
 # This is an one-off operation and require additional permissions which we don't need to give to CI.
 #ensureVmImportRole
 uploadImageToS3 "$1"
-output=$(importAsSnapshot "$baseName" | tee /dev/tty)
+output=$(importAsSnapshot "$baseName" | tee /dev/fd/2)
 snapshotID=$(echo "$output" | tail -1)
 checkImageExistsOrCreate "$baseName" "$snapshotID"
 makeAMIpublic "$baseName"
