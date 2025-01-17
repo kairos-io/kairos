@@ -85,7 +85,6 @@ jobs:
       - name: Push to AWS
         env:
           AWS_S3_BUCKET: kairos-cloud-images
-          AWS_PROFILE: default
           AWS_REGION: eu-central-1
         run: |
           .github/upload-image-to-aws.sh $(ls *.raw)

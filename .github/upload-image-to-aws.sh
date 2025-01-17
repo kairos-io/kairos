@@ -31,14 +31,18 @@ checkArguments() {
 }
 
 checkEnvVars() {
-  if [ -z "$AWS_PROFILE" ] || [ -z "$AWS_REGION" ] || [ -z "$AWS_S3_BUCKET" ]; then
-    echo "Error: AWS_PROFILE, AWS_REGION and AWS_S3_BUCKET environment variables must be set."
+  if [ -z "$AWS_REGION" ] || [ -z "$AWS_S3_BUCKET" ]; then
+    echo "Error: AWS_REGION and AWS_S3_BUCKET environment variables must be set."
     exit 1
   fi
 }
 
 AWS() {
-  aws --profile "$AWS_PROFILE" --region "$AWS_REGION" "$@"
+  if [ -z "$AWS_PROFILE" ]; then
+    aws --region "$AWS_REGION" "$@"
+  else
+    aws --region "$AWS_REGION" --profile "$AWS_PROFILE" "$@"
+  fi
 }
 
 # https://docs.aws.amazon.com/vm-import/latest/userguide/required-permissions.html#vmimport-role
