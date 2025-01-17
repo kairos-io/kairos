@@ -113,46 +113,7 @@ jobs:
         uses: sigstore/cosign-installer@main
       - name: Release space from worker
         run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm || true
-          sudo apt-get remove -y powershell || true
-          sudo apt-get remove -y firefox || true
-          sudo apt-get remove -y monodoc-manual || true
-          sudo apt-get remove -y msbuild || true
-          sudo apt-get remove -y microsoft-edge-stable || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get remove -y '^gcc-*' || true
-          sudo apt-get remove -y '^g++-*' || true
-          sudo apt-get remove -y '^cpp-*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
-          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
-          df -h
+          ./.github/release-space-from-ubuntu-runners.sh
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
@@ -249,53 +210,12 @@ jobs:
     strategy:
       matrix: ${{ fromJson(needs.get-uki-matrix.outputs.matrix) }}
     steps:
-      - name: Release space from worker
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm || true
-          sudo apt-get remove -y powershell || true
-          sudo apt-get remove -y firefox || true
-          sudo apt-get remove -y monodoc-manual || true
-          sudo apt-get remove -y msbuild || true
-          sudo apt-get remove -y microsoft-edge-stable || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get remove -y '^gcc-*' || true
-          sudo apt-get remove -y '^g++-*' || true
-          sudo apt-get remove -y '^cpp-*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow
       - name: Release space from worker
         run: |
-          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
-          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
+          ./.github/release-space-from-ubuntu-runners.sh
       - name: Set up QEMU
         uses: docker/setup-qemu-action@master
         with:
@@ -354,7 +274,6 @@ jobs:
         with:
           files: |
             build/*.efi
-
   build-standard:
     runs-on: ubuntu-latest
     needs:
@@ -375,44 +294,7 @@ jobs:
         uses: sigstore/cosign-installer@main
       - name: Release space from worker
         run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm || true
-          sudo apt-get remove -y powershell || true
-          sudo apt-get remove -y firefox || true
-          sudo apt-get remove -y monodoc-manual || true
-          sudo apt-get remove -y msbuild || true
-          sudo apt-get remove -y microsoft-edge-stable || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get remove -y '^gcc-*' || true
-          sudo apt-get remove -y '^g++-*' || true
-          sudo apt-get remove -y '^cpp-*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
+          ./.github/release-space-from-ubuntu-runners.sh
       - name: Install earthly
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
@@ -458,3 +340,83 @@ jobs:
         with:
           files: |
             release/*
+
+  build-aws-image:
+    runs-on: ubuntu-latest
+    needs:
+      - build-standard
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    strategy:
+      matrix:
+        include:
+          # We don't publish AWS images for all combinations so we go hardcoded here
+          - flavor: ubuntu
+            flavor_release: 24.04
+            family: ubuntu
+            base_image: ubuntu:24.04
+            variant: standard
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - run: |
+          git fetch --prune --unshallow
+      - name: Release space from worker
+        run: |
+          ./.github/release-space-from-ubuntu-runners.sh
+      - name: Install kairos-agent (for versioneer)
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
+      - name: Build 🔧
+        run: |
+          # TODO: Does "sort" work correctly on k3s versions? Which version do we want?
+          k3s_version=$(echo '${{ needs.get-standard-matrix.outputs.matrix }}' | \
+            jq -r '[.[].k3s_version] | unique | sort | .[0]')
+
+          version=$(git describe --always --tags --dirty)
+
+          containerImage=$(kairos-agent versioneer container-artifact-name \
+            --flavor ${{ matrix.flavor }} \
+            --flavor-release ${{ matrix.flavor_release }} \
+            --variant ${{ matrix.variant }} \
+            --model generic \
+            --arch amd64 \
+            --software-version-prefix k3s \
+            --registry-and-org quay.io/kairos \
+            --software-version "$k3s_version" \
+            --version "$version"
+          )
+          echo "Using $containerImage to build a cloud image"
+
+          docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
+            --privileged \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
+            --debug \
+            --set "disable_http_server=true" \
+            --set "container_image=docker:${containerImage}" \
+            --set "disable_netboot=true" \
+            --set "disk.raw=true" \
+            --set "state_dir=/aurora"
+
+      # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+          #role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          #role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
+          role-duration-seconds: 1200
+          role-session-name: AWSCIPush
+
+      - name: Push to AWS
+        env:
+          AWS_S3_BUCKET: kairos-cloud-images
+          AWS_REGION: eu-central-1
+        run: |
+          .github/upload-image-to-aws.sh $(ls *.raw)

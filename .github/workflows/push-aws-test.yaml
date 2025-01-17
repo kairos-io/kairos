@@ -1,0 +1,87 @@
+name: Push to AWS
+
+on:
+  pull_request:
+    paths:
+      - '**'
+
+permissions: read-all
+jobs:
+  build-aws-image:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    strategy:
+      matrix:
+        include:
+          # We don't publish AWS images for all combinations so we go hardcoded here
+          - flavor: ubuntu
+            flavor_release: 24.04
+            family: ubuntu
+            base_image: ubuntu:24.04
+            variant: standard
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - run: |
+          git fetch --prune --unshallow
+      - name: Install kairos-agent (for versioneer)
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
+      - name: Build 🔧
+        shell: bash
+        run: |
+          k3s_version=v1.32.0-k3s1
+          version=master
+
+          containerImage=$(kairos-agent versioneer container-artifact-name \
+            --flavor ${{ matrix.flavor }} \
+            --flavor-release ${{ matrix.flavor_release }} \
+            --variant ${{ matrix.variant }} \
+            --model generic \
+            --arch amd64 \
+            --software-version-prefix k3s \
+            --registry-and-org quay.io/kairos \
+            --software-version "$k3s_version" \
+            --version "$version"
+          )
+          echo "Using $containerImage to build a cloud image"
+
+          docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
+            --privileged \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
+            --debug \
+            --set "disable_http_server=true" \
+            --set "container_image=docker:${containerImage}" \
+            --set "disable_netboot=true" \
+            --set "disk.raw=true" \
+            --set "state_dir=/aurora"
+
+      # - name: Install AWS cli
+      #   run: |
+      #     curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+      #     unzip awscliv2.zip
+      #     sudo ./aws/install
+
+      # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+          #role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          #role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
+          role-duration-seconds: 1200
+          role-session-name: AWSCIPush
+
+      - name: Push to AWS
+        env:
+          AWS_S3_BUCKET: kairos-cloud-images
+          AWS_REGION: eu-central-1
+        run: |
+          .github/upload-image-to-aws.sh $(ls *.raw)
