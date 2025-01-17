@@ -11,6 +11,3 @@ COPY --from=kairos-init /kairos-init /kairos-init
 RUN /kairos-init -l debug -s install -m "${MODEL}" -v "${VARIANT}" -t "${TRUSTED_BOOT}"
 RUN /kairos-init -l debug -s init -m "${MODEL}" -v "${VARIANT}" -t "${TRUSTED_BOOT}"
 RUN rm /kairos-init
-
-# Fixup sudo perms
-RUN chown root:root /usr/bin/sudo && chmod 4755 /usr/bin/sudo

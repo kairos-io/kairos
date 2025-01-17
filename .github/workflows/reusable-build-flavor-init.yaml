@@ -51,7 +51,7 @@ jobs:
           --build-arg BASE_IMAGE=${{ inputs.base_image }} \
           --build-arg MODEL=${{ inputs.model }} \
           --build-arg VARIANT=${{ inputs.variant }} \
-          -f images/Dockerfile.ubuntu .
+          -f images/Dockerfile .
       - name: Build iso 📦
         run: |
           mkdir build
