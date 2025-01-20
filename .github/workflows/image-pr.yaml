@@ -93,6 +93,60 @@ jobs:
       variant: core
       arch: amd64
 
+  core-alpine:
+    uses: ./.github/workflows/reusable-build-flavor-init.yaml
+    secrets: inherit
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+      family: alpine
+      base_image: alpine:3.19
+      model: generic
+      variant: core
+      arch: amd64
+
+  standard:
+    uses: ./.github/workflows/reusable-build-provider.yaml
+    secrets: inherit
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      flavor: opensuse
+      flavor_release: "leap-15.6"
+      family: opensuse
+      base_image: opensuse/leap:15.6
+      model: generic
+      variant: standard
+      arch: amd64
+
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     secrets: inherit
@@ -123,6 +177,15 @@ jobs:
     needs:
       - core-ubuntu-24-lts
 
+  install-alpine:
+    uses: ./.github/workflows/reusable-install-test.yaml
+    secrets: inherit
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+    needs:
+      - core-alpine
+
   zfs:
     uses: ./.github/workflows/reusable-zfs-test.yaml
     secrets: inherit
@@ -141,6 +204,15 @@ jobs:
     needs:
       - core-ubuntu-24-lts
 
+  acceptance-alpine:
+    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
+    secrets: inherit
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+    needs:
+      - core-alpine
+
   bundles:
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     secrets: inherit
@@ -158,6 +230,16 @@ jobs:
       flavor_release: "24.04"
     needs:
       - core-ubuntu-24-lts
+
+  reset-alpine:
+    uses: ./.github/workflows/reusable-qemu-reset-test.yaml
+    secrets: inherit
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+    needs:
+      - core-alpine
+
   netboot:
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     secrets: inherit
@@ -171,6 +253,19 @@ jobs:
     needs:
       - core-ubuntu-24-lts
 
+  netboot-alpine:
+    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
+    secrets: inherit
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+      family: alpine
+      base_image: alpine:3.19
+      model: generic
+      variant: core
+    needs:
+      - core-alpine
+
   upgrade:
     uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
     secrets: inherit
@@ -179,6 +274,15 @@ jobs:
       flavor_release: "24.04"
     needs:
       - core-ubuntu-24-lts
+
+  upgrade-alpine:
+    uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
+    secrets: inherit
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+    needs:
+      - core-alpine
 
   upgrade-latest:
     uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
@@ -190,6 +294,15 @@ jobs:
       # release_matcher: "23.10"  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
       - core-ubuntu-24-lts
+
+  # enable once the first alpine only release is out as it currently cannot find the latest alpine release properly
+  # upgrade-latest-alpine:
+  #   uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
+  #   with:
+  #     flavor: alpine
+  #     flavor_release: "3.19"
+  #   needs:
+  #     - core-alpine
 
   custom-partitioning:
     secrets: inherit
@@ -230,6 +343,25 @@ jobs:
       label: ${{ matrix.label }}
     needs:
       - core-ubuntu-24-lts
+    strategy:
+      fail-fast: true
+      matrix:
+        label:
+          - "local-encryption"
+          - "remote-auto"
+          - "remote-static"
+          - "remote-https-pinned"
+          - "remote-https-bad-cert"
+
+  encryption-alpine:
+    secrets: inherit
+    uses: ./.github/workflows/reusable-encryption-test.yaml
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+      label: ${{ matrix.label }}
+    needs:
+      - core-alpine
     strategy:
       fail-fast: true
       matrix:
