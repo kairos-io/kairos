@@ -147,6 +147,33 @@ jobs:
       variant: standard
       arch: amd64
 
+  standard-alpine:
+    uses: ./.github/workflows/reusable-build-flavor-init.yaml
+    secrets: inherit
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+      family: alpine
+      base_image: alpine:3.19
+      model: generic
+      variant: standard
+      arch: amd64
+
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     secrets: inherit
@@ -406,6 +433,7 @@ jobs:
       variant: standard
     needs:
       - standard
+      - standard-alpine
     strategy:
       fail-fast: false
       max-parallel: 2
