@@ -55,7 +55,7 @@ jobs:
           # we use the right one.
           ISO=$(ls kairos-${{ inputs.family }}-${{ env.MATCHER }}*core-amd64-generic-v*.iso | grep -v ipxe | head -n 1)
           earthly +run-qemu-test --PREBUILT_ISO=$ISO \
-            --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h \
+            --CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}:24h \
             --TEST_SUITE=upgrade-latest-with-cli
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         if: failure()
