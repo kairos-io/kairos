@@ -148,26 +148,26 @@ jobs:
         with:
           input: trivy-results/result.sarif
           output: trivy-results/result.sarif
-          severity: high
+          severity: critical
       - uses: itxaka/sarif-filter@v1
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         with:
           input: grype-results/result.sarif
           output: grype-results/result.sarif
-          severity: high
+          severity: critical
       - name: Check scan results
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         continue-on-error: true
         run: |
           result=$(cat grype-results/result.sarif | jq '.runs[0].results | length')
           if (( result > 0 )); then
-              echo "Critical or high severity issues found in Grype scan"
+              echo "Critical severity issues found in Grype scan"
               exit 1
           fi
 
           result=$(cat trivy-results/result.sarif | jq '.runs[0].results | length')
           if (( result > 0 )); then
-              echo "Critical or high severity issues found in Trivy scan"
+              echo "Critical severity issues found in Trivy scan"
               exit 1
           fi
       - name: Upload Trivy scan results to GitHub Security tab

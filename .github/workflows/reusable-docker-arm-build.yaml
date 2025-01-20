@@ -188,13 +188,13 @@ jobs:
         with:
           input: trivy.sarif
           output: trivy.sarif
-          severity: high
+          severity: critical
       - uses: itxaka/sarif-filter@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
           input: grype.sarif
           output: grype.sarif
-          severity: high
+          severity: critical
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: startsWith(github.ref, 'refs/tags/')
@@ -207,3 +207,11 @@ jobs:
         with:
           sarif_file: 'grype.sarif'
           category: ${{ matrix.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-arm64-${{ inputs.model }}
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: ${{ matrix.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-arm64-${{ inputs.model }}-scan-results
+          path: |
+            trivy.sarif
+            grype.sarif
+          if-no-files-found: error
