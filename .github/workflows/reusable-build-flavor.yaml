@@ -155,6 +155,21 @@ jobs:
           input: grype-results/result.sarif
           output: grype-results/result.sarif
           severity: high
+      - name: Check scan results
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        run: |
+          result=$(cat grype-results/result.sarif | jq '.runs[0].results | length')
+          if (( result > 0 )); then
+              echo "Critical or high severity issues found in Grype scan"
+              exit 1
+          fi
+
+          result=$(cat trivy-results/result.sarif | jq '.runs[0].results | length')
+          if (( result > 0 )); then
+              echo "Critical or high severity issues found in Trivy scan"
+              exit 1
+          fi
       - name: Upload Trivy scan results to GitHub Security tab
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
@@ -167,6 +182,14 @@ jobs:
         with:
           sarif_file: 'grype-results'
           category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-grype
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        with:
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-scan-results.zip
+          path: |
+            grype-results/*.sarif
+            trivy-results/*.sarif
+          if-no-files-found: error
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
