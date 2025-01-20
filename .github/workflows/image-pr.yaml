@@ -381,7 +381,7 @@ jobs:
           - "remote-https-pinned"
           - "remote-https-bad-cert"
 
-  various:
+  standard-tests:
     secrets: inherit
     uses: ./.github/workflows/reusable-provider-tests.yaml
     permissions:
@@ -403,6 +403,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
       label: ${{ matrix.label }}
+      variant: standard
     needs:
       - standard
     strategy:
@@ -413,16 +414,12 @@ jobs:
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-qrcode-install"
-            variant: "core"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-upgrade"
-            variant: "core"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             label: "provider-upgrade-k8s"
-            variant: "core"
           - flavor: "alpine"
             flavorRelease: "3.19"
             label: "provider-upgrade-k8s"
-            variant: "core"
