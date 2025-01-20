@@ -15,6 +15,9 @@ on:
       release_matcher:
         required: false
         type: string
+      variant:
+        required: true
+        type: string
 
 permissions: read-all
 jobs:
