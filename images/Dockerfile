@@ -18,7 +18,7 @@ FROM base AS core
 
 FROM base AS standard
 COPY --from=luet /usr/bin/luet /usr/bin/luet
-RUN luet install -y k8s/k3s-$(grep alpine /etc/os-release && echo "openrc" || echo "systemd")
+RUN luet install -y k8s/k3s-$(grep -q alpine /etc/os-release && echo "openrc" || echo "systemd")
 
 
 FROM ${VARIANT} AS final
