@@ -1,5 +1,5 @@
 VERSION 0.6
-FROM alpine:3.19
+FROM alpine:3.21
 
 # renovate: datasource=docker depName=quay.io/luet/base versioning=semver
 ARG LUET_VERSION=0.35.5
