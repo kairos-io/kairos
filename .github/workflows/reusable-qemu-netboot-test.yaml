@@ -25,29 +25,52 @@ on:
 permissions: read-all
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: kvm
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - run: |
-          git fetch --prune --unshallow
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
+      - uses: actions/checkout@v4
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
-      - name: Login to earthly
+      - uses: actions/checkout@v4
+        with:
+          repository: "ipxe/ipxe"
+          path: "ipxe"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@master
+        with:
+          platforms: all
+      - name: Install deps
         run: |
-          earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
-      - run: |
-          earthly -P +run-qemu-netboot-test \
-            --TEST_SUITE=netboot-test \
-            --FLAVOR=${{ inputs.flavor }} \
-            --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
-            --FAMILY=${{ inputs.family }} \
-            --BASE_IMAGE=${{ inputs.base_image}} \
-            --MODEL=${{ inputs.model }} \
-            --VARIANT=${{ inputs.variant }}
+          sudo apt-get update
+          sudo apt-get install -y mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
+      - name: Download ISO
+        id: iso
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+      - name: Build iPXE iso with our script on it
+        run: |
+          cp tests/assets/kairos.ipxe ipxe/src/kairos.ipxe
+          pushd ipxe/src && make bin/ipxe.iso EMBED=kairos.ipxe && popd
+          cp ipxe/src/bin/ipxe.iso ipxe.iso
+      - name: Extract ipxe artifacts for the ipxe server
+        run: |
+          export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
+          isoinfo -x /rootfs.squashfs -R -i ${ISO} > build/kairos.squashfs
+          isoinfo -x /boot/kernel -R -i ${ISO} > build/kairos-kernel
+          isoinfo -x /boot/initrd -R -i ${ISO} > build/kairos-initrd
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 4000
+          CPUS: 2
+        run: |
+          # Run the http server in the background
+          docker run -d -v $PWD/build/:/build --workdir=/build --net=host python:3.11.0-alpine python3 -m http.server 80
+          export ISO=$PWD/ipxe.iso
+          cp tests/go.* .
+          go mod download
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "netboot-test" --fail-fast -r ./tests/
+          
