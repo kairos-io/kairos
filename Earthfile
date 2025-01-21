@@ -814,19 +814,19 @@ grype-scan:
 
     # Use base-image so it can read original os-release file
     FROM +base-image
-
     WORKDIR /
-
-    COPY +grype/grype grype
-
-    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
-
     RUN mkdir build
-    RUN ./grype dir:. --output sarif --add-cpes-if-none --file /build/report.sarif
-    RUN ./grype dir:. --output json --add-cpes-if-none --file /build/report.json
-    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-grype.sarif
-    SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${ISO_NAME}-grype.json
+    COPY +grype/grype grype
+    ARG NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
+    # We could scan the "/" directory but earthly injects binaries like earth_debugger which are not in the image
+    WITH DOCKER --load image=+base-image
+      RUN ./grype docker:image --output json --add-cpes-if-none --file /build/report.json && \
+          ./grype docker:image --output sarif --add-cpes-if-none --file /build/report.sarif
+    END
+
+    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${NAME}-grype.sarif
+    SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${NAME}-grype.json
 
 ###
 ### Test targets
