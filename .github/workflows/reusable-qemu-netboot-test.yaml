@@ -36,6 +36,7 @@ jobs:
         with:
           repository: "ipxe/ipxe"
           path: "ipxe"
+          fetch-depth: '0'
       - name: Set up QEMU
         uses: docker/setup-qemu-action@master
         with:
@@ -43,17 +44,17 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y mtools syslinux isolinux gcc-arm-none-eabi git make gcc liblzma-dev mkisofs xorriso
-      - name: Download ISO
-        id: iso
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+          sudo apt-get install -y mtools syslinux isolinux git make gcc liblzma-dev mkisofs xorriso build-essential
       - name: Build iPXE iso with our script on it
         run: |
           cp tests/assets/kairos.ipxe ipxe/src/kairos.ipxe
           pushd ipxe/src && make bin/ipxe.iso EMBED=kairos.ipxe && popd
           cp ipxe/src/bin/ipxe.iso ipxe.iso
+      - name: Download ISO
+        id: iso
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
       - name: Extract ipxe artifacts for the ipxe server
         run: |
           export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
