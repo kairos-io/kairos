@@ -1,0 +1,20 @@
+#FROM quay.io/kairos/ubuntu:24.04-core-amd64-generic-master
+FROM ubuntu:24.04
+  
+# systemctl is needed when running k0s install controller because it interacts
+# with systemctl to do commands like daemon-reload
+# we still need to figure out the open-rc solution
+RUN apt-get update && apt-get install -y systemctl curl
+
+# installing the installer
+RUN curl -sfL https://get.k0s.sh > installer.sh
+RUN bash installer.sh
+
+# Otherwise k0s will check /proc/1/comm which is not present in a container
+# we still need to figure out the open-rc solution
+RUN mkdir -p /run/systemd/system
+# installing k0s
+RUN k0s install controller --single --debug --verbose
+RUN mv /usr/local/bin/k0s /usr/bin/
+# But then we need to remove it to avoid confusing the system
+RUN rm -rf /run/systemd/system
