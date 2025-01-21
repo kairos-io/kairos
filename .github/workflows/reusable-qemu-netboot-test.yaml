@@ -57,6 +57,7 @@ jobs:
           name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
       - name: Extract ipxe artifacts for the ipxe server
         run: |
+          mkdir -p build
           export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
           isoinfo -x /rootfs.squashfs -R -i ${ISO} > build/kairos.squashfs
           isoinfo -x /boot/kernel -R -i ${ISO} > build/kairos-kernel
