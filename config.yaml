@@ -1,0 +1,14 @@
+#cloud-config
+stages:
+  network:
+    - users:
+        kairos:
+          groups:
+              - admin
+          name: kairos
+          passwd: kairos
+  rootfs:
+    - name: "custom mounts"
+      environment_file: /run/cos/custom-layout.env
+      environment:
+        CUSTOM_BIND_MOUNTS: "/var/lib/k0s"
