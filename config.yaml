@@ -7,6 +7,20 @@ stages:
               - admin
           name: kairos
           passwd: kairos
+    - name: "Override k0s controller binary path"
+      files:
+        - path: /etc/systemd/system/k0scontroller.service.d/override.conf
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            ConditionFileIsExecutable=
+            ConditionFileIsExecutable=/usr/bin/k0s
+
+            [Service]
+            ExecStart=
+            ExecStart=/usr/bin/k0s controller --debug=true --single=true --verbose=true
   rootfs:
     - name: "custom mounts"
       environment_file: /run/cos/custom-layout.env
