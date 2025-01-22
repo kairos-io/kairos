@@ -788,25 +788,21 @@ trivy-scan:
 
     # Use base-image so it can read original os-release file
     FROM +base-image
-    RUN mkdir build
-    WORKDIR /
+
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
+
     COPY +trivy/trivy /trivy
     COPY +trivy/contrib /contrib
     # This repo seems to have no request limit
     ENV TRIVY_DB_REPOSITORY=public.ecr.aws/aquasecurity/trivy-db:2
 
-    ARG NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
-
-    # We could scan the "/" directory but earthly injects binaries like earth_debugger which are not in the image
-    WITH DOCKER --load image=+base-image
-      RUN /trivy image --skip-dirs /tmp --timeout 30m --format sarif -o /build/report.sarif --no-progress image && \
-          /trivy image --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o /build/report.html --no-progress image && \
-          /trivy image --skip-dirs /tmp --timeout 30m -f json -o /build/results.json --no-progress image
-    END
-
-    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${NAME}-trivy.sarif
-    SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${NAME}-trivy.html
-    SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${NAME}-trivy.json
+    WORKDIR /build
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format sarif -o report.sarif --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m --format template --template "@/contrib/html.tpl" -o report.html --no-progress /
+    RUN /trivy filesystem --skip-dirs /tmp --timeout 30m -f json -o results.json --no-progress /
+    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-trivy.sarif
+    SAVE ARTIFACT /build/report.html report.html AS LOCAL build/${ISO_NAME}-trivy.html
+    SAVE ARTIFACT /build/results.json results.json AS LOCAL build/${ISO_NAME}-trivy.json
 
 grype:
     ARG GRYPE_VERSION
@@ -818,19 +814,19 @@ grype-scan:
 
     # Use base-image so it can read original os-release file
     FROM +base-image
+
     WORKDIR /
-    RUN mkdir build
+
     COPY +grype/grype grype
-    ARG NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-    # We could scan the "/" directory but earthly injects binaries like earth_debugger which are not in the image
-    WITH DOCKER --load image=+base-image
-      RUN ./grype docker:image --output json --add-cpes-if-none --file /build/report.json && \
-          ./grype docker:image --output sarif --add-cpes-if-none --file /build/report.sarif
-    END
+    ARG ISO_NAME=$(cat /etc/kairos-release | grep 'KAIROS_ARTIFACT' | sed 's/KAIROS_ARTIFACT=\"//' | sed 's/\"//')
 
-    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${NAME}-grype.sarif
-    SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${NAME}-grype.json
+    RUN mkdir build
+    RUN ./grype dir:. --output sarif --add-cpes-if-none --file /build/report.sarif
+    RUN ./grype dir:. --output json --add-cpes-if-none --file /build/report.json
+    SAVE ARTIFACT /build/report.sarif report.sarif AS LOCAL build/${ISO_NAME}-grype.sarif
+    SAVE ARTIFACT /build/report.json report.json AS LOCAL build/${ISO_NAME}-grype.json
+
 
 ###
 ### Test targets
