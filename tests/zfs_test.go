@@ -33,7 +33,11 @@ var _ = Describe("kairos zfs test", Label("zfs"), func() {
 		})
 
 		By("creating a pool with two disks", func() {
-			out, err := vm.Sudo("dd if=/dev/zero of=/usr/local/disk0.img bs=1M count=1024")
+			// Check mods
+			out, err := vm.Sudo("lsmod")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("zfs"), out)
+			out, err = vm.Sudo("dd if=/dev/zero of=/usr/local/disk0.img bs=1M count=1024")
 			Expect(err).ToNot(HaveOccurred(), out)
 			out, err = vm.Sudo("dd if=/dev/zero of=/usr/local/disk1.img bs=1M count=1024")
 			Expect(err).ToNot(HaveOccurred(), out)

@@ -55,7 +55,7 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
 		}
-		
+
 		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
 
 	})
