@@ -145,7 +145,7 @@ jobs:
       matrix:
         include:
           - flavor: "alpine"
-            flavorRelease: "3.19"
+            flavorRelease: "3.21"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
           - flavor: "opensuse"
@@ -185,9 +185,9 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.21"
             family: alpine
-            base_image: alpine:3.19
+            base_image: alpine:3.21
             model: generic
             variant: core
           - flavor: opensuse
@@ -213,11 +213,11 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.21"
             family: alpine
             variant: core
             model: generic
-            baseImage: alpine:3.19
+            baseImage: alpine:3.21
           - flavor: opensuse
             flavorRelease: leap-15.6
             family: opensuse
@@ -243,7 +243,7 @@ jobs:
       matrix:
         include:
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.21"
           - flavor: opensuse
             flavorRelease: leap-15.6
             # releaseMatcher: leap-15.5
@@ -263,7 +263,7 @@ jobs:
         include:
           # cant do alpine yet as it hasnt been released with the proper name
           # - flavor: alpine
-          #   flavorRelease: "3.19"
+          #   flavorRelease: "3.21"
           - flavor: opensuse
             flavorRelease: leap-15.6
             family: opensuse
@@ -356,9 +356,9 @@ jobs:
             family: opensuse
             baseImage: opensuse/leap:15.6
           - flavor: alpine
-            flavorRelease: "3.19"
+            flavorRelease: "3.21"
             family: alpine
-            baseImage: alpine:3.19
+            baseImage: alpine:3.21
           - flavor: ubuntu
             flavorRelease: "24.04"
             family: ubuntu
@@ -407,10 +407,10 @@ jobs:
             label: "provider-upgrade-k8s"
           # no point of running this on CI if it always fails
           # - flavor: "alpine"
-          #   flavorRelease: "3.19"
+          #   flavorRelease: "3.21"
           #   label: "provider-decentralized-k8s"
           - flavor: "alpine"
-            flavorRelease: "3.19"
+            flavorRelease: "3.21"
             label: "provider-upgrade-k8s"
   standard-upgrade-latest:
     secrets: inherit
@@ -429,7 +429,7 @@ jobs:
         include:
           # cant do alpine yet as it hasnt been released with the proper name
           # - flavor: "alpine"
-          #   flavorRelease: "3.19"
+          #   flavorRelease: "3.21"
           - flavor: "opensuse"
             flavorRelease: "leap-15.6"
             family: "opensuse"
