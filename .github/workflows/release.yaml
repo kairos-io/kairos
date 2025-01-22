@@ -195,8 +195,8 @@ jobs:
       - name: Prepare files for release
         run: |
           mkdir trivy-results grype-results
-          trivy=$(ls build/*trivy.sarif 2>/dev/null | head -n 1)
-          grype=$(ls build/*grype.sarif 2>/dev/null | head -n 1)
+          trivy=$(ls release/*trivy.sarif 2>/dev/null | head -n 1)
+          grype=$(ls release/*grype.sarif 2>/dev/null | head -n 1)
           sudo mv $trivy trivy-results/result.sarif
           sudo mv $grype grype-results/result.sarif
           mkdir reports
