@@ -363,9 +363,6 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow
-      - name: Release space from worker
-        run: |
-          ./.github/release-space-from-ubuntu-runners.sh
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
         with:
