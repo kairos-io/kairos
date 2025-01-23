@@ -158,6 +158,8 @@ jobs:
             RELEASE=${{ env.GIT_VERSION }}
             SOFTWARE_VERSION=${{ inputs.k3s_version }}
             SOFTWARE_VERSION_PREFIX=k3s
+            # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
+            FRAMEWORK_VERSION=v2.15.4
       - name: Sign image
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         env:
