@@ -6,7 +6,7 @@ ARG LUET_VERSION=0.35.5
 # renovate: datasource=docker depName=aquasec/trivy versioning=semver
 ARG TRIVY_VERSION=0.57.1
 # renovate: datasource=docker depName=anchore/grype versioning=semver
-ARG GRYPE_VERSION=v0.85.0
+ARG GRYPE_VERSION=v0.87.0
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
 ARG KAIROS_FRAMEWORK_VERSION=v2.15.4
 # renovate: datasource=docker depName=quay.io/kairos/auroraboot versioning=semver
