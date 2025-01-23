@@ -27,7 +27,7 @@
         "model": "rpi4",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -37,7 +37,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -47,7 +47,7 @@
         "model": "rpi4",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -57,7 +57,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -67,7 +67,7 @@
         "model": "generic",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -77,7 +77,7 @@
         "model": "generic",
         "baseImage": "opensuse/leap:15.6",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -107,7 +107,7 @@
         "model": "rpi4",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -117,7 +117,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -127,7 +127,7 @@
         "model": "rpi4",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "opensuse",
@@ -137,7 +137,7 @@
         "model": "rpi3",
         "baseImage": "opensuse/tumbleweed",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "ubuntu",
@@ -167,7 +167,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:20.04",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "ubuntu",
@@ -177,7 +177,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:20.04",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "ubuntu",
@@ -207,7 +207,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:22.04",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "ubuntu",
@@ -217,7 +217,7 @@
         "model": "rpi4",
         "baseImage": "ubuntu:22.04",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "ubuntu",
@@ -247,7 +247,7 @@
         "model": "generic",
         "baseImage": "ubuntu:24.10",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "ubuntu",
@@ -277,7 +277,7 @@
         "model": "generic",
         "baseImage": "ubuntu:24.10",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "alpine",
@@ -307,7 +307,7 @@
         "model": "rpi4",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "alpine",
@@ -317,7 +317,7 @@
         "model": "rpi3",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "alpine",
@@ -327,7 +327,7 @@
         "model": "rpi4",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "alpine",
@@ -337,7 +337,7 @@
         "model": "rpi3",
         "baseImage": "alpine:3.19",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "rhel",
@@ -367,7 +367,7 @@
         "model": "generic",
         "baseImage": "fedora:40",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "rhel",
@@ -377,7 +377,7 @@
         "model": "generic",
         "baseImage": "fedora:40",
         "arch": "arm64",
-        "worker": "ARM64"
+        "worker": "ubuntu-24.04-arm"
     },
     {
         "family": "debian",
