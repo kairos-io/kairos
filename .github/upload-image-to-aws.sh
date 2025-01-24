@@ -192,9 +192,10 @@ checkImageExistsOrCreate() {
   else
     echo "Image '$imageName' does not exist. Creating from snapshot..."
 
+    description="AMI created from snapshot $snapshotID"
     imageID=$(AWS ec2 register-image \
       --name "$imageName" \
-      --description "AMI created from snapshot $snapshotID" \
+      --description "$description" \
       --architecture x86_64 \
       --root-device-name /dev/xvda \
       --block-device-mappings "[{\"DeviceName\":\"/dev/xvda\",\"Ebs\":{\"SnapshotId\":\"$snapshotID\"}}]" \
@@ -206,22 +207,85 @@ checkImageExistsOrCreate() {
 
     echo "Image '$imageName' created with Image ID: $imageID"
   fi
+
+  waitAMI "$imageID" "$AWS_REGION"
+  makeAMIpublic "$imageID" "$AWS_REGION"
+  copyToAllRegions "$imageID" "$imageName" "$description"
+}
+
+# Function to wait for the AMI to become available
+waitAMI() {
+  local amiID="$1"
+  local region="$2"
+
+  echo "[$region] Waiting for AMI $amiID to be available"
+  while true; do
+    status=$(aws --profile "$AWS_PROFILE" ec2 describe-images --region "$region" --image-ids "$amiID" --query "Images[0].State" --output text 2>/dev/null)
+    if [[ "$status" == "available" ]]; then
+      echo "[$region] AMI $amiID is now available!"
+      break
+    elif [[ "$status" == "pending" || "$status" == "null" ]]; then
+      sleep 10
+    else
+      echo "[$region] AMI is in an unexpected state: $status. Exiting."
+      exit 1
+    fi
+  done
 }
 
 makeAMIpublic() {
-  local imageName="$1"
-  local imageID
+  local imageID="$1"
+  local region="$2"
 
-  imageID=$(AWS ec2 describe-images --filters "Name=name,Values=$imageName" --query 'Images[0].ImageId' --output text)
+  echo "[$region] calling DisableImageBlockPublicAccess"
+  aws --profile "$AWS_PROFILE" --region "$region" ec2 disable-image-block-public-access > /dev/null 2>&1
+  echo "[$region] Making image '$imageID' public..."
+  aws --profile "$AWS_PROFILE" --region "$region" ec2 modify-image-attribute --image-id "$imageID" --launch-permission "{\"Add\":[{\"Group\":\"all\"}]}"
+  echo "[$region] Image '$imageID' is now public."
+}
 
-  if [ "$imageID" == "None" ]; then
-    echo "Error: Image '$imageName' does not exist."
-    exit 1
-  fi
+copyToAllRegions() {
+  local imageID="$1"
+  local imageName="$2"
+  local description="$3"
 
-  echo "Making image '$imageName' public..."
-  AWS ec2 modify-image-attribute --image-id "$imageID" --launch-permission "{\"Add\":[{\"Group\":\"all\"}]}"
-  echo "Image '$imageName' is now public."
+  echo "Copying AMI '$imageName ($imageID)' to all regions"
+  mapfile -t regions < <(AWS ec2 describe-regions | jq -r '.Regions[].RegionName')
+  for reg in "${regions[@]}"; do
+    # If the current region is the same as the region we are trying to copy, just ignore, the AMI is already there
+    if [[ "${AWS_REGION}" == "${reg}" ]]
+      then
+        continue
+    fi
+    (
+      echo "[$reg] Copying AMI '$imageName' to region $reg"
+      # Check if the image already exists in this region
+      amiCopyID=$(aws --profile "$AWS_PROFILE" --region "$reg" ec2 describe-images --filters "Name=name,Values=$imageName" --query 'Images[0].ImageId' --output text)
+      if [ "$amiCopyID" != "None" ]; then
+        echo "[$reg] Image '$imageName' already exists with Image ID: $amiCopyID"
+      else
+        amiCopyID=$(AWS ec2 copy-image \
+          --name "${imageName}" \
+          --description "${description}" \
+          --source-image-id "${imageID}" \
+          --source-region "${AWS_REGION}" \
+          --region "${reg}" \
+          | jq -r '.ImageId'
+        )
+
+        echo "[$reg] Tagging Copied AMI ${amiCopyID}"
+        AWS ec2 create-tags --resources "${imageID}" --tags \
+          --tags Key=Name,Value="${imageName}" Key=Project,Value=Kairos
+      fi
+
+      waitAMI "${amiCopyID}" "${reg}"
+      makeAMIpublic "${amiCopyID}" "${reg}"
+
+      echo "[$reg] AMI Copied: ${amiCopyID}"
+    ) &
+  done
+
+  wait # Wait for all background jobs to finish
 }
 
 # ----- Main script -----
@@ -234,4 +298,3 @@ uploadImageToS3 "$1"
 output=$(importAsSnapshot "$baseName" | tee /dev/fd/2)
 snapshotID=$(echo "$output" | tail -1)
 checkImageExistsOrCreate "$baseName" "$snapshotID"
-makeAMIpublic "$baseName"
