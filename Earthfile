@@ -8,7 +8,7 @@ ARG TRIVY_VERSION=0.57.1
 # renovate: datasource=docker depName=anchore/grype versioning=semver
 ARG GRYPE_VERSION=v0.85.0
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-ARG KAIROS_FRAMEWORK_VERSION=v2.15.4
+ARG KAIROS_FRAMEWORK_VERSION=v2.15.10
 # renovate: datasource=docker depName=quay.io/kairos/auroraboot versioning=semver
 ARG AURORABOOT_VERSION=v0.4.3
 # renovate: datasource=docker depName=golang versioning=semver
@@ -253,6 +253,7 @@ base-image:
     ARG K3S_VERSION # As it comes from luet package
     ARG SOFTWARE_VERSION_PREFIX="k3s"
     ARG _SOFTWARE_LUET_VERSION=$K3S_VERSION
+    ARG SOFTWARE_VERSION_BUILD="k3s1"
     # Takes 1.28.2+1 and converts that to v1.18.2+k3s1
     # Hack because we use a different version in the luet package and in the
     # artifact names.
@@ -261,7 +262,7 @@ base-image:
     # luet, in the artifact names. E.g. v1.28.2+k3s2+3 (including our build number)
     IF [ "$K3S_VERSION" != "" ]
       ARG _FIXED_VERSION=$(echo $K3S_VERSION | sed 's/+[[:digit:]]*//')
-      ARG SOFTWARE_VERSION="v${_FIXED_VERSION}+k3s1"
+      ARG SOFTWARE_VERSION="v${_FIXED_VERSION}+${SOFTWARE_VERSION_PREFIX}${SOFTWARE_VERSION_BUILD}"
     END
 
     COPY +git-version/GIT_VERSION GIT_VERSION
