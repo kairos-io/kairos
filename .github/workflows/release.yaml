@@ -344,6 +344,7 @@ jobs:
   build-aws-image:
     runs-on: ubuntu-latest
     needs:
+      - get-standard-matrix
       - build-standard
     permissions:
       id-token: write  # OIDC support
