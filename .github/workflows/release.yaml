@@ -371,9 +371,9 @@ jobs:
           packages: system/kairos-agent
       - name: Build 🔧
         run: |
-          # TODO: Does "sort" work correctly on k3s versions? Which version do we want?
+          # Keep maximum k3s version (by semver)
           k3s_version=$(echo '${{ needs.get-standard-matrix.outputs.matrix }}' | \
-            jq -r '[.[].k3s_version] | unique | sort | .[0]')
+            jq -r '.include | map(.k3s_version) | unique | max_by(split("+")[0] | split(".") | map(tonumber))')
 
           version=$(git describe --always --tags --dirty)
 
