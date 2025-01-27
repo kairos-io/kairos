@@ -64,12 +64,12 @@ jobs:
       - name: Set Image name (master)
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
-          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=master kairos-agent versioneer container-artifact-name)
+          SOFTWARE_VERSION=${{ inputs.k3s_version }} SOFTWARE_VERSION_PREFIX=k3s IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=master kairos-agent versioneer container-artifact-name)
           echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
       - name: Set Image name (release/PR)
         if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' }}
         run: |
-          IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=${{ env.GIT_VERSION }} kairos-agent versioneer container-artifact-name)
+          SOFTWARE_VERSION=${{ inputs.k3s_version }} SOFTWARE_VERSION_PREFIX=k3s IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=${{ env.GIT_VERSION }} kairos-agent versioneer container-artifact-name)
           echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
       - name: Set up Docker Buildx
         if: ${{ inputs.worker != 'ARM64' }}
