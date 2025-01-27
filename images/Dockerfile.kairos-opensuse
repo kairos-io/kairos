@@ -202,7 +202,7 @@ FROM base-kairos AS kairos-standard
 ARG SOFTWARE_VERSION
 LABEL io.kairos.k3s_version="${SOFTWARE_VERSION}"
 RUN luet install -y system/provider-kairos
-RUN luet install -y "k8s/k3s-$(which-init.sh)@${SOFTWARE_LUET_VERSION:-$SOFTWARE_VERSION}" utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
+RUN luet install -y "k8s/${SOFTWARE_VERSION_PREFIX}-$(which-init.sh)@${SOFTWARE_LUET_VERSION:-$SOFTWARE_VERSION}" utils/edgevpn utils/k9s utils/nerdctl container/kubectl utils/kube-vip
 
 FROM kairos-${VARIANT} AS kairos-final
 ARG BASE_IMAGE
