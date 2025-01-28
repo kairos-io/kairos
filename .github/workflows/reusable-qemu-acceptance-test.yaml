@@ -9,9 +9,6 @@ on:
       flavor_release:
         required: true
         type: string
-      port:
-        required: false
-        type: string
 
 permissions: read-all
 jobs:
@@ -86,4 +83,9 @@ jobs:
       run: |
         earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
     - run: |
-            earthly +run-qemu-datasource-tests --PREBUILT_ISO=$(ls *${{ inputs.flavor }}*.iso) --FLAVOR=${{ inputs.flavor }} --SSH_PORT=${{ inputs.port }}
+            earthly +datasource-iso --CLOUD_CONFIG=./tests/assets/autoinstall.yaml
+            export DATASOURCE=$PWD/build/datasource.iso
+            export ISO=$PWD/$(ls *${{ inputs.flavor }}*.iso)
+            export KVM=true
+            export USE_QEMU=true
+            ginkgo -v --label-filter=autoinstall-test --fail-fast -r tests/
