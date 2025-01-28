@@ -82,10 +82,30 @@ jobs:
     - name: Login to earthly
       run: |
         earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
-    - run: |
-            earthly +datasource-iso --CLOUD_CONFIG=./tests/assets/autoinstall.yaml
-            export DATASOURCE=$PWD/build/datasource.iso
-            export ISO=$PWD/$(ls *${{ inputs.flavor }}*.iso)
-            export KVM=true
-            export USE_QEMU=true
-            ginkgo -v --label-filter=autoinstall-test --fail-fast -r tests/
+
+    - name: Enable KVM group perms
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev
+
+        # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
+        # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        # sudo udevadm control --reload-rules
+        # sudo udevadm trigger --name-match=kvm
+        # sudo usermod -a -G kvm,libvirt $USER
+        #
+        # TODO: Switch back to the above solution when we switch to the github runners
+        # https://askubuntu.com/a/1081326
+        sudo setfacl -m u:runner:rwx /dev/kvm
+    - env:
+        USE_QEMU: true
+        KVM: true
+        MEMORY: 4000
+        CPUS: 2
+        DRIVE_SIZE: 30000
+        CREATE_VM: true
+      run: |
+        earthly +datasource-iso --CLOUD_CONFIG=./tests/assets/autoinstall.yaml
+        export DATASOURCE=$PWD/build/datasource.iso
+        export ISO=$PWD/$(ls *${{ inputs.flavor }}*.iso)
+        go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "autoinstall-test" --fail-fast -r tests/
