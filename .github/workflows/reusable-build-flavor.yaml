@@ -35,199 +35,41 @@ jobs:
       actions: read
       security-events: write
     steps:
-      - name: Release space from worker
-        run: |
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          df -h
-          echo
-          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
-          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
-          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
-          sudo rm -rf /usr/local/lib/android
-          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
-          sudo rm -rf /usr/share/dotnet
-          sudo apt-get remove -y '^mono-.*' || true
-          sudo apt-get remove -y '^ghc-.*' || true
-          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
-          sudo apt-get remove -y 'php.*' || true
-          sudo apt-get remove -y hhvm || true
-          sudo apt-get remove -y powershell || true
-          sudo apt-get remove -y firefox || true
-          sudo apt-get remove -y monodoc-manual || true
-          sudo apt-get remove -y msbuild || true
-          sudo apt-get remove -y microsoft-edge-stable || true
-          sudo apt-get remove -y '^google-.*' || true
-          sudo apt-get remove -y azure-cli || true
-          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
-          sudo apt-get remove -y '^gfortran-.*' || true
-          sudo apt-get remove -y '^gcc-*' || true
-          sudo apt-get remove -y '^g++-*' || true
-          sudo apt-get remove -y '^cpp-*' || true
-          sudo apt-get autoremove -y
-          sudo apt-get clean
-          echo
-          echo "Listing top largest packages"
-          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
-          head -n 30 <<< "${pkgs}"
-          echo
-          sudo rm -rfv build || true
-          df -h
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow
-      - name: Release space from worker
-        run: |
-          sudo rm -rf /usr/local/lib/android # will release about 10 GB if you don't need Android
-          sudo rm -rf /usr/share/dotnet # will release about 20GB if you don't need .NET
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@master
-        with:
-          platforms: all
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@main
-      - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+      - name: Set Version
         run: |
-          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
-          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
-      - name: Login to earthly
-        run: |
-          earthly account login --token ${{ secrets.EARTHLY_TOKEN }}  && earthly org select Kairos
-      - name: Build PR 🔧
+          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
+      - name: Build container 🔧
         if: ${{ github.event_name == 'pull_request' }}
         run: |
-          earthly --platform=linux/${{ inputs.arch }} +ci \
-            --SECURITY_SCANS=false \
-            --VARIANT=${{ inputs.variant }} \
-            --FLAVOR=${{ inputs.flavor }} \
-            --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
-            --BASE_IMAGE=${{ inputs.base_image }} \
-            --MODEL=${{ inputs.model }} \
-            --FAMILY=${{ inputs.family }}
-          sudo mv build/* .
-          sudo rm -rf build
-      - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: system/kairos-agent
-      - name: Build master 🔧
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+          docker build -t ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} \
+          --build-arg BASE_IMAGE=${{ inputs.base_image }} \
+          --build-arg MODEL=${{ inputs.model }} \
+          --build-arg VARIANT=${{ inputs.variant }} \
+          -f images/Dockerfile .
+      - name: Build iso 📦
         run: |
-          earthly --platform=linux/${{ inputs.arch }} +ci \
-            --SECURITY_SCANS=true \
-            --VARIANT=${{ inputs.variant }} \
-            --FLAVOR=${{ inputs.flavor }} \
-            --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
-            --BASE_IMAGE=${{ inputs.base_image }} \
-            --MODEL=${{ inputs.model }} \
-            --FAMILY=${{ inputs.family }}
-
-          sudo mv build/* .
-          sudo rm -rf build
-          mkdir trivy-results grype-results
-          trivy=$(ls *trivy.sarif 2>/dev/null | head -n 1)
-          grype=$(ls *grype.sarif 2>/dev/null | head -n 1)
-          sudo mv $trivy trivy-results/result.sarif
-          sudo mv $grype grype-results/result.sarif
-      - uses: itxaka/sarif-filter@v1
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        with:
-          input: trivy-results/result.sarif
-          output: trivy-results/result.sarif
-          severity: critical
-      - uses: itxaka/sarif-filter@v1
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        with:
-          input: grype-results/result.sarif
-          output: grype-results/result.sarif
-          severity: critical
-      - name: Check scan results
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        continue-on-error: true
-        run: |
-          result=$(cat grype-results/result.sarif | jq '.runs[0].results | length')
-          if (( result > 0 )); then
-              echo "Critical severity issues found in Grype scan"
-              exit 1
-          fi
-
-          result=$(cat trivy-results/result.sarif | jq '.runs[0].results | length')
-          if (( result > 0 )); then
-              echo "Critical severity issues found in Trivy scan"
-              exit 1
-          fi
-      - name: Upload Trivy scan results to GitHub Security tab
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        with:
-          sarif_file: 'trivy-results'
-          category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-trivy
-      - name: Upload Grype scan results to GitHub Security tab
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: github/codeql-action/upload-sarif@f09c1c0a94de965c15400f5634aa42fac8fb8f88 # v3
-        with:
-          sarif_file: 'grype-results'
-          category: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-grype
-      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-scan-results.zip
-          path: |
-            grype-results/*.sarif
-            trivy-results/*.sarif
-          if-no-files-found: error
+          mkdir build
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          -v $PWD:/output \
+          quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
+          --name kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
+          docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
       - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.iso.zip
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
           path: |
             *.iso
             *.sha256
             versions.yaml
           if-no-files-found: error
-      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}.sbom.zip
-          path: |
-            *.syft.json
-            *.spdx.json
-          if-no-files-found: error
-      - name: Push to quay
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        env:
-          COSIGN_YES: true
-        run: |
-          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=${{ inputs.arch }} VARIANT=${{ inputs.variant}} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
-          docker tag $(cat IMAGE) $IMAGE
-          docker push $IMAGE
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE")
-          # TODO: on master we don't want to push all the sbom files since the tag is always the same and we don't go back to clean the old sbom files
-          # but we should also use this reusable job for releases and then it's important to do it
-          # For master:
-          cosign sign $image_ref
-          # For releases:
-          # spdx=$(ls *.spdx.json)
-          # cosign attach sbom --sbom $spdx $image_ref
-          # cosign sign $image_ref --attachment sbom
-          # in-toto attestation
-          # cosign attest --type spdx --predicate $spdx $image_ref
       - name: Push to testing
         run: |
-          _IMG=$(cat IMAGE)
-          TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}:24h"
-          docker tag $_IMG $TEST_IMAGE
+          TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}:24h"
+          docker tag ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} $TEST_IMAGE
           docker push $TEST_IMAGE
