@@ -6,9 +6,6 @@ on:
       base_image:
         required: true
         type: string
-      family:
-        required: true
-        type: string
       flavor:
         required: true
         type: string
@@ -18,10 +15,6 @@ on:
       variant:
         required: true
         type: string
-      k3s_version:
-        required: false
-        type: string
-
 permissions: read-all
 jobs:
   test-uki:
@@ -34,7 +27,7 @@ jobs:
     env:
       FLAVOR: ${{ inputs.flavor }}
       FLAVOR_RELEASE: ${{ inputs.flavor_release }}
-      TEMP_IMAGE: ttl.sh/${{ inputs.flavor }}-${{ inputs.flavor_release}}-${{ inputs.variant }}-${{ github.sha }}:6h
+      TEMP_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}:24h
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Install Go
@@ -55,45 +48,32 @@ jobs:
           # TODO: Switch back to the above solution when we switch to the github runners
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
-      - name: Login to earthly
-        run: |
-          earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
       - name: Build base image 🔧
         run: | # known flavors to work with uki+encryption: fedora >= 38, ubuntu >= 23.10, anything with systemd 253
-          earthly +base-image \
-            --FLAVOR=${{ inputs.flavor }} \
-            --FLAVOR_RELEASE=${{ inputs.flavor_release }} \
-            --FAMILY=${{ inputs.family }} \
-            --MODEL=generic \
-            --VARIANT=${{ inputs.variant }} \
-            --BASE_IMAGE=${{ inputs.base_image }} \
-            --BOOTLOADER=systemd-boot \
-            --K3S_VERSION=${{ inputs.k3s_version }}
-      - name: Push image to ttl.sh
-        run: |
-          docker tag $(cat build/IMAGE) $TEMP_IMAGE
-          docker push $TEMP_IMAGE
+          docker build -t ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} \
+          --build-arg BASE_IMAGE=${{ inputs.base_image }} \
+          --build-arg MODEL=${{ inputs.model }} \
+          --build-arg VARIANT=${{ inputs.variant }} \
+          -f images/Dockerfile .
       - name: Build uki ISO 🔧
         run: |
-          earthly +uki-iso \
-            --BASE_IMAGE=$TEMP_IMAGE \
-            --AURORABOOT_OVERLAY_DIR=tests/assets/sysext/ \
-            --AURORABOOT_KEYS_DIR=tests/assets/keys/ \
-            --AURORABOOT_FLAGS="--single-efi-cmdline=\"testentry: nothing\""
+          mkdir build
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          -v $PWD/tests/assets/keys:/keys \
+          -v $PWD/tests/assets/sysext/:/overlay \
+          -v $PWD:/output \
+          quay.io/kairos/auroraboot:latest --debug build-uki --output-dir /build/ -k /keys --output-type iso \
+          --single-efi-cmdline=\"testentry: nothing\" \
+          --overlay-iso /overlay \
+          oci:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
       - name: Create datasource iso 🔧
         run: |
           earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
       - name: Build uki upgrade image 🔧
         run: |
           rm -rf /tmp/unpacked
-          sudo luet util unpack "${TEMP_IMAGE}" ./unpacked
+          sudo luet util unpack ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} ./unpacked
           new_version="mynewversion"
-          sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="'$new_version'"/' ./unpacked/etc/os-release
           sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="'$new_version'"/' ./unpacked/etc/kairos-release
           echo "$new_version" > "${PWD}/build/expected_new_version"
 
@@ -149,7 +129,7 @@ jobs:
         run: |
           SUFFIX="-uki"
           IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
-          docker tag $(cat build/IMAGE) "$IMAGE$SUFFIX"
+          docker tag ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} "$IMAGE$SUFFIX"
           docker push "$IMAGE$SUFFIX"
           image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
           cosign sign $image_ref
