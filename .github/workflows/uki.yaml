@@ -51,8 +51,6 @@ jobs:
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
-      family: ${{ matrix.family }}
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavor_release }}
       variant: ${{ matrix.variant }}
-      k3s_version: ${{ matrix.k3s_version }}
