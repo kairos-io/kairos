@@ -374,7 +374,19 @@ jobs:
           # Keep maximum k3s version (by semver)
           # add a "v" in front and a "-k3s1" at the end to match the k3s versioning
           k3s_version=$(echo '${{ needs.get-standard-matrix.outputs.matrix }}' | \
-            jq -r '.include | map(.k3s_version) | unique | max_by(split("+")[0] | split(".") | map(tonumber))' | sed -E 's/\+.*//; s/^/v/; s/$/-k3s1/')
+            jq -r '.include | map(.k3s_version | split("+")[0]) | unique |
+            map(
+              capture("^(?<major>[0-9]+)\\.(?<minor>[0-9]+)\\.(?<patch>[0-9]+)(-(?<pre>.*))?$") |
+              {
+                major: (.major | tonumber),
+                minor: (.minor | tonumber),
+                patch: (.patch | tonumber),
+                is_stable: (if .pre == null then 1 else 0 end),
+                pre: (.pre // "")
+              }
+            ) | max_by(.major, .minor, .patch, .is_stable, .pre) |
+              "\(.major).\(.minor).\(.patch)\(.pre | if . == "" then "" else "-"+. end)"' | \
+            sed -E 's/^/v/; s/$/-k3s1/')
 
           version=$(git describe --always --tags --dirty)
 
