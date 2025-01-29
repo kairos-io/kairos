@@ -45,13 +45,17 @@ jobs:
         run: |
           echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
       - name: Build container 🔧
-        if: ${{ github.event_name == 'pull_request' }}
-        run: |
-          docker build -t ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} \
-          --build-arg BASE_IMAGE=${{ inputs.base_image }} \
-          --build-arg MODEL=${{ inputs.model }} \
-          --build-arg VARIANT=${{ inputs.variant }} \
-          -f images/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: images/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
+          build-args: |
+            BASE_IMAGE=${{ inputs.base_image }}
+            MODEL=${{ inputs.model }}
+            VARIANT=${{ inputs.variant }}
       - name: Build iso 📦
         run: |
           mkdir build
