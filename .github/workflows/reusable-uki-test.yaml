@@ -75,7 +75,7 @@ jobs:
           -v $PWD/tests/assets/sysext/:/overlay \
           -v $PWD:/output \
           quay.io/kairos/auroraboot:latest --debug build-uki --output-dir /build/ -k /keys --output-type iso \
-          --single-efi-cmdline=\"testentry: nothing\" \
+          --single-efi-cmdline="testentry: nothing" \
           --overlay-iso /overlay \
           docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
       - name: Create datasource iso 🔧
