@@ -262,7 +262,7 @@ base-image:
     # luet, in the artifact names. E.g. v1.28.2+k3s2+3 (including our build number)
     IF [ "$K3S_VERSION" != "" ]
       ARG _FIXED_VERSION=$(echo $K3S_VERSION | sed 's/+[[:digit:]]*//')
-      ARG SOFTWARE_VERSION="v${_FIXED_VERSION}+${SOFTWARE_VERSION_PREFIX}${SOFTWARE_VERSION_BUILD}"
+      ARG SOFTWARE_VERSION="v${_FIXED_VERSION}+${SOFTWARE_VERSION_BUILD}"
     END
 
     COPY +git-version/GIT_VERSION GIT_VERSION
