@@ -15,6 +15,9 @@ on:
       variant:
         required: true
         type: string
+      model:
+        required: true
+        type: string
 permissions: read-all
 jobs:
   test-uki:
