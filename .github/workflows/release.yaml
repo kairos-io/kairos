@@ -335,7 +335,7 @@ jobs:
           role-duration-seconds: 1200
           role-session-name: AWSCIPush
       - name: Build and push AWS image
-        if: matrix.flavor == 'ubuntu' && matrix.flavorRelease == '24.04' && matrix.variant == 'standard' && matrix.model == 'generic' && matrix.arch == 'amd64'
+        if: matrix.flavor == 'ubuntu' && matrix.flavorRelease == '24.04' && matrix.variant == 'core' && matrix.model == 'generic' && matrix.arch == 'amd64'
         env:
           AWS_S3_BUCKET: kairos-cloud-images
           AWS_REGION: eu-central-1
