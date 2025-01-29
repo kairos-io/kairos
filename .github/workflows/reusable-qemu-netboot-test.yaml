@@ -80,4 +80,3 @@ jobs:
           cp tests/go.* .
           go mod download
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "netboot-test" --fail-fast -r ./tests/
-          
