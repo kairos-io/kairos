@@ -60,6 +60,7 @@ jobs:
           --build-arg BASE_IMAGE=${{ inputs.base_image }} \
           --build-arg MODEL=${{ inputs.model }} \
           --build-arg VARIANT=${{ inputs.variant }} \
+          --build-arg TRUSTED_BOOT=true \
           -f images/Dockerfile .
       - name: Build uki ISO 🔧
         run: |
