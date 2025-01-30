@@ -87,7 +87,7 @@ jobs:
         run: |
           cp tests/assets/uki-install.yaml user-data
           touch meta-data
-          mkisofs -output build/ci.iso -volid cidata -joliet -rock user-data meta-data
+          mkisofs -output build/datasource.iso -volid cidata -joliet -rock user-data meta-data
       - name: Build uki upgrade image 🔧
         run: |
           rm -rf /tmp/unpacked
@@ -100,7 +100,7 @@ jobs:
             -v $PWD/unpacked:/unpacked \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:latest build-uki \
+            quay.io/kairos/auroraboot:latest --debug build-uki \
             --output-dir /result --keys /keys --output-type container \
             --single-efi-cmdline "myentry: foobar" \
             dir:/unpacked
