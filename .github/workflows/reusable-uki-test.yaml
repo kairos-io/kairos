@@ -41,10 +41,10 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
-      - name: Enable KVM group perms
+      - name: Enable KVM group perms and install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs 
           # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
           # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           # sudo udevadm control --reload-rules
@@ -80,7 +80,9 @@ jobs:
           docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
       - name: Create datasource iso 🔧
         run: |
-          earthly +datasource-iso --CLOUD_CONFIG=tests/assets/uki-install.yaml
+          cp tests/assets/uki-install.yaml user-data
+          touch meta-data
+          mkisofs -output build/ci.iso -volid cidata -joliet -rock user-data meta-data
       - name: Build uki upgrade image 🔧
         run: |
           rm -rf /tmp/unpacked
