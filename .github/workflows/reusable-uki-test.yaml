@@ -32,6 +32,11 @@ jobs:
       FLAVOR_RELEASE: ${{ inputs.flavor_release }}
       TEMP_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}:24h
     steps:
+      - name: Install earthly
+        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        with:
+          repository: quay.io/kairos/packages
+          packages: utils/earthly
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - name: Install Go
         uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5
