@@ -1,17 +1,20 @@
 ARG BASE_IMAGE=ubuntu:24.04
 ARG VARIANT=core
+ARG MODEL=generic
+ARG TRUSTED_BOOT=false
 
-FROM ttl.sh/kairos-init:main AS kairos-init
+
+FROM quay.io/kairos/kairos-init:v0.1.1 AS kairos-init
 FROM quay.io/luet/base:0.35.5 AS luet
 
 FROM ${BASE_IMAGE} AS base
-ARG MODEL=generic
-ARG TRUSTED_BOOT=false
-ARG VARIANT=core
-
+ARG VARIANT
+ARG MODEL
+ARG TRUSTED_BOOT
 COPY --from=kairos-init /kairos-init /kairos-init
 RUN /kairos-init -l debug -s install -m "${MODEL}" -v "${VARIANT}" -t "${TRUSTED_BOOT}"
 RUN /kairos-init -l debug -s init -m "${MODEL}" -v "${VARIANT}" -t "${TRUSTED_BOOT}"
+#RUN /kairos-init -l debug --validate -m "${MODEL}" -v "${VARIANT}" -t "${TRUSTED_BOOT}"
 RUN rm /kairos-init
 
 
