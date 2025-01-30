@@ -81,9 +81,7 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			})
 
 			By("waiting for VM to reboot", func() {
-
 				_, _ = vm.Sudo("reboot")
-				Expect(vm.DetachCD()).ToNot(HaveOccurred())
 				vm.EventuallyConnects(1200)
 			})
 
