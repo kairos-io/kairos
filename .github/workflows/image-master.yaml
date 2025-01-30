@@ -170,8 +170,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flavor: opensuse  # Kubo test needs systemd version 252+ which atm is not available in Leap
-            flavorRelease: tumbleweed
+          - flavor: opensuse
+            flavorRelease: leap-15.6 # tumbleweed comes with systemd 257 which currently breaks the test
   reset:
     secrets: inherit
     uses: ./.github/workflows/reusable-qemu-reset-test.yaml
