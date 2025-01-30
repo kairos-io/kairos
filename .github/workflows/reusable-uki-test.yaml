@@ -73,8 +73,8 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/tests/assets/keys:/keys \
           -v $PWD/tests/assets/sysext/:/overlay \
-          -v $PWD:/output \
-          quay.io/kairos/auroraboot:latest --debug build-uki --output-dir /build/ -k /keys --output-type iso \
+          -v $PWD/build/:/output \
+          quay.io/kairos/auroraboot:latest --debug build-uki --output-dir /output/ -k /keys --output-type iso \
           --single-efi-cmdline="testentry: nothing" \
           --overlay-iso /overlay \
           docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
