@@ -101,7 +101,6 @@ jobs:
             -v $PWD/tests/assets/keys:/keys \
             quay.io/kairos/auroraboot:latest --debug build-uki \
             --output-dir /result --keys /keys --output-type container \
-            --single-efi-cmdline "myentry: foobar" \
             dir:/unpacked
 
           docker load -i build/*.tar
