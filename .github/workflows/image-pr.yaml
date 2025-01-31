@@ -121,7 +121,7 @@ jobs:
       arch: amd64
 
   standard:
-    uses: ./.github/workflows/reusable-build-provider.yaml
+    uses: ./.github/workflows/reusable-build-flavor.yaml
     secrets: inherit
     permissions:
       id-token: write  # OIDC support
@@ -147,6 +147,33 @@ jobs:
       variant: standard
       arch: amd64
 
+  standard-alpine:
+    uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      flavor: alpine
+      flavor_release: "3.19"
+      family: alpine
+      base_image: alpine:3.19
+      model: generic
+      variant: standard
+      arch: amd64
+
   install:
     uses: ./.github/workflows/reusable-install-test.yaml
     secrets: inherit
@@ -154,6 +181,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
       secureboot: false
+      variant: core
     needs:
       - core-ubuntu-24-lts
 
@@ -164,6 +192,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
       secureboot: false
+      variant: core
     needs:
       - core-ubuntu-24-lts
 
@@ -174,6 +203,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
       secureboot: true
+      variant: core
     needs:
       - core-ubuntu-24-lts
 
@@ -183,6 +213,7 @@ jobs:
     with:
       flavor: alpine
       flavor_release: "3.19"
+      variant: core
     needs:
       - core-alpine
 
@@ -192,6 +223,7 @@ jobs:
     with:
       flavor: ubuntu
       flavor_release: "22.04"
+      variant: core
     needs:
       - core-ubuntu-22-lts
 
@@ -201,6 +233,7 @@ jobs:
     with:
       flavor: ubuntu
       flavor_release: "24.04"
+      variant: core
     needs:
       - core-ubuntu-24-lts
 
@@ -210,6 +243,7 @@ jobs:
     with:
       flavor: alpine
       flavor_release: "3.19"
+      variant: core
     needs:
       - core-alpine
 
@@ -219,6 +253,7 @@ jobs:
     with:
       flavor: ubuntu
       flavor_release: "24.04"
+      variant: core
     needs:
       - core-ubuntu-24-lts
 
@@ -228,6 +263,7 @@ jobs:
     with:
       flavor: ubuntu
       flavor_release: "24.04"
+      variant: core
     needs:
       - core-ubuntu-24-lts
 
@@ -237,6 +273,7 @@ jobs:
     with:
       flavor: alpine
       flavor_release: "3.19"
+      variant: core
     needs:
       - core-alpine
 
@@ -272,6 +309,8 @@ jobs:
     with:
       flavor: ubuntu
       flavor_release: "24.04"
+      variant: core
+      arch: amd64
     needs:
       - core-ubuntu-24-lts
 
@@ -281,6 +320,8 @@ jobs:
     with:
       flavor: alpine
       flavor_release: "3.19"
+      variant: core
+      arch: amd64
     needs:
       - core-alpine
 
@@ -291,6 +332,8 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
       family: "ubuntu"
+      variant: core
+      arch: amd64
       # release_matcher: "23.10"  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
       - core-ubuntu-24-lts
@@ -323,17 +366,12 @@ jobs:
       repository-projects: read
       statuses: read
     with:
-      flavor: ${{ matrix.flavor }}
-      flavor_release: ${{ matrix.flavorRelease }}
+      flavor: "ubuntu"
+      flavor_release: "24.04"
+      variant: core
+
     needs:
       - core-ubuntu-24-lts
-    strategy:
-      fail-fast: true
-      matrix:
-        flavor:
-          - "ubuntu"
-        flavorRelease:
-          - "24.04"
   encryption:
     secrets: inherit
     uses: ./.github/workflows/reusable-encryption-test.yaml
@@ -341,6 +379,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
       label: ${{ matrix.label }}
+      variant: core
     needs:
       - core-ubuntu-24-lts
     strategy:
@@ -360,6 +399,7 @@ jobs:
       flavor: alpine
       flavor_release: "3.19"
       label: ${{ matrix.label }}
+      variant: core
     needs:
       - core-alpine
     strategy:
@@ -371,3 +411,48 @@ jobs:
           - "remote-static"
           - "remote-https-pinned"
           - "remote-https-bad-cert"
+
+  standard-tests:
+    secrets: inherit
+    uses: ./.github/workflows/reusable-provider-tests.yaml
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      flavor: ${{ matrix.flavor }}
+      flavor_release: ${{ matrix.flavorRelease }}
+      label: ${{ matrix.label }}
+      variant: standard
+      arch: amd64
+    needs:
+      - standard
+      - standard-alpine
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - flavor: "opensuse"
+            flavorRelease: "leap-15.6"
+            label: "provider-qrcode-install"
+          - flavor: "opensuse"
+            flavorRelease: "leap-15.6"
+            label: "provider-upgrade"
+          - flavor: "opensuse"
+            flavorRelease: "leap-15.6"
+            label: "provider-upgrade-k8s"
+          - flavor: "alpine"
+            flavorRelease: "3.19"
+            label: "provider-upgrade-k8s"

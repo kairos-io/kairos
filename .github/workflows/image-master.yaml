@@ -320,7 +320,7 @@ jobs:
         flavorRelease:
           - "leap-15.6"
   standard:
-    uses: ./.github/workflows/reusable-build-provider.yaml
+    uses: ./.github/workflows/reusable-build-flavor.yaml
     needs:
       - core
     permissions:

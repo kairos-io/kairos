@@ -22,17 +22,19 @@ jobs:
             family: ubuntu
             base_image: ubuntu:24.04
             variant: core
+            model: generic
           - flavor: ubuntu
             flavor_release: 24.04
             family: ubuntu
             base_image: ubuntu:24.04
             variant: standard
-            k3s_version: 1.31.4+1 # we need to use a matrix like we do in the other pipelines, but adding manually now just to see if this makes it work
+            model: generic
           - flavor: fedora
             family: rhel
             flavor_release: 40
             base_image: fedora:40
             variant: core
+            model: generic
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -52,8 +54,7 @@ jobs:
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
-      family: ${{ matrix.family }}
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavor_release }}
       variant: ${{ matrix.variant }}
-      k3s_version: ${{ matrix.k3s_version }}
+      model: ${{ matrix.model }}

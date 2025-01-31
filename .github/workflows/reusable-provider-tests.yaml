@@ -12,6 +12,12 @@ on:
       label:
         required: true
         type: string
+      variant:
+        required: true
+        type: string
+      arch:
+        required: true
+        type: string
 
 permissions: read-all
 jobs:
@@ -58,7 +64,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-provider.iso.zip
+          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
       - name: Run tests
         env:
           USE_QEMU: true
@@ -66,7 +72,7 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}-provider:24h
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}-provider:24h
         run: |
           ls *.iso
           export ISO=$PWD/$(ls *.iso)
