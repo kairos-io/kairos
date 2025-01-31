@@ -178,6 +178,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--forc
     nvidia-l4t-configs \
     nvidia-l4t-core \
     nvidia-l4t-cuda \
+    nvidia-l4t-cuda-utils \
     nvidia-l4t-display-kernel \
     nvidia-l4t-firmware \
     nvidia-l4t-gbm \
@@ -189,6 +190,7 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--forc
     nvidia-l4t-jetsonpower-gui-tools \
     nvidia-l4t-kernel-dtbs \
     nvidia-l4t-kernel-headers \
+    nvidia-l4t-kernel-oot-headers \
     nvidia-l4t-kernel-oot-modules \
     nvidia-l4t-kernel \
     nvidia-l4t-multimedia-utils \
@@ -196,7 +198,9 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--forc
     nvidia-l4t-nvfancontrol \
     nvidia-l4t-nvpmodel-gui-tools \
     nvidia-l4t-nvpmodel \
+    nvidia-l4t-nvfancontrol \
     nvidia-l4t-nvsci \
+    nvidia-l4t-nvml \
     nvidia-l4t-oem-config \
     nvidia-l4t-openwfd \
     nvidia-l4t-optee \
