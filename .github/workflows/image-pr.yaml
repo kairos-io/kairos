@@ -310,6 +310,7 @@ jobs:
       flavor: ubuntu
       flavor_release: "24.04"
       variant: core
+      arch: amd64
     needs:
       - core-ubuntu-24-lts
 
@@ -320,6 +321,7 @@ jobs:
       flavor: alpine
       flavor_release: "3.19"
       variant: core
+      arch: amd64
     needs:
       - core-alpine
 
@@ -331,6 +333,7 @@ jobs:
       flavor_release: "24.04"
       family: "ubuntu"
       variant: core
+      arch: amd64
       # release_matcher: "23.10"  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
     needs:
       - core-ubuntu-24-lts
@@ -366,6 +369,7 @@ jobs:
       flavor: "ubuntu"
       flavor_release: "24.04"
       variant: core
+
     needs:
       - core-ubuntu-24-lts
   encryption:
@@ -431,6 +435,7 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
       label: ${{ matrix.label }}
       variant: standard
+      arch: amd64
     needs:
       - standard
       - standard-alpine
