@@ -88,7 +88,7 @@ all-arm:
   END
 
   IF [ "$MODEL" = "nvidia-jetson-agx-orin" ]
-    BUILD +prepare-arm-image
+    BUILD +prepare-nvidia-l4t
   ELSE
     BUILD +arm-image
   END
@@ -674,7 +674,7 @@ arm-image:
   END
   SAVE ARTIFACT /build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
-prepare-arm-image:
+prepare-nvidia-l4t:
   ARG AURORABOOT_IMAGE
   ARG COMPRESS_IMG=true
 
@@ -682,9 +682,8 @@ prepare-arm-image:
   WORKDIR /build
 
   # These sizes are in MB and are specific only for the nvidia-jetson-agx-orin
-  ENV SIZE="25500"
-  ENV STATE_SIZE="21000"
-  ENV RECOVERY_SIZE="11000"
+  ENV STATE_SIZE="25500"
+  ENV RECOVERY_SIZE="21000"
   ENV DEFAULT_ACTIVE_SIZE="7000"
   
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
@@ -693,7 +692,7 @@ prepare-arm-image:
   RUN mkdir bootloader
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
-    RUN /prepare_arm_images.sh
+    RUN /prepare_nvidia_orin_images.sh
   END
 
   SAVE ARTIFACT /build/bootloader/efi.img efi.img AS LOCAL build/efi.img
