@@ -15,6 +15,9 @@ on:
       variant:
         required: true
         type: string
+      arch:
+        required: true
+        type: string
 
 permissions: read-all
 jobs:
@@ -69,7 +72,7 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}-provider:24h
+          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}-provider:24h
         run: |
           ls *.iso
           export ISO=$PWD/$(ls *.iso)

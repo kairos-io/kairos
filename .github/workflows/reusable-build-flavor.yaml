@@ -74,6 +74,6 @@ jobs:
           if-no-files-found: error
       - name: Push to testing
         run: |
-          TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}:24h"
+          TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h"
           docker tag ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} $TEST_IMAGE
           docker push $TEST_IMAGE

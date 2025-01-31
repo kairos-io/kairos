@@ -54,7 +54,6 @@ jobs:
           MEMORY: 4000
           CPUS: 2
           DRIVE_SIZE: 30000
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}:24h
         run: |
           ls *.iso
           export ISO=$PWD/$(ls *.iso)
