@@ -176,36 +176,6 @@ jobs:
           filename=$(ls release/*.iso.sha256)
           cosign sign-blob --yes --output-certificate="${filename}.pem" \
                           --output-signature="${filename}.sig" "${filename}"
-      # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-central-1
-          #role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          #role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
-          role-duration-seconds: 1200
-          role-session-name: AWSCIPush
-      - name: Build and push AWS image
-        if: matrix.flavor == 'ubuntu' && matrix.flavorRelease == '24.04' && matrix.variant == 'core' && matrix.model == 'generic' && matrix.arch == 'amd64'
-        env:
-          AWS_S3_BUCKET: kairos-cloud-images
-          AWS_REGION: eu-central-1
-        run: |
-          containerImage=$(cat release/IMAGE)
-          docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
-            --privileged \
-            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
-            --debug \
-            --set "disable_http_server=true" \
-            --set "container_image=docker:${containerImage}" \
-            --set "disable_netboot=true" \
-            --set "disk.raw=true" \
-            --set "state_dir=/aurora"
-
-          .github/upload-image-to-aws.sh $(ls *.raw)
-
       - name: Prepare files for release
         run: |
           mkdir trivy-results grype-results
