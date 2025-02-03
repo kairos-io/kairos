@@ -41,11 +41,29 @@ jobs:
         sudo apt update && sudo apt install -y jq
     - id: set-matrix
       run: |
-          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "amd64" and (.flavor == "fedora" or (.flavor == "ubuntu" and (.flavorRelease == "24.04")))))'`
+          docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          # Construct an array like this from the found versions:
+          earthly --platform=linux/amd64 +extract-framework-profile
+
+          # get core flavors
+          jq 'map(select(.arch == "amd64" and .variant == "core" and (.flavor == "fedora" or (.flavor == "ubuntu" and (.flavorRelease == "24.04")))))' .github/flavors.json >  core_flavors.json
+
+          # build "standard" flavors
+          # fetch "k3s-systemd" k3s versions
+          sudo luet --config framework-profile.yaml search -o json k8s/k3s  | jq '.packages | map(select(.name == "k3s-systemd")) | map(.version) | unique' >  k3s_systemd.json
+          # fetch only one ubuntu flavor
+          jq 'map(select(.arch == "amd64" and .variant == "standard" and .model == "generic" and .flavor == "ubuntu" and .flavorRelease == "24.04"))' .github/flavors.json >  standard_flavors.json
+          # generate combinations
+          jq -s '. | [combinations | .[0] + {"k3s_version": .[1]}]' standard_flavors.json k3s_systemd.json > standard_combinations.json
+          # merge the two combinations
+          content=$(jq -s 'add' standard_combinations.json core_flavors.json)
           # the following lines are only required for multi line json
           content="${content//'%'/'%25'}"
           content="${content//$'\n'/'%0A'}"
           content="${content//$'\r'/'%0D'}"
+
           # end of optional handling for multi line json
           echo "::set-output name=matrix::{\"include\": $content }"
 
