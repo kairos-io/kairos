@@ -39,6 +39,11 @@ jobs:
         fetch-depth: 0
     - run: |
         sudo apt update && sudo apt install -y jq
+    - name: Install earthly
+      uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+      with:
+        repository: quay.io/kairos/packages
+        packages: utils/earthly
     - id: set-matrix
       run: |
           docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
