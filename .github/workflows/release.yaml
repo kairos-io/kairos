@@ -275,6 +275,7 @@ jobs:
             --BASE_IMAGE=${{ matrix.baseImage }} \
             --MODEL=${{ matrix.model }} \
             --FAMILY=${{ matrix.family }} \
+            --K3S_VERSION=${{ matrix.k3s_version }} \
             --BOOTLOADER=systemd-boot
           sudo mv build/* .
           sudo rm -rf build
