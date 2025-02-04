@@ -8,7 +8,7 @@ ARG TRIVY_VERSION=0.57.1
 # renovate: datasource=docker depName=anchore/grype versioning=semver
 ARG GRYPE_VERSION=v0.85.0
 # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-ARG KAIROS_FRAMEWORK_VERSION=v2.15.11
+ARG KAIROS_FRAMEWORK_VERSION=v2.15.12
 # renovate: datasource=docker depName=quay.io/kairos/auroraboot versioning=semver
 ARG AURORABOOT_VERSION=v0.4.4
 # renovate: datasource=docker depName=golang versioning=semver
@@ -88,7 +88,7 @@ all-arm:
   END
 
   IF [ "$MODEL" = "nvidia-jetson-agx-orin" ]
-    BUILD +prepare-arm-image
+    BUILD +prepare-nvidia-l4t
   ELSE
     BUILD +arm-image
   END
@@ -674,7 +674,7 @@ arm-image:
   END
   SAVE ARTIFACT /build/$IMAGE_NAME.sha256 img-sha256 AS LOCAL build/$IMAGE_NAME.sha256
 
-prepare-arm-image:
+prepare-nvidia-l4t:
   ARG AURORABOOT_IMAGE
   ARG COMPRESS_IMG=true
 
@@ -682,10 +682,9 @@ prepare-arm-image:
   WORKDIR /build
 
   # These sizes are in MB and are specific only for the nvidia-jetson-agx-orin
-  ENV SIZE="15200"
-  ENV STATE_SIZE="16500"
-  ENV RECOVERY_SIZE="11000"
-  ENV DEFAULT_ACTIVE_SIZE="5500"
+  ENV STATE_SIZE="25500"
+  ENV RECOVERY_SIZE="21000"
+  ENV DEFAULT_ACTIVE_SIZE="7000"
   
   COPY --platform=linux/arm64 +image-rootfs/rootfs /build/image
 
@@ -693,7 +692,7 @@ prepare-arm-image:
   RUN mkdir bootloader
   # With docker is required for loop devices
   WITH DOCKER --allow-privileged
-    RUN /prepare_arm_images.sh
+    RUN /prepare_nvidia_orin_images.sh
   END
 
   SAVE ARTIFACT /build/bootloader/efi.img efi.img AS LOCAL build/efi.img

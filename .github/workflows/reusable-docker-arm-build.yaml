@@ -60,16 +60,19 @@ jobs:
           packages: system/kairos-agent
       - name: Set Version
         run: |
-          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
-      - name: Set Image name (master)
-        if: ${{ github.ref == 'refs/heads/master' }}
+          GIT_VERSION=$(git describe --always --tags --dirty)
+          RELEASE=$([ "$GITHUB_REF" == "refs/heads/master" ] && echo "master" || echo "$GIT_VERSION")
+          echo "GIT_VERSION=$GIT_VERSION" >> $GITHUB_ENV
+          echo "RELEASE=$RELEASE" >> $GITHUB_ENV
+
+      - name: Set Image name
         run: |
-          SOFTWARE_VERSION=${{ inputs.k3s_version }} SOFTWARE_VERSION_PREFIX=k3s IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=master kairos-agent versioneer container-artifact-name)
-          echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
-      - name: Set Image name (release/PR)
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' }}
-        run: |
-          SOFTWARE_VERSION=${{ inputs.k3s_version }} SOFTWARE_VERSION_PREFIX=k3s IMAGE_REF=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=${{ env.GIT_VERSION }} kairos-agent versioneer container-artifact-name)
+          SOFTWARE_VERSION="${{ inputs.k3s_version }}"
+          if [ -n "$SOFTWARE_VERSION" ]; then
+            SOFTWARE_VERSION="v$SOFTWARE_VERSION"
+          fi
+
+          IMAGE_REF=$(SOFTWARE_VERSION=${SOFTWARE_VERSION} SOFTWARE_VERSION_PREFIX=k3s FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=${{ inputs.model }} TARGETARCH=arm64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="${{ env.REGISTRY }}" RELEASE=${{ env.RELEASE }} kairos-agent versioneer container-artifact-name)
           echo "IMAGE_REF=${IMAGE_REF}" >> $GITHUB_ENV
       - name: Set up Docker Buildx
         if: ${{ inputs.worker != 'ARM64' }}
@@ -103,10 +106,10 @@ jobs:
             VARIANT=${{ inputs.variant }}
             MODEL=${{ inputs.model }}
             BASE_IMAGE=${{ inputs.base_image }}
-            SOFTWARE_VERSION=${{ inputs.k3s_version }}
+            SOFTWARE_VERSION: ${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
             SOFTWARE_VERSION_PREFIX=k3s
             # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-            FRAMEWORK_VERSION=v2.15.11
+            FRAMEWORK_VERSION=v2.15.12
       - name: Grype table
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: anchore/scan-action@v6.0.0
@@ -148,10 +151,11 @@ jobs:
             VARIANT=${{ inputs.variant }}
             MODEL=${{ inputs.model }}
             BASE_IMAGE=${{ inputs.base_image }}
-            SOFTWARE_VERSION=${{ inputs.k3s_version }}
+            RELEASE=${{ env.RELEASE }}
+            SOFTWARE_VERSION: ${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
             SOFTWARE_VERSION_PREFIX=k3s
             # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-            FRAMEWORK_VERSION=v2.15.11
+            FRAMEWORK_VERSION=v2.15.12
       - name: Sign image
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         env:
