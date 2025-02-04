@@ -60,12 +60,10 @@ jobs:
           packages: system/kairos-agent
       - name: Set Version
         run: |
-          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
-          if [ "$GITHUB_REF" == "refs/heads/master" ]; then
-            echo "RELEASE=master" >> $GITHUB_ENV
-          else
-            echo "RELEASE=$GIT_VERSION" >> $GITHUB_ENV
-          fi
+          GIT_VERSION=$(git describe --always --tags --dirty)
+          RELEASE=$([ "$GITHUB_REF" == "refs/heads/master" ] && echo "master" || echo "$GIT_VERSION")
+          echo "GIT_VERSION=$GIT_VERSION" >> $GITHUB_ENV
+          echo "RELEASE=$RELEASE" >> $GITHUB_ENV
 
       - name: Set Image name
         run: |
