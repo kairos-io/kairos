@@ -59,13 +59,14 @@ jobs:
           repository: quay.io/kairos/packages-arm64
           packages: system/kairos-agent
       - name: Set Version
-        if: ${{ startsWith(github.ref, 'refs/tags/v') || github.event_name == 'pull_request' }}
         run: |
-          echo "RELEASE=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
-      - name: Set Version
-        if: ${{ github.ref == 'refs/heads/master' }}
-        run: |
-          echo "RELEASE=master" >> $GITHUB_ENV
+          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
+          if [ "$GITHUB_REF" == "refs/heads/master" ]; then
+            echo "RELEASE=master" >> $GITHUB_ENV
+          else
+            echo "RELEASE=$GIT_VERSION" >> $GITHUB_ENV
+          fi
+
       - name: Set Image name
         run: |
           SOFTWARE_VERSION="${{ inputs.k3s_version }}"
@@ -110,7 +111,7 @@ jobs:
             FLAVOR_RELEASE=${{ inputs.flavor_release }}
             FAMILY=${{ inputs.family }}
             BASE_IMAGE=${{ inputs.base_image }}
-            RELEASE=${{ env.GIT_VERSION }}
+            RELEASE=${{ env.RELEASE }}
             SOFTWARE_VERSION: ${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
             SOFTWARE_VERSION_PREFIX=k3s
             # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
@@ -159,7 +160,7 @@ jobs:
             FLAVOR_RELEASE=${{ inputs.flavor_release }}
             FAMILY=${{ inputs.family }}
             BASE_IMAGE=${{ inputs.base_image }}
-            RELEASE=${{ env.GIT_VERSION }}
+            RELEASE=${{ env.RELEASE }}
             SOFTWARE_VERSION: ${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
             SOFTWARE_VERSION_PREFIX=k3s
             # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
