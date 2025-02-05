@@ -1,0 +1,31 @@
+name: Upload cloud images
+on:
+  # TODO: Remove this before merging this PR
+  pull_request:
+    paths:
+      - '**'
+  schedule:
+    # Everyday as 2am
+    - cron: '0 2 * * *'
+
+permissions: read-all
+
+jobs:
+  upload-aws:
+    name: Upload to AWS
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout code"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - name: "Upload"
+      # TODO:
+      # Run something like this on the checked out code (not shallow):
+      # git tag -l | sort -V
+      # or just find the latest tag on master.
+      # Compare this to the already uploaded versions on S3 (?)
+      # If the latest tag is missing, build the image with auroraboot and upload it to AWS
+      # using the scripts. Check the reverted job that was uploading it already for AWS credential
+      # setup and such.
+
