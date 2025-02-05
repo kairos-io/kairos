@@ -316,7 +316,11 @@ kairosVersion="$2"
 checkEnvVars
 checkArguments "$@"
 
+echo
+echo "Performing cleanup of old versions"
 cleanupOldVersions
+echo "Done cleaning up"
+echo
 
 # This is an one-off operation and require additional permissions which we don't need to give to CI.
 #ensureVmImportRole
