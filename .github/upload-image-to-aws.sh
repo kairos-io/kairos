@@ -10,10 +10,12 @@
 set -e
 set -o pipefail
 
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cleanup-old-images.sh"
+
 checkArguments() {
-  if [ $# -lt 1 ]; then
-    echo "Error: You need to specify the cloud image to upload."
-    echo "Usage: $0 <cloud-image>"
+  if [ $# -lt 2 ]; then
+    echo "Error: You need to specify the cloud image to upload and the Kairos version (to tag resources)."
+    echo "Usage: $0 <cloud-image> <kairos-version>"
     exit 1
   fi
 
@@ -42,6 +44,15 @@ AWS() {
     aws --region "$AWS_REGION" "$@"
   else
     aws --region "$AWS_REGION" --profile "$AWS_PROFILE" "$@"
+  fi
+}
+
+# AWS wrapper without passing a region (AWS(N)o(R)egion)
+AWSNR() {
+  if [ -z "$AWS_PROFILE" ]; then
+    aws "$@"
+  else
+    aws --profile "$AWS_PROFILE" "$@"
   fi
 }
 
@@ -115,6 +126,7 @@ uploadImageToS3() {
   local file
   local baseName
   file="$1"
+  kairosVersion="$2"
   baseName=$(basename "$file")
 
   if AWS s3 ls "$AWS_S3_BUCKET/$baseName" > /dev/null 2>&1; then
@@ -122,6 +134,8 @@ uploadImageToS3() {
   else
     echo "File '$baseName' does not exist in S3 bucket '$AWS_S3_BUCKET'. Uploading now."
     AWS s3 cp "$1" "s3://$AWS_S3_BUCKET/$baseName"
+
+    AWS s3api put-object-tagging --bucket "$AWS_S3_BUCKET" --key "$baseName" --tagging "TagSet=[{Key=KairosVersion,Value=$2}]"
   fi
 }
 
@@ -149,6 +163,7 @@ waitForSnapshotCompletion() {
 
 importAsSnapshot() {
   local file="$1"
+  local kairosVersion="$2"
   local snapshotID
 
   snapshotID=$(AWS ec2 describe-snapshots --filters "Name=tag:SourceFile,Values=$file" --query "Snapshots[0].SnapshotId" --output text)
@@ -174,7 +189,8 @@ EOF
 
   snapshotID=$(waitForSnapshotCompletion "$taskID" | tail -1 | tee /dev/fd/2)
   echo "Adding tag to the snapshot with ID: $snapshotID"
-  AWS ec2 create-tags --resources "$snapshotID" --tags "Key=SourceFile,Value=$file"
+  AWS ec2 create-tags --resources "$snapshotID" \
+    --tags Key=Name,Value="${file}" Key=SourceFile,Value="${file}" Key=KairosVersion,Value="${kairosVersion}"
 
   echo "$snapshotID" # Return the snapshot ID so that we can grab it with `tail -1`
 }
@@ -182,6 +198,7 @@ EOF
 checkImageExistsOrCreate() {
   local imageName="$1"
   local snapshotID="$2"
+  local kairosVersion="$3"
   local imageID
 
   # Check if the image already exists
@@ -205,12 +222,15 @@ checkImageExistsOrCreate() {
       --query 'ImageId' \
       --output text)
 
+    AWS ec2 create-tags --resources "$imageID" \
+      --tags Key=KairosVersion,Value=$kairosVersion Key=Name,Value=$imageName Key=Project,Value=Kairos
+
     echo "Image '$imageName' created with Image ID: $imageID"
   fi
 
   waitAMI "$imageID" "$AWS_REGION"
   makeAMIpublic "$imageID" "$AWS_REGION"
-  copyToAllRegions "$imageID" "$imageName" "$description"
+  copyToAllRegions "$imageID" "$imageName" "$description" "$kairosVersion"
 }
 
 # Function to wait for the AMI to become available
@@ -220,7 +240,7 @@ waitAMI() {
 
   echo "[$region] Waiting for AMI $amiID to be available"
   while true; do
-    status=$(aws --profile "$AWS_PROFILE" ec2 describe-images --region "$region" --image-ids "$amiID" --query "Images[0].State" --output text 2>/dev/null)
+    status=$(AWSNR ec2 describe-images --region "$region" --image-ids "$amiID" --query "Images[0].State" --output text 2>/dev/null)
     if [[ "$status" == "available" ]]; then
       echo "[$region] AMI $amiID is now available!"
       break
@@ -238,9 +258,9 @@ makeAMIpublic() {
   local region="$2"
 
   echo "[$region] calling DisableImageBlockPublicAccess"
-  aws --profile "$AWS_PROFILE" --region "$region" ec2 disable-image-block-public-access > /dev/null 2>&1
+  AWSNR --region "$region" ec2 disable-image-block-public-access > /dev/null 2>&1
   echo "[$region] Making image '$imageID' public..."
-  aws --profile "$AWS_PROFILE" --region "$region" ec2 modify-image-attribute --image-id "$imageID" --launch-permission "{\"Add\":[{\"Group\":\"all\"}]}"
+  AWSNR --region "$region" ec2 modify-image-attribute --image-id "$imageID" --launch-permission "{\"Add\":[{\"Group\":\"all\"}]}"
   echo "[$region] Image '$imageID' is now public."
 }
 
@@ -248,19 +268,19 @@ copyToAllRegions() {
   local imageID="$1"
   local imageName="$2"
   local description="$3"
+  local kairosVersion="$4"
 
   echo "Copying AMI '$imageName ($imageID)' to all regions"
   mapfile -t regions < <(AWS ec2 describe-regions | jq -r '.Regions[].RegionName')
   for reg in "${regions[@]}"; do
     # If the current region is the same as the region we are trying to copy, just ignore, the AMI is already there
-    if [[ "${AWS_REGION}" == "${reg}" ]]
-      then
+    if [[ "${AWS_REGION}" == "${reg}" ]]; then
         continue
     fi
     (
       echo "[$reg] Copying AMI '$imageName' to region $reg"
       # Check if the image already exists in this region
-      amiCopyID=$(aws --profile "$AWS_PROFILE" --region "$reg" ec2 describe-images --filters "Name=name,Values=$imageName" --query 'Images[0].ImageId' --output text)
+      amiCopyID=$(AWSNR --region "$reg" ec2 describe-images --filters "Name=name,Values=$imageName" --query 'Images[0].ImageId' --output text)
       if [ "$amiCopyID" != "None" ]; then
         echo "[$reg] Image '$imageName' already exists with Image ID: $amiCopyID"
       else
@@ -274,11 +294,22 @@ copyToAllRegions() {
         )
 
         echo "[$reg] Tagging Copied AMI ${amiCopyID}"
-        AWS ec2 create-tags --resources "${imageID}" --tags \
-          --tags Key=Name,Value="${imageName}" Key=Project,Value=Kairos
       fi
 
       waitAMI "${amiCopyID}" "${reg}"
+
+      snapshotCopyID=$(AWSNR ec2 describe-images \
+        --image-ids "${amiCopyID}" \
+        --region ${reg} \
+        --query 'Images[0].BlockDeviceMappings[0].Ebs.SnapshotId' \
+        --output text)
+      AWSNR --region "${reg}" ec2 create-tags \
+        --resources "${snapshotCopyID}" \
+        --tags Key=Name,Value="${imageName}" Key=SourceFile,Value="${imageName}" Key=KairosVersion,Value="${kairosVersion}"
+
+      AWSNR --region "${reg}" ec2 create-tags \
+        --resources "${amiCopyID}" \
+        --tags Key=Name,Value="${imageName}" Key=Project,Value=Kairos Key=KairosVersion,Value="${kairosVersion}"
       makeAMIpublic "${amiCopyID}" "${reg}"
 
       echo "[$reg] AMI Copied: ${amiCopyID}"
@@ -290,11 +321,19 @@ copyToAllRegions() {
 
 # ----- Main script -----
 baseName=$(basename "$1")
+kairosVersion="$2"
 checkEnvVars
 checkArguments "$@"
+
+echo
+echo "Performing cleanup of old versions"
+cleanupOldVersions
+echo "Done cleaning up"
+echo
+
 # This is an one-off operation and require additional permissions which we don't need to give to CI.
 #ensureVmImportRole
-uploadImageToS3 "$1"
-output=$(importAsSnapshot "$baseName" | tee /dev/fd/2)
+uploadImageToS3 "$1" "$kairosVersion"
+output=$(importAsSnapshot "$baseName" "$kairosVersion"| tee /dev/fd/2)
 snapshotID=$(echo "$output" | tail -1)
-checkImageExistsOrCreate "$baseName" "$snapshotID"
+checkImageExistsOrCreate "$baseName" "$snapshotID" "$kairosVersion"

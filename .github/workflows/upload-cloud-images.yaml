@@ -1,0 +1,79 @@
+name: Upload cloud images
+on:
+  # TODO: Remove this before merging this PR
+  pull_request:
+    paths:
+      - '**'
+  schedule:
+    # Everyday at 2am
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force pushing even if already pushed'
+        required: false
+        type: boolean
+
+permissions: read-all
+
+jobs:
+  upload-aws:
+    name: Upload to AWS
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - run: |
+          git fetch --prune --unshallow
+      # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-central-1
+          #role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          #role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
+          role-duration-seconds: 1200
+          role-session-name: AWSCIPush
+      - name: Build and push AWS image
+        env:
+          AWS_S3_BUCKET: kairos-cloud-images
+          AWS_REGION: eu-central-1
+        run: |
+          set -e
+
+          latestTag=$(git describe --tags --abbrev=0)
+
+          echo "Fetching all pushed versions"
+          mapfile -t kairosVersions < <(aws --region "$AWS_REGION" ec2 describe-images --owners self --query 'Images[].Tags[?Key==`KairosVersion`].Value' --output text)
+
+          echo "Checking if '$latestTag' is already pushed"
+          echo "Looking among versions: ${kairosVersions[@]}"
+          for version in "${kairosVersions[@]}"; do
+            if [[ $version == $latestTag ]]; then
+              stableVersions+=("$version")
+              alreadyPushed=true
+              break
+            fi
+          done
+
+          if [[ "$alreadyPushed" = true && "${{ inputs.force }}" != "true" ]]; then
+            echo "Image for $latestTag is already pushed and 'force' wasn't true. Exiting."
+            exit 0
+          fi
+
+          containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+          docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
+            --privileged \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
+            --debug \
+            --set "disable_http_server=true" \
+            --set "container_image=docker:${containerImage}" \
+            --set "disable_netboot=true" \
+            --set "disk.raw=true" \
+            --set "state_dir=/aurora"
+
+          .github/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
