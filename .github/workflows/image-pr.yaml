@@ -12,9 +12,9 @@ env:
   FORCE_COLOR: 1
   EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
-  core-ubuntu-22-lts:
+  build:
+    name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
-    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -31,158 +31,53 @@ jobs:
       repository-projects: read
       statuses: read
     with:
-      flavor: ubuntu
-      flavor_release: "22.04"
-      family: ubuntu
-      base_image: ubuntu:22.04
-      model: generic
-      variant: core
-      arch: amd64
-  core-ubuntu-24-lts:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
+      base_image: ${{ matrix.base_image }}
+      variant: ${{ matrix.variant }}
+      model: "generic"
+      arch: "amd64"
+      event_type: ${{ github.event_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ["core"] # So it shows up in the name, in case we use it for standard
+        base_image:
+          - "ubuntu:24.04"
+          - "alpine:3.19"
+  tests:
+    name: ${{ matrix.base_image }}
     secrets: inherit
-    permissions:
-      contents: write
-      security-events: write
-      id-token: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
+    uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      family: ubuntu
-      base_image: ubuntu:24.04
-      model: generic
-      variant: core
-      arch: amd64
-  core-ubuntu-24-10:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
-    secrets: inherit
-    permissions:
-      contents: write
-      security-events: write
-      id-token: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    with:
-      flavor: ubuntu
-      flavor_release: "24.10"
-      family: ubuntu
-      base_image: ubuntu:24.10
-      model: generic
-      variant: core
-      arch: amd64
-  core-alpine:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
-    secrets: inherit
-    permissions:
-      contents: write
-      security-events: write
-      id-token: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      family: alpine
-      base_image: alpine:3.19
-      model: generic
-      variant: core
-      arch: amd64
-  install:
-    uses: ./.github/workflows/reusable-install-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      secureboot: false
-      variant: core
+      base_image: ${{ matrix.base_image }}
+      test: ${{ matrix.test }}
+      secureboot: ${{ matrix.secureboot || false}}
+      variant: "core"
+      arch: "amd64"
     needs:
-      - core-ubuntu-24-lts
-  install-target:
-    secrets: inherit
-    uses: ./.github/workflows/reusable-install-test-target.yaml
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      secureboot: false
-      variant: core
-    needs:
-      - core-ubuntu-24-lts
-  install-secureboot:
-    uses: ./.github/workflows/reusable-install-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      secureboot: true
-      variant: core
-    needs:
-      - core-ubuntu-24-lts
-  install-alpine:
-    uses: ./.github/workflows/reusable-install-test.yaml
-    secrets: inherit
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      variant: core
-    needs:
-      - core-alpine
-  zfs:
-    uses: ./.github/workflows/reusable-zfs-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "22.04"
-      variant: core
-    needs:
-      - core-ubuntu-22-lts
-  acceptance:
-    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      variant: core
-    needs:
-      - core-ubuntu-24-lts
-  acceptance-alpine:
-    uses: ./.github/workflows/reusable-qemu-acceptance-test.yaml
-    secrets: inherit
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      variant: core
-    needs:
-      - core-alpine
+      - build
+    strategy:
+      fail-fast: true
+      matrix:
+        secureboot: [false]
+        base_image:
+          - "ubuntu:24.04"
+          - "alpine:3.19"
+        test:
+          - "custom-partitioning"
+          - "autoinstall"
+          - "install"
+          - "install-target"
+          - "reset"
+          - "upgrade-with-cli"
+          - "upgrade-latest"
+        include:
+          - test: "install-test"
+            secureboot: true
+            base_image: "ubuntu:24.04"
+          - test: "zfs"
+            base_image: "ubuntu:24.04"
   bundles:
+    name: "ubuntu:24.04"
     uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
     secrets: inherit
     with:
@@ -190,138 +85,37 @@ jobs:
       flavor_release: "24.04"
       variant: core
     needs:
-      - core-ubuntu-24-lts
-  reset:
-    uses: ./.github/workflows/reusable-qemu-reset-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      variant: core
-    needs:
-      - core-ubuntu-24-lts
-  reset-alpine:
-    uses: ./.github/workflows/reusable-qemu-reset-test.yaml
-    secrets: inherit
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      variant: core
-    needs:
-      - core-alpine
+      - build
   netboot:
+    name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     secrets: inherit
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      family: ubuntu
-      base_image: ubuntu:24.04
-      model: generic
-      variant: core
+      base_image: ${{ matrix.base_image }}
+      variant: "core"
     needs:
-      - core-ubuntu-24-lts
-  netboot-alpine:
-    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
-    secrets: inherit
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      family: alpine
-      base_image: alpine:3.19
-      model: generic
-      variant: core
-    needs:
-      - core-alpine
-  upgrade:
-    uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      variant: core
-      arch: amd64
-    needs:
-      - core-ubuntu-24-lts
-  upgrade-alpine:
-    uses: ./.github/workflows/reusable-upgrade-with-cli-test.yaml
-    secrets: inherit
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      variant: core
-      arch: amd64
-    needs:
-      - core-alpine
-  upgrade-latest:
-    uses: ./.github/workflows/reusable-upgrade-latest-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      family: "ubuntu"
-      variant: core
-      arch: amd64
-      # release_matcher: "23.10"  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
-    needs:
-      - core-ubuntu-24-lts
-  custom-partitioning:
-    secrets: inherit
-    uses: ./.github/workflows/reusable-custom-partitioning-test.yaml
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    with:
-      flavor: "ubuntu"
-      flavor_release: "24.04"
-      variant: core
-
-    needs:
-      - core-ubuntu-24-lts
+      - build
+    strategy:
+      matrix:
+        base_image:
+          - "ubuntu:24.04"
+          - "alpine:3.19"
   encryption:
+    name: ${{ matrix.base_image }}
     secrets: inherit
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
-      flavor: ubuntu
-      flavor_release: "24.04"
+      base_image: ${{ matrix.base_image }}
       label: ${{ matrix.label }}
       variant: core
     needs:
-      - core-ubuntu-24-lts
+      - build
     strategy:
       fail-fast: true
       matrix:
-        label:
-          - "local-encryption"
-          - "remote-auto"
-          - "remote-static"
-          - "remote-https-pinned"
-          - "remote-https-bad-cert"
-  encryption-alpine:
-    secrets: inherit
-    uses: ./.github/workflows/reusable-encryption-test.yaml
-    with:
-      flavor: alpine
-      flavor_release: "3.19"
-      label: ${{ matrix.label }}
-      variant: core
-    needs:
-      - core-alpine
-    strategy:
-      fail-fast: true
-      matrix:
+        base_image:
+          - "ubuntu:24.04"
+          - "alpine:3.19"
         label:
           - "local-encryption"
           - "remote-auto"

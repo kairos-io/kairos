@@ -351,7 +351,6 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
-      family: ${{ matrix.family }}
       base_image: ${{ matrix.baseImage }}
       variant: standard
       model: generic

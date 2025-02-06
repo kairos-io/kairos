@@ -12,6 +12,10 @@ import (
 	"testing"
 	"time"
 
+	diskfs "github.com/diskfs/go-diskfs"
+	"github.com/diskfs/go-diskfs/disk"
+	"github.com/diskfs/go-diskfs/filesystem"
+	"github.com/diskfs/go-diskfs/filesystem/iso9660"
 	"github.com/google/uuid"
 	"github.com/kairos-io/go-nodepair"
 	qr "github.com/kairos-io/go-nodepair/qrcode"
@@ -31,6 +35,38 @@ func TestSuite(t *testing.T) {
 
 var getVersionCmd = ". /etc/kairos-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION"
 var getVersionCmdOsRelease = ". /etc/os-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION"
+
+// CreateDatasource creates a datasource iso from a given user-data file
+// And returns the path to the datasource iso
+// Its the caller's responsibility to remove the datasource iso afterwards
+func CreateDatasource(userDataFile string) string {
+	ds, err := os.MkdirTemp("", "datasource-*")
+	Expect(err).ToNot(HaveOccurred())
+	diskImg := path.Join(ds, "datasource.iso")
+	var diskSize int64 = 1 * 1024 * 1024 // 1 MB
+	mydisk, err := diskfs.Create(diskImg, diskSize, diskfs.SectorSizeDefault)
+	Expect(err).ToNot(HaveOccurred())
+	mydisk.LogicalBlocksize = 2048
+	fspec := disk.FilesystemSpec{Partition: 0, FSType: filesystem.TypeISO9660, VolumeLabel: "cidata"}
+	fs, err := mydisk.CreateFilesystem(fspec)
+	Expect(err).ToNot(HaveOccurred())
+	rw, err := fs.OpenFile("user-data", os.O_CREATE|os.O_RDWR)
+	Expect(err).ToNot(HaveOccurred())
+	content, err := os.ReadFile(userDataFile)
+	_, err = rw.Write(content)
+	Expect(rw.Close()).ToNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
+	rw, err = fs.OpenFile("meta-data", os.O_CREATE|os.O_RDWR)
+	Expect(err).ToNot(HaveOccurred())
+	_, err = rw.Write([]byte(""))
+	Expect(rw.Close()).ToNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
+	iso, ok := fs.(*iso9660.FileSystem)
+	Expect(ok).To(BeTrue())
+	err = iso.Finalize(iso9660.FinalizeOptions{RockRidge: true, VolumeIdentifier: "cidata"})
+	Expect(err).ToNot(HaveOccurred())
+	return diskImg
+}
 
 // https://gist.github.com/sevkin/96bdae9274465b2d09191384f86ef39d
 // GetFreePort asks the kernel for a free open port that is ready to use.
@@ -303,9 +339,8 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	vmName := uuid.New().String()
 
-	if os.Getenv("EMULATE_TPM") != "" {
-		emulateTPM(stateDir)
-	}
+	// Always setup a tpm emulator
+	emulateTPM(stateDir)
 
 	sshPort, err = getFreePort()
 	Expect(err).ToNot(HaveOccurred())

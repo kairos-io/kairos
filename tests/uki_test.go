@@ -16,6 +16,7 @@ import (
 
 var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 	var vm VM
+	var datasource string
 
 	BeforeAll(func() {
 		if os.Getenv("FIRMWARE") == "" {
@@ -36,9 +37,8 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 	})
 
 	BeforeEach(func() {
-		if os.Getenv("DATASOURCE") == "" {
-			Fail("DATASOURCE must be set and it should be the absolute path to a datasource iso")
-		}
+		datasource = CreateDatasource("assets/uki-install.yaml")
+		Expect(os.Setenv("DATASOURCE", datasource)).ToNot(HaveOccurred())
 		_, vm = startVM()
 		vm.EventuallyConnects(300)
 	})
@@ -56,6 +56,8 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 
 		err := vm.Destroy(nil)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(os.Unsetenv("DATASOURCE")).ToNot(HaveOccurred())
+		Expect(os.Remove(datasource)).ToNot(HaveOccurred())
 	})
 	It("passes checks", func() {
 		By("Checking SecureBoot is enabled", func() {

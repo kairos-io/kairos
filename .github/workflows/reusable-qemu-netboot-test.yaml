@@ -3,19 +3,7 @@ name: Reusable workflow - qemu netboot test
 on:
   workflow_call:
     inputs:
-      flavor:
-        required: true
-        type: string
-      flavor_release:
-        required: true
-        type: string
-      family:
-        required: true
-        type: string
       base_image:
-        required: true
-        type: string
-      model:
         required: true
         type: string
       variant:
@@ -24,16 +12,21 @@ on:
 
 permissions: read-all
 jobs:
-  test:
+  netboot:
     runs-on: kvm
     steps:
+      - name: Split base image
+        id: split
+        run: |
+          echo "::set-output name=flavor::$(echo ${{ inputs.base_image }} | cut -d ':' -f 1)"
+          echo "::set-output name=flavor_release::$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)"
       - uses: actions/checkout@v4
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Install Go
-        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5
+        uses: actions/setup-go@v5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
@@ -49,7 +42,7 @@ jobs:
       - name: Install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y mtools syslinux isolinux git make gcc liblzma-dev mkisofs xorriso build-essential qemu-utils qemu-system-x86
+          sudo apt-get install -y mtools syslinux isolinux git make gcc liblzma-dev mkisofs xorriso build-essential qemu-utils qemu-system-x86 swtpm
       - name: Build iPXE iso with our script on it
         run: |
           cp tests/assets/kairos.ipxe ipxe/src/kairos.ipxe
@@ -57,13 +50,13 @@ jobs:
           cp ipxe/src/bin/ipxe.iso ipxe.iso
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        uses: actions/download-artifact@v4.1.8
         with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
       - name: Extract ipxe artifacts for the ipxe server
         run: |
           mkdir -p build
-          export ISO=$(ls $PWD/*${{ inputs.flavor }}*.iso)
+          export ISO=$(ls $PWD/*${{ steps.split.outputs.flavor }}*.iso)
           isoinfo -x /rootfs.squashfs -R -i ${ISO} > build/kairos.squashfs
           isoinfo -x /boot/kernel -R -i ${ISO} > build/kairos-kernel
           isoinfo -x /boot/initrd -R -i ${ISO} > build/kairos-initrd
