@@ -1,9 +1,5 @@
 name: Upload cloud images
 on:
-  # TODO: Remove this before merging this PR
-  pull_request:
-    paths:
-      - '**'
   schedule:
     # Everyday at 2am
     - cron: '0 2 * * *'
