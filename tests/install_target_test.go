@@ -8,6 +8,7 @@ import (
 	"github.com/spectrocloud/peg/pkg/machine"
 	"github.com/spectrocloud/peg/pkg/machine/types"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -44,7 +45,19 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 	})
 
 	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
+		}
+
+		if CurrentSpecReport().Failed() {
+			gatherLogs(vm)
+		}
+
 		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
+
 	})
 
 	// TODO: Install on second disk instead of first and check that it worked.
@@ -68,20 +81,23 @@ var _ = Describe("kairos install test different targets", Label("install-test-ta
 			})
 
 			By("waiting for VM to reboot", func() {
-
 				_, _ = vm.Sudo("reboot")
-				Expect(vm.DetachCD()).ToNot(HaveOccurred())
 				vm.EventuallyConnects(1200)
 			})
 
 			By("checking that vm has rebooted to 'active'", func() {
+				var out string
 				Eventually(func() string {
-					out, _ := vm.Sudo("kairos-agent state boot")
+					out, err = vm.Sudo("kairos-agent state boot")
+					if err != nil {
+						fmt.Println(err.Error())
+						return ""
+					}
 					return out
-				}, 40*time.Minute, 10*time.Second).Should(
+				}, 5*time.Minute, 10*time.Second).Should(
 					Or(
 						ContainSubstring("active_boot"),
-					))
+					), out)
 			})
 
 			By("checking corresponding state", func() {

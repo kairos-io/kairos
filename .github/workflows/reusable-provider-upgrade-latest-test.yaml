@@ -15,6 +15,9 @@ on:
       release_matcher:
         required: false
         type: string
+      variant:
+        required: true
+        type: string
 
 permissions: read-all
 jobs:
@@ -71,7 +74,7 @@ jobs:
           export MEMORY=4000
           export CPUS=2
           export DRIVE_SIZE=30000
-          export CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ github.sha }}-provider:24h
+          export CONTAINER_IMAGE=ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ github.sha }}-provider:24h
 
           export ISO=$PWD/$(ls -1 *.iso | grep -v ipxe | head -n 1)
           cp tests/go.* .
