@@ -155,8 +155,6 @@ jobs:
             flavorRelease: "leap-15.6"
           - flavor: "opensuse"
             flavorRelease: "tumbleweed"
-          - flavor: "debian"
-            flavorRelease: "testing"
           - flavor: "ubuntu"
             flavorRelease: "20.04"
           - flavor: "ubuntu"
