@@ -97,7 +97,7 @@ jobs:
       - name: Build the docker image
         uses: docker/build-push-action@v6
         with:
-          context: images/
+          context: .
           file: images/Dockerfile
           platforms: linux/arm64
           load: true
@@ -106,10 +106,7 @@ jobs:
             VARIANT=${{ inputs.variant }}
             MODEL=${{ inputs.model }}
             BASE_IMAGE=${{ inputs.base_image }}
-            SOFTWARE_VERSION: ${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
-            SOFTWARE_VERSION_PREFIX=k3s
-            # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-            FRAMEWORK_VERSION=v2.15.12
+            KUBERNETES_VERSION=${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
       - name: Grype table
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: anchore/scan-action@v6.0.0
@@ -142,8 +139,8 @@ jobs:
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         uses: docker/build-push-action@v6
         with:
-          context: images/
-          file: images/Dockerfile.kairos-${{ inputs.family }}
+          context: .
+          file: images/Dockerfile
           platforms: linux/arm64
           push: "true"
           tags: ${{ env.IMAGE_REF }}
@@ -151,11 +148,7 @@ jobs:
             VARIANT=${{ inputs.variant }}
             MODEL=${{ inputs.model }}
             BASE_IMAGE=${{ inputs.base_image }}
-            RELEASE=${{ env.RELEASE }}
-            SOFTWARE_VERSION: ${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
-            SOFTWARE_VERSION_PREFIX=k3s
-            # renovate: datasource=docker depName=quay.io/kairos/framework versioning=semver
-            FRAMEWORK_VERSION=v2.15.12
+            KUBERNETES_VERSION=${{ inputs.k3s_version && 'v' || '' }}${{ inputs.k3s_version }}
       - name: Sign image
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
         env:
