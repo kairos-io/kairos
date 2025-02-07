@@ -382,26 +382,6 @@
     {
         "family": "debian",
         "flavor": "debian",
-        "flavorRelease": "testing",
-        "variant": "standard",
-        "model": "generic",
-        "baseImage": "debian:testing",
-        "arch": "amd64",
-        "worker": "self-hosted"
-    },
-    {
-        "family": "debian",
-        "flavor": "debian",
-        "flavorRelease": "testing",
-        "variant": "core",
-        "model": "generic",
-        "baseImage": "debian:testing",
-        "arch": "amd64",
-        "worker": "self-hosted"
-    },
-    {
-        "family": "debian",
-        "flavor": "debian",
         "flavorRelease": "bookworm",
         "variant": "standard",
         "model": "generic",
