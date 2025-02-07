@@ -33,7 +33,7 @@ jobs:
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Install Go
-        uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a # v5
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
