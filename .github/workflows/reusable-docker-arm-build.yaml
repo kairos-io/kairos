@@ -112,7 +112,7 @@ jobs:
             FRAMEWORK_VERSION=v2.15.12
       - name: Grype table
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
-        uses: anchore/scan-action@v6.0.0
+        uses: anchore/scan-action@v6.1.0
         with:
           image: kairos:${{ env.GIT_VERSION }}
           output-format: table
@@ -121,7 +121,7 @@ jobs:
           only-fixed: true
       - name: Grype sarif
         if: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
-        uses: anchore/scan-action@v6.0.0
+        uses: anchore/scan-action@v6.1.0
         with:
           image: kairos:${{ env.GIT_VERSION }}
           output-format: sarif
