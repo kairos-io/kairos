@@ -70,6 +70,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -85,6 +86,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -99,6 +101,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
       secureboot: true
     needs:
       - core
@@ -124,6 +127,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -138,6 +142,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -164,6 +169,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -178,6 +184,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -189,13 +196,11 @@ jobs:
             family: alpine
             base_image: alpine:3.19
             model: generic
-            variant: core
           - flavor: opensuse
             flavorRelease: leap-15.6
             family: opensuse
             base_image: opensuse/leap:15.6
             model: generic
-            variant: core
   netboot:
     secrets: inherit
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
@@ -236,6 +241,8 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
+      arch: "amd64"
     needs:
       - core
     strategy:
@@ -255,6 +262,8 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
       family: ${{ matrix.family }}
       release_matcher: ${{ matrix.releaseMatcher }}  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
+      variant: "core"
+      arch: "amd64"
     needs:
       - core
     strategy:
@@ -289,6 +298,7 @@ jobs:
     with:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -304,6 +314,7 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
       label: ${{ matrix.label }}
+      variant: "core"
     needs:
       - core
     strategy:
@@ -385,6 +396,8 @@ jobs:
       flavor: ${{ matrix.flavor }}
       flavor_release: ${{ matrix.flavorRelease }}
       label: ${{ matrix.label }}
+      variant: "standard"
+      arch: "amd64"
     needs:
       - standard
     strategy:
@@ -420,6 +433,7 @@ jobs:
       flavor_release: ${{ matrix.flavorRelease }}
       family: ${{ matrix.family }}
       release_matcher: ${{ matrix.releaseMatcher }}  # introduced so tests can be green while we wait for the kairos release with the latest flavor release
+      variant: "standard"
     needs:
       - standard
     strategy:
