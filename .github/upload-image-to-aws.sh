@@ -11,7 +11,7 @@ set -e
 set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=.github/cleanup-old-images.sh
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/cleanup-old-images.sh"
 
 checkArguments() {
