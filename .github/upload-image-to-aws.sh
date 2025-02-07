@@ -10,7 +10,9 @@
 set -e
 set -o pipefail
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cleanup-old-images.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=.github/cleanup-old-images.sh
+source "$SCRIPT_DIR/cleanup-old-images.sh"
 
 checkArguments() {
   if [ $# -lt 2 ]; then
@@ -223,7 +225,7 @@ checkImageExistsOrCreate() {
       --output text)
 
     AWS ec2 create-tags --resources "$imageID" \
-      --tags Key=KairosVersion,Value=$kairosVersion Key=Name,Value=$imageName Key=Project,Value=Kairos
+      --tags Key=KairosVersion,Value="$kairosVersion" Key=Name,Value="$imageName" Key=Project,Value=Kairos
 
     echo "Image '$imageName' created with Image ID: $imageID"
   fi
@@ -299,20 +301,20 @@ copyToAllRegions() {
       waitAMI "${amiCopyID}" "${reg}"
 
       snapshotCopyID=$(AWSNR ec2 describe-images \
-        --image-ids "${amiCopyID}" \
-        --region ${reg} \
+        --image-ids "$amiCopyID" \
+        --region "$reg" \
         --query 'Images[0].BlockDeviceMappings[0].Ebs.SnapshotId' \
         --output text)
-      AWSNR --region "${reg}" ec2 create-tags \
-        --resources "${snapshotCopyID}" \
-        --tags Key=Name,Value="${imageName}" Key=SourceFile,Value="${imageName}" Key=KairosVersion,Value="${kairosVersion}"
+      AWSNR --region "$reg" ec2 create-tags \
+        --resources "$snapshotCopyID" \
+        --tags Key=Name,Value="$imageName" Key=SourceFile,Value="$imageName" Key=KairosVersion,Value="$kairosVersion"
 
-      AWSNR --region "${reg}" ec2 create-tags \
-        --resources "${amiCopyID}" \
-        --tags Key=Name,Value="${imageName}" Key=Project,Value=Kairos Key=KairosVersion,Value="${kairosVersion}"
-      makeAMIpublic "${amiCopyID}" "${reg}"
+      AWSNR --region "$reg" ec2 create-tags \
+        --resources "$amiCopyID" \
+        --tags Key=Name,Value="$imageName" Key=Project,Value=Kairos Key=KairosVersion,Value="$kairosVersion"
+      makeAMIpublic "$amiCopyID" "$reg"
 
-      echo "[$reg] AMI Copied: ${amiCopyID}"
+      echo "[$reg] AMI Copied: $amiCopyID"
     ) &
   done
 
