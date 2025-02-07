@@ -26,7 +26,7 @@ amiDeleteIfNotInVersionList() {
   # $(dosomething | tail -1 | tee /dev/fd/2)
 
   # get all image tags
-  mapfile -t imgTags < <(AWSNR --region $reg ec2 describe-images --image-ids $img --query 'Images[].Tags[]' --output text)
+  mapfile -t imgTags < <(AWSNR --region "$reg" ec2 describe-images --image-ids "$img" --query 'Images[].Tags[]' --output text)
   TagExists=false
   for tag in "${imgTags[@]}"; do
     for tagToCheck in "${versionList[@]}"; do
@@ -39,8 +39,8 @@ amiDeleteIfNotInVersionList() {
   done
 
   if [ "$TagExists" = false ]; then
-      AWSNR --region $reg ec2 deregister-image --image-id $img
-      echo "[$reg] AMI $img deleted because it does not match any of the versions: '${versionList[@]}'."
+      AWSNR --region "$reg" ec2 deregister-image --image-id "$img"
+      echo "[$reg] AMI $img deleted because it does not match any of the versions: '${versionList[*]}'."
   fi
 }
 
@@ -51,7 +51,7 @@ snapshotDeleteIfNotInVersionList() {
   local versionList=("$@")
 
   # Get all snapshot tags
-  mapfile -t snapshotTags < <(AWSNR --region $reg ec2 describe-snapshots --snapshot-ids $snapshot --query 'Snapshots[].Tags[]' --output text)
+  mapfile -t snapshotTags < <(AWSNR --region "$reg" ec2 describe-snapshots --snapshot-ids "$snapshot" --query 'Snapshots[].Tags[]' --output text)
   TagExists=false
   for tag in "${snapshotTags[@]}"; do
     for tagToCheck in "${versionList[@]}"; do
@@ -64,8 +64,8 @@ snapshotDeleteIfNotInVersionList() {
   done
 
   if [ "$TagExists" = false ]; then
-    (AWSNR --region $reg ec2 delete-snapshot --snapshot-id $snapshot && \
-      echo "[$reg] Snapshot $snapshot deleted because it does not match any of the versions: '${versionList[@]}'.") || true
+    (AWSNR --region "$reg" ec2 delete-snapshot --snapshot-id "$snapshot" && \
+      echo "[$reg] Snapshot $snapshot deleted because it does not match any of the versions: '${versionList[*]}'.") || true
   fi
 }
 
@@ -91,7 +91,7 @@ s3ObjectDeleteIfNotInVersionList() {
 
   if [ "$TagExists" = false ]; then
     AWSNR s3api delete-object --bucket "$bucket" --key "$key"
-    echo "S3 object $key in bucket $bucket deleted because it does not match any of the versions: '${versionList[@]}'."
+    echo "S3 object $key in bucket $bucket deleted because it does not match any of the versions: '${versionList[*]}'."
   fi
 }
 
@@ -103,7 +103,7 @@ getHighest4StableVersions() {
   local highest4StableVersions
 
   # Get all Kairos versions
-  mapfile -t kairosVersions < <(AWSNR --region "$reg" ec2 describe-images --owners self --query 'Images[].Tags[?Key==`KairosVersion`].Value' --output text)
+  mapfile -t kairosVersions < <(AWSNR --region "$reg" ec2 describe-images --owners self --query "Images[].Tags[?Key=='KairosVersion'].Value" --output text)
 
   # Filter out non-stable versions (those containing '-rc')
   for version in "${kairosVersions[@]}"; do
@@ -113,7 +113,7 @@ getHighest4StableVersions() {
   done
 
   # Sort the stable versions and keep only the highest 4
-  IFS=$'\n' sortedVersions=($(sort -V -r <<<"${stableVersions[*]}"))
+  IFS=$'\n' mapfile -t sortedVersions < <(sort -V -r <<<"${stableVersions[*]}")
   unset IFS
   highest4StableVersions=("${sortedVersions[@]:0:4}")
 
@@ -127,21 +127,21 @@ cleanupOldVersionsRegion() {
   local versionList=("$@")
 
   # Cleanup AMIs
-  mapfile -t allAmis < <(AWSNR --region $reg ec2 describe-images --owners self --query 'Images[].ImageId' --output text | tr '\t' '\n')
+  mapfile -t allAmis < <(AWSNR --region "$reg" ec2 describe-images --owners self --query 'Images[].ImageId' --output text | tr '\t' '\n')
   for img in "${allAmis[@]}"; do
-    amiDeleteIfNotInVersionList $reg $img "${versionList[@]}"
+    amiDeleteIfNotInVersionList "$reg" "$img" "${versionList[@]}"
   done
 
   # Cleanup Snapshots
-  mapfile -t allSnapshots < <(AWSNR --region $reg ec2 describe-snapshots --owner-ids self --query 'Snapshots[].SnapshotId' --output text | tr '\t' '\n')
+  mapfile -t allSnapshots < <(AWSNR --region "$reg" ec2 describe-snapshots --owner-ids self --query 'Snapshots[].SnapshotId' --output text | tr '\t' '\n')
   for snapshot in "${allSnapshots[@]}"; do
-    snapshotDeleteIfNotInVersionList $reg $snapshot "${versionList[@]}"
+    snapshotDeleteIfNotInVersionList "$reg" "$snapshot" "${versionList[@]}"
   done
 }
 
 cleanupOldVersions() {
-  highest4StableVersions=($(getHighest4StableVersions "$AWS_REGION"))
-  echo "Highest 4 stable versions (in region $AWS_REGION): ${highest4StableVersions[@]}"
+  mapfile -t highest4StableVersions < <(getHighest4StableVersions "$AWS_REGION")
+  echo "Highest 4 stable versions (in region $AWS_REGION): ${highest4StableVersions[*]}"
 
   mapfile -t regions < <(AWSNR ec2 describe-regions | jq -r '.Regions[].RegionName')
   for reg in "${regions[@]}"; do
