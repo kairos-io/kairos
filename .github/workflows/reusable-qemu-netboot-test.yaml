@@ -18,8 +18,8 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          echo "::set-output name=flavor::$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')"
-          echo "::set-output name=flavor_release::$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)"
+          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
+          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
@@ -27,6 +27,7 @@ jobs:
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Install Go
         uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum

@@ -33,14 +33,15 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          echo "::set-output name=flavor::$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')"
-          echo "::set-output name=flavor_release::$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)"
+          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
+          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Install Go
         uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum

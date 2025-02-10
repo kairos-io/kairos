@@ -42,8 +42,8 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          echo "::set-output name=flavor::$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')"
-          echo "::set-output name=flavor_release::$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)"
+          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
+          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
       - name: Set Image Tag
         run: |
           echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV

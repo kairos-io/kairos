@@ -6,12 +6,6 @@ on:
       base_image:
         required: true
         type: string
-      flavor:
-        required: true
-        type: string
-      flavor_release:
-        required: true
-        type: string
       variant:
         required: true
         type: string
@@ -21,19 +15,23 @@ on:
 permissions: read-all
 jobs:
   test-uki:
+    name: test-${{ inputs.variant }}
     permissions:
       id-token: write  # OIDC support
       contents: write
       actions: read
       security-events: write
     runs-on: kvm
-    env:
-      FLAVOR: ${{ inputs.flavor }}
-      FLAVOR_RELEASE: ${{ inputs.flavor_release }}
     steps:
+      - name: Split base image
+        id: split
+        run: |
+          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
+          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
       - name: Install Go
         uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
@@ -65,7 +63,7 @@ jobs:
           file: images/Dockerfile
           platforms: linux/amd64
           load: true
-          tags: ${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
+          tags: ${{ steps.split.outputs.flavor }}-init:${{ inputs.flavor_release }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
@@ -81,11 +79,11 @@ jobs:
           quay.io/kairos/auroraboot:latest --debug build-uki --output-dir /output/ -k /keys --output-type iso \
           --single-efi-cmdline="testentry: nothing" \
           --overlay-iso /overlay \
-          docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
+          docker:${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
       - name: Build uki upgrade image 🔧
         run: |
           rm -rf /tmp/unpacked
-          sudo luet util unpack ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} ./unpacked --local
+          sudo luet util unpack ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }} ./unpacked --local
           new_version="mynewversion"
           sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="'$new_version'"/' ./unpacked/etc/kairos-release
           echo "$new_version" > "${PWD}/build/expected_new_version"
@@ -122,21 +120,24 @@ jobs:
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
       - name: Install Cosign
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.split.outputs.flavor == 'ubuntu' }}
         uses: sigstore/cosign-installer@main
       - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.split.outputs.flavor == 'ubuntu' }}
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+      - name: Set Image Tag
+        run: |
+          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
+          echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ env.GIT_VERSION }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}-uki" >> $GITHUB_ENV
+          echo "Setting image tag to ${{ env.IMAGE_TAG }}"
       - name: Push to quay
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
         env:
           COSIGN_YES: true
         run: |
-          SUFFIX="-uki"
-          IMAGE=$(FLAVOR=${{ inputs.flavor }} FLAVOR_RELEASE="${{ inputs.flavor_release }}" MODEL=generic TARGETARCH=amd64 VARIANT=${{ inputs.variant }} REGISTRY_AND_ORG="quay.io/kairos" RELEASE=master kairos-agent versioneer container-artifact-name)
-          docker tag ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} "$IMAGE$SUFFIX"
-          docker push "$IMAGE$SUFFIX"
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE$SUFFIX")
+          docker tag ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }} ${{ env.IMAGE_TAG }}
+          docker push ${{ env.IMAGE_TAG }}
+          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' ${{ env.IMAGE_TAG }})
           cosign sign $image_ref
       - uses: actions/upload-artifact@v4
         if: failure()
