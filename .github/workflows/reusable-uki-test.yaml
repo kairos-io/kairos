@@ -37,11 +37,11 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
-      - name: Install luet
+      - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@v1.1
         with:
-          packages: ''
-          repository: ''
+          repository: quay.io/kairos/packages
+          packages: system/kairos-agent
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
@@ -121,12 +121,6 @@ jobs:
           export EXPECTED_SINGLE_ENTRY="testentry"
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
-      - name: Install kairos-agent (for versioneer)
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
-        uses: Luet-lab/luet-install-action@v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: system/kairos-agent
       - name: Install Cosign
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
         uses: sigstore/cosign-installer@main
