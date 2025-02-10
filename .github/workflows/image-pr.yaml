@@ -43,7 +43,7 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.19"
-          - "opensuse"
+          - "opensuse:leap-15.6"
   tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
