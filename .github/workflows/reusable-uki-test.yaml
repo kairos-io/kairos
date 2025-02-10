@@ -63,7 +63,7 @@ jobs:
           file: images/Dockerfile
           platforms: linux/amd64
           load: true
-          tags: ${{ steps.split.outputs.flavor }}-init:${{ inputs.flavor_release }}
+          tags: ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
@@ -124,7 +124,11 @@ jobs:
         uses: sigstore/cosign-installer@main
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.split.outputs.flavor == 'ubuntu' }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
       - name: Set Image Tag
         run: |
           echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
@@ -142,6 +146,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: ${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-uki.logs.zip
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-uki.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
