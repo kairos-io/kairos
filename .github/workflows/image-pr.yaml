@@ -70,22 +70,13 @@ jobs:
           - "reset"
           - "upgrade-with-cli"
           - "upgrade-latest"
+          - "bundles"
         include:
           - test: "install-test"
             secureboot: true
             base_image: "ubuntu:24.04"
           - test: "zfs"
             base_image: "ubuntu:24.04"
-  bundles:
-    name: "ubuntu:24.04"
-    uses: ./.github/workflows/reusable-qemu-bundles-test.yaml
-    secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "24.04"
-      variant: core
-    needs:
-      - build
   netboot:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml

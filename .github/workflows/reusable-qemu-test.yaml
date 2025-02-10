@@ -65,6 +65,15 @@ jobs:
           latest: true
           fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
           out-file-path: ""
+      - name: Prepare test bundle
+        if: ${{ input.test == 'bundles' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: examples/bundle/Dockerfile
+          platforms: linux/${{ inputs.arch }}
+          push: true
+          tags: ttl.sh/bundles-test:24h
       - name: Run tests
         env:
           USE_QEMU: true
