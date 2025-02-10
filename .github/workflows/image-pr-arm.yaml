@@ -48,7 +48,13 @@ jobs:
         include:
           - model: "rpi3"
             base_image: "opensuse/leap:15.6"
+            variant: "core"
+            arch: "arm64"
           - model: "rpi3"
             base_image: "alpine:3.19"
+            variant: "core"
+            arch: "arm64"
           - model: "generic"
             base_image: "fedora:40" # Usually the latest Fedora works very well with arm64 generic for qemu testing
+            variant: "core"
+            arch: "arm64"

@@ -82,7 +82,7 @@ jobs:
         run: |
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-          -v $PWD:/output \
+          -v $PWD/build/:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
           --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
           docker:${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
@@ -91,9 +91,8 @@ jobs:
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
           path: |
-            *.iso
-            *.sha256
-            versions.yaml
+            build/*.iso
+            build/*.sha256
           if-no-files-found: error
       - name: Push to testing
         if: ${{ inputs.model == 'generic' }}
