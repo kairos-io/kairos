@@ -168,5 +168,5 @@ jobs:
           - "provider-upgrade"
           - "provider-upgrade-k8s"
         include:
-            - test: "provider-upgrade-latest-k8s-with-kubernetes"
-              base_image: "opensuse/leap:15.6"
+          - test: "provider-upgrade-latest-k8s-with-kubernetes"
+            base_image: "opensuse/leap:15.6"

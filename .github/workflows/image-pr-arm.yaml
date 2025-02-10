@@ -42,9 +42,9 @@ jobs:
         model: ["generic", "rpi4"]
         arch: ["arm64"]
         base_image:
-            - "ubuntu:24.04"
-            - "alpine:3.19"
-            - "opensuse/leap:15.6"
+          - "ubuntu:24.04"
+          - "alpine:3.19"
+          - "opensuse/leap:15.6"
         include:
           - model: "rpi3"
             base_image: "opensuse/leap:15.6"
