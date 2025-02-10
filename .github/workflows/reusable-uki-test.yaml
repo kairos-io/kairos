@@ -31,11 +31,6 @@ jobs:
       FLAVOR: ${{ inputs.flavor }}
       FLAVOR_RELEASE: ${{ inputs.flavor_release }}
     steps:
-      - name: Install earthly
-        uses: Luet-lab/luet-install-action@v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
       - uses: actions/checkout@v4
       - name: Install Go
         uses: actions/setup-go@v5

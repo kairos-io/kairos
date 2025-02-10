@@ -127,26 +127,12 @@ You can run the lint and test checks locally with:
 
 ### Linux
 ```bash
-./earthly.sh +lint
-./earthly.sh +test
+find .github/workflows/ -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint
 ```
 
 ### Windows
 ```bash
-./earthly.ps1 +lint
-./earthly.ps1 +test
-```
-
-You might want to test your changes with an ISO, to build an ISO locally:
-
-### Linux
-```bash
-./earthly.sh +iso --FLAVOR=opensuse
-```
-
-### Windows
-```bash
-./earthly.ps1 +iso --FLAVOR=opensuse
+find .github/workflows/ -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint
 ```
 
 ## Step 8: Send the pull request

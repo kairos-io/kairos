@@ -9,9 +9,6 @@ permissions: read-all
 concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
-env:
-  FORCE_COLOR: 1
-  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
   build:
     name: ${{ matrix.base_image }}
