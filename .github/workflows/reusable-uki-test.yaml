@@ -15,7 +15,7 @@ on:
 permissions: read-all
 jobs:
   test-uki:
-    name: test-${{ inputs.variant }}
+    name: ${{ inputs.variant }}
     permissions:
       id-token: write  # OIDC support
       contents: write
