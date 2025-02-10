@@ -37,6 +37,11 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+      - name: Install luet
+        uses: Luet-lab/luet-install-action@v1.1
+        with:
+          packages: ''
+          repository: ''
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
