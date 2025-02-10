@@ -39,7 +39,7 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          echo "::set-output name=flavor::$(echo ${{ inputs.base_image }} | cut -d ':' -f 1)"
+          echo "::set-output name=flavor::$(echo ${{ inputs.base_image }} | cut -d ':' -f 1| sed  's/\//-/g')"
           echo "::set-output name=flavor_release::$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)"
       - run: |
           echo ${{ inputs.event_type }}
