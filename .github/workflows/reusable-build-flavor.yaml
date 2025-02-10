@@ -7,13 +7,19 @@ on:
         required: true
         type: string
       model:
-        required: true
+        required: false
         type: string
+        default: "generic"
       variant:
-        required: true
+        required: false
         type: string
+        default: "core"
       arch:
-        required: true
+        required: false
+        type: string
+        default: "amd64"
+      kubernetes_version:
+        required: false
         type: string
       event_type:
         required: true
@@ -22,8 +28,8 @@ on:
 permissions: read-all
 jobs:
   build:
-    runs-on: ubuntu-latest
-    name: Build ${{ inputs.base_image }}
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    name: Build ${{ inputs.base_image }} - ${{ inputs.model }} - ${{ inputs.variant }} - ${{ inputs.arch }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -51,14 +57,28 @@ jobs:
         with:
           context: .
           file: images/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/${{ inputs.arch }}
           load: true
           tags: ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
+            KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+      - name: Build raw image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        run: |
+          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
+          -v $PWD/build/:/output \
+          quay.io/kairos/auroraboot:latest \
+          --debug \
+          --set "disable_http_server=true" \
+          --set "disable_netboot=true" \
+          --set "container_image=${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}" \
+          --set "state_dir=/output" \
+          --set "disk.raw=true"
       - name: Build iso 📦
+        if: ${{ inputs.model == 'generic' }}
         run: |
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
@@ -66,7 +86,8 @@ jobs:
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
           --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
           docker:${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
-      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.model == 'generic' }}
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
           path: |
@@ -75,6 +96,7 @@ jobs:
             versions.yaml
           if-no-files-found: error
       - name: Push to testing
+        if: ${{ inputs.model == 'generic' }}
         run: |
           TEST_IMAGE="ttl.sh/kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h"
           docker tag ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }} $TEST_IMAGE

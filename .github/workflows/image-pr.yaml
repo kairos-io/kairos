@@ -1,4 +1,4 @@
-name: Build and test images - Pull Request
+name: Build AMD64 images (PR)
 on:
   pull_request:
     paths:

@@ -64,7 +64,6 @@ jobs:
           RELEASE=$([ "$GITHUB_REF" == "refs/heads/master" ] && echo "master" || echo "$GIT_VERSION")
           echo "GIT_VERSION=$GIT_VERSION" >> $GITHUB_ENV
           echo "RELEASE=$RELEASE" >> $GITHUB_ENV
-
       - name: Set Image name
         run: |
           SOFTWARE_VERSION="${{ inputs.k3s_version }}"
