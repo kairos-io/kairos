@@ -3,13 +3,13 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/spectrocloud/peg/matcher"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/types"
 )
 
 var stateAssertVM = func(vm VM, query, expected string) {
@@ -47,23 +47,25 @@ func testInstall(cloudConfig string, vm VM) string { //, actual interface{}, m t
 	return out
 }
 
-func eventuallyAssert(vm VM, cmd string, m types.GomegaMatcher) {
-	Eventually(func() string {
-		out, _ := vm.Sudo(cmd)
-		return out
-	}, 5*time.Minute, 10*time.Second).Should(m)
-}
-
-var _ = Describe("kairos install test", Label("install-test"), func() {
+var _ = Describe("kairos install test", Label("install"), func() {
 
 	var vm VM
 	BeforeEach(func() {
-
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
 	})
 
 	AfterEach(func() {
+		if CurrentSpecReport().Failed() {
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
+		}
+
+		if CurrentSpecReport().Failed() {
+			gatherLogs(vm)
+		}
 		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
 	})
 

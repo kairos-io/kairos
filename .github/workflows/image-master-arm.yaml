@@ -1,4 +1,4 @@
-name: 'Push latest ARM images (Master)'
+name: 'Build ARM images (Master)'
 
 on:
   push:
@@ -9,29 +9,10 @@ permissions: read-all
 concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
-env:
-  FORCE_COLOR: 1
 jobs:
-  get-core-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-    - run: |
-        git fetch --prune --unshallow
-    - id: set-matrix
-      run: |
-          content=`cat ./.github/flavors.json | jq -r 'map(select(.arch == "arm64" and .variant == "core"))'`
-          # the following lines are only required for multi line json
-          content="${content//'%'/'%25'}"
-          content="${content//$'\n'/'%0A'}"
-          content="${content//$'\r'/'%0D'}"
-          # end of optional handling for multi line json
-          echo "::set-output name=matrix::{\"include\": $content }"
-  build-arm-core:
-    uses: ./.github/workflows/reusable-docker-arm-build.yaml
-    name: ${{ matrix.variant }}-${{ matrix.model }}
+  build:
+    name: ${{ matrix.base_image }}
+    uses: ./.github/workflows/reusable-build-flavor.yaml
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -47,24 +28,40 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
-    secrets: inherit
     with:
-      flavor: ${{ matrix.flavor }}
-      flavor_release: ${{ matrix.flavorRelease }}
-      family: ${{ matrix.family }}
-      model: ${{ matrix.model }}
-      base_image: ${{ matrix.baseImage }}
-      worker: ${{ matrix.worker }}
+      base_image: ${{ matrix.base_image }}
       variant: ${{ matrix.variant }}
-    needs:
-      - get-core-matrix
+      model: ${{ matrix.model }}
+      arch: "arm64"
+      event_type: ${{ github.event_name }}
     strategy:
       fail-fast: false
-      matrix: ${{fromJson(needs.get-core-matrix.outputs.matrix)}}
+      matrix:
+        variant: ["core"]
+        model: ["generic", "rpi4"]
+        base_image:
+          - "ubuntu:24.04"
+          - "alpine:3.19"
+          - "opensuse/leap:15.6"
+          - "debian:12"
+          - "fedora:40"
+        include:
+          - model: "rpi3"
+            base_image: "opensuse/leap:15.6"
+            variant: "core"
+            arch: "arm64"
+          - model: "rpi3"
+            base_image: "alpine:3.19"
+            variant: "core"
+            arch: "arm64"
+          - model: "generic"
+            base_image: "fedora:40"  # Usually the latest Fedora works very well with arm64 generic for qemu testing
+            variant: "core"
+            arch: "arm64"
   build-nvidia-base:
     runs-on: fast
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Check if cache image is available
@@ -77,16 +74,11 @@ jobs:
           fi
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@4edd678ac3f81e2dc578756871e4d00c19191daf # v45
+        uses: tj-actions/changed-files@v45
         with:
           files_yaml: |
             nvidia:
               - 'images/Dockerfile.nvidia'
-      - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: system/kairos-agent
       - name: Release space from worker
         if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
         run: |
@@ -139,16 +131,23 @@ jobs:
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && (steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true') }}
-        run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build  🔧 & Push 🚀
         if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
-        run: |
-          export IMAGE=quay.io/kairos/cache:nvidia-base
-          docker build --platform=linux/arm64 -t $IMAGE -f ./images/Dockerfile.nvidia ./images
-          docker push $IMAGE
-
-  nvidia-arm-core:
-    uses: ./.github/workflows/reusable-docker-arm-build.yaml
+        uses: docker/build-push-action@v6
+        with:
+          context: images/
+          file: images/Dockerfile.nvidia
+          platforms: linux/arm64
+          push: true
+          tags: quay.io/kairos/cache:nvidia-base
+  build-nvidia:
+    name: ${{ matrix.base_image }}
+    uses: ./.github/workflows/reusable-build-flavor.yaml
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -164,71 +163,17 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
+    with:
+      base_image: ${{ matrix.base_image }}
+      variant: ${{ matrix.variant }}
+      model: ${{ matrix.model }}
+      arch: "arm64"
+      event_type: ${{ github.event_name }}
     needs:
       - build-nvidia-base
     secrets: inherit
-    with:
-      flavor: ubuntu
-      flavor_release: "22.04"
-      family: ubuntu
-      base_image: quay.io/kairos/cache:nvidia-base
-      model: nvidia-jetson-agx-orin
-      worker: ARM64
-      variant: core
-  notify:
-    runs-on: ubuntu-latest
-    if: failure()
-    needs:
-      - build-arm-core
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-      - run: |
-          git fetch --prune --unshallow
-      - name: save commit-message
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
-        run: echo "COMMIT_MSG=$(git log -1 --pretty=format:%s)" >> $GITHUB_ENV
-      - name: notify if failure
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }} && failure()
-        uses: slackapi/slack-github-action@fcfb566f8b0aab22203f066d80ca1d7e4b5d05b3 # v1.27.1
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
-        with:
-          payload: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "Job failure on master branch for job ${{ github.job }} in workflow \"${{ github.workflow }}\"\n\nCommit message is \"${{ env.COMMIT_MSG }}\"\n\n Commit sha is <https://github.com/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>"
-                  }
-                },
-                {
-                  "type": "divider"
-                },
-                {
-                  "type": "actions",
-                  "elements": [
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":thisisfine: Failed Run",
-                        "emoji": true
-                      },
-                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-                    },
-                    {
-                      "type": "button",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":kairos: Repository link",
-                        "emoji": true
-                      },
-                      "url": "https://github.com/${{ github.repository }}"
-                    }
-                  ]
-                }
-              ]
-            }
+    strategy:
+      matrix:
+        base_image: ["quay.io/kairos/cache:nvidia-base"]
+        variant: ["core"]
+        model: ["nvidia-jetson-agx-orin"]

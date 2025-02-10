@@ -23,14 +23,13 @@ var stateContains = func(vm VM, query string, expected ...string) {
 	ExpectWithOffset(1, strings.ToLower(out)).To(Or(or...))
 }
 
-var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
+var _ = Describe("kairos autoinstall test", Label("autoinstall"), func() {
 	var vm VM
+	var datasource string
 
 	BeforeEach(func() {
-		if os.Getenv("DATASOURCE") == "" {
-			Fail("DATASOURCE must be set and it should be the absolute path to a datasource iso")
-		}
-
+		datasource = CreateDatasource("assets/autoinstall.yaml")
+		Expect(os.Setenv("DATASOURCE", datasource)).ToNot(HaveOccurred())
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
 	})
@@ -46,6 +45,9 @@ var _ = Describe("kairos autoinstall test", Label("autoinstall-test"), func() {
 
 		err := vm.Destroy(nil)
 		Expect(err).ToNot(HaveOccurred())
+
+		Expect(os.Unsetenv("DATASOURCE")).ToNot(HaveOccurred())
+		Expect(os.Remove(datasource)).ToNot(HaveOccurred())
 	})
 
 	Context("reboots and passes functional tests", func() {

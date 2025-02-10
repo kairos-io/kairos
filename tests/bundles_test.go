@@ -3,6 +3,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -10,20 +11,32 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-var _ = Describe("kairos bundles test", Label("bundles-test"), func() {
+var _ = Describe("kairos bundles test", Label("bundles"), func() {
 	var vm VM
+	var datasource string
 
 	BeforeEach(func() {
-		if os.Getenv("DATASOURCE") == "" {
-			Fail("DATASOURCE must be set and it should be the absolute path to a datasource iso")
-		}
+		datasource = CreateDatasource("assets/bundles.yaml")
+		Expect(os.Setenv("DATASOURCE", datasource)).ToNot(HaveOccurred())
 
 		_, vm = startVM()
 		vm.EventuallyConnects(1200)
 	})
 
 	AfterEach(func() {
-		vm.Destroy(nil)
+		if CurrentSpecReport().Failed() {
+			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
+		}
+
+		err := vm.Destroy(nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(os.Unsetenv("DATASOURCE")).ToNot(HaveOccurred())
+		Expect(os.Remove(datasource)).ToNot(HaveOccurred())
 	})
 
 	Context("reboots and passes functional tests", func() {

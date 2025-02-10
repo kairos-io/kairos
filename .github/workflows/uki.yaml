@@ -1,4 +1,4 @@
-name: UKI tests
+name: Build UKI images
 on:
   pull_request:
   push:
@@ -9,32 +9,14 @@ permissions: read-all
 concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
-env:
-  FORCE_COLOR: 1
-  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
-  test-uki:
+  build:
+    name: ${{ matrix.base_image }}
     strategy:
       matrix:
-        include:
-          - flavor: ubuntu
-            flavor_release: 24.04
-            family: ubuntu
-            base_image: ubuntu:24.04
-            variant: core
-            model: generic
-          - flavor: ubuntu
-            flavor_release: 24.04
-            family: ubuntu
-            base_image: ubuntu:24.04
-            variant: standard
-            model: generic
-          - flavor: fedora
-            family: rhel
-            flavor_release: 40
-            base_image: fedora:40
-            variant: core
-            model: generic
+        base_image: [ "ubuntu:24.04", "fedora:40" ]
+        variant: [ "core", "standard" ]
+        model: [ "generic" ]
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -54,7 +36,5 @@ jobs:
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
-      flavor: ${{ matrix.flavor }}
-      flavor_release: ${{ matrix.flavor_release }}
       variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}
