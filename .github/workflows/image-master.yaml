@@ -43,7 +43,7 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.19"
-          - "opensuse:leap-15.6"
+          - "opensuse/leap:15.6"
           - "debian:12"
           - "fedora:40"
   tests:
@@ -162,11 +162,11 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.19"
-          - "opensuse:leap-15.6"
+          - "opensuse/leap:15.6"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"
           - "provider-upgrade-k8s"
         include:
             - test: "provider-upgrade-latest-k8s-with-kubernetes"
-              base_image: "opensuse:leap-15.6"
+              base_image: "opensuse/leap:15.6"
