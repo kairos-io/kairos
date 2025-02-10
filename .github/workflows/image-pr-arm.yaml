@@ -2,17 +2,15 @@ name: 'Build ARM images (PR)'
 
 on:
   pull_request:
-    paths:
-      - '**'
 
 permissions: read-all
 concurrency:
-  group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  group: ci-pr-arm64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
   build:
-    uses: ./.github/workflows/reusable-build-flavor.yaml
     name: ${{ matrix.base_image }}
+    uses: ./.github/workflows/reusable-build-flavor.yaml
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -28,7 +26,6 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
-    secrets: inherit
     with:
       model: ${{ matrix.model }}
       base_image: ${{ matrix.base_image }}
@@ -55,6 +52,6 @@ jobs:
             variant: "core"
             arch: "arm64"
           - model: "generic"
-            base_image: "fedora:40" # Usually the latest Fedora works very well with arm64 generic for qemu testing
+            base_image: "fedora:40"  # Usually the latest Fedora works very well with arm64 generic for qemu testing
             variant: "core"
             arch: "arm64"

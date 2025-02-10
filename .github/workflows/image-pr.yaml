@@ -1,16 +1,12 @@
-name: Build AMD64 images (PR)
+name: 'Build AMD64 images (PR)'
+
 on:
   pull_request:
-    paths:
-      - '**'
 
 permissions: read-all
 concurrency:
-  group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  group: ci-pr-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
-env:
-  FORCE_COLOR: 1
-  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
   build:
     name: ${{ matrix.base_image }}
@@ -39,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: ["core"] # So it shows up in the name, in case we use it for standard
+        variant: ["core"]  # So it shows up in the name, in case we use it for standard
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.19"

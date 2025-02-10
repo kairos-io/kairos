@@ -1,4 +1,5 @@
-name: Build and test images - Master
+name: 'Build AMD64 images (Master)'
+
 on:
   push:
     branches:
@@ -6,11 +7,8 @@ on:
 
 permissions: read-all
 concurrency:
-  group: ci-image-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  group: ci-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
-env:
-  FORCE_COLOR: 1
-  EARTHLY_TOKEN: ${{ secrets.EARTHLY_TOKEN }}
 jobs:
   build:
     name: ${{ matrix.base_image }}
