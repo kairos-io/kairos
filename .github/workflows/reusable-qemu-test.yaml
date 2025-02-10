@@ -54,13 +54,13 @@ jobs:
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs swtpm
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Download artifacts
-        if: ${{ inputs.test != 'upgrade-latest' }}
+        if: ${{ inputs.test != 'upgrade-latest' || inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@v4.1.8
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
       - name: Download latest release
         uses: robinraju/release-downloader@v1.11
-        if: ${{ inputs.test == 'upgrade-latest' }}
+        if: ${{ inputs.test == 'upgrade-latest' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes' }}
         with:
           latest: true
           fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
@@ -87,6 +87,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.label }}-${{ inputs.test }}.logs.zip
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
