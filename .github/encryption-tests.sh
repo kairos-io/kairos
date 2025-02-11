@@ -11,7 +11,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CLUSTER_NAME=$(echo $RANDOM | md5sum | head -c 10; echo;)
 
 
-if [ "$LABEL" != "local-encryption" ]; then
+if [ "$LABEL" != "encryption-local" ]; then
   KUBECONFIG=$(mktemp)
   export KUBECONFIG
 

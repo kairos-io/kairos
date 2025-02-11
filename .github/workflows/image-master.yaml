@@ -42,7 +42,7 @@ jobs:
           - "ubuntu:24.04"
           - "ubuntu:22.04"
           - "ubuntu:20.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:12"
   tests:
@@ -63,7 +63,7 @@ jobs:
         secureboot: [false]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -109,7 +109,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
   encryption:
     name: ${{ matrix.base_image }}
     secrets: inherit
