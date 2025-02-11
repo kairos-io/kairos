@@ -70,7 +70,7 @@ jobs:
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs swtpm
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Download artifacts
-        if: ${{ inputs.test != 'upgrade-latest' || inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
+        if: ${{ inputs.test != 'upgrade-latest' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@v4.1.8
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
@@ -94,10 +94,10 @@ jobs:
         env:
           USE_QEMU: true
           KVM: true
-          MEMORY: 4000
-          DRIVE_SIZE: 30000
+          MEMORY: 5000
+          DRIVE_SIZE: 50000
           CREATE_VM: true
-          CPUS: 2
+          CPUS: 4
           CONTAINER_IMAGE: ttl.sh/kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
