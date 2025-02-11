@@ -1,8 +1,6 @@
 module kairos-tests
 
-go 1.23.4
-
-toolchain go1.23.6
+go 1.23.6
 
 require (
 	github.com/diskfs/go-diskfs v1.5.0
