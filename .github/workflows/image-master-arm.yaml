@@ -44,7 +44,6 @@ jobs:
           - "alpine:3.19"
           - "opensuse/leap:15.6"
           - "debian:12"
-          - "fedora:40"
         include:
           - model: "rpi3"
             base_image: "opensuse/leap:15.6"
