@@ -72,7 +72,7 @@ jobs:
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
       - name: Grype table
-        uses: anchore/scan-action@v6.0.0
+        uses: anchore/scan-action@v6.1.0
         with:
           image: ${{ env.IMAGE_TAG }}
           output-format: table
@@ -80,7 +80,7 @@ jobs:
           add-cpes-if-none: true
           only-fixed: true
       - name: Grype sarif
-        uses: anchore/scan-action@v6.0.0
+        uses: anchore/scan-action@v6.1.0
         with:
           image: ${{ env.IMAGE_TAG }}
           output-format: sarif
