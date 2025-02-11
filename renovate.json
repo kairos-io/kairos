@@ -13,7 +13,7 @@
   ],
   "timezone": "Europe/Brussels",
   "pinDigests": false,
-  "commitMessagePrefix": ":arrow_up: Update",
+  "commitMessagePrefix": ":arrow_up: ",
   "reviewers": [
     "team:maintainers"
   ],
