@@ -142,7 +142,7 @@ jobs:
           output: trivy.sarif
           severity: critical
       - name: Release
-        uses: softprops/action-gh-release@v2.1.0
+        uses: softprops/action-gh-release@v2.2.1
         with:
           files: |
             release/*
