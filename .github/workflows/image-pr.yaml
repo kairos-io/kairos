@@ -68,7 +68,7 @@ jobs:
           - "upgrade-latest"
           - "bundles"
         include:
-          - test: "install-test"
+          - test: "install"
             secureboot: true
             base_image: "ubuntu:24.04"
           - test: "zfs"
@@ -104,8 +104,8 @@ jobs:
           - "ubuntu:24.04"
           - "alpine:3.19"
         label:
-          - "local-encryption"
-          - "remote-auto"
-          - "remote-static"
-          - "remote-https-pinned"
-          - "remote-https-bad-cert"
+          - "encryption-local"
+          - "encryption-remote-auto"
+          - "encryption-remote-static"
+          - "encryption-remote-https-pinned"
+          - "encryption-remote-https-bad-cert"
