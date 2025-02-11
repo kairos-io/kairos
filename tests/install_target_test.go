@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("kairos install test different targets", Label("install-test-target"), func() {
+var _ = Describe("kairos install test different targets", Label("install-target"), func() {
 
 	var vm VM
 	var label string

@@ -23,7 +23,7 @@ var stateContains = func(vm VM, query string, expected ...string) {
 	ExpectWithOffset(1, strings.ToLower(out)).To(Or(or...))
 }
 
-var _ = Describe("kairos autoinstall test", Label("autoinstall"), func() {
+var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 	var vm VM
 	var datasource string
 

@@ -69,7 +69,7 @@ var _ = Describe("kcrypt encryption", func() {
 	})
 
 	// https://kairos.io/docs/advanced/partition_encryption/#offline-mode
-	When("doing local encryption", Label("local-encryption"), func() {
+	When("doing local encryption", Label("encryption-local"), func() {
 		BeforeEach(func() {
 			config = `#cloud-config
 
@@ -105,7 +105,7 @@ stages:
 	})
 
 	//https://kairos.io/docs/advanced/partition_encryption/#online-mode
-	When("using a remote key management server (automated passphrase generation)", Label("remote-auto"), func() {
+	When("using a remote key management server (automated passphrase generation)", Label("encryption-remote-auto"), func() {
 		var tpmHash string
 		var err error
 
@@ -180,7 +180,7 @@ kcrypt:
 	})
 
 	// https://kairos.io/docs/advanced/partition_encryption/#scenario-static-keys
-	When("using a remote key management server (static keys)", Label("remote-static"), func() {
+	When("using a remote key management server (static keys)", Label("encryption-remote-static"), func() {
 		var tpmHash string
 		var err error
 
@@ -289,7 +289,7 @@ spec:
 `, strings.TrimSpace(tpmHash)))
 		})
 
-		When("the certificate is pinned on the configuration", Label("remote-https-pinned"), func() {
+		When("the certificate is pinned on the configuration", Label("encryption-remote-https-pinned"), func() {
 			BeforeEach(func() {
 				cert := getChallengerServerCert()
 				kcryptConfig := createConfigWithCert(fmt.Sprintf("https://%s", os.Getenv("KMS_ADDRESS")), cert)
@@ -329,7 +329,7 @@ install:
 			})
 		})
 
-		When("the no certificate is set in the configuration", Label("remote-https-bad-cert"), func() {
+		When("the no certificate is set in the configuration", Label("encryption-remote-https-bad-cert"), func() {
 
 			BeforeEach(func() {
 				config = fmt.Sprintf(`#cloud-config
