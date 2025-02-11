@@ -120,11 +120,20 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - name: Set up Docker Buildx
-        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
-        id: buildx
+        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' && runner.environment == 'github-hosted' }}
         uses: docker/setup-buildx-action@master
+      - name: Set up Docker Buildx for custom runners
+        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' && runner.environment == 'self-hosted' }}
+        uses: docker/setup-buildx-action@master
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+            [registry."registry.docker-mirror.svc.cluster.local:5000"]
+              insecure = true
+              http = true
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
-        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
+        if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' && runner.environment == 'self-hosted' }}
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP

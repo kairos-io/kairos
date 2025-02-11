@@ -35,14 +35,25 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@v1.1
         with:
           repository: quay.io/kairos/packages
           packages: system/kairos-agent
-      - name: Set up Docker Buildx
-        id: buildx
+      - name: Set up Docker Buildx for public runners
+        if: runner.environment == 'github-hosted'
         uses: docker/setup-buildx-action@master
+      - name: Set up Docker Buildx for custom runners
+        if: runner.environment == 'self-hosted'
+        uses: docker/setup-buildx-action@master
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+            [registry."registry.docker-mirror.svc.cluster.local:5000"]
+              insecure = true
+              http = true
       - name: Enable KVM group perms and install deps
         run: |
           sudo apt-get update
