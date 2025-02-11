@@ -14,9 +14,9 @@ jobs:
     name: ${{ matrix.base_image }}
     strategy:
       matrix:
-        base_image: [ "ubuntu:24.04", "fedora:40" ]
-        variant: [ "core", "standard" ]
-        model: [ "generic" ]
+        base_image: ["ubuntu:24.04", "fedora:40"]
+        variant: ["core", "standard"]
+        model: ["generic"]
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
