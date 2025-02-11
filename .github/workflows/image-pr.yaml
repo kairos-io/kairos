@@ -60,7 +60,7 @@ jobs:
           - "alpine:3.19"
         test:
           - "custom-partitioning"
-          - "autoinstall"
+          - "acceptance"
           - "install"
           - "install-target"
           - "reset"
