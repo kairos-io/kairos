@@ -32,6 +32,7 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
       - uses: actions/checkout@v4
         with:
           repository: "ipxe/ipxe"

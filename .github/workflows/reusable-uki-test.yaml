@@ -35,6 +35,7 @@ jobs:
         with:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
       - name: Install kairos-agent (for versioneer)
         uses: Luet-lab/luet-install-action@v1.1
         with:
