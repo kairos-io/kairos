@@ -40,6 +40,8 @@ jobs:
         variant: ["core", "standard"]
         base_image:
           - "ubuntu:24.04"
+          - "ubuntu:22.04"
+          - "ubuntu:20.04"
           - "alpine:3.19"
           - "opensuse/leap:15.6"
           - "debian:12"
@@ -80,7 +82,7 @@ jobs:
             base_image: "ubuntu:22.04"
           - test: "install"
             secureboot: true
-            base_image: "opensuse:leap-15.6"
+            base_image: "opensuse/leap:15.6"
           - test: "install"
             secureboot: true
             base_image: "debian:12"
@@ -91,7 +93,7 @@ jobs:
           - test: "acceptance"
             base_image: "ubuntu:20.04"
           - test: "acceptance"
-            base_image: "opensuse:leap-15.6"
+            base_image: "opensuse/leap:15.6"
           - test: "acceptance"
             base_image: "debian:12"
   netboot:
