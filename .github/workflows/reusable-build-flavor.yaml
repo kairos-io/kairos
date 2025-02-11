@@ -3,39 +3,47 @@ name: Reusable workflow that builds a specific Kairos flavor
 on:
   workflow_call:
     inputs:
-      flavor:
-        required: true
-        type: string
-      flavor_release:
-        required: true
-        type: string
-      family:
-        required: true
-        type: string
       base_image:
         required: true
         type: string
       model:
-        required: true
+        required: false
         type: string
+        default: "generic"
       variant:
-        required: true
+        required: false
         type: string
+        default: "core"
       arch:
+        required: false
+        type: string
+        default: "amd64"
+      kubernetes_version:
+        required: false
+        type: string
+      event_type:
         required: true
         type: string
 
 permissions: read-all
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    name: Build ${{ inputs.base_image }} - ${{ inputs.model }} - ${{ inputs.variant }} - ${{ inputs.arch }}
     permissions:
       id-token: write  # OIDC support
       contents: write
       actions: read
       security-events: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - name: Split base image
+        id: split
+        run: |
+          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
+          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
+      - run: |
+          echo ${{ inputs.event_type }}
+      - uses: actions/checkout@v4
       - run: |
           git fetch --prune --unshallow
       - name: Set up Docker Buildx
@@ -49,31 +57,46 @@ jobs:
         with:
           context: .
           file: images/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/${{ inputs.arch }}
           load: true
-          tags: ${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
+          tags: ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
+            KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+      - name: Build raw image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        run: |
+          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
+          -v $PWD/build/:/output \
+          quay.io/kairos/auroraboot:latest \
+          --debug \
+          --set "disable_http_server=true" \
+          --set "disable_netboot=true" \
+          --set "container_image=${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}" \
+          --set "state_dir=/output" \
+          --set "disk.raw=true"
       - name: Build iso 📦
+        if: ${{ inputs.model == 'generic' }}
         run: |
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-          -v $PWD:/output \
+          -v $PWD/build/:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
-          docker:${{ inputs.flavor }}-init:${{ inputs.flavor_release }}
-      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
+          docker:${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.model == 'generic' }}
         with:
-          name: kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
           path: |
-            *.iso
-            *.sha256
-            versions.yaml
+            build/*.iso
+            build/*.sha256
           if-no-files-found: error
       - name: Push to testing
+        if: ${{ inputs.model == 'generic' }}
         run: |
-          TEST_IMAGE="ttl.sh/kairos-${{ inputs.flavor }}-${{ inputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h"
-          docker tag ${{ inputs.flavor }}-init:${{ inputs.flavor_release }} $TEST_IMAGE
+          TEST_IMAGE="ttl.sh/kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h"
+          docker tag ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }} $TEST_IMAGE
           docker push $TEST_IMAGE

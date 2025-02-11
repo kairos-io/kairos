@@ -1,0 +1,25 @@
+#cloud-config
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+      hostname: kairos-{{ trunc 4 .Random }}
+fail_on_bundles_errors: true
+
+debug: true
+
+install:
+  auto: true
+  reboot: true
+  device: auto
+  grub_options:
+    extra_cmdline: foobarzz
+  bundles:
+    - rootfs_path: /var/lib/extensions/kubo
+      targets:
+        - container://ttl.sh/bundles-test:24h

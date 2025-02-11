@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
       - run: |
@@ -30,8 +30,8 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
-          #role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          #role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
+          # role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          # role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
           role-duration-seconds: 1200
           role-session-name: AWSCIPush
       - name: Build and push AWS image
