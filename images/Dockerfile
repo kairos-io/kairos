@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ubuntu:20.04
+ARG BASE_IMAGE=ubuntu:24.04
 
 FROM quay.io/kairos/kairos-init:v0.2.3 AS kairos-init
 
