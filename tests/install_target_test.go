@@ -42,6 +42,9 @@ var _ = Describe("kairos install test different targets", Label("install-target"
 		// Format the first disk so it gets an uuid and label
 		_, err = vm.Sudo(fmt.Sprintf("mkfs.ext4 -L %s -U %s /dev/vda", label, diskUUID.String()))
 		Expect(err).NotTo(HaveOccurred())
+		// Trigger udevadm to refresh devices
+		_, err = vm.Sudo("udevadm trigger")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -51,6 +54,8 @@ var _ = Describe("kairos install test different targets", Label("install-target"
 			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
 			fmt.Println(string(serial))
 		}
+
+		time.Sleep(5 * time.Minute)
 
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
