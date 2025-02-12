@@ -67,6 +67,15 @@ jobs:
           # TODO: Switch back to the above solution when we switch to the github runners
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Login to Quay Registry
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Set Image tag
+        run: |
+          echo "IMAGE_NAME=quay.io/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}-uki" >> $GITHUB_ENV
       - name: Build the docker image
         uses: docker/build-push-action@v6
         with:
@@ -74,7 +83,9 @@ jobs:
           file: images/Dockerfile
           platforms: linux/amd64
           load: true
-          tags: ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
+          tags: ${{ env.IMAGE_NAME }}
+          labels: |
+            quay.expires-after=6h
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
@@ -90,11 +101,11 @@ jobs:
           quay.io/kairos/auroraboot:latest --debug build-uki --output-dir /output/ -k /keys --output-type iso \
           --single-efi-cmdline="testentry: nothing" \
           --overlay-iso /overlay \
-          docker:${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
+          docker:${{ env.IMAGE_NAME }}
       - name: Build uki upgrade image 🔧
         run: |
           rm -rf /tmp/unpacked
-          sudo luet util unpack ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }} ./unpacked --local
+          sudo luet util unpack ${{ env.IMAGE_NAME }} ./unpacked --local
           new_version="mynewversion"
           sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="'$new_version'"/' ./unpacked/etc/kairos-release
           echo "$new_version" > "${PWD}/build/expected_new_version"
@@ -107,11 +118,12 @@ jobs:
             --output-dir /result --keys /keys --output-type container \
             dir:/unpacked
 
-          docker load -i build/*.tar
           image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | xargs)
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
-          temp_image=ttl.sh/$(echo $image | sed "s/:latest/-${rand}:6h/")
-          docker tag $image $temp_image
+          temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}:6h/")
+          docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
+          FROM $image
+          EOF
           docker push $temp_image
           echo $temp_image > build/upgrade_image_name
       - name: Run tests 🔧
@@ -130,30 +142,6 @@ jobs:
           export EXPECTED_SINGLE_ENTRY="testentry"
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "uki" --fail-fast -r ./tests/
-      - name: Install Cosign
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.split.outputs.flavor == 'ubuntu' }}
-        uses: sigstore/cosign-installer@main
-      - name: Login to Quay Registry
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.split.outputs.flavor == 'ubuntu' }}
-        uses: docker/login-action@v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Set Image Tag
-        run: |
-          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
-          echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ env.GIT_VERSION }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}-uki" >> $GITHUB_ENV
-          echo "Setting image tag to ${{ env.IMAGE_TAG }}"
-      - name: Push to quay
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && inputs.flavor == 'ubuntu' }}
-        env:
-          COSIGN_YES: true
-        run: |
-          docker tag ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }} ${{ env.IMAGE_TAG }}
-          docker push ${{ env.IMAGE_TAG }}
-          image_ref=$(docker image inspect --format='{{index .RepoDigests 0}}' ${{ env.IMAGE_TAG }})
-          cosign sign $image_ref
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

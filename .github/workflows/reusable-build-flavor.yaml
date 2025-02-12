@@ -49,9 +49,9 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
-      - name: Set Version
+      - name: Set Image tag
         run: |
-          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
+          echo "IMAGE_NAME=quay.io/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}" >> $GITHUB_ENV
       - name: Build container 🔧
         uses: docker/build-push-action@v6
         with:
@@ -59,7 +59,9 @@ jobs:
           file: images/Dockerfile
           platforms: linux/${{ inputs.arch }}
           load: true
-          tags: ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
+          tags: ${{ env.IMAGE_NAME }}
+          labels: |
+            quay.expires-after=6h
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
@@ -74,7 +76,7 @@ jobs:
           --debug \
           --set "disable_http_server=true" \
           --set "disable_netboot=true" \
-          --set "container_image=${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}" \
+          --set "container_image=${{ env.IMAGE_NAME }}" \
           --set "state_dir=/output" \
           --set "disk.raw=true"
       - name: Build iso 📦
@@ -84,8 +86,8 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }} \
-          docker:${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }}
+          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }} \
+          docker:${{ env.IMAGE_NAME }}
       - uses: actions/upload-artifact@v4
         if: ${{ inputs.model == 'generic' }}
         with:
@@ -97,6 +99,4 @@ jobs:
       - name: Push to testing
         if: ${{ inputs.model == 'generic' }}
         run: |
-          TEST_IMAGE="ttl.sh/kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h"
-          docker tag ${{ steps.split.outputs.flavor }}-init:${{ steps.split.outputs.flavor_release }} $TEST_IMAGE
-          docker push $TEST_IMAGE
+          docker push ${{ env.IMAGE_NAME }}

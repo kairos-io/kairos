@@ -59,6 +59,12 @@ jobs:
             [registry."registry.docker-mirror.svc.cluster.local:5000"]
               insecure = true
               http = true
+      - name: Login to Quay Registry
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         if: runner.environment == 'self-hosted'
         run: |
@@ -89,7 +95,9 @@ jobs:
           file: examples/bundle/Dockerfile
           platforms: linux/${{ inputs.arch }}
           push: true
-          tags: ttl.sh/bundles-test:24h
+          tags: quay.io/ci-temp-images:bundles-test
+          labels: |
+            quay.expires-after=6h
       - name: Run tests
         env:
           USE_QEMU: true
@@ -98,7 +106,7 @@ jobs:
           DRIVE_SIZE: 50000
           CREATE_VM: true
           CPUS: 4
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h
+          CONTAINER_IMAGE: quay.io/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
