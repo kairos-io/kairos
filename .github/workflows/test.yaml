@@ -15,11 +15,20 @@ jobs:
       - name: Get latest k3s releases
         id: get-k3s-releases
         run: |
-          kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '[.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not))] | .[:3] | .[].tag_name' | jq -c '.')
+          kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '
+            [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
+            | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k3s[0-9]+$")))
+            | map({version: ., minor: (split(".")[0:2] | join("."))})
+            | group_by(.minor)
+            | map(max_by(.version))
+            | sort_by(.version)
+            | reverse
+            | .[:3]
+            | map(.version)
+          ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
-      - name: Print stuff
-        run: |
-          ${{ fromJson(steps.get-k3s-versions.outputs.kubernetes_versions) }}
+      - name: Print kubernetes versions
+        run: echo "${{ steps.get-k3s-releases.outputs.kubernetes_versions }}"
   whatever:
     runs-on: ubuntu-latest
     needs: get-k3s-versions
