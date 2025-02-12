@@ -66,12 +66,13 @@ jobs:
           - "reset"
           - "upgrade-with-cli"
           - "upgrade-latest"
-          - "bundles"
         include:
           - test: "install"
             secureboot: true
             base_image: "ubuntu:24.04"
           - test: "zfs"
+            base_image: "ubuntu:24.04"
+          - test: "bundles"
             base_image: "ubuntu:24.04"
   netboot:
     name: ${{ matrix.base_image }}
