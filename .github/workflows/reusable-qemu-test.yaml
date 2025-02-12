@@ -104,7 +104,7 @@ jobs:
             export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
           fi
-          export ISO=$PWD/$(ls *.iso)
+          export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"
           cp tests/go.* .
           go mod download
