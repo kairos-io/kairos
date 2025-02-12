@@ -13,6 +13,7 @@ jobs:
   build:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -141,6 +142,7 @@ jobs:
   build-nvidia:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -164,7 +166,6 @@ jobs:
       event_type: ${{ github.event_name }}
     needs:
       - build-nvidia-base
-    secrets: inherit
     strategy:
       matrix:
         base_image: ["quay.io/kairos/cache:nvidia-base"]

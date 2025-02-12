@@ -11,6 +11,7 @@ jobs:
   build:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write

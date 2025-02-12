@@ -171,7 +171,10 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		By("validate upgraded version")
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
-			version, _ := vm.Sudo(getVersionCmdOsRelease)
+			version, _ = vm.Sudo(getVersionCmdOsRelease)
+			if version == "" {
+				version, _ = vm.Sudo(getVersionCmd)
+			}
 			fmt.Printf("version = %+v\n", version)
 			return version
 		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(version), func() string {

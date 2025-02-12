@@ -101,7 +101,8 @@ var _ = Describe("kairos bundles test", Label("bundles"), func() {
 				out, _ := vm.Sudo("cat /oem/90_custom.yaml")
 				// https://pkg.go.dev/regexp/syntax
 				// ?s -> "let . match \n (default false)"
-				Expect(out).ToNot(MatchRegexp("(?s)ttl.sh.*ttl.sh"))
+				Expect(out).To(MatchRegexp("^(?s)(.*quay\\.io/kairos/ci-temp-images:bundles-test.*){1}$"))
+				Expect(out).ToNot(MatchRegexp("(?s)quay.io/kairos/ci-temp-images.*quay.io/kairos/ci-temp-images"))
 			})
 		})
 	})

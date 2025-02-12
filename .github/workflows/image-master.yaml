@@ -13,6 +13,7 @@ jobs:
   build:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -47,8 +48,8 @@ jobs:
           - "debian:12"
   tests:
     name: ${{ matrix.base_image }}
-    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       test: ${{ matrix.test }}
@@ -113,8 +114,8 @@ jobs:
           - "alpine:3.19"
   encryption:
     name: ${{ matrix.base_image }}
-    secrets: inherit
     uses: ./.github/workflows/reusable-encryption-test.yaml
+    secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       label: ${{ matrix.label }}
@@ -134,8 +135,8 @@ jobs:
           - "encryption-remote-https-bad-cert"
   standard:
     name: ${{ matrix.base_image }}
-    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
