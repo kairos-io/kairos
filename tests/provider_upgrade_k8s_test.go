@@ -21,7 +21,6 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 	})
 
 	AfterEach(func() {
-		time.Sleep(5 * time.Minute)
 		if CurrentGinkgoTestDescription().Failed {
 			gatherLogs(vm)
 		}
@@ -171,8 +170,8 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		By("validate upgraded version")
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
-			version, _ = vm.Sudo(getVersionCmd)
-			fmt.Printf("version = %+v\n", version)
+			getVersion, _ := vm.Sudo(getVersionCmd)
+			fmt.Printf("version = %+v\n", getVersion)
 			return version
 		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(version), func() string {
 			return out
