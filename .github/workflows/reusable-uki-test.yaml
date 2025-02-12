@@ -75,7 +75,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Set Image tag
         run: |
-          echo "IMAGE_NAME=quay.io/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}-uki" >> $GITHUB_ENV
+          echo "IMAGE_NAME=quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-amd64-${{ github.sha }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}-uki" >> $GITHUB_ENV
       - name: Build the docker image
         uses: docker/build-push-action@v6
         with:
@@ -120,7 +120,7 @@ jobs:
 
           image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | xargs)
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
-          temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}:6h/")
+          temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}/")
           docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
           FROM $image
           EOF

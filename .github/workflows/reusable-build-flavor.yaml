@@ -51,7 +51,7 @@ jobs:
         uses: docker/setup-buildx-action@master
       - name: Set Image tag
         run: |
-          echo "IMAGE_NAME=quay.io/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}" >> $GITHUB_ENV
       - name: Build container 🔧
         uses: docker/build-push-action@v6
         with:
