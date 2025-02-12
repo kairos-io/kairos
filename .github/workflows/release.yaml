@@ -71,7 +71,17 @@ jobs:
       - name: Get latest k3s releases
         id: get-k3s-releases
         run: |
-          kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '[.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not))] | .[:3] | .[].tag_name' | tr '\n' ' ')
+          kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '
+            [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
+            | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k3s[0-9]+$")))
+            | map({version: ., minor: (split(".")[0:2] | join("."))})
+            | group_by(.minor)
+            | map(max_by(.version))
+            | sort_by(.version)
+            | reverse
+            | .[:3]
+            | map(.version)
+          ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   build-standard:
     uses: ./.github/workflows/reusable-release.yaml
@@ -86,7 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kubernetes_version: ${{ needs.get-k3s-versions.outputs.kubernetes_versions }}
+        kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         model: ["generic"]
         variant: ["standard"]
         arch: ["amd64"]
