@@ -1,6 +1,5 @@
 name: Reusable workflow that releases a flavor
-# TODO: Fix uki missing arch
-# TODO: Fix tumbleweed TAG
+
 on:
   workflow_call:
     inputs:
