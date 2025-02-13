@@ -189,7 +189,7 @@ jobs:
           file: images/Dockerfile.img
           platforms: linux/${{ inputs.arch }}
           push: true
-          tags: ${{ env.IMAGE_NAME }}-img
+          tags: ${{ env.IMAGE_TAG }}-img
           build-args: |
             ARTIFACT=${{ env.RAW_ARTIFACT }}
       - name: Sign image
