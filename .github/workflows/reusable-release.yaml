@@ -71,6 +71,7 @@ jobs:
           else
             echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           fi
+          echo "FIXED_KUBERNETES_VERSION=$(echo "${{ inputs.kubernetes_version }}" | sed 's/^v//g')" >> $GITHUB_ENV
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Set up Docker Buildx
@@ -94,7 +95,7 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
-            KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+            KUBERNETES_VERSION=${{ env.FIXED_KUBERNETES_VERSION }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
       - name: Grype table
         uses: anchore/scan-action@v6.1.0
@@ -134,7 +135,7 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
-            KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+            KUBERNETES_VERSION=${{ env.FIXED_KUBERNETES_VERSION }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
       - name: Build iso 📦
         if: ${{ inputs.trusted_boot == 'false' }}
@@ -149,7 +150,7 @@ jobs:
         env:
           COSIGN_YES: true
         run: |
-          cosign sign ${{ env.IMAGE_TAG }})
+          cosign sign ${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
         env:
           COSIGN_YES: true
