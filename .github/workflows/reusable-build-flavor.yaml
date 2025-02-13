@@ -39,8 +39,24 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
-          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
+          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
+          base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
+          tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          
+          # Check if the base image contains a slash
+          if [[ "$base_image" == *"/"* ]]; then
+            # Split the base image into distro and sub-distro
+            distro=$(echo "$base_image" | cut -d '/' -f 1)
+            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
+            # Combine sub-distro and tag
+            tag="$sub_distro-$tag"
+          else
+            # Use the base image as the distro
+            distro="$base_image"
+          fi
+          
+          echo "flavor=$distro" >> $GITHUB_OUTPUT
+          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - run: |
           echo ${{ inputs.event_type }}
       - uses: actions/checkout@v4
