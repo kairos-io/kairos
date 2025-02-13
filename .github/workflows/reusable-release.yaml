@@ -167,7 +167,7 @@ jobs:
           filename=$(ls release/*.iso.sha256)
           cosign sign-blob --yes --output-certificate="${filename}.pem" --output-signature="${filename}.sig" "${filename}"
       - name: Build RAW image
-        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && input.model != 'nvidia-jetson-agx-orin' }}
         run: |
           docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD:/output \
@@ -182,7 +182,7 @@ jobs:
           # Export image path to be used in the next step
           echo "RAW_ARTIFACT=$(ls *.raw|head -1)" >> $GITHUB_ENV
       - name: Create OCI artifact from RAW image
-        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && input.model != 'nvidia-jetson-agx-orin' }}
         uses: docker/build-push-action@v6
         with:
           context: .
