@@ -22,7 +22,7 @@ jobs:
         arch: ["arm64"]
         base_image:
           - "opensuse/leap:15.6"
-          - "opensuse/tumbleweed"
+          - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
@@ -77,7 +77,7 @@ jobs:
         arch: ["arm64"]
         base_image:
           - "opensuse/leap:15.6"
-          - "opensuse/tumbleweed"
+          - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
