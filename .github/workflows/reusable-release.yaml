@@ -145,8 +145,13 @@ jobs:
             VARIANT=${{ inputs.variant }}
             KUBERNETES_VERSION=${{ env.FIXED_KUBERNETES_VERSION }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
+      - name: Sign image
+        env:
+          COSIGN_YES: true
+        run: |
+          cosign sign ${{ env.IMAGE_TAG }}
       - name: Build iso 📦
-        if: ${{ inputs.trusted_boot == 'false' }}
+        if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
         run: |
           mkdir release
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
@@ -154,18 +159,53 @@ jobs:
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
           --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.ref_name }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}} \
           docker:${{ env.IMAGE_TAG }}
-      - name: Sign image
-        env:
-          COSIGN_YES: true
-        run: |
-          cosign sign ${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
-        if: ${{ inputs.trusted_boot == 'false' }}
+        if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
         env:
           COSIGN_YES: true
         run: |
           filename=$(ls release/*.iso.sha256)
           cosign sign-blob --yes --output-certificate="${filename}.pem" --output-signature="${filename}.sig" "${filename}"
+      - name: Build RAW image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        run: |
+          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
+          -v $PWD:/output \
+          quay.io/kairos/auroraboot:latest \
+          --debug \
+          --set "disable_http_server=true" \
+          --set "disable_netboot=true" \
+          --set "container_image=${{ env.IMAGE_TAG }}" \
+          --set "state_dir=/output" \
+          --set "disk.raw=true"
+          
+          # Export image path to be used in the next step
+          echo "RAW_ARTIFACT=$(ls $PWD/*.raw|head -1)" >> $GITHUB_ENV
+      - name: Create OCI artifact from RAW image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: images/Dockerfile.img
+          platforms: linux/${{ inputs.arch }}
+          push: true
+          tags: ${{ env.IMAGE_NAME }}-img
+          build-args: |
+            ARTIFACT=${{ env.RAW_ARTIFACT }}
+      - name: Sign image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        env:
+          COSIGN_YES: true
+        run: |
+          cosign sign ${{ env.IMAGE_TAG }}-img
+      - name: Release
+        uses: softprops/action-gh-release@v2.2.1
+        with:
+          files: |
+            release/*.iso
+            release/*.iso.sha256
+            release/*.iso.sha256.sig
+            release/*.iso.sha256.pem
       - uses: itxaka/sarif-filter@v1
         with:
           input: grype.sarif
@@ -176,14 +216,6 @@ jobs:
           input: trivy.sarif
           output: trivy.sarif
           severity: critical
-      - name: Release
-        uses: softprops/action-gh-release@v2.2.1
-        with:
-          files: |
-            release/*.iso
-            release/*.iso.sha256
-            release/*.iso.sha256.sig
-            release/*.iso.sha256.pem
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         with:

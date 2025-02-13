@@ -36,6 +36,30 @@ jobs:
       arch: ${{ matrix.arch }}
       variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}
+  build-core-rpi4:
+    uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        model: ["rpi4"]
+        variant: ["core"]
+        arch: ["arm64"]
+        base_image:
+          - "opensuse/leap:15.6"
+          - "ubuntu:20.04"
+          - "ubuntu:22.04"
+          - "alpine:3.19"
+    with:
+      base_image: ${{ matrix.base_image }}
+      arch: ${{ matrix.arch }}
+      variant: ${{ matrix.variant }}
+      model: ${{ matrix.model }}
   get-k3s-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -86,6 +110,34 @@ jobs:
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
+    with:
+      base_image: ${{ matrix.base_image }}
+      arch: ${{ matrix.arch }}
+      variant: ${{ matrix.variant }}
+      model: ${{ matrix.model }}
+      kubernetes_version: ${{ matrix.kubernetes_version }}
+  build-standard-rpi4:
+    uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
+    needs:
+      - get-k3s-versions
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
+        model: ["rpi4"]
+        variant: ["standard"]
+        arch: ["arm64"]
+        base_image:
+          - "opensuse/leap:15.6"
+          - "ubuntu:20.04"
+          - "ubuntu:22.04"
+          - "alpine:3.19"
     with:
       base_image: ${{ matrix.base_image }}
       arch: ${{ matrix.arch }}
