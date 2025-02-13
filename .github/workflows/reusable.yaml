@@ -1,0 +1,14 @@
+name: test reusable
+
+on:
+  workflow_call:
+    inputs:
+      kubernetes_version:
+        required: true
+        type: string
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+        - run: echo "Running tests with Kubernetes version ${{ inputs.kubernetes_version }}"

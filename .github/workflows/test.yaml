@@ -28,12 +28,12 @@ jobs:
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
       - name: Print kubernetes versions
-        run: echo "${{ steps.get-k3s-releases.outputs.kubernetes_versions }}"
+        run: echo "${{ fromJson(steps.get-k3s-releases.outputs.kubernetes_versions) }}"
   whatever:
-    runs-on: ubuntu-latest
     needs: get-k3s-versions
+    uses: ./.github/workflows/reusable.yaml
+    with:
+      kubernetes_version: ${{ matrix.kubernetes_version }}
     strategy:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
-    steps:
-      - run: echo "Running tests with Kubernetes version ${{ matrix.kubernetes_version }}"
