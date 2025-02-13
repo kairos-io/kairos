@@ -63,7 +63,9 @@ jobs:
       - name: Set Image Tag
         run: |
           # Replace + with - in kubernetes version as we use it in the image tag
-          sanitized_kubernetes_version=$(echo "${{ inputs.kubernetes_version }}" | sed 's/+/-/g')
+          # WORKAROUND: remove the first v from the kubernetes version as kairos-init is adding one for some reason
+          # Should be fixed on kairos-init 0.2.4
+          sanitized_kubernetes_version=$(echo "${{ inputs.kubernetes_version }}" | sed 's/^v//; s/+/-/g')
           if [ -n "${sanitized_kubernetes_version}" ]; then
             echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}-k3s${sanitized_kubernetes_version}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           else
@@ -147,7 +149,7 @@ jobs:
         env:
           COSIGN_YES: true
         run: |
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' ${{ env.IMAGE_TAG }})
+          cosign sign ${{ env.IMAGE_TAG }})
       - name: Sign ISO sha files
         env:
           COSIGN_YES: true
