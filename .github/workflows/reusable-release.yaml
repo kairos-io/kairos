@@ -152,6 +152,7 @@ jobs:
         run: |
           cosign sign ${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
+        if: ${{ inputs.trusted_boot == 'false' }}
         env:
           COSIGN_YES: true
         run: |
@@ -167,13 +168,14 @@ jobs:
           input: trivy.sarif
           output: trivy.sarif
           severity: critical
-      - name: Fix permissions in release dir # Fix this in aurora, generated artifacts should have the right permissions
-        run: sudo chmod -R 777 release
       - name: Release
         uses: softprops/action-gh-release@v2.2.1
         with:
           files: |
-            release/*
+            release/*.iso
+            release/*.iso.sha256
+            release/*.iso.sha256.sig
+            release/*.iso.sha256.pem
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         with:
