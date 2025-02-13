@@ -43,13 +43,17 @@ jobs:
         id: split
         run: |
           echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
-          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
+          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2 || echo 'latest')" >> $GITHUB_OUTPUT
       - name: Set Image Tag
         run: |
-          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
-          echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ env.GIT_VERSION }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+          # Replace + with - in kubernetes version as we use it in the image tag
+          sanitized_kubernetes_version=$(echo ${{ inputs.kubernetes_version }} | sed 's/\./-/g')
+          echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}${{ inputs.kubernetes_version && '-k3s'||''}}${{ inputs.kubernetes_version && sanitized_kubernetes_version || ''}}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
       - name: Login to Quay Registry
         uses: docker/login-action@v3
         with:
@@ -117,7 +121,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/release:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}} \
+          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.ref_name }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}} \
           docker:${{ env.IMAGE_TAG }}
       - name: Sign image
         env:
