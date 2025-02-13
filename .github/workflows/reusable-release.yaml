@@ -57,6 +57,14 @@ jobs:
             # Use the base image as the distro
             distro="$base_image"
           fi
+          
+          # Special case for nvidia as we build 2 different images and the base_image is our cached image
+          # For release this makes no sense as we always build the base image anyway
+          # TODO: Add support for nvidia-jetson-agx-orin in kairos-init so we can build it properly
+          if [[ "${{ inputs.model }}" == "nvidia-jetson-agx-orin" ]]; then
+            distro="ubuntu"
+            tag="22.04"
+          fi
 
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
