@@ -18,7 +18,7 @@ on:
         required: false
         type: string
         default: "amd64"
-      kubernets_version:
+      kubernetes_version:
         required: false
         type: string
       trusted_boot:
