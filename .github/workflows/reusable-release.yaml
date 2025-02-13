@@ -180,7 +180,7 @@ jobs:
           --set "disk.raw=true"
           
           # Export image path to be used in the next step
-          echo "RAW_ARTIFACT=$(ls $PWD/*.raw|head -1)" >> $GITHUB_ENV
+          echo "RAW_ARTIFACT=$(ls *.raw|head -1)" >> $GITHUB_ENV
       - name: Create OCI artifact from RAW image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
         uses: docker/build-push-action@v6
