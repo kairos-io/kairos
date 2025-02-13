@@ -63,7 +63,6 @@ jobs:
           file: images/Dockerfile
           platforms: linux/${{ inputs.arch }}
           load: true
-          sbom: true
           tags: ${{ env.IMAGE_TAG }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}

@@ -8,6 +8,7 @@ permissions: read-all
 jobs:
   build-core:
     uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -59,6 +60,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   build-standard:
     uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
     needs:
       - get-k3s-versions
     permissions:
@@ -130,6 +132,7 @@ jobs:
           tags: quay.io/kairos/cache:nvidia-base
   nvidia-arm-core:
     uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
