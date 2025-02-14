@@ -76,7 +76,15 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Set Image tag
         run: |
-          echo "IMAGE_NAME=quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}" >> $GITHUB_ENV
+          IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_distro }}"
+          fi
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_version }}"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
       - name: Build container 🔧
         uses: docker/build-push-action@v6
         with:
