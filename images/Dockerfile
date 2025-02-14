@@ -8,7 +8,7 @@ ARG MODEL=generic
 ARG TRUSTED_BOOT=false
 ARG KUBERNETES_DISTRO=k3s
 ARG KUBERNETES_VERSION=latest
-ARG FRAMEWORK_VERSION=v2.15.13
+ARG FRAMEWORK_VERSION=v2.15.14
 
 COPY --from=kairos-init /kairos-init /kairos-init
 RUN /kairos-init -f "${FRAMEWORK_VERSION}" -l debug -s install -m "${MODEL}" -v "${VARIANT}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}"
