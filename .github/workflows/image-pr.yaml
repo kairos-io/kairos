@@ -41,10 +41,6 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.19"
-        include:
-          - base_image: "ubuntu:24.04"
-            kubernetes_distro: "k0s"
-            variant: "standard"
   tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
