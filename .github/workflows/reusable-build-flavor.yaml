@@ -32,7 +32,7 @@ permissions: read-all
 jobs:
   build:
     runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    name: Build ${{ join(inputs.*, ' - ') }}
+    name: Build ${{ inputs.base_image }} - ${{ inputs.model }} - ${{ inputs.variant }} - ${{ inputs.arch }}${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) }}${{ inputs.kubernetes_version != '' && format(' - {0}', inputs.kubernetes_version) }}
     permissions:
       id-token: write  # OIDC support
       contents: write
