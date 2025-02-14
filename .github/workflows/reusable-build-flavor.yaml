@@ -45,7 +45,7 @@ jobs:
           # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
           base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
           tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
-          
+
           # Check if the base image contains a slash
           if [[ "$base_image" == *"/"* ]]; then
             # Split the base image into distro and sub-distro
@@ -57,7 +57,7 @@ jobs:
             # Use the base image as the distro
             distro="$base_image"
           fi
-          
+
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - run: |

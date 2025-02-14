@@ -60,7 +60,7 @@ jobs:
             # Use the base image as the distro
             distro="$base_image"
           fi
-          
+
           # Special case for nvidia as we build 2 different images and the base_image is our cached image
           # For release this makes no sense as we always build the base image anyway
           # TODO: Add support for nvidia-jetson-agx-orin in kairos-init so we can build it properly
@@ -181,7 +181,7 @@ jobs:
           --set "container_image=${{ env.IMAGE_TAG }}" \
           --set "state_dir=/output" \
           --set "disk.raw=true"
-          
+
           # Export image path to be used in the next step
           echo "RAW_ARTIFACT=$(ls *.raw|head -1)" >> $GITHUB_ENV
       - name: Create OCI artifact from RAW image
