@@ -35,6 +35,7 @@ jobs:
       model: "generic"
       arch: "amd64"
       event_type: ${{ github.event_name }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
     strategy:
       fail-fast: false
       matrix:
@@ -46,6 +47,16 @@ jobs:
           - "alpine:3.19"
           - "opensuse/leap:15.6"
           - "debian:12"
+        include:
+          - base_image: "ubuntu:24.04"
+            kubernetes_distro: "k0s"
+            variant: "standard"
+          - base_image: "opensuse/leap:15.6"
+            kubernetes_distro: "k0s"
+            variant: "standard"
+          - base_image: "rockylinux:9"
+            kubernetes_distro: "k0s"
+            variant: "standard"
   tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml

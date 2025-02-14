@@ -21,6 +21,9 @@ on:
       kubernetes_version:
         required: false
         type: string
+      kubernetes_distro:
+        required: false
+        type: string
       event_type:
         required: true
         type: string
@@ -29,7 +32,7 @@ permissions: read-all
 jobs:
   build:
     runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    name: Build ${{ inputs.base_image }} - ${{ inputs.model }} - ${{ inputs.variant }} - ${{ inputs.arch }}
+    name: Build ${{ inputs.base_image }} - ${{ inputs.model }} - ${{ inputs.variant }} - ${{ inputs.arch }}${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}${{ inputs.kubernetes_version != '' && format(' - {0}', inputs.kubernetes_version) || '' }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -73,7 +76,15 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Set Image tag
         run: |
-          echo "IMAGE_NAME=quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}" >> $GITHUB_ENV
+          IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_distro }}"
+          fi
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_version }}"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
       - name: Build container 🔧
         uses: docker/build-push-action@v6
         with:
@@ -89,6 +100,7 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
       - name: Build raw image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
