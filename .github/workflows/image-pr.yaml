@@ -33,7 +33,6 @@ jobs:
       model: "generic"
       arch: "amd64"
       event_type: ${{ github.event_name }}
-      kubernetes_distro: ${{ matrix.kubernetes_distro }}
     strategy:
       fail-fast: false
       matrix:
