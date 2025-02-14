@@ -21,6 +21,9 @@ on:
       kubernetes_version:
         required: false
         type: string
+      kubernetes_distro:
+        required: false
+        type: string
       trusted_boot:
         required: false
         type: string
@@ -75,7 +78,7 @@ jobs:
           # Should be fixed on kairos-init 0.2.4
           sanitized_kubernetes_version=$(echo "${{ inputs.kubernetes_version }}" | sed 's/^v//; s/+/-/g')
           if [ -n "${sanitized_kubernetes_version}" ]; then
-            echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}-k3s${sanitized_kubernetes_version}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+            echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}-${{ inputs.kubernetes_distro }}${sanitized_kubernetes_version}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           else
             echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           fi

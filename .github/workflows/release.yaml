@@ -171,6 +171,7 @@ jobs:
       variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}
       kubernetes_version: ${{ matrix.kubernetes_version }}
+      kubernetes_distro: "k3s"
   build-standard-k0s:
     uses: ./.github/workflows/reusable-release.yaml
     secrets: inherit
@@ -208,3 +209,4 @@ jobs:
       variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}
       kubernetes_version: ${{ matrix.kubernetes_version }}
+      kubernetes_distro: "k0s"
