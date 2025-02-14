@@ -105,7 +105,29 @@ jobs:
             | map(.version)
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
-  build-standard:
+  get-k0s-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      kubernetes_versions: ${{ steps.get-k0s-releases.outputs.kubernetes_versions }}
+    steps:
+      - run: |
+          sudo apt update && sudo apt install -y jq curl
+      - name: Get latest k0s releases
+        id: get-k0s-releases
+        run: |
+          kubernetes_versions=$(curl -s https://api.github.com/repos/k0sproject/k0s/releases | jq -r '
+            [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
+            | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k0s\\.[0-9]+$")))
+            | map({version: ., minor: (split(".")[0:2] | join("."))})
+            | group_by(.minor)
+            | map(max_by(.version))
+            | sort_by(.version)
+            | reverse
+            | .[:3]
+            | map(.version)
+          ' | jq -c '.')
+          echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
+  build-standard-k3s:
     uses: ./.github/workflows/reusable-release.yaml
     secrets: inherit
     needs:
@@ -142,6 +164,43 @@ jobs:
           - "alpine:3.19"
           - "fedora:40"
           - "debian:12"
+          - "rockylinux:9"
+    with:
+      base_image: ${{ matrix.base_image }}
+      arch: ${{ matrix.arch }}
+      variant: ${{ matrix.variant }}
+      model: ${{ matrix.model }}
+      kubernetes_version: ${{ matrix.kubernetes_version }}
+  build-standard-k0s:
+    uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
+    needs:
+      - get-k0s-versions
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
+        model: ["generic"]
+        variant: ["standard"]
+        arch: ["amd64"]
+        base_image:
+          - "opensuse/leap:15.6"
+          - "ubuntu:24.10"
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
