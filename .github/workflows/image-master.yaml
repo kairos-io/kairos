@@ -39,8 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: ["core", "standard"]
-        kubernetes_distro: ["k3s"]
+        variant: ["core"]
         base_image:
           - "ubuntu:24.04"
           - "ubuntu:22.04"
@@ -49,6 +48,24 @@ jobs:
           - "opensuse/leap:15.6"
           - "debian:12"
         include:
+          - base_image: "ubuntu:24.04"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "ubuntu:22.04"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "ubuntu:20.04"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "alpine:3.19"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "opensuse/leap:15.6"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "debian:12"
+            kubernetes_distro: "k3s"
+            variant: "standard"
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k0s"
             variant: "standard"

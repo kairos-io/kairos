@@ -126,7 +126,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ inputs.model == 'generic' }}
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || '' }}.iso.zip
           path: |
             build/*.iso
             build/*.sha256
