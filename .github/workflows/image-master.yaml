@@ -57,7 +57,7 @@ jobs:
           - base_image: "rockylinux:9"
             kubernetes_distro: "k0s"
             variant: "standard"
-  tests:
+  lifecycle-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     secrets: inherit
@@ -67,6 +67,7 @@ jobs:
       secureboot: ${{ matrix.secureboot || false}}
       variant: "core"
       arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -109,13 +110,14 @@ jobs:
             base_image: "opensuse/leap:15.6"
           - test: "acceptance"
             base_image: "debian:12"
-  netboot:
+  netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       variant: "core"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -123,14 +125,16 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.19"
-  encryption:
+  encryption-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-encryption-test.yaml
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       label: ${{ matrix.label }}
-      variant: core
+      variant: "core"
+      model: "generic"
+      arch: "amd64"
     needs:
       - build
     strategy:
@@ -144,7 +148,7 @@ jobs:
           - "encryption-remote-static"
           - "encryption-remote-https-pinned"
           - "encryption-remote-https-bad-cert"
-  standard:
+  standard-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     secrets: inherit
@@ -168,6 +172,8 @@ jobs:
       test: ${{ matrix.test }}
       variant: "standard"
       arch: "amd64"
+      model: "generic"
+      kubernetes_distro: "k3s"
     needs:
       - build
     strategy:

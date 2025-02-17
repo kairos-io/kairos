@@ -95,7 +95,7 @@ jobs:
         if: ${{ inputs.test != 'upgrade-latest' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@v4.1.8
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Download latest release
         uses: robinraju/release-downloader@v1.11
         if: ${{ inputs.test == 'upgrade-latest' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes' }}
