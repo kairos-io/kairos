@@ -243,6 +243,8 @@ github.com/libp2p/go-libp2p v0.38.2 h1:9SZQDOCi82A25An4kx30lEtr6kGTxrtoaDkbs5xrK
 github.com/libp2p/go-libp2p v0.38.2/go.mod h1:QWV4zGL3O9nXKdHirIC59DoRcZ446dfkjbOJ55NEWFo=
 github.com/libp2p/go-libp2p v0.39.0 h1:LmrhDRud4eDkQCSB4l5NfoIFDqvDwAyANmfeYkgnKgs=
 github.com/libp2p/go-libp2p v0.39.0/go.mod h1:3zicI8Lp7Isun+Afo/JOACUbbJqqR2owK6RQWFsVAbI=
+github.com/libp2p/go-libp2p v0.39.1 h1:1Ur6rPCf3GR+g8jkrnaQaM0ha2IGespsnNlCqJLLALE=
+github.com/libp2p/go-libp2p v0.39.1/go.mod h1:3zicI8Lp7Isun+Afo/JOACUbbJqqR2owK6RQWFsVAbI=
 github.com/libp2p/go-libp2p-asn-util v0.4.1 h1:xqL7++IKD9TBFMgnLPZR6/6iYhawHKHl950SO9L6n94=
 github.com/libp2p/go-libp2p-asn-util v0.4.1/go.mod h1:d/NI6XZ9qxw67b4e+NgpQexCIiFYJjErASrYW4PFDN8=
 github.com/libp2p/go-libp2p-kad-dht v0.29.0 h1:045eW21lGlMSD9aKSZZGH4fnBMIInPwQLxIQ35P962I=
@@ -314,6 +316,8 @@ github.com/mudler/edgevpn v0.29.2 h1:+VBTPZ+DeSSEFiZhw0HzgE+w8vaH/B1GVGNolZwyECo
 github.com/mudler/edgevpn v0.29.2/go.mod h1:gBPr/+5XbtkRMD/iXmrdykyylB2qXTTF+nfUdKaqogE=
 github.com/mudler/edgevpn v0.30.0 h1:WUFefsvdgo3jzysn3zj+QJaKwEx4vUkaYlegHb8ljcs=
 github.com/mudler/edgevpn v0.30.0/go.mod h1:qEiDe32gkBAK6cc+zeTdYLvx0eH0wanFuIPQ9hKaOxM=
+github.com/mudler/edgevpn v0.30.1 h1:4yyhNFJX62NpRp50sxiyZE5E/sdAqEZX+aE5Mv7QS60=
+github.com/mudler/edgevpn v0.30.1/go.mod h1:IAJkkJ0oH3rwsSGOGTFT4UBYFqYuD/QyaKzTLB3P/eU=
 github.com/mudler/go-processmanager v0.0.0-20240820160718-8b802d3ecf82 h1:FVT07EI8njvsD4tC2Hw8Xhactp5AWhsQWD4oTeQuSAU=
 github.com/mudler/go-processmanager v0.0.0-20240820160718-8b802d3ecf82/go.mod h1:Urp7LG5jylKoDq0663qeBh0pINGcRl35nXdKx82PSoU=
 github.com/mudler/water v0.0.0-20221010214108-8c7313014ce0 h1:Qh6ghkMgTu6siFbTf7L3IszJmshMhXxNL4V+t7IIA6w=
