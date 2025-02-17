@@ -135,3 +135,16 @@ jobs:
         if: ${{ inputs.model == 'generic' }}
         run: |
           docker push ${{ env.IMAGE_NAME }}
+      - name: Tag and Push Nightly
+        if: github.ref == 'refs/heads/master'
+        run: |
+          NIGHTLY_NAME="quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-master"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            NIGHTLY_NAME+="-${{ inputs.kubernetes_distro }}"
+          fi
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            NIGHTLY_NAME+="-${{ inputs.kubernetes_version }}"
+          fi
+          docker tag ${{ env.IMAGE_NAME }} $NIGHTLY_NAME
+          docker push $NIGHTLY_NAME
