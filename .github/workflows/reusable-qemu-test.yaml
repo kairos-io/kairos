@@ -23,6 +23,9 @@ on:
         required: false
         type: string
         default: "generic"
+      kubernetes_distro:
+        required: false
+        type: string
 
 permissions: read-all
 jobs:
