@@ -22,7 +22,7 @@
       "matchUpdateTypes": [
         "patch"
       ],
-      "automerge": true
+      "automerge": false
     }
-  ],
+  ]
 }
