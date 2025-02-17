@@ -9,6 +9,12 @@ on:
       variant:
         required: true
         type: string
+      arch:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
 
 permissions: read-all
 jobs:
@@ -71,7 +77,7 @@ jobs:
         id: iso
         uses: actions/download-artifact@v4.1.8
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Extract ipxe artifacts for the ipxe server
         run: |
           mkdir -p build

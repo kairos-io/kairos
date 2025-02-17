@@ -67,6 +67,7 @@ jobs:
       secureboot: ${{ matrix.secureboot || false}}
       variant: "core"
       arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -116,6 +117,7 @@ jobs:
     with:
       base_image: ${{ matrix.base_image }}
       variant: "core"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -130,7 +132,9 @@ jobs:
     with:
       base_image: ${{ matrix.base_image }}
       label: ${{ matrix.label }}
-      variant: core
+      variant: "core"
+      model: "generic"
+      arch: "amd64"
     needs:
       - build
     strategy:
@@ -168,6 +172,7 @@ jobs:
       test: ${{ matrix.test }}
       variant: "standard"
       arch: "amd64"
+      model: "generic"
       kubernetes_distro: "k3s"
     needs:
       - build

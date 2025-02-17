@@ -50,6 +50,7 @@ jobs:
       secureboot: ${{ matrix.secureboot || false}}
       variant: "core"
       arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -82,6 +83,8 @@ jobs:
     with:
       base_image: ${{ matrix.base_image }}
       variant: "core"
+      arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -96,7 +99,9 @@ jobs:
     with:
       base_image: ${{ matrix.base_image }}
       label: ${{ matrix.label }}
-      variant: core
+      variant: "core"
+      arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
