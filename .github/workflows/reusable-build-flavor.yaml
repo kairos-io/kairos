@@ -146,5 +146,6 @@ jobs:
           if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
             NIGHTLY_NAME+="-${{ inputs.kubernetes_version }}"
           fi
-          docker tag ${{ env.IMAGE_NAME }} $NIGHTLY_NAME
+          docker run --name temp_container ${{ env.IMAGE_NAME }}
+          docker commit --change='LABEL quay.expires-after=' temp_container $NIGHTLY_NAME
           docker push $NIGHTLY_NAME
