@@ -102,6 +102,7 @@ jobs:
             VARIANT=${{ inputs.variant }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+            VERSION=${{ github.sha }}
       - name: Build raw image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
         run: |
