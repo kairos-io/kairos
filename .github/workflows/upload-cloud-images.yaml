@@ -1,5 +1,7 @@
 name: Upload cloud images
 on:
+  # TODO: remove this before merge
+  pull_request:
   schedule:
     # Everyday at 2am
     - cron: '0 2 * * *'
@@ -13,6 +15,33 @@ on:
 permissions: read-all
 
 jobs:
+  upload-gce:
+    name: Upload to GCE
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          git fetch --prune --unshallow
+      # https://github.com/google-github-actions/auth?tab=readme-ov-file#authenticate-to-google-cloud-from-github-actions
+      # https://github.com/google-github-actions/auth/blob/main/docs/EXAMPLES.md#service-account-key-json
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+      - name: Build and push AWS image
+        env:
+          AWS_S3_BUCKET: kairos-cloud-images
+          AWS_REGION: eu-central-1
+        run: |
+          set -e
+
+          latestTag=$(git describe --tags --abbrev=0)
+          gcloud --project palette-kairos storage ls gs://kairos-cloud-images
+
   upload-aws:
     name: Upload to AWS
     runs-on: ubuntu-latest
