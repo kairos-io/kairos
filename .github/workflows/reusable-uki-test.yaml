@@ -108,6 +108,7 @@ jobs:
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
             TRUSTED_BOOT=true
+            VERSION=${{ github.sha }}
       - name: Build uki ISO 🔧
         run: |
           mkdir build
