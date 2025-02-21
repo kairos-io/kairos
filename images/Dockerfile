@@ -3,7 +3,7 @@ ARG VARIANT
 ARG TARGETARCH
 ARG FRAMEWORK_VERSION=v2.15.14
 
-FROM quay.io/kairos/kairos-init:v0.2.4 AS kairos-init
+FROM quay.io/kairos/kairos-init:v0.2.6 AS kairos-init
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
 
 FROM ${BASE_IMAGE} AS base-kairos
