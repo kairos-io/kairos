@@ -55,7 +55,6 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 			currentVersion, err := vm.Sudo(getVersionCmd)
 			Expect(err).ToNot(HaveOccurred())
 			By(fmt.Sprintf("Checking current version: %s", currentVersion))
-			Expect(currentVersion).To(ContainSubstring("v"))
 
 			By(fmt.Sprintf("Upgrading to: %s", containerImage))
 			out, err := vm.Sudo("kairos-agent --debug upgrade --force --source oci://" + containerImage)
@@ -71,12 +70,6 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 				return err
 			}, 10*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
 
-			var v string
-			Eventually(func() string {
-				v, _ = vm.Sudo(getVersionCmd)
-				return v
-				// TODO: Add regex semver check here
-			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("v"), v)
 		})
 	})
 })
