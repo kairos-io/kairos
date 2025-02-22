@@ -65,8 +65,6 @@ jobs:
           fetch-depth: '0'
       - name: Set Version
         run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
-      - run: |
-          git fetch --prune --unshallow
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
