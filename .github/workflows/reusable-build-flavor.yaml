@@ -60,11 +60,11 @@ jobs:
 
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
-      - run: |
-          echo ${{ inputs.event_type }}
       - uses: actions/checkout@v4
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: '0'
+      - name: Set Version
+        run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
@@ -102,6 +102,7 @@ jobs:
             VARIANT=${{ inputs.variant }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+            VERSION=${{ env.VERSION }}
       - name: Build raw image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
         run: |

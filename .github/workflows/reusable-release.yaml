@@ -108,6 +108,7 @@ jobs:
             VARIANT=${{ inputs.variant }}
             KUBERNETES_VERSION=${{ env.FIXED_KUBERNETES_VERSION }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
+            VERSION=${{ github.ref_name }}
       - name: Grype table
         uses: anchore/scan-action@v6.1.0
         with:
@@ -148,6 +149,7 @@ jobs:
             VARIANT=${{ inputs.variant }}
             KUBERNETES_VERSION=${{ env.FIXED_KUBERNETES_VERSION }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
+            VERSION=${{ github.ref_name }}
       - name: Sign image
         env:
           COSIGN_YES: true
