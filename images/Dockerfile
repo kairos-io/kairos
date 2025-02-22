@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=ubuntu:20.04
 ARG VARIANT
 ARG TARGETARCH
-ARG FRAMEWORK_VERSION=v2.15.14
+ARG FRAMEWORK_VERSION=v2.16.1
 
 FROM quay.io/kairos/kairos-init:v0.2.4 AS kairos-init
 FROM --platform="linux/${TARGETARCH}" quay.io/kairos/framework:${FRAMEWORK_VERSION} AS framework
