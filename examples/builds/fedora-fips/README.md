@@ -19,7 +19,6 @@ install:
 ```
 
 Notes:
-- Most of the Dockerfile configuration are: packages being installed by fedora, and the framework files coming from Kairos containing FIPS-enabled packages
 - The LiveCD is not running in fips mode
 - You must add `selinux=0`. SELinux is not supported yet and must be explicitly disabled
 
