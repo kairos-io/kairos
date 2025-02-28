@@ -1,0 +1,27 @@
+name: Build Examples
+
+on:
+  push:
+    paths:
+      - 'examples/builds/**'
+
+jobs:
+  build:
+    name: ${{ matrix.example-dir }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example-dir:
+          - "fedora-fips"
+          - "rockylinux-fips"
+          - "ubuntu-non-hwe"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build Dockerfile
+        uses: docker/build-push-action@v6
+        with:
+          file: examples/builds/${{ matrix.example-dir }}/Dockerfile
+          context: examples/builds/${{ matrix.example-dir }}
