@@ -57,7 +57,7 @@ imageDeleteIfNotInVersionList() {
     echo "Image $image has a stable version ($imageVersion). Skipping cleanup."
   else
     gcloudCmd compute images delete "$image" --quiet
-    echo "Deleted image $image as it does not match any of the versions: '${versionList[@]}'"
+    echo "Deleted image $image as it does not match any of the versions: '${versionList[*]}'"
   fi
 }
 
@@ -84,7 +84,7 @@ s3ObjectDeleteIfNotInVersionList() {
     echo "GCS object '$key' has a stable version ($objectVersion). Skipping cleanup."
   else
     gcloudCmd storage rm "$key"
-    echo "Deleted GCS object $key as it does not match any of the versions: '${versionList[@]}'"
+    echo "Deleted GCS object $key as it does not match any of the versions: '${versionList[*]}'"
   fi
 }
 
@@ -95,7 +95,7 @@ cleanupOldVersions() {
     exit 1
   fi
 
-  read -a highest4StableVersions < <(getHighest4StableVersions)
+  read -r -a highest4StableVersions < <(getHighest4StableVersions)
   echo "Highest 4 stable versions: ${highest4StableVersions[*]}"
 
   # Cleanup images
