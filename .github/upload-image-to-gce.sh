@@ -53,8 +53,9 @@ uploadImageToGCS() {
 
 importGceImage() {
   local fileName="$1"
-  local name="$(sanitizeString $fileName)"
+  local name
   local kairosVersion="$2"
+  name="$(sanitizeString "$fileName")"
 
   if gcloud compute images describe "$name" --project "$GCP_PROJECT" > /dev/null 2>&1; then
     echo "Image '$name' already exists."
@@ -115,13 +116,14 @@ importGceImage() {
 # Can be used to generate valid resource names or labels from file paths or
 # versions.
 sanitizeString() {
-  local baseName=$(basename "$1")
+  local baseName
+  baseName=$(basename "$1")
   echo "${baseName%.tar.gz}" | tr '.' '-'
 }
 
 # ----- Main script -----
 imageFile="$1"
-kairosVersion="$(sanitizeString $2)"
+kairosVersion=$(sanitizeString "$2")
 checkEnvVars
 checkArguments "$@"
 
@@ -131,7 +133,7 @@ cleanupOldVersions
 echo "Done cleaning up"
 echo
 
-name=$(sanitizeString $imageFile)
+name=$(sanitizeString "$imageFile")
 fileName=$(basename "$imageFile")
 
 # Note: It's likely that we can point --source-file to the local file directly when we
