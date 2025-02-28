@@ -69,7 +69,6 @@ importGceImage() {
     gcloud migration vms image-imports create "$name" \
       --image-name="$name" \
       --location=europe-west3 \
-      --storage-location=global \
       --target-project="$GCP_PROJECT" \
       --source-file="gs://$GCS_BUCKET/$fileName" \
       --family-name="kairos" \
