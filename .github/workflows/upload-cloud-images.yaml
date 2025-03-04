@@ -13,6 +13,81 @@ on:
 permissions: read-all
 
 jobs:
+  upload-gce:
+    name: Upload to GCE
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          git fetch --prune --unshallow
+      # https://github.com/google-github-actions/auth?tab=readme-ov-file#authenticate-to-google-cloud-from-github-actions
+      # https://github.com/google-github-actions/auth/blob/main/docs/EXAMPLES.md#service-account-key-json
+      - uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+      - name: Install deps
+        run: |
+          sudo apt update && sudo apt install -y qemu-utils
+      - name: Build and push GCE image
+        env:
+          GCP_PROJECT: palette-kairos
+          GCS_BUCKET: kairos-cloud-images
+        run: |
+          set -xe
+
+          latestTag=$(git describe --tags --abbrev=0)
+          latestTagSanitized=$(echo "$latestTag" | tr '.' '-')
+
+          echo "Fetching all pushed versions"
+          mapfile -t kairosVersions < <(gcloud compute images list --project=palette-kairos --filter="labels.version:*" --format="value(labels.version)")
+
+          echo "Checking if '$latestTag' is already pushed"
+          echo "Looking among versions: ${kairosVersions[@]}"
+          alreadyPushed=false
+          for version in "${kairosVersions[@]}"; do
+            if [[ $version == $latestTagSanitized ]]; then
+              stableVersions+=("$version")
+              alreadyPushed=true
+              break
+            fi
+          done
+
+          if [[ "$alreadyPushed" = true && "${{ inputs.force }}" != "true" ]]; then
+            echo "Image for $latestTag is already pushed and 'force' wasn't true. Exiting."
+            exit 0
+          fi
+
+          containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+          docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
+            --privileged \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
+            --debug \
+            --set "disable_http_server=true" \
+            --set "container_image=docker:${containerImage}" \
+            --set "disable_netboot=true" \
+            --set "disk.bios=true" \
+            --set "state_dir=/aurora"
+
+          file=$(ls *.raw)
+          mv "$file" disk.raw
+
+          GB=$((1024*1024*1024))
+          MB=$((1024*1024))
+          size=$(qemu-img info -f raw --output json disk.raw | gawk 'match($0, /"virtual-size": ([0-9]+),/, val) {print val[1];exit}')
+          # shellcheck disable=SC2004
+          ROUNDED_SIZE=$(echo "$size/$GB+1"|bc)
+          CURRENT_SIZE=$(echo "$size/$MB"|bc)
+          echo "Resizing raw image from \"$size\"MB to \"$ROUNDED_SIZE\"GB"
+          qemu-img resize -f raw disk.raw "$ROUNDED_SIZE"G
+          tar --format=oldgnu -czvf "${file%.*}.tar.gz" disk.raw
+
+          .github/upload-image-to-gce.sh $(ls *.tar.gz) "$latestTag"
+
   upload-aws:
     name: Upload to AWS
     runs-on: ubuntu-latest

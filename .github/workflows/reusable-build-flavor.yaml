@@ -60,11 +60,11 @@ jobs:
 
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
-      - run: |
-          echo ${{ inputs.event_type }}
       - uses: actions/checkout@v4
-      - run: |
-          git fetch --prune --unshallow
+        with:
+          fetch-depth: '0'
+      - name: Set Version
+        run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
@@ -102,6 +102,7 @@ jobs:
             VARIANT=${{ inputs.variant }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+            VERSION=${{ env.VERSION }}
       - name: Build raw image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
         run: |
@@ -126,7 +127,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ inputs.model == 'generic' }}
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || '' }}.iso.zip
           path: |
             build/*.iso
             build/*.sha256
@@ -135,3 +136,17 @@ jobs:
         if: ${{ inputs.model == 'generic' }}
         run: |
           docker push ${{ env.IMAGE_NAME }}
+      - name: Tag and Push Nightly
+        if: github.ref == 'refs/heads/master'
+        run: |
+          NIGHTLY_NAME="quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-master"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            NIGHTLY_NAME+="-${{ inputs.kubernetes_distro }}"
+          fi
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            NIGHTLY_NAME+="-${{ inputs.kubernetes_version }}"
+          fi
+          docker run --name temp_container ${{ env.IMAGE_NAME }}
+          docker commit --change='LABEL quay.expires-after=' temp_container $NIGHTLY_NAME
+          docker push $NIGHTLY_NAME

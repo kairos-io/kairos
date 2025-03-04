@@ -12,7 +12,7 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-source "$SCRIPT_DIR/cleanup-old-images.sh"
+source "$SCRIPT_DIR/cleanup-old-images-aws.sh"
 
 checkArguments() {
   if [ $# -lt 2 ]; then

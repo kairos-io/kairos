@@ -75,7 +75,7 @@ jobs:
           cp ipxe/src/bin/ipxe.iso ipxe.iso
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@v4.1.8
+        uses: actions/download-artifact@v4.1.9
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Extract ipxe artifacts for the ipxe server

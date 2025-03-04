@@ -45,6 +45,10 @@ jobs:
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: '0'
+      - name: Set Version
+        run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
       - name: Install Go
         uses: actions/setup-go@v5
         timeout-minutes: 5
@@ -108,6 +112,7 @@ jobs:
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
             TRUSTED_BOOT=true
+            VERSION=${{ env.VERSION }}
       - name: Build uki ISO 🔧
         run: |
           mkdir build
