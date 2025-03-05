@@ -27,7 +27,7 @@ jobs:
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:24.10"
-          - "alpine:3.19"
+          - "alpine:3.21"
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
@@ -54,7 +54,7 @@ jobs:
           - "opensuse/leap:15.6"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
     with:
       base_image: ${{ matrix.base_image }}
       arch: ${{ matrix.arch }}
@@ -106,7 +106,7 @@ jobs:
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:24.10"
-          - "alpine:3.19"
+          - "alpine:3.21"
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
@@ -137,7 +137,7 @@ jobs:
           - "opensuse/leap:15.6"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
     with:
       base_image: ${{ matrix.base_image }}
       arch: ${{ matrix.arch }}

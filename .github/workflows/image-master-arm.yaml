@@ -42,7 +42,7 @@ jobs:
         model: ["generic", "rpi4", "rpi3"]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
   build-nvidia-base:
     runs-on: fast
     steps:
