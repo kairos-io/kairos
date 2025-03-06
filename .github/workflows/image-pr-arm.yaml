@@ -41,4 +41,4 @@ jobs:
         arch: ["arm64"]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
