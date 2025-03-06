@@ -10,7 +10,7 @@ require (
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/mudler/edgevpn v0.30.2
 	github.com/mudler/go-processmanager v0.0.0-20240820160718-8b802d3ecf82
-	github.com/onsi/ginkgo/v2 v2.22.2
+	github.com/onsi/ginkgo/v2 v2.23.0
 	github.com/onsi/gomega v1.36.2
 	github.com/spectrocloud/peg v0.0.0-20240405075800-c5da7125e30f
 	gopkg.in/yaml.v3 v3.0.1
