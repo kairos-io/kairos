@@ -86,7 +86,7 @@ jobs:
           qemu-img resize -f raw disk.raw "$ROUNDED_SIZE"G
           tar --format=oldgnu -czvf "${file%.*}.tar.gz" disk.raw
 
-          .github/upload-image-to-gce.sh $(ls *.tar.gz) "$latestTag"
+          .github/public-cloud/upload-image-to-gce.sh $(ls *.tar.gz) "$latestTag"
 
   upload-aws:
     name: Upload to AWS
@@ -147,4 +147,4 @@ jobs:
             --set "disk.raw=true" \
             --set "state_dir=/aurora"
 
-          .github/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
+          .github/public-cloud/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
