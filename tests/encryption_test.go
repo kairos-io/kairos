@@ -2,18 +2,16 @@ package mos_test
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
-	"path"
-	"path/filepath"
-	"strconv"
-	"strings"
-	"syscall"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
 	"gopkg.in/yaml.v3"
+	"os"
+	"os/exec"
+	"path"
+	"strconv"
+	"strings"
+	"syscall"
 )
 
 var installationOutput string
@@ -47,11 +45,12 @@ var _ = Describe("kcrypt encryption", func() {
 
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
-			gatherLogs(vm)
-			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
-			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
-			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
-			fmt.Println(string(serial))
+			//gatherLogs(vm)
+			//serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			//_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			//_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			//fmt.Println(string(serial))
+
 		}
 		err := vm.Destroy(func(vm VM) {
 			// Stop TPM emulator
@@ -74,10 +73,20 @@ var _ = Describe("kcrypt encryption", func() {
 			config = `#cloud-config
 
 install:
+  extra-partitions:
+    - name: extra1
+      size: 1000
+      fs: ext4
+      label: EXTRA_PARTITION1
+    - name: extra2
+      size: 1000
+      fs: ext4
+      label: EXTRA_PARTITION2
   grub_options:
     extra_cmdline: "rd.immucore.debug"
   encrypted_partitions:
     - COS_PERSISTENT
+    - EXTRA_PARTITION1
   reboot: false # we will reboot manually
 
 stages:
@@ -101,6 +110,9 @@ stages:
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"extra1\""), out)
+			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"COS_PERSISTENT\""), out)
+			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"EXTRA_PARTITION1\""), out)
 		})
 	})
 
@@ -124,6 +136,7 @@ spec:
   TPMHash: "%[1]s"
   partitions:
     - label: COS_PERSISTENT
+    - label: EXTRA_PARTITION1
   quarantined: false
 `, strings.TrimSpace(tpmHash)))
 
@@ -137,8 +150,18 @@ users:
     - "admin"
 
 install:
+  extra-partitions:
+    - name: extra1
+      size: 1000
+      fs: ext4
+      label: EXTRA_PARTITION1
+    - name: extra2
+      size: 1000
+      fs: ext4
+      label: EXTRA_PARTITION2
   encrypted_partitions:
   - COS_PERSISTENT
+  - EXTRA_PARTITION1
   grub_options:
     extra_cmdline: "rd.neednet=1"
   reboot: false # we will reboot manually
@@ -160,12 +183,18 @@ kcrypt:
 
 		It("creates a passphrase and a key/pair to decrypt it", func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
+			fmt.Println(installationOutput)
+			out, _ := vm.Sudo("cat /run/kcrypt-challenger-client.log")
+			fmt.Println(out)
 			// Expect a LUKS partition
 			vm.Reboot(750)
 			vm.EventuallyConnects(1200)
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"extra1\""), out)
+			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"COS_PERSISTENT\""), out)
+			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"EXTRA_PARTITION1\""), out)
 
 			// Expect a secret to be created
 			cmd := exec.Command("kubectl", "get", "secrets",
@@ -185,9 +214,10 @@ kcrypt:
 		var err error
 
 		BeforeEach(func() {
+			By("Creating the TPM hash")
 			tpmHash, err = vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
 			Expect(err).ToNot(HaveOccurred(), tpmHash)
-
+			By("Creating the secret")
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: v1
 kind: Secret
@@ -212,6 +242,10 @@ spec:
       secret:
        name: %[1]s
        path: pass
+    - uuid: 1843896f-1054-56c4-afef-2030241875ca
+      secret:
+       name: %[1]s
+       path: pass
   quarantined: false
 `, tpmHash))
 
@@ -228,8 +262,18 @@ stages:
       hostname: kairos-{{ trunc 4 .Random }}
 
 install:
+  extra-partitions:
+    - name: extra1
+      size: 1000
+      fs: ext4
+      label: EXTRA_PARTITION1
+    - name: extra2
+      size: 1000
+      fs: ext4
+      label: EXTRA_PARTITION2
   encrypted_partitions:
   - COS_PERSISTENT
+  - EXTRA_PARTITION1
   grub_options:
     extra_cmdline: "rd.neednet=1"
   reboot: false # we will reboot manually
@@ -256,13 +300,18 @@ kcrypt:
 
 		It("creates uses the existing passphrase to decrypt it", func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
+			By("Print the kcrypt challenger logs")
 			// Expect a LUKS partition
+			By("Rebooting")
 			vm.Reboot()
 			vm.EventuallyConnects(1200)
+			By("Checking the partition")
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"extra1\""), out)
 			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"COS_PERSISTENT\""), out)
+			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"EXTRA_PARTITION1\""), out)
 		})
 	})
 
