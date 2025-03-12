@@ -102,17 +102,27 @@ IMAGE_ID=$(az image show \
   --output tsv)
 
 echo "Creating a Shared Image Gallery (one-off)"
-az sig create --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos --location $STORAGE_REGION
+# https://learn.microsoft.com/en-us/azure/virtual-machines/create-gallery?tabs=portal%2Cportaldirect%2Ccli2
+# TODO: Link to some EULA?
+az sig create \
+   --gallery-name kairos.io \
+   --permissions community \
+   --resource-group "$AZURE_RESOURCE_GROUP" \
+   --location "$STORAGE_REGION" \
+   --publisher-uri kairos.io \
+   --publisher-email members@kairos.io \
+   --eula https://github.com/kairos-io/kairos/?tab=Apache-2.0-1-ov-file#readme \
+   --public-name-prefix kairos
 
 echo "Creating an image definition (one-off)"
-az sig image-definition create --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos \
+az sig image-definition create --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos.io \
   --gallery-image-definition kairos --publisher kairos.io --offer kairos --sku kairos \
   --hyper-v-generation "V2" --os-type Linux
 
 echo "Creating a Shared image version"
-az sig image-version create --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos \
+az sig image-version create --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos.io \
   --gallery-image-definition "kairos" --gallery-image-version "${VERSION#v}" \
   --managed-image "$IMAGE_ID" --location "$STORAGE_REGION"
 
 echo "Making the gallery public (one-off)"
-az sig share enable-community --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos
+az sig share enable-community --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos.io
