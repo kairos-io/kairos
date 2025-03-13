@@ -1,4 +1,4 @@
-FROM quay.io/kairos/kairos-init:v0.2.7 AS kairos-init
+FROM quay.io/kairos/kairos-init:v0.3.0 AS kairos-init
 
 FROM ubuntu:20.04
 ARG VERSION=v0.0.1
