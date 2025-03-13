@@ -4,6 +4,8 @@
 set -xe
 set -o pipefail
 
+# https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
+AZURE_CORE_OUTPUT=none
 
 # TODO: Remove these when moved to the caller
 AZURE_RESOURCE_GROUP="kairos-cloud-images"
@@ -124,5 +126,6 @@ az sig image-version create --resource-group "$AZURE_RESOURCE_GROUP" --gallery-n
   --gallery-image-definition "kairos" --gallery-image-version "${VERSION#v}" \
   --managed-image "$IMAGE_ID" --location "$STORAGE_REGION"
 
-echo "Making the gallery public (one-off)"
-az sig share enable-community --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos.io
+# It's one-off and needs special permissions, so skipping
+#echo "Making the gallery public (one-off)"
+#az sig share enable-community --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos.io
