@@ -1,5 +1,7 @@
 name: Upload cloud images
 on:
+  # TODO: Remove pull_request again before merging
+  pull_request:
   schedule:
     # Everyday at 2am
     - cron: '0 2 * * *'
@@ -86,7 +88,7 @@ jobs:
           qemu-img resize -f raw disk.raw "$ROUNDED_SIZE"G
           tar --format=oldgnu -czvf "${file%.*}.tar.gz" disk.raw
 
-          .github/upload-image-to-gce.sh $(ls *.tar.gz) "$latestTag"
+          .github/public-cloud/upload-image-to-gce.sh $(ls *.tar.gz) "$latestTag"
 
   upload-aws:
     name: Upload to AWS
@@ -147,4 +149,41 @@ jobs:
             --set "disk.raw=true" \
             --set "state_dir=/aurora"
 
-          .github/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
+          .github/public-cloud/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
+
+      - name: Test image
+        env:
+          AWS_S3_BUCKET: kairos-cloud-images
+          AWS_REGION: eu-central-1
+        run: |
+          .github/public-cloud/test-aws-image.sh $(ls *.raw)
+
+  upload-azure:
+    permissions:
+      id-token: write
+      contents: read
+    name: Upload to Azure
+    runs-on: ubuntu-latest
+    # https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust?pivots=identity-wif-apps-methods-azp#github-actions
+    environment: azure-push
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          git fetch --prune --unshallow
+      # https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure CLI script
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az account show
