@@ -151,6 +151,13 @@ jobs:
 
           .github/public-cloud/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
 
+      - name: Test image
+        env:
+          AWS_S3_BUCKET: kairos-cloud-images
+          AWS_REGION: eu-central-1
+        run: |
+          .github/public-cloud/test-aws-image.sh $(ls *.raw)
+
   upload-azure:
     permissions:
       id-token: write
