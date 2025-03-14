@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -45,12 +46,11 @@ var _ = Describe("kcrypt encryption", func() {
 
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
-			//gatherLogs(vm)
-			//serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
-			//_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
-			//_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
-			//fmt.Println(string(serial))
-
+			gatherLogs(vm)
+			serial, _ := os.ReadFile(filepath.Join(vm.StateDir, "serial.log"))
+			_ = os.MkdirAll("logs", os.ModePerm|os.ModeDir)
+			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
+			fmt.Println(string(serial))
 		}
 		err := vm.Destroy(func(vm VM) {
 			// Stop TPM emulator
@@ -183,9 +183,6 @@ kcrypt:
 
 		It("creates a passphrase and a key/pair to decrypt it", func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
-			fmt.Println(installationOutput)
-			out, _ := vm.Sudo("cat /run/kcrypt-challenger-client.log")
-			fmt.Println(out)
 			// Expect a LUKS partition
 			vm.Reboot(750)
 			vm.EventuallyConnects(1200)
@@ -242,7 +239,7 @@ spec:
       secret:
        name: %[1]s
        path: pass
-    - uuid: 1843896f-1054-56c4-afef-2030241875ca
+    - label: EXTRA_PARTITION1
       secret:
        name: %[1]s
        path: pass
@@ -300,7 +297,6 @@ kcrypt:
 
 		It("creates uses the existing passphrase to decrypt it", func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
-			By("Print the kcrypt challenger logs")
 			// Expect a LUKS partition
 			By("Rebooting")
 			vm.Reboot()
