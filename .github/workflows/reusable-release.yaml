@@ -127,7 +127,7 @@ jobs:
           add-cpes-if-none: true
           only-fixed: true
       - name: Trivy
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@0.30.0
         with:
           image-ref: ${{ env.IMAGE_TAG }}
           format: sarif
