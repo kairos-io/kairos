@@ -39,7 +39,7 @@ jobs:
       actions: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Split base image
@@ -89,13 +89,13 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@master
       - name: Login to Quay Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build the docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
         with:
           context: .
           file: images/Dockerfile
@@ -110,7 +110,7 @@ jobs:
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
       - name: Grype table
-        uses: anchore/scan-action@v6.1.0
+        uses: anchore/scan-action@7c05671ae9be166aeb155bad2d7df9121823df32 # v6.1.0
         with:
           image: ${{ env.IMAGE_TAG }}
           output-format: table
@@ -118,7 +118,7 @@ jobs:
           add-cpes-if-none: true
           only-fixed: true
       - name: Grype sarif
-        uses: anchore/scan-action@v6.1.0
+        uses: anchore/scan-action@7c05671ae9be166aeb155bad2d7df9121823df32 # v6.1.0
         with:
           image: ${{ env.IMAGE_TAG }}
           output-format: sarif
@@ -127,7 +127,7 @@ jobs:
           add-cpes-if-none: true
           only-fixed: true
       - name: Trivy
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
           image-ref: ${{ env.IMAGE_TAG }}
           format: sarif
@@ -135,7 +135,7 @@ jobs:
           severity: CRITICAL
           limit-severities-for-sarif: true
       - name: Push the docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
         with:
           context: .
           file: images/Dockerfile
@@ -188,7 +188,7 @@ jobs:
           echo "RAW_ARTIFACT=$(ls *.raw|head -1)" >> $GITHUB_ENV
       - name: Create OCI artifact from RAW image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && input.model != 'nvidia-jetson-agx-orin' }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
         with:
           context: .
           file: images/Dockerfile.img
@@ -204,30 +204,30 @@ jobs:
         run: |
           cosign sign ${{ env.IMAGE_TAG }}-img
       - name: Release
-        uses: softprops/action-gh-release@v2.2.1
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
           files: |
             release/*.iso
             release/*.iso.sha256
             release/*.iso.sha256.sig
             release/*.iso.sha256.pem
-      - uses: itxaka/sarif-filter@v1
+      - uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
         with:
           input: grype.sarif
           output: grype.sarif
           severity: critical
-      - uses: itxaka/sarif-filter@v1
+      - uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
         with:
           input: trivy.sarif
           output: trivy.sarif
           severity: critical
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@6bb031afdd8eb862ea3fc1848194185e076637e5 # v3
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@6bb031afdd8eb862ea3fc1848194185e076637e5 # v3
         with:
           sarif_file: 'grype.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}
