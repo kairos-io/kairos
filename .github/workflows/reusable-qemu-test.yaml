@@ -60,11 +60,11 @@ jobs:
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5
         timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
@@ -84,7 +84,7 @@ jobs:
               insecure = true
               http = true
       - name: Login to Quay Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
@@ -101,18 +101,18 @@ jobs:
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
-        uses: actions/download-artifact@v4.1.9
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || '' }}.iso.zip
       - name: Download latest release
-        uses: robinraju/release-downloader@v1.12
+        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
         if: ${{ (inputs.test == 'upgrade-latest' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
         with:
           latest: true
           fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
           out-file-path: ""
       - name: Download latest release with release matcher
-        uses: robinraju/release-downloader@v1.12
+        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
         if: ${{ (inputs.test == 'upgrade-latest' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher != '' }}
         with:
           latest: true
@@ -120,7 +120,7 @@ jobs:
           out-file-path: ""
       - name: Prepare test bundle
         if: ${{ inputs.test == 'bundles' }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
         with:
           context: .
           file: examples/bundle/Dockerfile
@@ -149,7 +149,7 @@ jobs:
           cp tests/go.* .
           go mod download
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./tests/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
         if: failure()
         with:
           name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}.logs.zip
