@@ -37,10 +37,9 @@ jobs:
     - run: |
         sudo apt update && sudo apt install -y jq
     - name: Install earthly
-      uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+      uses: earthly/actions-setup@43211c7a0eae5344d6d79fb4aaf209c8f8866203
       with:
-        repository: quay.io/kairos/packages
-        packages: utils/earthly
+        github-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Set up QEMU
       uses: docker/setup-qemu-action@master
       with:
