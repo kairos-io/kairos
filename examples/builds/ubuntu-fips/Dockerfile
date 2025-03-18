@@ -4,7 +4,7 @@ FROM ubuntu:20.04
 ARG VERSION=v0.0.1
 
 COPY --from=kairos-init /kairos-init /kairos-init
-RUN /kairos-init -l debug -s install --fips --version "${VERSION}"
+RUN /kairos-init -l debug -s install --version "${VERSION}"
 # Remove default kernel that Kairos-init installs
 RUN apt-get remove -y linux-base linux-image-generic-hwe-20.04 && apt-get autoremove -y
 ## THIS comes from the Ubuntu documentation: https://canonical-ubuntu-pro-client.readthedocs-hosted.com/en/latest/tutorials/create_a_fips_docker_image.html
