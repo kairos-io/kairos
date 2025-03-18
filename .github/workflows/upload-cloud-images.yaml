@@ -88,9 +88,12 @@ jobs:
 
           .github/upload-image-to-gce.sh $(ls *.tar.gz) "$latestTag"
 
+  # https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
   upload-aws:
     name: Upload to AWS
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - name: "Checkout code"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -102,12 +105,9 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          audience: sts.amazonaws.com
           aws-region: eu-central-1
-          # role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          # role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
-          role-duration-seconds: 1200
+          role-to-assume: arn:aws:iam::171987620676:role/github-actions
           role-session-name: AWSCIPush
       - name: Build and push AWS image
         env:
