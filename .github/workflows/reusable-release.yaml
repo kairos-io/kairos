@@ -73,16 +73,13 @@ jobs:
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - name: Set Image Tag
         run: |
-          # Replace + with - in kubernetes version as we use it in the image tag
-          # WORKAROUND: remove the first v from the kubernetes version as kairos-init is adding one for some reason
-          # Should be fixed on kairos-init 0.2.4
+          # Replace + with - in kubernetes version as we use it in the image tag. Remove v as well
           sanitized_kubernetes_version=$(echo "${{ inputs.kubernetes_version }}" | sed 's/^v//; s/+/-/g')
           if [ -n "${sanitized_kubernetes_version}" ]; then
             echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}-${{ inputs.kubernetes_distro }}${sanitized_kubernetes_version}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           else
             echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           fi
-          echo "FIXED_KUBERNETES_VERSION=$(echo "${{ inputs.kubernetes_version }}" | sed 's/^v//g')" >> $GITHUB_ENV
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
       - name: Set up Docker Buildx
@@ -147,7 +144,7 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
-            KUBERNETES_VERSION=${{ env.FIXED_KUBERNETES_VERSION }}
+            KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
       - name: Sign image
