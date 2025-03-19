@@ -29,5 +29,7 @@ jobs:
 
           gcloud auth list --filter=status:ACTIVE --format="value(account)"
           gcloud config list account
+          gcloud auth print-access-token
+          gcloud projects get-iam-policy palette-kairos --format=json | jq '.bindings[] | select(.role=="roles/iam.serviceAccountTokenCreator")'
 
           gcloud auth print-access-token --impersonate-service-account=github-service-account@palette-kairos.iam.gserviceaccount.com
