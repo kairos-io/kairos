@@ -46,8 +46,6 @@ jobs:
         run: |
           set -xe
 
-          gcloud auth login --brief --cred-file="${{ steps.auth.outputs.credentials_file_path }}"
-
           latestTag=$(git describe --tags --abbrev=0)
           latestTagSanitized=$(echo "$latestTag" | tr '.' '-')
 
