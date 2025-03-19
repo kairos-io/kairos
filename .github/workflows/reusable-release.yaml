@@ -161,7 +161,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/release:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.ref_name }}${{ inputs.kubernetes_distro && '-'||''}}${{ inputs.variant == 'standard' && inputs.kubernets_distro || ''}}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}} \
+          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.ref_name }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}} \
           docker:${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
         if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
