@@ -103,7 +103,7 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
-            KUBERNETES_VERSION=${{ env.FIXED_KUBERNETES_VERSION }}
+            KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
       - name: Grype table
