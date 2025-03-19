@@ -29,9 +29,7 @@ jobs:
           set -xe
 
           #gcloud auth login --brief --cred-file="${{ steps.auth.outputs.credentials_file_path }}"
-          cat "${{ steps.auth.outputs.credentials_file_path }}"
-
-          echo "${{ steps.auth.outputs.id_token }}" | jq .
+          #cat "${{ steps.auth.outputs.credentials_file_path }}"
 
           gcloud auth list --filter=status:ACTIVE --format="value(account)"
           gcloud config list account
