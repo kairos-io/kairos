@@ -197,7 +197,7 @@ jobs:
           build-args: |
             ARTIFACT=${{ env.RAW_ARTIFACT }}
       - name: Sign image
-        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin'}}
         env:
           COSIGN_YES: true
         run: |
