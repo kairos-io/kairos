@@ -77,8 +77,10 @@ jobs:
           sanitized_kubernetes_version=$(echo "${{ inputs.kubernetes_version }}" | sed 's/^v//; s/+/-/g')
           if [ -n "${sanitized_kubernetes_version}" ]; then
             echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}-${{ inputs.kubernetes_distro }}${sanitized_kubernetes_version}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+            echo "ISO_NAME=kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}--${{ inputs.model }}-${{ github.ref_name }}${{ inputs.kubernetes_distro }}${sanitized_kubernetes_version}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           else
             echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+            echo "ISO_NAME=kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}--${{ inputs.model }}-${{ github.ref_name }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
           fi
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
@@ -161,7 +163,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/release:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.ref_name }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}} \
+          --name ${{ env.ISO_NAME }} \
           docker:${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
         if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
