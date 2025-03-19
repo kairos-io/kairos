@@ -27,4 +27,7 @@ jobs:
 
           #gcloud auth login --brief --cred-file="${{ steps.auth.outputs.credentials_file_path }}"
 
+          gcloud auth list --filter=status:ACTIVE --format="value(account)"
+          gcloud config list account
+
           gcloud auth print-access-token --impersonate-service-account=github-service-account@palette-kairos.iam.gserviceaccount.com
