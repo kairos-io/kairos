@@ -10,7 +10,8 @@ jobs:
     name: Upload to GCP
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
+      id-token: write  # REQUIRED for OIDC authentication
+      contents: read
     steps:
       - id: "auth"
         name: "Authenticate to GCP"
