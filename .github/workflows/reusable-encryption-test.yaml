@@ -74,7 +74,7 @@ jobs:
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Display structure of downloaded files
