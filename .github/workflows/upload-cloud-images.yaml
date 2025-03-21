@@ -166,14 +166,14 @@ jobs:
       shouldBuild: ${{ steps.checkPushed.outputs.shouldBuild }}
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: false
       - run: |
           git fetch --prune --unshallow
       # https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
       - name: Azure login
-        uses: azure/login@v2
+        uses: azure/login@a65d910e8af852a8061c627c456678983e180302 # v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -227,7 +227,7 @@ jobs:
               --set "state_dir=/aurora"
 
       - name: Azure CLI script
-        uses: azure/cli@v2
+        uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2
         if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
         env:
           GCP_PROJECT: palette-kairos
