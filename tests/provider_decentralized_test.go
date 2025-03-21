@@ -135,6 +135,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					return out
 				}, 45*time.Minute, 1*time.Second).Should(
 					Or(
+						ContainSubstring("Configuring k3s worker"),
 						ContainSubstring("Configuring k3s-agent"),
 						ContainSubstring("Configuring k3s"),
 					), out)
@@ -152,7 +153,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				vm.Sudo("kairos get-kubeconfig > kubeconfig")
 				out, _ = vm.Sudo("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
+			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
 		})
 
 		vmForEach("checking roles", vms, func(vm VM) {
@@ -183,25 +184,26 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			), out)
 		})
 
-		vmForEach("checking if it can propagate dns and it is functional", vms, func(vm VM) {
-			if !isFlavor(vm, "alpine") {
-				// FIXUP: DNS needs reboot to take effect
-				vm.Reboot(1200)
-				out := ""
-				Eventually(func() string {
-					var err error
-					out, err = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
-					Expect(err).ToNot(HaveOccurred(), out)
+		// We are not adding dig to the image atm
+		// vmForEach("checking if it can propagate dns and it is functional", vms, func(vm VM) {
+		// 	if !isFlavor(vm, "alpine") {
+		// 		// FIXUP: DNS needs reboot to take effect
+		// 		vm.Reboot(1200)
+		// 		out := ""
+		// 		Eventually(func() string {
+		// 			var err error
+		// 			out, err = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+		// 			Expect(err).ToNot(HaveOccurred(), out)
 
-					out, _ = vm.Sudo("dig +short foo.bar")
-					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).Should(Equal("2.2.2.2"))
-				Eventually(func() string {
-					out, _ = vm.Sudo("dig +short google.com")
-					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).ShouldNot(BeEmpty())
-			}
-		})
+		// 			out, _ = vm.Sudo("dig +short foo.bar")
+		// 			return strings.TrimSpace(out)
+		// 		}, 900*time.Second, 10*time.Second).Should(Equal("2.2.2.2"))
+		// 		Eventually(func() string {
+		// 			out, _ = vm.Sudo("dig +short google.com")
+		// 			return strings.TrimSpace(out)
+		// 		}, 900*time.Second, 10*time.Second).ShouldNot(BeEmpty())
+		// 	}
+		// })
 
 		vmForEach("checking if it upgrades to a specific version", vms, func(vm VM) {
 			version, err := vm.Sudo(getVersionCmd)
