@@ -92,7 +92,7 @@ jobs:
           qemu-img resize -f raw disk.raw "$ROUNDED_SIZE"G
           tar --format=oldgnu -czvf "${file%.*}.tar.gz" disk.raw
 
-          .github/upload-image-to-gcp.sh $(ls *.tar.gz) "$latestTag"
+          .github/public-cloud/upload-image-to-gcp.sh $(ls *.tar.gz) "$latestTag"
 
   # https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
   upload-aws:
@@ -153,4 +153,89 @@ jobs:
             --set "disk.raw=true" \
             --set "state_dir=/aurora"
 
-          .github/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
+          .github/public-cloud/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
+
+  upload-azure:
+    permissions:
+      id-token: write
+    name: Upload to Azure
+    runs-on: ubuntu-latest
+    # https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust?pivots=identity-wif-apps-methods-azp#github-actions
+    environment: azure-push
+    outputs:
+      shouldBuild: ${{ steps.checkPushed.outputs.shouldBuild }}
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          git fetch --prune --unshallow
+      # https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Find latest stable version
+        run: |
+          # Azure only allows "stable" version strings. E.g. "v1.2.3" (not "v1.2.3-beta1")
+          latestTag=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          echo $latestTag > LATEST_TAG
+
+      - name: Check if already pushed
+        id: checkPushed
+        run: |
+          latestTag=$(cat LATEST_TAG)
+
+          echo "Fetching all pushed versions"
+          mapfile -t kairosVersions < <(az sig image-version list --resource-group kairos-cloud-images --gallery-image-name kairos --gallery-name kairos.io --query '[].name' --output tsv)
+
+          echo "Checking if '$latestTag' is already pushed"
+          echo "Looking among versions: ${kairosVersions[@]}"
+          for version in "${kairosVersions[@]}"; do
+            if [[ $version == "${latestTag#v}" ]]; then
+              stableVersions+=("$version")
+              alreadyPushed=true
+              break
+            fi
+          done
+
+          if [[ "$alreadyPushed" = true && "${{ inputs.force }}" != "true" ]]; then
+            echo "shouldBuild=false" >> $GITHUB_OUTPUT
+            echo "Image for $latestTag is already pushed and 'force' wasn't true. Skipping build."
+          else
+            echo "shouldBuild=true" >> $GITHUB_OUTPUT
+            echo "Image for $latestTag is not pushed or 'force' was true. Will build."
+          fi
+
+      - name: Build the image
+        if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
+        run: |
+            latestTag=$(cat LATEST_TAG)
+            containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+            docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
+              --privileged \
+              -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
+              --debug \
+              --set "disable_http_server=true" \
+              --set "container_image=docker:${containerImage}" \
+              --set "disable_netboot=true" \
+              --set "disk.vhd=true" \
+              --set "state_dir=/aurora"
+
+      - name: Azure CLI script
+        uses: azure/cli@v2
+        if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
+        env:
+          GCP_PROJECT: palette-kairos
+          AZURE_RESOURCE_GROUP: "kairos-cloud-images"
+          AZURE_STORAGE_ACCOUNT: "kairoscloudimages"
+          AZURE_CONTAINER_NAME: "kairos-cloud-images"
+        with:
+          azcliversion: latest
+          inlineScript: |
+            latestTag=$(cat LATEST_TAG)
+            .github/public-cloud/upload-image-to-azure.sh $(ls *.vhd) "$latestTag"
