@@ -41,6 +41,10 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 	})
 
 	It("installs to disk with custom config", func() {
+		out, err := vms[0].Sudo("virsh net-list --all")
+		Expect(err).ToNot(HaveOccurred())
+		By(fmt.Sprintf("Current virsh networks:\n%s", out))
+
 		vmForEach("checking if it has default service active", vms, func(vm VM) {
 			if isFlavor(vm, "alpine") {
 				out, _ := vm.Sudo("rc-status")
