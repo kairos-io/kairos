@@ -157,39 +157,39 @@ jobs:
   #         - "encryption-remote-static"
   #         - "encryption-remote-https-pinned"
   #         - "encryption-remote-https-bad-cert"
-  # standard-tests:
-  #   name: ${{ matrix.base_image }}
-  #   uses: ./.github/workflows/reusable-qemu-test.yaml
-  #   secrets: inherit
-  #   permissions:
-  #     contents: write
-  #     security-events: write
-  #     id-token: write
-  #     actions: read
-  #     attestations: read
-  #     checks: read
-  #     deployments: read
-  #     discussions: read
-  #     issues: read
-  #     packages: read
-  #     pages: read
-  #     pull-requests: read
-  #     repository-projects: read
-  #     statuses: read
-  #   with:
-  #     base_image: ${{ matrix.base_image }}
-  #     test: ${{ matrix.test }}
-  #     variant: "standard"
-  #     arch: "amd64"
-  #     model: "generic"
-  #     kubernetes_distro: "k3s"
-  #   needs:
-  #     - build-standard
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       base_image:
-  #         - "ubuntu:24.04"
-  #         - "alpine:3.21"
-  #       test:
-  #         - "provider-decentralized-k8s"
+  standard-tests:
+    name: ${{ matrix.base_image }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    secrets: inherit
+    permissions:
+      contents: write
+      security-events: write
+      id-token: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    with:
+      base_image: ${{ matrix.base_image }}
+      test: ${{ matrix.test }}
+      variant: "standard"
+      arch: "amd64"
+      model: "generic"
+      kubernetes_distro: "k3s"
+    needs:
+      - build-standard
+    strategy:
+      fail-fast: false
+      matrix:
+        base_image:
+          - "ubuntu:24.04"
+          - "alpine:3.21"
+        test:
+          - "provider-decentralized-k8s"
