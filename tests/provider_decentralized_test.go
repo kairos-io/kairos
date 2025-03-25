@@ -258,7 +258,6 @@ func cloudConfig() string {
 
 p2p:
   network_token: %s
-  dns: true
 `, string(configBytes), token)
 
 	f, err := os.CreateTemp("", "kairos-config-*.yaml")
