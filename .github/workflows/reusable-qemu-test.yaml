@@ -113,9 +113,30 @@ jobs:
             udev \
             virtinst
           sudo setfacl -m u:runner:rwx /dev/kvm
-      - name: List virsh networks
+          sudo usermod -a -G libvirt $USER
+          sudo libvirtd --daemon
+      - name: Create default-net.xml
         run: |
-          virsh net-list --all
+          cat <<EOF > default-net.xml
+          <network>
+            <name>default</name>
+            <bridge name='virbr0' stp='on' delay='0'/>
+            <forward mode='nat'/>
+            <ip address='192.168.100.1' netmask='255.255.255.0'>
+              <dhcp>
+                <range start='192.168.100.2' end='192.168.100.254'/>
+              </dhcp>
+            </ip>
+          </network>
+          EOF
+      - name: Add default-net.xml to libvirt
+        run: |
+          sudo virsh net-define default-net.xml
+          sudo virsh net-start default
+          sudo virsh net-autostart default
+      - name: List libvirt networks
+        run: |
+          sudo virsh net-list --all
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
