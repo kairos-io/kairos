@@ -459,6 +459,28 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 			err = cmd.Start()
 			Expect(err).ToNot(HaveOccurred())
 		}
+		// check if the hub port file exists and save whether it exists or not
+		hubPortFile := ".hub_port"
+		hubPortExists := false
+		if _, err := os.Stat(hubPortFile); err == nil {
+			hubPortExists = true
+		}
+		fmt.Printf("Hub port exists: %t\n", hubPortExists)
+
+		if os.Getenv("HUB_LISTEN") != "" && !hubPortExists {
+			fmt.Printf("Configuring machine to listen on %s\n", os.Getenv("HUB_LISTEN"))
+			// configure the machine and record the port in the state dir
+			opts = append(opts,
+				types.WithNetworkListen(os.Getenv("HUB_LISTEN")),
+			)
+			err = os.WriteFile(".hub_port", []byte(os.Getenv("HUB_LISTEN")), 0644)
+			Expect(err).ToNot(HaveOccurred())
+		} else if os.Getenv("HUB_CONNECT") != "" {
+			fmt.Printf("Configuring machine to connect to %s\n", os.Getenv("HUB_CONNECT"))
+			opts = append(opts,
+				types.WithNetworkConnect(os.Getenv("HUB_CONNECT")),
+			)
+		}
 	} else {
 		opts = append(opts, types.VBoxEngine)
 	}

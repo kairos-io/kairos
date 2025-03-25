@@ -38,6 +38,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			vm.Destroy(nil)
 		})
 		os.RemoveAll(configPath)
+		os.RemoveAll(".hub_port")
 	})
 
 	It("installs to disk with custom config", func() {

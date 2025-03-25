@@ -113,7 +113,6 @@ jobs:
             udev \
             virtinst
           sudo setfacl -m u:runner:rwx /dev/kvm
-          sudo systemctl enable --now libvirtd
       - name: List virsh networks
         run: |
           virsh net-list --all
@@ -158,6 +157,10 @@ jobs:
           CPUS: 4
           CONTAINER_IMAGE: quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}
         run: |
+          if [ "${{ inputs.test }}" = "provider-decentralized-k8s" ]; then
+            export HUB_LISTEN=:1234
+            export HUB_CONNECT=127.0.0.1:1234
+          fi
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
