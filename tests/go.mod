@@ -1,5 +1,9 @@
 module kairos-tests
 
+replace github.com/spectrocloud/peg => github.com/mauromorales/peg v0.0.0-20250325151524-114fcd79f609
+
+replace golang.zx2c4.com/wireguard => golang.zx2c4.com/wireguard v0.0.0-20220703234212-c31a7b1ab478
+
 go 1.23.6
 
 require (

@@ -97,8 +97,46 @@ jobs:
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs swtpm
+          sudo apt-get install -y \
+            acl \
+            bridge-utils \
+            libvirt-clients \
+            libvirt-daemon \
+            libvirt-daemon-config-network \
+            libvirt-daemon-system \
+            mkisofs \
+            qemu \
+            qemu-kvm \
+            qemu-system-x86 \
+            qemu-utils \
+            swtpm \
+            udev \
+            virtinst
           sudo setfacl -m u:runner:rwx /dev/kvm
+          sudo usermod -aG libvirt $USER
+          sudo libvirtd --daemon
+      - name: Create default-net.xml
+        run: |
+          cat <<EOF > default-net.xml
+          <network>
+            <name>default</name>
+            <bridge name='virbr0' stp='on' delay='0'/>
+            <forward mode='nat'/>
+            <ip address='192.168.100.1' netmask='255.255.255.0'>
+              <dhcp>
+                <range start='192.168.100.2' end='192.168.100.254'/>
+              </dhcp>
+            </ip>
+          </network>
+          EOF
+      - name: Add default-net.xml to libvirt
+        run: |
+          sudo virsh net-define default-net.xml
+          sudo virsh net-start default
+          sudo virsh net-autostart default
+      - name: List libvirt networks
+        run: |
+          sudo virsh net-list --all
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4.1.9
@@ -140,6 +178,10 @@ jobs:
           CPUS: 4
           CONTAINER_IMAGE: quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}
         run: |
+          if [ "${{ inputs.test }}" = "provider-decentralized-k8s" ]; then
+            export HUB_LISTEN=:1234
+            export HUB_CONNECT=127.0.0.1:1234
+          fi
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
