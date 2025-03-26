@@ -113,7 +113,7 @@ jobs:
             udev \
             virtinst
           sudo setfacl -m u:runner:rwx /dev/kvm
-          sudo usermod -a -G libvirt $USER
+          sudo usermod -aG libvirt $USER
           sudo libvirtd --daemon
       - name: Create default-net.xml
         run: |
