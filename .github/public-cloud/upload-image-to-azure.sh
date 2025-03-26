@@ -125,7 +125,19 @@ IMAGE_ID=$(az image show \
 echo "Creating a Shared image version"
 az sig image-version create --resource-group "$AZURE_RESOURCE_GROUP" --gallery-name kairos.io \
   --gallery-image-definition "kairos" --gallery-image-version "${VERSION#v}" \
-  --managed-image "$IMAGE_ID" --location "$STORAGE_REGION"
+  --managed-image "$IMAGE_ID" --location "$STORAGE_REGION" \
+  --target-regions "$STORAGE_REGION" \
+    eastus \
+    eastus2 \
+    centralus \
+    westus \
+    westeurope \
+    northeurope \
+    uksouth \
+    southeastasia \
+    eastasia \
+    japaneast \
+    australiaeast
 
 echo "Deleting the managed disk"
 az disk delete \
