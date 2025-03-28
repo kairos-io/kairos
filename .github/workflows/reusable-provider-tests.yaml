@@ -51,10 +51,9 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        uses: earthly/actions-setup@43211c7a0eae5344d6d79fb4aaf209c8f8866203
         with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Download artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:

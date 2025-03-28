@@ -56,10 +56,9 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        uses: earthly/actions-setup@43211c7a0eae5344d6d79fb4aaf209c8f8866203
         with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
       - run: |
           git fetch --prune --unshallow

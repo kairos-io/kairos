@@ -81,7 +81,7 @@ jobs:
           sudo mv luet /usr/bin/luet
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
-          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d utils/earthly
+          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
       - name: Download ISO
         id: iso
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
