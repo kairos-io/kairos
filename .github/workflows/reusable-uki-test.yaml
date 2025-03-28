@@ -59,9 +59,6 @@ jobs:
         uses: earthly/actions-setup@43211c7a0eae5344d6d79fb4aaf209c8f8866203
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Login to earthly
-        run: |
-          earthly account login --token ${{ secrets.EARTHLY_TOKEN }} && earthly org select Kairos
       - name: Build base image 🔧
         run: | # known flavors to work with uki+encryption: fedora >= 38, ubuntu >= 23.10, anything with systemd 253
           earthly +base-image \
