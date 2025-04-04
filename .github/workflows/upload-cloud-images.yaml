@@ -1,5 +1,8 @@
 name: Upload cloud images
 on:
+  push:
+    tags:
+      - 'v*'  # Triggers on any tag that starts with 'v'
   schedule:
     # Everyday at 2am
     - cron: '0 2 * * *'
