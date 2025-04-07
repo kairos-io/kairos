@@ -57,17 +57,11 @@ jobs:
           else
             echo "cache_available=false" >> $GITHUB_OUTPUT
           fi
-      - name: Get changed files
-        id: changed-files
-        run: |
-          # Get the list of files that were changed between the base branch and the current commit
-          CHANGED_FILES=$(git diff --name-only origin/$GITHUB_BASE_REF...HEAD | grep "^images/Dockerfile.nvidia")
-
-          if echo "$CHANGED_FILES"; then
-            echo "any_changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "any_changed=false" >> $GITHUB_OUTPUT
-          fi
+      - uses: tj-actions/changed-files@v46
+        with:
+          files_yaml: |
+            nvidia:
+              - 'images/Dockerfile.nvidia'
       - name: Release space from worker
         if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
         run: |

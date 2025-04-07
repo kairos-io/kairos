@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=ubuntu:20.04
 
-FROM quay.io/kairos/kairos-init:v0.4.2 AS kairos-init
+FROM quay.io/kairos/kairos-init:v0.4.3 AS kairos-init
 
 FROM ${BASE_IMAGE} AS base-kairos
 ARG VARIANT=core
@@ -8,7 +8,7 @@ ARG MODEL=generic
 ARG TRUSTED_BOOT=false
 ARG KUBERNETES_DISTRO=k3s
 ARG KUBERNETES_VERSION=latest
-ARG FRAMEWORK_VERSION=v2.18.2
+ARG FRAMEWORK_VERSION=v2.19.0
 ARG VERSION
 
 COPY --from=kairos-init /kairos-init /kairos-init
