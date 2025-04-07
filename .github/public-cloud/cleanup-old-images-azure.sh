@@ -41,8 +41,11 @@ cleanupOldVersions() {
   echo "Keeping latest 4 versions:" "${sortedVersions[@]:0:4}"
   oldVersions=("${sortedVersions[@]:4}")
 
+  # Filter out non-stable versions (those containing '-rc', '-beta', '-alpha', etc.)
   for version in "${oldVersions[@]}"; do
-    deleteVersion "$version"
+    if [[ ! $version =~ -(rc|beta|alpha|dev|pre|test) ]]; then
+      deleteVersion "$version"
+    fi
   done
 }
 

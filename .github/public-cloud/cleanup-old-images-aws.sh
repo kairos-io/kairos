@@ -20,23 +20,36 @@ amiDeleteIfNotInVersionList() {
   local img=$2
   shift 2
   local versionList=("$@")
-
-  # TODO:
-  # Make the script stop when things fail (it didn't?). Like so:
-  # $(dosomething | tail -1 | tee /dev/fd/2)
-
-  # get all image tags
-  mapfile -t imgTags < <(AWSNR --region "$reg" ec2 describe-images --image-ids "$img" --query 'Images[].Tags[]' --output text)
-  TagExists=false
-  for tag in "${imgTags[@]}"; do
-    for tagToCheck in "${versionList[@]}"; do
-      if [[ $tag == "KairosVersion"*"$tagToCheck" ]]; then
-        echo "[$reg] AMI $img has the '$tagToCheck' tag. Skipping cleanup."
-        TagExists=true
-        break 2
-      fi
-    done
+  echo "DEBUG: Number of versions in amiDeleteIfNotInVersionList: ${#versionList[@]}"
+  echo "DEBUG: Versions in amiDeleteIfNotInVersionList: ${versionList[@]}"
+  for i in "${!versionList[@]}"; do
+    echo "DEBUG: Version $i: ${versionList[$i]}"
   done
+
+  # Get all image tags and properly parse them
+  TagExists=false
+  echo "DEBUG: Checking AMI $img in region $reg"
+  echo "DEBUG: Version list to check against: ${versionList[*]}"
+
+  while IFS=$'\t' read -r key value; do
+    # Trim whitespace from both key and value
+    key=$(echo "$key" | xargs)
+    value=$(echo "$value" | xargs)
+    echo "DEBUG: Processing tag - Key: '$key', Value: '$value'"
+
+    if [[ "$key" == "KairosVersion" ]]; then
+      for tagToCheck in "${versionList[@]}"; do
+        # Trim whitespace from tagToCheck as well
+        tagToCheck=$(echo "$tagToCheck" | xargs)
+        echo "DEBUG: Comparing value '$value' with tagToCheck '$tagToCheck'"
+        if [[ "$value" == "$tagToCheck" ]]; then
+          echo "[$reg] AMI $img has the '$tagToCheck' tag. Skipping cleanup."
+          TagExists=true
+          break 2
+        fi
+      done
+    fi
+  done < <(AWSNR --region "$reg" ec2 describe-images --image-ids "$img" --query 'Images[].Tags[].[Key,Value]' --output text)
 
   if [ "$TagExists" = false ]; then
       AWSNR --region "$reg" ec2 deregister-image --image-id "$img"
@@ -50,18 +63,30 @@ snapshotDeleteIfNotInVersionList() {
   shift 2
   local versionList=("$@")
 
-  # Get all snapshot tags
-  mapfile -t snapshotTags < <(AWSNR --region "$reg" ec2 describe-snapshots --snapshot-ids "$snapshot" --query 'Snapshots[].Tags[]' --output text)
+  # Get all snapshot tags and properly parse them
   TagExists=false
-  for tag in "${snapshotTags[@]}"; do
-    for tagToCheck in "${versionList[@]}"; do
-      if [[ $tag == "KairosVersion"*"$tagToCheck" ]]; then
-        echo "[$reg] Snapshot $snapshot has the '$tagToCheck' tag. Skipping cleanup."
-        TagExists=true
-        break
-      fi
-    done
-  done
+  echo "DEBUG: Checking Snapshot $snapshot in region $reg"
+  echo "DEBUG: Version list to check against: ${versionList[*]}"
+
+  while IFS=$'\t' read -r key value; do
+    # Trim whitespace from both key and value
+    key=$(echo "$key" | xargs)
+    value=$(echo "$value" | xargs)
+    echo "DEBUG: Processing tag - Key: '$key', Value: '$value'"
+
+    if [[ "$key" == "KairosVersion" ]]; then
+      for tagToCheck in "${versionList[@]}"; do
+        # Trim whitespace from tagToCheck as well
+        tagToCheck=$(echo "$tagToCheck" | xargs)
+        echo "DEBUG: Comparing value '$value' with tagToCheck '$tagToCheck'"
+        if [[ "$value" == "$tagToCheck" ]]; then
+          echo "[$reg] Snapshot $snapshot has the '$tagToCheck' tag. Skipping cleanup."
+          TagExists=true
+          break 2
+        fi
+      done
+    fi
+  done < <(AWSNR --region "$reg" ec2 describe-snapshots --snapshot-ids "$snapshot" --query 'Snapshots[].Tags[].[Key,Value]' --output text)
 
   if [ "$TagExists" = false ]; then
     (AWSNR --region "$reg" ec2 delete-snapshot --snapshot-id "$snapshot" && \
@@ -71,27 +96,41 @@ snapshotDeleteIfNotInVersionList() {
 
 s3ObjectDeleteIfNotInVersionList() {
   local bucket=$1
-  local key=$2
+  local objectKey=$2
   shift 2
   local versionList=("$@")
 
-  # Get all S3 object tags
-  mapfile -t s3Tags < <(AWSNR s3api get-object-tagging --bucket "$bucket" --key "$key" --query 'TagSet[]' --output text)
-
+  # Get all S3 object tags and properly parse them
   TagExists=false
-  for tag in "${s3Tags[@]}"; do
-    for tagToCheck in "${versionList[@]}"; do
-      if [[ $tag == "KairosVersion"*"$tagToCheck" ]]; then
-        echo "S3 object '$key' in bucket '$bucket' has the '$tagToCheck' tag. Skipping cleanup."
-        TagExists=true
-        break 2
+  echo "DEBUG: Checking S3 object '$objectKey' in bucket '$bucket'"
+  echo "DEBUG: Version list to check against: ${versionList[*]}"
+
+  # Check if the object has any tags first
+  if AWSNR s3api get-object-tagging --bucket "$bucket" --key "$objectKey" --query 'length(TagSet)' --output text 2>/dev/null | grep -q '^[0-9]'; then
+    while IFS=$'\t' read -r tagKey tagValue; do
+      # Trim whitespace from both key and value
+      tagKey=$(echo "$tagKey" | xargs)
+      tagValue=$(echo "$tagValue" | xargs)
+      echo "DEBUG: Processing tag - Key: '$tagKey', Value: '$tagValue'"
+
+      if [[ "$tagKey" == "KairosVersion" ]]; then
+        for tagToCheck in "${versionList[@]}"; do
+          # Trim whitespace from tagToCheck as well
+          tagToCheck=$(echo "$tagToCheck" | xargs)
+          echo "DEBUG: Comparing value '$tagValue' with tagToCheck '$tagToCheck'"
+          if [[ "$tagValue" == "$tagToCheck" ]]; then
+            echo "S3 object '$objectKey' in bucket '$bucket' has the '$tagToCheck' tag. Skipping cleanup."
+            TagExists=true
+            break 2
+          fi
+        done
       fi
-    done
-  done
+    done < <(AWSNR s3api get-object-tagging --bucket "$bucket" --key "$objectKey" --query 'TagSet[].[Key,Value]' --output text)
+  fi
 
   if [ "$TagExists" = false ]; then
-    AWSNR s3api delete-object --bucket "$bucket" --key "$key"
-    echo "S3 object $key in bucket $bucket deleted because it does not match any of the versions: '${versionList[*]}'."
+    AWSNR s3api delete-object --bucket "$bucket" --key "$objectKey"
+    echo "S3 object $objectKey in bucket $bucket deleted because it does not match any of the versions: '${versionList[*]}'."
   fi
 }
 
@@ -102,29 +141,34 @@ getHighest4StableVersions() {
   local sortedVersions
   local highest4StableVersions
 
-  # Get all Kairos versions
-  mapfile -t kairosVersions < <(AWSNR --region "$reg" ec2 describe-images --owners self --query "Images[].Tags[?Key=='KairosVersion'].Value" --output text)
+  # Get all Kairos versions - AWS CLI already outputs one per line
+  readarray -t kairosVersions < <(AWSNR --region "$reg" ec2 describe-images --owners self --query "Images[].Tags[?Key=='KairosVersion'].Value" --output text)
 
-  # Filter out non-stable versions (those containing '-rc')
+  # Filter out non-stable versions (those containing '-rc', '-beta', '-alpha', etc.)
   for version in "${kairosVersions[@]}"; do
-    if [[ ! $version =~ -rc ]]; then
+    if [[ ! $version =~ -(rc|beta|alpha|dev|pre|test) ]]; then
       stableVersions+=("$version")
     fi
   done
 
   # Sort the stable versions and keep only the highest 4
-  IFS=$'\n' mapfile -t sortedVersions < <(sort -V -r <<<"${stableVersions[*]}")
+  IFS=$'\n' sortedVersions=($(printf '%s\n' "${stableVersions[@]}" | sort -V -r))
   unset IFS
   highest4StableVersions=("${sortedVersions[@]:0:4}")
 
-  # Return the highest 4 stable versions
-  echo "${highest4StableVersions[@]}"
+  # Print each version on a new line
+  printf '%s\n' "${highest4StableVersions[@]}"
 }
 
 cleanupOldVersionsRegion() {
   local reg=$1
   shift 1
   local versionList=("$@")
+  echo "DEBUG: Number of versions in versionList: ${#versionList[@]}"
+  echo "DEBUG: Versions in versionList: ${versionList[@]}"
+  for i in "${!versionList[@]}"; do
+    echo "DEBUG: Version $i: ${versionList[$i]}"
+  done
 
   # Cleanup AMIs
   mapfile -t allAmis < <(AWSNR --region "$reg" ec2 describe-images --owners self --query 'Images[].ImageId' --output text | tr '\t' '\n')
@@ -141,7 +185,11 @@ cleanupOldVersionsRegion() {
 
 cleanupOldVersions() {
   mapfile -t highest4StableVersions < <(getHighest4StableVersions "$AWS_REGION")
-  echo "Highest 4 stable versions (in region $AWS_REGION): ${highest4StableVersions[*]}"
+  echo "DEBUG: Number of versions in highest4StableVersions: ${#highest4StableVersions[@]}"
+  echo "DEBUG: Versions in highest4StableVersions: ${highest4StableVersions[@]}"
+  for i in "${!highest4StableVersions[@]}"; do
+    echo "DEBUG: Version $i: ${highest4StableVersions[$i]}"
+  done
 
   mapfile -t regions < <(AWSNR ec2 describe-regions | jq -r '.Regions[].RegionName')
   for reg in "${regions[@]}"; do

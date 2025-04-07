@@ -231,6 +231,15 @@ checkImageExistsOrCreate() {
   fi
 
   waitAMI "$imageID" "$AWS_REGION"
+
+  # Test the original AMI before making it public and copying to other regions
+  echo "Testing Kairos image before making it public..."
+  if ! "$SCRIPT_DIR/test-aws-image.sh" "$imageID"; then
+    echo "Image test failed! Not proceeding with making the image public and copying to other regions."
+    exit 1
+  fi
+  echo "Image test passed successfully. Proceeding with making image public and copying to other regions..."
+
   makeAMIpublic "$imageID" "$AWS_REGION"
   copyToAllRegions "$imageID" "$imageName" "$description" "$kairosVersion"
 }
@@ -259,6 +268,7 @@ makeAMIpublic() {
   local imageID="$1"
   local region="$2"
 
+  echo "[$region] Making image public..."
   echo "[$region] calling DisableImageBlockPublicAccess"
   AWSNR --region "$region" ec2 disable-image-block-public-access > /dev/null 2>&1
   echo "[$region] Making image '$imageID' public..."
