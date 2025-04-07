@@ -18,9 +18,9 @@ getHighest4StableVersions() {
   # Get all Kairos image versions
   mapfile -t versions < <(gcloudCmd compute images list --filter="family=kairos" --format="value(labels.version)" | sort -u)
   
-  # Filter out non-stable versions (those containing '-rc')
+  # Filter out non-stable versions (those containing '-rc', '-beta', '-alpha', etc.)
   for version in "${versions[@]}"; do
-    if [[ ! $version =~ -rc ]]; then
+    if [[ ! $version =~ -(rc|beta|alpha|dev|pre|test) ]]; then
       stableVersions+=("$version")
     fi
   done
