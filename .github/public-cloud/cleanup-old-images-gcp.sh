@@ -11,27 +11,28 @@ gcloudCmd() {
 # Function to get the highest 4 stable versions from GCE images
 getHighest4StableVersions() {
   local versions
-  local stableVersions=()
+  declare -a stableVersions=()
   local sortedVersions
   local highest4StableVersions
 
   # Get all Kairos image versions
   mapfile -t versions < <(gcloudCmd compute images list --filter="family=kairos" --format="value(labels.version)" | sort -u)
-  
+
   # Filter out non-stable versions (those containing '-rc', '-beta', '-alpha', etc.)
   for version in "${versions[@]}"; do
     if [[ ! $version =~ -(rc|beta|alpha|dev|pre|test) ]]; then
       stableVersions+=("$version")
     fi
   done
-  
+
   # Sort versions and get the highest 4
   IFS=$'\n' mapfile -t sortedVersions < <(printf '%s\n' "${stableVersions[@]}" | sort -V -r)
   unset IFS
+
   highest4StableVersions=("${sortedVersions[@]:0:4}")
 
   # Return the highest 4 stable versions
-  echo "${highest4StableVersions[@]}"
+  printf '%s\n' "${highest4StableVersions[@]}"
 }
 
 # Function to delete images that are not in the latest 4 stable versions
@@ -39,10 +40,17 @@ imageDeleteIfNotInVersionList() {
   local image=$1
   shift 1
   local versionList=("$@")
-  
+
   # Get the image version
   local imageVersion
   imageVersion=$(gcloudCmd compute images describe "$image" --format="value(labels.version)" 2>/dev/null || echo "UNKNOWN")
+
+  echo "Debug: Checking image $image with version $imageVersion"
+  echo "Debug: versionList array length: ${#versionList[@]}"
+  echo "Debug: versionList array elements:"
+  for i in "${!versionList[@]}"; do
+    echo "  [$i]: ${versionList[$i]}"
+  done
 
   # Check if imageVersion is in versionList
   local versionFound="false"
@@ -95,7 +103,7 @@ cleanupOldVersions() {
     exit 1
   fi
 
-  read -r -a highest4StableVersions < <(getHighest4StableVersions)
+  mapfile -t highest4StableVersions < <(getHighest4StableVersions)
   echo "Highest 4 stable versions: ${highest4StableVersions[*]}"
 
   # Cleanup images
