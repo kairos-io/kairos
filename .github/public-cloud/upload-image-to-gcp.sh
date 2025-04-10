@@ -96,6 +96,14 @@ importGceImage() {
 
   echo "$name"
 
+  # Test the image before making it public
+  echo "Testing Kairos image before making it public..."
+  if ! "$SCRIPT_DIR/test-gcp-image.sh" "$name"; then
+    echo "Image test failed! Not proceeding with making the image public."
+    exit 1
+  fi
+  echo "Image test passed successfully. Proceeding with making image public..."
+
   # https://cloud.google.com/compute/docs/images/managing-access-custom-images
   # Make the image public
   gcloud compute images add-iam-policy-binding "$name" \
