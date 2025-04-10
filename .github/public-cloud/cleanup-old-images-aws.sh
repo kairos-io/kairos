@@ -21,7 +21,7 @@ amiDeleteIfNotInVersionList() {
   shift 2
   local versionList=("$@")
   echo "DEBUG: Number of versions in amiDeleteIfNotInVersionList: ${#versionList[@]}"
-  echo "DEBUG: Versions in amiDeleteIfNotInVersionList: ${versionList[@]}"
+  echo "DEBUG: Versions in amiDeleteIfNotInVersionList: ${versionList[*]}"
   for i in "${!versionList[@]}"; do
     echo "DEBUG: Version $i: ${versionList[$i]}"
   done
@@ -152,8 +152,7 @@ getHighest4StableVersions() {
   done
 
   # Sort the stable versions and keep only the highest 4
-  IFS=$'\n' sortedVersions=($(printf '%s\n' "${stableVersions[@]}" | sort -V -r))
-  unset IFS
+  mapfile -t sortedVersions < <(printf '%s\n' "${stableVersions[@]}" | sort -V -r)
   highest4StableVersions=("${sortedVersions[@]:0:4}")
 
   # Print each version on a new line
@@ -165,7 +164,7 @@ cleanupOldVersionsRegion() {
   shift 1
   local versionList=("$@")
   echo "DEBUG: Number of versions in versionList: ${#versionList[@]}"
-  echo "DEBUG: Versions in versionList: ${versionList[@]}"
+  echo "DEBUG: Versions in versionList: ${versionList[*]}"
   for i in "${!versionList[@]}"; do
     echo "DEBUG: Version $i: ${versionList[$i]}"
   done
@@ -186,7 +185,7 @@ cleanupOldVersionsRegion() {
 cleanupOldVersions() {
   mapfile -t highest4StableVersions < <(getHighest4StableVersions "$AWS_REGION")
   echo "DEBUG: Number of versions in highest4StableVersions: ${#highest4StableVersions[@]}"
-  echo "DEBUG: Versions in highest4StableVersions: ${highest4StableVersions[@]}"
+  echo "DEBUG: Versions in highest4StableVersions: ${highest4StableVersions[*]}"
   for i in "${!highest4StableVersions[@]}"; do
     echo "DEBUG: Version $i: ${highest4StableVersions[$i]}"
   done
