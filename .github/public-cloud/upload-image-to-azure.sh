@@ -101,6 +101,14 @@ IMAGE_ID=$(az image show \
   --query "id" \
   --output tsv)
 
+# Test the image before creating the shared image version
+echo "Testing Kairos image before creating shared image version..."
+if ! "$SCRIPT_DIR/test-azure-image.sh" "$IMAGE_ID"; then
+  echo "Image test failed! Not proceeding with creating shared image version."
+  exit 1
+fi
+echo "Image test passed successfully. Proceeding with creating shared image version..."
+
 # echo "Creating a Shared Image Gallery (one-off)"
 # # https://learn.microsoft.com/en-us/azure/virtual-machines/create-gallery?tabs=portal%2Cportaldirect%2Ccli2
 # # TODO: Link to some EULA?
