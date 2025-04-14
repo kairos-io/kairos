@@ -104,7 +104,7 @@ for i in {1..30}; do
     exit 1
   fi
 
-  if [ $i -eq 30 ]; then
+  if [ "$i" -eq 30 ]; then
     echo "Timeout waiting for instance to start"
     exit 1
   fi
@@ -134,7 +134,7 @@ for i in {1..60}; do
     echo "Will retry in 10 seconds..."
   fi
 
-  if [ $i -eq 60 ]; then
+  if [ "$i" -eq 60 ]; then
     echo "Timeout waiting for Kairos agent to reach active_boot state"
     exit 1
   fi
