@@ -38,6 +38,7 @@ jobs:
       contents: write
       actions: read
       security-events: write
+      models: none
     steps:
       - name: Split base image
         id: split
