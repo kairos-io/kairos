@@ -72,7 +72,12 @@ var _ = Describe("kairos bundles test", Label("bundles"), func() {
 
 			By("checking if it has kubo extension", func() {
 				Eventually(func() string {
-					out, _ := vm.Sudo("systemd-sysext")
+					// This seems to not load the /etc/profile.d/systemd-sysext.sh sot it cant use the
+					// SYSTEMD_SYSEXT_HIERARCHIES that we set
+					// So we run the command with login so it loads the envs
+					// Without the SYSTEMD_SYSEXT_HIERARCHIES set to the proper paths it will not
+					// find any extensions
+					out, _ := vm.Sudo("bash -l -c \"systemd-sysext\"")
 					return out
 				}, 3*time.Minute, 10*time.Second).Should(ContainSubstring("kubo"), func() string {
 					// Debug output in case of an error
