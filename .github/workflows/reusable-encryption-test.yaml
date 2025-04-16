@@ -19,7 +19,6 @@ on:
         required: true
         type: string
 
-permissions: read-all
 jobs:
   test:
     name: ${{ inputs.label }}

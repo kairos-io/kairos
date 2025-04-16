@@ -240,5 +240,8 @@ jobs:
         with:
           azcliversion: latest
           inlineScript: |
+            # Install openssh-clients to be able to use ssh-keygen
+            tdnf install -y openssh-clients
+
             latestTag=$(cat LATEST_TAG)
             .github/public-cloud/upload-image-to-azure.sh $(ls *.vhd) "$latestTag"
