@@ -12,7 +12,6 @@ on:
       model:
         required: true
         type: string
-permissions: read-all
 jobs:
   test-uki:
     name: ${{ inputs.variant }}

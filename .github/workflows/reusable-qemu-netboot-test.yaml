@@ -16,7 +16,6 @@ on:
         required: true
         type: string
 
-permissions: read-all
 jobs:
   netboot:
     runs-on: kvm

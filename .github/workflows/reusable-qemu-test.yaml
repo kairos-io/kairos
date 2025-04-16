@@ -32,7 +32,6 @@ on:
         type: string
         default: ""
 
-permissions: read-all
 jobs:
   test:
     runs-on: fast
