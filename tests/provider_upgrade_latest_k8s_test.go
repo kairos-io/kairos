@@ -132,9 +132,14 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		By("wait system-upgrade-controller")
 		Eventually(func() string {
 			out, _ := kubectl(vm, "get pods -A")
-			fmt.Printf("out = %+v\n", out)
 			return out
-		})
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("system-upgrade-controller"))
+
+		By("waiting for the plan CRD to be created")
+		Eventually(func() string {
+			out, _ := kubectl(vm, "get crds")
+			return out
+		}, 300*time.Second, 10*time.Second).Should(ContainSubstring("plans.upgrade.cattle.io"))
 
 		By("wait for all containers to be in running state")
 		Eventually(func() string {
