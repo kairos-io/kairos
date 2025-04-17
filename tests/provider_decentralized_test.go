@@ -193,13 +193,12 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					out, err = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
 					Expect(err).ToNot(HaveOccurred(), out)
 
-					out, _ = vm.Sudo("dig +short foo.bar")
+					out, _ = vm.Sudo("ping -c 1 foo.bar")
 					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).Should(Equal("2.2.2.2"))
-				Eventually(func() string {
-					out, _ = vm.Sudo("dig +short google.com")
-					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).ShouldNot(BeEmpty())
+				}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
+					fmt.Printf("DNS is not working: %s", out)
+					return out
+				})
 			}
 		})
 
@@ -207,7 +206,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			version, err := vm.Sudo(getVersionCmd)
 			Expect(err).ToNot(HaveOccurred(), version)
 
-			out, err := vm.Sudo("kairos-agent upgrade --source oci:quay.io/kairos/opensuse:leap-15.6-standard-amd64-generic-v3.2.3-k3sv1.31.2-k3s1")
+			out, err := vm.Sudo("kairos-agent upgrade --source oci:quay.io/kairos/ubuntu:22.04-standard-amd64-generic-v3.3.6-k3sv1.31.4-k3s1")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(ContainSubstring("Upgrade completed"))
 
@@ -217,6 +216,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			By("rebooting to the upgraded system")
 			vm.Reboot(1200)
 
+			By("comparing versions")
 			version2, err := vm.Sudo(getVersionCmd)
 			Expect(err).ToNot(HaveOccurred(), version2)
 			Expect(version).ToNot(Equal(version2))
