@@ -98,6 +98,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs swtpm
           sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Set Image tag
+        run: |
+          IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_distro }}"
+          fi
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_version }}"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
@@ -137,7 +148,7 @@ jobs:
           DRIVE_SIZE: 50000
           CREATE_VM: true
           CPUS: 4
-          CONTAINER_IMAGE: quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}
+          CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
