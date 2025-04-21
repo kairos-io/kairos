@@ -81,7 +81,7 @@ jobs:
         run: |
           mkdir -p build
           export ISO=$(ls $PWD/*${{ steps.split.outputs.flavor }}*.iso)
-          isoinfo -x /rootfs.squashfs -R -i ${ISO} > build/kairos.squashfs
+          isoinfo -x /rootfs.squashfs -R -i ${ISO} > build/kairos-squashfs
           isoinfo -x /boot/kernel -R -i ${ISO} > build/kairos-kernel
           isoinfo -x /boot/initrd -R -i ${ISO} > build/kairos-initrd
       - name: Run tests
