@@ -111,18 +111,6 @@ jobs:
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}
-      - name: Build raw image
-        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin' }}
-        run: |
-          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
-          -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:latest \
-          --debug \
-          --set "disable_http_server=true" \
-          --set "disable_netboot=true" \
-          --set "container_image=${{ env.IMAGE_NAME }}" \
-          --set "state_dir=/output" \
-          --set "disk.raw=true"
       - name: Build iso 📦
         if: ${{ inputs.model == 'generic' }}
         run: |
@@ -132,29 +120,35 @@ jobs:
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
           --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }} \
           docker:${{ env.IMAGE_NAME }}
-      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
-        if: ${{ inputs.model == 'generic' }}
+      - name: Install Go
+        uses: actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34 # v5
+        timeout-minutes: 5
         with:
-          name: kairos.iso.zip
-          path: |
-            build/*.iso
-            build/*.sha256
-          if-no-files-found: error
-      - name: Push to testing
-        if: ${{ inputs.model == 'generic' }}
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
+      - name: Enable KVM group perms
         run: |
-          docker push ${{ env.IMAGE_NAME }}
-      - name: Tag and Push Nightly
-        if: github.ref == 'refs/heads/master'
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs swtpm
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Run tests
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 5000
+          DRIVE_SIZE: 50000
+          CREATE_VM: true
+          CPUS: 4
         run: |
-          NIGHTLY_NAME="quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-master"
-          # Add kubernetes_distro and kubernetes_version if they are set
-          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
-            NIGHTLY_NAME+="-${{ inputs.kubernetes_distro }}"
-          fi
-          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
-            NIGHTLY_NAME+="-${{ inputs.kubernetes_version }}"
-          fi
-          docker run --name temp_container ${{ env.IMAGE_NAME }}
-          docker commit --change='LABEL quay.expires-after=' temp_container $NIGHTLY_NAME
-          docker push $NIGHTLY_NAME
+          export ISO=$PWD/$(ls build/*.iso| head -1 )
+          echo "ISO is: $ISO"
+          cp tests/go.* .
+          go mod download
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "provider-decentralized-k8s" --fail-fast -r ./tests/
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4
+        if: failure()
+        with:
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}.logs.zip
+          path: tests/**/logs/*
+          if-no-files-found: warn

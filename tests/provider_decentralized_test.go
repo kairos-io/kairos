@@ -139,7 +139,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					out, _ = vm.Sudo("cat /var/log/kairos/provider-*")
 					fmt.Println(fmt.Sprintf("[%s] %s", filepath.Base(vm.StateDir), out))
 					return out
-				}, 45*time.Minute, 1*time.Second).Should(
+				}, 10*time.Minute, 1*time.Second).Should(
 					Or(
 						ContainSubstring("Configuring k3s worker"),
 						ContainSubstring("Configuring k3s"),
