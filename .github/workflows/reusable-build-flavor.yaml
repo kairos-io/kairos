@@ -58,6 +58,14 @@ jobs:
             distro="$base_image"
           fi
 
+          # Special case for nvidia as we build 2 different images and the base_image is our cached image
+          # For release this makes no sense as we always build the base image anyway
+          # TODO: Add support for nvidia-jetson-agx-orin in kairos-init so we can build it properly
+          if [[ "${{ inputs.model }}" == "nvidia-jetson-agx-orin" ]]; then
+            distro="ubuntu"
+            tag="22.04"
+          fi
+
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -104,7 +112,7 @@ jobs:
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}
       - name: Build raw image
-        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' }}
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin' }}
         run: |
           docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
