@@ -94,7 +94,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Set Image tag
         run: |
-          echo "IMAGE_NAME=quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-amd64-${{ github.sha }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}-uki" >> $GITHUB_ENV
+          echo "IMAGE_NAME=quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-amd64-${{ inputs.model }}-${{ github.sha }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}-uki" >> $GITHUB_ENV
       - name: Build the docker image
         uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
         with:
