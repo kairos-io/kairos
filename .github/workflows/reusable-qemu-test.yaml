@@ -34,7 +34,7 @@ on:
 
 jobs:
   test:
-    runs-on: fast
+    runs-on: ubuntu-24.04 [Beta]
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     steps:
       - name: Split base image
