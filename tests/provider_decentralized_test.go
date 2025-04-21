@@ -4,6 +4,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,13 +18,14 @@ import (
 var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-decentralized-k8s"), func() {
 	var vms []VM
 	var configPath string
+	var token string
 
 	BeforeEach(func() {
 		_, vm1 := startVM()
 		_, vm2 := startVM()
 		vms = append(vms, vm1, vm2)
 
-		configPath = cloudConfig()
+		token = generateToken()
 
 		vmForEach("waiting until ssh is possible", vms, func(vm VM) {
 			vm.EventuallyConnects(1200)
@@ -31,7 +33,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 	})
 
 	AfterEach(func() {
-		if CurrentGinkgoTestDescription().Failed {
+		if CurrentSpecReport().Failed() {
 			gatherLogs(vms[0])
 		}
 		vmForEach("destroying vm", vms, func(vm VM) {
@@ -52,6 +54,9 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		})
 
 		vmForEach("installing", vms, func(vm VM) {
+			// set a fixed hostname to avoid issues with the reboot generating a new k3s node
+			// but make it random for the config by useing the statedir
+			configPath = cloudConfig(filepath.Base(vm.StateDir), token)
 			err := vm.Scp(configPath, "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -131,11 +136,11 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				*/
 			} else {
 				Eventually(func() string {
-					out, _ = vm.Sudo("journalctl -t kairos-agent")
+					out, _ = vm.Sudo("cat /var/log/kairos/provider-*")
 					return out
 				}, 45*time.Minute, 1*time.Second).Should(
 					Or(
-						ContainSubstring("Configuring k3s-agent"),
+						ContainSubstring("Configuring k3s worker"),
 						ContainSubstring("Configuring k3s"),
 					), out)
 			}
@@ -245,18 +250,31 @@ func vmForEach(description string, vms []VM, action func(vm VM)) {
 	}
 }
 
-func cloudConfig() string {
-	token := generateToken()
+func cloudConfig(node, token string) string {
+	config := fmt.Sprintf(`#cloud-config
 
-	configBytes, err := os.ReadFile("assets/config.yaml")
-	Expect(err).ToNot(HaveOccurred())
+install:
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
 
-	config := fmt.Sprintf(`%s
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+    - name: "Set hostname"
+      hostname: provider-%s
+
+k3s:
+  enabled: true
 
 p2p:
   network_token: %s
   dns: true
-`, string(configBytes), token)
+`, node, token)
 
 	f, err := os.CreateTemp("", "kairos-config-*.yaml")
 	Expect(err).ToNot(HaveOccurred())
