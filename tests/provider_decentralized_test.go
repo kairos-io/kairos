@@ -137,6 +137,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			} else {
 				Eventually(func() string {
 					out, _ = vm.Sudo("cat /var/log/kairos/provider-*")
+					fmt.Println(fmt.Sprintf("[%s] %s", filepath.Base(vm.StateDir), out))
 					return out
 				}, 45*time.Minute, 1*time.Second).Should(
 					Or(
