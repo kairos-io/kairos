@@ -33,8 +33,8 @@ on:
         default: ""
 
 jobs:
-  test:
-    runs-on: fast
+  test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
+    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-22.04' || 'fast' }}
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     steps:
       - name: Split base image
