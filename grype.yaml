@@ -1,0 +1,6 @@
+ignore:
+- vulnerability: CVE-2025-22871
+  package:
+    name: stdlib
+    vex-status: not_affected
+    vex-justification: vulnerable_code_not_present
