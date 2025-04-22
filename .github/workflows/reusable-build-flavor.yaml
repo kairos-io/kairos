@@ -111,6 +111,14 @@ jobs:
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}
+      - name: Grype table
+        uses: anchore/scan-action@7c05671ae9be166aeb155bad2d7df9121823df32 # v6.1.0
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          output-format: table
+          severity-cutoff: critical
+          add-cpes-if-none: true
+          only-fixed: true
       - name: Build raw image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin' }}
         run: |
