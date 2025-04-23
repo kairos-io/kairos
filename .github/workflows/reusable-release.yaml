@@ -113,7 +113,7 @@ jobs:
         uses: anchore/scan-action@7c05671ae9be166aeb155bad2d7df9121823df32 # v6.1.0
         id: grype
         with:
-          image: ${{ env.IMAGE_NAME }}
+          image: ${{ env.IMAGE_TAG }}
           output-format: json
           severity-cutoff: critical
           add-cpes-if-none: true
