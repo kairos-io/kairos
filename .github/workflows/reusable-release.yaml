@@ -109,14 +109,26 @@ jobs:
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
-      - name: Grype table
+      - name: Grype check
         uses: anchore/scan-action@7c05671ae9be166aeb155bad2d7df9121823df32 # v6.1.0
+        id: grype
         with:
           image: ${{ env.IMAGE_TAG }}
-          output-format: table
+          output-format: json
           severity-cutoff: critical
           add-cpes-if-none: true
           only-fixed: true
+          fail-build: false
+      - name: Grype detailed check
+        run: |
+          jq -r '.matches[] | select(.vulnerability.severity == "Critical") | "\(.vulnerability.id) \t \(.artifact.name) \(.artifact.version) -> \(.artifact.locations[]?.path // "no-path")"' "${{ steps.grype.outputs.json }}" | tee grype-critical.txt
+
+          if [[ $(wc -l < grype-critical.txt) -gt 0 ]]; then
+            echo "Critical vulnerabilities found in the image. Failing the build."
+            exit 1
+          else
+            echo "No critical vulnerabilities found in the image."
+          fi
       - name: Grype sarif
         uses: anchore/scan-action@7c05671ae9be166aeb155bad2d7df9121823df32 # v6.1.0
         with:
