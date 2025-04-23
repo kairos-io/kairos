@@ -13,10 +13,14 @@ ignore:
     package:
       name: stdlib
       location: /usr/bin/kube-vip
-  - vulnerability: CVE-2025-22871 
+  - vulnerability: CVE-2025-22871
     package:
       name: stdlib
       location: /usr/bin/k3s
+  - vulnerability: CVE-2025-22871
+    package:
+      name: stdlib
+      location: /usr/bin/k0s
   # Affected ubuntu 24.04
   - vulnerability: CVE-2024-47685
     package:
