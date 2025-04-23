@@ -58,43 +58,43 @@ ignore:
   - vulnerability: CVE-2024-47685 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-47685 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-39462 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-38623 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-38612 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-38541 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-36896 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-36896 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-36031 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   - vulnerability: CVE-2024-35960 
     package:
       name: linux-kernel
-      version: 6.8.0-57-generic
+      version: 6.8.0-58-generic
   # Affected ubuntu 20.04
   - vulnerability: CVE-2024-47685 
     package:
