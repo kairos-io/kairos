@@ -3,7 +3,7 @@ module kairos-tests
 go 1.23.6
 
 require (
-	github.com/diskfs/go-diskfs v1.5.2
+	github.com/diskfs/go-diskfs v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/kairos-io/go-nodepair v0.3.0
 	github.com/lmittmann/ppm v1.0.2

@@ -60,6 +60,8 @@ github.com/diskfs/go-diskfs v1.5.1 h1:Mnzgx3ERI+lzGzDAV+ejFLj/Uz9Cs/7wDkaAXwH1RM
 github.com/diskfs/go-diskfs v1.5.1/go.mod h1:bRFumZeGFCO8C2KNswrQeuj2m1WCVr4Ms5IjWMczMDk=
 github.com/diskfs/go-diskfs v1.5.2 h1:Aj+f4sYlu3seXJe5KwyOWlol0eRBG9EKGYYYm37DO9s=
 github.com/diskfs/go-diskfs v1.5.2/go.mod h1:bRFumZeGFCO8C2KNswrQeuj2m1WCVr4Ms5IjWMczMDk=
+github.com/diskfs/go-diskfs v1.6.0 h1:YmK5+vLSfkwC6kKKRTRPGaDGNF+Xh8FXeiNHwryDfu4=
+github.com/diskfs/go-diskfs v1.6.0/go.mod h1:bRFumZeGFCO8C2KNswrQeuj2m1WCVr4Ms5IjWMczMDk=
 github.com/djherbis/times v1.6.0 h1:w2ctJ92J8fBvWPxugmXIv7Nz7Q3iDMKNx9v5ocVH20c=
 github.com/djherbis/times v1.6.0/go.mod h1:gOHeRAz2h+VJNZ5Gmc/o7iD9k4wW7NMVqieYCY99oc0=
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
