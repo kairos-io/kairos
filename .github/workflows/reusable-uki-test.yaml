@@ -112,6 +112,26 @@ jobs:
             VARIANT=${{ inputs.variant }}
             TRUSTED_BOOT=true
             VERSION=${{ env.VERSION }}
+      - name: Grype check
+        uses: anchore/scan-action@7c05671ae9be166aeb155bad2d7df9121823df32 # v6.1.0
+        id: grype
+        with:
+          image: ${{ env.IMAGE_NAME }}
+          output-format: json
+          severity-cutoff: critical
+          add-cpes-if-none: true
+          only-fixed: true
+          fail-build: false
+      - name: Grype detailed check
+        run: |
+          jq -r '.matches[] | select(.vulnerability.severity == "Critical") | "\(.vulnerability.id) \t \(.artifact.name) \(.artifact.version) -> \(.artifact.locations[]?.path // "no-path")"' "${{ steps.grype.outputs.json }}" | tee grype-critical.txt
+
+          if [[ $(wc -l < grype-critical.txt) -gt 0 ]]; then
+            echo "Critical vulnerabilities found in the image. Failing the build."
+            exit 1
+          else
+            echo "No critical vulnerabilities found in the image."
+          fi
       - name: Build uki ISO 🔧
         run: |
           mkdir build
