@@ -1,0 +1,6 @@
+[[IgnoredVulns]]
+id = "GHSA-q7pp-wcgr-pffx"
+reason = "No impact since we don't work with TIFF image files"
+[[IgnoredVulns]]
+id = "GO-2024-3218"
+reason = "No impact since we don't work with the libs directly"
