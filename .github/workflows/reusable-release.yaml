@@ -94,7 +94,7 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build the docker image
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
         with:
           context: .
           file: images/Dockerfile
@@ -147,7 +147,7 @@ jobs:
           severity: CRITICAL
           limit-severities-for-sarif: true
       - name: Push the docker image
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
         with:
           context: .
           file: images/Dockerfile
@@ -201,7 +201,7 @@ jobs:
           echo "RAW_ARTIFACT=$(ls *.raw|head -1)" >> $GITHUB_ENV
       - name: Create OCI artifact from RAW image
         if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin' }}
-        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
         with:
           context: .
           file: images/Dockerfile.img
