@@ -21,6 +21,11 @@ ignore:
     package:
       name: stdlib
       location: /usr/bin/k0s
+  - vulnerability: GHSA-v23v-6jw2-98fq
+    package:
+      name: github.com/docker/docker  # indirect dependency, no directly used by k0s
+      version: v24.0.9+incompatible
+      location: /usr/bin/k0s
   # Affected ubuntu 24.04
   - vulnerability: CVE-2024-47685
     package:
