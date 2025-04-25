@@ -104,9 +104,6 @@ jobs:
           - "reset"
           - "upgrade-with-cli"
           - "upgrade-latest-with-cli"
-        exclude:
-          - test: "upgrade-latest-with-cli"
-            base_image: "alpine:3.21"
         include:
           - test: "install"
             secureboot: true
@@ -132,9 +129,6 @@ jobs:
             base_image: "opensuse/leap:15.6"
           - test: "acceptance"
             base_image: "debian:12"
-          - test: "upgrade-latest-with-cli"
-            base_image: "alpine:3.21"
-            release-matcher: "kairos-alpine-3.19-core-amd64-generic-*.iso"
   netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
