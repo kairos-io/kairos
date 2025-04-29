@@ -2,7 +2,7 @@
 # grype is very aggressive and marks all of them as critical which makes no sense as there are
 # vulnerabilities from 2021 not fixed yet.
 # Or in some other places it just mixes the version of the kernel
-# A good example is CVE-2023-38427 in Debian 12. It wrongly identifies the kernel version as 6.1.0-33-amd64
+# A good example is CVE-2023-38427 in Debian 12. It wrongly identifies the kernel version as 6.1.0-34-amd64
 # but you can see in the debian cve database that its not affected because its has a different version
 # https://security-tracker.debian.org/tracker/CVE-2023-38427
 # Its recommended to check the cve database of the distribution to see if the kernel is affected or not
@@ -198,71 +198,71 @@ ignore:
   - vulnerability: CVE-2024-47685
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2024-38623
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2024-38612
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2024-38541
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2024-36896
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2024-35960
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2024-35845
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2024-27053
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-52832
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-52735
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-38432
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-38431
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-38430
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-38429
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-38428
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-38427
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   - vulnerability: CVE-2023-38426
     package:
       name: linux-kernel
-      version: 6.1.0-33-amd64
+      version: 6.1.0-34-amd64
   # Affected Rockylinux 9
   - vulnerability: CVE-2024-47685
     package:
