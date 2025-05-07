@@ -10,10 +10,6 @@ on:
         required: false
         type: string
         default: "generic"
-      variant:
-        required: false
-        type: string
-        default: "core"
       arch:
         required: false
         type: string
@@ -107,7 +103,6 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}

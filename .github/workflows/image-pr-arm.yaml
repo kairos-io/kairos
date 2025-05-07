@@ -30,13 +30,11 @@ jobs:
     with:
       model: ${{ matrix.model }}
       base_image: ${{ matrix.base_image }}
-      variant: ${{ matrix.variant }}
       arch: ${{ matrix.arch }}
       event_type: ${{ github.event_name }}
     strategy:
       fail-fast: false
       matrix:
-        variant: ["core"]
         model: ["generic", "rpi4", "rpi3"]
         arch: ["arm64"]
         base_image:
