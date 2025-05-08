@@ -9,9 +9,15 @@ on:
       model:
         required: true
         type: string
+      kubernetes_version:
+        required: false
+        type: string
+      kubernetes_distro:
+        required: false
+        type: string
 jobs:
   test-uki:
-    name: ${{ inputs.base_image }} - ${{ inputs.model }}
+    name: ${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}${{ inputs.kubernetes_version != '' && format(' - {0}', inputs.kubernetes_version) || '' }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -107,6 +113,8 @@ jobs:
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             TRUSTED_BOOT=true
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
+            KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}
             REGISTRY=quay.io/kairos
       - name: Grype check

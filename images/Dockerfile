@@ -5,8 +5,8 @@ FROM quay.io/kairos/kairos-init:main AS kairos-init
 FROM ${BASE_IMAGE} AS base-kairos
 ARG MODEL=generic
 ARG TRUSTED_BOOT=false
-ARG KUBERNETES_DISTRO=k3s
 ARG KUBERNETES_VERSION=latest
+ARG KUBERNETES_DISTRO
 ARG REGISTRY
 ARG VERSION
 
