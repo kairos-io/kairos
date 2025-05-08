@@ -15,7 +15,6 @@ jobs:
     strategy:
       matrix:
         base_image: ["ubuntu:24.04", "fedora:40"]
-        variant: ["core", "standard"]
         model: ["generic"]
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
@@ -36,5 +35,4 @@ jobs:
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
-      variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}

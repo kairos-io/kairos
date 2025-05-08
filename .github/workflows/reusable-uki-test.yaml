@@ -6,15 +6,12 @@ on:
       base_image:
         required: true
         type: string
-      variant:
-        required: true
-        type: string
       model:
         required: true
         type: string
 jobs:
   test-uki:
-    name: ${{ inputs.variant }}
+    name: ${{ inputs.base_image }} - ${{ inputs.model }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -109,9 +106,9 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             TRUSTED_BOOT=true
             VERSION=${{ env.VERSION }}
+            REGISTRY=quay.io/kairos
       - name: Grype check
         uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
         id: grype

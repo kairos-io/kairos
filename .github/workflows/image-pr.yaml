@@ -48,6 +48,7 @@ jobs:
       test: ${{ matrix.test }}
       secureboot: ${{ matrix.secureboot || false}}
       release-matcher: ${{ matrix.release-matcher || '' }}
+      variant: "core"
       arch: "amd64"
       model: "generic"
     needs:
