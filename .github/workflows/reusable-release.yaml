@@ -104,11 +104,11 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
+            REPOSITORY=quay.io/kairos
       - name: Grype check
         uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
         id: grype
@@ -158,11 +158,11 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
+            REPOSITORY=quay.io/kairos
       - name: Sign image
         env:
           COSIGN_YES: true
@@ -175,7 +175,6 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/release:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name ${{ env.ISO_NAME }} \
           docker:${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
         if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}

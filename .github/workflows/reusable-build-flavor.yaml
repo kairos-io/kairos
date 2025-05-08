@@ -107,10 +107,10 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}
+            REPOSITORY=quay.io/kairos
       - name: Grype check
         uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
         id: grype
@@ -150,7 +150,6 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }} \
           docker:${{ env.IMAGE_NAME }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ inputs.model == 'generic' }}
