@@ -15,8 +15,17 @@ jobs:
     strategy:
       matrix:
         base_image: ["ubuntu:24.04", "fedora:40"]
-        variant: ["core", "standard"]
+        variant: ["core"]
         model: ["generic"]
+        include:
+          - base_image: "ubuntu:24.04"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+            model: ["generic"]
+          - base_image: "fedora:40"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+            model: ["generic"]
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -38,3 +47,4 @@ jobs:
       base_image: ${{ matrix.base_image }}
       variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
