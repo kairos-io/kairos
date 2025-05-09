@@ -12,10 +12,6 @@ on:
       model:
         required: true
         type: string
-      upgrade_test:
-        required: false
-        type: bool
-        default: true
       test_label:
         required: false
         type: string
