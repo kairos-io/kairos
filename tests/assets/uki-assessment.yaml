@@ -1,0 +1,25 @@
+#cloud-config
+
+install:
+  auto: true
+  device: /dev/vda
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
+
+debug: true
+strict: true
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+      hostname: kairos-{{ trunc 4 .Random }}
+  fs:
+    - name: "Reboot on active initramfs so we dont reach boot-complete"
+      if: '[ -f "/run/cos/active_mode" ]'
+      commands:
+        - "systemctl reboot --force"
