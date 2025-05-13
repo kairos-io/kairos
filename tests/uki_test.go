@@ -32,7 +32,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			fmt.Println(string(serial))
 		}
 		if CurrentSpecReport().Failed() {
-			//gatherLogs(vm)
+			gatherLogs(vm)
 		}
 
 		err := vm.Destroy(nil)
