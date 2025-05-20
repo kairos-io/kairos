@@ -153,6 +153,7 @@ jobs:
           rm -rf /tmp/unpacked
           sudo luet util unpack ${{ env.IMAGE_NAME }} ./unpacked --local
           new_version="mynewversion"
+          cat ./unpacked/etc/kairos-release
           sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="'$new_version'"/' ./unpacked/etc/kairos-release
           echo "$new_version" > "${PWD}/build/expected_new_version"
 
