@@ -169,6 +169,7 @@ jobs:
             dir:/unpacked
 
           image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | sed 's/+/-/g' | xargs)
+          echo "Image: $image"
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
           temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}/")
           docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
