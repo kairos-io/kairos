@@ -143,7 +143,7 @@ jobs:
           -v $PWD/tests/assets/keys:/keys \
           -v $PWD/tests/assets/sysext/:/overlay \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:latest --debug build-uki --output-dir /output/ -k /keys --output-type iso \
+          quay.io/kairos/auroraboot:v0.7.3 --debug build-uki --output-dir /output/ -k /keys --output-type iso \
           --single-efi-cmdline="testentry: nothing" \
           --overlay-iso /overlay \
           docker:${{ env.IMAGE_NAME }}
@@ -153,18 +153,23 @@ jobs:
           rm -rf /tmp/unpacked
           sudo luet util unpack ${{ env.IMAGE_NAME }} ./unpacked --local
           new_version="mynewversion"
+          echo "Current release info:"
+          cat ./unpacked/etc/kairos-release
           sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="'$new_version'"/' ./unpacked/etc/kairos-release
           echo "$new_version" > "${PWD}/build/expected_new_version"
+          echo "New release info:"
+          cat ./unpacked/etc/kairos-release
 
           docker run --rm \
             -v $PWD/unpacked:/unpacked \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:latest --debug build-uki \
+            quay.io/kairos/auroraboot:v0.7.3 --debug build-uki \
             --output-dir /result --keys /keys --output-type container \
             dir:/unpacked
 
-          image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | xargs)
+          image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | sed 's/+/-/g' | xargs)
+          echo "Image: $image"
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
           temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}/")
           docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
