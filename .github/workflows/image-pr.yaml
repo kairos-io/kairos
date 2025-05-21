@@ -38,7 +38,7 @@ jobs:
       matrix:
         variant: ["core"]  # So it shows up in the name, in case we use it for standard
         base_image:
-          - "ubuntu:24.04"
+          - "ubuntu:25.04"
           - "alpine:3.21"
   lifecycle-tests:
     name: ${{ matrix.base_image }}
@@ -59,7 +59,7 @@ jobs:
       matrix:
         secureboot: [false]
         base_image:
-          - "ubuntu:24.04"
+          - "ubuntu:25.04"
           - "alpine:3.21"
         test:
           - "custom-partitioning"
@@ -72,11 +72,11 @@ jobs:
         include:
           - test: "install"
             secureboot: true
-            base_image: "ubuntu:24.04"
+            base_image: "ubuntu:25.04"
           - test: "zfs"
-            base_image: "ubuntu:24.04"
+            base_image: "ubuntu:25.04"
           - test: "bundles"
-            base_image: "ubuntu:24.04"
+            base_image: "ubuntu:25.04"
   netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
@@ -91,7 +91,7 @@ jobs:
     strategy:
       matrix:
         base_image:
-          - "ubuntu:24.04"
+          - "ubuntu:25.04"
           - "alpine:3.21"
   encryption-tests:
     name: ${{ matrix.base_image }}
@@ -109,7 +109,7 @@ jobs:
       fail-fast: true
       matrix:
         base_image:
-          - "ubuntu:24.04"
+          - "ubuntu:25.04"
           - "alpine:3.21"
         label:
           - "encryption-local"
