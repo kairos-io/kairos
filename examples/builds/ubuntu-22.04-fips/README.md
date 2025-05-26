@@ -1,4 +1,4 @@
-# Kairos Ubuntu focal fips
+# Kairos Ubuntu jammy fips
 
 - Edit `pro-attach-config.yaml` with your token
 - run `bash build.sh`
