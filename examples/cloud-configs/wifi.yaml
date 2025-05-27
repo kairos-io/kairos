@@ -13,7 +13,7 @@ stages:
   initramfs:
     - name: "Setup wireless"
       files:
-      - path: /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+      - path: /etc/wpa_supplicant/wpa_supplicant.conf
         content: |
           # This file should be generated using wpa_passphrase
           ctrl_interface=/var/run/wpa_supplicant
@@ -25,7 +25,18 @@ stages:
         permissions: 0600
         owner: 0
         group: 0
-
+      - path: /etc/systemd/network/20-dhcp-wlan0.network
+        content: |
+          [Match]
+          Name=wlan0
+          [Network]
+          DHCP=yes
+          [DHCP]
+          ClientIdentifier=mac
+        permissions: 0644
+        owner: 0
+        group: 0
+  
   boot:
     - name: "Enabling wireless"
       commands:
