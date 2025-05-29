@@ -12,7 +12,6 @@
     ":ignoreModulesAndTests"
   ],
   "timezone": "Europe/Brussels",
-  "pinDigests": false,
   "commitMessagePrefix": ":arrow_up: ",
   "reviewers": [
     "team:maintainers"
@@ -22,7 +21,13 @@
       "matchUpdateTypes": [
         "patch"
       ],
-      "automerge": true
+      "automerge": false
+    },
+    {
+      "matchDepTypes": [
+        "action"
+      ],
+      "pinDigests": true
     }
-  ],
+  ]
 }

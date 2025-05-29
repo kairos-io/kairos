@@ -13,6 +13,7 @@ jobs:
   build:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -34,27 +35,58 @@ jobs:
       model: "generic"
       arch: "amd64"
       event_type: ${{ github.event_name }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
     strategy:
       fail-fast: false
       matrix:
-        variant: ["core", "standard"]
+        variant: ["core"]
         base_image:
           - "ubuntu:24.04"
           - "ubuntu:22.04"
           - "ubuntu:20.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:12"
-  tests:
+        include:
+          - base_image: "ubuntu:24.04"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "ubuntu:22.04"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "ubuntu:20.04"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "alpine:3.21"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "opensuse/leap:15.6"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "debian:12"
+            kubernetes_distro: "k3s"
+            variant: "standard"
+          - base_image: "ubuntu:24.04"
+            kubernetes_distro: "k0s"
+            variant: "standard"
+          - base_image: "opensuse/leap:15.6"
+            kubernetes_distro: "k0s"
+            variant: "standard"
+          - base_image: "rockylinux:9"
+            kubernetes_distro: "k0s"
+            variant: "standard"
+  lifecycle-tests:
     name: ${{ matrix.base_image }}
-    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       test: ${{ matrix.test }}
       secureboot: ${{ matrix.secureboot || false}}
+      release-matcher: ${{ matrix.release-matcher || '' }}
       variant: "core"
       arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -63,7 +95,7 @@ jobs:
         secureboot: [false]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -71,11 +103,14 @@ jobs:
           - "install-target"
           - "reset"
           - "upgrade-with-cli"
-          - "upgrade-latest"
-          - "bundles"
+          - "upgrade-latest-with-cli"
         include:
           - test: "install"
             secureboot: true
+            base_image: "ubuntu:24.04"
+          - test: "bundles"
+            base_image: "ubuntu:24.04"
+          - test: "zfs"
             base_image: "ubuntu:24.04"
           - test: "install"
             secureboot: true
@@ -86,8 +121,6 @@ jobs:
           - test: "install"
             secureboot: true
             base_image: "debian:12"
-          - test: "zfs"
-            base_image: "ubuntu:24.04"
           - test: "acceptance"
             base_image: "ubuntu:22.04"
           - test: "acceptance"
@@ -96,28 +129,32 @@ jobs:
             base_image: "opensuse/leap:15.6"
           - test: "acceptance"
             base_image: "debian:12"
-  netboot:
+  netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       variant: "core"
+      model: "generic"
+      arch: "amd64"
     needs:
       - build
     strategy:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
-  encryption:
+          - "alpine:3.21"
+  encryption-tests:
     name: ${{ matrix.base_image }}
-    secrets: inherit
     uses: ./.github/workflows/reusable-encryption-test.yaml
+    secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       label: ${{ matrix.label }}
-      variant: core
+      variant: "core"
+      model: "generic"
+      arch: "amd64"
     needs:
       - build
     strategy:
@@ -131,10 +168,10 @@ jobs:
           - "encryption-remote-static"
           - "encryption-remote-https-pinned"
           - "encryption-remote-https-bad-cert"
-  standard:
+  standard-tests:
     name: ${{ matrix.base_image }}
-    secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -155,6 +192,8 @@ jobs:
       test: ${{ matrix.test }}
       variant: "standard"
       arch: "amd64"
+      model: "generic"
+      kubernetes_distro: "k3s"
     needs:
       - build
     strategy:
@@ -167,3 +206,4 @@ jobs:
           - "provider-upgrade"
           - "provider-upgrade-k8s"
           - "provider-upgrade-latest-k8s-with-kubernetes"
+          - "provider-decentralized-k8s"

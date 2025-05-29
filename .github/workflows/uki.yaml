@@ -17,6 +17,12 @@ jobs:
         base_image: ["ubuntu:24.04", "fedora:40"]
         variant: ["core", "standard"]
         model: ["generic"]
+        test_label: ["generic"]
+        include:
+          - base_image: "ubuntu:24.04"
+            variant: "core"
+            model: "generic"
+            test_label: "boot-assessment"
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
@@ -38,3 +44,4 @@ jobs:
       base_image: ${{ matrix.base_image }}
       variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}
+      test_label: ${{ matrix.test_label }}

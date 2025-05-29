@@ -13,6 +13,7 @@ jobs:
   build:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -41,11 +42,11 @@ jobs:
         model: ["generic", "rpi4", "rpi3"]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
   build-nvidia-base:
-    runs-on: fast
+    runs-on: 'ubuntu-24.04-arm'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Check if cache image is available
@@ -56,9 +57,7 @@ jobs:
           else
             echo "cache_available=false" >> $GITHUB_OUTPUT
           fi
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v45
+      - uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
         with:
           files_yaml: |
             nvidia:
@@ -124,14 +123,14 @@ jobs:
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Login to Quay Registry
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && (steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true') }}
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build  🔧 & Push 🚀
         if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
         with:
           context: images/
           file: images/Dockerfile.nvidia
@@ -141,6 +140,7 @@ jobs:
   build-nvidia:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -164,7 +164,6 @@ jobs:
       event_type: ${{ github.event_name }}
     needs:
       - build-nvidia-base
-    secrets: inherit
     strategy:
       matrix:
         base_image: ["quay.io/kairos/cache:nvidia-base"]

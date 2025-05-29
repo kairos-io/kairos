@@ -23,24 +23,47 @@ on:
         required: false
         type: string
         default: "generic"
+      kubernetes_distro:
+        required: false
+        type: string
+      release-matcher:
+        description: "The release matcher to use for the latest release. Full regex match"
+        required: false
+        type: string
+        default: ""
 
-permissions: read-all
 jobs:
-  test:
-    runs-on: fast
+  test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
+    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-22.04' || 'fast' }}
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     steps:
       - name: Split base image
         id: split
         run: |
-          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
-          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
+          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
+          base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
+          tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+
+          # Check if the base image contains a slash
+          if [[ "$base_image" == *"/"* ]]; then
+            # Split the base image into distro and sub-distro
+            distro=$(echo "$base_image" | cut -d '/' -f 1)
+            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
+            # Combine sub-distro and tag
+            tag="$sub_distro-$tag"
+          else
+            # Use the base image as the distro
+            distro="$base_image"
+          fi
+
+          echo "flavor=$distro" >> $GITHUB_OUTPUT
+          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
         timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
@@ -59,6 +82,12 @@ jobs:
             [registry."registry.docker-mirror.svc.cluster.local:5000"]
               insecure = true
               http = true
+      - name: Login to Quay Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         if: runner.environment == 'self-hosted'
         run: |
@@ -69,27 +98,48 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs swtpm
           sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Set Image tag
+        run: |
+          IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_distro }}"
+          fi
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_version }}"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
       - name: Download artifacts
-        if: ${{ inputs.test != 'upgrade-latest' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
-        uses: actions/download-artifact@v4.1.8
+        if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || '' }}.iso.zip
       - name: Download latest release
-        uses: robinraju/release-downloader@v1.11
-        if: ${{ inputs.test == 'upgrade-latest' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes' }}
+        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
+        if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
         with:
           latest: true
           fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
           out-file-path: ""
+      - name: Download latest release with release matcher
+        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
+        if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher != '' }}
+        with:
+          latest: true
+          fileName: ${{ inputs.release-matcher }}
+          out-file-path: ""
       - name: Prepare test bundle
         if: ${{ inputs.test == 'bundles' }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
         with:
           context: .
           file: examples/bundle/Dockerfile
           platforms: linux/${{ inputs.arch }}
           push: true
-          tags: ttl.sh/bundles-test:24h
+          tags: quay.io/kairos/ci-temp-images:bundles-test
+          # https://docs.redhat.com/en/documentation/red_hat_quay/3.4/html/use_red_hat_quay/working_with_tags#tag-expiration
+          labels: |
+            quay.expires-after=6h
       - name: Run tests
         env:
           USE_QEMU: true
@@ -98,7 +148,7 @@ jobs:
           DRIVE_SIZE: 50000
           CREATE_VM: true
           CPUS: 4
-          CONTAINER_IMAGE: ttl.sh/kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ github.sha }}:24h
+          CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
@@ -109,7 +159,7 @@ jobs:
           cp tests/go.* .
           go mod download
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./tests/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}.logs.zip

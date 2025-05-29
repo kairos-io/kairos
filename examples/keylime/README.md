@@ -131,10 +131,10 @@ Lets go a bit into detail of some of the options.
  - `users`: We add the keylime user as the default keylime agent service will drop privileges to this user. Has to have the `tss` group as well.
  - `/etc/ima/ima-policy`: This is the default IMA policy that the kernel will use. The one provided is just a generic example.
  You have to make sure that this is deployed properly, otherwise the agent will not be able to communicate with the verifier/tenant/registrar correctly.
- - Ownership of /var/lib/keylime: The keylime agent will need to write to this directory. It is important to set the correct ownership. We do it at the end so all the writen files are owned by the keylime user.
+ - Ownership of /var/lib/keylime: The keylime agent will need to write to this directory. It is important to set the correct ownership. We do it at the end so all the written files are owned by the keylime user.
  - `systemctl`: We want to enable and start the keylime-agent service so it starts on boot and is running.
  - `/etc/keylime/agent.conf.d/10-config.conf`: This is the keylime agent configuration. Keylime agent provides a default config and we use this to override those default values. Minimal values that need configuring here are as follows: 
-   - `ip`: The IP address the agent will listen on. This should be set to `0.0.0.0` to listen on all interfaces or to the specific interface IP address if you know it on advance. Otherwise it will only listen on the loopback interface and wont be reachable from the outside.
+   - `ip`: The IP address the agent will listen on. This should be set to `0.0.0.0` to listen on all interfaces or to the specific interface IP address if you know it on advance. Otherwise it will only listen on the loopback interface and won't be reachable from the outside.
    - `registrar_ip`: The IP address of the keylime registrar server. Otherwise the agent will not be able to communicate with the registrar.
    - `uuid`: The UUID of the agent. This is used to identify the agent in the registrar. This can be any UUID as long as it is unique in the registrar server. If you set it to 'generate' it will generate a random UUID for you.
 
@@ -145,7 +145,7 @@ You can verify it under the registrar as it should auto register itself.
 
 Now from the tenant you can apply any policy you want to the agent.
 
-As an example, we add a policy that will only allow the agent to boot if the PCR 15 is equal to a specific value (in this case empty value as we havent measured anything into PCR15):
+As an example, we add a policy that will only allow the agent to boot if the PCR 15 is equal to a specific value (in this case empty value as we haven't measured anything into PCR15):
     
 ```bash
 $ keylime_tenant -c update --uuid UID_OF_AGENT -t IP_OF_AGENT  --tpm_policy '{"15":["0000000000000000000000000000000000000000","0000000000000000000000000000000000000000000000000000000000000000","000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"]}'

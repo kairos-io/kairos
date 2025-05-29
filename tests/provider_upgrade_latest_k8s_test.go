@@ -132,9 +132,14 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		By("wait system-upgrade-controller")
 		Eventually(func() string {
 			out, _ := kubectl(vm, "get pods -A")
-			fmt.Printf("out = %+v\n", out)
 			return out
-		})
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("system-upgrade-controller"))
+
+		By("waiting for the plan CRD to be created")
+		Eventually(func() string {
+			out, _ := kubectl(vm, "get crds")
+			return out
+		}, 300*time.Second, 10*time.Second).Should(ContainSubstring("plans.upgrade.cattle.io"))
 
 		By("wait for all containers to be in running state")
 		Eventually(func() string {
@@ -176,12 +181,45 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 
 			return version
 		}, 50*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion), func() string {
+			debugOutput := "DEBUG OUTPUT\n--------------------------------\n"
 			out, _ := kubectl(vm, "get pods -A")
 			if err != nil {
 				return fmt.Sprintf("errored while trying to get debug output: %s", err.Error())
 			} else {
-				return out
+				debugOutput += out
 			}
+
+			version, err := vm.Sudo(getVersionCmd)
+			if err != nil {
+				debugOutput += fmt.Sprintf("error getting version from kairos-release: %s\n", err.Error())
+			} else {
+				debugOutput += fmt.Sprintf("version: %s\n", version)
+			}
+
+			version, err = vm.Sudo(getVersionCmdOsRelease)
+			if err != nil {
+				debugOutput += fmt.Sprintf("error getting version from os-release: %s\n", err.Error())
+			} else {
+				debugOutput += fmt.Sprintf("version: %s\n", version)
+			}
+
+			debugOutput += fmt.Sprintf("current version: %s\n", currentVersion)
+
+			version, err = vm.Sudo("kairos-agent state get boot")
+			if err != nil {
+				debugOutput += fmt.Sprintf("error getting version from kairos-agent state: %s\n", err.Error())
+			} else {
+				debugOutput += fmt.Sprintf("kairos-agent state: %s\n", version)
+			}
+
+			out, _ = kubectl(vm, "get plans -A")
+			if err != nil {
+				debugOutput += fmt.Sprintf("error getting plans: %s\n", err.Error())
+			} else {
+				debugOutput += fmt.Sprintf("plans: %s\n", out)
+			}
+
+			return debugOutput
 		})
 	})
 })

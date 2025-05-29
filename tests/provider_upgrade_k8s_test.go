@@ -21,7 +21,6 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 	})
 
 	AfterEach(func() {
-		time.Sleep(5 * time.Minute)
 		if CurrentGinkgoTestDescription().Failed {
 			gatherLogs(vm)
 		}
@@ -133,8 +132,8 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		By("copy upgrade plan")
 
-		version := "v3.2.1"
-		fullArtifact := fmt.Sprintf("leap-15.6-standard-amd64-generic-%s-k3sv1.31.1-k3s1", version)
+		version := "v3.3.1"
+		fullArtifact := fmt.Sprintf("24.04-standard-amd64-generic-%s-k3sv1.31.4-k3s1", version)
 
 		tempDir, err := os.MkdirTemp("", "suc-*")
 		Expect(err).ToNot(HaveOccurred())
@@ -171,8 +170,8 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		By("validate upgraded version")
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
-			version, _ := vm.Sudo(getVersionCmdOsRelease)
-			fmt.Printf("version = %+v\n", version)
+			getVersion, _ := vm.Sudo(getVersionCmd)
+			fmt.Printf("version = %+v\n", getVersion)
 			return version
 		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(version), func() string {
 			return out

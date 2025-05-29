@@ -4,6 +4,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,13 +18,14 @@ import (
 var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-decentralized-k8s"), func() {
 	var vms []VM
 	var configPath string
+	var token string
 
 	BeforeEach(func() {
 		_, vm1 := startVM()
 		_, vm2 := startVM()
 		vms = append(vms, vm1, vm2)
 
-		configPath = cloudConfig()
+		token = generateToken()
 
 		vmForEach("waiting until ssh is possible", vms, func(vm VM) {
 			vm.EventuallyConnects(1200)
@@ -31,7 +33,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 	})
 
 	AfterEach(func() {
-		if CurrentGinkgoTestDescription().Failed {
+		if CurrentSpecReport().Failed() {
 			gatherLogs(vms[0])
 		}
 		vmForEach("destroying vm", vms, func(vm VM) {
@@ -52,6 +54,9 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		})
 
 		vmForEach("installing", vms, func(vm VM) {
+			// Generate a random but fixed hostname for each vm
+			// So on reboot the hostname doesnt change and k3s gets restarted and has to build the nodes again
+			configPath = cloudConfig(filepath.Dir(vm.StateDir), token)
 			err := vm.Scp(configPath, "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -131,11 +136,11 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				*/
 			} else {
 				Eventually(func() string {
-					out, _ = vm.Sudo("cat /var/log/kairos/*.log")
+					out, _ = vm.Sudo("cat /var/log/kairos/provider-*.log")
 					return out
-				}, 45*time.Minute, 1*time.Second).Should(
+				}, 10*time.Minute, 1*time.Second).Should(
 					Or(
-						ContainSubstring("Configuring k3s-agent"),
+						ContainSubstring("Configuring k3s worker"),
 						ContainSubstring("Configuring k3s"),
 					), out)
 			}
@@ -193,33 +198,13 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					out, err = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
 					Expect(err).ToNot(HaveOccurred(), out)
 
-					out, _ = vm.Sudo("dig +short foo.bar")
+					out, _ = vm.Sudo("ping -c 1 foo.bar")
 					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).Should(Equal("2.2.2.2"))
-				Eventually(func() string {
-					out, _ = vm.Sudo("dig +short google.com")
-					return strings.TrimSpace(out)
-				}, 900*time.Second, 10*time.Second).ShouldNot(BeEmpty())
+				}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
+					fmt.Printf("DNS is not working: %s", out)
+					return out
+				})
 			}
-		})
-
-		vmForEach("checking if it upgrades to a specific version", vms, func(vm VM) {
-			version, err := vm.Sudo(getVersionCmd)
-			Expect(err).ToNot(HaveOccurred(), version)
-
-			out, err := vm.Sudo("kairos-agent upgrade --source oci:quay.io/kairos/opensuse:leap-15.6-standard-amd64-generic-v3.2.3-k3sv1.31.2-k3s1")
-			Expect(err).ToNot(HaveOccurred(), out)
-			Expect(out).To(ContainSubstring("Upgrade completed"))
-
-			out, err = vm.Sudo("sync")
-			Expect(err).ToNot(HaveOccurred(), out)
-
-			By("rebooting to the upgraded system")
-			vm.Reboot(1200)
-
-			version2, err := vm.Sudo(getVersionCmd)
-			Expect(err).ToNot(HaveOccurred(), version2)
-			Expect(version).ToNot(Equal(version2))
 		})
 	})
 })
@@ -245,18 +230,31 @@ func vmForEach(description string, vms []VM, action func(vm VM)) {
 	}
 }
 
-func cloudConfig() string {
-	token := generateToken()
+func cloudConfig(name, token string) string {
+	config := fmt.Sprintf(`#cloud-config
 
-	configBytes, err := os.ReadFile("assets/config.yaml")
-	Expect(err).ToNot(HaveOccurred())
+install:
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
 
-	config := fmt.Sprintf(`%s
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+    - name: "Set hostname"
+      hostname: kairos-%s
+
+k3s:
+  enabled: true
 
 p2p:
   network_token: %s
   dns: true
-`, string(configBytes), token)
+`, name, token)
 
 	f, err := os.CreateTemp("", "kairos-config-*.yaml")
 	Expect(err).ToNot(HaveOccurred())

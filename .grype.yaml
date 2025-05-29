@@ -1,0 +1,31 @@
+# All the kernel vulnerabilities are ignored because the real cve score is lower than critical
+# grype is very aggressive and marks all of them as critical which makes no sense as there are
+# vulnerabilities from 2021 not fixed yet.
+# Or in some other places it just mixes the version of the kernel
+# A good example is CVE-2023-38427 in Debian 12. It wrongly identifies the kernel version as 6.1.0-34-amd64
+# but you can see in the debian cve database that its not affected because its has a different version
+# https://security-tracker.debian.org/tracker/CVE-2023-38427
+# Its recommended to check the cve database of the distribution to see if the kernel is affected or not
+# as grype is not always correct
+# So we ignore all the kernel vulnerabilities as grype is not fully reliable
+ignore:
+  # Affected standard images
+  - vulnerability: CVE-2025-22871 
+    package:
+      name: stdlib
+      location: /usr/bin/kube-vip
+  - vulnerability: CVE-2025-22871
+    package:
+      name: stdlib
+      location: /usr/bin/k3s
+  - vulnerability: CVE-2025-22871
+    package:
+      name: stdlib
+      location: /usr/bin/k0s
+  - vulnerability: GHSA-v23v-6jw2-98fq
+    package:
+      name: github.com/docker/docker  # indirect dependency, no directly used by k0s
+      version: v24.0.9+incompatible
+      location: /usr/bin/k0s
+  - package:
+      name: linux-kernel

@@ -12,8 +12,13 @@ on:
       variant:
         required: true
         type: string
+      arch:
+        required: true
+        type: string
+      model:
+        required: true
+        type: string
 
-permissions: read-all
 jobs:
   test:
     name: ${{ inputs.label }}
@@ -25,14 +30,30 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
-          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
+          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
+          base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
+          tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+
+          # Check if the base image contains a slash
+          if [[ "$base_image" == *"/"* ]]; then
+            # Split the base image into distro and sub-distro
+            distro=$(echo "$base_image" | cut -d '/' -f 1)
+            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
+            # Combine sub-distro and tag
+            tag="$sub_distro-$tag"
+          else
+            # Use the base image as the distro
+            distro="$base_image"
+          fi
+
+          echo "flavor=$distro" >> $GITHUB_OUTPUT
+          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Install Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b # v5
         timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
@@ -52,9 +73,9 @@ jobs:
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
       - name: Download ISO
         id: iso
-        uses: actions/download-artifact@v4.1.8
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Display structure of downloaded files
         run: ls -las .
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines

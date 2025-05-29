@@ -1,5 +1,8 @@
 name: Upload cloud images
 on:
+  push:
+    tags:
+      - 'v*'  # Triggers on any tag that starts with 'v'
   schedule:
     # Everyday at 2am
     - cron: '0 2 * * *'
@@ -13,26 +16,107 @@ on:
 permissions: read-all
 
 jobs:
+  upload-gcp:
+    name: Upload to GCP
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - run: |
+          git fetch --prune --unshallow
+      # https://github.com/google-github-actions/auth?tab=readme-ov-file#authenticate-to-google-cloud-from-github-actions
+      # https://github.com/google-github-actions/auth/blob/main/docs/EXAMPLES.md#service-account-key-json
+      - id: "auth"
+        name: "Authenticate to GCP"
+        uses: 'google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f' # v2
+        with:
+          create_credentials_file: true
+          workload_identity_provider: 'projects/908384205599/locations/global/workloadIdentityPools/github/providers/kairos'
+          service_account: 'github-service-account@palette-kairos.iam.gserviceaccount.com'
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a' # v2
+      - name: Install deps
+        run: |
+          sudo apt update && sudo apt install -y qemu-utils
+      - name: Build and push GCP image
+        env:
+          GCP_PROJECT: palette-kairos
+          GCS_BUCKET: kairos-cloud-images
+        run: |
+          set -xe
+
+          latestTag=$(git describe --tags --abbrev=0)
+          latestTagSanitized=$(echo "$latestTag" | tr '.' '-')
+
+          echo "Fetching all pushed versions"
+          mapfile -t kairosVersions < <(gcloud compute images list --project=palette-kairos --filter="labels.version:*" --format="value(labels.version)")
+
+          echo "Checking if '$latestTag' is already pushed"
+          echo "Looking among versions: ${kairosVersions[@]}"
+          alreadyPushed=false
+          for version in "${kairosVersions[@]}"; do
+            if [[ $version == $latestTagSanitized ]]; then
+              stableVersions+=("$version")
+              alreadyPushed=true
+              break
+            fi
+          done
+
+          if [[ "$alreadyPushed" = true && "${{ inputs.force }}" != "true" ]]; then
+            echo "Image for $latestTag is already pushed and 'force' wasn't true. Exiting."
+            exit 0
+          fi
+
+          containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+          docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
+            --privileged \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
+            --debug \
+            --set "disable_http_server=true" \
+            --set "container_image=docker:${containerImage}" \
+            --set "disable_netboot=true" \
+            --set "disk.bios=true" \
+            --set "state_dir=/aurora"
+
+          file=$(ls *.raw)
+          mv "$file" disk.raw
+
+          GB=$((1024*1024*1024))
+          MB=$((1024*1024))
+          size=$(qemu-img info -f raw --output json disk.raw | gawk 'match($0, /"virtual-size": ([0-9]+),/, val) {print val[1];exit}')
+          # shellcheck disable=SC2004
+          ROUNDED_SIZE=$(echo "$size/$GB+1"|bc)
+          CURRENT_SIZE=$(echo "$size/$MB"|bc)
+          echo "Resizing raw image from \"$size\"MB to \"$ROUNDED_SIZE\"GB"
+          qemu-img resize -f raw disk.raw "$ROUNDED_SIZE"G
+          tar --format=oldgnu -czvf "${file%.*}.tar.gz" disk.raw
+
+          .github/public-cloud/upload-image-to-gcp.sh $(ls *.tar.gz) "$latestTag"
+
+  # https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
   upload-aws:
     name: Upload to AWS
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           persist-credentials: false
       - run: |
           git fetch --prune --unshallow
       # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          audience: sts.amazonaws.com
           aws-region: eu-central-1
-          # role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          # role-external-id: ${{ secrets.AWS_ROLE_EXTERNAL_ID }}
-          role-duration-seconds: 1200
+          role-to-assume: arn:aws:iam::171987620676:role/github-actions
           role-session-name: AWSCIPush
       - name: Build and push AWS image
         env:
@@ -72,4 +156,92 @@ jobs:
             --set "disk.raw=true" \
             --set "state_dir=/aurora"
 
-          .github/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
+          .github/public-cloud/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
+
+  upload-azure:
+    permissions:
+      id-token: write
+    name: Upload to Azure
+    runs-on: ubuntu-latest
+    # https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust?pivots=identity-wif-apps-methods-azp#github-actions
+    environment: azure-push
+    outputs:
+      shouldBuild: ${{ steps.checkPushed.outputs.shouldBuild }}
+    steps:
+      - name: "Checkout code"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - run: |
+          git fetch --prune --unshallow
+      # https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
+      - name: Azure login
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Find latest stable version
+        run: |
+          # Azure only allows "stable" version strings. E.g. "v1.2.3" (not "v1.2.3-beta1")
+          latestTag=$(git tag --list | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+          echo $latestTag > LATEST_TAG
+
+      - name: Check if already pushed
+        id: checkPushed
+        run: |
+          latestTag=$(cat LATEST_TAG)
+
+          echo "Fetching all pushed versions"
+          mapfile -t kairosVersions < <(az sig image-version list --resource-group kairos-cloud-images --gallery-image-name kairos --gallery-name kairos.io --query '[].name' --output tsv)
+
+          echo "Checking if '$latestTag' is already pushed"
+          echo "Looking among versions: ${kairosVersions[@]}"
+          for version in "${kairosVersions[@]}"; do
+            if [[ $version == "${latestTag#v}" ]]; then
+              stableVersions+=("$version")
+              alreadyPushed=true
+              break
+            fi
+          done
+
+          if [[ "$alreadyPushed" = true && "${{ inputs.force }}" != "true" ]]; then
+            echo "shouldBuild=false" >> $GITHUB_OUTPUT
+            echo "Image for $latestTag is already pushed and 'force' wasn't true. Skipping build."
+          else
+            echo "shouldBuild=true" >> $GITHUB_OUTPUT
+            echo "Image for $latestTag is not pushed or 'force' was true. Will build."
+          fi
+
+      - name: Build the image
+        if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
+        run: |
+            latestTag=$(cat LATEST_TAG)
+            containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+            docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
+              --privileged \
+              -v $PWD:/aurora --rm quay.io/kairos/auroraboot \
+              --debug \
+              --set "disable_http_server=true" \
+              --set "container_image=docker:${containerImage}" \
+              --set "disable_netboot=true" \
+              --set "disk.vhd=true" \
+              --set "state_dir=/aurora"
+
+      - name: Azure CLI script
+        uses: azure/cli@089eac9d8cc39f5d003e94f8b65efc51076c9cbd # v2
+        if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
+        env:
+          GCP_PROJECT: palette-kairos
+          AZURE_RESOURCE_GROUP: "kairos-cloud-images"
+          AZURE_STORAGE_ACCOUNT: "kairoscloudimages"
+          AZURE_CONTAINER_NAME: "kairos-cloud-images"
+        with:
+          azcliversion: latest
+          inlineScript: |
+            # Install openssh-clients to be able to use ssh-keygen
+            tdnf install -y openssh-clients
+
+            latestTag=$(cat LATEST_TAG)
+            .github/public-cloud/upload-image-to-azure.sh $(ls *.vhd) "$latestTag"

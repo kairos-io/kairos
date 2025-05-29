@@ -18,7 +18,10 @@ on:
         required: false
         type: string
         default: "amd64"
-      kubernets_version:
+      kubernetes_version:
+        required: false
+        type: string
+      kubernetes_distro:
         required: false
         type: string
       trusted_boot:
@@ -36,51 +39,98 @@ jobs:
       actions: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
           fetch-depth: 0
       - name: Split base image
         id: split
         run: |
-          echo "flavor=$(echo ${{ inputs.base_image }} | cut -d ':' -f 1 | sed  's/\//-/g')" >> $GITHUB_OUTPUT
-          echo "flavor_release=$(echo ${{ inputs.base_image }} | cut -d ':' -f 2)" >> $GITHUB_OUTPUT
+          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
+          base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
+          tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+
+          # Check if the base image contains a slash
+          if [[ "$base_image" == *"/"* ]]; then
+            # Split the base image into distro and sub-distro
+            distro=$(echo "$base_image" | cut -d '/' -f 1)
+            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
+            # Combine sub-distro and tag
+            tag="$sub_distro-$tag"
+          else
+            # Use the base image as the distro
+            distro="$base_image"
+          fi
+
+          # Special case for nvidia as we build 2 different images and the base_image is our cached image
+          # For release this makes no sense as we always build the base image anyway
+          # TODO: Add support for nvidia-jetson-agx-orin in kairos-init so we can build it properly
+          if [[ "${{ inputs.model }}" == "nvidia-jetson-agx-orin" ]]; then
+            distro="ubuntu"
+            tag="22.04"
+          fi
+
+          echo "flavor=$distro" >> $GITHUB_OUTPUT
+          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
       - name: Set Image Tag
         run: |
-          echo "GIT_VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
-          echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ env.GIT_VERSION }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+          # Replace + with - in kubernetes version as we use it in the image tag.
+          sanitized_kubernetes_version=$(echo "${{ inputs.kubernetes_version }}" | sed 's/+/-/g')
+          if [ -n "${sanitized_kubernetes_version}" ]; then
+            echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}-${{ inputs.kubernetes_distro }}-${sanitized_kubernetes_version}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+            echo "ISO_NAME=kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}-${{ inputs.kubernetes_distro }}${{ inputs.kubernetes_version }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+          else
+            echo "IMAGE_TAG=quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+            echo "ISO_NAME=kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-${{ github.ref_name }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}" >> $GITHUB_ENV
+          fi
       - name: Install Cosign
         uses: sigstore/cosign-installer@main
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@master
       - name: Login to Quay Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Build the docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
         with:
           context: .
           file: images/Dockerfile
           platforms: linux/${{ inputs.arch }}
           load: true
-          sbom: true
           tags: ${{ env.IMAGE_TAG }}
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
-      - name: Grype table
-        uses: anchore/scan-action@v6.1.0
+            VERSION=${{ github.ref_name }}
+      - name: Grype check
+        uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
+        id: grype
         with:
           image: ${{ env.IMAGE_TAG }}
-          output-format: table
+          output-format: json
           severity-cutoff: critical
           add-cpes-if-none: true
           only-fixed: true
+          fail-build: false
+      - name: Grype detailed check
+        run: |
+          jq -r '.matches[] | select(.vulnerability.severity == "Critical") | "\(.vulnerability.id) \t \(.artifact.name) \(.artifact.version) -> \(.artifact.locations[]?.path // "no-path")"' "${{ steps.grype.outputs.json }}" | tee grype-critical.txt
+
+          if [[ $(wc -l < grype-critical.txt) -gt 0 ]]; then
+            echo "Critical vulnerabilities found in the image. Failing the build."
+            exit 1
+          else
+            echo "No critical vulnerabilities found in the image."
+          fi
       - name: Grype sarif
-        uses: anchore/scan-action@v6.1.0
+        uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
         with:
           image: ${{ env.IMAGE_TAG }}
           output-format: sarif
@@ -89,7 +139,7 @@ jobs:
           add-cpes-if-none: true
           only-fixed: true
       - name: Trivy
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # 0.30.0
         with:
           image-ref: ${{ env.IMAGE_TAG }}
           format: sarif
@@ -97,7 +147,7 @@ jobs:
           severity: CRITICAL
           limit-severities-for-sarif: true
       - name: Push the docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
         with:
           context: .
           file: images/Dockerfile
@@ -110,49 +160,87 @@ jobs:
             MODEL=${{ inputs.model }}
             VARIANT=${{ inputs.variant }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
+            VERSION=${{ github.ref_name }}
+      - name: Sign image
+        env:
+          COSIGN_YES: true
+        run: |
+          cosign sign ${{ env.IMAGE_TAG }}
       - name: Build iso 📦
-        if: ${{ inputs.trusted_boot == 'false' }}
+        if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
         run: |
           mkdir release
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/release:/output \
           quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
-          --name kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ env.GIT_VERSION }}${{ inputs.kubernetes_version && '-'||''}}${{ inputs.kubernetes_version || ''}} \
+          --name ${{ env.ISO_NAME }} \
           docker:${{ env.IMAGE_TAG }}
-      - name: Sign image
-        env:
-          COSIGN_YES: true
-        run: |
-          cosign sign $(docker image inspect --format='{{index .RepoDigests 0}}' ${{ env.IMAGE_TAG }})
       - name: Sign ISO sha files
+        if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
         env:
           COSIGN_YES: true
         run: |
           filename=$(ls release/*.iso.sha256)
           cosign sign-blob --yes --output-certificate="${filename}.pem" --output-signature="${filename}.sig" "${filename}"
-      - uses: itxaka/sarif-filter@v1
+      - name: Build RAW image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin' }}
+        run: |
+          docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
+          -v $PWD:/output \
+          quay.io/kairos/auroraboot:latest \
+          --debug \
+          --set "disable_http_server=true" \
+          --set "disable_netboot=true" \
+          --set "container_image=${{ env.IMAGE_TAG }}" \
+          --set "state_dir=/output" \
+          --set "disk.raw=true"
+
+          # Export image path to be used in the next step
+          echo "RAW_ARTIFACT=$(ls *.raw|head -1)" >> $GITHUB_ENV
+      - name: Create OCI artifact from RAW image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin' }}
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6
+        with:
+          context: .
+          file: images/Dockerfile.img
+          platforms: linux/${{ inputs.arch }}
+          push: true
+          tags: ${{ env.IMAGE_TAG }}-img
+          build-args: |
+            ARTIFACT=${{ env.RAW_ARTIFACT }}
+      - name: Sign image
+        if: ${{ inputs.model != 'rpi3' && inputs.model != 'generic' && inputs.model != 'nvidia-jetson-agx-orin'}}
+        env:
+          COSIGN_YES: true
+        run: |
+          cosign sign ${{ env.IMAGE_TAG }}-img
+      - name: Release
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        with:
+          files: |
+            release/*.iso
+            release/*.iso.sha256
+            release/*.iso.sha256.sig
+            release/*.iso.sha256.pem
+      - uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
         with:
           input: grype.sarif
           output: grype.sarif
           severity: critical
-      - uses: itxaka/sarif-filter@v1
+      - uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
         with:
           input: trivy.sarif
           output: trivy.sarif
           severity: critical
-      - name: Release
-        uses: softprops/action-gh-release@v2.2.1
-        with:
-          files: |
-            release/*
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@60168efe1c415ce0f5521ea06d5c2062adbeed1b # v3
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@60168efe1c415ce0f5521ea06d5c2062adbeed1b # v3
         with:
           sarif_file: 'grype.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}

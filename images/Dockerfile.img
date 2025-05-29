@@ -1,0 +1,5 @@
+# Dockerfile to build RPI images.
+# This only contains the raw image on it
+FROM scratch
+ARG ARTIFACT
+COPY $ARTIFACT /$ARTIFACT

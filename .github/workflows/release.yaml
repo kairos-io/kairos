@@ -8,11 +8,22 @@ permissions: read-all
 jobs:
   build-core:
     uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     strategy:
       fail-fast: false
       matrix:
@@ -21,12 +32,12 @@ jobs:
         arch: ["amd64"]
         base_image:
           - "opensuse/leap:15.6"
-          - "opensuse/tumbleweed"
+          - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:24.10"
-          - "alpine:3.19"
+          - "alpine:3.21"
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
@@ -37,11 +48,22 @@ jobs:
       model: ${{ matrix.model }}
   build-uki-container-image:
     uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     strategy:
       matrix:
         variant: ["core"]
@@ -53,6 +75,8 @@ jobs:
         include:
           - base_image: "ubuntu:24.04"
             variant: "standard"  # let it use the latest k3s version released for now
+            arch: "amd64"
+            model: "generic"
     with:
       base_image: ${{ matrix.base_image }}
       arch: ${{ matrix.arch }}
@@ -69,32 +93,85 @@ jobs:
       - name: Get latest k3s releases
         id: get-k3s-releases
         run: |
-          kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '[.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not))] | .[:3] | .[].tag_name' | tr '\n' ' ')
+          kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '
+            [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
+            | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k3s[0-9]+$")))
+            | map({
+               version: .,
+               minor: (split(".")[1:2]|join("")),
+               patch: (split(".")[2:3]|join("")|split("+")[0]),
+               revision: (split("+k3s")[1])
+             })
+           | group_by(.minor)
+           | map(sort_by([(.patch | tonumber), (.revision | tonumber)]) | reverse | .[0])
+           | sort_by(.minor | tonumber)
+           | reverse
+           | .[0:3]
+           | map(.version)
+          ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
-  build-standard:
+  get-k0s-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      kubernetes_versions: ${{ steps.get-k0s-releases.outputs.kubernetes_versions }}
+    steps:
+      - run: |
+          sudo apt update && sudo apt install -y jq curl
+      - name: Get latest k0s releases
+        id: get-k0s-releases
+        run: |
+          kubernetes_versions=$(curl -s https://api.github.com/repos/k0sproject/k0s/releases | jq -r '
+           [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
+           | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k0s\\.[0-9]+$")))
+           | map({
+             version: .,
+             minor: (split(".")[1:2]|join("")),
+             patch: (split(".")[2:3]|join("")|split("+")[0]),
+             revision: (split("+k0s.")[1])
+           })
+           | group_by(.minor)
+           | map(sort_by([(.patch | tonumber), (.revision | tonumber)]) | reverse | .[0])
+           | sort_by(.minor | tonumber)
+           | reverse
+           | .[0:3]
+           | map(.version)
+           '| jq -c '.')
+          echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
+  build-standard-k3s:
     uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
     needs:
       - get-k3s-versions
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     strategy:
       fail-fast: false
       matrix:
-        kubernetes_version: ${{ needs.get-k3s-versions.outputs.kubernetes_versions }}
+        kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         model: ["generic"]
         variant: ["standard"]
         arch: ["amd64"]
         base_image:
           - "opensuse/leap:15.6"
-          - "opensuse/tumbleweed"
+          - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:24.10"
-          - "alpine:3.19"
+          - "alpine:3.21"
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
@@ -104,3 +181,42 @@ jobs:
       variant: ${{ matrix.variant }}
       model: ${{ matrix.model }}
       kubernetes_version: ${{ matrix.kubernetes_version }}
+      kubernetes_distro: "k3s"
+  build-standard-k0s:
+    uses: ./.github/workflows/reusable-release.yaml
+    secrets: inherit
+    needs:
+      - get-k0s-versions
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
+    strategy:
+      fail-fast: false
+      matrix:
+        kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
+        model: ["generic"]
+        variant: ["standard"]
+        arch: ["amd64"]
+        base_image:
+          - "opensuse/leap:15.6"
+          - "ubuntu:24.10"
+          - "rockylinux:9"
+    with:
+      base_image: ${{ matrix.base_image }}
+      arch: ${{ matrix.arch }}
+      variant: ${{ matrix.variant }}
+      model: ${{ matrix.model }}
+      kubernetes_version: ${{ matrix.kubernetes_version }}
+      kubernetes_distro: "k0s"

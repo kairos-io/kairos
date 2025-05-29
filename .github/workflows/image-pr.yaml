@@ -11,6 +11,7 @@ jobs:
   build:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-build-flavor.yaml
+    secrets: inherit
     permissions:
       contents: write
       security-events: write
@@ -38,8 +39,8 @@ jobs:
         variant: ["core"]  # So it shows up in the name, in case we use it for standard
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
-  tests:
+          - "alpine:3.21"
+  lifecycle-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -47,8 +48,10 @@ jobs:
       base_image: ${{ matrix.base_image }}
       test: ${{ matrix.test }}
       secureboot: ${{ matrix.secureboot || false}}
+      release-matcher: ${{ matrix.release-matcher || '' }}
       variant: "core"
       arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -57,7 +60,7 @@ jobs:
         secureboot: [false]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -65,36 +68,41 @@ jobs:
           - "install-target"
           - "reset"
           - "upgrade-with-cli"
-          - "upgrade-latest"
-          - "bundles"
+          - "upgrade-latest-with-cli"
         include:
           - test: "install"
             secureboot: true
             base_image: "ubuntu:24.04"
           - test: "zfs"
             base_image: "ubuntu:24.04"
-  netboot:
+          - test: "bundles"
+            base_image: "ubuntu:24.04"
+  netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
     secrets: inherit
     with:
       base_image: ${{ matrix.base_image }}
       variant: "core"
+      arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
-  encryption:
+          - "alpine:3.21"
+  encryption-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
     uses: ./.github/workflows/reusable-encryption-test.yaml
     with:
       base_image: ${{ matrix.base_image }}
       label: ${{ matrix.label }}
-      variant: core
+      variant: "core"
+      arch: "amd64"
+      model: "generic"
     needs:
       - build
     strategy:
@@ -102,7 +110,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.19"
+          - "alpine:3.21"
         label:
           - "encryption-local"
           - "encryption-remote-auto"
