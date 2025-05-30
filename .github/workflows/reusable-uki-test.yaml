@@ -16,9 +16,12 @@ on:
         required: false
         type: string
         default: "generic"
+      kubernetes_distro:
+        required: false
+        type: string
 jobs:
   test-uki:
-    name: ${{ inputs.variant }} - ${{ inputs.test_label }} tests
+    name: Build ${{ inputs.model }} - ${{ inputs.arch }}${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}${{ inputs.kubernetes_version != '' && format(' - {0}', inputs.kubernetes_version) || '' }} ${{ inputs.test_label }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -113,9 +116,10 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             TRUSTED_BOOT=true
             VERSION=${{ env.VERSION }}
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
+            REGISTRY=quay.io/kairos
       - name: Grype check
         uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
         id: grype
