@@ -13,13 +13,15 @@ stages:
   initramfs:
     - name: Setup wireless
       files:
-        # Generate manually by following https://wiki.archlinux.org/title/ConnMan and add contents below
-        - path: /var/lib/connman/wifi_xxxxxxxxxxxx_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz_managed_psk/settings
+        # See https://man.archlinux.org/man/connman-service.config.5
+        - path: /var/lib/connman/home_wifi.config
           permissions: 0600
           content: |
-            [wifi_xxxxxxxxxxxx_zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz_managed_psk]
-            Name=Your_SSID
-            ...etc...
+            [service_home_wifi]
+            Type = wifi
+            Name = your_ssid
+            Passphrase = your_wifi_password
+            IPv4 = dhcp
   boot:
     - name: Enable wireless
       commands:
