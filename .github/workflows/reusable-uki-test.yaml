@@ -21,7 +21,7 @@ on:
         type: string
 jobs:
   test-uki:
-    name: Build ${{ inputs.model }} - ${{ inputs.arch }}${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}${{ inputs.kubernetes_version != '' && format(' - {0}', inputs.kubernetes_version) || '' }} ${{ inputs.test_label }}
+    name: Test ${{ inputs.test_label }} ${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}
     permissions:
       id-token: write  # OIDC support
       contents: write
