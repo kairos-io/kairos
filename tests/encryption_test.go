@@ -164,7 +164,7 @@ kcrypt:
 			By("rebooting")
 			vm.Reboot(750)
 			vm.EventuallyConnects(1200)
-			Byt("checking the partition")
+			By("checking the partition")
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
