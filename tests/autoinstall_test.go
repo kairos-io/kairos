@@ -121,9 +121,17 @@ var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 			})
 
 			By("checking grubmenu", func() {
-				out, err := vm.Sudo("cat /run/initramfs/cos-state/grubmenu")
+				// Statereset is now part of the default grub.cfg
+				out, err := vm.Sudo("cat /etc/cos/grub.cfg")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(out).To(ContainSubstring("state reset"))
+				Expect(out).To(ContainSubstring("--id cos"))
+				Expect(out).To(ContainSubstring("--id fallback"))
+				Expect(out).To(ContainSubstring("--id recovery"))
+				Expect(out).To(ContainSubstring("--id statereset"))
+				// Now this one you can override with a custom grubmenu but by default we ship the remote recovery on it
+				out, err = vm.Sudo("cat /run/initramfs/cos-state/grubmenu")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(out).To(ContainSubstring("remoterecovery"))
 			})
 
 			By("checking additional mount specified, with no dir in rootfs", func() {

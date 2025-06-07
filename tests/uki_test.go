@@ -251,7 +251,7 @@ func genericTests(vm VM) {
 		Expect(out).To(ContainSubstring("rd.immucore.uki"))
 	})
 	By("checking the use of dracut immutable module", func() {
-		out, err := vm.Sudo("cat /run/immucore/initramfs_stage.log")
+		out, err := vm.Sudo("cat /run/immucore/immucore.log")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("Running stage: initramfs.before"))
 		Expect(out).To(ContainSubstring("Running stage: initramfs.after"))
