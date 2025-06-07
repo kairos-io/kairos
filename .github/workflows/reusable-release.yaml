@@ -108,7 +108,6 @@ jobs:
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
-            REGISTRY=quay.io/kairos
       - name: Grype check
         uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
         id: grype
@@ -162,7 +161,6 @@ jobs:
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
-            REGISTRY=quay.io/kairos
       - name: Sign image
         env:
           COSIGN_YES: true
