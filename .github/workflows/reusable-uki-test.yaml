@@ -149,6 +149,7 @@ jobs:
       - name: Build uki upgrade image 🔧
         if: ${{ inputs.test_label != 'boot-assessment' }}
         run: |
+          sudo curl -L https://github.com/mudler/luet/releases/download/0.36.2/luet-0.36.2-linux-amd64 -o /usr/bin/luet
           rm -rf /tmp/unpacked
           sudo luet util unpack ${{ env.IMAGE_NAME }} ./unpacked --local
           new_version="mynewversion"
