@@ -186,11 +186,11 @@ func expectDefaultService(vm VM) {
 			// thus we ignore the error here.
 			// https://www.freedesktop.org/software/systemd/man/systemctl.html#Exit%20status
 			Eventually(func() string {
-				out, _ := vm.Sudo("systemctl status kairos")
+				out, _ := vm.Sudo("systemctl status kairos-installer")
 
 				return out
 			}, 3*time.Minute, 2*time.Second).Should(
-				ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"))
+				ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled;"))
 		}
 	})
 }
