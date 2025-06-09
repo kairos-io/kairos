@@ -25,11 +25,11 @@ jobs:
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k3s"
             variant: "standard"
-            test_label: ["generic"]
+            test_label: "generic"
           - base_image: "fedora:40"
             kubernetes_distro: "k3s"
             variant: "standard"
-            test_label: ["generic"]
+            test_label: "generic"
     uses: ./.github/workflows/reusable-uki-test.yaml
     permissions:
       id-token: write  # OIDC support
