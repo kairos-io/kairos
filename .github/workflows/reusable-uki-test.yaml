@@ -152,9 +152,9 @@ jobs:
           echo "Building upgrade image for ${{ inputs.test_label }}"
           docker build -t upgrade-image <<EOF
             FROM ${{ env.IMAGE_NAME }}
-            RUN echo "Current release info: $(cat etc/kairos-release)"
+            RUN echo "Current release info: $(cat /etc/kairos-release)"
             RUN sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="mynewversion"/' /etc/kairos-release
-            RUN echo "New release info: $(cat etc/kairos-release)"
+            RUN echo "New release info: $(cat /etc/kairos-release)"
           EOF 
 
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
