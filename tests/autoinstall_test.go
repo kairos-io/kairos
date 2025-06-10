@@ -185,17 +185,16 @@ var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
 			})
 
-			By("Checking install/recovery services are disabled", func() {
+			By("Checking install/recovery services do not exist", func() {
 				if !isFlavor(vm, "alpine") {
 					for _, service := range []string{"kairos-interactive", "kairos-recovery"} {
-						By(fmt.Sprintf("Checking that service %s is disabled", service), func() {})
+						By(fmt.Sprintf("Checking that service %s does nto exist", service), func() {})
 						Eventually(func() string {
 							out, _ := vm.Sudo(fmt.Sprintf("systemctl status %s", service))
 							return out
 						}, 3*time.Minute, 2*time.Second).Should(
 							And(
-								ContainSubstring(fmt.Sprintf("loaded (/etc/systemd/system/%s.service; disabled;", service)),
-								ContainSubstring("Active: inactive (dead)"),
+								ContainSubstring(fmt.Sprintf("Unit %s.service could not be found", service)),
 							),
 						)
 					}
