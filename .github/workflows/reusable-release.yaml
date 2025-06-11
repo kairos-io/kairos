@@ -214,7 +214,7 @@ jobs:
         run: |
           cosign sign ${{ env.IMAGE_TAG }}-img
       - name: Release
-        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.3.2
         with:
           files: |
             release/*.iso
