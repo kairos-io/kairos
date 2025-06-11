@@ -16,9 +16,12 @@ on:
         required: false
         type: string
         default: "generic"
+      kubernetes_distro:
+        required: false
+        type: string
 jobs:
   test-uki:
-    name: ${{ inputs.variant }} - ${{ inputs.test_label }} tests
+    name: Test ${{ inputs.test_label }} ${{ inputs.kubernetes_distro != '' && format(' - {0}', inputs.kubernetes_distro) || '' }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -59,11 +62,6 @@ jobs:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
           cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
-      - name: Install kairos-agent (for versioneer)
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
-        with:
-          repository: quay.io/kairos/packages
-          packages: system/kairos-agent
       - name: Set up Docker Buildx for public runners
         if: runner.environment == 'github-hosted'
         uses: docker/setup-buildx-action@master
@@ -113,9 +111,10 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             TRUSTED_BOOT=true
             VERSION=${{ env.VERSION }}
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
+            REGISTRY=quay.io/kairos
       - name: Grype check
         uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
         id: grype
@@ -143,30 +142,27 @@ jobs:
           -v $PWD/tests/assets/keys:/keys \
           -v $PWD/tests/assets/sysext/:/overlay \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:v0.7.3 --debug build-uki --output-dir /output/ -k /keys --output-type iso \
+          quay.io/kairos/auroraboot:v0.8.3 --debug build-uki --output-dir /output/ -k /keys --output-type iso \
           --single-efi-cmdline="testentry: nothing" \
           --overlay-iso /overlay \
           docker:${{ env.IMAGE_NAME }}
       - name: Build uki upgrade image 🔧
         if: ${{ inputs.test_label != 'boot-assessment' }}
         run: |
-          rm -rf /tmp/unpacked
-          sudo luet util unpack ${{ env.IMAGE_NAME }} ./unpacked --local
-          new_version="mynewversion"
-          echo "Current release info:"
-          cat ./unpacked/etc/kairos-release
-          sudo sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="'$new_version'"/' ./unpacked/etc/kairos-release
-          echo "$new_version" > "${PWD}/build/expected_new_version"
-          echo "New release info:"
-          cat ./unpacked/etc/kairos-release
+          echo "Building upgrade image for ${{ inputs.test_label }}"
+          docker build -t upgrade-image - <<EOF
+          FROM ${{ env.IMAGE_NAME }}
+          RUN echo "Current release info: \$(cat /etc/kairos-release)"
+          RUN sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="mynewversion"/' /etc/kairos-release
+          RUN echo "New release info: \$(cat /etc/kairos-release)"
+          EOF
 
-          docker run --rm \
-            -v $PWD/unpacked:/unpacked \
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:v0.7.3 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.8.3 --debug build-uki \
             --output-dir /result --keys /keys --output-type container \
-            dir:/unpacked
+            docker:upgrade-image
 
           image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | sed 's/+/-/g' | xargs)
           echo "Image: $image"
@@ -189,7 +185,7 @@ jobs:
         run: |
           export ISO=$(ls $PWD/build/kairos-*-uki.iso)
           export UPGRADE_IMAGE=$(cat "${PWD}/build/upgrade_image_name")
-          export EXPECTED_NEW_VERSION=$(cat "${PWD}/build/expected_new_version")
+          export EXPECTED_NEW_VERSION="mynewversion"
           export EXPECTED_SINGLE_ENTRY="testentry"
           cp tests/go.* .
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test_label }}" --fail-fast -r ./tests/

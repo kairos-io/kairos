@@ -42,7 +42,7 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
+          # All of this because opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
           base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
           tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
 
@@ -107,7 +107,6 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ inputs.base_image }}
             MODEL=${{ inputs.model }}
-            VARIANT=${{ inputs.variant }}
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}
