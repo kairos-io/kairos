@@ -161,12 +161,15 @@ kcrypt:
 		It("creates a passphrase and a key/pair to decrypt it", func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			// Expect a LUKS partition
+			By("rebooting")
 			vm.Reboot(750)
 			vm.EventuallyConnects(1200)
+			By("checking the partition")
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 
+			By("Expecting the secret to be created")
 			// Expect a secret to be created
 			cmd := exec.Command("kubectl", "get", "secrets",
 				fmt.Sprintf("%s-cos-persistent", tpmHash),
@@ -256,9 +259,11 @@ kcrypt:
 
 		It("creates uses the existing passphrase to decrypt it", func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
+			By("Rebooting")
 			// Expect a LUKS partition
 			vm.Reboot()
 			vm.EventuallyConnects(1200)
+			By("checking the partition")
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
@@ -320,8 +325,10 @@ install:
 
 			It("successfully talks to the server", func() {
 				Expect(installError).ToNot(HaveOccurred(), installationOutput)
+				By("rebooting")
 				vm.Reboot()
 				vm.EventuallyConnects(1200)
+				By("checking the partition")
 				out, err := vm.Sudo("blkid")
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)

@@ -121,9 +121,17 @@ var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 			})
 
 			By("checking grubmenu", func() {
-				out, err := vm.Sudo("cat /run/initramfs/cos-state/grubmenu")
+				// Statereset is now part of the default grub.cfg
+				out, err := vm.Sudo("cat /etc/cos/grub.cfg")
 				Expect(err).ToNot(HaveOccurred())
-				Expect(out).To(ContainSubstring("state reset"))
+				Expect(out).To(ContainSubstring("--id cos"))
+				Expect(out).To(ContainSubstring("--id fallback"))
+				Expect(out).To(ContainSubstring("--id recovery"))
+				Expect(out).To(ContainSubstring("--id statereset"))
+				// Now this one you can override with a custom grubmenu but by default we ship the remote recovery on it
+				out, err = vm.Sudo("cat /run/initramfs/cos-state/grubmenu")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(out).To(ContainSubstring("remoterecovery"))
 			})
 
 			By("checking additional mount specified, with no dir in rootfs", func() {
@@ -177,17 +185,16 @@ var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
 			})
 
-			By("Checking install/recovery services are disabled", func() {
+			By("Checking install/recovery services do not exist", func() {
 				if !isFlavor(vm, "alpine") {
 					for _, service := range []string{"kairos-interactive", "kairos-recovery"} {
-						By(fmt.Sprintf("Checking that service %s is disabled", service), func() {})
+						By(fmt.Sprintf("Checking that service %s does nto exist", service), func() {})
 						Eventually(func() string {
 							out, _ := vm.Sudo(fmt.Sprintf("systemctl status %s", service))
 							return out
 						}, 3*time.Minute, 2*time.Second).Should(
 							And(
-								ContainSubstring(fmt.Sprintf("loaded (/etc/systemd/system/%s.service; disabled;", service)),
-								ContainSubstring("Active: inactive (dead)"),
+								ContainSubstring(fmt.Sprintf("Unit %s.service could not be found", service)),
 							),
 						)
 					}

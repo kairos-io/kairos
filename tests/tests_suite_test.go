@@ -179,18 +179,15 @@ func expectDefaultService(vm VM) {
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).Should(ContainSubstring("kairos-agent"))
 		} else {
-			// Our systemd unit is of type "oneoff" like it should be:
-			// https://www.digitalocean.com/community/tutorials/understanding-systemd-units-and-unit-files#types-of-units
-			// This makes it stay in "Active: activating (start)" state for as long
-			// as it runs. The exit code of "systemctl status" on such a service is "3"
-			// thus we ignore the error here.
-			// https://www.freedesktop.org/software/systemd/man/systemctl.html#Exit%20status
+			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed
 			Eventually(func() string {
-				out, _ := vm.Sudo("systemctl status kairos")
-
+				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos")
 				return out
 			}, 3*time.Minute, 2*time.Second).Should(
-				ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"))
+				Or(
+					ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled;"),
+					ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled;"),
+				))
 		}
 	})
 }
