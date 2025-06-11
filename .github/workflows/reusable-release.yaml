@@ -232,12 +232,12 @@ jobs:
           output: trivy.sarif
           severity: critical
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@60168efe1c415ce0f5521ea06d5c2062adbeed1b # v3
+        uses: github/codeql-action/upload-sarif@fca7ace96b7d713c7035871441bd52efbe39e27e # v3
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@60168efe1c415ce0f5521ea06d5c2062adbeed1b # v3
+        uses: github/codeql-action/upload-sarif@fca7ace96b7d713c7035871441bd52efbe39e27e # v3
         with:
           sarif_file: 'grype.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}
