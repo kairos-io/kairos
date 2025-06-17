@@ -109,7 +109,7 @@ jobs:
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ github.ref_name }}
       - name: Grype check
-        uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
+        uses: anchore/scan-action@be7a22da4f22dde446c4c4c099887ff5b256526c # v6.3.0
         id: grype
         with:
           image: ${{ env.IMAGE_TAG }}
@@ -129,7 +129,7 @@ jobs:
             echo "No critical vulnerabilities found in the image."
           fi
       - name: Grype sarif
-        uses: anchore/scan-action@2c901ab7378897c01b8efaa2d0c9bf519cc64b9e # v6.2.0
+        uses: anchore/scan-action@be7a22da4f22dde446c4c4c099887ff5b256526c # v6.3.0
         with:
           image: ${{ env.IMAGE_TAG }}
           output-format: sarif
