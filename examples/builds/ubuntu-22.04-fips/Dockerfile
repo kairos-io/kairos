@@ -3,8 +3,8 @@ FROM quay.io/kairos/kairos-init:v0.5.1 AS kairos-init
 FROM ubuntu:22.04
 ARG VERSION=v0.0.1
 
-COPY --from=kairos-init /kairos-init /kairos-init
-RUN /kairos-init -l debug -s install --version "${VERSION}"
+RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+    /kairos-init -l debug -s install --version "${VERSION}"
 # Remove default kernel that Kairos-init installs
 RUN apt-get remove -y linux-base linux-image-generic-hwe-22.04 && apt-get autoremove -y
 ## THIS comes from the Ubuntu documentation: https://canonical-ubuntu-pro-client.readthedocs-hosted.com/en/latest/tutorials/create_a_fips_docker_image.html
@@ -21,8 +21,8 @@ RUN --mount=type=secret,id=pro-attach-config \
 COPY modules.fips /tmp/modules.fips
 RUN kernel=$(ls /lib/modules | head -n1) && mv /tmp/modules.fips /lib/modules/${kernel}/modules.fips
 
-RUN /kairos-init -l debug -s init --version "${VERSION}"
-RUN rm /kairos-init
+RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+    /kairos-init -l debug -s init --version "${VERSION}"
 
 # Symlink kernel HMAC
 RUN kernel=$(ls /boot/vmlinuz-* | head -n1) && ln -sf ."${kernel#/boot/}".hmac /boot/.vmlinuz.hmac
