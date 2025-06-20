@@ -3,11 +3,11 @@ FROM quay.io/kairos/kairos-init:v0.5.1 AS kairos-init
 FROM ubuntu:22.04 AS base-kairos
 ARG VERSION=v0.0.1
 
-COPY --from=kairos-init /kairos-init /kairos-init
-RUN /kairos-init -l debug -s install --version "${VERSION}"
+RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+    /kairos-init -l debug -s install --version "${VERSION}"
 # Remove default kernel that Kairos-init installs
 RUN apt-get remove -y linux-base linux-image-generic-hwe-22.04 && apt-get autoremove -y
 # Install generic linux image instead
 RUN apt-get install -y --no-install-recommends linux-image-generic
-RUN /kairos-init -l debug -s init --version "${VERSION}"
-RUN rm /kairos-init
+RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+    /kairos-init -l debug -s init --version "${VERSION}"
