@@ -36,8 +36,8 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			out, _ = vm.Sudo("ps aux")
 			Expect(out).Should(ContainSubstring("/usr/sbin/crond"))
 		} else {
-			out, _ := vm.Sudo("systemctl status kairos")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled"))
+			out, _ := vm.Sudo("systemctl status kairos-installer")
+			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
 
 			/* TODO: Add logrotate to kairos-init, check it on acceptance test
 			out, _ = vm.Sudo("systemctl status logrotate.timer")

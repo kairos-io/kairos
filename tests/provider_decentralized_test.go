@@ -48,8 +48,8 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				out, _ := vm.Sudo("rc-status")
 				Expect(out).Should(ContainSubstring("kairos-agent"))
 			} else {
-				out, _ := vm.Sudo("systemctl status kairos")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled"))
+				out, _ := vm.Sudo("systemctl status kairos-installer")
+				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
 			}
 		})
 

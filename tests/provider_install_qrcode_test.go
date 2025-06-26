@@ -50,8 +50,8 @@ var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-in
 			// 	return out
 			// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
-			out, _ := vm.Sudo("systemctl status kairos")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled"))
+			out, _ := vm.Sudo("systemctl status kairos-installer")
+			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
 		}
 
 		By("checking cmdline")
