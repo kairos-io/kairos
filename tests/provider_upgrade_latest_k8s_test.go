@@ -71,8 +71,8 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 			// 	return out
 			// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
-			out, _ := vm.Sudo("systemctl status kairos")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos.service; enabled"))
+			out, _ := vm.Sudo("systemctl status kairos-installer")
+			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
 		}
 
 		By("copy the config")
