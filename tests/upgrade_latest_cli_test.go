@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -65,6 +66,13 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 			By(fmt.Sprintf("Checking current version: %s", currentVersion))
 			Expect(currentVersion).To(ContainSubstring("v"))
 
+			// Get SSH host key fingerprint before upgrade
+			By("Getting SSH host key fingerprint before upgrade")
+			preUpgradeFingerprint, err := vm.Sudo("cat /etc/ssh/ssh_host_*.pub 2>/dev/null | ssh-keygen -lf -")
+			Expect(err).ToNot(HaveOccurred(), preUpgradeFingerprint)
+			Expect(preUpgradeFingerprint).ToNot(BeEmpty(), "SSH host key fingerprint should not be empty")
+			fmt.Printf("Pre-upgrade SSH fingerprint: %s", preUpgradeFingerprint)
+
 			By(fmt.Sprintf("Upgrading to: %s", containerImage))
 			out, err := vm.Sudo("kairos-agent upgrade --force --image " + containerImage)
 			Expect(err).ToNot(HaveOccurred(), string(out))
@@ -85,6 +93,19 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-latest-with-cli"), fu
 				return v
 				// TODO: Add regex semver check here
 			}, 30*time.Minute, 10*time.Second).ShouldNot(Equal(currentVersion))
+
+			// Get SSH host key fingerprint after upgrade
+			By("Getting SSH host key fingerprint after upgrade")
+			postUpgradeFingerprint, err := vm.Sudo("cat /etc/ssh/ssh_host_*.pub 2>/dev/null | ssh-keygen -lf -")
+			Expect(err).ToNot(HaveOccurred(), postUpgradeFingerprint)
+			Expect(postUpgradeFingerprint).ToNot(BeEmpty(), "SSH host key fingerprint should not be empty")
+			fmt.Printf("Post-upgrade SSH fingerprint: %s", postUpgradeFingerprint)
+
+			// Compare fingerprints - they should be identical
+			By("Comparing SSH host key fingerprints")
+			Expect(strings.TrimSpace(postUpgradeFingerprint)).To(Equal(strings.TrimSpace(preUpgradeFingerprint)),
+				"SSH host key fingerprint should remain the same after upgrade")
+
 		})
 	})
 })
