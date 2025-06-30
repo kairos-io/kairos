@@ -29,22 +29,8 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 	It("installs to disk with custom config", func() {
 		By("checking if it has default service active")
-		if isFlavor(vm, "alpine") {
-			out, _ := vm.Sudo("rc-status")
-			Expect(out).Should(ContainSubstring("kairos"))
-			Expect(out).Should(ContainSubstring("kairos-agent"))
-			out, _ = vm.Sudo("ps aux")
-			Expect(out).Should(ContainSubstring("/usr/sbin/crond"))
-		} else {
-			out, _ := vm.Sudo("systemctl status kairos-installer")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
 
-			/* TODO: Add logrotate to kairos-init, check it on acceptance test
-			out, _ = vm.Sudo("systemctl status logrotate.timer")
-			Expect(out).Should(ContainSubstring("active (waiting)"))
-
-			*/
-		}
+		expectDefaultService(vm)
 
 		By("copy the config")
 		err := vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
@@ -90,7 +76,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		By("Checking agent provider correct start")
 		Eventually(func() string {
-			out, _ := vm.Sudo("cat /var/log/kairos/provider-*.log")
+			out, _ := vm.Sudo("journalctl -t kairos-provider")
 			return out
 		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
 

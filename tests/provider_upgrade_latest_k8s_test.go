@@ -61,19 +61,8 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		if containerImage == "" {
 			Fail("CONTAINER_IMAGE needs to be set")
 		}
-		if isFlavor(vm, "alpine") {
-			out, _ := vm.Sudo("rc-status")
-			Expect(out).Should(ContainSubstring("kairos"))
-			Expect(out).Should(ContainSubstring("kairos-agent"))
-		} else {
-			// Eventually(func() string {
-			// 	out, _ := vm.Sudo("sudo systemctl status kairos-agent")
-			// 	return out
-			// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
-			out, _ := vm.Sudo("systemctl status kairos-installer")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
-		}
+		expectDefaultService(vm)
 
 		By("copy the config")
 		err := vm.Scp("assets/single.yaml", "/tmp/config.yaml", "0770")
@@ -114,7 +103,7 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 
 		By("Checking agent provider correct start")
 		Eventually(func() string {
-			out, _ := vm.Sudo("cat /var/log/kairos/provider-*.log")
+			out, _ := vm.Sudo("journalctl -t kairos-provider")
 			return out
 		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
 

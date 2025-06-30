@@ -4,7 +4,6 @@ package mos_test
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -44,19 +43,13 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 
 	It("installs to disk with custom config", func() {
 		vmForEach("checking if it has default service active", vms, func(vm VM) {
-			if isFlavor(vm, "alpine") {
-				out, _ := vm.Sudo("rc-status")
-				Expect(out).Should(ContainSubstring("kairos-agent"))
-			} else {
-				out, _ := vm.Sudo("systemctl status kairos-installer")
-				Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
-			}
+			expectDefaultService(vm)
 		})
 
 		vmForEach("installing", vms, func(vm VM) {
 			// Generate a random but fixed hostname for each vm
 			// So on reboot the hostname doesnt change and k3s gets restarted and has to build the nodes again
-			configPath = cloudConfig(filepath.Dir(vm.StateDir), token)
+			configPath = cloudConfig(token)
 			err := vm.Scp(configPath, "/tmp/config.yaml", "0770")
 			Expect(err).ToNot(HaveOccurred())
 
@@ -106,7 +99,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				out, err = vm.Sudo("cat /tmp/mnt/STATE/grubmenu")
 				Expect(err).ToNot(HaveOccurred(), out)
 
-				Expect(out).Should(ContainSubstring("Kairos remote recovery"))
+				Expect(out).To(ContainSubstring("--id remoterecovery"))
 
 				// No longer used. This is created to override the default entry but now the default entry is kairos already
 				// TODO: Create a test in acceptance to check for the creation of this file and if it has the correct override entry
@@ -136,7 +129,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				*/
 			} else {
 				Eventually(func() string {
-					out, _ = vm.Sudo("cat /var/log/kairos/provider-*.log")
+					out, _ = vm.Sudo("journalctl -t kairos-provider")
 					return out
 				}, 10*time.Minute, 1*time.Second).Should(
 					Or(
@@ -230,7 +223,7 @@ func vmForEach(description string, vms []VM, action func(vm VM)) {
 	}
 }
 
-func cloudConfig(name, token string) string {
+func cloudConfig(token string) string {
 	config := fmt.Sprintf(`#cloud-config
 
 install:
@@ -245,8 +238,7 @@ stages:
           passwd: "kairos"
           groups:
             - "admin"
-    - name: "Set hostname"
-      hostname: kairos-%s
+      hostname: kairos-{{ trunc 4 .Random }}
 
 k3s:
   enabled: true
@@ -254,7 +246,7 @@ k3s:
 p2p:
   network_token: %s
   dns: true
-`, name, token)
+`, token)
 
 	f, err := os.CreateTemp("", "kairos-config-*.yaml")
 	Expect(err).ToNot(HaveOccurred())

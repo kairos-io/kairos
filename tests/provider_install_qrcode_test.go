@@ -40,19 +40,8 @@ var _ = Describe("kairos qr code install", Label("provider", "provider-qrcode-in
 
 	It("installs to disk with custom config", func() {
 		By("checking if is has default service active")
-		if isFlavor(vm, "alpine") {
-			out, _ := vm.Sudo("rc-status")
-			Expect(out).Should(ContainSubstring("kairos"))
-			Expect(out).Should(ContainSubstring("kairos-agent"))
-		} else {
-			// Eventually(func() string {
-			// 	out, _ := machine.SSHCommand("sudo systemctl status kairos-agent")
-			// 	return out
-			// }, 30*time.Second, 10*time.Second).Should(ContainSubstring("no network token"))
 
-			out, _ := vm.Sudo("systemctl status kairos-installer")
-			Expect(out).Should(ContainSubstring("loaded (/etc/systemd/system/kairos-installer.service; enabled"))
-		}
+		expectDefaultService(vm)
 
 		By("checking cmdline")
 		v, err := vm.Sudo("cat /proc/cmdline")
@@ -98,17 +87,21 @@ func getQRImage(vm VM) string {
 	var err error
 	fileName, err = vm.Screenshot()
 	if err != nil {
+		fmt.Printf("Error taking screenshot: %s\n", err.Error())
 		os.RemoveAll(fileName)
 	}
 	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("Screenshot saved to %s\n", fileName)
 
 	// open and decode image file
 	file, err := os.Open(fileName)
 	if err != nil {
+		fmt.Printf("Error opening file %s: %s\n", fileName, err.Error())
 		os.RemoveAll(fileName)
 	}
 	img, _, err := image.Decode(file)
 	if err != nil {
+		fmt.Printf("Error decoding image %s: %s\n", fileName, err.Error())
 		os.RemoveAll(fileName)
 	}
 	Expect(err).ToNot(HaveOccurred())
@@ -116,6 +109,7 @@ func getQRImage(vm VM) string {
 	// prepare BinaryBitmap
 	bmp, err := gozxing.NewBinaryBitmapFromImage(img)
 	if err != nil {
+		fmt.Printf("Error creating BinaryBitmap from image %s: %s\n", fileName, err.Error())
 		os.RemoveAll(fileName)
 	}
 	Expect(err).ToNot(HaveOccurred())
@@ -124,6 +118,7 @@ func getQRImage(vm VM) string {
 	qrReader := qrcode.NewQRCodeReader()
 	_, err = qrReader.Decode(bmp, nil)
 	if err != nil {
+		fmt.Printf("Error decoding QR code from image %s: %s\n", fileName, err.Error())
 		os.RemoveAll(fileName)
 
 		return ""
