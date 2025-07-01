@@ -462,3 +462,11 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	return opts
 }
+
+func HostSSHFingerprint() string {
+	By("Getting SSH host key fingerprint")
+	fp, err := vm.Sudo("cat /etc/ssh/ssh_host_*.pub 2>/dev/null | ssh-keygen -lf -")
+	Expect(err).ToNot(HaveOccurred(), fp)
+	Expect(fp).ToNot(BeEmpty(), "SSH host key fingerprint should not be empty")
+	return fp
+}
