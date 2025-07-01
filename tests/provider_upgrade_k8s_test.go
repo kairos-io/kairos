@@ -114,7 +114,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		// for this.
 		By("listing upgrade options")
 		resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases --all --pre | tail -1`)
-		Expect(resultStr).To(ContainSubstring("quay.io/kairos"))
+		Expect(resultStr).To(ContainSubstring("quay.io/kairos"), resultStr)
 
 		By("copy upgrade plan")
 
