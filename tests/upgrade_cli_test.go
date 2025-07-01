@@ -58,7 +58,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 			By(fmt.Sprintf("Checking current version: %s", currentVersion))
 
 			By("Getting SSH host key fingerprint before upgrade")
-			preFP := HostSSHFingerprint()
+			preFP := HostSSHFingerprint(vm)
 
 			By(fmt.Sprintf("Upgrading to: %s", containerImage))
 			out, err := vm.Sudo("kairos-agent --debug upgrade --force --source oci://" + containerImage)
@@ -75,7 +75,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 			}, 10*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
 
 			By("Getting SSH host key fingerprint after upgrade")
-			postFP := HostSSHFingerprint()
+			postFP := HostSSHFingerprint(vm)
 
 			By("Comparing SSH host key fingerprints")
 			Expect(strings.TrimSpace(postFP)).To(Equal(strings.TrimSpace(preFP)),
