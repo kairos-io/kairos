@@ -463,7 +463,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	return opts
 }
 
-func HostSSHFingerprint() string {
+func HostSSHFingerprint(vm VM) string {
 	By("Getting SSH host key fingerprint")
 	fp, err := vm.Sudo("cat /etc/ssh/ssh_host_*.pub 2>/dev/null | ssh-keygen -lf -")
 	Expect(err).ToNot(HaveOccurred(), fp)
