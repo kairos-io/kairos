@@ -102,8 +102,14 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		}
 
 		By("Checking agent provider correct start")
+		// Logs or journalctl should contain the string "One time bootstrap starting" or "Sentinel exists"
+		// Older versions wrote to /var/log/kairos/provider-*.log while newer versions write to journalctl with tag "kairos-provider"
+		// We check both to ensure compatibility with older versions
 		Eventually(func() string {
 			out, _ := vm.Sudo("journalctl -t kairos-provider")
+			if len(out) == 0 || strings.Contains(out, "No entries") {
+				out, _ = vm.Sudo("cat /var/log/kairos/provider-*.log")
+			}
 			return out
 		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("One time bootstrap starting"), ContainSubstring("Sentinel exists")))
 
