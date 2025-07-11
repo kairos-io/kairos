@@ -142,7 +142,10 @@ jobs:
           -v $PWD/tests/assets/keys:/keys \
           -v $PWD/tests/assets/sysext/:/overlay \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:v0.8.3 --debug build-uki --output-dir /output/ -k /keys --output-type iso \
+          quay.io/kairos/auroraboot:v0.9.0-rc1 --debug build-uki --output-dir /output/ --output-type iso \
+          --public-keys /keys \
+          --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
+          --sb-key /keys/db.key --sb-cert /keys/db.pem \
           --single-efi-cmdline="testentry: nothing" \
           --overlay-iso /overlay \
           docker:${{ env.IMAGE_NAME }}
@@ -160,8 +163,11 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:v0.8.3 --debug build-uki \
-            --output-dir /result --keys /keys --output-type container \
+            quay.io/kairos/auroraboot:v0.9.0-rc1 --debug build-uki \
+            --output-dir /result --output-type container \
+            --public-keys /keys \
+            --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
+            --sb-key /keys/db.key --sb-cert /keys/db.pem \
             docker:upgrade-image
 
           image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | sed 's/+/-/g' | xargs)
