@@ -135,7 +135,7 @@ jobs:
         run: |
           docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:latest \
+          quay.io/kairos/auroraboot:v0.9.0 \
           --debug \
           --set "disable_http_server=true" \
           --set "disable_netboot=true" \
@@ -148,7 +148,7 @@ jobs:
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
+          quay.io/kairos/auroraboot:v0.9.0 --debug build-iso --output /output/ \
           docker:${{ env.IMAGE_NAME }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ inputs.model == 'generic' }}
