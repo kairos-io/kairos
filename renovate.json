@@ -29,5 +29,15 @@
       ],
       "pinDigests": true
     }
+  ],
+  "regexManagers": [
+    {
+      "fileMatch": [".github/workflows/.*.ya?ml"],
+      "matchStrings": [
+        "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)"
+      ],
+      "depNameTemplate": "quay.io/kairos/auroraboot",
+      "datasourceTemplate": "docker"
+    }
   ]
 }
