@@ -25,7 +25,7 @@ ignore:
   - vulnerability: GHSA-v23v-6jw2-98fq
     package:
       name: github.com/docker/docker  # indirect dependency, no directly used by k0s
-      version: v24.0.9+incompatible
+      version: v27.0.2+incompatible
       location: /usr/bin/k0s
   - package:
       name: linux-kernel
