@@ -172,7 +172,7 @@ jobs:
           mkdir release
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/release:/output \
-          quay.io/kairos/auroraboot:v0.9.0 --debug build-iso --output /output/ \
+          quay.io/kairos/auroraboot:v0.10.0 --debug build-iso --output /output/ \
           docker:${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
         if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
@@ -186,7 +186,7 @@ jobs:
         run: |
           docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD:/output \
-          quay.io/kairos/auroraboot:v0.9.0 \
+          quay.io/kairos/auroraboot:v0.10.0 \
           --debug \
           --set "disable_http_server=true" \
           --set "disable_netboot=true" \
