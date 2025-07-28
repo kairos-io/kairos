@@ -17,6 +17,11 @@ jobs:
         version: "auto"
         iso: true
         grype: true
+        registry_domain: "quay.io"
+        registry_username: ${{ secrets.QUAY_USERNAME }}
+        registry_password: ${{ secrets.QUAY_PASSWORD }}
+        registry_namespace: "kairos"
+        registry_repository: "ci-temp-images"
 
   build:
     name: ${{ matrix.base_image }}
