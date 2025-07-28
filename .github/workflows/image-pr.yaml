@@ -16,6 +16,7 @@ jobs:
         arch: "amd64"
         version: "auto"
         iso: true
+        grype: true
 
   build:
     name: ${{ matrix.base_image }}
