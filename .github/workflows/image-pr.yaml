@@ -10,6 +10,7 @@ concurrency:
 jobs:
   factory:
       uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@main
+      secrets: inherit
       with:
         base_image: "ubuntu:24.04"
         model: "generic"
@@ -18,8 +19,6 @@ jobs:
         iso: true
         grype: true
         registry_domain: "quay.io"
-        registry_username: ${{ secrets.QUAY_USERNAME }}
-        registry_password: ${{ secrets.QUAY_PASSWORD }}
         registry_namespace: "kairos"
         registry_repository: "ci-temp-images"
 
