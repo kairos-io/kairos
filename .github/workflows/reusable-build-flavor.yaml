@@ -27,19 +27,6 @@ on:
       event_type:
         required: true
         type: string
-      # New flexible image naming parameters
-      image_repository:
-        required: false
-        type: string
-        default: "quay.io"
-      image_project:
-        required: false
-        type: string
-        default: "kairos/ci-temp-images"
-      custom_tag_format:
-        required: false
-        type: string
-        description: "Custom tag format using variables like $FLAVOR, $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $VERSION, $SHA"
 
 jobs:
   build:
@@ -97,50 +84,15 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Set Image tag
         run: |
-          # Set up variables for tag generation
-          FLAVOR="${{ steps.split.outputs.flavor }}"
-          FLAVOR_RELEASE="${{ steps.split.outputs.flavor_release }}"
-          VARIANT="${{ inputs.variant }}"
-          ARCH="${{ inputs.arch }}"
-          MODEL="${{ inputs.model }}"
-          KUBERNETES_DISTRO="${{ inputs.kubernetes_distro }}"
-          KUBERNETES_VERSION="${{ inputs.kubernetes_version }}"
-          VERSION="${{ env.VERSION }}"
-          SHA="${{ github.sha }}"
-          
-          # Build kubernetes components if they exist
-          KUBERNETES_COMPONENTS=""
-          if [[ -n "$KUBERNETES_DISTRO" ]]; then
-            KUBERNETES_COMPONENTS+="-$KUBERNETES_DISTRO"
+          IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_distro }}"
           fi
-          if [[ -n "$KUBERNETES_VERSION" ]]; then
-            KUBERNETES_COMPONENTS+="-$KUBERNETES_VERSION"
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_version }}"
           fi
-          
-          # Default tag format (maintains backward compatibility)
-          DEFAULT_TAG="$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$KUBERNETES_COMPONENTS"
-          
-          # Use custom tag format if provided, otherwise use default
-          if [[ -n "${{ inputs.custom_tag_format }}" ]]; then
-            # Replace variables in custom format
-            TAG=$(echo "${{ inputs.custom_tag_format }}" | \
-              sed "s/\$FLAVOR/$FLAVOR/g" | \
-              sed "s/\$FLAVOR_RELEASE/$FLAVOR_RELEASE/g" | \
-              sed "s/\$VARIANT/$VARIANT/g" | \
-              sed "s/\$ARCH/$ARCH/g" | \
-              sed "s/\$MODEL/$MODEL/g" | \
-              sed "s/\$KUBERNETES_DISTRO/${KUBERNETES_DISTRO:-}/g" | \
-              sed "s/\$KUBERNETES_VERSION/${KUBERNETES_VERSION:-}/g" | \
-              sed "s/\$VERSION/$VERSION/g" | \
-              sed "s/\$SHA/$SHA/g")
-          else
-            TAG="$DEFAULT_TAG"
-          fi
-          
-          # Build the full image name
-          IMAGE_NAME="${{ inputs.image_repository }}/${{ inputs.image_project }}:$TAG-$SHA"
-          
-          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+          echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
       - name: Build container 🔧
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
         with:
@@ -159,7 +111,7 @@ jobs:
             KUBERNETES_VERSION=${{ inputs.kubernetes_version }}
             VERSION=${{ env.VERSION }}
       - name: Grype check
-        uses: anchore/scan-action@be7a22da4f22dde446c4c4c099887ff5b256526c # v6.3.0
+        uses: anchore/scan-action@16910ac423301c6d30554b83a7f71ac6ff4a51f3 # v6.4.0
         id: grype
         with:
           image: ${{ env.IMAGE_NAME }}
@@ -183,7 +135,7 @@ jobs:
         run: |
           docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:latest \
+          quay.io/kairos/auroraboot:v0.9.0 \
           --debug \
           --set "disable_http_server=true" \
           --set "disable_netboot=true" \
@@ -196,7 +148,7 @@ jobs:
           mkdir build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/build/:/output \
-          quay.io/kairos/auroraboot:latest --debug build-iso --output /output/ \
+          quay.io/kairos/auroraboot:v0.9.0 --debug build-iso --output /output/ \
           docker:${{ env.IMAGE_NAME }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ inputs.model == 'generic' }}
@@ -213,48 +165,14 @@ jobs:
       - name: Tag and Push Nightly
         if: github.ref == 'refs/heads/master'
         run: |
-          # Set up variables for nightly tag generation
-          FLAVOR="${{ steps.split.outputs.flavor }}"
-          FLAVOR_RELEASE="${{ steps.split.outputs.flavor_release }}"
-          VARIANT="${{ inputs.variant }}"
-          ARCH="${{ inputs.arch }}"
-          MODEL="${{ inputs.model }}"
-          KUBERNETES_DISTRO="${{ inputs.kubernetes_distro }}"
-          KUBERNETES_VERSION="${{ inputs.kubernetes_version }}"
-          VERSION="${{ env.VERSION }}"
-          
-          # Build kubernetes components if they exist
-          KUBERNETES_COMPONENTS=""
-          if [[ -n "$KUBERNETES_DISTRO" ]]; then
-            KUBERNETES_COMPONENTS+="-$KUBERNETES_DISTRO"
+          NIGHTLY_NAME="quay.io/kairos/${{ steps.split.outputs.flavor }}:${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-master"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            NIGHTLY_NAME+="-${{ inputs.kubernetes_distro }}"
           fi
-          if [[ -n "$KUBERNETES_VERSION" ]]; then
-            KUBERNETES_COMPONENTS+="-$KUBERNETES_VERSION"
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            NIGHTLY_NAME+="-${{ inputs.kubernetes_version }}"
           fi
-          
-          # Default nightly tag format (maintains backward compatibility)
-          DEFAULT_NIGHTLY_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-master$KUBERNETES_COMPONENTS"
-          
-          # Use custom tag format if provided, otherwise use default
-          if [[ -n "${{ inputs.custom_tag_format }}" ]]; then
-            # Replace variables in custom format and add -master suffix
-            NIGHTLY_TAG=$(echo "${{ inputs.custom_tag_format }}" | \
-              sed "s/\$FLAVOR/$FLAVOR/g" | \
-              sed "s/\$FLAVOR_RELEASE/$FLAVOR_RELEASE/g" | \
-              sed "s/\$VARIANT/$VARIANT/g" | \
-              sed "s/\$ARCH/$ARCH/g" | \
-              sed "s/\$MODEL/$MODEL/g" | \
-              sed "s/\$KUBERNETES_DISTRO/${KUBERNETES_DISTRO:-}/g" | \
-              sed "s/\$KUBERNETES_VERSION/${KUBERNETES_VERSION:-}/g" | \
-              sed "s/\$VERSION/$VERSION/g" | \
-              sed "s/\$SHA/master/g")
-          else
-            NIGHTLY_TAG="$DEFAULT_NIGHTLY_TAG"
-          fi
-          
-          # Build the nightly image name
-          NIGHTLY_NAME="quay.io/kairos/$FLAVOR:$NIGHTLY_TAG"
-          
           docker run --name temp_container ${{ env.IMAGE_NAME }}
           docker commit --change='LABEL quay.expires-after=' temp_container $NIGHTLY_NAME
           docker push $NIGHTLY_NAME
