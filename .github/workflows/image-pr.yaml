@@ -15,6 +15,7 @@ jobs:
         model: "generic"
         arch: "amd64"
         version: "auto"
+        iso: true
 
   build:
     name: ${{ matrix.base_image }}
