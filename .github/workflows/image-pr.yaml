@@ -3,7 +3,10 @@ name: 'Build AMD64 images (PR)'
 on:
   pull_request:
 
-permissions: read-all
+permissions:
+  contents: write
+  security-events: write
+  id-token: write
 concurrency:
   group: ci-pr-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
