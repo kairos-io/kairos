@@ -25,6 +25,7 @@ jobs:
         registry_domain: "quay.io"
         registry_namespace: "kairos"
         registry_repository: "ci-temp-images"
+        custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
 
   # build:
   #   name: ${{ matrix.base_image }}
