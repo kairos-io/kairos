@@ -116,7 +116,7 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - build
+      - factory
     strategy:
       matrix:
         base_image:
@@ -133,7 +133,7 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - build
+      - factory
     strategy:
       fail-fast: true
       matrix:
