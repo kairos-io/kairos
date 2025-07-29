@@ -26,6 +26,8 @@ jobs:
         registry_namespace: "kairos"
         registry_repository: "ci-temp-images"
         custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
+        image_labels: |
+          quay.expires-after=6h
 
   # build:
   #   name: ${{ matrix.base_image }}
