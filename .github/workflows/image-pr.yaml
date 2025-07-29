@@ -50,11 +50,11 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - factory
+      - build
     strategy:
       fail-fast: true
       matrix:
-        secureboot: [false]
+        secureboot: [fylse]
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
@@ -84,7 +84,7 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - factory
+      - build
     strategy:
       matrix:
         base_image:
@@ -101,7 +101,7 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - factory
+      - build
     strategy:
       fail-fast: true
       matrix:
