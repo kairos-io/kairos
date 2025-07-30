@@ -28,8 +28,8 @@ jobs:
       registry_repository: "ci-temp-images"
       custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
-      image_labels: |
-        quay.expires-after=6h
+      image_labels: "quay.expires-after=6h"
+      summary_artifacts: true
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +54,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        secureboot: [fylse]
+        secureboot: [false]
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
