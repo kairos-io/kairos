@@ -15,7 +15,9 @@ jobs:
   build:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@main
-    secrets: inherit
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
       base_image: ${{ matrix.base_image }}
       model: "generic"
