@@ -172,7 +172,7 @@ jobs:
           mkdir release
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD/release:/output \
-          quay.io/kairos/auroraboot:v0.9.0 --debug build-iso --output /output/ \
+          quay.io/kairos/auroraboot:v0.10.0 --debug build-iso --output /output/ \
           docker:${{ env.IMAGE_TAG }}
       - name: Sign ISO sha files
         if: ${{ inputs.trusted_boot == 'false' && inputs.model == 'generic' }}
@@ -186,7 +186,7 @@ jobs:
         run: |
           docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock \
           -v $PWD:/output \
-          quay.io/kairos/auroraboot:v0.9.0 \
+          quay.io/kairos/auroraboot:v0.10.0 \
           --debug \
           --set "disable_http_server=true" \
           --set "disable_netboot=true" \
@@ -232,12 +232,12 @@ jobs:
           output: trivy.sarif
           severity: critical
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3
+        uses: github/codeql-action/upload-sarif@51f77329afa6477de8c49fc9c7046c15b9a4e79d # v3
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}
       - name: Upload Grype scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@4e828ff8d448a8a6e532957b1811f387a63867e8 # v3
+        uses: github/codeql-action/upload-sarif@51f77329afa6477de8c49fc9c7046c15b9a4e79d # v3
         with:
           sarif_file: 'grype.sarif'
           category: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot != 'false' && '-uki' || '' }}
