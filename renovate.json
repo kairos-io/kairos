@@ -30,9 +30,12 @@
       "pinDigests": true
     }
   ],
-  "regexManagers": [
+  "customManagers": [
     {
-      "fileMatch": [".github/workflows/.*.ya?ml"],
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/.github/workflows/.*.ya?ml/"
+      ],
       "matchStrings": [
         "quay.io/kairos/auroraboot:(?<currentValue>[a-zA-Z0-9_.-]+)"
       ],
