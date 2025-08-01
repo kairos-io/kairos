@@ -19,6 +19,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
       arch: "amd64"
@@ -28,7 +29,7 @@ jobs:
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"
-      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION"
+      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$SHA"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
       image_labels: "quay.expires-after=6h"
       summary_artifacts: true
