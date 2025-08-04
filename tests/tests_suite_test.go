@@ -100,8 +100,10 @@ func pass() string {
 }
 
 func gatherLogs(vm VM) {
-	vm.Scp("assets/kubernetes_logs.sh", "/tmp/logs.sh", "0770")
-	vm.Sudo("sh /tmp/logs.sh > /run/kube_logs")
+	// Use kairos-agent logs command to collect logs
+	vm.Sudo("kairos-agent logs --output /run/kairos-logs.tar.gz")
+
+	// Collect additional system information not covered by kairos-agent logs
 	vm.Sudo("cat /oem/* > /run/oem.yaml")
 	vm.Sudo("cat /etc/resolv.conf > /run/resolv.conf")
 	vm.Sudo("k3s kubectl get pods -A -o json > /run/pods.json")
@@ -114,23 +116,16 @@ func gatherLogs(vm VM) {
 	vm.Sudo("blkid > /run/blkid")
 	vm.Sudo("dmesg > /run/dmesg.log")
 
-	// zip all files under /var/log/kairos
-	vm.Sudo("tar -czf /run/kairos-agent-logs.tar.gz /var/log/kairos")
+	// Collect Kubernetes logs
+	vm.Scp("assets/kubernetes_logs.sh", "/tmp/logs.sh", "0770")
+	vm.Sudo("sh /tmp/logs.sh > /run/kube_logs")
 
 	vm.GatherAllLogs(
 		[]string{
 			"edgevpn@kairos",
-			"kairos-agent",
-			"cos-setup-boot",
-			"cos-setup-network",
-			"cos-setup-reconcile",
-			"kairos",
-			"k3s",
-			"k3s-agent",
 		},
 		[]string{
 			"/var/log/edgevpn.log",
-			"/var/log/kairos/agent.log",
 			"/run/pods.json",
 			"/run/disk",
 			"/run/mounts",
@@ -141,11 +136,8 @@ func gatherLogs(vm VM) {
 			"/run/oem.yaml",
 			"/run/resolv.conf",
 			"/run/dmesg.log",
-			"/run/immucore/immucore.log",
-			"/run/immucore/initramfs_stage.log",
-			"/run/immucore/rootfs_stage.log",
 			"/tmp/ovmf_debug.log",
-			"/run/kairos-agent-logs.tar.gz",
+			"/run/kairos-logs.tar.gz",
 		})
 }
 
