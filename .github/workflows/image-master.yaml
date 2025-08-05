@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - factory-master
 
 permissions: read-all
 concurrency:
