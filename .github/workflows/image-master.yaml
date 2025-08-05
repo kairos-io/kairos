@@ -31,7 +31,6 @@ jobs:
       grype: true
       registry_domain: "quay.io"
       registry_namespace: "kairos"
-      registry_repository: "kairos"
       custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
       summary_artifacts: true
