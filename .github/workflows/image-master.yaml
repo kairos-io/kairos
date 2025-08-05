@@ -15,7 +15,7 @@ concurrency:
   group: ci-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  build:
+  factory:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@main
     secrets:
@@ -68,7 +68,7 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - build
+      - factory
     strategy:
       fail-fast: true
       matrix:
@@ -119,7 +119,7 @@ jobs:
       model: "generic"
       arch: "amd64"
     needs:
-      - build
+      - factory
     strategy:
       matrix:
         base_image:
@@ -136,7 +136,7 @@ jobs:
       model: "generic"
       arch: "amd64"
     needs:
-      - build
+      - factory
     strategy:
       fail-fast: true
       matrix:
@@ -175,7 +175,7 @@ jobs:
       model: "generic"
       kubernetes_distro: "k3s"
     needs:
-      - build
+      - factory
     strategy:
       fail-fast: false
       matrix:
