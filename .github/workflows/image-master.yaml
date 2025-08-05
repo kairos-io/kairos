@@ -15,7 +15,36 @@ concurrency:
   group: ci-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  factory:
+  core:
+    name: ${{ matrix.base_image }}
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@main
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
+    with:
+      dockerfile_path: "images/Dockerfile"
+      base_image: ${{ matrix.base_image }}
+      model: "generic"
+      arch: "amd64"
+      version: "auto"
+      iso: true
+      grype: true
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
+      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
+      custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
+      summary_artifacts: true
+    strategy:
+      fail-fast: false
+      matrix:
+        base_image:
+          - "ubuntu:24.04"
+          - "ubuntu:22.04"
+          - "ubuntu:20.04"
+          - "alpine:3.21"
+          - "opensuse/leap:15.6"
+          - "debian:12"
+  standard:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@main
     secrets:
@@ -34,7 +63,7 @@ jobs:
       custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
       summary_artifacts: true
-      kubernetes_distro: ${{ matrix.kubernetes_distro || '' }}
+      kubernetes_distro: "k3s"
     strategy:
       fail-fast: false
       matrix:
@@ -45,9 +74,6 @@ jobs:
           - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:12"
-        kubernetes_distro:
-          - "k3s"
-          - ""
         include:
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k0s"
@@ -68,7 +94,7 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - factory
+      - core
     strategy:
       fail-fast: true
       matrix:
@@ -119,7 +145,7 @@ jobs:
       model: "generic"
       arch: "amd64"
     needs:
-      - factory
+      - core
     strategy:
       matrix:
         base_image:
@@ -136,7 +162,7 @@ jobs:
       model: "generic"
       arch: "amd64"
     needs:
-      - factory
+      - core
     strategy:
       fail-fast: true
       matrix:
@@ -148,6 +174,7 @@ jobs:
           - "encryption-remote-static"
           - "encryption-remote-https-pinned"
           - "encryption-remote-https-bad-cert"
+
   standard-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -175,7 +202,7 @@ jobs:
       model: "generic"
       kubernetes_distro: "k3s"
     needs:
-      - factory
+      - standard
     strategy:
       fail-fast: false
       matrix:
