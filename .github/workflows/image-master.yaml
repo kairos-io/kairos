@@ -62,8 +62,10 @@ jobs:
       grype: true
       registry_domain: "quay.io"
       registry_namespace: "kairos"
-      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
+      registry_repository: "ci-temp-images"
+      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO-$COMMIT_SHA"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
+      image_labels: "quay.expires-after=2w"
       summary_artifacts: true
       kubernetes_distro: "k3s"
     strategy:
