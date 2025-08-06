@@ -27,7 +27,6 @@ jobs:
       model: ${{ matrix.model }}
       arch: "arm64"
       version: "auto"
-      iso: ${{ matrix.iso }}
       grype: true
       registry_domain: "quay.io"
       registry_namespace: "kairos"
@@ -39,13 +38,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: ["rpi4", "rpi3"]
+        model: ["generic", "rpi4", "rpi3"]
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
-        include:
-          - model: "generic"
-            iso: true
   build-nvidia-base:
     runs-on: 'ubuntu-24.04-arm'
     steps:
