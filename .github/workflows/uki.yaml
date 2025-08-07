@@ -106,6 +106,7 @@ jobs:
           RUN echo "New release info: \$(cat /etc/kairos-release)"
           EOF
 
+          mkdir -p $PWD/build
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
@@ -124,7 +125,6 @@ jobs:
           FROM $image
           EOF
           docker push $temp_image
-          mkdir -p $PWD/build
           echo $temp_image > build/upgrade_image_name
       - name: Run tests 🔧
         env:
