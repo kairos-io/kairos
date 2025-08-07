@@ -26,6 +26,9 @@ jobs:
       model: "generic"
       arch: "amd64"
       trusted_boot: true
+      keys_dir: "tests/assets/keys"
+      sysext_dir: "tests/assets/sysext"
+      single_efi_cmdline: "testentry: nothing"
       version: "auto"
       iso: true
       grype: true
