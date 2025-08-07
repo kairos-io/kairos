@@ -100,10 +100,8 @@ jobs:
           EMULATE_TPM: true
           UKI_TEST: true
         run: |
-          ls -la $PWD || true
-          ls -la $PWD/build || true
-          ls -la $PWD/artifacts || true
-          export ISO=$(ls $PWD/artifacts/kairos-*-uki.iso)
+          mv $PWD/kairos-*-uki.iso $PWD/build/
+          export ISO=$(ls $PWD/build/kairos-*-uki.iso)
           export UPGRADE_IMAGE=$(cat "${PWD}/build/upgrade_image_name")
           export EXPECTED_NEW_VERSION="mynewversion"
           export EXPECTED_SINGLE_ENTRY="testentry"
