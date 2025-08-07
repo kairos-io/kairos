@@ -100,6 +100,7 @@ jobs:
           EMULATE_TPM: true
           UKI_TEST: true
         run: |
+          mkdir -p $PWD/build
           mv $PWD/kairos-*-uki.iso $PWD/build/
           export ISO=$(ls $PWD/build/kairos-*-uki.iso)
           export UPGRADE_IMAGE=$(cat "${PWD}/build/upgrade_image_name")
