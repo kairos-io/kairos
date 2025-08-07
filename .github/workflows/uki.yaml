@@ -43,46 +43,116 @@ jobs:
       matrix:
         base_image: ["ubuntu:24.04", "fedora:40"]
         kubernetes_distro: ["", "k3s"]
-  build:
-    name: ${{ matrix.base_image }}
+  test_generic:
+    needs: factory
+    runs-on: kvm
     strategy:
       matrix:
         base_image: ["ubuntu:24.04", "fedora:40"]
-        variant: ["core"]
+        arch: ["amd64"]
         model: ["generic"]
-        test_label: ["generic"]
-        include:
-          - base_image: "ubuntu:24.04"
-            variant: "core"
-            test_label: "boot-assessment"
-          - base_image: "ubuntu:24.04"
-            kubernetes_distro: "k3s"
-            variant: "standard"
-            test_label: "generic"
-          - base_image: "fedora:40"
-            kubernetes_distro: "k3s"
-            variant: "standard"
-            test_label: "generic"
-    uses: ./.github/workflows/reusable-uki-test.yaml
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    secrets: inherit
-    with:
-      base_image: ${{ matrix.base_image }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model || 'generic' }}
-      test_label: ${{ matrix.test_label || 'generic' }}
-      kubernetes_distro: ${{ matrix.kubernetes_distro || '' }}
+        variant: ["core", "standard"]
+    steps:
+      - name: Split base image
+        id: split
+        run: |
+          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
+          base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
+          tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+
+          # Check if the base image contains a slash
+          if [[ "$base_image" == *"/"* ]]; then
+            # Split the base image into distro and sub-distro
+            distro=$(echo "$base_image" | cut -d '/' -f 1)
+            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
+            # Combine sub-distro and tag
+            tag="$sub_distro-$tag"
+          else
+            # Use the base image as the distro
+            distro="$base_image"
+          fi
+
+          echo "flavor=$distro" >> $GITHUB_OUTPUT
+          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: '0'
+      - name: Set Version
+        run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
+      - name: Install Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        timeout-minutes: 5
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
+      - name: Download artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-uki.iso.zip
+      - name: Run tests 🔧
+        env:
+          USE_QEMU: true
+          KVM: true
+          MEMORY: 6000
+          CPUS: 4
+          FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
+          EMULATE_TPM: true
+          UKI_TEST: true
+        run: |
+          export ISO=$(ls $PWD/build/kairos-*-uki.iso)
+          export UPGRADE_IMAGE=$(cat "${PWD}/build/upgrade_image_name")
+          export EXPECTED_NEW_VERSION="mynewversion"
+          export EXPECTED_SINGLE_ENTRY="testentry"
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "generic" --fail-fast -r ./tests/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-generic-uki.logs.zip
+          path: tests/**/logs/*
+          if-no-files-found: warn
+#  build:
+#    name: ${{ matrix.base_image }}
+#    strategy:
+#      matrix:
+#        base_image: ["ubuntu:24.04", "fedora:40"]
+#        variant: ["core"]
+#        model: ["generic"]
+#        test_label: ["generic"]
+#        include:
+#          - base_image: "ubuntu:24.04"
+#            variant: "core"
+#            test_label: "boot-assessment"
+#          - base_image: "ubuntu:24.04"
+#            kubernetes_distro: "k3s"
+#            variant: "standard"
+#            test_label: "generic"
+#          - base_image: "fedora:40"
+#            kubernetes_distro: "k3s"
+#            variant: "standard"
+#            test_label: "generic"
+#    uses: ./.github/workflows/reusable-uki-test.yaml
+#    permissions:
+#      id-token: write  # OIDC support
+#      contents: write
+#      security-events: write
+#      actions: read
+#      attestations: read
+#      checks: read
+#      deployments: read
+#      discussions: read
+#      issues: read
+#      packages: read
+#      pages: read
+#      pull-requests: read
+#      repository-projects: read
+#      statuses: read
+#    secrets: inherit
+#    with:
+#      base_image: ${{ matrix.base_image }}
+#      variant: ${{ matrix.variant }}
+#      model: ${{ matrix.model || 'generic' }}
+#      test_label: ${{ matrix.test_label || 'generic' }}
+#      kubernetes_distro: ${{ matrix.kubernetes_distro || '' }}
+#
