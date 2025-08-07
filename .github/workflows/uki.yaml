@@ -90,6 +90,36 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-uki.iso.zip
+      - name: Build uki upgrade image 🔧
+        run: |
+          echo "Building upgrade image for generic test"
+          docker build -t upgrade-image - <<EOF
+          FROM quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-${{ github.sha }}-uki
+          RUN echo "Current release info: \$(cat /etc/kairos-release)"
+          RUN sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="mynewversion"/' /etc/kairos-release
+          RUN echo "New release info: \$(cat /etc/kairos-release)"
+          EOF
+
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            -v $PWD/build:/result \
+            -v $PWD/tests/assets/keys:/keys \
+            quay.io/kairos/auroraboot:v0.10.0 --debug build-uki \
+            --output-dir /result --output-type container \
+            --public-keys /keys \
+            --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
+            --sb-key /keys/db.key --sb-cert /keys/db.pem \
+            docker:upgrade-image
+
+          image=$(docker load -i build/*.tar | grep "Loaded image" | awk -F: '{ st = index($0,":");print substr($0,st+1)}' | sed 's/+/-/g' | xargs)
+          echo "Image: $image"
+          rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
+          temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}/")
+          docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
+          FROM $image
+          EOF
+          docker push $temp_image
+          mkdir -p $PWD/build
+          echo $temp_image > build/upgrade_image_name
       - name: Run tests 🔧
         env:
           USE_QEMU: true
@@ -100,7 +130,6 @@ jobs:
           EMULATE_TPM: true
           UKI_TEST: true
         run: |
-          mkdir -p $PWD/build
           mv $PWD/kairos-*-uki.iso $PWD/build/
           export ISO=$(ls $PWD/build/kairos-*-uki.iso)
           export UPGRADE_IMAGE=$(cat "${PWD}/build/upgrade_image_name")
