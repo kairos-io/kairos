@@ -57,8 +57,8 @@ jobs:
         id: split
         run: |
           # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
-          base_image=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
-          tag=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          base_image=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
+          tag=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
 
           # Check if the base image contains a slash
           if [[ "$base_image" == *"/"* ]]; then
@@ -89,7 +89,7 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-uki.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-uki.iso.zip
       - name: Run tests 🔧
         env:
           USE_QEMU: true
