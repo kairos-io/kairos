@@ -26,8 +26,8 @@ jobs:
       model: "generic"
       arch: "amd64"
       trusted_boot: true
-      keys_dir: "tests/assets/keys"
-      sysext_dir: "tests/assets/sysext"
+      keys_dir: "$PWD/tests/assets/keys"
+      sysext_dir: "$PWD/tests/assets/sysext"
       single_efi_cmdline: "testentry: nothing"
       version: "auto"
       iso: true
