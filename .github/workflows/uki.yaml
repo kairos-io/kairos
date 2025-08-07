@@ -5,7 +5,11 @@ on:
     branches:
       - master
 
-permissions: read-all
+permissions:
+  contents: write
+  security-events: write
+  id-token: write
+  actions: read
 concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
