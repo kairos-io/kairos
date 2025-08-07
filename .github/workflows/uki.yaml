@@ -10,6 +10,31 @@ concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
+  factory:
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.2
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
+    with:
+      dockerfile_path: "images/Dockerfile"
+      base_image: ${{ matrix.base_image }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      model: "generic"
+      arch: "amd64"
+      version: "auto"
+      iso: true
+      grype: true
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
+      registry_repository: "ci-temp-images"
+      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA-uki"
+      custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-uki"
+      image_labels: "quay.expires-after=6h"
+      summary_artifacts: true
+    strategy:
+      matrix:
+        base_image: ["ubuntu:24.04", "fedora:40"]
+        kubernetes_distro: ["", "k3s"]
   build:
     name: ${{ matrix.base_image }}
     strategy:
