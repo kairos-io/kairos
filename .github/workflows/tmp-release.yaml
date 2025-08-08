@@ -86,7 +86,7 @@ jobs:
       arch: ${{ matrix.arch }}
       model: ${{ matrix.model }}
       version: "auto"
-      trusted_boot: "true"
+      trusted_boot: true
 
   get-k3s-versions:
     runs-on: ubuntu-latest
