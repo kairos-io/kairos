@@ -7,19 +7,26 @@ on:
 permissions: read-all
 jobs:
   build-core:
-    uses: ./.github/workflows/reusable-release.yaml
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     strategy:
       fail-fast: false
       matrix:
-        model: ["generic"]
-        variant: ["core"]
-        arch: ["arm64"]
         base_image:
           - "opensuse/leap:15.6"
           - "opensuse/tumbleweed:latest"
@@ -33,23 +40,38 @@ jobs:
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
+      arch: "amd64"
+      model: "generic"
+      version: "auto"
+      iso: true
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true
+      release: true
   build-core-rpi4:
-    uses: ./.github/workflows/reusable-release.yaml
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     secrets: inherit
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     strategy:
       fail-fast: false
       matrix:
-        model: ["rpi4"]
-        variant: ["core"]
-        arch: ["arm64"]
         base_image:
           - "opensuse/leap:15.6"
           - "ubuntu:20.04"
@@ -57,9 +79,15 @@ jobs:
           - "alpine:3.21"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
+      arch: "arm64"
+      model: "rpi4"
+      version: "auto"
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true
   get-k3s-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -73,11 +101,11 @@ jobs:
           kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '
             [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
             | map({
-               version: .,
-               minor: (split(".")[1:2]|join("")),
-               patch: (split(".")[2:3]|join("")|split("+")[0]),
-               revision: (split("+k3s")[1])
-             })
+                version: .,
+                minor: (split(".")[1:2]|join("")),
+                patch: (split(".")[2:3]|join("")|split("+")[0]),
+                revision: (split("+k3s")[1])
+              })
             | group_by(.minor)
             | map(sort_by([(.patch | tonumber), (.revision | tonumber)]) | reverse | .[0])
             | sort_by(.minor | tonumber)
@@ -87,22 +115,29 @@ jobs:
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   build-standard:
-    uses: ./.github/workflows/reusable-release.yaml
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     secrets: inherit
     needs:
       - get-k3s-versions
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     strategy:
       fail-fast: false
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
-        model: ["generic"]
-        variant: ["standard"]
-        arch: ["arm64"]
         base_image:
           - "opensuse/leap:15.6"
           - "opensuse/tumbleweed:latest"
@@ -116,28 +151,43 @@ jobs:
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
+      arch: "amd64"
+      model: "generic"
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
+      version: "auto"
+      iso: true
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true
+      release: true
   build-standard-rpi4:
-    uses: ./.github/workflows/reusable-release.yaml
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     secrets: inherit
     needs:
       - get-k3s-versions
     permissions:
       id-token: write  # OIDC support
       contents: write
-      actions: read
       security-events: write
+      actions: read
+      attestations: read
+      checks: read
+      deployments: read
+      discussions: read
+      issues: read
+      packages: read
+      pages: read
+      pull-requests: read
+      repository-projects: read
+      statuses: read
     strategy:
       fail-fast: false
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
-        model: ["rpi4"]
-        variant: ["standard"]
-        arch: ["arm64"]
         base_image:
           - "opensuse/leap:15.6"
           - "ubuntu:20.04"
@@ -145,11 +195,17 @@ jobs:
           - "alpine:3.21"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
+      arch: "amd64"
+      model: "generic"
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
+      version: "auto"
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true
   build-nvidia-base:
     runs-on: 'ubuntu-24.04-arm'
     steps:
@@ -189,7 +245,7 @@ jobs:
           push: true
           tags: quay.io/kairos/cache:nvidia-base
   nvidia-arm-core:
-    uses: ./.github/workflows/reusable-release.yaml
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     secrets: inherit
     permissions:
       id-token: write  # OIDC support
@@ -208,15 +264,13 @@ jobs:
       statuses: read
     needs: build-nvidia-base
     with:
-      base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
-    strategy:
-      fail-fast: false
-      matrix:
-        model: ["nvidia-jetson-agx-orin"]
-        variant: ["core"]
-        arch: ["arm64"]
-        base_image:
-          - "quay.io/kairos/cache:nvidia-base"
+      base_image: "quay.io/kairos/cache:nvidia-base"
+      arch: "arm64"
+      model: "nvidia-jetson-agx-orin"
+      version: "auto"
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true

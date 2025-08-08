@@ -7,8 +7,7 @@ on:
 permissions: read-all
 jobs:
   build-core:
-    uses: ./.github/workflows/reusable-release.yaml
-    secrets: inherit
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -27,9 +26,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: ["generic"]
-        variant: ["core"]
-        arch: ["amd64"]
         base_image:
           - "opensuse/leap:15.6"
           - "opensuse/tumbleweed:latest"
@@ -43,12 +39,19 @@ jobs:
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
+      arch: "amd64"
+      model: "generic"
+      version: "auto"
+      iso: true
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true
+      release: true
   build-uki-container-image:
-    uses: ./.github/workflows/reusable-release.yaml
-    secrets: inherit
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -66,9 +69,6 @@ jobs:
       statuses: read
     strategy:
       matrix:
-        variant: ["core"]
-        model: ["generic"]
-        arch: ["amd64"]
         base_image:
           - "ubuntu:24.04"
           - "fedora:40"
@@ -79,10 +79,15 @@ jobs:
             model: "generic"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
-      trusted_boot: "true"
+      arch: "amd64"
+      model: "generic"
+      version: "auto"
+      trusted_boot: true
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      cosign: true
   get-k3s-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -110,6 +115,7 @@ jobs:
            | map(.version)
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
+
   get-k0s-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -137,9 +143,9 @@ jobs:
            | map(.version)
            '| jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
+
   build-standard-k3s:
-    uses: ./.github/workflows/reusable-release.yaml
-    secrets: inherit
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     needs:
       - get-k3s-versions
     permissions:
@@ -161,9 +167,6 @@ jobs:
       fail-fast: false
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
-        model: ["generic"]
-        variant: ["standard"]
-        arch: ["amd64"]
         base_image:
           - "opensuse/leap:15.6"
           - "opensuse/tumbleweed:latest"
@@ -177,14 +180,21 @@ jobs:
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
+      arch: "amd64"
+      model: "generic"
+      version: "auto"
+      iso: true
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true
+      release: true
   build-standard-k0s:
-    uses: ./.github/workflows/reusable-release.yaml
-    secrets: inherit
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
     needs:
       - get-k0s-versions
     permissions:
@@ -206,17 +216,22 @@ jobs:
       fail-fast: false
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
-        model: ["generic"]
-        variant: ["standard"]
-        arch: ["amd64"]
         base_image:
           - "opensuse/leap:15.6"
           - "ubuntu:24.10"
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: ${{ matrix.arch }}
-      variant: ${{ matrix.variant }}
-      model: ${{ matrix.model }}
+      arch: "amd64"
+      model: "generic"
+      version: "auto"
+      iso: true
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k0s"
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      list_release_artifacts: true
+      cosign: true
+      release: true
