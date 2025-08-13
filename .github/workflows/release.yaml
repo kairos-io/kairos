@@ -32,6 +32,8 @@ jobs:
       arch: "amd64"
       model: "generic"
       version: "auto"
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       iso: true
       grype: true
       grype_sarif: true
@@ -153,6 +155,8 @@ jobs:
       arch: "amd64"
       model: "generic"
       version: "auto"
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       iso: true
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
@@ -185,6 +189,8 @@ jobs:
       arch: "amd64"
       model: "generic"
       version: "auto"
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       iso: true
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k0s"
