@@ -13,16 +13,6 @@ jobs:
       contents: write
       security-events: write
       actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
     strategy:
       fail-fast: false
       matrix:
@@ -57,16 +47,6 @@ jobs:
       contents: write
       security-events: write
       actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
     strategy:
       matrix:
         base_image:
@@ -153,16 +133,6 @@ jobs:
       contents: write
       security-events: write
       actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
     strategy:
       fail-fast: false
       matrix:
@@ -202,16 +172,6 @@ jobs:
       contents: write
       security-events: write
       actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
     strategy:
       fail-fast: false
       matrix:
