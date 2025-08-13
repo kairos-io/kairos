@@ -7,7 +7,7 @@ on:
 permissions: read-all
 jobs:
   build-core:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@4f9ebd3617e7dae7505fbccb5e6d4c28ba9f112a # v0.0.6
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -46,7 +46,7 @@ jobs:
       cosign: true
       release: true
   build-core-rpi4:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@4f9ebd3617e7dae7505fbccb5e6d4c28ba9f112a # v0.0.6
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -101,7 +101,7 @@ jobs:
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   build-standard:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@4f9ebd3617e7dae7505fbccb5e6d4c28ba9f112a # v0.0.6
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -143,7 +143,7 @@ jobs:
       cosign: true
       release: true
   build-standard-rpi4:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@4f9ebd3617e7dae7505fbccb5e6d4c28ba9f112a # v0.0.6
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -215,7 +215,7 @@ jobs:
           push: true
           tags: quay.io/kairos/cache:nvidia-base
   nvidia-arm-core:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@4f9ebd3617e7dae7505fbccb5e6d4c28ba9f112a # v0.0.6
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
