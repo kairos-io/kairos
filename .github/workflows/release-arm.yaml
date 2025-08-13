@@ -8,7 +8,9 @@ permissions: read-all
 jobs:
   build-core:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
-    secrets: inherit
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -45,7 +47,9 @@ jobs:
       release: true
   build-core-rpi4:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
-    secrets: inherit
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -98,7 +102,9 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   build-standard:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
-    secrets: inherit
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     needs:
       - get-k3s-versions
     permissions:
@@ -138,7 +144,9 @@ jobs:
       release: true
   build-standard-rpi4:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
-    secrets: inherit
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     needs:
       - get-k3s-versions
     permissions:
@@ -208,7 +216,9 @@ jobs:
           tags: quay.io/kairos/cache:nvidia-base
   nvidia-arm-core:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
-    secrets: inherit
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     permissions:
       id-token: write  # OIDC support
       contents: write

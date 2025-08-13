@@ -27,6 +27,9 @@ jobs:
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -59,6 +62,9 @@ jobs:
             variant: "standard"  # let it use the latest k3s version released for now
             arch: "amd64"
             model: "generic"
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -150,6 +156,9 @@ jobs:
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -184,6 +193,9 @@ jobs:
           - "opensuse/leap:15.6"
           - "ubuntu:24.10"
           - "rockylinux:9"
+    secrets:
+      registry_username: ${{ secrets.QUAY_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
