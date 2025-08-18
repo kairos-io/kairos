@@ -41,7 +41,7 @@ jobs:
 
           echo "flavor=$distro" >> $GITHUB_OUTPUT
           echo "flavor_release=$tag" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         if: runner.environment == 'self-hosted'
         run: |
@@ -54,7 +54,7 @@ jobs:
           go-version-file: tests/go.mod
           cache-dependency-path: tests/go.sum
           cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           repository: "ipxe/ipxe"
           path: "ipxe"
