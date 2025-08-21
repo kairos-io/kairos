@@ -80,7 +80,7 @@ var _ = Describe("kairos k3s disabled test", Label("provider", "provider-k3s-dis
 
 		By("Checking agent provider logs contain 'no P2P or kubernetes configured'")
 		Eventually(func() string {
-			out, _ := vm.Sudo("journalctl -t kairos-provider")
+			out, _ := vm.Sudo("journalctl -t kairos-agent")
 			return out
 		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("no P2P or kubernetes configured"))
 

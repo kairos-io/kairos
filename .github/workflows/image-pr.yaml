@@ -66,6 +66,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
+          - "alpine:3.21"
 
   lifecycle-tests:
     name: ${{ matrix.base_image }}
@@ -178,5 +179,6 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
+          - "alpine:3.21"
         test:
           - "provider-k3s-disabled"
