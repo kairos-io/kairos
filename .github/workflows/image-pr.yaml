@@ -37,6 +37,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
+          - "ubuntu:25.04"
           - "ubuntu:24.04"
           - "alpine:3.21"
 
@@ -59,6 +60,7 @@ jobs:
       matrix:
         secureboot: [false]
         base_image:
+          - "ubuntu:25.04"
           - "ubuntu:24.04"
           - "alpine:3.21"
         test:
@@ -72,11 +74,21 @@ jobs:
         include:
           - test: "install"
             secureboot: true
+            base_image: "ubuntu:25.04"
+          - test: "zfs"
+            base_image: "ubuntu:25.04"
+          - test: "bundles"
+            base_image: "ubuntu:25.04"
+          - test: "install"
+            secureboot: true
             base_image: "ubuntu:24.04"
           - test: "zfs"
             base_image: "ubuntu:24.04"
           - test: "bundles"
             base_image: "ubuntu:24.04"
+          - test: "upgrade-latest-with-cli"
+            base_image: "ubuntu:25.04"
+            release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.5.0.iso"
   netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
@@ -91,6 +103,7 @@ jobs:
     strategy:
       matrix:
         base_image:
+          - "ubuntu:25.04"
           - "ubuntu:24.04"
           - "alpine:3.21"
   encryption-tests:
@@ -109,6 +122,7 @@ jobs:
       fail-fast: true
       matrix:
         base_image:
+          - "ubuntu:25.04"
           - "ubuntu:24.04"
           - "alpine:3.21"
         label:

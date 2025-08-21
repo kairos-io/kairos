@@ -41,14 +41,14 @@ jobs:
       summary_artifacts: true
     strategy:
       matrix:
-        base_image: ["ubuntu:24.04", "fedora:40"]
+        base_image: ["ubuntu:25.04", "ubuntu:24.04", "fedora:40"]
         kubernetes_distro: ["", "k3s"]
   test_generic:
     needs: factory
     runs-on: kvm
     strategy:
       matrix:
-        base_image: ["ubuntu:24.04", "fedora:40"]
+        base_image: ["ubuntu:25.04", "ubuntu:24.04", "fedora:40"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core", "standard"]
