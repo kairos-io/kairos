@@ -7,10 +7,10 @@ FROM --platform=$BUILDPLATFORM golang:1.24.4 AS provider-kairos-builder
 ENV GOTOOLCHAIN=auto
 ARG TARGETOS
 ARG TARGETARCH
-ARG PROVIDER_KAIROS_REF=disable-k8s
+ARG PROVIDER_KAIROS_REF=v2.13.4
 WORKDIR /src
-# Cache-bust when the upstream branch ref changes
-ADD https://api.github.com/repos/kairos-io/provider-kairos/git/refs/heads/${PROVIDER_KAIROS_REF} /tmp/provider-kairos-ref
+# Cache-bust when the upstream tag ref changes
+ADD https://api.github.com/repos/kairos-io/provider-kairos/git/refs/tags/${PROVIDER_KAIROS_REF} /tmp/provider-kairos-ref
 RUN git clone --depth 1 --branch "${PROVIDER_KAIROS_REF}" https://github.com/kairos-io/provider-kairos.git .
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/provider-kairos .
