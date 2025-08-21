@@ -217,3 +217,4 @@ jobs:
           - "provider-upgrade-k8s"
           - "provider-upgrade-latest-k8s-with-kubernetes"
           - "provider-decentralized-k8s"
+          - "provider-k3s-disabled"
