@@ -9,21 +9,23 @@ FROM golang:1.24 AS kairos-init-builder
 ARG KAIROS_INIT_BRANCH
 WORKDIR /app/kairos-init
 RUN git clone --branch ${KAIROS_INIT_BRANCH} https://github.com/aidanleuck/kairos-init.git .
-RUN go build -o kairos-init
+RUN make download cleanup version-info
+RUN CGO_ENABLED=0 go build -o kairos-init --ldflags "-w -s -X github.com/kairos-io/kairos-init/pkg/values.version=dev -X github.com/kairos-io/kairos-init/pkg/values.gitCommit=dev"
 
 # Stage 2: Build immucore from specific branch
 FROM golang:1.24 AS immucore-builder
 ARG IMMUCORE_BRANCH
 WORKDIR /app/immucore
 RUN git clone --branch ${IMMUCORE_BRANCH} https://github.com/kairos-io/immucore.git .
-RUN go build -o immucore
+RUN CGO_ENABLED=0 go build -o immucore
+
 
 # Stage 3: Build kairos-agent from specific branch  
 FROM golang:1.24 AS kairos-agent-builder
 ARG KAIROS_AGENT_BRANCH
 WORKDIR /app/kairos-agent
 RUN git clone --branch ${KAIROS_AGENT_BRANCH} https://github.com/kairos-io/kairos-agent.git .
-RUN go build -o kairos-agent
+RUN CGO_ENABLED=0 go build -o kairos-agent
 
 FROM ${BASE_IMAGE} AS base-kairos
 ARG MODEL=generic
