@@ -3,11 +3,13 @@ ARG KAIROS_INIT=v0.5.14
 ARG IMMUCORE_BRANCH=test-kairos-sdk-pr-611
 ARG KAIROS_AGENT_BRANCH=test-kairos-sdk-pr-611
 ARG KAIROS_INIT_BRANCH=feat/support_multipath
+#ARG KAIROS_INIT_BRANCH=main
 
 # Stage 1: Build kairos-init from specific branch
 FROM golang:1.24 AS kairos-init-builder
 ARG KAIROS_INIT_BRANCH
 WORKDIR /app/kairos-init
+#RUN git clone --branch ${KAIROS_INIT_BRANCH} https://github.com/kairos-io/kairos-init.git .
 RUN git clone --branch ${KAIROS_INIT_BRANCH} https://github.com/aidanleuck/kairos-init.git .
 RUN make download cleanup version-info
 RUN CGO_ENABLED=0 go build -o kairos-init --ldflags "-w -s -X github.com/kairos-io/kairos-init/pkg/values.version=dev -X github.com/kairos-io/kairos-init/pkg/values.gitCommit=dev"
@@ -37,11 +39,12 @@ ARG VERSION=v1.2.3
 # Copy custom built kairos-init
 COPY --from=kairos-init-builder /app/kairos-init/kairos-init /kairos-init
 
-RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" -s install
 
 # Copy custom built binaries
 COPY --from=immucore-builder /app/immucore/immucore /usr/bin/immucore
 COPY --from=kairos-agent-builder /app/kairos-agent/kairos-agent /usr/bin/kairos-agent
 
+RUN  /kairos-init -v "${VERSION}" -s init
 
-RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init after-init -t "${TRUSTED_BOOT}"
+RUN  /kairos-init validate -t "${TRUSTED_BOOT}"
