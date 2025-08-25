@@ -45,6 +45,6 @@ RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DI
 COPY --from=immucore-builder /app/immucore/immucore /usr/bin/immucore
 COPY --from=kairos-agent-builder /app/kairos-agent/kairos-agent /usr/bin/kairos-agent
 
-RUN  /kairos-init -v "${VERSION}" -s init
+RUN  /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" -s init
 
 RUN  /kairos-init validate -t "${TRUSTED_BOOT}"
