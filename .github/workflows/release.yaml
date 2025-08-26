@@ -22,7 +22,7 @@ jobs:
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
-          - "ubuntu:25.04"
+          - "ubuntu:25.10"
           - "alpine:3.21"
           - "fedora:40"
           - "debian:12"
@@ -151,7 +151,7 @@ jobs:
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
-          - "ubuntu:25.04"
+          - "ubuntu:25.10"
           - "alpine:3.21"
           - "fedora:40"
           - "debian:12"
@@ -191,7 +191,7 @@ jobs:
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
         base_image:
           - "opensuse/leap:15.6"
-          - "ubuntu:25.04"
+          - "ubuntu:25.10"
           - "rockylinux:9"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
