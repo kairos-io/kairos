@@ -11,13 +11,13 @@ require (
 	github.com/mudler/edgevpn v0.31.0
 	github.com/mudler/go-processmanager v0.0.0-20240820160718-8b802d3ecf82
 	github.com/onsi/ginkgo/v2 v2.25.1
-	github.com/onsi/gomega v1.38.0
+	github.com/onsi/gomega v1.38.2
 	github.com/spectrocloud/peg v0.0.0-20240405075800-c5da7125e30f
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.3.1 // indirect
+	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bramvdbogaerde/go-scp v1.5.0 // indirect
@@ -165,6 +165,7 @@ require (
 	go.uber.org/mock v0.5.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476 // indirect
 	golang.org/x/image v0.25.0 // indirect
@@ -180,7 +181,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
 )
