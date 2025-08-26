@@ -100,7 +100,7 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Login to Quay Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
@@ -219,7 +219,7 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Login to Quay Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
