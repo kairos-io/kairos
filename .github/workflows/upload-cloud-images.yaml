@@ -23,7 +23,7 @@ jobs:
       id-token: write
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           persist-credentials: false
       - run: |
@@ -38,7 +38,7 @@ jobs:
           workload_identity_provider: 'projects/908384205599/locations/global/workloadIdentityPools/github/providers/kairos'
           service_account: 'github-service-account@palette-kairos.iam.gserviceaccount.com'
       - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a' # v2
+        uses: 'google-github-actions/setup-gcloud@cb1e50a9932213ecece00a606661ae9ca44f3397' # v2
       - name: Install deps
         run: |
           sudo apt update && sudo apt install -y qemu-utils
@@ -105,7 +105,7 @@ jobs:
       id-token: write
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           persist-credentials: false
       - run: |
@@ -169,7 +169,7 @@ jobs:
       shouldBuild: ${{ steps.checkPushed.outputs.shouldBuild }}
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           persist-credentials: false
       - run: |

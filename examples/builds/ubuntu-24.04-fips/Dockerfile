@@ -1,12 +1,12 @@
 FROM quay.io/kairos/kairos-init:v0.5.17 AS kairos-init
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ARG VERSION=v0.0.1
 
 RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
     /kairos-init -l debug -s install --version "${VERSION}"
 # Remove default kernel that Kairos-init installs
-RUN apt-get remove -y linux-base linux-image-generic-hwe-22.04 && apt-get autoremove -y
+RUN apt-get remove -y linux-base linux-image-generic-hwe-24.04 && apt-get autoremove -y
 ## THIS comes from the Ubuntu documentation: https://canonical-ubuntu-pro-client.readthedocs-hosted.com/en/latest/tutorials/create_a_fips_docker_image.html
 ## I've just added "linux-image-fips" in the package list
 ## If you want to use secureboot with fips, you need to install the shim-signed package
@@ -16,7 +16,7 @@ RUN --mount=type=secret,id=pro-attach-config \
     && apt-get install --no-install-recommends -y ubuntu-advantage-tools ca-certificates \
     && pro attach --attach-config /run/secrets/pro-attach-config \
     && apt-get upgrade -y \
-    && apt-get install -y strongswan strongswan-hmac openssh-client openssh-server linux-image-fips shim-signed \
+    && apt-get install -y strongswan openssh-client openssh-server linux-image-fips shim-signed \
     && pro detach --assume-yes
 
 # Copy the custom dracut modules.fips that includes 2 missing modules

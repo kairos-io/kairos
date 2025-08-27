@@ -7,7 +7,7 @@ on:
 permissions: read-all
 jobs:
   build-core:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@50727b6b5d97cf8f77e218eaf82b9362c24b3fd8 # v0.0.7
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -46,7 +46,7 @@ jobs:
       cosign: true
       release: true
   build-core-rpi4:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@50727b6b5d97cf8f77e218eaf82b9362c24b3fd8 # v0.0.7
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -101,7 +101,7 @@ jobs:
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   build-standard:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@50727b6b5d97cf8f77e218eaf82b9362c24b3fd8 # v0.0.7
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -143,7 +143,7 @@ jobs:
       cosign: true
       release: true
   build-standard-rpi4:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@50727b6b5d97cf8f77e218eaf82b9362c24b3fd8 # v0.0.7
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -179,7 +179,7 @@ jobs:
   build-nvidia-base:
     runs-on: 'ubuntu-24.04-arm'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           fetch-depth: 0
       - name: Set up Docker Buildx for public runners
@@ -201,7 +201,7 @@ jobs:
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Login to Quay Registry
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
@@ -215,7 +215,7 @@ jobs:
           push: true
           tags: quay.io/kairos/cache:nvidia-base
   nvidia-arm-core:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.6
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@50727b6b5d97cf8f77e218eaf82b9362c24b3fd8 # v0.0.7
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
