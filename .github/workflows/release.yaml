@@ -59,10 +59,9 @@ jobs:
     - run: |
         sudo apt update && sudo apt install -y jq wget
     - name: Install earthly
-      uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+      uses: earthly/actions-setup@v1
       with:
-        repository: quay.io/kairos/packages
-        packages: utils/earthly
+        github-token: ${{ secrets.GITHUB_TOKEN }}
     - id: set-matrix
       run: |
           docker run --name luet quay.io/luet/base && docker cp luet:/usr/bin/luet ./
@@ -155,10 +154,9 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        uses: earthly/actions-setup@v1
         with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Build  🔧
         run: |
           earthly +all  \
@@ -293,10 +291,9 @@ jobs:
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        uses: earthly/actions-setup@v1
         with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         run: |
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
@@ -399,10 +396,9 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - name: Install earthly
-        uses: Luet-lab/luet-install-action@cec77490c3f2416d7d07a47cfab04d448641d7ce # v1.1
+        uses: earthly/actions-setup@v1
         with:
-          repository: quay.io/kairos/packages
-          packages: utils/earthly
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Login to Quay Registry
         run: echo ${{ secrets.QUAY_PASSWORD }} | docker login -u ${{ secrets.QUAY_USERNAME }} --password-stdin quay.io
       - name: Build  🔧

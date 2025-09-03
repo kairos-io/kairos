@@ -36,6 +36,7 @@ jobs:
       contents: write
       actions: read
       security-events: write
+      models: none
     steps:
       - name: Release space from worker
         if: ${{ inputs.worker != 'fast' }}
