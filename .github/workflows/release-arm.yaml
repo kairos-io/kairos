@@ -156,7 +156,6 @@ jobs:
       pull-requests: read
       repository-projects: read
       statuses: read
-      models: none
     needs: build-nvidia-base
     secrets: inherit
     with:

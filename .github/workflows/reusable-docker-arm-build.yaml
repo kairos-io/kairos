@@ -27,7 +27,6 @@ on:
         type: string
 env:
   FORCE_COLOR: 1
-permissions: read-all
 jobs:
   build:
     runs-on: ${{ inputs.worker }}
@@ -36,7 +35,6 @@ jobs:
       contents: write
       actions: read
       security-events: write
-      models: none
     steps:
       - name: Release space from worker
         if: ${{ inputs.worker != 'fast' }}
