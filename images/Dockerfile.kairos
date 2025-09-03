@@ -10,6 +10,44 @@ RUN ORIG=/usr/bin/grub-editenv; DEST=/usr/sbin/grub2-editenv; [ -e $ORIG ] && [ 
 # here we add 100Mb aprox
 COPY --from=framework / /
 
+# Fix for kcrypt local TPM failure
+# Basically we were runnig a refresh of the kcrypt device but the password was not being sent to stdin
+# so the command was failing and the installer was stopping due to the failure to set up the encrypted device
+# Was fixed on kcrypt v0.12.3 https://github.com/kairos-io/kcrypt/releases/tag/v0.12.3
+# Agent was bumped with it on https://github.com/kairos-io/kairos-agent/releases/tag/v2.13.10-kcrypt-fix
+# Download and extract the binary to avoid rebuilding the whole framework for this fix
+
+# verify we are on the older version
+RUN set -eux; \
+    REQUIRED_VERSION="v2.13.9"; \
+    if command -v kairos-agent >/dev/null; then \
+      AGENT_VERSION="$(kairos-agent version)"; \
+      if [ "$AGENT_VERSION" != "$REQUIRED_VERSION" ]; then \
+        echo "kairos-agent version mismatch: expected $REQUIRED_VERSION, got $AGENT_VERSION" >&2; \
+        exit 1; \
+      fi; \
+    fi
+
+RUN set -eux; mkdir -p /tmp/agent; \
+    arch="$(uname -m)"; \
+    if [ "$arch" = "aarch64" ]; then arch="arm64"; fi; \
+    curl -L "https://github.com/kairos-io/kairos-agent/releases/download/v2.13.10-kcrypt-fix/kairos-agent-v2.13.10-kcrypt-fix-Linux-${arch}.tar.gz" | tar -xz -C /tmp/agent \
+        && mv "/tmp/agent/kairos-agent" "/usr/bin/kairos-agent" \
+        && chmod +x /usr/bin/kairos-agent \
+        && rm -rf /tmp/agent
+
+# verify that now the newer version is in place
+RUN set -eux; \
+    REQUIRED_VERSION="v2.13.10-kcrypt-fix"; \
+    if command -v kairos-agent >/dev/null; then \
+      AGENT_VERSION="$(kairos-agent version)"; \
+      if [ "$AGENT_VERSION" != "$REQUIRED_VERSION" ]; then \
+        echo "kairos-agent version mismatch: expected $REQUIRED_VERSION, got $AGENT_VERSION" >&2; \
+        exit 1; \
+      fi; \
+    fi
+# end fix
+
 RUN rm -rf /etc/ssh/ssh_host_*
 
 COPY which-init.sh /usr/local/bin/which-init.sh
