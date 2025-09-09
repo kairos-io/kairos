@@ -48,7 +48,7 @@ jobs:
           sudo iptables -I INPUT -s 169.254.169.254 -j DROP
           sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
       - name: Install Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6
         timeout-minutes: 5
         with:
           go-version-file: tests/go.mod
