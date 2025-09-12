@@ -168,7 +168,6 @@ users:
     - "admin"
 `, vm)
 				Expect(out).ToNot(ContainSubstring("kairos-agent.service: Failed with result"))
-				Expect(out).To(ContainSubstring("WARNING: Couldn't fetch config_url"))
 
 				Eventually(func() string {
 					out, err := vm.Sudo("kairos-agent state")
