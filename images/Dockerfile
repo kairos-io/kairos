@@ -1,6 +1,5 @@
 ARG BASE_IMAGE=ubuntu:20.04
 ARG KAIROS_INIT=main
-ARG TARGETARCH=amd64
 
 FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
 
@@ -10,6 +9,7 @@ ARG TRUSTED_BOOT=false
 ARG KUBERNETES_DISTRO
 ARG KUBERNETES_VERSION
 ARG VERSION
+ARG TARGETARCH=amd64
 
 RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
    /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
