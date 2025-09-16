@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=ubuntu:20.04
 ARG KAIROS_INIT=v0.6.0
 
-FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
+# FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
 
 FROM ${BASE_IMAGE} AS base-kairos
 ARG MODEL=generic
@@ -10,5 +10,27 @@ ARG KUBERNETES_DISTRO
 ARG KUBERNETES_VERSION
 ARG VERSION
 
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
-    /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+# RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+#    /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+
+COPY kairos-init /kairos-init
+RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+
+# Install git, build tools, and Go 1.25.1
+RUN apt-get update && apt-get install -y git build-essential wget && \
+    wget https://go.dev/dl/go1.25.1.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go1.25.1.linux-amd64.tar.gz && \
+    rm go1.25.1.linux-amd64.tar.gz && \
+    echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+
+# Clone kairos-agent repository from cryptsetup-v2.8 branch
+RUN git clone -b cryptsetup-v2.8 https://github.com/kairos-io/kairos-agent.git /tmp/kairos-agent
+
+# Build kairos-agent
+RUN cd /tmp/kairos-agent && /usr/local/go/bin/go mod download && /usr/local/go/bin/go build -o kairos-agent .
+
+# Move the built binary to /usr/bin/kairos-agent
+RUN mv /tmp/kairos-agent/kairos-agent /usr/bin/kairos-agent && chmod +x /usr/bin/kairos-agent
+
+# Clean up
+RUN rm -rf /tmp/kairos-agent
