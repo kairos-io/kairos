@@ -1,6 +1,6 @@
 ARG BASE_IMAGE=ubuntu:20.04
 ARG KAIROS_INIT=main
-ARG TARGETARCH
+ARG TARGETARCH=amd64
 
 FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
 
