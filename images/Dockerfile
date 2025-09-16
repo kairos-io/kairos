@@ -26,9 +26,9 @@ RUN if [ -f /etc/debian_version ]; then \
     elif [ -f /etc/alpine-release ]; then \
         apk update && apk add --no-cache git build-base wget; \
     fi && \
-    wget https://go.dev/dl/go1.25.1.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go1.25.1.linux-amd64.tar.gz && \
-    rm go1.25.1.linux-amd64.tar.gz && \
+    wget https://go.dev/dl/go1.25.1.linux-${TARGETARCH}.tar.gz && \
+    tar -C /usr/local -xzf go1.25.1.linux-${TARGETARCH}.tar.gz && \
+    rm go1.25.1.linux-${TARGETARCH}.tar.gz && \
     echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
 
 # Clone kairos-agent repository from cryptsetup-v2.8 branch
