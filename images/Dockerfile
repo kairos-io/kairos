@@ -9,7 +9,7 @@ ARG TRUSTED_BOOT=false
 ARG KUBERNETES_DISTRO
 ARG KUBERNETES_VERSION
 ARG VERSION
-ARG TARGETARCH=amd64
+ARG TARGETARCH
 
 RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
    /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
@@ -27,9 +27,10 @@ RUN if [ -f /etc/debian_version ]; then \
     elif [ -f /etc/alpine-release ]; then \
         apk update && apk add --no-cache git build-base wget; \
     fi && \
-    wget https://go.dev/dl/go1.25.1.linux-${TARGETARCH}.tar.gz && \
-    tar -C /usr/local -xzf go1.25.1.linux-${TARGETARCH}.tar.gz && \
-    rm go1.25.1.linux-${TARGETARCH}.tar.gz && \
+    ARCH=${TARGETARCH:-$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')} && \
+    wget https://go.dev/dl/go1.25.1.linux-${ARCH}.tar.gz && \
+    tar -C /usr/local -xzf go1.25.1.linux-${ARCH}.tar.gz && \
+    rm go1.25.1.linux-${ARCH}.tar.gz && \
     echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
 
 # Clone kairos-agent repository from cryptsetup-v2.8 branch
