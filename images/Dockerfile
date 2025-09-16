@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=ubuntu:20.04
-ARG KAIROS_INIT=v0.6.0
+ARG KAIROS_INIT=main
 
-# FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
+FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
 
 FROM ${BASE_IMAGE} AS base-kairos
 ARG MODEL=generic
@@ -10,11 +10,12 @@ ARG KUBERNETES_DISTRO
 ARG KUBERNETES_VERSION
 ARG VERSION
 
-# RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
-#    /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+   /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+#   /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
 
-COPY kairos-init /kairos-init
-RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+# COPY kairos-init /kairos-init
+# RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
 
 # Install git, build tools, and Go 1.25.1
 RUN apt-get update && apt-get install -y git build-essential wget && \
