@@ -18,11 +18,13 @@ RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
 # RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
 
 # Install git, build tools, and Go 1.25.1
-# Handle different package managers for Ubuntu vs Fedora
+# Handle different package managers for Ubuntu, Fedora, and Alpine
 RUN if [ -f /etc/debian_version ]; then \
         apt-get update && apt-get install -y git build-essential wget; \
     elif [ -f /etc/redhat-release ]; then \
         dnf update -y && dnf install -y git gcc gcc-c++ make wget; \
+    elif [ -f /etc/alpine-release ]; then \
+        apk update && apk add --no-cache git build-base wget; \
     fi && \
     wget https://go.dev/dl/go1.25.1.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go1.25.1.linux-amd64.tar.gz && \
