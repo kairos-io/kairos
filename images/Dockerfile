@@ -1,22 +1,9 @@
 ARG BASE_IMAGE=ubuntu:20.04
 ARG KAIROS_INIT=main
 
-FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
-
-FROM ${BASE_IMAGE} AS base-kairos
-ARG MODEL=generic
-ARG TRUSTED_BOOT=false
-ARG KUBERNETES_DISTRO
-ARG KUBERNETES_VERSION
-ARG VERSION
+# Build stage for kairos-agent
+FROM alpine:3.21 AS kairos-agent-builder
 ARG TARGETARCH
-
-RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
-   /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
-#   /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
-
-# COPY kairos-init /kairos-init
-# RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
 
 # Install git, build tools, and Go 1.25.1
 # Handle different package managers for Ubuntu, Fedora, and Alpine
@@ -39,8 +26,23 @@ RUN git clone -b cryptsetup-v2.8 https://github.com/kairos-io/kairos-agent.git /
 # Build kairos-agent
 RUN cd /tmp/kairos-agent && /usr/local/go/bin/go mod download && /usr/local/go/bin/go build -o kairos-agent .
 
-# Move the built binary to /usr/bin/kairos-agent
-RUN mv /tmp/kairos-agent/kairos-agent /usr/bin/kairos-agent && chmod +x /usr/bin/kairos-agent
+FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
 
-# Clean up
-RUN rm -rf /tmp/kairos-agent
+FROM ${BASE_IMAGE} AS base-kairos
+ARG MODEL=generic
+ARG TRUSTED_BOOT=false
+ARG KUBERNETES_DISTRO
+ARG KUBERNETES_VERSION
+ARG VERSION
+ARG TARGETARCH
+
+RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
+   /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+#   /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+
+# COPY kairos-init /kairos-init
+# RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+
+# Copy the built binary from the builder stage
+COPY --from=kairos-agent-builder /tmp/kairos-agent/kairos-agent /usr/bin/kairos-agent
+RUN chmod +x /usr/bin/kairos-agent
