@@ -380,6 +380,8 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				"-serial", "chardev:char0",
 				"-mon", "chardev=char0",
 			)
+			// Disable PC speaker to avoid pcspkr driver conflicts
+			m.Args = append(m.Args, "-no-audio")
 			if os.Getenv("EMULATE_TPM") != "" {
 				m.Args = append(m.Args,
 					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),

@@ -88,7 +88,7 @@ jobs:
             base_image: "ubuntu:24.04"
           - test: "upgrade-latest-with-cli"
             base_image: "ubuntu:25.10"
-            release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.5.2.iso"
+            release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.5.3.iso"
   netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
