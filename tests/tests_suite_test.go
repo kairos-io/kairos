@@ -381,7 +381,8 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				"-mon", "chardev=char0",
 			)
 			// Disable PC speaker to avoid pcspkr driver conflicts
-			m.Args = append(m.Args, "-soundhw", "none")
+			// Blacklist the pcspkr module via kernel command line
+			m.Args = append(m.Args, "-append", "modprobe.blacklist=pcspkr")
 			if os.Getenv("EMULATE_TPM") != "" {
 				m.Args = append(m.Args,
 					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
