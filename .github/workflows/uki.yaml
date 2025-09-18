@@ -41,14 +41,14 @@ jobs:
       summary_artifacts: true
     strategy:
       matrix:
-        base_image: ["ubuntu:24.04", "fedora:40"]
+        base_image: ["ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         kubernetes_distro: ["", "k3s"]
   test_generic:
     needs: factory
     runs-on: kvm
     strategy:
       matrix:
-        base_image: ["ubuntu:24.04", "fedora:40"]
+        base_image: ["ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core", "standard"]
@@ -159,7 +159,7 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
-          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-generic-uki.logs.zip
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-generic-uki.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
   test_boot_assessment:
