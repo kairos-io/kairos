@@ -11,4 +11,16 @@ ARG KUBERNETES_VERSION
 ARG VERSION
 
 RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
-    /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" -k "${KUBERNETES_DISTRO}" --k8sversion "${KUBERNETES_VERSION}" --version "${VERSION}" && /kairos-init validate -t "${TRUSTED_BOOT}"
+    if [ -n "${KUBERNETES_DISTRO}" ]; then \
+        K8S_FLAG="-p ${KUBERNETES_DISTRO}"; \
+        if [ "${KUBERNETES_DISTRO}" = "k0s" ]; then \
+            K8S_VERSION_FLAG="--provider-k0s-version \"${KUBERNETES_VERSION}\""; \
+        else \
+            K8S_VERSION_FLAG="--provider-k8s-version \"${KUBERNETES_VERSION}\""; \
+        fi; \
+    else \
+        K8S_FLAG=""; \
+        K8S_VERSION_FLAG=""; \
+    fi; \
+    eval /kairos-init -l debug -s install -m \"${MODEL}\" -t \"${TRUSTED_BOOT}\" ${K8S_FLAG} ${K8S_VERSION_FLAG} --version \"${VERSION}\" && \
+    eval /kairos-init -l debug -s init -m \"${MODEL}\" -t \"${TRUSTED_BOOT}\" ${K8S_FLAG} ${K8S_VERSION_FLAG} --version \"${VERSION}\"
