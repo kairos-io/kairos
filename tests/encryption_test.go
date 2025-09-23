@@ -390,7 +390,7 @@ func kubectlApplyYaml(yamlData string) {
 
 	cmd := exec.Command("kubectl", "apply", "-f", yamlFile.Name())
 	out, err := cmd.CombinedOutput()
-	Expect(err).ToNot(HaveOccurred(), out)
+	Expect(err).ToNot(HaveOccurred(), string(out))
 }
 
 func getChallengerServerCert() string {
