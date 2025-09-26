@@ -206,15 +206,15 @@ stringData:
 apiVersion: keyserver.kairos.io/v1alpha1
 kind: SealedVolume
 metadata:
-    name: %[1]s
-    namespace: default
+  name: "%[1]s"
+  namespace: default
 spec:
   TPMHash: "%[1]s"
   partitions:
     - label: COS_PERSISTENT
       secret:
-       name: %[1]s
-       path: pass
+        name: "%[1]s"
+        path: pass
   quarantined: false
 `, tpmHash))
 
