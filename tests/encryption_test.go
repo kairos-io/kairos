@@ -188,6 +188,7 @@ kcrypt:
 		var err error
 
 		BeforeEach(func() {
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			tpmHash, err = vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
 			Expect(err).ToNot(HaveOccurred(), tpmHash)
 
