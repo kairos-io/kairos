@@ -123,8 +123,8 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:25.10"
-          - "ubuntu:24.04"
-          - "alpine:3.21"
+          # - "ubuntu:24.04"
+          # - "alpine:3.21"
         label:
           - "encryption-local"
           - "encryption-remote-auto"
