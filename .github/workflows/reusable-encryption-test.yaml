@@ -22,7 +22,7 @@ on:
 jobs:
   test:
     name: ${{ inputs.label }}
-    runs-on: ubuntu-latest
+    runs-on: fast
     defaults:
       run:
         shell: bash -eo pipefail {0}
@@ -95,3 +95,9 @@ jobs:
         run: |
           export ISO=$(ls $PWD/*${{ steps.split.outputs.flavor }}*.iso)
           .github/encryption-tests.sh
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.label }}.logs.zip
+          path: tests/**/logs/*
+          if-no-files-found: warn
