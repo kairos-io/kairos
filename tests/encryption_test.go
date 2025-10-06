@@ -188,6 +188,7 @@ kcrypt:
 		var err error
 
 		BeforeEach(func() {
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			tpmHash, err = vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
 			Expect(err).ToNot(HaveOccurred(), tpmHash)
 
@@ -206,15 +207,15 @@ stringData:
 apiVersion: keyserver.kairos.io/v1alpha1
 kind: SealedVolume
 metadata:
-    name: %[1]s
-    namespace: default
+  name: "%[1]s"
+  namespace: default
 spec:
   TPMHash: "%[1]s"
   partitions:
     - label: COS_PERSISTENT
       secret:
-       name: %[1]s
-       path: pass
+        name: "%[1]s"
+        path: pass
   quarantined: false
 `, tpmHash))
 
@@ -390,7 +391,7 @@ func kubectlApplyYaml(yamlData string) {
 
 	cmd := exec.Command("kubectl", "apply", "-f", yamlFile.Name())
 	out, err := cmd.CombinedOutput()
-	Expect(err).ToNot(HaveOccurred(), out)
+	Expect(err).ToNot(HaveOccurred(), string(out))
 }
 
 func getChallengerServerCert() string {
