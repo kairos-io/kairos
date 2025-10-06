@@ -99,7 +99,7 @@ var _ = Describe("kairos bundles test", Label("bundles"), func() {
 
 				ipfsV, err := vm.Sudo("ipfs version")
 				Expect(err).ToNot(HaveOccurred(), ipfsV)
-				Expect(ipfsV).To(ContainSubstring("0.15.0"))
+				Expect(ipfsV).To(ContainSubstring("0.38.0"))
 			})
 
 			By("checking that there are no duplicate entries in the config (issue#2019)", func() {
