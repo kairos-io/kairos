@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=ubuntu:20.04
-ARG KAIROS_INIT=v0.5.21
+ARG KAIROS_INIT=v0.5.22
 
 FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
 
