@@ -1,0 +1,285 @@
+FROM ubuntu:22.04
+
+# Kairos init
+ENV KAIROS_MODEL=generic
+ENV KAIROS_TRUSTED_BOOT=false
+ENV KAIROS_KUBERNETES_DISTRO=k3s
+ENV KAIROS_KUBERNETES_VERSION=latest
+ENV KAIROS_VERSION=3.5.3
+
+# Nvidia L4T version
+ENV NVIDIA_RELEASE=36
+ENV NVIDIA_VERSION=4.4
+ENV L4T_VERSION=36.4
+
+#jetson orin 
+ENV BOARD_MODEL=t234 
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# install all nescessary base packages including the base packages for kairos
+# this means we can skip the base install during kairos install as this interfered with
+# our setup
+RUN rm -rf /etc/apt/sources.list.d/nvidia-l4t-apt-source.list
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+	bc \
+	binutils \
+	bluez \
+	bridge-utils \
+	bzip2 \
+	ca-certificates \
+	can-utils \
+	cloud-guest-utils \
+	conntrack \
+	console-data \
+	console-setup \
+	coreutils \
+	cron \
+	cryptsetup \
+	curl \
+	debianutils \
+	default-jdk \
+	dirmngr \
+	dmsetup \
+	dosfstools \
+	dracut \
+	dracut-live \
+	dracut-network \
+	e2fsprogs \
+	efibootmgr \
+	ethtool \
+	fail2ban \
+	fdisk \
+	file \
+	fuse3 \
+	gawk \
+	gdisk \
+	gettext \
+	gnupg \
+	gnupg1-l10n \
+	gpg-agent \
+	grub2-common \
+	grub-efi-arm64 \
+	grub-efi-arm64-bin \
+	grub-efi-arm64-signed \
+	haveged \
+	iproute2 \
+	iptables \
+	iputils-ping \
+	isc-dhcp-client \
+	isc-dhcp-common \
+	isc-dhcp-server \
+	jq \
+	kbd \
+	kmod \
+	lbzip2 \
+	less \
+	libatm1 \
+	libglib2.0-data \
+	libgpm2 \
+	libldap-common \
+	libnss-systemd \
+	libopencv-dev \
+	libpam-cap \
+	libqt5core5a \
+	libsasl2-modules \
+	libssl-dev \
+	lldpd \
+	logrotate \
+	lvm2 \
+	mdadm \
+	modemmanager \
+	mtd-utils \
+	nano \
+	nbd-client \
+	ncurses-term \
+	netplan.io \
+	net-tools \
+	networkd-dispatcher \
+	network-manager \
+	nfs-client \
+	nfs-common \
+	nftables \
+	open-iscsi \
+	openssh-server \
+	open-vm-tools \
+	os-prober \
+	packagekit-tools \
+	parted \
+	passwd \
+	patch \
+	pigz \
+	pkg-config \
+	policykit-1 \
+	psmisc \
+	publicsuffix \
+	qemu-user-static \
+	rsync \
+	shared-mime-info \
+	shim-signed \
+	snmpd \
+	software-properties-common \
+	squashfs-tools \
+	ssh \
+	sudo \
+	systemd \
+	systemd-container \
+	systemd-sysv \
+	systemd-timesyncd \
+	tar \
+	tpm2-tools \
+	ubuntu-advantage-tools \
+	udev \
+	unzip \
+	vim \
+	wget \
+	wireless-tools \
+	wpasupplicant \
+	xxd \
+	xz-utils \
+	zerofree \
+	zfsutils-linux \
+	zstd \    
+    	&& rm -rf /var/lib/apt/lists/*
+
+RUN systemctl enable ssh systemd-networkd
+
+RUN mkdir -p /opt/nvidia/l4t-packages && \
+    touch /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
+
+# Usage of apt-key and add-apt-repository is depricated
+RUN curl -fSsL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub \
+	| gpg --dearmor | tee /usr/share/keyrings/nvidia-drivers-2004.gpg > /dev/null 2<&1 && \
+    curl -fSsL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub \
+	| gpg --dearmor | tee /usr/share/keyrings/nvidia-drivers-2204.gpg > /dev/null 2<&1 && \
+    curl -fSsL https://repo.download.nvidia.com/jetson/jetson-ota-public.asc \
+	| gpg --dearmor | tee /usr/share/keyrings/jetson-ota.gpg > /dev/null 2<&1 && \
+    echo "deb [signed-by=/usr/share/keyrings/nvidia-drivers-2204.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /" \
+	| tee -a /etc/apt/sources.list.d/nvidia-drivers.list && \
+    echo "deb [signed-by=/usr/share/keyrings/nvidia-drivers-2004.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /" \
+	| tee -a /etc/apt/sources.list.d/nvidia-drivers.list && \
+    echo "deb [signed-by=/usr/share/keyrings/jetson-ota.gpg] https://repo.download.nvidia.com/jetson/common/ r$L4T_VERSION main" \
+	| tee -a /etc/apt/sources.list.d/nvidia-drivers.list && \
+    echo "deb [signed-by=/usr/share/keyrings/jetson-ota.gpg] https://repo.download.nvidia.com/jetson/$BOARD_MODEL/ r$L4T_VERSION main" \
+	| tee -a /etc/apt/sources.list.d/nvidia-drivers.list
+
+# OpenCV setup
+RUN ln -s /usr/include/opencv4/opencv2 /usr/include/opencv2
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y -o Dpkg::Options::="--force-overwrite" \
+	nvidia-l4t-3d-core \
+	nvidia-l4t-bootloader \
+	nvidia-l4t-apt-source \
+	nvidia-l4t-camera \
+	nvidia-l4t-configs \
+	nvidia-l4t-core \
+	nvidia-l4t-cuda-utils \
+	nvidia-l4t-cuda \
+	nvidia-l4t-display-kernel \
+	nvidia-l4t-firmware \
+	nvidia-l4t-gbm \
+	nvidia-l4t-init \
+	nvidia-l4t-initrd \
+	nvidia-l4t-jetson-io \
+	nvidia-l4t-kernel-dtbs \
+	nvidia-l4t-kernel-headers \
+	nvidia-l4t-kernel-oot-headers \
+	nvidia-l4t-kernel-oot-modules \
+	nvidia-l4t-kernel \
+	nvidia-l4t-nvfancontrol \
+	nvidia-l4t-nvml \
+	nvidia-l4t-nvpmodel-gui-tools \
+	nvidia-l4t-nvpmodel \
+	nvidia-l4t-nvsci \
+	nvidia-l4t-oem-config \
+	nvidia-l4t-openwfd \
+	nvidia-l4t-optee \
+	nvidia-l4t-pva \
+	nvidia-l4t-tools \
+	nvidia-l4t-vulkan-sc-dev \
+	nvidia-l4t-vulkan-sc-sdk \
+	nvidia-l4t-vulkan-sc \
+	nvidia-l4t-xusb-firmware \
+	cuda-cudart-12-6 \
+	cuda-cudart-dev-12-6 \
+	cuda-nvcc-12-6 \
+	cuda-nvdisasm-12-6 \
+	cuda-nvml-dev-12-6 \
+	cuda-nvprune-12-6 \
+	cuda-nvrtc-12-6 \
+	cuda-nvrtc-dev-12-6 \
+	cuda-nvtx-12-6 \
+	libcublas-12-6 \
+	libcublas-dev-12-6 \
+	jetson-gpio-common \
+	python-jetson-gpio \
+	python3-jetson-gpio \
+	nvidia-container-toolkit-base \
+	nvidia-container-toolkit \
+        && rm -rf /var/lib/apt/lists/*
+
+# Move CUDA out of the way to /opt so kairos can occupy /usr/local without workarounds
+RUN update-alternatives --remove-all cuda && \
+    update-alternatives --remove-all cuda-12 && \
+    mv /usr/local/cuda-12.6 /opt/cuda-12.6 && \
+    update-alternatives --install /opt/cuda cuda /opt/cuda-12.6 1 && \
+    update-alternatives --install /opt/cuda-12 cuda-12 /opt/cuda-12.6 1
+
+# change mountpoint for l4t usb device mode, as rootfs is mounted ro
+# /srv/data is made through cloud-config
+RUN sed -i -e 's|mntpoint="/mnt|mntpoint="/srv/data|' /opt/nvidia/l4t-usb-device-mode/nv-l4t-usb-device-mode-start.sh
+
+# init kairos
+RUN --mount=type=bind,source=/kairos-init,target=/kairos-init,from=quay.io/kairos/kairos-init:v0.6.1 \
+    echo "" > /boot/extlinux.conf && \
+    echo 'omit_dracutmodules+=" iscsi "' > /etc/dracut.conf.d/iscsi.conf && \
+    # We've already installed this sources list manually somewhere up above, \
+    # and it conflicts with Kairos \
+    rm -rf /etc/apt/sources.list.d/nvidia-l4t-apt-source.list && \
+    /kairos-init -l info -s install \
+	-m "${KAIROS_MODEL}" -t "${KAIROS_TRUSTED_BOOT}" -k "${KAIROS_KUBERNETES_DISTRO}" \
+	--k8sversion "${KAIROS_KUBERNETES_VERSION}" \
+	--version "${KAIROS_VERSION}" \
+	--skip-step installKernel,installPackages && \
+    /kairos-init -l info -s init -m "${KAIROS_MODEL}" -t "${KAIROS_TRUSTED_BOOT}" -k "${KAIROS_KUBERNETES_DISTRO}" \
+	--k8sversion "${KAIROS_KUBERNETES_VERSION}" \
+	--version "${KAIROS_VERSION}" && \
+    /kairos-init validate
+
+ARG K3S_VERSION="v1.28.5+k3s1"
+ARG BASE_VERSION="36.4.4"
+ARG RELEASE
+
+# iscsid causes delays on the login shell, and we don't need it, so we'll
+# disable it.
+RUN systemctl disable iscsi open-iscsi iscsid.socket
+
+# install k3s
+# manually enable k3s service as the install script wants to execute a daemon reload which we can 
+# not perform during build
+RUN wget -O - --quiet https://get.k3s.io | \
+    INSTALL_K3S_VERSION=${K3S_VERSION} \
+    INSTALL_K3S_BIN_DIR="/usr/bin" \
+    INSTALL_K3S_SKIP_ENABLE=true \
+    INSTALL_K3S_SKIP_START=true \
+    sh -s - server --resolv-conf /run/systemd/resolve/resolv.conf --node-ip 192.168.255.254 && \
+    systemctl enable k3s.service
+
+# Add the system-upgrade-controller - we need it to do OS updates from K3s
+ADD https://github.com/rancher/system-upgrade-controller/releases/download/v0.15.3/system-upgrade-controller.yaml /var/lib/rancher/k3s/server/manifests/system-upgrade-controller.yaml
+
+RUN depmod 5.15.148-tegra
+
+# Create the kairos-release file to identify the OS
+RUN kairos-agent --debug versioneer os-release-variables | tee /etc/kairos-release
+
+# Empty the /etc/machine-id file
+RUN echo "" > /etc/machine-id && \
+    grep KAIROS_IMAGE_REPO /etc/kairos-release | awk -F= '{print $2}' > /IMAGE && \
+    grep KAIROS_RELEASE /etc/kairos-release | awk -F= '{print $2}' > /VERSION
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends network-manager && \
+    rm -rf /var/lib/apt/lists/* && \
+    systemctl enable NetworkManager.service
