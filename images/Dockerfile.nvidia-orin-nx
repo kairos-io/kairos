@@ -255,16 +255,16 @@ ARG RELEASE
 # disable it.
 RUN systemctl disable iscsi open-iscsi iscsid.socket
 
-# install k3s
-# manually enable k3s service as the install script wants to execute a daemon reload which we can 
-# not perform during build
-RUN wget -O - --quiet https://get.k3s.io | \
-    INSTALL_K3S_VERSION=${K3S_VERSION} \
-    INSTALL_K3S_BIN_DIR="/usr/bin" \
-    INSTALL_K3S_SKIP_ENABLE=true \
-    INSTALL_K3S_SKIP_START=true \
-    sh -s - server --resolv-conf /run/systemd/resolve/resolv.conf --node-ip 192.168.255.254 && \
-    systemctl enable k3s.service
+# # install k3s
+# # manually enable k3s service as the install script wants to execute a daemon reload which we can 
+# # not perform during build
+# RUN wget -O - --quiet https://get.k3s.io | \
+#     INSTALL_K3S_VERSION=${K3S_VERSION} \
+#     INSTALL_K3S_BIN_DIR="/usr/bin" \
+#     INSTALL_K3S_SKIP_ENABLE=true \
+#     INSTALL_K3S_SKIP_START=true \
+#     sh -s - server --resolv-conf /run/systemd/resolve/resolv.conf --node-ip 192.168.255.254 && \
+#     systemctl enable k3s.service
 
 # Add the system-upgrade-controller - we need it to do OS updates from K3s
 ADD https://github.com/rancher/system-upgrade-controller/releases/download/v0.15.3/system-upgrade-controller.yaml /var/lib/rancher/k3s/server/manifests/system-upgrade-controller.yaml
