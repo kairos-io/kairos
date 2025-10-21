@@ -44,6 +44,7 @@ jobs:
       list_release_artifacts: true
       cosign: true
       release: true
+      dockerfile_path: "images/Dockerfile"
   build-core-rpi4:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@a9439a91ef3c968c99a6d50209fa8e2db22afb85
     secrets:
@@ -73,6 +74,7 @@ jobs:
       trivy_sarif: true
       list_release_artifacts: true
       cosign: true
+      dockerfile_path: "images/Dockerfile"
   get-k3s-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -140,6 +142,7 @@ jobs:
       list_release_artifacts: true
       cosign: true
       release: true
+      dockerfile_path: "images/Dockerfile"
   build-standard-rpi4:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@a9439a91ef3c968c99a6d50209fa8e2db22afb85
     secrets:
@@ -174,6 +177,7 @@ jobs:
       trivy_sarif: true
       list_release_artifacts: true
       cosign: true
+      dockerfile_path: "images/Dockerfile"
   build-nvidia-base:
     runs-on: 'ubuntu-24.04-arm'
     steps:
@@ -235,3 +239,4 @@ jobs:
       list_release_artifacts: true
       cosign: true
       release: true
+      dockerfile_path: "images/Dockerfile"
