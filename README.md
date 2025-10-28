@@ -11,6 +11,7 @@
   <a href="https://github.com/kairos-io/kairos/actions/workflows/image-master.yaml"> <img src="https://github.com/kairos-io/kairos/actions/workflows/image-master.yaml/badge.svg"></a>
   <a href="https://www.bestpractices.dev/projects/9100"><img src="https://www.bestpractices.dev/projects/9100/badge"></a>
   <a href="https://clomonitor.io/projects/cncf/kairos"><img src="https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/kairos/badge"></a>
+  <a href="https://scorecard.dev/viewer/?uri=github.com/kairos-io/kairos"><img src="https://api.scorecard.dev/projects/github.com/kairos-io/kairos/badge"></a>
 </p>
 
 <p align="center">
