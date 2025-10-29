@@ -117,7 +117,7 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "opensuse/leap:26"
+          - "opensuse/leap:16"
           - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
