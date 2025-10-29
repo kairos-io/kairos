@@ -26,7 +26,7 @@ jobs:
           - "alpine:3.22"
           - "fedora:43"
           - "debian:13"
-          - "rockylinux:10"
+          - "rockylinux/rockylinux:10"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -155,7 +155,7 @@ jobs:
           - "alpine:3.22"
           - "fedora:43"
           - "debian:13"
-          - "rockylinux:10"
+          - "rockylinux/rockylinux:10"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -192,7 +192,7 @@ jobs:
         base_image:
           - "opensuse/leap:16"
           - "ubuntu:25.10"
-          - "rockylinux:10"
+          - "rockylinux/rockylinux:10"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}

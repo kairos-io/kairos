@@ -84,7 +84,7 @@ jobs:
             kubernetes_distro: "k0s"
           - base_image: "opensuse/leap:15.6"
             kubernetes_distro: "k0s"
-          - base_image: "rockylinux:9"
+          - base_image: "rockylinux/rockylinux:10"
             kubernetes_distro: "k0s"
   lifecycle-tests:
     name: ${{ matrix.base_image }}

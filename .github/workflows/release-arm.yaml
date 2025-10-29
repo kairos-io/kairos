@@ -29,7 +29,7 @@ jobs:
           - "alpine:3.22"
           - "fedora:43"
           - "debian:13"
-          - "rockylinux:10"
+          - "rockylinux/rockylinux:10"
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -126,7 +126,7 @@ jobs:
           - "alpine:3.21"
           - "fedora:43"
           - "debian:13"
-          - "rockylinux:10"
+          - "rockylinux/rockylinux:10"
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
