@@ -20,16 +20,16 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "opensuse/leap:15.6"
+          - "opensuse/leap:16"
           - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:25.10"
-          - "alpine:3.21"
-          - "fedora:40"
-          - "debian:12"
-          - "rockylinux:9"
+          - "alpine:3.22"
+          - "fedora:43"
+          - "debian:13"
+          - "rockylinux:10"
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -59,10 +59,10 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "opensuse/leap:15.6"
+          - "opensuse/leap:16"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
     with:
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -117,16 +117,16 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "opensuse/leap:15.6"
+          - "opensuse/leap:26"
           - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:25.10"
           - "alpine:3.21"
-          - "fedora:40"
-          - "debian:12"
-          - "rockylinux:9"
+          - "fedora:43"
+          - "debian:13"
+          - "rockylinux:10"
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"

@@ -43,9 +43,9 @@ jobs:
           - "ubuntu:24.04"
           - "ubuntu:22.04"
           - "ubuntu:20.04"
-          - "alpine:3.21"
-          - "opensuse/leap:15.6"
-          - "debian:12"
+          - "alpine:3.22"
+          - "opensuse/leap:16"
+          - "debian:13"
   standard:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@473ed53d3bb178669fcd9e0d6148b42ff000998c # v0.0.8
@@ -76,9 +76,9 @@ jobs:
           - "ubuntu:24.04"
           - "ubuntu:22.04"
           - "ubuntu:20.04"
-          - "alpine:3.21"
-          - "opensuse/leap:15.6"
-          - "debian:12"
+          - "alpine:3.22"
+          - "opensuse/leap:16"
+          - "debian:13"
         include:
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k0s"
@@ -106,7 +106,7 @@ jobs:
         secureboot: [false]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -155,7 +155,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
   encryption-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-encryption-test.yaml

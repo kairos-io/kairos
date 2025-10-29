@@ -39,7 +39,7 @@ jobs:
         base_image:
           - "ubuntu:25.10"
           - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
 
   lifecycle-tests:
     name: ${{ matrix.base_image }}
@@ -62,7 +62,7 @@ jobs:
         base_image:
           - "ubuntu:25.10"
           - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -105,7 +105,7 @@ jobs:
         base_image:
           - "ubuntu:25.10"
           - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
   encryption-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit

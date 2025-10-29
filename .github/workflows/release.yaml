@@ -17,16 +17,16 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "opensuse/leap:15.6"
+          - "opensuse/leap:16"
           - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:25.10"
-          - "alpine:3.21"
-          - "fedora:40"
-          - "debian:12"
-          - "rockylinux:9"
+          - "alpine:3.22"
+          - "fedora:43"
+          - "debian:13"
+          - "rockylinux:10"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -56,7 +56,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "fedora:40"
+          - "fedora:43"
         include:
           - base_image: "ubuntu:24.04"
             variant: "standard"  # let it use the latest k3s version released for now
@@ -146,16 +146,16 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "opensuse/leap:15.6"
+          - "opensuse/leap:16"
           - "opensuse/tumbleweed:latest"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:25.10"
-          - "alpine:3.21"
-          - "fedora:40"
-          - "debian:12"
-          - "rockylinux:9"
+          - "alpine:3.22"
+          - "fedora:43"
+          - "debian:13"
+          - "rockylinux:10"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -190,9 +190,9 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "opensuse/leap:15.6"
+          - "opensuse/leap:16"
           - "ubuntu:25.10"
-          - "rockylinux:9"
+          - "rockylinux:10"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
