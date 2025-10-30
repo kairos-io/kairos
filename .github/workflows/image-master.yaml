@@ -82,7 +82,7 @@ jobs:
         include:
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k0s"
-          - base_image: "opensuse/leap:15.6"
+          - base_image: "opensuse/leap:16"
             kubernetes_distro: "k0s"
           - base_image: "rockylinux/rockylinux:10"
             kubernetes_distro: "k0s"
@@ -128,7 +128,7 @@ jobs:
             base_image: "ubuntu:22.04"
           - test: "install"
             secureboot: true
-            base_image: "opensuse/leap:15.6"
+            base_image: "opensuse/leap:16"
           - test: "install"
             secureboot: true
             base_image: "debian:12"
@@ -137,7 +137,7 @@ jobs:
           - test: "acceptance"
             base_image: "ubuntu:20.04"
           - test: "acceptance"
-            base_image: "opensuse/leap:15.6"
+            base_image: "opensuse/leap:16"
           - test: "acceptance"
             base_image: "debian:12"
   netboot-tests:

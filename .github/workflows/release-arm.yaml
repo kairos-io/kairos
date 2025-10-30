@@ -121,7 +121,7 @@ jobs:
           - "ubuntu:22.04"
           - "ubuntu:24.04"
           - "ubuntu:25.10"
-          - "alpine:3.21"
+          - "alpine:3.22"
           - "fedora:43"
           - "debian:13"
           - "rockylinux/rockylinux:10"
@@ -157,10 +157,10 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "opensuse/leap:15.6"
+          - "opensuse/leap:16"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
     with:
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
