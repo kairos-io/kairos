@@ -39,7 +39,7 @@ jobs:
         model: ["rpi4", "rpi3"]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
 
   build-generic:
     name: ${{ matrix.base_image }}
@@ -67,4 +67,4 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "alpine:3.22"
