@@ -43,7 +43,7 @@ jobs:
           - "ubuntu:24.04"
           - "ubuntu:22.04"
           - "ubuntu:20.04"
-          - "alpine:3.22"
+          - "alpine:3.21"
           - "opensuse/leap:16"
           - "debian:13"
   standard:
@@ -76,7 +76,7 @@ jobs:
           - "ubuntu:24.04"
           - "ubuntu:22.04"
           - "ubuntu:20.04"
-          - "alpine:3.22"
+          - "alpine:3.21"
           - "opensuse/leap:16"
           - "debian:13"
         include:
@@ -106,7 +106,7 @@ jobs:
         secureboot: [false]
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.22"
+          - "alpine:3.21"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -155,7 +155,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.22"
+          - "alpine:3.21"
   encryption-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-encryption-test.yaml
