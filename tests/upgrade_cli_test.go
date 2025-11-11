@@ -61,7 +61,7 @@ var _ = Describe("k3s upgrade manual test", Label("upgrade-with-cli"), func() {
 			preFP := HostSSHFingerprint(vm)
 
 			By(fmt.Sprintf("Upgrading to: %s", containerImage))
-			out, err := vm.Sudo("kairos-agent --debug upgrade --force --source oci://" + containerImage)
+			out, err := vm.Sudo("kairos-agent --debug upgrade --source oci://" + containerImage)
 			Expect(err).ToNot(HaveOccurred(), string(out))
 			Expect(out).To(ContainSubstring("Upgrade completed"))
 			Expect(out).To(ContainSubstring(containerImage))
