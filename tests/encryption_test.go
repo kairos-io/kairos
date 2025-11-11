@@ -107,7 +107,6 @@ stages:
 	//https://kairos.io/docs/advanced/partition_encryption/#online-mode
 	When("using a remote key management server (automated passphrase generation)", Label("encryption-remote-auto"), func() {
 		var tpmHash string
-		var err error
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
@@ -188,7 +187,6 @@ kcrypt:
 	// https://kairos.io/docs/advanced/partition_encryption/#scenario-static-keys
 	When("using a remote key management server (static keys)", Label("encryption-remote-static"), func() {
 		var tpmHash string
-		var err error
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
@@ -281,7 +279,6 @@ kcrypt:
 	When("the key management server is listening on https", func() {
 		Expect(installError).ToNot(HaveOccurred(), installationOutput)
 		var tpmHash string
-		var err error
 
 		BeforeEach(func() {
 			tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
