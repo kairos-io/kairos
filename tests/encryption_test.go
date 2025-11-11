@@ -111,8 +111,11 @@ stages:
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
-			tpmHash, err = vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
-			Expect(err).ToNot(HaveOccurred(), tpmHash)
+			tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
+			Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
+			// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
+			lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
+			tpmHash = strings.TrimSpace(lines[0])
 
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: keyserver.kairos.io/v1alpha1
@@ -125,7 +128,7 @@ spec:
   partitions:
     - label: COS_PERSISTENT
   quarantined: false
-`, strings.TrimSpace(tpmHash)))
+`, tpmHash))
 
 			config = fmt.Sprintf(`#cloud-config
 
@@ -189,8 +192,11 @@ kcrypt:
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
-			tpmHash, err = vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
-			Expect(err).ToNot(HaveOccurred(), tpmHash)
+			tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
+			Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
+			// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
+			lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
+			tpmHash = strings.TrimSpace(lines[0])
 
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: v1
@@ -278,8 +284,11 @@ kcrypt:
 		var err error
 
 		BeforeEach(func() {
-			tpmHash, err = vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
-			Expect(err).ToNot(HaveOccurred(), tpmHash)
+			tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
+			Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
+			// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
+			lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
+			tpmHash = strings.TrimSpace(lines[0])
 
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: keyserver.kairos.io/v1alpha1
@@ -292,7 +301,7 @@ spec:
   partitions:
     - label: COS_PERSISTENT
   quarantined: false
-`, strings.TrimSpace(tpmHash)))
+`, tpmHash))
 		})
 
 		When("the certificate is pinned on the configuration", Label("encryption-remote-https-pinned"), func() {
