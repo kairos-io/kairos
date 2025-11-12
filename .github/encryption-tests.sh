@@ -6,7 +6,7 @@ set -ex
 # This is where sealed volumes are created.
 
 GINKGO_NODES="${GINKGO_NODES:-1}"
-K3S_IMAGE="rancher/k3s:v1.26.1-k3s1"
+K3S_IMAGE="rancher/k3s:v1.34.1-k3s1"
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CLUSTER_NAME=$(echo $RANDOM | md5sum | head -c 10; echo;)
 
