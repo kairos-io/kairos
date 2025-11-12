@@ -32,12 +32,28 @@ if [ "$LABEL" != "local-encryption" ]; then
   k3d cluster create "$CLUSTER_NAME" --k3s-arg "--cluster-cidr=10.49.0.1/16@server:0" --k3s-arg "--service-cidr=10.48.0.1/16@server:0" -p '80:80@server:0' -p '443:443@server:0' --image "$K3S_IMAGE"
   k3d kubeconfig get "$CLUSTER_NAME" > "$KUBECONFIG"
 
+  # Wait for cluster to be fully ready before proceeding
+  echo "Waiting for cluster to be ready..."
+  kubectl wait --for=condition=Ready nodes --all --timeout=2m
+
   # Import the image to the cluster
   #docker pull quay.io/kairos/kcrypt-challenger:latest
   #k3d image import -c "$CLUSTER_NAME" quay.io/kairos/kcrypt-challenger:latest
 
   # Install cert manager
   kubectl apply -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
+
+  # Wait for cert-manager pods to be running first (more reliable than deployment condition)
+  echo "Waiting for cert-manager pods to be ready..."
+  kubectl wait --for=condition=Ready pod --timeout=5m -n cert-manager --all || {
+    echo "Cert-manager pods failed to become ready. Current pod status:"
+    kubectl get pods -n cert-manager
+    kubectl describe pods -n cert-manager
+    exit 1
+  }
+
+  # Then wait for deployments to be available (this ensures the webhook is actually serving)
+  echo "Waiting for cert-manager deployments to be available..."
   kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
   # Replace the CLUSTER_IP in the kustomize resource
