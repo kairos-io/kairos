@@ -441,7 +441,7 @@ func createConfigWithCert(server, cert string) Config {
 }
 
 func getTPMHash(vm VM) string {
-	tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
+	tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger; echo")
 	Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
 	// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
 	lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
