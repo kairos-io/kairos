@@ -110,11 +110,7 @@ stages:
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
-			tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
-			Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
-			// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
-			lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
-			tpmHash = strings.TrimSpace(lines[0])
+			tpmHash = getTPMHash(vm)
 
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: keyserver.kairos.io/v1alpha1
@@ -190,11 +186,7 @@ kcrypt:
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
-			tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
-			Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
-			// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
-			lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
-			tpmHash = strings.TrimSpace(lines[0])
+			tpmHash = getTPMHash(vm)
 
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: v1
@@ -281,11 +273,7 @@ kcrypt:
 		var tpmHash string
 
 		BeforeEach(func() {
-			tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
-			Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
-			// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
-			lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
-			tpmHash = strings.TrimSpace(lines[0])
+			tpmHash = getTPMHash(vm)
 
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: keyserver.kairos.io/v1alpha1
@@ -450,4 +438,12 @@ func createConfigWithCert(server, cert string) Config {
 			},
 		},
 	}
+}
+
+func getTPMHash(vm VM) string {
+	tpmHashOutput, err := vm.Sudo("/system/discovery/kcrypt-discovery-challenger")
+	Expect(err).ToNot(HaveOccurred(), tpmHashOutput)
+	// Extract only the hash (first line, trimmed) - ignore any error messages that may be appended
+	lines := strings.Split(strings.TrimSpace(tpmHashOutput), "\n")
+	return strings.TrimSpace(lines[0])
 }
