@@ -214,8 +214,7 @@ func genericTests(vm VM) {
 		vm.DetachCD()
 	})
 	By("waiting for VM to reboot", func() {
-		vm.Reboot()
-		vm.EventuallyConnects(1200)
+		vm.Reboot(1200)
 	})
 	By("Checking that rootfs is mounted RO", func() {
 		out, err := vm.Sudo("findmnt /")
