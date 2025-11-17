@@ -67,6 +67,8 @@ jobs:
       arch: "arm64"
       model: "rpi4"
       version: "auto"
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       grype: true
       grype_sarif: true
       trivy: true
@@ -132,6 +134,8 @@ jobs:
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
       version: "auto"
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       iso: true
       grype: true
       grype_sarif: true
@@ -168,6 +172,8 @@ jobs:
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
       version: "auto"
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       grype: true
       grype_sarif: true
       trivy: true
@@ -228,6 +234,8 @@ jobs:
       arch: "arm64"
       model: "nvidia-jetson-agx-orin"
       version: "auto"
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       grype: true
       grype_sarif: true
       trivy: true
