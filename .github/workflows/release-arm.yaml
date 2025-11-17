@@ -168,7 +168,7 @@ jobs:
     with:
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
-      model: "generic"
+      model: "rpi4"
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
       version: "auto"
