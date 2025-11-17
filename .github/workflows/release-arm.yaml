@@ -31,7 +31,7 @@ jobs:
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: "amd64"
+      arch: "arm64"
       model: "generic"
       version: "auto"
       registry_domain: "quay.io"
@@ -129,7 +129,7 @@ jobs:
           - "rockylinux:9"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: "amd64"
+      arch: "arm64"
       model: "generic"
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
@@ -167,7 +167,7 @@ jobs:
           - "alpine:3.21"
     with:
       base_image: ${{ matrix.base_image }}
-      arch: "amd64"
+      arch: "arm64"
       model: "generic"
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
