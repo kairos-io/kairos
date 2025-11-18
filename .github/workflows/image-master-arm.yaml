@@ -17,7 +17,7 @@ concurrency:
 jobs:
   core:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@a9439a91ef3c968c99a6d50209fa8e2db22afb85 # v0.0.10
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -138,7 +138,7 @@ jobs:
           tags: quay.io/kairos/cache:nvidia-base
   nvidia:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@a9439a91ef3c968c99a6d50209fa8e2db22afb85 # v0.0.10
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
