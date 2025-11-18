@@ -73,6 +73,8 @@ jobs:
       model: "generic"
       version: "auto"
       no_cache: true
+      registry_domain: "quay.io"
+      registry_namespace: "kairos"
       trusted_boot: true
       grype: true
       grype_sarif: true
