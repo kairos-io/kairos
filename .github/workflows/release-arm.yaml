@@ -30,6 +30,7 @@ jobs:
           - "debian:12"
           - "rockylinux:9"
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
       model: "generic"
@@ -64,6 +65,7 @@ jobs:
           - "ubuntu:22.04"
           - "alpine:3.21"
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
       model: "rpi4"
@@ -130,6 +132,7 @@ jobs:
           - "debian:12"
           - "rockylinux:9"
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
       model: "generic"
@@ -169,6 +172,7 @@ jobs:
           - "ubuntu:22.04"
           - "alpine:3.21"
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
       model: "rpi4"
@@ -234,6 +238,7 @@ jobs:
       actions: read
     needs: build-nvidia-base
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: "quay.io/kairos/cache:nvidia-base"
       arch: "arm64"
       model: "nvidia-jetson-agx-orin"

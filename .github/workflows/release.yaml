@@ -30,6 +30,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
@@ -66,6 +67,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
@@ -160,6 +162,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
@@ -198,6 +201,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
