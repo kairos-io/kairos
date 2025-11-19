@@ -17,14 +17,14 @@ assignees: mudler
 ## ✅ Release Checklist
 
 - [ ] **Stage 0 - Finishing Touches**
-    - [ ] Check if Kairos-docs has any open PRs that need to be merged
+    - [ ] Check for [critical CVEs in our internal components](https://github.com/kairos-io/security). Do any necessary bumps or PR merges to get all components to good state.
+    - [ ] Check if the desired versions of the binaries are referenced in [the kairos-init Makefile](https://github.com/kairos-io/kairos-init/blob/fea3a17d511f70b66a4972f43f601ba6cc9105f3/Makefile#L2-L6) (check for renovate bot PRs)
+    - [ ] Bump versions if needed and cut a new release of kairos-init
+    - [ ] Bump the kairos-init version [on the kairos Dockerfile](https://github.com/kairos-io/kairos/blob/6deaa69ead774ee052de894a9c56b952952a68d3/images/Dockerfile#L2)
+    - [ ] CI tests are passing
+    - [ ] Check if [Kairos docs](https://github.com/kairos-io/kairos-docs/) has any open PRs that need to be merged
     - [ ] Check if osbuilder is in the wanted version/latest
     - [ ] Check if k3s versions are correct (latest 3 versions should be available)
-    - [ ] Check if any kairos/packages were bumped. Ensure they were merged and repo updated (https://github.com/kairos-io/kairos-framework/issues/2)
-      - [ ] Cut a new release of the kairos-framework images
-      - [ ] Bump the [kairos-framework image in kairos](https://github.com/kairos-io/kairos/blob/b334bb013c0b3ad63740e5da27d896d5d5fea81e/Earthfile#L12)
-    - [ ] CI tests are passing
-    - [ ] There are [no critical CVEs in our internal components](https://github.com/kairos-io/security)
     - [ ] Consider cutting an `rc`, `alpha`, ... based on changes on the CI
 - [ ] **Stage 1 - Manual testing**
   - How: Using the assets from master, make sure that test scenarios not covered by automatic tests are passing, and that docs are still aligned
@@ -46,7 +46,6 @@ assignees: mudler
 - [ ] **Stage 3 - Release**
   - [ ] Tag the release on master
   - [ ] Update the release with any known issues
+  - [ ] Perform a manual commit on the `docs` repo to trigger CI (`git commit --allow-empty -m "Trigger Build`)
 - [ ] **Stage 4 - Announcement**
-  - [ ] Merge docs updates for kairos and k3s version updates
-  - [ ] Create a branch `release/vX.Y.Z` on the docs (not tagging), so the new release can be built and displayed on the menu. Ideally open a PR so we can review and add/remove some commits if needed (in case we have documented WIP which is not available on the given release)
   - [ ] Blog post announcement
