@@ -46,6 +46,6 @@ assignees: mudler
 - [ ] **Stage 3 - Release**
   - [ ] Tag the release on master
   - [ ] Update the release with any known issues
-  - [ ] Perform a manual commit on the `docs` repo to trigger CI (`git commit --allow-empty -m "Trigger Build`)
+  - [ ] Perform a manual commit on the `docs` repo to trigger CI (`git commit --allow-empty -m "Trigger Build"`)
 - [ ] **Stage 4 - Announcement**
   - [ ] Blog post announcement
