@@ -197,6 +197,7 @@ jobs:
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
         base_image:
           - "opensuse/leap:15.6"
+          - "ubuntu:24.04"
           - "ubuntu:25.10"
           - "rockylinux:9"
     secrets:
