@@ -93,7 +93,7 @@ jobs:
           CPUS: 2
           DRIVE_SIZE: 50000
         run: |
-          export ISO=$(ls $PWD/*${{ steps.split.outputs.flavor }}*.iso)
+          export ISO=$(ls $PWD/*.iso| head -1)
           .github/encryption-tests.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()

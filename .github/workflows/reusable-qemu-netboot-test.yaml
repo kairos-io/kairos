@@ -80,7 +80,7 @@ jobs:
       - name: Extract ipxe artifacts for the ipxe server
         run: |
           mkdir -p build
-          export ISO=$(ls $PWD/*${{ steps.split.outputs.flavor }}*.iso)
+          export ISO=$(ls $PWD/*.iso| head -1)
           isoinfo -x /rootfs.squashfs -R -i ${ISO} > build/kairos-squashfs
           isoinfo -x /boot/kernel -R -i ${ISO} > build/kairos-kernel
           isoinfo -x /boot/initrd -R -i ${ISO} > build/kairos-initrd
