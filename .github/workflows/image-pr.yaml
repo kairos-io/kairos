@@ -88,7 +88,8 @@ jobs:
             base_image: "ubuntu:24.04"
           - test: "upgrade-latest-with-cli"
             base_image: "ubuntu:25.10"
-            release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.5.7.iso"
+            # Whenever there's a new flavor e.g. ubuntu-25.10 but we haven't released a kairos version with it, you can use the release matcher to match to a previous version, e.g. ubuntu-24.04
+            # release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.6.0.iso"
   netboot-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
