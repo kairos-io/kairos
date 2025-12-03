@@ -7,7 +7,7 @@ on:
 permissions: read-all
 jobs:
   build-core:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -26,10 +26,12 @@ jobs:
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      auroraboot_version: "v0.15.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -47,7 +49,7 @@ jobs:
       cosign: true
       release: true
   build-uki-container-image:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -58,6 +60,7 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "fedora:40"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
         include:
           - base_image: "ubuntu:24.04"
             variant: "standard"  # let it use the latest k3s version released for now
@@ -67,6 +70,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      auroraboot_version: "v0.15.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -138,7 +142,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
 
   build-standard-k3s:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
     needs:
       - get-k3s-versions
     permissions:
@@ -160,10 +164,12 @@ jobs:
           - "fedora:40"
           - "debian:12"
           - "rockylinux:9"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      auroraboot_version: "v0.15.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
@@ -183,7 +189,7 @@ jobs:
       cosign: true
       release: true
   build-standard-k0s:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
     needs:
       - get-k0s-versions
     permissions:
@@ -200,10 +206,12 @@ jobs:
           - "ubuntu:24.04"
           - "ubuntu:25.10"
           - "rockylinux:9"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      auroraboot_version: "v0.15.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "amd64"

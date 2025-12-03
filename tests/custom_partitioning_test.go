@@ -33,7 +33,7 @@ var _ = Describe("kairos custom partitioning install", Label("custom-partitionin
 		Expect(err).ToNot(HaveOccurred())
 
 		DeferCleanup(func() {
-			vm.Destroy(nil)
+			_ = vm.Destroy(nil)
 		})
 
 		By("waiting for VM to be up for the first time")
@@ -42,7 +42,9 @@ var _ = Describe("kairos custom partitioning install", Label("custom-partitionin
 		By("creating a configuration for custom partitioning")
 		configFile, err := os.CreateTemp("", "")
 		Expect(err).ToNot(HaveOccurred())
-		defer os.Remove(configFile.Name())
+		defer func(name string) {
+			_ = os.Remove(name)
+		}(configFile.Name())
 
 		err = os.WriteFile(configFile.Name(), []byte(customPartitionConfig()), 0744)
 		Expect(err).ToNot(HaveOccurred())
@@ -114,20 +116,15 @@ stages:
   kairos-install.pre.before:
   - if:  '[ -e "/dev/vdb" ]'
     name: "Create partitions"
-    commands:
-      - |
-        parted --script --machine -- "/dev/vdb" mklabel gpt
-        # Legacy bios
-        sgdisk --new=1:2048:+1M --change-name=1:'bios' --typecode=1:EF02 /dev/vdb
     layout:
       device:
         path: "/dev/vdb"
+        init_disk: true
       add_partitions:
-        # For efi (comment out the legacy bios partition above)
-        #- fsLabel: COS_GRUB
-        #  size: 64
-        #  pLabel: efi
-        #  filesystem: "fat"
+        - fsLabel: COS_GRUB
+          size: 64
+          pLabel: bios
+          bootable: true
         - fsLabel: COS_OEM
           size: 64
           pLabel: oem

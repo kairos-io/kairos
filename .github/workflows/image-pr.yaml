@@ -14,11 +14,12 @@ concurrency:
 jobs:
   build:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      auroraboot_version: "v0.15.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -37,10 +38,10 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
-
   lifecycle-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
@@ -56,10 +57,11 @@ jobs:
     needs:
       - build
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         secureboot: [false]
         base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
@@ -104,6 +106,7 @@ jobs:
     strategy:
       matrix:
         base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
@@ -123,6 +126,7 @@ jobs:
       fail-fast: true
       matrix:
         base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"

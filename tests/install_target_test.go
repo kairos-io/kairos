@@ -3,14 +3,15 @@ package mos_test
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
-	. "github.com/spectrocloud/peg/matcher"
-	"github.com/spectrocloud/peg/pkg/machine"
-	"github.com/spectrocloud/peg/pkg/machine/types"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
+	. "github.com/spectrocloud/peg/matcher"
+	"github.com/spectrocloud/peg/pkg/machine"
+	"github.com/spectrocloud/peg/pkg/machine/types"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -54,8 +55,6 @@ var _ = Describe("kairos install test different targets", Label("install-target"
 			_ = os.WriteFile(filepath.Join("logs", "serial.log"), serial, os.ModePerm)
 			fmt.Println(string(serial))
 		}
-
-		time.Sleep(5 * time.Minute)
 
 		if CurrentSpecReport().Failed() {
 			gatherLogs(vm)
@@ -125,8 +124,8 @@ var _ = Describe("kairos install test different targets", Label("install-target"
 				stateAssertVM(vm, "persistent.read_only", "false")
 				stateAssertVM(vm, "state.read_only", "true")
 				stateAssertVM(vm, "kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
-				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian")
-				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
+				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "hadron")
+				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "hadron")
 			})
 		})
 		It("Selects the correct disk if using label for target", func() {
@@ -180,8 +179,8 @@ var _ = Describe("kairos install test different targets", Label("install-target"
 				stateAssertVM(vm, "persistent.read_only", "false")
 				stateAssertVM(vm, "state.read_only", "true")
 				stateAssertVM(vm, "kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
-				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian")
-				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
+				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "hadron")
+				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "hadron")
 			})
 		})
 	})

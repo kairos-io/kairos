@@ -147,8 +147,8 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 				Expect(err).ToNot(HaveOccurred(), currentVersion)
 
 				stateAssertVM(vm, "kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
-				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "fedora")
-				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "fedora")
+				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "fedora", "hadron")
+				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "fedora", "hadron")
 			})
 
 			By("Checking that the active entry is broken and with 0 retries", func() {
