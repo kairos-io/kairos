@@ -1,4 +1,4 @@
-FROM quay.io/kairos/kairos-init:v0.5.17 AS kairos-init
+FROM quay.io/kairos/kairos-init:v0.7.0 AS kairos-init
 
 FROM fedora:40
 ARG VERSION=v0.0.1
