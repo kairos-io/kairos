@@ -54,7 +54,7 @@ jobs:
     needs:
       - build
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         secureboot: [false]
         base_image:

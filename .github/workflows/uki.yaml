@@ -42,14 +42,14 @@ jobs:
       summary_artifacts: true
     strategy:
       matrix:
-        base_image: ["ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image: ["ghcr.io/kairos-io/hadron:main"]
         kubernetes_distro: ["", "k3s"]
   test_generic:
     needs: factory
     runs-on: kvm
     strategy:
       matrix:
-        base_image: ["ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image: ["ghcr.io/kairos-io/hadron:main"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core", "standard"]
@@ -168,7 +168,7 @@ jobs:
     runs-on: kvm
     strategy:
       matrix:
-        base_image: ["ubuntu:24.04"]
+        base_image: ["ghcr.io/kairos-io/hadron:main"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core"]
