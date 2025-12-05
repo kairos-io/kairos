@@ -58,8 +58,8 @@ jobs:
         id: split
         run: |
           # Split base image for tag generation
-          BASE_IMAGE=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
-          BASE_TAG=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          BASE_IMAGE=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
           # Handle special cases for base images with slashes
           # Handle base images with slashes (registry paths)
           # Examples:
@@ -90,6 +90,10 @@ jobs:
             FLAVOR="$BASE_IMAGE"
             FLAVOR_RELEASE="$BASE_TAG"
           fi
+          
+          echo "Base Image: $BASE_IMAGE"
+          echo "Determined Flavor: $FLAVOR"
+          echo "Determined Flavor Release: $FLAVOR_RELEASE"
 
           echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
           echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT

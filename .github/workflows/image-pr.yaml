@@ -39,6 +39,7 @@ jobs:
       matrix:
         base_image:
           - "ghcr.io/kairos-io/hadron:main"
+          - "ubuntu:24.04"
 
   lifecycle-tests:
     name: ${{ matrix.base_image }}
@@ -60,6 +61,7 @@ jobs:
         secureboot: [false]
         base_image:
           - "ghcr.io/kairos-io/hadron:main"
+          - "ubuntu:24.04"
         test:
           - "custom-partitioning"
           - "acceptance"
