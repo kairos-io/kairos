@@ -198,24 +198,46 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
-          base_image=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
-          tag=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
-
-          # Check if the base image contains a slash
-          if [[ "$base_image" == *"/"* ]]; then
-            # Split the base image into distro and sub-distro
-            distro=$(echo "$base_image" | cut -d '/' -f 1)
-            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
-            # Combine sub-distro and tag
-            tag="$sub_distro-$tag"
+          # Split base image for tag generation
+          BASE_IMAGE=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          # Handle special cases for base images with slashes
+          # Handle base images with slashes (registry paths)
+          # Examples:
+          # - ubuntu:24.04 -> FLAVOR=ubuntu, FLAVOR_RELEASE=24.04
+          # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
+          # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          if [[ "$BASE_IMAGE" == *"/"* ]]; then
+            DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+            SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+            FLAVOR="$DISTRO"
+            FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            # Count number of slashes to determine if it's a registry path
+            SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
+            if [[ $SLASH_COUNT -eq 1 ]]; then
+              # Simple case: distro/subdistro (preserve existing behavior)
+              DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+              SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+              FLAVOR="$DISTRO"
+              FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            else
+              # Registry path with multiple slashes: extract last component as FLAVOR
+              # e.g., ghcr.io/kairos-io/hadron -> FLAVOR=hadron
+              FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
+              FLAVOR_RELEASE="$BASE_TAG"
+            fi
           else
-            # Use the base image as the distro
-            distro="$base_image"
+            # No slashes: simple image name
+            FLAVOR="$BASE_IMAGE"
+            FLAVOR_RELEASE="$BASE_TAG"
           fi
 
-          echo "flavor=$distro" >> $GITHUB_OUTPUT
-          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
+          echo "Base Image: $BASE_IMAGE"
+          echo "Determined Flavor: $FLAVOR"
+          echo "Determined Flavor Release: $FLAVOR_RELEASE"
+
+          echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
+          echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           fetch-depth: '0'
