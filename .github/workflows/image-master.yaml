@@ -220,7 +220,6 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"
@@ -228,3 +227,10 @@ jobs:
           - "provider-upgrade-latest-k8s-with-kubernetes"
           - "provider-decentralized-k8s"
           - "provider-k3s-disabled"
+        include:
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            test: "provider-qrcode-install"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            test: "provider-decentralized-k8s"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            test: "provider-k3s-disabled"
