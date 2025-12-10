@@ -42,7 +42,7 @@ jobs:
       summary_artifacts: true
     strategy:
       matrix:
-        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta1","ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta1", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         kubernetes_distro: ["", "k3s"]
   test_generic:
     needs: factory
@@ -90,7 +90,7 @@ jobs:
             FLAVOR="$BASE_IMAGE"
             FLAVOR_RELEASE="$BASE_TAG"
           fi
-          
+
           echo "Base Image: $BASE_IMAGE"
           echo "Determined Flavor: $FLAVOR"
           echo "Determined Flavor Release: $FLAVOR_RELEASE"
