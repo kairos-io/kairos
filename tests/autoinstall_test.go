@@ -181,8 +181,8 @@ var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 				stateAssertVM(vm, "persistent.read_only", "false")
 				stateAssertVM(vm, "state.read_only", "true")
 				stateAssertVM(vm, "kairos.version", strings.ReplaceAll(strings.ReplaceAll(currentVersion, "\r", ""), "\n", ""))
-				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian")
-				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian")
+				stateContains(vm, "system.os.name", "alpine", "opensuse", "ubuntu", "debian", "hadron")
+				stateContains(vm, "kairos.flavor", "alpine", "opensuse", "ubuntu", "debian", "hadron")
 			})
 
 			By("Checking install/recovery services do not exist", func() {

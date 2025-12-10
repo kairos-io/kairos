@@ -173,6 +173,7 @@ func expectDefaultService(vm VM) {
 		} else {
 			// This is also run in the upgrade latest, so we need to check for both kairos-installer and kairos in case the service name changed
 			Eventually(func() string {
+
 				out, _ := vm.Sudo("systemctl status kairos-installer || systemctl status kairos")
 				return out
 			}, 3*time.Minute, 2*time.Second).Should(
@@ -187,7 +188,7 @@ func expectDefaultService(vm VM) {
 func expectStartedInstallation(vm VM) {
 	By("checking that installation has started", func() {
 		Eventually(func() string {
-			out, _ := vm.Sudo("ps aux")
+			out, _ := vm.Sudo("ps aux|ps")
 			return out
 		}, 30*time.Minute, 1*time.Second).Should(ContainSubstring("/usr/bin/kairos-agent install"))
 	})

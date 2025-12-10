@@ -15,12 +15,12 @@ concurrency:
   cancel-in-progress: true
 jobs:
   factory:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.13.0"
+      auroraboot_version: "v0.15.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
@@ -42,14 +42,14 @@ jobs:
       summary_artifacts: true
     strategy:
       matrix:
-        base_image: ["ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta1", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         kubernetes_distro: ["", "k3s"]
   test_generic:
     needs: factory
     runs-on: kvm
     strategy:
       matrix:
-        base_image: ["ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta1", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core", "standard"]
@@ -57,24 +57,46 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
-          base_image=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
-          tag=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
-
-          # Check if the base image contains a slash
-          if [[ "$base_image" == *"/"* ]]; then
-            # Split the base image into distro and sub-distro
-            distro=$(echo "$base_image" | cut -d '/' -f 1)
-            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
-            # Combine sub-distro and tag
-            tag="$sub_distro-$tag"
+          # Split base image for tag generation
+          BASE_IMAGE=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          # Handle special cases for base images with slashes
+          # Handle base images with slashes (registry paths)
+          # Examples:
+          # - ubuntu:24.04 -> FLAVOR=ubuntu, FLAVOR_RELEASE=24.04
+          # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
+          # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          if [[ "$BASE_IMAGE" == *"/"* ]]; then
+            DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+            SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+            FLAVOR="$DISTRO"
+            FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            # Count number of slashes to determine if it's a registry path
+            SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
+            if [[ $SLASH_COUNT -eq 1 ]]; then
+              # Simple case: distro/subdistro (preserve existing behavior)
+              DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+              SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+              FLAVOR="$DISTRO"
+              FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            else
+              # Registry path with multiple slashes: extract last component as FLAVOR
+              # e.g., ghcr.io/kairos-io/hadron -> FLAVOR=hadron
+              FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
+              FLAVOR_RELEASE="$BASE_TAG"
+            fi
           else
-            # Use the base image as the distro
-            distro="$base_image"
+            # No slashes: simple image name
+            FLAVOR="$BASE_IMAGE"
+            FLAVOR_RELEASE="$BASE_TAG"
           fi
 
-          echo "flavor=$distro" >> $GITHUB_OUTPUT
-          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
+          echo "Base Image: $BASE_IMAGE"
+          echo "Determined Flavor: $FLAVOR"
+          echo "Determined Flavor Release: $FLAVOR_RELEASE"
+
+          echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
+          echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           fetch-depth: '0'
@@ -124,7 +146,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:v0.10.0 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.15.0 --debug build-uki \
             --output-dir /result --output-type container \
             --public-keys /keys \
             --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
@@ -168,7 +190,7 @@ jobs:
     runs-on: kvm
     strategy:
       matrix:
-        base_image: ["ubuntu:24.04"]
+        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta1", "ubuntu:24.04"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core"]
@@ -176,24 +198,46 @@ jobs:
       - name: Split base image
         id: split
         run: |
-          # All of this becuase opensuse/leap:15.6 has to be pushed to the opensuse repo instead of having opensuse-leap and opensuse-tumbleweed...
-          base_image=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
-          tag=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
-
-          # Check if the base image contains a slash
-          if [[ "$base_image" == *"/"* ]]; then
-            # Split the base image into distro and sub-distro
-            distro=$(echo "$base_image" | cut -d '/' -f 1)
-            sub_distro=$(echo "$base_image" | cut -d '/' -f 2)
-            # Combine sub-distro and tag
-            tag="$sub_distro-$tag"
+          # Split base image for tag generation
+          BASE_IMAGE=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${{ matrix.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          # Handle special cases for base images with slashes
+          # Handle base images with slashes (registry paths)
+          # Examples:
+          # - ubuntu:24.04 -> FLAVOR=ubuntu, FLAVOR_RELEASE=24.04
+          # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
+          # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          if [[ "$BASE_IMAGE" == *"/"* ]]; then
+            DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+            SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+            FLAVOR="$DISTRO"
+            FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            # Count number of slashes to determine if it's a registry path
+            SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
+            if [[ $SLASH_COUNT -eq 1 ]]; then
+              # Simple case: distro/subdistro (preserve existing behavior)
+              DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+              SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+              FLAVOR="$DISTRO"
+              FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            else
+              # Registry path with multiple slashes: extract last component as FLAVOR
+              # e.g., ghcr.io/kairos-io/hadron -> FLAVOR=hadron
+              FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
+              FLAVOR_RELEASE="$BASE_TAG"
+            fi
           else
-            # Use the base image as the distro
-            distro="$base_image"
+            # No slashes: simple image name
+            FLAVOR="$BASE_IMAGE"
+            FLAVOR_RELEASE="$BASE_TAG"
           fi
 
-          echo "flavor=$distro" >> $GITHUB_OUTPUT
-          echo "flavor_release=$tag" >> $GITHUB_OUTPUT
+          echo "Base Image: $BASE_IMAGE"
+          echo "Determined Flavor: $FLAVOR"
+          echo "Determined Flavor Release: $FLAVOR_RELEASE"
+
+          echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
+          echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           fetch-depth: '0'
