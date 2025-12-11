@@ -61,7 +61,6 @@ jobs:
       matrix:
         secureboot: [false]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
@@ -90,6 +89,16 @@ jobs:
             base_image: "ubuntu:24.04"
           - test: "upgrade-latest-with-cli"
             base_image: "ubuntu:25.10"
+          - test: "install"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - test: "custom-partitioning"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - test: "acceptance"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - test: "install-target"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - test: "reset"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
             # Whenever there's a new flavor e.g. ubuntu-25.10 but we haven't released a kairos version with it, you can use the release matcher to match to a previous version, e.g. ubuntu-24.04
             # release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.6.0.iso"
   encryption-tests:

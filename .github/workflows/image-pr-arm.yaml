@@ -19,6 +19,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      auroraboot_version: "v0.16.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -48,6 +49,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
+      auroraboot_version: "v0.16.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
