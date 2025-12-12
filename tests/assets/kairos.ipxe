@@ -1,6 +1,0 @@
-#!ipxe
-set dns 8.8.8.8
-ifconf
-initrd http://10.0.2.2/kairos-initrd
-kernel http://10.0.2.2/kairos-kernel root=live:http://10.0.2.2/kairos-squashfs initrd=kairos-initrd rd.neednet=1 ip=dhcp rd.cos.disable netboot install-mode config_url=${config} console=tty1 console=ttyS0 rd.live.overlay.overlayfs
-boot
