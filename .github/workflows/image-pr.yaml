@@ -42,6 +42,7 @@ jobs:
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
+          - "debian:13"
   lifecycle-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
@@ -65,6 +66,7 @@ jobs:
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
+          - "debian:13"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -110,6 +112,7 @@ jobs:
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
+          - "debian:13"
   encryption-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit

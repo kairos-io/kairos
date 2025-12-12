@@ -46,7 +46,7 @@ jobs:
           - "ubuntu:20.04"
           - "alpine:3.21"
           - "opensuse/leap:15.6"
-          - "debian:12"
+          - "debian:13"
           - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
   standard:
     name: ${{ matrix.base_image }}
