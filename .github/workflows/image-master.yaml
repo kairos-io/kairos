@@ -47,7 +47,7 @@ jobs:
           - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:12"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
   standard:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
@@ -82,7 +82,7 @@ jobs:
           - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:12"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
         include:
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k0s"
@@ -145,15 +145,15 @@ jobs:
           - test: "acceptance"
             base_image: "debian:12"
           - test: "install"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
           - test: "custom-partitioning"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
           - test: "acceptance"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
           - test: "install-target"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
           - test: "reset"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
   encryption-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-encryption-test.yaml
@@ -171,7 +171,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
         label:
           - "encryption-local"
           - "encryption-remote-auto"
@@ -220,9 +220,9 @@ jobs:
           - "provider-decentralized-k8s"
           - "provider-k3s-disabled"
         include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
             test: "provider-qrcode-install"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
             test: "provider-decentralized-k8s"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
             test: "provider-k3s-disabled"
