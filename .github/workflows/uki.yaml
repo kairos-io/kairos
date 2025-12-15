@@ -48,6 +48,7 @@ jobs:
     needs: factory
     runs-on: kvm
     strategy:
+      fail-fast: false
       matrix:
         base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta1", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         arch: ["amd64"]
@@ -189,6 +190,7 @@ jobs:
     needs: factory
     runs-on: kvm
     strategy:
+      fail-fast: false
       matrix:
         base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta1", "ubuntu:24.04"]
         arch: ["amd64"]
