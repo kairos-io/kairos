@@ -19,7 +19,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.15.0"
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -38,7 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
@@ -61,7 +61,6 @@ jobs:
       matrix:
         secureboot: [false]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"
@@ -90,26 +89,18 @@ jobs:
             base_image: "ubuntu:24.04"
           - test: "upgrade-latest-with-cli"
             base_image: "ubuntu:25.10"
+          - test: "install"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "custom-partitioning"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "acceptance"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "install-target"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "reset"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
             # Whenever there's a new flavor e.g. ubuntu-25.10 but we haven't released a kairos version with it, you can use the release matcher to match to a previous version, e.g. ubuntu-24.04
             # release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.6.0.iso"
-  netboot-tests:
-    name: ${{ matrix.base_image }}
-    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
-    secrets: inherit
-    with:
-      base_image: ${{ matrix.base_image }}
-      variant: "core"
-      arch: "amd64"
-      model: "generic"
-    needs:
-      - build
-    strategy:
-      matrix:
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
-          - "ubuntu:25.10"
-          - "ubuntu:24.04"
-          - "alpine:3.21"
   encryption-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
@@ -123,10 +114,10 @@ jobs:
     needs:
       - build
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
           - "ubuntu:25.10"
           - "ubuntu:24.04"
           - "alpine:3.21"

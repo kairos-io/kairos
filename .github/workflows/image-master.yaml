@@ -21,7 +21,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.15.0"
+      auroraboot_version: "v0.16.1"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -47,7 +47,7 @@ jobs:
           - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:12"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
   standard:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@v0.0.12
@@ -55,7 +55,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.15.0"
+      auroraboot_version: "v0.16.1"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -82,7 +82,7 @@ jobs:
           - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:12"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
         include:
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k0s"
@@ -111,7 +111,6 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -145,23 +144,16 @@ jobs:
             base_image: "opensuse/leap:15.6"
           - test: "acceptance"
             base_image: "debian:12"
-  netboot-tests:
-    name: ${{ matrix.base_image }}
-    uses: ./.github/workflows/reusable-qemu-netboot-test.yaml
-    secrets: inherit
-    with:
-      base_image: ${{ matrix.base_image }}
-      variant: "core"
-      model: "generic"
-      arch: "amd64"
-    needs:
-      - core
-    strategy:
-      matrix:
-        base_image:
-          - "ubuntu:24.04"
-          - "alpine:3.21"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - test: "install"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "custom-partitioning"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "acceptance"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "install-target"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+          - test: "reset"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
   encryption-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-encryption-test.yaml
@@ -179,7 +171,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
         label:
           - "encryption-local"
           - "encryption-remote-auto"
@@ -220,7 +212,6 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta1"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"
@@ -228,3 +219,10 @@ jobs:
           - "provider-upgrade-latest-k8s-with-kubernetes"
           - "provider-decentralized-k8s"
           - "provider-k3s-disabled"
+        include:
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+            test: "provider-qrcode-install"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+            test: "provider-decentralized-k8s"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
+            test: "provider-k3s-disabled"

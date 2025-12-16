@@ -30,6 +30,7 @@ jobs:
           - "debian:12"
           - "rockylinux:9"
     with:
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -65,6 +66,7 @@ jobs:
           - "ubuntu:22.04"
           - "alpine:3.21"
     with:
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -132,6 +134,7 @@ jobs:
           - "debian:12"
           - "rockylinux:9"
     with:
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -172,6 +175,7 @@ jobs:
           - "ubuntu:22.04"
           - "alpine:3.21"
     with:
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -238,6 +242,7 @@ jobs:
       actions: read
     needs: build-nvidia-base
     with:
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: "quay.io/kairos/cache:nvidia-base"
       arch: "arm64"
