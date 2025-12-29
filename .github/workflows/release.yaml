@@ -24,7 +24,7 @@ jobs:
           - "ubuntu:25.10"
           - "alpine:3.21"
           - "fedora:40"
-          - "debian:12"
+          - "debian:13"
           - "rockylinux:9"
           - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
     secrets:
@@ -162,7 +162,7 @@ jobs:
           - "ubuntu:25.10"
           - "alpine:3.21"
           - "fedora:40"
-          - "debian:12"
+          - "debian:13"
           - "rockylinux:9"
           - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
     secrets:

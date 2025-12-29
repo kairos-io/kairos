@@ -27,7 +27,7 @@ jobs:
           - "ubuntu:25.10"
           - "alpine:3.21"
           - "fedora:40"
-          - "debian:12"
+          - "debian:13"
           - "rockylinux:9"
     with:
       auroraboot_version: "v0.16.2"
@@ -131,7 +131,7 @@ jobs:
           - "ubuntu:25.10"
           - "alpine:3.21"
           - "fedora:40"
-          - "debian:12"
+          - "debian:13"
           - "rockylinux:9"
     with:
       auroraboot_version: "v0.16.2"

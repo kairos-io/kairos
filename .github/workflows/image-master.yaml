@@ -21,7 +21,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.16.1"
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -46,7 +46,7 @@ jobs:
           - "ubuntu:20.04"
           - "alpine:3.21"
           - "opensuse/leap:15.6"
-          - "debian:12"
+          - "debian:13"
           - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
   standard:
     name: ${{ matrix.base_image }}
@@ -55,7 +55,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.16.1"
+      auroraboot_version: "v0.16.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -75,20 +75,10 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ubuntu:25.10"
           - "ubuntu:24.04"
-          - "ubuntu:22.04"
-          - "ubuntu:20.04"
-          - "alpine:3.21"
-          - "opensuse/leap:15.6"
-          - "debian:12"
           - "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
         include:
           - base_image: "ubuntu:24.04"
-            kubernetes_distro: "k0s"
-          - base_image: "opensuse/leap:15.6"
-            kubernetes_distro: "k0s"
-          - base_image: "rockylinux:9"
             kubernetes_distro: "k0s"
   lifecycle-tests:
     name: ${{ matrix.base_image }}
@@ -133,9 +123,6 @@ jobs:
           - test: "install"
             secureboot: true
             base_image: "opensuse/leap:15.6"
-          - test: "install"
-            secureboot: true
-            base_image: "debian:12"
           - test: "acceptance"
             base_image: "ubuntu:22.04"
           - test: "acceptance"
@@ -143,7 +130,10 @@ jobs:
           - test: "acceptance"
             base_image: "opensuse/leap:15.6"
           - test: "acceptance"
-            base_image: "debian:12"
+            base_image: "debian:13"
+          - test: "install"
+            secureboot: true
+            base_image: "debian:13"
           - test: "install"
             base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta2"
           - test: "custom-partitioning"
@@ -178,7 +168,6 @@ jobs:
           - "encryption-remote-static"
           - "encryption-remote-https-pinned"
           - "encryption-remote-https-bad-cert"
-
   standard-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
