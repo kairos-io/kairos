@@ -3,7 +3,7 @@
 profiles:
   default:
     duration: 4w
-    pass_threshold: 66
+    pass_threshold: 10
     allowed_voters:
       teams:
         - maintainers
@@ -11,7 +11,7 @@ profiles:
     close_on_passing: true
   maintainer-application:
     duration: 4w
-    pass_threshold: 66
+    pass_threshold: 10
     allowed_voters:
       teams:
         - maintainers
