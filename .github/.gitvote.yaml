@@ -1,0 +1,20 @@
+# Gitvote configuration for Kairos maintainer voting
+# Reference: https://github.com/cncf/gitvote/blob/main/docs/config/.gitvote.yml
+profiles:
+  default:
+    duration: 4w
+    pass_threshold: 66
+    allowed_voters:
+      teams:
+        - maintainers
+      exclude_team_maintainers: false
+    close_on_passing: true
+  maintainer-application:
+    duration: 4w
+    pass_threshold: 66
+    allowed_voters:
+      teams:
+        - maintainers
+      exclude_team_maintainers: false
+    close_on_passing: true
+
