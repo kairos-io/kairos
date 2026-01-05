@@ -1,0 +1,103 @@
+name: Vote Monitor and Onboarding Automation
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      process_existing:
+        description: 'Process existing issues with gitvote/passed label'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  create-onboarding-issue:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'issues' && (github.event.action == 'labeled' || github.event.action == 'unlabeled')) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.process_existing == 'true')
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Process maintainer application vote
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { createOnboardingIssue, commentAndClose } = require('./.github/scripts/create-onboarding-issue.js');
+            
+            if (context.eventName === 'workflow_dispatch') {
+              // Manual trigger - process existing issues
+              console.log('🔍 Processing existing issues with gitvote/passed label...');
+              
+              const issues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                labels: 'gitvote/passed'
+              });
+              
+              console.log(`Found ${issues.data.length} issues with gitvote/passed label`);
+              
+              for (const issue of issues.data) {
+                const maintainerMatch = issue.title.match(/^New Maintainer - (.+)$/);
+                if (!maintainerMatch) {
+                  console.log(`⚠️  Skipping issue #${issue.number} - not a maintainer application issue`);
+                  continue;
+                }
+                
+                const applicantName = maintainerMatch[1].trim();
+                console.log(`📝 Processing issue #${issue.number}: "${applicantName}"`);
+                
+                try {
+                  const result = await createOnboardingIssue(github, context, applicantName, issue.number);
+                  if (result.alreadyExists) {
+                    console.log(`⏭️  Skipped creating onboarding issue for #${issue.number} - already exists: #${result.issueNumber} (${result.state})`);
+                    continue;
+                  }
+                  await commentAndClose(github, context, issue.number, result.issueNumber, applicantName);
+                  console.log(`✅ Processed issue #${issue.number} -> created onboarding issue #${result.issueNumber}`);
+                } catch (error) {
+                  console.error(`❌ Error processing issue #${issue.number}:`, error.message);
+                }
+              }
+              
+            } else {
+              // Label add/remove trigger - process single issue based on current labels
+              const issue = context.payload.issue;
+
+              // Ensure we only proceed for maintainer application issues with a passed vote
+              const labels = issue.labels || [];
+              const labelNames = labels.map(l => (typeof l === 'string' ? l : l.name));
+              const hasVotePassed = labelNames.includes('gitvote/passed');
+
+              if (!hasVotePassed) {
+                console.log('ℹ️  Skipping: issue does not have gitvote/passed label.');
+                return;
+              }
+
+              // Extract applicant name from issue title
+              const title = issue.title;
+              const maintainerMatch = title.match(/^New Maintainer - (.+)$/);
+              if (!maintainerMatch) {
+                console.log('ℹ️  Skipping: not a maintainer application issue.');
+                return;
+              }
+              const applicantName = maintainerMatch[1].trim();
+
+              console.log('🎉 Vote passed. Creating onboarding issue...');
+              const result = await createOnboardingIssue(github, context, applicantName, issue.number);
+              if (result.alreadyExists) {
+                console.log(`⏭️  Onboarding issue already exists for "${applicantName}": #${result.issueNumber} (${result.state})`);
+                return;
+              }
+              await commentAndClose(github, context, issue.number, result.issueNumber, applicantName);
+              console.log(`✅ Successfully created onboarding issue #${result.issueNumber} and closed issue #${issue.number}`);
+            }
+
