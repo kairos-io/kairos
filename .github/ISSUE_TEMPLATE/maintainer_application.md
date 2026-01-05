@@ -93,12 +93,15 @@ These are the traits we’ll look for during the review (from the governance “
 
 **What happens**
 - Kairos maintainers vote to accept (or reject) the application.
+- To start the voting process, a maintainer should comment: `/vote`
+- This will initiate a 4-week voting period where maintainers can cast their votes.
 
 **Timing**
 - Voting is typically **up to 4 weeks** from when the vote is called.
 
 **Passing criteria**
 - Current policy: at least **4 maintainer positive votes** to be accepted.
+- Gitvote will automatically add the `gitvote/passed` label when the vote passes.
 
 ### 3) Onboarding (maintainers/admins)
 
