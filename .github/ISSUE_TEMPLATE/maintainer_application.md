@@ -80,7 +80,7 @@ These are the traits we’ll look for during the review (from the governance “
 **What happens**
 - The applicant opens this issue and responds to follow-up questions.
 - Current maintainers (and the broader community) provide feedback about fit, scope, and readiness.
-- Maintainers may propose narrowing scope to a specific subproject or starting with an “Approver” role first.
+- Maintainers may propose narrowing scope to a specific subproject or starting with an ["Approver"](https://github.com/kairos-io/community/blob/main/GOVERNANCE.md) role first.
 
 **Who does what**
 - Applicant: answers questions, clarifies scope, and confirms expected time commitment.
