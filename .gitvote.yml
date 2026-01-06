@@ -9,6 +9,7 @@ profiles:
         - maintainers
       exclude_team_maintainers: false
     close_on_passing: true
+    close_on_passing_min_wait: null
   maintainer-application:
     duration: 4w
     pass_threshold: 10
@@ -17,4 +18,5 @@ profiles:
         - maintainers
       exclude_team_maintainers: false
     close_on_passing: true
+    close_on_passing_min_wait: null
 
