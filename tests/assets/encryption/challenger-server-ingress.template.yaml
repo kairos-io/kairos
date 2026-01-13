@@ -5,8 +5,8 @@ metadata:
   name: challenger-server
   annotations:
     cert-manager.io/cluster-issuer: "selfsigned"
-    kubernetes.io/ingress.class: "traefik"
 spec:
+  ingressClassName: traefik
   tls:
     - hosts:
         - 10.0.2.2.challenger.sslip.io

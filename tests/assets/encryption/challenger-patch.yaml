@@ -9,7 +9,7 @@ spec:
     spec:
       containers:
         - name: manager
-          image: quay.io/kairos/kcrypt-challenger:v0.4.0
+          image: quay.io/kairos/kcrypt-challenger:v0.12.0
           imagePullPolicy: IfNotPresent
           args:
             - "--health-probe-bind-address"
