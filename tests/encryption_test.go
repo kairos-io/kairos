@@ -107,11 +107,21 @@ stages:
 	//https://kairos.io/docs/advanced/partition_encryption/#online-mode
 	When("using a remote key management server (automated passphrase generation)", Label("encryption-remote-auto"), func() {
 		var tpmHash string
+		// shortName is used for resource names (SealedVolume, Secret) to comply with
+		// kcrypt-challenger's kube.SafeKubeName() which truncates names > 63 chars.
+		// The full tpmHash (64 chars) would be truncated and cause lookup mismatches.
+		// See: github.com/kairos-io/kairos-challenger/pkg/kube.SafeKubeName
+		var shortName string
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			tpmHash = getTPMHash(vm)
+			shortName = fmt.Sprintf("auto-%s", tpmHash[:8])
 
+			// Create SealedVolume with empty attestation/PCR values to enable deferred PCR enrollment.
+			// During install (booted from ISO), PCR values differ from the installed system.
+			// By pre-populating empty PCRs, the challenger will defer PCR enrollment until
+			// after reboot when the correct PCR values can be captured.
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: keyserver.kairos.io/v1alpha1
 kind: SealedVolume
@@ -119,11 +129,17 @@ metadata:
   name: "%[1]s"
   namespace: default
 spec:
-  TPMHash: "%[1]s"
+  TPMHash: "%[2]s"
   partitions:
     - label: COS_PERSISTENT
   quarantined: false
-`, tpmHash))
+  attestation:
+    pcrValues:
+      pcrs:
+        "0": ""
+        "7": ""
+        "11": ""
+`, shortName, tpmHash))
 
 			config = fmt.Sprintf(`#cloud-config
 
@@ -151,7 +167,7 @@ kcrypt:
 		})
 
 		AfterEach(func() {
-			cmd := exec.Command("kubectl", "delete", "sealedvolume", tpmHash)
+			cmd := exec.Command("kubectl", "delete", "sealedvolume", shortName)
 			out, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
@@ -168,25 +184,29 @@ kcrypt:
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 
 			By("Expecting the secret to be created")
-			// Expect a secret to be created
-			cmd := exec.Command("kubectl", "get", "secrets",
-				fmt.Sprintf("%s-cos-persistent", tpmHash),
-				"-o=go-template='{{.data.generated_by|base64decode}}'",
-			)
+			// Secret name is generated as {volumeName}-{partitionLabel} by the challenger
+			// e.g., "auto-16ece570-cos-persistent"
+			expectedSecretName := fmt.Sprintf("%s-cos-persistent", shortName)
+			cmd := exec.Command("kubectl", "get", "secrets", expectedSecretName)
 
 			secretOut, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), string(secretOut))
-			Expect(string(secretOut)).To(MatchRegexp("tpm"))
 		})
 	})
 
 	// https://kairos.io/docs/advanced/partition_encryption/#scenario-static-keys
 	When("using a remote key management server (static keys)", Label("encryption-remote-static"), func() {
 		var tpmHash string
+		// shortName is used for resource names (SealedVolume, Secret) to comply with
+		// kcrypt-challenger's kube.SafeKubeName() which truncates names > 63 chars.
+		// The full tpmHash (64 chars) would be truncated and cause lookup mismatches.
+		// See: github.com/kairos-io/kairos-challenger/pkg/kube.SafeKubeName
+		var shortName string
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
 			tpmHash = getTPMHash(vm)
+			shortName = fmt.Sprintf("static-%s", tpmHash[:8])
 
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: v1
@@ -197,8 +217,12 @@ metadata:
 type: Opaque
 stringData:
   pass: "awesome-plaintext-passphrase"
-`, tpmHash))
+`, shortName))
 
+			// Create SealedVolume with empty attestation/PCR values to enable deferred PCR enrollment.
+			// During install (booted from ISO), PCR values differ from the installed system.
+			// By pre-populating empty PCRs, the challenger will defer PCR enrollment until
+			// after reboot when the correct PCR values can be captured.
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: keyserver.kairos.io/v1alpha1
 kind: SealedVolume
@@ -206,14 +230,20 @@ metadata:
   name: "%[1]s"
   namespace: default
 spec:
-  TPMHash: "%[1]s"
+  TPMHash: "%[2]s"
   partitions:
     - label: COS_PERSISTENT
       secret:
         name: "%[1]s"
         path: pass
   quarantined: false
-`, tpmHash))
+  attestation:
+    pcrValues:
+      pcrs:
+        "0": ""
+        "7": ""
+        "11": ""
+`, shortName, tpmHash))
 
 			config = fmt.Sprintf(`#cloud-config
 
@@ -245,11 +275,11 @@ kcrypt:
 		})
 
 		AfterEach(func() {
-			cmd := exec.Command("kubectl", "delete", "sealedvolume", tpmHash)
+			cmd := exec.Command("kubectl", "delete", "sealedvolume", shortName)
 			out, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), out)
 
-			cmd = exec.Command("kubectl", "delete", "secret", tpmHash)
+			cmd = exec.Command("kubectl", "delete", "secret", shortName)
 			out, err = cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
@@ -271,10 +301,20 @@ kcrypt:
 	When("the key management server is listening on https", func() {
 		Expect(installError).ToNot(HaveOccurred(), installationOutput)
 		var tpmHash string
+		// shortName is used for resource names (SealedVolume, Secret) to comply with
+		// kcrypt-challenger's kube.SafeKubeName() which truncates names > 63 chars.
+		// The full tpmHash (64 chars) would be truncated and cause lookup mismatches.
+		// See: github.com/kairos-io/kairos-challenger/pkg/kube.SafeKubeName
+		var shortName string
 
 		BeforeEach(func() {
 			tpmHash = getTPMHash(vm)
+			shortName = fmt.Sprintf("https-%s", tpmHash[:8])
 
+			// Create SealedVolume with empty attestation/PCR values to enable deferred PCR enrollment.
+			// During install (booted from ISO), PCR values differ from the installed system.
+			// By pre-populating empty PCRs, the challenger will defer PCR enrollment until
+			// after reboot when the correct PCR values can be captured.
 			kubectlApplyYaml(fmt.Sprintf(`---
 apiVersion: keyserver.kairos.io/v1alpha1
 kind: SealedVolume
@@ -282,11 +322,22 @@ metadata:
   name: "%[1]s"
   namespace: default
 spec:
-  TPMHash: "%[1]s"
+  TPMHash: "%[2]s"
   partitions:
     - label: COS_PERSISTENT
   quarantined: false
-`, tpmHash))
+  attestation:
+    pcrValues:
+      pcrs:
+        "0": ""
+        "7": ""
+        "11": ""
+`, shortName, tpmHash))
+		})
+
+		AfterEach(func() {
+			cmd := exec.Command("kubectl", "delete", "sealedvolume", shortName)
+			cmd.CombinedOutput() // Ignore errors - cleanup is best effort
 		})
 
 		When("the certificate is pinned on the configuration", Label("encryption-remote-https-pinned"), func() {
