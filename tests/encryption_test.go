@@ -106,40 +106,13 @@ stages:
 
 	//https://kairos.io/docs/advanced/partition_encryption/#online-mode
 	When("using a remote key management server (automated passphrase generation)", Label("encryption-remote-auto"), func() {
-		var tpmHash string
-		// shortName is used for resource names (SealedVolume, Secret) to comply with
-		// kcrypt-challenger's kube.SafeKubeName() which truncates names > 63 chars.
-		// The full tpmHash (64 chars) would be truncated and cause lookup mismatches.
-		// See: github.com/kairos-io/kairos-challenger/pkg/kube.SafeKubeName
-		var shortName string
+		// This test uses TOFU (Trust On First Use) mode where the server automatically
+		// creates both the SealedVolume and the secret on first attestation.
+		// The challenger server handles deferred PCR enrollment automatically when it
+		// detects LiveCD mode (boot from ISO), so we don't need to pre-create anything.
 
 		BeforeEach(func() {
 			Expect(installError).ToNot(HaveOccurred(), installationOutput)
-			tpmHash = getTPMHash(vm)
-			shortName = fmt.Sprintf("auto-%s", tpmHash[:8])
-
-			// Create SealedVolume with empty attestation/PCR values to enable deferred PCR enrollment.
-			// During install (booted from ISO), PCR values differ from the installed system.
-			// By pre-populating empty PCRs, the challenger will defer PCR enrollment until
-			// after reboot when the correct PCR values can be captured.
-			kubectlApplyYaml(fmt.Sprintf(`---
-apiVersion: keyserver.kairos.io/v1alpha1
-kind: SealedVolume
-metadata:
-  name: "%[1]s"
-  namespace: default
-spec:
-  TPMHash: "%[2]s"
-  partitions:
-    - label: COS_PERSISTENT
-  quarantined: false
-  attestation:
-    pcrValues:
-      pcrs:
-        "0": ""
-        "7": ""
-        "11": ""
-`, shortName, tpmHash))
 
 			config = fmt.Sprintf(`#cloud-config
 
@@ -167,7 +140,11 @@ kcrypt:
 		})
 
 		AfterEach(func() {
-			cmd := exec.Command("kubectl", "delete", "sealedvolume", shortName)
+			// Clean up the TOFU-created SealedVolume
+			// The name format is "tofu-{tpmHash[:8]}-{partitionLabel}"
+			tpmHash := getTPMHash(vm)
+			tofuName := fmt.Sprintf("tofu-%s-cos-persistent", tpmHash[:8])
+			cmd := exec.Command("kubectl", "delete", "sealedvolume", tofuName, "--ignore-not-found")
 			out, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), out)
 		})
@@ -184,9 +161,9 @@ kcrypt:
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 
 			By("Expecting the secret to be created")
-			// Secret name is generated as {volumeName}-{partitionLabel} by the challenger
-			// e.g., "auto-16ece570-cos-persistent"
-			expectedSecretName := fmt.Sprintf("%s-cos-persistent", shortName)
+			// TOFU mode creates secrets with name format: "tofu-{tpmHash[:8]}-{partitionLabel}"
+			tpmHash := getTPMHash(vm)
+			expectedSecretName := fmt.Sprintf("tofu-%s-cos-persistent", tpmHash[:8])
 			cmd := exec.Command("kubectl", "get", "secrets", expectedSecretName)
 
 			secretOut, err := cmd.CombinedOutput()
@@ -299,44 +276,18 @@ kcrypt:
 	})
 
 	When("the key management server is listening on https", func() {
+		// These tests use TOFU (Trust On First Use) mode where the server automatically
+		// creates both the SealedVolume and the secret on first attestation.
+		// The challenger server handles deferred PCR enrollment automatically when it
+		// detects LiveCD mode (boot from ISO), so we don't need to pre-create anything.
 		Expect(installError).ToNot(HaveOccurred(), installationOutput)
-		var tpmHash string
-		// shortName is used for resource names (SealedVolume, Secret) to comply with
-		// kcrypt-challenger's kube.SafeKubeName() which truncates names > 63 chars.
-		// The full tpmHash (64 chars) would be truncated and cause lookup mismatches.
-		// See: github.com/kairos-io/kairos-challenger/pkg/kube.SafeKubeName
-		var shortName string
-
-		BeforeEach(func() {
-			tpmHash = getTPMHash(vm)
-			shortName = fmt.Sprintf("https-%s", tpmHash[:8])
-
-			// Create SealedVolume with empty attestation/PCR values to enable deferred PCR enrollment.
-			// During install (booted from ISO), PCR values differ from the installed system.
-			// By pre-populating empty PCRs, the challenger will defer PCR enrollment until
-			// after reboot when the correct PCR values can be captured.
-			kubectlApplyYaml(fmt.Sprintf(`---
-apiVersion: keyserver.kairos.io/v1alpha1
-kind: SealedVolume
-metadata:
-  name: "%[1]s"
-  namespace: default
-spec:
-  TPMHash: "%[2]s"
-  partitions:
-    - label: COS_PERSISTENT
-  quarantined: false
-  attestation:
-    pcrValues:
-      pcrs:
-        "0": ""
-        "7": ""
-        "11": ""
-`, shortName, tpmHash))
-		})
 
 		AfterEach(func() {
-			cmd := exec.Command("kubectl", "delete", "sealedvolume", shortName)
+			// Clean up the TOFU-created SealedVolume
+			// The name format is "tofu-{tpmHash[:8]}-{partitionLabel}"
+			tpmHash := getTPMHash(vm)
+			tofuName := fmt.Sprintf("tofu-%s-cos-persistent", tpmHash[:8])
+			cmd := exec.Command("kubectl", "delete", "sealedvolume", tofuName, "--ignore-not-found")
 			cmd.CombinedOutput() // Ignore errors - cleanup is best effort
 		})
 
