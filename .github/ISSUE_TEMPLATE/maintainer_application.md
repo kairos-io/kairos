@@ -1,6 +1,6 @@
 ---
 name: 'Apply to become a maintainer'
-about: 'Maintainer application, assessment, voting and onboarding.'
+about: 'Apply to become a Kairos maintainer (self-nomination for experienced contributors).'
 labels: governance
 title: 'New Maintainer - NAME'
 assignees: mudler
@@ -106,8 +106,6 @@ These are the traits we’ll look for during the review (from the governance “
 ### 3) Onboarding (automatic)
 
 Once the vote passes, an onboarding issue will be automatically created to track the remaining tasks.
-- [ ] Grant GitHub repository access (per the role mapping in governance; typically GitHub “Maintain”)
-- [ ] Blog, share on socials and celebrate!
 
 ## After onboarding: staying active (off-boarding policy)
 
