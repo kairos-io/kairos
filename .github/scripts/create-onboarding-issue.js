@@ -1,3 +1,46 @@
+// Role types supported by the onboarding automation
+const ROLE_TYPES = {
+  MAINTAINER: 'maintainer',
+  CONTRIBUTOR: 'contributor'
+};
+
+// Onboarding checklist templates for each role type
+const ONBOARDING_TEMPLATES = {
+  [ROLE_TYPES.MAINTAINER]: {
+    title: (name) => `Onboarding: ${name}`,
+    congratsMessage: (name) => `🎉 Congratulations! The maintainer application for **${name}** has been approved.`,
+    checklist: `
+- [ ] Request personal email from applicant (needed for CNCF maintainer registry)
+- [ ] Add applicant to Kairos maintainers list: https://github.com/kairos-io/community/blob/main/MAINTAINERS.md
+- [ ] Add applicant to [CNCF project maintainers](https://github.com/cncf/foundation/blob/main/project-maintainers.csv)
+- [ ] Send an email to cncf-maintainer-changes@cncf.io and CC members@kairos.io and the applicant, requesting the person to be added as maintainer
+- [ ] Add applicant to the [maintainers team](https://github.com/orgs/kairos-io/teams/maintainers)
+- [ ] Grant GitHub repository access (per the role mapping in governance; typically GitHub "Maintain")
+- [ ] Blog, share on socials and celebrate!`,
+    labels: ['onboarding', 'governance'],
+    closingComment: (name, issueNumber) => `🎉 The maintainer application for **${name}** has been approved!
+
+An onboarding issue has been created to track the remaining tasks: #${issueNumber}
+
+This application issue will now be closed.`
+  },
+  [ROLE_TYPES.CONTRIBUTOR]: {
+    title: (name) => `Onboarding: ${name}`,
+    congratsMessage: (name) => `🎉 Congratulations! The contributor application for **${name}** has been approved.`,
+    checklist: `
+- [ ] Add applicant to GitHub organization with Triage role
+- [ ] Add applicant to the [contributors team](https://github.com/orgs/kairos-io/teams/contributors)
+- [ ] Add applicant to contributors list: https://github.com/kairos-io/community/blob/main/CONTRIBUTORS.md
+- [ ] Welcome the new contributor in the community chat`,
+    labels: ['onboarding', 'governance'],
+    closingComment: (name, issueNumber) => `🎉 The contributor application for **${name}** has been approved!
+
+An onboarding issue has been created to track the remaining tasks: #${issueNumber}
+
+This application issue will now be closed.`
+  }
+};
+
 /**
  * Check if an onboarding issue already exists for an applicant
  * @param {Object} github - GitHub API client
@@ -48,14 +91,39 @@ async function checkExistingOnboardingIssue(github, context, applicantName) {
 }
 
 /**
- * Create an onboarding issue for a new maintainer
+ * Create an onboarding issue for a new team member
  * @param {Object} github - GitHub API client
  * @param {Object} context - GitHub context
  * @param {string} applicantName - Name of the applicant
  * @param {number} originalIssueNumber - Issue number of the original application
+ * @param {string} roleType - Type of role ('maintainer' or 'contributor')
  * @returns {Promise<{issueNumber: number, alreadyExists: boolean, state: string}>}
  */
-async function createOnboardingIssue(github, context, applicantName, originalIssueNumber) {
+async function createOnboardingIssue(github, context, applicantName, originalIssueNumber, roleType = ROLE_TYPES.MAINTAINER) {
+  const template = ONBOARDING_TEMPLATES[roleType];
+  if (!template) {
+    throw new Error(`Unknown role type: ${roleType}. Supported types: ${Object.values(ROLE_TYPES).join(', ')}`);
+  }
+
+  // Defense in depth: fetch the latest state of the original issue
+  // If it's already closed, processing has already happened (avoids race conditions)
+  const originalIssue = await github.rest.issues.get({
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    issue_number: originalIssueNumber
+  });
+  
+  if (originalIssue.data.state === 'closed') {
+    console.log(`⚠️  Original issue #${originalIssueNumber} is already closed, skipping to avoid duplicate processing`);
+    // Try to find the existing onboarding issue to return its number
+    const existing = await checkExistingOnboardingIssue(github, context, applicantName);
+    return {
+      issueNumber: existing.issueNumber || 0,
+      alreadyExists: true,
+      state: existing.state || 'unknown'
+    };
+  }
+  
   // Check if an onboarding issue already exists for this applicant
   const existing = await checkExistingOnboardingIssue(github, context, applicantName);
   
@@ -68,19 +136,13 @@ async function createOnboardingIssue(github, context, applicantName, originalIss
     };
   }
   
-  // Create onboarding issue body
-  const onboardingBody = `🎉 Congratulations! The maintainer application for **${applicantName}** has been approved.
+  // Create onboarding issue body using the role-specific template
+  const onboardingBody = `${template.congratsMessage(applicantName)}
 
 This issue tracks the onboarding tasks that need to be completed.
 
 ## Onboarding Checklist
-
-- [ ] Request personal email from applicant (needed for CNCF maintainer registry)
-- [ ] Add applicant to Kairos maintainers list: https://github.com/kairos-io/community/blob/main/MAINTAINERS.md
-- [ ] Add applicant to [CNCF project maintainers](https://github.com/cncf/foundation/blob/main/project-maintainers.csv)
-- [ ] Send an email to cncf-maintainer-changes@cncf.io and CC members@kairos.io and the applicant, requesting the person to be added as maintainer
-- [ ] Grant GitHub repository access (per the role mapping in governance; typically GitHub "Maintain")
-- [ ] Blog, share on socials and celebrate!
+${template.checklist}
 
 ## Reference
 
@@ -89,18 +151,18 @@ This issue tracks the onboarding tasks that need to be completed.
 
 ---
 
-**Related Issue:** This onboarding issue was automatically created after the maintainer vote was completed in issue #${originalIssueNumber}.`;
+**Related Issue:** This onboarding issue was automatically created after the ${roleType} vote was completed in issue #${originalIssueNumber}.`;
   
   // Create the onboarding issue
   const onboardingIssue = await github.rest.issues.create({
     owner: context.repo.owner,
     repo: context.repo.repo,
-    title: `Onboarding: ${applicantName}`,
+    title: template.title(applicantName),
     body: onboardingBody,
-    labels: ['onboarding', 'governance']
+    labels: template.labels
   });
   
-  console.log(`✅ Created onboarding issue #${onboardingIssue.data.number}`);
+  console.log(`✅ Created ${roleType} onboarding issue #${onboardingIssue.data.number}`);
   return {
     issueNumber: onboardingIssue.data.number,
     alreadyExists: false,
@@ -115,18 +177,20 @@ This issue tracks the onboarding tasks that need to be completed.
  * @param {number} originalIssueNumber - Issue number of the original application
  * @param {number} onboardingIssueNumber - Issue number of the created onboarding issue
  * @param {string} applicantName - Name of the applicant
+ * @param {string} roleType - Type of role ('maintainer' or 'contributor')
  */
-async function commentAndClose(github, context, originalIssueNumber, onboardingIssueNumber, applicantName) {
+async function commentAndClose(github, context, originalIssueNumber, onboardingIssueNumber, applicantName, roleType = ROLE_TYPES.MAINTAINER) {
+  const template = ONBOARDING_TEMPLATES[roleType];
+  if (!template) {
+    throw new Error(`Unknown role type: ${roleType}. Supported types: ${Object.values(ROLE_TYPES).join(', ')}`);
+  }
+
   // Comment on the original issue
   await github.rest.issues.createComment({
     owner: context.repo.owner,
     repo: context.repo.repo,
     issue_number: originalIssueNumber,
-    body: `🎉 The maintainer application for **${applicantName}** has been approved!
-
-An onboarding issue has been created to track the remaining tasks: #${onboardingIssueNumber}
-
-This application issue will now be closed.`
+    body: template.closingComment(applicantName, onboardingIssueNumber)
   });
   
   // Close the original issue
@@ -138,12 +202,13 @@ This application issue will now be closed.`
   });
   
   console.log(`✅ Commented on issue #${originalIssueNumber} and closed it`);
-  console.log(`✅ Created onboarding issue #${onboardingIssueNumber}`);
+  console.log(`✅ Created ${roleType} onboarding issue #${onboardingIssueNumber}`);
 }
 
 module.exports = {
   createOnboardingIssue,
   commentAndClose,
-  checkExistingOnboardingIssue
+  checkExistingOnboardingIssue,
+  ROLE_TYPES
 };
 

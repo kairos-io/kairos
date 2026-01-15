@@ -1,6 +1,6 @@
 ---
 name: 'Apply to become a maintainer'
-about: 'Maintainer application, assessment, voting and onboarding.'
+about: 'Apply to become a Kairos maintainer (self-nomination for experienced contributors).'
 labels: governance
 title: 'New Maintainer - NAME'
 assignees: mudler
@@ -103,16 +103,9 @@ These are the traits we’ll look for during the review (from the governance “
 - Current policy: at least **4 maintainer positive votes** to be accepted.
 - Gitvote will automatically add the `gitvote/passed` label when the vote passes.
 
-### 3) Onboarding (maintainers/admins)
+### 3) Onboarding (automatic)
 
-If the maintainer has been accepted, the following tasks need to be done by the team (usually an admin or a delegated maintainer).
-
-- [ ] Request personal email from applicant (needed for CNCF maintainer registry)
-- [ ] Add applicant to Kairos maintainers list: https://github.com/kairos-io/community/blob/main/MAINTAINERS.md
-- [ ] Add applicant to [CNCF project maintainers](https://github.com/cncf/foundation/blob/main/project-maintainers.csv)
-- [ ] Send an email to cncf-maintainer-changes@cncf.io and CC members@kairos.io and the applicant, requesting the person to be added as maintainer
-- [ ] Grant GitHub repository access (per the role mapping in governance; typically GitHub “Maintain”)
-- [ ] Blog, share on socials and celebrate!
+Once the vote passes, an onboarding issue will be automatically created to track the remaining tasks.
 
 ## After onboarding: staying active (off-boarding policy)
 
