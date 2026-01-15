@@ -56,6 +56,25 @@ async function checkExistingOnboardingIssue(github, context, applicantName) {
  * @returns {Promise<{issueNumber: number, alreadyExists: boolean, state: string}>}
  */
 async function createOnboardingIssue(github, context, applicantName, originalIssueNumber) {
+  // Defense in depth: fetch the latest state of the original issue
+  // If it's already closed, processing has already happened (avoids race conditions)
+  const originalIssue = await github.rest.issues.get({
+    owner: context.repo.owner,
+    repo: context.repo.repo,
+    issue_number: originalIssueNumber
+  });
+  
+  if (originalIssue.data.state === 'closed') {
+    console.log(`⚠️  Original issue #${originalIssueNumber} is already closed, skipping to avoid duplicate processing`);
+    // Try to find the existing onboarding issue to return its number
+    const existing = await checkExistingOnboardingIssue(github, context, applicantName);
+    return {
+      issueNumber: existing.issueNumber || 0,
+      alreadyExists: true,
+      state: existing.state || 'unknown'
+    };
+  }
+  
   // Check if an onboarding issue already exists for this applicant
   const existing = await checkExistingOnboardingIssue(github, context, applicantName);
   

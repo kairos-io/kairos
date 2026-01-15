@@ -15,6 +15,12 @@ permissions:
   issues: write
   contents: read
 
+# Prevent duplicate runs for the same issue to avoid race conditions
+# that could create duplicate onboarding issues
+concurrency:
+  group: vote-monitor-${{ github.event.issue.number || 'manual' }}
+  cancel-in-progress: false
+
 jobs:
   create-onboarding-issue:
     runs-on: ubuntu-latest
