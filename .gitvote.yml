@@ -19,4 +19,17 @@ profiles:
       exclude_team_maintainers: false
     close_on_passing: true
     close_on_passing_min_wait: null
+  # Profile for adding new contributors
+  # Requires at least 2 positive votes from maintainers or admins (33% of 6 voters)
+  # Use with: /vote-contributor-application
+  contributor-application:
+    duration: 4w
+    pass_threshold: 33
+    allowed_voters:
+      teams:
+        - maintainers
+        - admins
+      exclude_team_maintainers: false
+    close_on_passing: true
+    close_on_passing_min_wait: null
 
