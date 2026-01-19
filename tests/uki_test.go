@@ -200,10 +200,8 @@ func genericTests(vm VM) {
 			return out
 		}, 2*time.Minute).Should(And(
 			ContainSubstring("Running after-install hook"),
-			ContainSubstring("Encrypting COS_OEM"),
-			ContainSubstring("Encrypting COS_PERSISTENT"),
-			ContainSubstring("Done encrypting COS_OEM"),
-			ContainSubstring("Done encrypting COS_PERSISTENT"),
+			ContainSubstring("Encrypting partitions"),
+			ContainSubstring("Successfully encrypted partition"),
 			ContainSubstring("Done executing stage 'kairos-uki-install.after.after'"),
 			ContainSubstring("Unmounting disk partitions"),
 		))
