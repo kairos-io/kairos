@@ -20,7 +20,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.19.0"
+      auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
@@ -147,7 +147,7 @@ jobs:
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:v0.19.0 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.19.1 --debug build-uki \
             --output-dir /result --output-type container \
             --public-keys /keys \
             --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
