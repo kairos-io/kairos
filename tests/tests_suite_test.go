@@ -383,6 +383,11 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		cpus = "2"
 	}
 
+	arch := os.Getenv("ARCH")
+	if arch == "" {
+		arch = "x86_64"
+	}
+
 	opts := []types.MachineOption{
 		types.QEMUEngine,
 		types.WithISO(os.Getenv("ISO")),
@@ -412,6 +417,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				out, err, serial, status))
 		}),
 		types.WithStateDir(stateDir),
+		types.WithArch(arch),
 		// Serial output to file: https://superuser.com/a/1412150
 		func(m *types.MachineConfig) error {
 			m.Args = append(m.Args,
@@ -471,7 +477,9 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				)
 
 				// Needed to be set for secureboot!
-				m.Args = append(m.Args, "-machine", "q35,smm=on")
+				if arch == "x86_64" {
+					m.Args = append(m.Args, "-machine", "q35,smm=on")
+				}
 			}
 
 			return nil
@@ -480,9 +488,13 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	}
 	if os.Getenv("KVM") != "" {
 		opts = append(opts, func(m *types.MachineConfig) error {
-			m.Args = append(m.Args,
-				"-enable-kvm",
-			)
+			if m.Arch == "aarch64" {
+				fmt.Println("KVM acceleration is not supported on aarch64 architecture.")
+			} else {
+				m.Args = append(m.Args,
+					"-enable-kvm",
+				)
+			}
 			return nil
 		})
 	}
@@ -498,17 +510,38 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				spicePort, _ = getFreePort()
 			}
 			display := fmt.Sprintf("-spice port=%d,addr=127.0.0.1,disable-ticketing=yes", spicePort)
+			if arch == "aarch64" {
+				display += " -device pcie-root-port,port=9,chassis=10,id=pcie.9 -device virtio-gpu-pci,id=video0,max_outputs=1,bus=pcie.9,addr=0x0"
+			}
 			opts = append(opts, types.WithDisplay(display))
+
+			opts = append(opts, func(m *types.MachineConfig) error {
+				m.Args = append(m.Args,
+					"-device", "virtio-serial-pci",
+					"-chardev", fmt.Sprintf("spicevmc,id=vdagent,name=vdagent,debug=0"),
+					"-device", "virtserialport,chardev=vdagent,name=com.redhat.spice.0",
+				)
+				return nil
+			})
 
 			cmd := exec.Command("spicy",
 				"-h", "127.0.0.1",
 				"-p", strconv.Itoa(spicePort))
 			err = cmd.Start()
 			Expect(err).ToNot(HaveOccurred())
+
 		}
 	} else {
 		opts = append(opts, types.VBoxEngine)
 	}
+
+	// Set boot order to first boot from disk then cdrom
+	opts = append(opts, func(m *types.MachineConfig) error {
+		m.Args = append(m.Args,
+			"-boot", "order=dc",
+		)
+		return nil
+	})
 
 	return opts
 }

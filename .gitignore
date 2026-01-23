@@ -8,6 +8,7 @@
 /keys
 /trivy-cache
 coverage.out
+tests/logs/
 .DS_Store
 internal/webui/public/cypress/videos/
 pr-message
