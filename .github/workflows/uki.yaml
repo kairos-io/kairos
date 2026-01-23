@@ -162,7 +162,9 @@ jobs:
           echo "Image: $image"
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
           temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}/")
-          docker buildx build --load --label quay.expires-after="6h" --tag $temp_image - <<EOF
+          # Use docker build with DOCKER_BUILDKIT=1 instead of buildx for this simple label addition
+          # since buildx doesn't have access to locally loaded images from docker load
+          DOCKER_BUILDKIT=1 docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
           FROM $image
           EOF
           docker push $temp_image
