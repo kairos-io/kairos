@@ -34,7 +34,7 @@ on:
 
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
-    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-22.04' || 'fast' }}
+    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     steps:
       - name: Split base image
@@ -114,7 +114,7 @@ jobs:
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu qemu-system-x86 qemu-system-x86 qemu-utils qemu-kvm acl udev mkisofs swtpm
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Set Image tag
         run: |
