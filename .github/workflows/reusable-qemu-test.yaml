@@ -90,10 +90,13 @@ jobs:
       - name: Set up Docker Buildx for public runners
         if: runner.environment == 'github-hosted'
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
       - name: Set up Docker Buildx for custom runners
         if: runner.environment == 'self-hosted'
         uses: docker/setup-buildx-action@v3
         with:
+          driver-opts: network=host
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
@@ -114,8 +117,12 @@ jobs:
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
           sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Find OVMF firmware
+        if: inputs.secureboot == true
+        uses: ./.github/actions/find-ovmf-firmware
+        id: find_ovmf
       - name: Set Image tag
         run: |
           IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}"
@@ -169,7 +176,7 @@ jobs:
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
-            export FIRMWARE=/usr/share/OVMF/OVMF_CODE.fd
+            export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
