@@ -114,6 +114,7 @@ jobs:
           MEMORY: 6000
           CPUS: 2
           DRIVE_SIZE: 50000
+          KVM: true
         run: |
           export ISO=$(ls $PWD/*.iso| head -1)
           .github/encryption-tests.sh
