@@ -26,7 +26,7 @@ jobs:
           - "fedora:40"
           - "debian:13"
           - "rockylinux:9"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta3"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -60,7 +60,7 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "fedora:40"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta3"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
         include:
           - base_image: "ubuntu:24.04"
             variant: "standard"  # let it use the latest k3s version released for now
@@ -164,7 +164,7 @@ jobs:
           - "fedora:40"
           - "debian:13"
           - "rockylinux:9"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta3"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -206,7 +206,7 @@ jobs:
           - "ubuntu:24.04"
           - "ubuntu:25.10"
           - "rockylinux:9"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta3"
+          - "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}

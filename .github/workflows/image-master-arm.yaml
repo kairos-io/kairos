@@ -106,10 +106,13 @@ jobs:
       - name: Set up Docker Buildx
         if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' && runner.environment == 'github-hosted' }}
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
       - name: Set up Docker Buildx for custom runners
         if: ${{ steps.cache.outputs.cache_available == 'false' || steps.changed-files.outputs.nvidia_any_changed == 'true' && runner.environment == 'self-hosted' }}
         uses: docker/setup-buildx-action@v3
         with:
+          driver-opts: network=host
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]

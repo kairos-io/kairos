@@ -42,7 +42,7 @@ jobs:
       summary_artifacts: true
     strategy:
       matrix:
-        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta3", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta6", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         kubernetes_distro: ["", "k3s"]
   test_generic:
     needs: factory
@@ -50,7 +50,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta3", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta6", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core", "standard"]
@@ -113,7 +113,7 @@ jobs:
       - name: Enable KVM group perms and install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
           # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
           # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           # sudo udevadm control --reload-rules
@@ -133,10 +133,14 @@ jobs:
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-uki.iso.zip
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
       - name: Build uki upgrade image 🔧
         run: |
           echo "Building upgrade image for generic test"
-          docker build -t upgrade-image - <<EOF
+          docker buildx build --load -t upgrade-image - <<EOF
           FROM quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-${{ github.sha }}-uki
           RUN echo "Current release info: \$(cat /etc/kairos-release)"
           RUN sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="mynewversion"/' /etc/kairos-release
@@ -144,7 +148,7 @@ jobs:
           EOF
 
           mkdir -p $PWD/build
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+          docker run --rm --network=host -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
             quay.io/kairos/auroraboot:v0.19.1 --debug build-uki \
@@ -158,18 +162,25 @@ jobs:
           echo "Image: $image"
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
           temp_image=quay.io/kairos/ci-temp-images:$(echo $image | sed "s/:latest/-${rand}/")
-          docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
+          # Use docker build with DOCKER_BUILDKIT=1 instead of buildx for this simple label addition
+          # since buildx doesn't have access to locally loaded images from docker load
+          DOCKER_BUILDKIT=1 docker build --label quay.expires-after="6h" --tag $temp_image - <<EOF
           FROM $image
           EOF
           docker push $temp_image
           echo $temp_image > build/upgrade_image_name
+      - name: Find OVMF firmware
+        uses: ./.github/actions/find-ovmf-firmware
+        with:
+          prefer_secboot: true
+        id: find_ovmf
       - name: Run tests 🔧
         env:
           USE_QEMU: true
           KVM: true
           MEMORY: 6000
           CPUS: 4
-          FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
+          FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
           EMULATE_TPM: true
           UKI_TEST: true
         run: |
@@ -192,7 +203,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta3", "ubuntu:24.04"]
+        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1-beta6", "ubuntu:24.04"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core"]
@@ -255,7 +266,7 @@ jobs:
       - name: Enable KVM group perms and install deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
           # https://github.blog/changelog/2023-02-23-hardware-accelerated-android-virtualization-on-actions-windows-and-linux-larger-hosted-runners/
           # echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           # sudo udevadm control --reload-rules
@@ -275,13 +286,18 @@ jobs:
         uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-uki.iso.zip
+      - name: Find OVMF firmware
+        uses: ./.github/actions/find-ovmf-firmware
+        with:
+          prefer_secboot: true
+        id: find_ovmf_boot
       - name: Run tests 🔧
         env:
           USE_QEMU: true
           KVM: true
           MEMORY: 6000
           CPUS: 4
-          FIRMWARE: /usr/share/OVMF/OVMF_CODE.fd
+          FIRMWARE: ${{ steps.find_ovmf_boot.outputs.firmware }}
           EMULATE_TPM: true
           UKI_TEST: true
         run: |

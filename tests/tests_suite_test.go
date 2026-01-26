@@ -304,6 +304,44 @@ func isReadable(fileName string) bool {
 	return true
 }
 
+// getEfivarsFile returns the appropriate efivars file path based on the firmware being used.
+// It checks if 4M firmware is being used and selects the matching VARS file.
+// For 4M firmware, it tries the 4M variant first, then falls back to 2M for backward compatibility.
+func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) {
+	// Check if we're using 4M firmware (Ubuntu 24.04+)
+	// 4M CODE requires 4M VARS, while 2M CODE uses 128KB VARS
+	fwInfo, err := os.Stat(firmwarePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to stat firmware file %s: %w", firmwarePath, err)
+	}
+
+	is4M := fwInfo.Size() >= 3*1024*1024 ||
+		filepath.Base(firmwarePath) == "OVMF_CODE_4M.fd" ||
+		filepath.Base(firmwarePath) == "OVMF_CODE_4M.secboot.fd"
+
+	var baseName string
+	if empty {
+		baseName = "efivars.empty"
+	} else {
+		baseName = "efivars"
+	}
+
+	var varsFile string
+	if is4M {
+		// Try 4M version first, fall back to 2M for backward compatibility
+		varsFile = filepath.Join(assetsDir, baseName+".4m.fd")
+		if _, err := os.Stat(varsFile); os.IsNotExist(err) {
+			varsFile = filepath.Join(assetsDir, baseName+".fd")
+		}
+	} else {
+		varsFile = filepath.Join(assetsDir, baseName+".fd")
+	}
+
+	fmt.Println("Using efivars file:", varsFile)
+
+	return varsFile, nil
+}
+
 func defaultVMOpts(stateDir string) []types.MachineOption {
 	opts := defaultVMOptsNoDrives(stateDir)
 
@@ -391,6 +429,11 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		},
 		// Firmware
 		func(m *types.MachineConfig) error {
+			// If FIRMWARE is set, that usually means we are using UEFI to boot
+			// This could be normal or UKI so we have a different set of efivars for each
+			// UKI_TEST env var is just a flag to use empty efivars so we can test the auto enrollment
+			// otherwise we need to use an efivars which contains the secureboot keys already enrolled
+			// see tests/assets/efivars.md to know how to update them or regenerate them
 			FW := os.Getenv("FIRMWARE")
 			if FW != "" {
 				getwd, err := os.Getwd()
@@ -401,18 +444,32 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 					fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
 				)
 
-				// Set custom vars file for efi config so we boot first from disk then from DVD with secureboot on
+				assetsDir := filepath.Join(getwd, "assets")
 				UKI := os.Getenv("UKI_TEST")
-				if UKI != "" {
-					// On uki use an empty efivars.fd so we can test the autoenrollment
-					m.Args = append(m.Args, "-drive",
-						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.empty.fd")),
-					)
-				} else {
-					m.Args = append(m.Args, "-drive",
-						fmt.Sprintf("file=%s,if=pflash,format=raw", filepath.Join(getwd, "assets/efivars.fd")),
-					)
+				emptyVars := UKI != ""
+
+				// Get the appropriate efivars file based on firmware type
+				varsFile, err := getEfivarsFile(FW, assetsDir, emptyVars)
+				if err != nil {
+					return err
 				}
+
+				// Copy the efivars file to state directory to not modify the original
+				f, err := os.ReadFile(varsFile)
+				if err != nil {
+					return fmt.Errorf("failed to read efivars file %s: %w", varsFile, err)
+				}
+
+				varsPath := filepath.Join(stateDir, "efivars.fd")
+				err = os.WriteFile(varsPath, f, os.ModePerm)
+				if err != nil {
+					return fmt.Errorf("failed to write efivars file %s: %w", varsPath, err)
+				}
+
+				m.Args = append(m.Args, "-drive",
+					fmt.Sprintf("file=%s,if=pflash,format=raw", varsPath),
+				)
+
 				// Needed to be set for secureboot!
 				m.Args = append(m.Args, "-machine", "q35,smm=on")
 			}
