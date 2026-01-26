@@ -41,6 +41,9 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
+        include:
+          - base_image: "ubuntu:22.04"
+            model: ["nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx"]
 
   build-generic:
     name: ${{ matrix.base_image }}
@@ -70,6 +73,3 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
-        include:
-          - base_image: "ubuntu:22.04"
-            model: ["nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx"]

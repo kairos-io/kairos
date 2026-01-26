@@ -195,4 +195,4 @@ jobs:
       trivy_sarif: true
       list_release_artifacts: true
       cosign: true
-    
+
