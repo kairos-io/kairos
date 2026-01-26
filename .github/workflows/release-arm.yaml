@@ -176,7 +176,9 @@ jobs:
           - "alpine:3.21"
         include:
           - base_image: "ubuntu:22.04"
-            model: ["nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx"]
+            model: "nvidia-jetson-agx-orin"
+          - base_image: "ubuntu:22.04"
+            model: "nvidia-jetson-orin-nx"
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
