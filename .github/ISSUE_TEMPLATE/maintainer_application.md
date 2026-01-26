@@ -93,7 +93,7 @@ These are the traits we’ll look for during the review (from the governance “
 
 **What happens**
 - Kairos maintainers vote to accept (or reject) the application.
-- To start the voting process, a maintainer should comment: `/vote`
+- To start the voting process, a maintainer should comment: `/vote-maintainer`
 - This will initiate a 4-week voting period where maintainers can cast their votes.
 
 **Timing**
