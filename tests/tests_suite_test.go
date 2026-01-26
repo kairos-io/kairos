@@ -337,6 +337,8 @@ func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) 
 		varsFile = filepath.Join(assetsDir, baseName+".fd")
 	}
 
+	fmt.Println("Using efivars file:", varsFile)
+
 	return varsFile, nil
 }
 
@@ -427,6 +429,11 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		},
 		// Firmware
 		func(m *types.MachineConfig) error {
+			// If FIRMWARE is set, that usually means we are using UEFI to boot
+			// This could be normal or UKI so we have a different set of efivars for each
+			// UKI_TEST env var is just a flag to use empty efivars so we can test the auto enrollment
+			// otherwise we need to use an efivars which contains the secureboot keys already enrolled
+			// see tests/assets/efivars.md to know how to update them or regenerate them
 			FW := os.Getenv("FIRMWARE")
 			if FW != "" {
 				getwd, err := os.Getwd()
@@ -453,13 +460,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 					return fmt.Errorf("failed to read efivars file %s: %w", varsFile, err)
 				}
 
-				var varsPath string
-				if emptyVars {
-					varsPath = filepath.Join(stateDir, "efivars.empty.fd")
-				} else {
-					varsPath = filepath.Join(stateDir, "efivars.fd")
-				}
-
+				varsPath := filepath.Join(stateDir, "efivars.fd")
 				err = os.WriteFile(varsPath, f, os.ModePerm)
 				if err != nil {
 					return fmt.Errorf("failed to write efivars file %s: %w", varsPath, err)
