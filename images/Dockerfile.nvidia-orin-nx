@@ -231,7 +231,7 @@ RUN update-alternatives --remove-all cuda && \
 RUN sed -i -e 's|mntpoint="/mnt|mntpoint="/srv/data|' /opt/nvidia/l4t-usb-device-mode/nv-l4t-usb-device-mode-start.sh
 
 # init kairos
-RUN --mount=type=bind,source=/kairos-init,target=/kairos-init,from=quay.io/kairos/kairos-init:v0.6.6 \
+RUN --mount=type=bind,source=/kairos-init,target=/kairos-init,from=quay.io/kairos/kairos-init:v0.7.0 \
     echo "" > /boot/extlinux.conf && \
     echo 'omit_dracutmodules+=" iscsi "' > /etc/dracut.conf.d/iscsi.conf && \
     # We've already installed this sources list manually somewhere up above, \
