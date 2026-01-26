@@ -122,6 +122,8 @@ jobs:
       - name: Find OVMF firmware
         if: inputs.secureboot == true
         uses: ./.github/actions/find-ovmf-firmware
+        with:
+          prefer_secboot: true
         id: find_ovmf
       - name: Set Image tag
         run: |
