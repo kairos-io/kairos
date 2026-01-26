@@ -171,6 +171,8 @@ jobs:
           echo $temp_image > build/upgrade_image_name
       - name: Find OVMF firmware
         uses: ./.github/actions/find-ovmf-firmware
+        with:
+          prefer_secboot: true
         id: find_ovmf
       - name: Run tests 🔧
         env:
