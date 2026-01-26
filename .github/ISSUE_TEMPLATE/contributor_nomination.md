@@ -46,7 +46,7 @@ See: https://github.com/kairos-io/community/blob/main/GOVERNANCE.md
 ## Process
 
 1. **Review**: Maintainers/approvers review the nomination and may ask questions.
-2. **Voting**: A maintainer comments `/vote-contributor-application` to start a vote.
+2. **Voting**: A maintainer comments `/vote-contributor` to start a vote.
    - Requires 2 positive votes from maintainers or admins.
    - Voting period is up to 4 weeks.
 3. **Onboarding**: Once approved, an onboarding issue is automatically created.
