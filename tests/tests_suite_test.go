@@ -315,7 +315,7 @@ func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) 
 		return "", fmt.Errorf("failed to stat firmware file %s: %w", firmwarePath, err)
 	}
 
-	is4M := fwInfo.Size() >= 4*1024*1024 ||
+	is4M := fwInfo.Size() >= 3*1024*1024 ||
 		filepath.Base(firmwarePath) == "OVMF_CODE_4M.fd" ||
 		filepath.Base(firmwarePath) == "OVMF_CODE_4M.secboot.fd"
 

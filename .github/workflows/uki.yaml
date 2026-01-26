@@ -288,6 +288,8 @@ jobs:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ matrix.variant }}-${{ matrix.arch }}-${{ matrix.model }}-uki.iso.zip
       - name: Find OVMF firmware
         uses: ./.github/actions/find-ovmf-firmware
+        with:
+          prefer_secboot: true
         id: find_ovmf_boot
       - name: Run tests 🔧
         env:
