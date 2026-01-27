@@ -135,7 +135,7 @@ func gatherLogs(vm VM) {
 func startVM() (context.Context, VM) {
 	stateDir, err := os.MkdirTemp("", "")
 	Expect(err).ToNot(HaveOccurred())
-	fmt.Printf("State dir: %s\n", stateDir)
+	GinkgoLogr.Info("Starting VM", "stateDir", stateDir)
 
 	opts := defaultVMOpts(stateDir)
 
@@ -280,7 +280,7 @@ func register(loglevel, qrfile, configFile, device string, reboot bool) error {
 		return err
 	}
 
-	fmt.Println("Payload sent, installation will start on the machine briefly")
+	GinkgoLogr.Info("Registration payload successfully sent")
 	return nil
 }
 
@@ -328,7 +328,7 @@ func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) 
 		varsFile = filepath.Join(assetsDir, baseName+".fd")
 	}
 
-	fmt.Println("Using efivars file:", varsFile)
+	GinkgoLogr.Info("reading efivars file", "file", varsFile)
 
 	return varsFile, nil
 }
@@ -345,7 +345,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	var err error
 
 	if os.Getenv("ISO") == "" {
-		fmt.Println("ISO missing")
+		GinkgoLogr.Error(fmt.Errorf("ISO environment variable missing"), "Failed to set up configuration.")
 		os.Exit(1)
 	}
 
@@ -358,7 +358,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	sshPort, err = getFreePort()
 	Expect(err).ToNot(HaveOccurred())
-	fmt.Printf("Using ssh port: %d\n", sshPort)
+	GinkgoLogr.Info("Got SSH port", "port", sshPort, "vm", vmName)
 
 	memory := getEnvOrDefault("MEMORY", "2048")
 	cpus := getEnvOrDefault("CPUS", "2")
@@ -395,6 +395,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		types.WithStateDir(stateDir),
 		types.WithArch(arch),
 		types.WithDataSource(os.Getenv("DATASOURCE")),
+		// Set some default extra things for our VMs
 		func(m *types.MachineConfig) error {
 			// Serial output to file: https://superuser.com/a/1412150
 			m.Args = append(m.Args,
@@ -412,21 +413,18 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 			m.Args = append(m.Args,
 				"-boot", "order=dc",
 			)
-			return nil
-		},
-	}
-	if os.Getenv("KVM") != "" {
-		opts = append(opts, func(m *types.MachineConfig) error {
-			if m.Arch == "aarch64" {
-				fmt.Println("KVM acceleration is not supported on aarch64 architecture.")
-			} else {
+
+			// Enable kvm
+			if m.Arch == "x86_64" {
 				m.Args = append(m.Args,
 					"-enable-kvm",
 				)
 			}
 			return nil
-		})
+		},
 	}
+
+	// Now optional settings
 
 	// If FIRMWARE is set, that usually means we are using UEFI to boot
 	// This could be normal or UKI so we have a different set of efivars for each

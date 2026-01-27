@@ -176,7 +176,6 @@ jobs:
         id: find_ovmf
       - name: Run tests 🔧
         env:
-          KVM: true
           MEMORY: 6000
           CPUS: 4
           FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
@@ -291,7 +290,6 @@ jobs:
         id: find_ovmf_boot
       - name: Run tests 🔧
         env:
-          KVM: true
           MEMORY: 6000
           CPUS: 4
           FIRMWARE: ${{ steps.find_ovmf_boot.outputs.firmware }}
