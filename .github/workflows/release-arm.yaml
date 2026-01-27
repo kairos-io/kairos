@@ -174,6 +174,11 @@ jobs:
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "alpine:3.21"
+        include:
+          - base_image: "ubuntu:22.04"
+            model: "nvidia-jetson-agx-orin"
+          - base_image: "ubuntu:22.04"
+            model: "nvidia-jetson-orin-nx"
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
@@ -192,72 +197,3 @@ jobs:
       trivy_sarif: true
       list_release_artifacts: true
       cosign: true
-  build-nvidia-base:
-    runs-on: 'ubuntu-24.04-arm'
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
-        with:
-          fetch-depth: 0
-      - name: Set up Docker Buildx for public runners
-        if: runner.environment == 'github-hosted'
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
-      - name: Set up Docker Buildx for custom runners
-        if: runner.environment == 'self-hosted'
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: network=host
-          buildkitd-config-inline: |
-            [registry."docker.io"]
-              mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
-            [registry."registry.docker-mirror.svc.cluster.local:5000"]
-              insecure = true
-              http = true
-      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
-        if: runner.environment == 'self-hosted'
-        run: |
-          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
-          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
-      - name: Login to Quay Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Build  🔧 & Push 🚀
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
-        with:
-          context: images/
-          file: images/Dockerfile.nvidia
-          platforms: linux/arm64
-          push: true
-          tags: quay.io/kairos/cache:nvidia-base
-  nvidia-arm-core:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
-    needs: build-nvidia-base
-    with:
-      auroraboot_version: "v0.19.1"
-      dockerfile_path: "images/Dockerfile"
-      base_image: "quay.io/kairos/cache:nvidia-base"
-      arch: "arm64"
-      model: "nvidia-jetson-agx-orin"
-      version: "auto"
-      no_cache: true
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
-      grype: true
-      grype_sarif: true
-      trivy: true
-      trivy_sarif: true
-      list_release_artifacts: true
-      cosign: true
-      release: true
