@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -217,10 +218,16 @@ func HaveMinMaxRole(name string, min, max int) types.GomegaMatcher {
 }
 
 func vmForEach(description string, vms []VM, action func(vm VM)) {
+	var wg sync.WaitGroup
 	for i, vm := range vms {
-		By(fmt.Sprintf("%s [%s]", description, strconv.Itoa(i+1)))
-		action(vm)
+		wg.Add(1)
+		go func(i int, vm VM) {
+			defer wg.Done()
+			By(fmt.Sprintf("%s [%s]", description, strconv.Itoa(i+1)))
+			action(vm)
+		}(i, vm)
 	}
+	wg.Wait()
 }
 
 func cloudConfig(token string) string {
