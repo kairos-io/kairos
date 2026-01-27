@@ -176,12 +176,9 @@ jobs:
         id: find_ovmf
       - name: Run tests 🔧
         env:
-          USE_QEMU: true
-          KVM: true
           MEMORY: 6000
           CPUS: 4
           FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
-          EMULATE_TPM: true
           UKI_TEST: true
         run: |
           mv $PWD/kairos-*-uki.iso $PWD/build/
@@ -293,12 +290,9 @@ jobs:
         id: find_ovmf_boot
       - name: Run tests 🔧
         env:
-          USE_QEMU: true
-          KVM: true
           MEMORY: 6000
           CPUS: 4
           FIRMWARE: ${{ steps.find_ovmf_boot.outputs.firmware }}
-          EMULATE_TPM: true
           UKI_TEST: true
         run: |
           mkdir -p $PWD/build

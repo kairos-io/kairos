@@ -169,21 +169,14 @@ jobs:
             quay.expires-after=6h
       - name: Run tests
         env:
-          USE_QEMU: true
-          KVM: true
           MEMORY: 5000
           DRIVE_SIZE: 50000
-          CREATE_VM: true
           CPUS: 4
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
-          fi
-          # Enable KVM only on self-hosted runners
-          if [ "${{ runner.environment == 'self-hosted'}}" = "true" ]; then
-            export KVM=true
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"
