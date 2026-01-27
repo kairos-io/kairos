@@ -108,9 +108,6 @@ jobs:
       - name: Run tests
         env:
           LABEL: ${{ inputs.label }}
-          EMULATE_TPM: true
-          CREATE_VM: true
-          USE_QEMU: true
           MEMORY: 6000
           CPUS: 2
           DRIVE_SIZE: 50000

@@ -83,20 +83,11 @@ func getFreePort() (port int, err error) {
 }
 
 func user() string {
-	u := os.Getenv("SSH_USER")
-	if u == "" {
-		u = "kairos"
-	}
-	return u
+	return getEnvOrDefault("SSH_USER", "kairos")
 }
 
 func pass() string {
-	p := os.Getenv("SSH_PASS")
-	if p == "" {
-		p = "kairos"
-	}
-
-	return p
+	return getEnvOrDefault("SSH_PASS", "kairos")
 }
 
 func gatherLogs(vm VM) {
@@ -344,12 +335,7 @@ func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) 
 
 func defaultVMOpts(stateDir string) []types.MachineOption {
 	opts := defaultVMOptsNoDrives(stateDir)
-
-	driveSize := os.Getenv("DRIVE_SIZE")
-	if driveSize == "" {
-		driveSize = "25000"
-	}
-
+	driveSize := getEnvOrDefault("DRIVE_SIZE", "25000")
 	opts = append(opts, types.WithDriveSize(driveSize))
 
 	return opts
@@ -358,7 +344,7 @@ func defaultVMOpts(stateDir string) []types.MachineOption {
 func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	var err error
 
-	if os.Getenv("ISO") == "" && os.Getenv("CREATE_VM") == "true" {
+	if os.Getenv("ISO") == "" {
 		fmt.Println("ISO missing")
 		os.Exit(1)
 	}
@@ -374,19 +360,9 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	Expect(err).ToNot(HaveOccurred())
 	fmt.Printf("Using ssh port: %d\n", sshPort)
 
-	memory := os.Getenv("MEMORY")
-	if memory == "" {
-		memory = "2096"
-	}
-	cpus := os.Getenv("CPUS")
-	if cpus == "" {
-		cpus = "2"
-	}
-
-	arch := os.Getenv("ARCH")
-	if arch == "" {
-		arch = "x86_64"
-	}
+	memory := getEnvOrDefault("MEMORY", "2048")
+	cpus := getEnvOrDefault("CPUS", "2")
+	arch := getEnvOrDefault("ARCH", "x86_64")
 
 	opts := []types.MachineOption{
 		types.QEMUEngine,
@@ -418,79 +394,26 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		}),
 		types.WithStateDir(stateDir),
 		types.WithArch(arch),
-		// Serial output to file: https://superuser.com/a/1412150
+		types.WithDataSource(os.Getenv("DATASOURCE")),
 		func(m *types.MachineConfig) error {
+			// Serial output to file: https://superuser.com/a/1412150
 			m.Args = append(m.Args,
 				"-chardev", fmt.Sprintf("stdio,mux=on,id=char0,logfile=%s,signal=off", path.Join(stateDir, "serial.log")),
 				"-serial", "chardev:char0",
 				"-mon", "chardev=char0",
 			)
-			if os.Getenv("EMULATE_TPM") != "" {
-				m.Args = append(m.Args,
-					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
-					"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
-				)
-			}
+			// Always set a tpm device in the vm
+			m.Args = append(m.Args,
+				"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
+				"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
+			)
+
+			// Set boot order to disk -> cdrom
+			m.Args = append(m.Args,
+				"-boot", "order=dc",
+			)
 			return nil
 		},
-		// Firmware
-		func(m *types.MachineConfig) error {
-			// If FIRMWARE is set, that usually means we are using UEFI to boot
-			// This could be normal or UKI so we have a different set of efivars for each
-			// UKI_TEST env var is just a flag to use empty efivars so we can test the auto enrollment
-			// otherwise we need to use an efivars which contains the secureboot keys already enrolled
-			// see tests/assets/efivars.md to know how to update them or regenerate them
-			FW := os.Getenv("FIRMWARE")
-			if FW != "" {
-				getwd, err := os.Getwd()
-				if err != nil {
-					return err
-				}
-				m.Args = append(m.Args, "-drive",
-					fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
-				)
-
-				assetsDir := filepath.Join(getwd, "assets")
-				UKI := os.Getenv("UKI_TEST")
-				emptyVars := UKI != ""
-
-				var varsFile string
-				// Get the appropriate efivars file based on firmware type
-				if arch == "aarch64" {
-					// On aarch64 we always use the efivars-aarch64 file
-					varsFile = filepath.Join(assetsDir, "efivars-aarch64.fd")
-				} else {
-					varsFile, err = getEfivarsFile(FW, assetsDir, emptyVars)
-					if err != nil {
-						return err
-					}
-				}
-
-				// Copy the efivars file to state directory to not modify the original
-				f, err := os.ReadFile(varsFile)
-				if err != nil {
-					return fmt.Errorf("failed to read efivars file %s: %w", varsFile, err)
-				}
-
-				varsPath := filepath.Join(stateDir, "efivars.fd")
-				err = os.WriteFile(varsPath, f, os.ModePerm)
-				if err != nil {
-					return fmt.Errorf("failed to write efivars file %s: %w", varsPath, err)
-				}
-
-				m.Args = append(m.Args, "-drive",
-					fmt.Sprintf("file=%s,if=pflash,format=raw", varsPath),
-				)
-
-				// Needed to be set for secureboot!
-				if arch == "x86_64" {
-					m.Args = append(m.Args, "-machine", "q35,smm=on")
-				}
-			}
-
-			return nil
-		},
-		types.WithDataSource(os.Getenv("DATASOURCE")),
 	}
 	if os.Getenv("KVM") != "" {
 		opts = append(opts, func(m *types.MachineConfig) error {
@@ -505,49 +428,92 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		})
 	}
 
-	if os.Getenv("USE_QEMU") == "true" {
-		opts = append(opts, types.QEMUEngine)
-
-		// You can connect to it with "spicy" or other tool.
-		// DISPLAY is already taken on Linux X sessions
-		if os.Getenv("MACHINE_SPICY") != "" {
-			spicePort, _ = getFreePort()
-			for spicePort == sshPort { // avoid collision
-				spicePort, _ = getFreePort()
+	// If FIRMWARE is set, that usually means we are using UEFI to boot
+	// This could be normal or UKI so we have a different set of efivars for each
+	// UKI_TEST env var is just a flag to use empty efivars so we can test the auto enrollment
+	// otherwise we need to use an efivars which contains the secureboot keys already enrolled
+	// see tests/assets/efivars.md to know how to update them or regenerate them
+	if os.Getenv("FIRMWARE") != "" {
+		opts = append(opts, func(m *types.MachineConfig) error {
+			FW := os.Getenv("FIRMWARE")
+			getwd, err := os.Getwd()
+			if err != nil {
+				return err
 			}
-			display := fmt.Sprintf("-spice port=%d,addr=127.0.0.1,disable-ticketing=yes", spicePort)
+			m.Args = append(m.Args, "-drive",
+				fmt.Sprintf("file=%s,if=pflash,format=raw,readonly=on", FW),
+			)
+
+			assetsDir := filepath.Join(getwd, "assets")
+			UKI := os.Getenv("UKI_TEST")
+			emptyVars := UKI != ""
+
+			var varsFile string
+			// Get the appropriate efivars file based on firmware type
 			if arch == "aarch64" {
-				display += " -device pcie-root-port,port=9,chassis=10,id=pcie.9 -device virtio-gpu-pci,id=video0,max_outputs=1,bus=pcie.9,addr=0x0"
+				// On aarch64 we always use the efivars-aarch64 file
+				varsFile = filepath.Join(assetsDir, "efivars-aarch64.fd")
+			} else {
+				varsFile, err = getEfivarsFile(FW, assetsDir, emptyVars)
+				if err != nil {
+					return err
+				}
 			}
-			opts = append(opts, types.WithDisplay(display))
 
-			opts = append(opts, func(m *types.MachineConfig) error {
-				m.Args = append(m.Args,
-					"-device", "virtio-serial-pci",
-					"-chardev", fmt.Sprintf("spicevmc,id=vdagent,name=vdagent,debug=0"),
-					"-device", "virtserialport,chardev=vdagent,name=com.redhat.spice.0",
-				)
-				return nil
-			})
+			// Copy the efivars file to state directory to not modify the original
+			f, err := os.ReadFile(varsFile)
+			if err != nil {
+				return fmt.Errorf("failed to read efivars file %s: %w", varsFile, err)
+			}
 
-			cmd := exec.Command("spicy",
-				"-h", "127.0.0.1",
-				"-p", strconv.Itoa(spicePort))
-			err = cmd.Start()
-			Expect(err).ToNot(HaveOccurred())
+			varsPath := filepath.Join(stateDir, "efivars.fd")
+			err = os.WriteFile(varsPath, f, os.ModePerm)
+			if err != nil {
+				return fmt.Errorf("failed to write efivars file %s: %w", varsPath, err)
+			}
 
-		}
-	} else {
-		opts = append(opts, types.VBoxEngine)
+			m.Args = append(m.Args, "-drive",
+				fmt.Sprintf("file=%s,if=pflash,format=raw", varsPath),
+			)
+
+			// Needed to be set for secureboot!
+			if arch == "x86_64" {
+				m.Args = append(m.Args, "-machine", "q35,smm=on")
+			}
+
+			return nil
+		})
 	}
 
-	// Set boot order to first boot from disk then cdrom
-	opts = append(opts, func(m *types.MachineConfig) error {
-		m.Args = append(m.Args,
-			"-boot", "order=dc",
-		)
-		return nil
-	})
+	// You can connect to it with "spicy" or other tool.
+	// DISPLAY is already taken on Linux X sessions
+	if os.Getenv("MACHINE_SPICY") != "" {
+		spicePort, _ = getFreePort()
+		for spicePort == sshPort { // avoid collision
+			spicePort, _ = getFreePort()
+		}
+		display := fmt.Sprintf("-spice port=%d,addr=127.0.0.1,disable-ticketing=yes", spicePort)
+		if arch == "aarch64" {
+			display += " -device pcie-root-port,port=9,chassis=10,id=pcie.9 -device virtio-gpu-pci,id=video0,max_outputs=1,bus=pcie.9,addr=0x0"
+		}
+		opts = append(opts, types.WithDisplay(display))
+
+		opts = append(opts, func(m *types.MachineConfig) error {
+			m.Args = append(m.Args,
+				"-device", "virtio-serial-pci",
+				"-chardev", fmt.Sprintf("spicevmc,id=vdagent,name=vdagent,debug=0"),
+				"-device", "virtserialport,chardev=vdagent,name=com.redhat.spice.0",
+			)
+			return nil
+		})
+
+		cmd := exec.Command("spicy",
+			"-h", "127.0.0.1",
+			"-p", strconv.Itoa(spicePort))
+		err = cmd.Start()
+		Expect(err).ToNot(HaveOccurred())
+
+	}
 
 	return opts
 }
@@ -558,4 +524,12 @@ func HostSSHFingerprint(vm VM) string {
 	Expect(err).ToNot(HaveOccurred(), fp)
 	Expect(fp).ToNot(BeEmpty(), "SSH host key fingerprint should not be empty")
 	return fp
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

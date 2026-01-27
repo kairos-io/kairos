@@ -169,11 +169,9 @@ jobs:
             quay.expires-after=6h
       - name: Run tests
         env:
-          USE_QEMU: true
           KVM: true
           MEMORY: 5000
           DRIVE_SIZE: 50000
-          CREATE_VM: true
           CPUS: 4
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
         run: |
