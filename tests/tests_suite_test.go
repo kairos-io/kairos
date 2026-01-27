@@ -454,10 +454,16 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				UKI := os.Getenv("UKI_TEST")
 				emptyVars := UKI != ""
 
+				var varsFile string
 				// Get the appropriate efivars file based on firmware type
-				varsFile, err := getEfivarsFile(FW, assetsDir, emptyVars)
-				if err != nil {
-					return err
+				if arch == "aarch64" {
+					// On aarch64 we always use the efivars-aarch64 file
+					varsFile = filepath.Join(assetsDir, "efivars-aarch64.fd")
+				} else {
+					varsFile, err = getEfivarsFile(FW, assetsDir, emptyVars)
+					if err != nil {
+						return err
+					}
 				}
 
 				// Copy the efivars file to state directory to not modify the original
