@@ -363,6 +363,14 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	memory := getEnvOrDefault("MEMORY", "2048")
 	cpus := getEnvOrDefault("CPUS", "2")
 	arch := getEnvOrDefault("ARCH", "x86_64")
+	// If arch is amd64, set to x86_64 as that what qemu and peg use
+	if arch == "amd64" {
+		arch = "x86_64"
+	}
+	// If arch is arm64, set to aarch64 as that what qemu and peg use
+	if arch == "arm64" {
+		arch = "aarch64"
+	}
 
 	opts := []types.MachineOption{
 		types.QEMUEngine,
@@ -443,8 +451,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 			)
 
 			assetsDir := filepath.Join(getwd, "assets")
-			UKI := os.Getenv("UKI_TEST")
-			emptyVars := UKI != ""
+			emptyVars := os.Getenv("UKI_TEST") != ""
 
 			var varsFile string
 			// Get the appropriate efivars file based on firmware type

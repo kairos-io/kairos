@@ -1,0 +1,192 @@
+name: Reusable workflow that runs tests with qemu
+
+on:
+  workflow_call:
+    inputs:
+      test:
+        required: true
+        type: string
+      base_image:
+        required: true
+        type: string
+      variant:
+        required: true
+        type: string
+      secureboot:
+        required: false
+        type: boolean
+        default: false
+      arch:
+        required: true
+        type: string
+      model:
+        required: false
+        type: string
+        default: "generic"
+      kubernetes_distro:
+        required: false
+        type: string
+      release-matcher:
+        description: "The release matcher to use for the latest release. Full regex match"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
+    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
+    name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
+    steps:
+      - name: Split base image
+        id: split
+        run: |
+          # Split base image for tag generation
+          BASE_IMAGE=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+          # Handle special cases for base images with slashes
+          # Handle base images with slashes (registry paths)
+          # Examples:
+          # - ubuntu:24.04 -> FLAVOR=ubuntu, FLAVOR_RELEASE=24.04
+          # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
+          # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          if [[ "$BASE_IMAGE" == *"/"* ]]; then
+            DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+            SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+            FLAVOR="$DISTRO"
+            FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            # Count number of slashes to determine if it's a registry path
+            SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
+            if [[ $SLASH_COUNT -eq 1 ]]; then
+              # Simple case: distro/subdistro (preserve existing behavior)
+              DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+              SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+              FLAVOR="$DISTRO"
+              FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            else
+              # Registry path with multiple slashes: extract last component as FLAVOR
+              # e.g., ghcr.io/kairos-io/hadron -> FLAVOR=hadron
+              FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
+              FLAVOR_RELEASE="$BASE_TAG"
+            fi
+          else
+            # No slashes: simple image name
+            FLAVOR="$BASE_IMAGE"
+            FLAVOR_RELEASE="$BASE_TAG"
+          fi
+
+          echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
+          echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6
+        timeout-minutes: 5
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
+      - name: Set up Docker Buildx for public runners
+        if: runner.environment == 'github-hosted'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: network=host
+      - name: Set up Docker Buildx for custom runners
+        if: runner.environment == 'self-hosted'
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          driver-opts: network=host
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["registry.docker-mirror.svc.cluster.local:5000"]
+            [registry."registry.docker-mirror.svc.cluster.local:5000"]
+              insecure = true
+              http = true
+      - name: Login to Quay Registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+        if: runner.environment == 'self-hosted'
+        run: |
+          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
+      - name: Enable KVM group perms
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
+          sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Find OVMF firmware
+        if: inputs.secureboot == true
+        uses: ./.github/actions/find-ovmf-firmware
+        with:
+          prefer_secboot: true
+        id: find_ovmf
+      - name: Set Image tag
+        run: |
+          IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}"
+          # Add kubernetes_distro and kubernetes_version if they are set
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_distro }}"
+          fi
+          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
+            IMAGE_NAME+="-${{ inputs.kubernetes_version }}"
+          fi
+          echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
+      - name: Download artifacts
+        if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || '' }}.iso.zip
+      - name: Download latest release
+        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
+        if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
+        with:
+          latest: true
+          fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
+          out-file-path: ""
+      - name: Download latest release with release matcher
+        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
+        if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher != '' }}
+        with:
+          latest: true
+          fileName: ${{ inputs.release-matcher }}
+          out-file-path: ""
+      - name: Prepare test bundle
+        if: ${{ inputs.test == 'bundles' }}
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: .
+          file: examples/bundle/Dockerfile
+          platforms: linux/${{ inputs.arch }}
+          push: true
+          tags: quay.io/kairos/ci-temp-images:bundles-test
+          # https://docs.redhat.com/en/documentation/red_hat_quay/3.4/html/use_red_hat_quay/working_with_tags#tag-expiration
+          labels: |
+            quay.expires-after=6h
+      - name: Run tests
+        env:
+          MEMORY: 5000
+          DRIVE_SIZE: 50000
+          CPUS: 4
+          CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
+          ARCH: ${{ inputs.arch }}
+        run: |
+          if [ "${{ inputs.secureboot }}" = "true" ]; then
+            export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
+            echo "Secure boot enabled, setting firmware to $FIRMWARE"
+          fi
+          export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
+          echo "ISO is: $ISO"
+          cp tests/go.* .
+          go mod download
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./tests/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}.logs.zip
+          path: tests/**/logs/*
+          if-no-files-found: warn

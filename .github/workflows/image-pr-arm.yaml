@@ -19,7 +19,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.19.1"
+      auroraboot_version: "v0.19.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -39,3 +39,33 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
+  lifecycle-tests:
+    name: ${{ matrix.base_image }}
+    secrets: inherit
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      base_image: ${{ matrix.base_image }}
+      test: ${{ matrix.test }}
+      secureboot: ${{ matrix.secureboot || false}}
+      release-matcher: ${{ matrix.release-matcher || '' }}
+      variant: "core"
+      arch: "arm64"
+      model: "generic"
+    needs:
+      - build-generic
+    strategy:
+      fail-fast: false
+      matrix:
+        secureboot: [false]
+        base_image:
+          - "ubuntu:24.04"
+        test:
+          - "custom-partitioning"
+          - "acceptance"
+          - "install"
+          - "install-target"
+          - "reset"
+          - "upgrade-with-cli"
+          - "upgrade-latest-with-cli"
+          - "bundles"
+          - "zfs"
