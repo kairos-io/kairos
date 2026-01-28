@@ -3,7 +3,6 @@ package mos_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"time"
@@ -13,28 +12,18 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-func sucYAML(image, version string) string {
+func nodeOpUpgradeYAML(image string) string {
 	return `
 ---
-apiVersion: upgrade.cattle.io/v1
-kind: Plan
+apiVersion: operator.kairos.io/v1alpha1
+kind: NodeOpUpgrade
 metadata:
-  name: os-upgrade
-  namespace: system-upgrade
-  labels:
-    k3s-upgrade: server
+  name: kairos-upgrade
+  namespace: operator-system
 spec:
+  image: "` + image + `"
   concurrency: 1
-  version: "` + version + `"
-  nodeSelector:
-    matchExpressions:
-      - {key: kubernetes.io/hostname, operator: Exists}
-  serviceAccountName: system-upgrade
-  cordon: false
-  upgrade:
-    image: "` + image + `"
-    command:
-    - "/usr/sbin/suc-upgrade"
+  stopOnFailure: true
 `
 
 }
@@ -124,17 +113,27 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 		Expect(err).ToNot(HaveOccurred())
 		Expect(currentVersion).To(ContainSubstring("v"))
 
-		By("wait system-upgrade-controller")
-		Eventually(func() string {
-			out, _ := kubectl(vm, "get pods -A")
-			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("system-upgrade-controller"))
+		By("deploying the kairos-operator")
+		// Download and extract the operator repository (git is not available on the node)
+		_, err = vm.Sudo("curl -sL https://github.com/kairos-io/kairos-operator/archive/refs/heads/main.tar.gz | tar -xz -C /tmp")
+		Expect(err).ToNot(HaveOccurred())
 
-		By("waiting for the plan CRD to be created")
+		Eventually(func() string {
+			out, _ := kubectl(vm, "apply -k /tmp/kairos-operator-main/config/default")
+			return out
+		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("created"), ContainSubstring("unchanged")))
+
+		By("waiting for kairos-operator to be ready")
+		Eventually(func() string {
+			out, _ := kubectl(vm, "get pods -n operator-system")
+			return out
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("operator-kairos-operator"))
+
+		By("waiting for the NodeOpUpgrade CRD to be created")
 		Eventually(func() string {
 			out, _ := kubectl(vm, "get crds")
 			return out
-		}, 300*time.Second, 10*time.Second).Should(ContainSubstring("plans.upgrade.cattle.io"))
+		}, 300*time.Second, 10*time.Second).Should(ContainSubstring("nodeopupgrades.operator.kairos.io"))
 
 		By("wait for all containers to be in running state")
 		Eventually(func() string {
@@ -143,24 +142,26 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 
 		}, 900*time.Second, 10*time.Second).ShouldNot(Or(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
 
-		By("triggering an upgrade")
-		suc := sucYAML(strings.ReplaceAll(containerImage, ":24h", ""), "24h")
+		By("triggering an upgrade with NodeOpUpgrade")
+		// Use the full container image for upgrade
+		nodeOpUpgrade := nodeOpUpgradeYAML(strings.ReplaceAll(containerImage, ":24h", ":latest"))
 
-		err = ioutil.WriteFile("assets/generated.yaml", []byte(suc), os.ModePerm)
+		err = os.WriteFile("assets/generated.yaml", []byte(nodeOpUpgrade), os.ModePerm)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = vm.Scp("assets/generated.yaml", "./suc.yaml", "0770")
+		err = vm.Scp("assets/generated.yaml", "./nodeopupgrade.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() string {
-			out, _ = kubectl(vm, "apply -f suc.yaml")
+			out, _ = kubectl(vm, "apply -f nodeopupgrade.yaml")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("created"))
+		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("created"), ContainSubstring("unchanged")))
 
+		By("checking that the upgrade job is created")
 		Eventually(func() string {
-			out, _ = kubectl(vm, "get pods -A")
+			out, _ = kubectl(vm, "get pods -n operator-system")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"))
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("kairos-upgrade"))
 
 		By("checking upgraded version")
 		Eventually(func() string {
@@ -207,11 +208,11 @@ var _ = Describe("k3s upgrade test from k8s", Label("provider", "provider-upgrad
 				debugOutput += fmt.Sprintf("kairos-agent state: %s\n", version)
 			}
 
-			out, _ = kubectl(vm, "get plans -A")
+			out, _ = kubectl(vm, "get nodeopupgrade -n operator-system -o yaml")
 			if err != nil {
-				debugOutput += fmt.Sprintf("error getting plans: %s\n", err.Error())
+				debugOutput += fmt.Sprintf("error getting nodeopupgrade: %s\n", err.Error())
 			} else {
-				debugOutput += fmt.Sprintf("plans: %s\n", out)
+				debugOutput += fmt.Sprintf("nodeopupgrade: %s\n", out)
 			}
 
 			return debugOutput

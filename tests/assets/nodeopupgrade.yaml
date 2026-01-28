@@ -1,0 +1,13 @@
+---
+apiVersion: operator.kairos.io/v1alpha1
+kind: NodeOpUpgrade
+metadata:
+  name: kairos-upgrade
+  namespace: operator-system
+spec:
+  # The container image containing the new Kairos version
+  image: "%s"
+  # Upgrade one node at a time
+  concurrency: 1
+  # Stop creating new jobs when a job fails
+  stopOnFailure: true
