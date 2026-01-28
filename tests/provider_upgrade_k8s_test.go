@@ -96,11 +96,27 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 			Expect(err).ToNot(HaveOccurred(), out)
 		*/
 
-		By("wait system-upgrade-controller")
+		By("deploying the kairos-operator")
+		// Download and extract the operator repository (git is not available on the node)
+		_, err = vm.Sudo("curl -sL https://github.com/kairos-io/kairos-operator/archive/refs/heads/main.tar.gz | tar -xz -C /tmp")
+		Expect(err).ToNot(HaveOccurred())
+
 		Eventually(func() string {
-			out, _ := kubectl(vm, "get pods -A")
+			out, _ := kubectl(vm, "apply -k /tmp/kairos-operator-main/config/default")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("system-upgrade-controller"))
+		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("created"), ContainSubstring("unchanged")))
+
+		By("waiting for kairos-operator to be ready")
+		Eventually(func() string {
+			out, _ := kubectl(vm, "get pods -n operator-system")
+			return out
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("operator-kairos-operator"))
+
+		By("waiting for the NodeOpUpgrade CRD to be created")
+		Eventually(func() string {
+			out, _ := kubectl(vm, "get crds")
+			return out
+		}, 300*time.Second, 10*time.Second).Should(ContainSubstring("nodeopupgrades.operator.kairos.io"))
 
 		By("wait for all containers to be in running state")
 		Eventually(func() string {
@@ -116,49 +132,49 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases --all --pre | tail -1`)
 		Expect(resultStr).To(ContainSubstring("quay.io/kairos"), resultStr)
 
-		By("copy upgrade plan")
+		By("preparing the NodeOpUpgrade resource")
 
-		version := "v3.3.1"
-		fullArtifact := fmt.Sprintf("24.04-standard-amd64-generic-%s-k3sv1.31.4-k3s1", version)
+		version := "v3.6.1-beta2"
+		fullArtifact := fmt.Sprintf("quay.io/kairos/ubuntu:24.04-standard-amd64-generic-%s-k3s-v1.34.2-k3s1", version)
 
-		tempDir, err := os.MkdirTemp("", "suc-*")
+		tempDir, err := os.MkdirTemp("", "nodeopupgrade-*")
 		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(tempDir)
 
-		b, err := os.ReadFile("assets/suc.yaml")
+		b, err := os.ReadFile("assets/nodeopupgrade.yaml")
 		Expect(err).ToNot(HaveOccurred())
 
-		suc := fmt.Sprintf(string(b), fullArtifact)
-		err = os.WriteFile(filepath.Join(tempDir, "suc.yaml"), []byte(suc), 0777)
+		nodeOpUpgrade := fmt.Sprintf(string(b), fullArtifact)
+		err = os.WriteFile(filepath.Join(tempDir, "nodeopupgrade.yaml"), []byte(nodeOpUpgrade), 0777)
 		Expect(err).ToNot(HaveOccurred())
 
-		err = vm.Scp(filepath.Join(tempDir, "suc.yaml"), "./suc.yaml", "0770")
+		err = vm.Scp(filepath.Join(tempDir, "nodeopupgrade.yaml"), "./nodeopupgrade.yaml", "0770")
 		Expect(err).ToNot(HaveOccurred())
 
-		By("apply upgrade plan")
+		By("applying the NodeOpUpgrade resource")
 		Eventually(func() string {
-			out, _ := kubectl(vm, "apply -f suc.yaml")
+			out, _ := kubectl(vm, "apply -f nodeopupgrade.yaml")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("unchanged"))
+		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("created"), ContainSubstring("unchanged")))
 
-		By("check that plan is being executed")
+		By("checking that the upgrade job is created")
 		Eventually(func() string {
-			out, _ = kubectl(vm, "get pods -A")
+			out, _ = kubectl(vm, "get pods -n operator-system")
 			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("apply-os-upgrade-on-"))
+		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("kairos-upgrade"))
 
-		By("wait for plan to finish")
+		By("waiting for the upgrade to complete")
 		Eventually(func() string {
-			out, _ = kubectl(vm, "get pods -A")
+			out, _ = kubectl(vm, "get nodeopupgrade -n operator-system kairos-upgrade -o jsonpath='{.status.phase}'")
 			return out
-		}, 30*time.Minute, 10*time.Second).ShouldNot(ContainSubstring("ContainerCreating"))
+		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("Completed"))
 
 		By("validate upgraded version")
 		Eventually(func() string {
 			out, _ = kubectl(vm, "get pods -A")
 			getVersion, _ := vm.Sudo(getVersionCmd)
 			fmt.Printf("version = %+v\n", getVersion)
-			return version
+			return getVersion
 		}, 30*time.Minute, 10*time.Second).Should(ContainSubstring(version), func() string {
 			return out
 		})
