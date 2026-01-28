@@ -328,8 +328,6 @@ func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) 
 		varsFile = filepath.Join(assetsDir, baseName+".fd")
 	}
 
-	GinkgoLogr.Info("reading efivars file", "file", varsFile)
-
 	return varsFile, nil
 }
 
@@ -469,6 +467,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 					return err
 				}
 			}
+			GinkgoLogr.Info("Using vars file", "varsFile", varsFile)
 
 			// Copy the efivars file to state directory to not modify the original
 			f, err := os.ReadFile(varsFile)

@@ -127,6 +127,7 @@ jobs:
         uses: ./.github/actions/find-ovmf-firmware
         with:
           prefer_secboot: true
+          arch: ${{ inputs.arch }}
         id: find_ovmf
       - name: Set Image tag
         run: |
