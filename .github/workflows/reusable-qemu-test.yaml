@@ -123,10 +123,9 @@ jobs:
         run: |
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Find OVMF firmware
-        if: inputs.secureboot == true
         uses: ./.github/actions/find-ovmf-firmware
         with:
-          prefer_secboot: true
+          prefer_secboot: ${{ inputs.secureboot }}
           arch: ${{ inputs.arch }}
         id: find_ovmf
       - name: Set Image tag
@@ -182,6 +181,10 @@ jobs:
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
+          fi
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
+            echo "ARM64 architecture, setting firmware to $FIRMWARE"
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"
