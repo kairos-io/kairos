@@ -412,9 +412,14 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				"-mon", "chardev=char0",
 			)
 			// Always set a tpm device in the vm
+			tpmDriver := "tpm-tis"
+			if m.Arch == "aarch64" {
+				// On aarch64 the tpm device is different, dont ask me why they couldnt keep it the same...
+				tpmDriver = "tpm-tis-device"
+			}
 			m.Args = append(m.Args,
 				"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
-				"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
+				"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", fmt.Sprintf("%s,tpmdev=tpm0", tpmDriver),
 			)
 
 			// Set boot order to disk -> cdrom
