@@ -17,7 +17,7 @@ concurrency:
 jobs:
   core:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@71d85fe9d4267e373a5d27b4a0fddd44628fb1ba # v0.0.11
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
