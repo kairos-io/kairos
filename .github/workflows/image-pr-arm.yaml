@@ -12,36 +12,6 @@ concurrency:
   group: ci-pr-arm64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  build-board:
-    name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
-    with:
-      auroraboot_version: "v0.19.1"
-      dockerfile_path: "images/Dockerfile"
-      base_image: ${{ matrix.base_image }}
-      model: ${{ matrix.model }}
-      arch: "arm64"
-      version: "auto"
-      raw: true
-      grype: true
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
-      registry_repository: "ci-temp-images"
-      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA"
-      custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
-      image_labels: "quay.expires-after=6h"
-      summary_artifacts: true
-    strategy:
-      fail-fast: false
-      matrix:
-        model: ["rpi4", "rpi3"]
-        base_image:
-          - "ubuntu:24.04"
-          - "alpine:3.21"
-
   build-generic:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
@@ -69,4 +39,3 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "alpine:3.21"
