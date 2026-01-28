@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,35 @@ func TestSuite(t *testing.T) {
 
 var getVersionCmd = ". /etc/kairos-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION"
 var getVersionCmdOsRelease = ". /etc/os-release; [ ! -z \"$KAIROS_VERSION\" ] && echo $KAIROS_VERSION"
+
+// getUpgradeImage returns the image to upgrade to.
+// It first checks if CONTAINER_IMAGE env var is set (used in CI for upgrading to the newly built image).
+// If not set, it falls back to using kairos-agent upgrade list-releases to find the latest available upgrade.
+func getUpgradeImage(vm VM) (string, error) {
+	// First check if CONTAINER_IMAGE is set (CI scenario: upgrade to newly built image)
+	if containerImage := os.Getenv("CONTAINER_IMAGE"); containerImage != "" {
+		return containerImage, nil
+	}
+
+	// Fallback: Get the list of available releases
+	out, err := vm.Sudo("kairos-agent upgrade list-releases 2>/dev/null")
+	if err != nil {
+		return "", fmt.Errorf("failed to list releases: %w", err)
+	}
+
+	// Parse the output line by line and find the first valid container image
+	// The output may contain informational messages like "Using registry: ..." or sudo warnings
+	lines := strings.Split(out, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// Valid container images start with quay.io/kairos/ and contain a tag (colon)
+		if strings.HasPrefix(line, "quay.io/kairos/") && strings.Contains(line, ":") {
+			return line, nil
+		}
+	}
+
+	return "", fmt.Errorf("no valid upgrade image found in output: %s", out)
+}
 
 // CreateDatasource creates a datasource iso from a given user-data file
 // And returns the path to the datasource iso
