@@ -117,7 +117,7 @@ jobs:
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-system-aarch64 qemu-utils acl udev mkisofs swtpm ovmf
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-system-aarch64 qemu-efi-aarch64 qemu-utils acl udev mkisofs swtpm ovmf
       - name: Set KVM permissions
         if: inputs.arch == 'amd64'
         run: |
