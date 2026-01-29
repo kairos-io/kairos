@@ -262,6 +262,36 @@ var kubectl = func(vm VM, s string) (string, error) {
 	return vm.Sudo("k3s kubectl " + s)
 }
 
+// deployKairosOperator downloads the kairos-operator, deploys it with kubectl, and waits for it and the NodeOpUpgrade CRD to be ready.
+func deployKairosOperator(vm VM) {
+	By("downloading the kairos-operator kustomization locally (no git available on the node)")
+	out, err := vm.Sudo("curl -sL https://github.com/kairos-io/kairos-operator/archive/refs/heads/main.tar.gz | tar -xz -C /tmp")
+	Expect(err).ToNot(HaveOccurred(), out)
+
+	By("deploying the kairos-operator")
+	out, err = kubectl(vm, "apply -k /tmp/kairos-operator-main/config/default")
+	Expect(err).ToNot(HaveOccurred(), out)
+	Expect(out).To(Or(ContainSubstring("created"), ContainSubstring("unchanged")))
+
+	By("waiting for kairos-operator to be ready")
+	Eventually(func() string {
+		out, _ := kubectl(vm, "get pods -n operator-system")
+		return out
+	}, 900*time.Second, 10*time.Second).Should(ContainSubstring("operator-kairos-operator"))
+
+	By("waiting for the NodeOpUpgrade CRD to be created")
+	Eventually(func() string {
+		out, _ := kubectl(vm, "get crds")
+		return out
+	}, 300*time.Second, 10*time.Second).Should(ContainSubstring("nodeopupgrades.operator.kairos.io"))
+
+	By("wait for all containers to be in running state")
+	Eventually(func() string {
+		out, _ := kubectl(vm, "get pods -A")
+		return out
+	}, 900*time.Second, 10*time.Second).ShouldNot(Or(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
+}
+
 // Generates a valid token for provider tests
 func generateToken() string {
 	l := int(^uint(0) >> 1)

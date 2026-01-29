@@ -102,35 +102,7 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 		Expect(currentVersion).To(ContainSubstring("v"))
 		fmt.Printf("Current version before upgrade: %s\n", currentVersion)
 
-		By("deploying the kairos-operator")
-		// Download and extract the operator repository (git is not available on the node)
-		_, err = vm.Sudo("curl -sL https://github.com/kairos-io/kairos-operator/archive/refs/heads/main.tar.gz | tar -xz -C /tmp")
-		Expect(err).ToNot(HaveOccurred())
-
-		Eventually(func() string {
-			out, _ := kubectl(vm, "apply -k /tmp/kairos-operator-main/config/default")
-			return out
-		}, 900*time.Second, 10*time.Second).Should(Or(ContainSubstring("created"), ContainSubstring("unchanged")))
-
-		By("waiting for kairos-operator to be ready")
-		Eventually(func() string {
-			out, _ := kubectl(vm, "get pods -n operator-system")
-			return out
-		}, 900*time.Second, 10*time.Second).Should(ContainSubstring("operator-kairos-operator"))
-
-		By("waiting for the NodeOpUpgrade CRD to be created")
-		Eventually(func() string {
-			out, _ := kubectl(vm, "get crds")
-			return out
-		}, 300*time.Second, 10*time.Second).Should(ContainSubstring("nodeopupgrades.operator.kairos.io"))
-
-		By("wait for all containers to be in running state")
-		Eventually(func() string {
-			out, _ := kubectl(vm, "get pods -A")
-			fmt.Printf("out = %+v\n", out)
-			return out
-
-		}, 900*time.Second, 10*time.Second).ShouldNot(Or(ContainSubstring("Pending"), ContainSubstring("ContainerCreating")))
+		deployKairosOperator(vm)
 
 		// Opportunistic feature test here to avoid a full test just
 		// for this.
