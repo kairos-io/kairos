@@ -2,6 +2,7 @@ package mos_test
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net"
 	"os"
@@ -480,6 +481,24 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 					"-enable-kvm",
 				)
 			}
+
+			// Add second NIC with bridge networking for VM-to-VM communication.
+			// This is useful when running locally where QEMU's user-mode networking (slirp)
+			// doesn't allow VMs to see each other (e.g., for edgevpn discovery).
+			// The first NIC (user networking with port forwarding) is kept for SSH access.
+			// Enable with USE_BRIDGE_NETWORK=1 environment variable.
+			if os.Getenv("USE_BRIDGE_NETWORK") != "" {
+				if err := ensureBridgeNetwork(); err != nil {
+					GinkgoLogr.Info("Warning: failed to ensure bridge network", "error", err)
+				} else {
+					mac := generateMACAddress()
+					GinkgoLogr.Info("Adding bridge network interface", "mac", mac, "vm", vmName)
+					m.Args = append(m.Args,
+						"-nic", fmt.Sprintf("bridge,br=virbr0,model=virtio-net-pci,mac=%s", mac),
+					)
+				}
+			}
+
 			return nil
 		},
 	}
@@ -590,4 +609,52 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+// generateMACAddress generates a random MAC address in the QEMU-compatible range (52:54:00:xx:xx:xx).
+// This is used for bridge networking where each VM needs a unique MAC address.
+func generateMACAddress() string {
+	buf := make([]byte, 3)
+	_, _ = rand.Read(buf)
+	return fmt.Sprintf("52:54:00:%02x:%02x:%02x", buf[0], buf[1], buf[2])
+}
+
+// ensureBridgeNetwork ensures the libvirt default network (virbr0) is running.
+// This is required for bridge networking to work with VMs.
+// It also ensures the bridge is allowed in QEMU's bridge.conf.
+func ensureBridgeNetwork() error {
+	// Check if virbr0 exists
+	cmd := exec.Command("ip", "link", "show", "virbr0")
+	if err := cmd.Run(); err != nil {
+		// virbr0 doesn't exist, try to start the default network
+		GinkgoLogr.Info("virbr0 not found, attempting to start libvirt default network")
+
+		// Try to start the default network
+		cmd = exec.Command("sudo", "virsh", "net-start", "--network", "default")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			// Network might not exist, try to define it first
+			cmd = exec.Command("sudo", "virsh", "net-define", "/usr/share/libvirt/networks/default.xml")
+			if out2, err2 := cmd.CombinedOutput(); err2 != nil {
+				return fmt.Errorf("failed to define default network: %s: %w", string(out2), err2)
+			}
+			// Now try to start it again
+			cmd = exec.Command("sudo", "virsh", "net-start", "--network", "default")
+			if out, err = cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("failed to start default network: %s: %w", string(out), err)
+			}
+		}
+	}
+
+	// Ensure virbr0 is in the allowed list for QEMU bridge helper
+	bridgeConf := "/etc/qemu/bridge.conf"
+	content, err := os.ReadFile(bridgeConf)
+	if err != nil || !strings.Contains(string(content), "allow virbr0") {
+		GinkgoLogr.Info("Adding virbr0 to QEMU bridge helper allowed list")
+		cmd := exec.Command("sudo", "sh", "-c", fmt.Sprintf("mkdir -p /etc/qemu && echo 'allow virbr0' >> %s", bridgeConf))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			GinkgoLogr.Info("Warning: failed to update bridge.conf (may need manual setup)", "error", err, "output", string(out))
+		}
+	}
+
+	return nil
 }
