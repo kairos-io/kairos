@@ -47,7 +47,7 @@ jobs:
           - "alpine:3.21"
           - "opensuse/leap:15.6"
           - "debian:13"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
   standard:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
@@ -76,7 +76,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
         include:
           - base_image: "ubuntu:24.04"
             kubernetes_distro: "k0s"
@@ -135,15 +135,15 @@ jobs:
             secureboot: true
             base_image: "debian:13"
           - test: "install"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
           - test: "custom-partitioning"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
           - test: "acceptance"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
           - test: "install-target"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
           - test: "reset"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
   encryption-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-encryption-test.yaml
@@ -161,7 +161,7 @@ jobs:
       matrix:
         base_image:
           - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
         label:
           - "encryption-local"
           - "encryption-remote-auto"
@@ -209,9 +209,9 @@ jobs:
           - "provider-decentralized-k8s"
           - "provider-k3s-disabled"
         include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
             test: "provider-qrcode-install"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
             test: "provider-decentralized-k8s"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1-beta6"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
             test: "provider-k3s-disabled"
