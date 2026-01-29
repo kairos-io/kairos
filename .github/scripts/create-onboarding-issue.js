@@ -12,6 +12,7 @@ const ONBOARDING_TEMPLATES = {
     checklist: `
 - [ ] Request personal email from applicant (needed for CNCF maintainer registry)
 - [ ] Add applicant to Kairos maintainers list: https://github.com/kairos-io/community/blob/main/MAINTAINERS.md
+- [ ] Remove applicant from Kairos contributors or any other list in: https://github.com/kairos-io/community/
 - [ ] Add applicant to [CNCF project maintainers](https://github.com/cncf/foundation/blob/main/project-maintainers.csv)
 - [ ] Send an email to cncf-maintainer-changes@cncf.io and CC members@kairos.io and the applicant, requesting the person to be added as maintainer
 - [ ] Add applicant to the [maintainers team](https://github.com/orgs/kairos-io/teams/maintainers)
