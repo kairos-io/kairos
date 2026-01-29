@@ -188,10 +188,11 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				vm.Reboot(1200)
 				out := ""
 				Eventually(func() string {
-					var err error
-					out, err = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
-					Expect(err).ToNot(HaveOccurred(), out)
+					// First, set up the DNS record via the API
+					// Ignore errors here - the API might not be ready yet after reboot
+					_, _ = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
 
+					// Then check if DNS resolution works
 					out, _ = vm.Sudo("curl -s -o /dev/null -w '%{remote_ip}' http://foo.bar")
 					return strings.TrimSpace(out)
 				}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
@@ -223,6 +224,7 @@ func vmForEach(description string, vms []VM, action func(vm VM)) {
 		wg.Add(1)
 		go func(i int, vm VM) {
 			defer wg.Done()
+			defer GinkgoRecover()
 			By(fmt.Sprintf("%s [%s]", description, strconv.Itoa(i+1)))
 			action(vm)
 		}(i, vm)
