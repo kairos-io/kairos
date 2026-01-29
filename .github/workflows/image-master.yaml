@@ -194,6 +194,7 @@ jobs:
       arch: "amd64"
       model: "generic"
       kubernetes_distro: "k3s"
+      use_bridge_network: ${{ matrix.test == 'provider-decentralized-k8s' }}
     needs:
       - standard
     strategy:

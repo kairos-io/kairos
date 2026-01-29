@@ -31,6 +31,11 @@ on:
         required: false
         type: string
         default: ""
+      use_bridge_network:
+        description: "Enable bridge networking for VM-to-VM communication"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
@@ -119,6 +124,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
           sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Setup bridge network for VM-to-VM communication
+        if: inputs.use_bridge_network
+        run: |
+          # Start libvirtd service
+          sudo systemctl start libvirtd
+          # Start the default network (creates virbr0)
+          sudo virsh net-start default || true
+          # Allow virbr0 in QEMU bridge helper
+          sudo mkdir -p /etc/qemu
+          echo "allow virbr0" | sudo tee /etc/qemu/bridge.conf
+          # Set setuid on qemu-bridge-helper so it can create tap devices
+          sudo chmod u+s /usr/lib/qemu/qemu-bridge-helper
+          # Verify virbr0 exists
+          ip link show virbr0
       - name: Find OVMF firmware
         if: inputs.secureboot == true
         uses: ./.github/actions/find-ovmf-firmware
@@ -173,6 +192,7 @@ jobs:
           DRIVE_SIZE: 50000
           CPUS: 4
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
+          USE_BRIDGE_NETWORK: ${{ inputs.use_bridge_network && '1' || '' }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
