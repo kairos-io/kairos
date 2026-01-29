@@ -182,24 +182,28 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			), out)
 		})
 
-		vmForEach("checking if it can propagate dns and it is functional", vms, func(vm VM) {
+		// FIXUP: DNS needs reboot to take effect
+		vmForEach("rebooting the VMs", vms, func(vm VM) {
 			if !isFlavor(vm, "alpine") {
-				// FIXUP: DNS needs reboot to take effect
 				vm.Reboot(1200)
-				out := ""
-				Eventually(func() string {
-					// First, set up the DNS record via the API
-					// Ignore errors here - the API might not be ready yet after reboot
-					_, _ = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
-
-					// Then check if DNS resolution works
-					out, _ = vm.Sudo("curl -s -o /dev/null -w '%{remote_ip}' http://foo.bar")
-					return strings.TrimSpace(out)
-				}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
-					fmt.Printf("DNS is not working: %s", out)
-					return out
-				})
 			}
+		})
+
+		vmForEach("checking if it can propagate dns and it is functional", vms, func(vm VM) {
+			out := ""
+			var err error
+			Eventually(func() string {
+				// First, set up the DNS record via the API
+				// Ignore errors here - the API might not be ready yet after reboot
+				_, _ = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+
+				// Then check if DNS resolution works
+				out, err = vm.Sudo("curl -s -o /dev/null -w '%{remote_ip}' http://foo.bar")
+				return strings.TrimSpace(out)
+			}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
+				fmt.Printf("DNS is not working: %s / %s", out, err.Error())
+				return out
+			})
 		})
 	})
 })
