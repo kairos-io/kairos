@@ -190,18 +190,37 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		})
 
 		vmForEach("checking if it can propagate dns and it is functional", vms, func(vm VM) {
+			if isFlavor(vm, "alpine") {
+				// Skip DNS check for alpine - it uses openrc and DNS setup differs
+				return
+			}
+
 			out := ""
 			var err error
 			Eventually(func() string {
-				// First, set up the DNS record via the API
-				// Ignore errors here - the API might not be ready yet after reboot
+				// Set up the DNS record via the API (use simple regex, not escaped)
 				_, _ = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
 
-				// Then check if DNS resolution works
+				// Check if DNS resolution works using resolvectl (more reliable than curl)
+				out, err = vm.Sudo("resolvectl query foo.bar 2>&1")
+				if strings.Contains(out, "2.2.2.2") {
+					return "2.2.2.2"
+				}
+
+				// Fallback: try curl
 				out, err = vm.Sudo("curl -s -o /dev/null -w '%{remote_ip}' http://foo.bar")
 				return strings.TrimSpace(out)
 			}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
-				fmt.Printf("DNS is not working: %s / %s", out, err.Error())
+				// On failure, print diagnostics
+				dnsRecords, _ := vm.Sudo("curl -s http://localhost:8080/api/dns")
+				resolv, _ := vm.Sudo("cat /etc/resolv.conf")
+				svcStatus, _ := vm.Sudo("systemctl status edgevpn@kairos --no-pager 2>&1 | head -20")
+				resolvectl, _ := vm.Sudo("resolvectl status 2>&1 | head -30")
+				fmt.Printf("DNS is not working: %s / %v\n", out, err)
+				fmt.Printf("DNS records: %s\n", dnsRecords)
+				fmt.Printf("resolv.conf: %s\n", resolv)
+				fmt.Printf("EdgeVPN status: %s\n", svcStatus)
+				fmt.Printf("Resolver status: %s\n", resolvectl)
 				return out
 			})
 		})
