@@ -5,6 +5,10 @@ inputs:
     description: 'Prefer secure boot variant (OVMF_CODE_4M.secboot.fd) if available'
     required: false
     default: 'false'
+  arch:
+    description: 'Target architecture (e.g., x86_64, aarch64)'
+    required: false
+    default: 'x86_64'
 outputs:
   firmware:
     description: 'Path to the OVMF firmware file'
@@ -23,6 +27,26 @@ runs:
         # Note: The CODE and VARS files must match in size (both 4M or both 2M).
 
         PREFER_SECBOOT="${{ inputs.prefer_secboot }}"
+
+        if [ "${{ inputs.arch }}" == "arm64" ]; then
+          # Use AAVMF for ARM64 architecture
+          if [ "$PREFER_SECBOOT" = "true" ] && [ -f /usr/share/AAVMF/AAVMF_CODE.secboot.fd ]; then
+            # Prefer secure boot variant if requested
+            echo "firmware=/usr/share/AAVMF/AAVMF_CODE.secboot.fd" >> $GITHUB_OUTPUT
+            exit 0
+          elif [ -f /usr/share/AAVMF/AAVMF_CODE.fd ]; then
+            # Standard variant
+            echo "firmware=/usr/share/AAVMF/AAVMF_CODE.fd" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "ERROR: Could not find AAVMF firmware file"
+            echo "Installed AAVMF files:"
+            dpkg -L qemu-efi-aarch64 2>/dev/null | grep -i '\.fd$' || echo "qemu-efi-aarch64 package not found"
+            exit 1
+          fi
+          echo "firmware=/usr/share/AAVMF/AAVMF_CODE.fd" >> $GITHUB_OUTPUT
+          exit 0
+        fi
 
         if [ -f /usr/share/OVMF/OVMF_CODE.fd ]; then
           # Legacy 2MB variant (Ubuntu 22.04 and earlier)

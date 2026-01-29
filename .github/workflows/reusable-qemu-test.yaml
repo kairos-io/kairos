@@ -33,8 +33,8 @@ on:
         default: ""
 
 jobs:
-  test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
-    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
+  test:
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     steps:
       - name: Split base image
@@ -117,13 +117,16 @@ jobs:
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-system-aarch64 qemu-efi-aarch64 qemu-utils acl udev mkisofs swtpm ovmf
+      - name: Set KVM permissions
+        if: inputs.arch == 'amd64'
+        run: |
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Find OVMF firmware
-        if: inputs.secureboot == true
         uses: ./.github/actions/find-ovmf-firmware
         with:
-          prefer_secboot: true
+          prefer_secboot: ${{ inputs.secureboot }}
+          arch: ${{ inputs.arch }}
         id: find_ovmf
       - name: Set Image tag
         run: |
@@ -173,10 +176,15 @@ jobs:
           DRIVE_SIZE: 50000
           CPUS: 4
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
+          ARCH: ${{ inputs.arch }}
         run: |
           if [ "${{ inputs.secureboot }}" = "true" ]; then
             export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
             echo "Secure boot enabled, setting firmware to $FIRMWARE"
+          fi
+          if [ "${{ inputs.arch }}" = "arm64" ]; then
+            export FIRMWARE=${{ steps.find_ovmf.outputs.firmware }}
+            echo "ARM64 architecture, setting firmware to $FIRMWARE"
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"

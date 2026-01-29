@@ -388,8 +388,6 @@ func getEfivarsFile(firmwarePath, assetsDir string, empty bool) (string, error) 
 		varsFile = filepath.Join(assetsDir, baseName+".fd")
 	}
 
-	GinkgoLogr.Info("reading efivars file", "file", varsFile)
-
 	return varsFile, nil
 }
 
@@ -423,6 +421,14 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	memory := getEnvOrDefault("MEMORY", "2048")
 	cpus := getEnvOrDefault("CPUS", "2")
 	arch := getEnvOrDefault("ARCH", "x86_64")
+	// If arch is amd64, set to x86_64 as that what qemu and peg use
+	if arch == "amd64" {
+		arch = "x86_64"
+	}
+	// If arch is arm64, set to aarch64 as that what qemu and peg use
+	if arch == "arm64" {
+		arch = "aarch64"
+	}
 
 	opts := []types.MachineOption{
 		types.QEMUEngine,
@@ -464,9 +470,14 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				"-mon", "chardev=char0",
 			)
 			// Always set a tpm device in the vm
+			tpmDriver := "tpm-tis"
+			if m.Arch == "aarch64" {
+				// On aarch64 the tpm device is different, dont ask me why they couldnt keep it the same...
+				tpmDriver = "tpm-tis-device"
+			}
 			m.Args = append(m.Args,
 				"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
-				"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
+				"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", fmt.Sprintf("%s,tpmdev=tpm0", tpmDriver),
 			)
 
 			// Set boot order to disk -> cdrom
@@ -503,8 +514,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 			)
 
 			assetsDir := filepath.Join(getwd, "assets")
-			UKI := os.Getenv("UKI_TEST")
-			emptyVars := UKI != ""
+			emptyVars := os.Getenv("UKI_TEST") != ""
 
 			var varsFile string
 			// Get the appropriate efivars file based on firmware type
@@ -517,6 +527,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 					return err
 				}
 			}
+			GinkgoLogr.Info("Using vars file", "varsFile", varsFile)
 
 			// Copy the efivars file to state directory to not modify the original
 			f, err := os.ReadFile(varsFile)
