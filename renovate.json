@@ -3,6 +3,7 @@
   "extends": [
     "config:recommended"
   ],
+  "rebaseWhen": "never",
   "schedule": [
     "after 11pm every weekday",
     "before 7am every weekday",
