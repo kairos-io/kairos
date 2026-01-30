@@ -74,7 +74,7 @@ jobs:
           containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.2 \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.3 \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${containerImage}" \
@@ -148,7 +148,7 @@ jobs:
           containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
-            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.2 \
+            -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.3 \
             --debug \
             --set "disable_http_server=true" \
             --set "container_image=docker:${containerImage}" \
@@ -221,7 +221,7 @@ jobs:
             containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
             docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
               --privileged \
-              -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.2 \
+              -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.3 \
               --debug \
               --set "disable_http_server=true" \
               --set "container_image=docker:${containerImage}" \
