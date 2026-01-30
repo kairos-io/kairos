@@ -151,7 +151,7 @@ jobs:
           docker run --rm --network=host -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:v0.19.2 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.19.3 --debug build-uki \
             --output-dir /result --output-type container \
             --public-keys /keys \
             --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
