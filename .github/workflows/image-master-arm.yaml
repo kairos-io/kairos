@@ -45,7 +45,7 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
-        cleanup: false
+        cleanup: [false]
         include:
           - base_image: "ubuntu:22.04"
             model: "nvidia-jetson-agx-orin"
