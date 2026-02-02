@@ -37,6 +37,7 @@ jobs:
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
       image_labels: "quay.expires-after=2w"
       summary_artifacts: true
+      cleanup: ${{ matrix.cleanup }}
     strategy:
       fail-fast: false
       matrix:
@@ -44,6 +45,7 @@ jobs:
         base_image:
           - "ubuntu:24.04"
           - "alpine:3.21"
+        cleanup: false
         include:
           - base_image: "ubuntu:22.04"
             model: "nvidia-jetson-agx-orin"
