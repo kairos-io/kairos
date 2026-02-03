@@ -7,7 +7,7 @@ on:
 permissions: read-all
 jobs:
   build-core:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -49,7 +49,7 @@ jobs:
       cosign: true
       release: true
   build-uki-container-image:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -142,7 +142,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
 
   build-standard-k3s:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     needs:
       - get-k3s-versions
     permissions:
@@ -189,7 +189,7 @@ jobs:
       cosign: true
       release: true
   build-standard-k0s:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@13210e132aab7e25564ff2da35dc618c9f41c96e # v0.0.12
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     needs:
       - get-k0s-versions
     permissions:
