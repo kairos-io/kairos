@@ -48,7 +48,7 @@ jobs:
       test: ${{ matrix.test }}
       secureboot: ${{ matrix.secureboot || false}}
       release-matcher: ${{ matrix.release-matcher || '' }}
-      variant: "core"
+      variant: ${{ matrix.variant || 'core' }}
       arch: "amd64"
       model: "generic"
     needs:
@@ -57,6 +57,7 @@ jobs:
       fail-fast: false
       matrix:
         secureboot: [false]
+        variant: ["core"]
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.1"
         test:
