@@ -181,7 +181,7 @@ jobs:
         if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
         with:
           latest: true
-          fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release_latest }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
+          fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release_latest }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*-k3s*.iso'
           out-file-path: ""
       - name: Download latest release with release matcher
         uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
@@ -227,6 +227,7 @@ jobs:
           MEMORY: 6000
           CPUS: 2
           DRIVE_SIZE: 50000
+          CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
         run: |
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           .github/encryption-tests.sh
