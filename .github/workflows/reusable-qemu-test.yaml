@@ -78,9 +78,16 @@ jobs:
             FLAVOR="$BASE_IMAGE"
             FLAVOR_RELEASE="$BASE_TAG"
           fi
-
+          
+          # For latest download remove the 'v' prefix if present
+          FLAVOR_RELEASE_LATEST=$(echo "$FLAVOR_RELEASE" | sed 's/^v//')
+          echo "flavor_release_latest=$FLAVOR_RELEASE_LATEST" >> $GITHUB_OUTPUT
           echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
           echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
+          
+          echo "Flavor: $FLAVOR"
+          echo "Flavor Release: $FLAVOR_RELEASE"
+          echo "Flavor Release Latest: $FLAVOR_RELEASE_LATEST"
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
@@ -174,7 +181,7 @@ jobs:
         if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
         with:
           latest: true
-          fileName: 'kairos-${{ steps.split.outputs.flavor }}-v${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
+          fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release_latest }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
           out-file-path: ""
       - name: Download latest release with release matcher
         uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
