@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: [ "rpi4", "rpi3", "generic", "nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx" ]
+        model: ["rpi4", "rpi3", "generic", "nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx"]
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.1"
     with:

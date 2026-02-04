@@ -43,5 +43,4 @@ jobs:
         model: ["generic", "rpi4", "rpi3", "nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx"]
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.1"
-          - "alpine:3.21"
         cleanup: [true]
