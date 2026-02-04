@@ -72,8 +72,6 @@ jobs:
               # e.g., ghcr.io/kairos-io/hadron -> FLAVOR=hadron
               FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
               FLAVOR_RELEASE="$BASE_TAG"
-              # Remove the leading v from RELEASE if present v0.0.1 -> 0.0.1
-              FLAVOR_RELEASE="${FLAVOR_RELEASE#v}"
             fi
           else
             # No slashes: simple image name
@@ -176,7 +174,7 @@ jobs:
         if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
         with:
           latest: true
-          fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
+          fileName: 'kairos-${{ steps.split.outputs.flavor }}-v${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
           out-file-path: ""
       - name: Download latest release with release matcher
         uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
