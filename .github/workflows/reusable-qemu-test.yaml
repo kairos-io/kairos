@@ -72,6 +72,8 @@ jobs:
               # e.g., ghcr.io/kairos-io/hadron -> FLAVOR=hadron
               FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
               FLAVOR_RELEASE="$BASE_TAG"
+              # Remove the leading v from RELEASE if present v0.0.1 -> 0.0.1
+              FLAVOR_RELEASE="${FLAVOR_RELEASE#v}"
             fi
           else
             # No slashes: simple image name
