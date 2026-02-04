@@ -223,7 +223,7 @@ jobs:
       - name: Run encryption tests
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         env:
-          LABEL: ${{ inputs.label }}
+          LABEL: ${{ inputs.test }}
           MEMORY: 6000
           CPUS: 2
           DRIVE_SIZE: 50000
