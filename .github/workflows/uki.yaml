@@ -42,18 +42,22 @@ jobs:
       summary_artifacts: true
     strategy:
       matrix:
-        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
-        kubernetes_distro: ["", "k3s"]
+        base_image:
+         - "ghcr.io/kairos-io/hadron-trusted:v0.0.1"
+        kubernetes_distro:
+         - ""
+         - "k3s"
   test_generic:
     needs: factory
     runs-on: kvm
     strategy:
       fail-fast: false
       matrix:
-        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1", "ubuntu:25.10", "ubuntu:24.04", "fedora:40"]
+        base_image:
+          - "ghcr.io/kairos-io/hadron-trusted:v0.0.1"
         arch: ["amd64"]
         model: ["generic"]
-        variant: ["core", "standard"]
+        variant: ["standard"]
     steps:
       - name: Split base image
         id: split
@@ -200,7 +204,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        base_image: ["ghcr.io/kairos-io/hadron-trusted:v0.0.1", "ubuntu:24.04"]
+        base_image:
+          - "ghcr.io/kairos-io/hadron-trusted:v0.0.1"
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core"]

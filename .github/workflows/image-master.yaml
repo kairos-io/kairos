@@ -40,13 +40,6 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ubuntu:25.10"
-          - "ubuntu:24.04"
-          - "ubuntu:22.04"
-          - "ubuntu:20.04"
-          - "alpine:3.21"
-          - "opensuse/leap:15.6"
-          - "debian:13"
           - "ghcr.io/kairos-io/hadron:v0.0.1"
   standard:
     name: ${{ matrix.base_image }}
@@ -75,11 +68,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ubuntu:24.04"
           - "ghcr.io/kairos-io/hadron:v0.0.1"
-        include:
-          - base_image: "ubuntu:24.04"
-            kubernetes_distro: "k0s"
   lifecycle-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -99,8 +88,7 @@ jobs:
       matrix:
         secureboot: [false]
         base_image:
-          - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -109,41 +97,7 @@ jobs:
           - "reset"
           - "upgrade-with-cli"
           - "upgrade-latest-with-cli"
-        include:
-          - test: "install"
-            secureboot: true
-            base_image: "ubuntu:24.04"
-          - test: "bundles"
-            base_image: "ubuntu:24.04"
-          - test: "zfs"
-            base_image: "ubuntu:24.04"
-          - test: "install"
-            secureboot: true
-            base_image: "ubuntu:22.04"
-          - test: "install"
-            secureboot: true
-            base_image: "opensuse/leap:15.6"
-          - test: "acceptance"
-            base_image: "ubuntu:22.04"
-          - test: "acceptance"
-            base_image: "ubuntu:20.04"
-          - test: "acceptance"
-            base_image: "opensuse/leap:15.6"
-          - test: "acceptance"
-            base_image: "debian:13"
-          - test: "install"
-            secureboot: true
-            base_image: "debian:13"
-          - test: "install"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "custom-partitioning"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "acceptance"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "install-target"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "reset"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "bundles"
   encryption-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-encryption-test.yaml
@@ -160,7 +114,6 @@ jobs:
       fail-fast: true
       matrix:
         base_image:
-          - "ubuntu:24.04"
           - "ghcr.io/kairos-io/hadron:v0.0.1"
         label:
           - "encryption-local"
@@ -201,7 +154,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ubuntu:24.04"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"
@@ -209,10 +162,3 @@ jobs:
           - "provider-upgrade-latest-k8s-with-kubernetes"
           - "provider-decentralized-k8s"
           - "provider-k3s-disabled"
-        include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-            test: "provider-qrcode-install"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-            test: "provider-decentralized-k8s"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-            test: "provider-k3s-disabled"

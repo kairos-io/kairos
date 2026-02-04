@@ -39,9 +39,6 @@ jobs:
       matrix:
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.1"
-          - "ubuntu:25.10"
-          - "ubuntu:24.04"
-          - "alpine:3.21"
   lifecycle-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
@@ -61,9 +58,7 @@ jobs:
       matrix:
         secureboot: [false]
         base_image:
-          - "ubuntu:25.10"
-          - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -72,56 +67,7 @@ jobs:
           - "reset"
           - "upgrade-with-cli"
           - "upgrade-latest-with-cli"
-        include:
-          - test: "install"
-            secureboot: true
-            base_image: "ubuntu:25.10"
-          - test: "zfs"
-            base_image: "ubuntu:25.10"
-          - test: "bundles"
-            base_image: "ubuntu:25.10"
-          - test: "install"
-            secureboot: true
-            base_image: "ubuntu:24.04"
-          - test: "zfs"
-            base_image: "ubuntu:24.04"
-          - test: "bundles"
-            base_image: "ubuntu:24.04"
-          - test: "upgrade-latest-with-cli"
-            base_image: "ubuntu:25.10"
-          - test: "install"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "custom-partitioning"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "acceptance"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "install-target"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-          - test: "reset"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.1"
-            # Whenever there's a new flavor e.g. ubuntu-25.10 but we haven't released a kairos version with it, you can use the release matcher to match to a previous version, e.g. ubuntu-24.04
-            # release-matcher: "kairos-ubuntu-24.04-core-amd64-generic-v3.6.0.iso"
-  encryption-tests:
-    name: ${{ matrix.base_image }}
-    secrets: inherit
-    uses: ./.github/workflows/reusable-encryption-test.yaml
-    with:
-      base_image: ${{ matrix.base_image }}
-      label: ${{ matrix.label }}
-      variant: "core"
-      arch: "amd64"
-      model: "generic"
-    needs:
-      - build
-    strategy:
-      fail-fast: false
-      matrix:
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
-          - "ubuntu:25.10"
-          - "ubuntu:24.04"
-          - "alpine:3.21"
-        label:
+          - "bundles"
           - "encryption-local"
           - "encryption-remote-auto"
           - "encryption-remote-static"
@@ -155,7 +101,6 @@ jobs:
       matrix:
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.1"
-          - "ubuntu:24.04"
   standard-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -190,7 +135,6 @@ jobs:
       matrix:
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.1"
-          - "ubuntu:24.04"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"

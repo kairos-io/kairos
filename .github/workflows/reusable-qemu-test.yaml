@@ -122,8 +122,17 @@ jobs:
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf curl
           sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Encryption deps
+        if: ${{ startsWith(inputs.test, 'encryption-') }}
+        run: |
+          curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          sudo mkdir -p /etc/luet/repos.conf.d/
+          sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
+          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
       - name: Setup bridge network for VM-to-VM communication
         if: inputs.use_bridge_network
         run: |
@@ -187,6 +196,7 @@ jobs:
           labels: |
             quay.expires-after=6h
       - name: Run tests
+        if: ${{ !startsWith(inputs.test, 'encryption-') }}
         env:
           MEMORY: 5000
           DRIVE_SIZE: 50000
@@ -203,6 +213,16 @@ jobs:
           cp tests/go.* .
           go mod download
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./tests/
+      - name: Run encryption tests
+        if: ${{ startsWith(inputs.test, 'encryption-') }}
+        env:
+          LABEL: ${{ inputs.label }}
+          MEMORY: 6000
+          CPUS: 2
+          DRIVE_SIZE: 50000
+        run: |
+          export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
+          .github/encryption-tests.sh
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:

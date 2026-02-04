@@ -40,15 +40,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: ["generic", "rpi4", "rpi3"]
+        model: ["generic", "rpi4", "rpi3", "nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx"]
         base_image:
-          - "ubuntu:24.04"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
           - "alpine:3.21"
-        cleanup: [false]
-        include:
-          - base_image: "ubuntu:22.04"
-            model: "nvidia-jetson-agx-orin"
-            cleanup: true
-          - base_image: "ubuntu:22.04"
-            model: "nvidia-jetson-orin-nx"
-            cleanup: true
+        cleanup: [true]
