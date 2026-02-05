@@ -12,7 +12,7 @@ concurrency:
   group: ci-pr-arm64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  build-board:
+  build-core:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
@@ -21,9 +21,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        model: ["rpi4", "rpi3", "generic", "nvidia-jetson-agx-orin", "nvidia-jetson-orin-nx"]
+        model: ["rpi4", "rpi3", "generic"]
+        cleanup: [false]
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.1"
+        include:
+          - model: "nvidia-jetson-agx-orin"
+            base_image: "ubuntu:22.04"
+            cleanup: true
+          - model: "nvidia-jetson-orin-nx"
+            base_image: "ubuntu:22.04"
+            cleanup: true
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
@@ -40,3 +48,4 @@ jobs:
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
       image_labels: "quay.expires-after=6h"
       summary_artifacts: true
+      cleanup: ${{ matrix.cleanup }}
