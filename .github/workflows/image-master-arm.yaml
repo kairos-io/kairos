@@ -42,13 +42,12 @@ jobs:
       matrix:
         model: ["generic", "rpi4", "rpi3"]
         base_image:
-          - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "ghcr.io/kairos-io/hadron:v0.0.1"
         cleanup: [false]
         include:
-          - base_image: "ubuntu:22.04"
-            model: "nvidia-jetson-agx-orin"
+          - model: "nvidia-jetson-agx-orin"
+            base_image: "ubuntu:22.04"
             cleanup: true
-          - base_image: "ubuntu:22.04"
-            model: "nvidia-jetson-orin-nx"
+          - model: "nvidia-jetson-orin-nx"
+            base_image: "ubuntu:22.04"
             cleanup: true
