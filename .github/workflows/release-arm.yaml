@@ -6,7 +6,7 @@ on:
       - v*
 permissions: read-all
 jobs:
-  build-core:
+  build-core-generic:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -48,7 +48,7 @@ jobs:
       list_release_artifacts: true
       cosign: true
       release: true
-  build-core-rpi4:
+  build-core-models:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -68,6 +68,7 @@ jobs:
           - "alpine:3.21"
           - "ghcr.io/kairos-io/hadron:v0.0.1"
         cleanup: [false]
+        model: ["rpi4"]
         include:
           - base_image: "ubuntu:22.04"
             model: "nvidia-jetson-agx-orin"
@@ -77,7 +78,7 @@ jobs:
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
-      model: "rpi4"
+      model: ${{ matrix.model }}
       version: "auto"
       no_cache: true
       registry_domain: "quay.io"
@@ -88,6 +89,7 @@ jobs:
       trivy_sarif: true
       list_release_artifacts: true
       cosign: true
+      cleanup: ${{ matrix.cleanup }}
   get-k3s-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -114,7 +116,7 @@ jobs:
             | map(.version)
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
-  build-standard:
+  build-standard-generic:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -161,7 +163,7 @@ jobs:
       list_release_artifacts: true
       cosign: true
       release: true
-  build-standard-rpi4:
+  build-standard-models:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -183,12 +185,13 @@ jobs:
           - "ubuntu:22.04"
           - "alpine:3.21"
           - "ghcr.io/kairos-io/hadron:v0.0.1"
+        model: ["rpi4"]
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
-      model: "rpi4"
+      model: ${{ matrix.model }}
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
       version: "auto"
