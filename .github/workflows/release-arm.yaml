@@ -68,6 +68,7 @@ jobs:
           - "alpine:3.21"
           - "ghcr.io/kairos-io/hadron:v0.0.1"
         cleanup: [false]
+        model: ["rpi4"]
         include:
           - base_image: "ubuntu:22.04"
             model: "nvidia-jetson-agx-orin"
@@ -77,7 +78,7 @@ jobs:
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
-      model: "rpi4"
+      model: ${{ matrix.model }}
       version: "auto"
       no_cache: true
       registry_domain: "quay.io"
