@@ -1,6 +1,6 @@
 FROM quay.io/kairos/kairos-init:v0.7.0-beta13 AS kairos-init
 
-FROM fedora:40
+FROM fedora:45
 ARG VERSION=v0.0.1
 
 RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \
