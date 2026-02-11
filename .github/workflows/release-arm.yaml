@@ -29,7 +29,7 @@ jobs:
           - "fedora:40"
           - "debian:13"
           - "rockylinux:9"
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
@@ -66,7 +66,7 @@ jobs:
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "alpine:3.21"
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         cleanup: [false]
         model: ["rpi4"]
         include:
@@ -142,7 +142,7 @@ jobs:
           - "fedora:40"
           - "debian:13"
           - "rockylinux:9"
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
@@ -184,7 +184,7 @@ jobs:
           - "ubuntu:20.04"
           - "ubuntu:22.04"
           - "alpine:3.21"
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         model: ["rpi4"]
     with:
       auroraboot_version: "v0.19.1"
