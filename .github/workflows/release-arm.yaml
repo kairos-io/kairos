@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         model:
           - "generic"
           - "rpi4"
@@ -93,7 +93,7 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         model:
           - "generic"
           - "rpi4"

@@ -41,7 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         kubernetes_distro:
           - ""
           - "k3s"

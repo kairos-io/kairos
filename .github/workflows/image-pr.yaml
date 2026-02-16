@@ -38,7 +38,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
   lifecycle-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
@@ -59,7 +59,7 @@ jobs:
         secureboot: [false]
         variant: ["core"]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -96,7 +96,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
   standard-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -130,7 +130,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"

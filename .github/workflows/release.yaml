@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         trusted_boot:
           - false
           - true
@@ -113,7 +113,7 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -151,7 +151,7 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
