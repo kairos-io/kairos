@@ -7,6 +7,7 @@ on:
 permissions: read-all
 jobs:
   core:
+    name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     permissions:
       id-token: write  # OIDC support
@@ -16,6 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         trusted_boot:
           - false
           - true
@@ -25,7 +28,7 @@ jobs:
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
-      base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+      base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
       version: "auto"
@@ -98,6 +101,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
 
   standard-k3s:
+    name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     needs:
       - get-k3s-versions
@@ -109,6 +113,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -116,7 +122,7 @@ jobs:
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
-      base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+      base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
       version: "auto"
@@ -134,6 +140,7 @@ jobs:
       cosign: true
       release: true
   standard-k0s:
+    name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     needs:
       - get-k0s-versions
@@ -145,6 +152,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -152,7 +161,7 @@ jobs:
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
-      base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+      base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
       version: "auto"

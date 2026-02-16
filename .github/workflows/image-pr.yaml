@@ -34,7 +34,7 @@ jobs:
       arch: "amd64"
       version: "auto"
       iso: true
-      grype: true
+      grype: false
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"

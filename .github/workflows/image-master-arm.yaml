@@ -42,7 +42,7 @@ jobs:
       matrix:
         model: ["generic", "rpi4", "rpi3"]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         cleanup: [false]
         include:
           - model: "nvidia-jetson-agx-orin"
