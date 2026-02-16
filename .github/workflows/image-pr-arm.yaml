@@ -42,7 +42,7 @@ jobs:
       model: ${{ matrix.model }}
       arch: "arm64"
       version: "auto"
-      raw: true
+      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }} # only produce raw images for rpi3 and rpi4
       grype: ${{ matrix.grype }}
       registry_domain: "quay.io"
       registry_namespace: "kairos"
