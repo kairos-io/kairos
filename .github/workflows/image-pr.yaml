@@ -103,6 +103,7 @@ jobs:
       model: "generic"
       kubernetes_distro: "k3s"
       use_bridge_network: ${{ matrix.test == 'provider-decentralized-k8s' }}
+      release-matcher: ${{ matrix.release-matcher || '' }}
     needs:
       - build
     strategy:
