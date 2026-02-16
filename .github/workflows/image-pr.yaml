@@ -114,7 +114,6 @@ jobs:
           - "provider-qrcode-install"
           - "provider-upgrade"
           - "provider-upgrade-k8s"
-          - "provider-upgrade-latest-k8s-with-kubernetes"
           - "provider-decentralized-k8s"
           - "provider-k3s-disabled"
           - "encryption-local"
@@ -122,3 +121,7 @@ jobs:
           - "encryption-remote-static"
           - "encryption-remote-https-pinned"
           - "encryption-remote-https-bad-cert"
+        include:
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+            test: "provider-upgrade-latest-k8s-with-kubernetes"
+            release-matcher: "kairos-hadron-0.0.1-standard-amd64-generic-*k3sv*.iso"

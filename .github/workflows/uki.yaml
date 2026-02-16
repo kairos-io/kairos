@@ -49,7 +49,6 @@ jobs:
           - ""
           - "k3s"
   test_generic:
-    name: ${{ matrix.base_image }}
     needs: build
     runs-on: kvm
     strategy:
@@ -201,7 +200,6 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
   test_boot_assessment:
-    name: ${{ matrix.base_image }}
     needs: build
     runs-on: kvm
     strategy:
