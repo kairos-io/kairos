@@ -35,6 +35,7 @@ jobs:
       image_labels: "quay.expires-after=6h"
       summary_artifacts: true
   core-tests:
+    name: ${{ matrix.base_image }}
     secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -90,6 +91,7 @@ jobs:
       summary_artifacts: true
       kubernetes_distro: "k3s"
   standard-tests:
+    name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     secrets: inherit
     permissions:
