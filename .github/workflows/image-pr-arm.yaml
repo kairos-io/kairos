@@ -30,6 +30,7 @@ jobs:
           - model: "nvidia-jetson-agx-orin"
             base_image: "ubuntu:22.04"
             cleanup: true
+            grype: false
           - model: "nvidia-jetson-orin-nx"
             base_image: "ubuntu:22.04"
             cleanup: true
