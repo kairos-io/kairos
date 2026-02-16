@@ -6,7 +6,7 @@ on:
       - v*
 permissions: read-all
 jobs:
-  build-core:
+  core:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -76,7 +76,7 @@ jobs:
             | map(.version)
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
-  build-standard:
+  standard:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}

@@ -14,8 +14,8 @@ concurrency:
   group: ci-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  core:
-    name: ${{ matrix.base_image }}
+  factory:
+    name: "ghcr.io/kairos-io/hadron:v0.0.3"
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -23,7 +23,7 @@ jobs:
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
-      base_image: ${{ matrix.base_image }}
+      base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
       model: "generic"
       arch: "amd64"
       version: "auto"
@@ -40,8 +40,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
         kubernetes_distro:
           - ""
           - "k3s"
