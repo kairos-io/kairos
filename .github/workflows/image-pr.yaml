@@ -96,7 +96,7 @@ jobs:
       repository-projects: read
       statuses: read
     with:
-      base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+      base_image: ${{ matrix.base_image }}
       test: ${{ matrix.test }}
       variant: "standard"
       arch: "amd64"
@@ -108,6 +108,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"
