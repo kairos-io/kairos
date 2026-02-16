@@ -23,6 +23,7 @@ jobs:
       matrix:
         model: ["rpi4", "rpi3", "generic"]
         cleanup: [false]
+        grype: [true]
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.3"
         include:
@@ -32,6 +33,7 @@ jobs:
           - model: "nvidia-jetson-orin-nx"
             base_image: "ubuntu:22.04"
             cleanup: true
+            grype: false # too many vulns under the L4T rootfs
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
@@ -40,7 +42,7 @@ jobs:
       arch: "arm64"
       version: "auto"
       raw: true
-      grype: true
+      grype: ${{ matrix.grype }}
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"

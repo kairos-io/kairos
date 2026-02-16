@@ -50,6 +50,7 @@ jobs:
       list_release_artifacts: true
       cosign: true
       release: true
+      iso: ${{ matrix.model == 'generic' }} # only produce ISOs for generic
       cleanup: ${{ matrix.cleanup }}
   get-k3s-versions:
     runs-on: ubuntu-latest
@@ -119,7 +120,7 @@ jobs:
       no_cache: true
       registry_domain: "quay.io"
       registry_namespace: "kairos"
-      iso: true
+      iso: ${{ matrix.model == 'generic' }} # only produce ISOs for generic
       grype: true
       grype_sarif: true
       trivy: true
