@@ -14,7 +14,7 @@ concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  factory:
+  build:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -48,7 +48,7 @@ jobs:
           - ""
           - "k3s"
   test_generic:
-    needs: factory
+    needs: build
     runs-on: kvm
     strategy:
       fail-fast: false
@@ -199,7 +199,7 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
   test_boot_assessment:
-    needs: factory
+    needs: build
     runs-on: kvm
     strategy:
       fail-fast: false

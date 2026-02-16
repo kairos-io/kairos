@@ -12,16 +12,24 @@ concurrency:
   group: ci-pr-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  core:
-    name: core
+  build:
+    name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
+    strategy:
+      fail-fast: false
+      matrix:
+        base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
+        kubernetes_distro:
+          - ""
+          - "k3s"
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
-      base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+      base_image: ${{ matrix.base_image }}
       model: "generic"
       arch: "amd64"
       version: "auto"
@@ -34,6 +42,7 @@ jobs:
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
       image_labels: "quay.expires-after=6h"
       summary_artifacts: true
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
   core-tests:
     name: ${{ matrix.base_image }}
     secrets: inherit
@@ -47,7 +56,7 @@ jobs:
       arch: "amd64"
       model: "generic"
     needs:
-      - core
+      - build
     strategy:
       fail-fast: false
       matrix:
@@ -67,29 +76,6 @@ jobs:
           - base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
             release-matcher: "kairos-hadron-0.0.1-core-amd64-generic-v3.7.2.iso"
             test: "upgrade-latest-with-cli"
-  standard:
-    name: standard
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
-    with:
-      auroraboot_version: "v0.19.1"
-      dockerfile_path: "images/Dockerfile"
-      base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-      model: "generic"
-      arch: "amd64"
-      version: "auto"
-      iso: true
-      grype: false
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
-      registry_repository: "ci-temp-images"
-      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO-$COMMIT_SHA"
-      custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
-      image_labels: "quay.expires-after=6h"
-      summary_artifacts: true
-      kubernetes_distro: "k3s"
   standard-tests:
     name: ${{ matrix.base_image }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -118,7 +104,7 @@ jobs:
       kubernetes_distro: "k3s"
       use_bridge_network: ${{ matrix.test == 'provider-decentralized-k8s' }}
     needs:
-      - standard
+      - build
     strategy:
       fail-fast: false
       matrix:
