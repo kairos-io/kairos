@@ -24,7 +24,7 @@ jobs:
         model: ["rpi4", "rpi3", "generic"]
         cleanup: [false]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.1"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         include:
           - model: "nvidia-jetson-agx-orin"
             base_image: "ubuntu:22.04"
