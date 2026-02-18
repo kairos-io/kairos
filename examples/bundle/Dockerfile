@@ -1,8 +1,10 @@
-FROM golang AS build
+FROM golang:1.25 AS build
 
 # Install a binary
 RUN git clone -b v0.38.0 https://github.com/ipfs/kubo.git /kubo
 WORKDIR /kubo
+RUN go mod tidy
+RUN go mod download
 RUN CGO_ENABLED=0 go build -o ipfs ./cmd/ipfs
 WORKDIR /bundle
 RUN mkdir -p /bundle/usr/bin

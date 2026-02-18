@@ -6,7 +6,8 @@ on:
       - v*
 permissions: read-all
 jobs:
-  build-core:
+  core:
+    name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     permissions:
       id-token: write  # OIDC support
@@ -17,16 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "opensuse/leap:15.6"
-          - "ubuntu:20.04"
-          - "ubuntu:22.04"
-          - "ubuntu:24.04"
-          - "ubuntu:25.10"
-          - "alpine:3.21"
-          - "fedora:40"
-          - "debian:13"
-          - "rockylinux:9"
           - "ghcr.io/kairos-io/hadron:v0.0.3"
+        trusted_boot:
+          - false
+          - true
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -40,51 +35,15 @@ jobs:
       no_cache: true
       registry_domain: "quay.io"
       registry_namespace: "kairos"
-      iso: true
+      trusted_boot: ${{ matrix.trusted_boot }}
+      iso: ${{ !matrix.trusted_boot }}
       grype: true
       grype_sarif: true
       trivy: true
       trivy_sarif: true
-      list_release_artifacts: true
+      list_release_artifacts: ${{ !matrix.trusted_boot }}
       cosign: true
-      release: true
-  build-uki-container-image:
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
-    strategy:
-      matrix:
-        base_image:
-          - "ubuntu:24.04"
-          - "fedora:40"
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
-        include:
-          - base_image: "ubuntu:24.04"
-            variant: "standard"  # let it use the latest k3s version released for now
-            arch: "amd64"
-            model: "generic"
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
-    with:
-      auroraboot_version: "v0.19.1"
-      dockerfile_path: "images/Dockerfile"
-      base_image: ${{ matrix.base_image }}
-      arch: "amd64"
-      model: "generic"
-      version: "auto"
-      no_cache: true
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
-      trusted_boot: true
-      grype: true
-      grype_sarif: true
-      trivy: true
-      trivy_sarif: true
-      cosign: true
+      release: ${{ !matrix.trusted_boot }}
   get-k3s-versions:
     runs-on: ubuntu-latest
     outputs:
@@ -141,7 +100,8 @@ jobs:
            '| jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
 
-  build-standard-k3s:
+  standard-k3s:
+    name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     needs:
       - get-k3s-versions
@@ -153,18 +113,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "opensuse/leap:15.6"
-          - "ubuntu:20.04"
-          - "ubuntu:22.04"
-          - "ubuntu:24.04"
-          - "ubuntu:25.10"
-          - "alpine:3.21"
-          - "fedora:40"
-          - "debian:13"
-          - "rockylinux:9"
           - "ghcr.io/kairos-io/hadron:v0.0.3"
+        kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -188,7 +139,8 @@ jobs:
       list_release_artifacts: true
       cosign: true
       release: true
-  build-standard-k0s:
+  standard-k0s:
+    name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     needs:
       - get-k0s-versions
@@ -200,13 +152,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "opensuse/leap:15.6"
-          - "ubuntu:24.04"
-          - "ubuntu:25.10"
-          - "rockylinux:9"
           - "ghcr.io/kairos-io/hadron:v0.0.3"
+        kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}

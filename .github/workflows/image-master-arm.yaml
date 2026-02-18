@@ -15,7 +15,7 @@ concurrency:
   group: ci-arm-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  core:
+  build:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
@@ -42,13 +42,12 @@ jobs:
       matrix:
         model: ["generic", "rpi4", "rpi3"]
         base_image:
-          - "ubuntu:24.04"
-          - "alpine:3.21"
+          - "ghcr.io/kairos-io/hadron:v0.0.3"
         cleanup: [false]
         include:
-          - base_image: "ubuntu:22.04"
-            model: "nvidia-jetson-agx-orin"
+          - model: "nvidia-jetson-agx-orin"
+            base_image: "ubuntu:22.04"
             cleanup: true
-          - base_image: "ubuntu:22.04"
-            model: "nvidia-jetson-orin-nx"
+          - model: "nvidia-jetson-orin-nx"
+            base_image: "ubuntu:22.04"
             cleanup: true

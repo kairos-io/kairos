@@ -79,8 +79,15 @@ jobs:
             FLAVOR_RELEASE="$BASE_TAG"
           fi
 
+          # For latest download remove the 'v' prefix if present
+          FLAVOR_RELEASE_LATEST=$(echo "$FLAVOR_RELEASE" | sed 's/^v//')
+          echo "flavor_release_latest=$FLAVOR_RELEASE_LATEST" >> $GITHUB_OUTPUT
           echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
           echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
+
+          echo "Flavor: $FLAVOR"
+          echo "Flavor Release: $FLAVOR_RELEASE"
+          echo "Flavor Release Latest: $FLAVOR_RELEASE_LATEST"
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
@@ -122,8 +129,17 @@ jobs:
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf curl
           sudo setfacl -m u:runner:rwx /dev/kvm
+      - name: Encryption deps
+        if: ${{ startsWith(inputs.test, 'encryption-') }}
+        run: |
+          curl -L  https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          sudo mkdir -p /etc/luet/repos.conf.d/
+          sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
+          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
       - name: Setup bridge network for VM-to-VM communication
         if: inputs.use_bridge_network
         run: |
@@ -147,25 +163,18 @@ jobs:
       - name: Set Image tag
         run: |
           IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}"
-          # Add kubernetes_distro and kubernetes_version if they are set
-          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
-            IMAGE_NAME+="-${{ inputs.kubernetes_distro }}"
-          fi
-          if [[ -n "${{ inputs.kubernetes_version }}" ]]; then
-            IMAGE_NAME+="-${{ inputs.kubernetes_version }}"
-          fi
           echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || '' }}.iso.zip
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Download latest release
         uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
         if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
         with:
           latest: true
-          fileName: 'kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-*.iso'
+          fileName: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release_latest }}-${{ inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes' && 'standard' || 'core'}}-${{ inputs.arch }}-${{ inputs.model }}-*${{ inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes' && 'k3sv*' || ''}}.iso
           out-file-path: ""
       - name: Download latest release with release matcher
         uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
@@ -187,6 +196,7 @@ jobs:
           labels: |
             quay.expires-after=6h
       - name: Run tests
+        if: ${{ !startsWith(inputs.test, 'encryption-') }}
         env:
           MEMORY: 5000
           DRIVE_SIZE: 50000
@@ -203,6 +213,18 @@ jobs:
           cp tests/go.* .
           go mod download
           go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./tests/
+      - name: Run encryption tests
+        if: ${{ startsWith(inputs.test, 'encryption-') }}
+        env:
+          LABEL: ${{ inputs.test }}
+          MEMORY: 6000
+          CPUS: 2
+          DRIVE_SIZE: 50000
+          CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
+        run: |
+          # Pick a k3s image
+          export ISO=$PWD/$(ls *.iso|grep -v ipxe | grep k3s | head -1 )
+          .github/encryption-tests.sh
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:

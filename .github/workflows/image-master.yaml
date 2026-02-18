@@ -14,7 +14,7 @@ concurrency:
   group: ci-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
-  core:
+  build:
     name: ${{ matrix.base_image }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
     secrets:
@@ -36,183 +36,12 @@ jobs:
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
       image_labels: "quay.expires-after=2w"
       summary_artifacts: true
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
     strategy:
       fail-fast: false
       matrix:
         base_image:
-          - "ubuntu:25.10"
-          - "ubuntu:24.04"
-          - "ubuntu:22.04"
-          - "ubuntu:20.04"
-          - "alpine:3.21"
-          - "opensuse/leap:15.6"
-          - "debian:13"
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
-  standard:
-    name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
-    with:
-      auroraboot_version: "v0.19.1"
-      dockerfile_path: "images/Dockerfile"
-      base_image: ${{ matrix.base_image }}
-      model: "generic"
-      arch: "amd64"
-      version: "auto"
-      iso: true
-      grype: true
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
-      registry_repository: "ci-temp-images"
-      custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO-$COMMIT_SHA"
-      custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO"
-      image_labels: "quay.expires-after=2w"
-      summary_artifacts: true
-      kubernetes_distro: "k3s"
-    strategy:
-      fail-fast: false
-      matrix:
-        base_image:
-          - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
-        include:
-          - base_image: "ubuntu:24.04"
-            kubernetes_distro: "k0s"
-  lifecycle-tests:
-    name: ${{ matrix.base_image }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    secrets: inherit
-    with:
-      base_image: ${{ matrix.base_image }}
-      test: ${{ matrix.test }}
-      secureboot: ${{ matrix.secureboot || false}}
-      release-matcher: ${{ matrix.release-matcher || '' }}
-      variant: "core"
-      arch: "amd64"
-      model: "generic"
-    needs:
-      - core
-    strategy:
-      fail-fast: true
-      matrix:
-        secureboot: [false]
-        base_image:
-          - "ubuntu:24.04"
-          - "alpine:3.21"
-        test:
-          - "custom-partitioning"
-          - "acceptance"
-          - "install"
-          - "install-target"
-          - "reset"
-          - "upgrade-with-cli"
-          - "upgrade-latest-with-cli"
-        include:
-          - test: "install"
-            secureboot: true
-            base_image: "ubuntu:24.04"
-          - test: "bundles"
-            base_image: "ubuntu:24.04"
-          - test: "zfs"
-            base_image: "ubuntu:24.04"
-          - test: "install"
-            secureboot: true
-            base_image: "ubuntu:22.04"
-          - test: "install"
-            secureboot: true
-            base_image: "opensuse/leap:15.6"
-          - test: "acceptance"
-            base_image: "ubuntu:22.04"
-          - test: "acceptance"
-            base_image: "ubuntu:20.04"
-          - test: "acceptance"
-            base_image: "opensuse/leap:15.6"
-          - test: "acceptance"
-            base_image: "debian:13"
-          - test: "install"
-            secureboot: true
-            base_image: "debian:13"
-          - test: "install"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-          - test: "custom-partitioning"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-          - test: "acceptance"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-          - test: "install-target"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-          - test: "reset"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-  encryption-tests:
-    name: ${{ matrix.base_image }}
-    uses: ./.github/workflows/reusable-encryption-test.yaml
-    secrets: inherit
-    with:
-      base_image: ${{ matrix.base_image }}
-      label: ${{ matrix.label }}
-      variant: "core"
-      model: "generic"
-      arch: "amd64"
-    needs:
-      - core
-    strategy:
-      fail-fast: true
-      matrix:
-        base_image:
-          - "ubuntu:24.04"
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
-        label:
-          - "encryption-local"
-          - "encryption-remote-auto"
-          - "encryption-remote-static"
-          - "encryption-remote-https-pinned"
-          - "encryption-remote-https-bad-cert"
-  standard-tests:
-    name: ${{ matrix.base_image }}
-    uses: ./.github/workflows/reusable-qemu-test.yaml
-    secrets: inherit
-    permissions:
-      contents: write
-      security-events: write
-      id-token: write
-      actions: read
-      attestations: read
-      checks: read
-      deployments: read
-      discussions: read
-      issues: read
-      packages: read
-      pages: read
-      pull-requests: read
-      repository-projects: read
-      statuses: read
-    with:
-      base_image: ${{ matrix.base_image }}
-      test: ${{ matrix.test }}
-      variant: "standard"
-      arch: "amd64"
-      model: "generic"
-      kubernetes_distro: "k3s"
-      use_bridge_network: ${{ matrix.test == 'provider-decentralized-k8s' }}
-    needs:
-      - standard
-    strategy:
-      fail-fast: false
-      matrix:
-        base_image:
-          - "ubuntu:24.04"
-        test:
-          - "provider-qrcode-install"
-          - "provider-upgrade"
-          - "provider-upgrade-k8s"
-          - "provider-upgrade-latest-k8s-with-kubernetes"
-          - "provider-decentralized-k8s"
-          - "provider-k3s-disabled"
-        include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-            test: "provider-qrcode-install"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-            test: "provider-decentralized-k8s"
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
-            test: "provider-k3s-disabled"
+          - "ghcr.io/kairos-io/hadron-trusted:v0.0.3"
+        kubernetes_distro:
+          - ""
+          - "k3s"
