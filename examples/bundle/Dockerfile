@@ -1,4 +1,4 @@
-FROM golang:1.25 AS build
+FROM golang:1.26 AS build
 
 # Install a binary
 RUN git clone -b v0.38.0 https://github.com/ipfs/kubo.git /kubo
