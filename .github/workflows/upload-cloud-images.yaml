@@ -71,7 +71,7 @@ jobs:
             exit 0
           fi
 
-          containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+          containerImage="quay.io/kairos/hadron:v0.0.3-core-amd64-generic-${latestTag}"
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
             -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.3 \
@@ -80,6 +80,7 @@ jobs:
             --set "container_image=docker:${containerImage}" \
             --set "disable_netboot=true" \
             --set "disk.bios=true" \
+            --set "disk.state_size=6000" \
             --set "state_dir=/aurora"
 
           file=$(ls *.raw)
@@ -145,7 +146,7 @@ jobs:
             exit 0
           fi
 
-          containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+          containerImage="quay.io/kairos/hadron:v0.0.3-core-amd64-generic-${latestTag}"
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
             -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.3 \
@@ -154,6 +155,7 @@ jobs:
             --set "container_image=docker:${containerImage}" \
             --set "disable_netboot=true" \
             --set "disk.raw=true" \
+            --set "disk.state_size=6000" \
             --set "state_dir=/aurora"
 
           .github/public-cloud/upload-image-to-aws.sh $(ls *.raw) "$latestTag"
@@ -218,7 +220,7 @@ jobs:
         if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
         run: |
             latestTag=$(cat LATEST_TAG)
-            containerImage="quay.io/kairos/ubuntu:24.04-core-amd64-generic-${latestTag}"
+            containerImage="quay.io/kairos/hadron:v0.0.3-core-amd64-generic-${latestTag}"
             docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
               --privileged \
               -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.3 \
@@ -227,6 +229,7 @@ jobs:
               --set "container_image=docker:${containerImage}" \
               --set "disable_netboot=true" \
               --set "disk.vhd=true" \
+              --set "disk.state_size=6000" \
               --set "state_dir=/aurora"
 
       - name: Azure CLI script
