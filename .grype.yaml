@@ -10,26 +10,7 @@
 # So we ignore all the kernel vulnerabilities as grype is not fully reliable
 ignore:
   # Affected standard images
-  - vulnerability: CVE-2025-22871 
-    package:
-      name: stdlib
-      location: /usr/bin/kube-vip
-  - vulnerability: CVE-2025-22871
-    package:
-      name: stdlib
-      location: /usr/bin/k3s
   - vulnerability: CVE-2025-68121
     package:
       name: stdlib
       location: /usr/bin/k3s
-  - vulnerability: CVE-2025-22871
-    package:
-      name: stdlib
-      location: /usr/bin/k0s
-  - vulnerability: GHSA-v23v-6jw2-98fq
-    package:
-      name: github.com/docker/docker  # indirect dependency, no directly used by k0s
-      version: v27.0.2+incompatible
-      location: /usr/bin/k0s
-  - package:
-      name: linux-kernel
