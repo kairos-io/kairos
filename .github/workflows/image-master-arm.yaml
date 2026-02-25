@@ -28,7 +28,7 @@ jobs:
       model: ${{ matrix.model }}
       arch: "arm64"
       version: "auto"
-      grype: true
+      grype: ${{ matrix.grype }}
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"
@@ -44,6 +44,7 @@ jobs:
         base_image:
           - "ghcr.io/kairos-io/hadron:v0.0.3"
         cleanup: [false]
+        grype: [true]
         include:
           - model: "nvidia-jetson-agx-orin"
             base_image: "ubuntu:22.04"
@@ -51,3 +52,4 @@ jobs:
           - model: "nvidia-jetson-orin-nx"
             base_image: "ubuntu:22.04"
             cleanup: true
+            grype: false # too many vulns under the L4T rootfs
