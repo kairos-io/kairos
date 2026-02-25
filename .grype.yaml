@@ -18,6 +18,10 @@ ignore:
     package:
       name: stdlib
       location: /usr/bin/k3s
+  - vulnerability: CVE-2025-68121
+    package:
+      name: stdlib
+      location: /usr/bin/k3s
   - vulnerability: CVE-2025-22871
     package:
       name: stdlib
