@@ -47,7 +47,7 @@ jobs:
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       grype: ${{ matrix.grype }}
-      grype_sarif: true
+      grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
       list_release_artifacts: true
@@ -127,7 +127,7 @@ jobs:
       registry_namespace: "kairos"
       iso: ${{ matrix.model == 'generic' }} # only produce ISOs for generic
       grype: ${{ matrix.grype }}
-      grype_sarif: true
+      grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
       list_release_artifacts: true
