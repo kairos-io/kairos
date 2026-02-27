@@ -104,6 +104,7 @@ jobs:
           - "generic"
           - "rpi4"
         cleanup: [false]
+        grype: [true]
         include:
           - model: "nvidia-jetson-agx-orin"
             base_image: "ubuntu:22.04"
