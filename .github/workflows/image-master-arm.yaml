@@ -42,7 +42,7 @@ jobs:
       matrix:
         model: ["generic", "rpi4", "rpi3"]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
+          - "ghcr.io/kairos-io/hadron:v0.0.4"
         cleanup: [false]
         grype: [true]
         include:
