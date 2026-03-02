@@ -25,7 +25,7 @@ jobs:
         cleanup: [false]
         grype: [true]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
+          - "ghcr.io/kairos-io/hadron:v0.0.4"
         include:
           - model: "nvidia-jetson-agx-orin"
             base_image: "ubuntu:22.04"

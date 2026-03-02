@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
+          - "ghcr.io/kairos-io/hadron:v0.0.4"
         kubernetes_distro:
           - ""
           - "k3s"
@@ -63,7 +63,7 @@ jobs:
         secureboot: [false]
         variant: ["core"]
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
+          - "ghcr.io/kairos-io/hadron:v0.0.4"
         test:
           - "custom-partitioning"
           - "acceptance"
@@ -73,7 +73,7 @@ jobs:
           - "upgrade-with-cli"
           - "bundles"
         include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
             release-matcher: "kairos-hadron-0.0.1-core-amd64-generic-v3.7.2.iso"
             test: "upgrade-latest-with-cli"
   standard-tests:
@@ -110,7 +110,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.3"
+          - "ghcr.io/kairos-io/hadron:v0.0.4"
         test:
           - "provider-qrcode-install"
           - "provider-upgrade"
@@ -123,6 +123,6 @@ jobs:
           - "encryption-remote-https-pinned"
           - "encryption-remote-https-bad-cert"
         include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.3"
+          - base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
             test: "provider-upgrade-latest-k8s-with-kubernetes"
             release-matcher: "kairos-hadron-0.0.1-standard-amd64-generic-*k3sv*.iso"
