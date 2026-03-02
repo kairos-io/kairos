@@ -74,7 +74,7 @@ jobs:
           - "bundles"
         include:
           - base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
-            release-matcher: "kairos-hadron-0.0.1-core-amd64-generic-v3.7.2.iso"
+            release-matcher: "kairos-hadron-0.0.1-core-amd64-generic-v4.0.1.iso"
             test: "upgrade-latest-with-cli"
   standard-tests:
     name: ${{ matrix.base_image }}
