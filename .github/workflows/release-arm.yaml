@@ -8,7 +8,7 @@ permissions: read-all
 jobs:
   core:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@c237359bb72f160ee19232ca5d8472062ebc2cad # v0.0.14
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -83,7 +83,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   standard:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@583ec0586948b7b8e7692f6db22e902b373d48f3 # v0.0.13
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@c237359bb72f160ee19232ca5d8472062ebc2cad # v0.0.14
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
