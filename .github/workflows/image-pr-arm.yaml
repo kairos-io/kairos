@@ -44,6 +44,7 @@ jobs:
       version: "auto"
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }} # only produce raw images for rpi3 and rpi4
       grype: ${{ matrix.grype }}
+      security_scan_mode: "enforce"
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"

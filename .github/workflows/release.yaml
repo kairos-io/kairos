@@ -41,6 +41,7 @@ jobs:
       grype_sarif: true
       trivy: true
       trivy_sarif: true
+      security_scan_mode: "enforce"
       list_release_artifacts: ${{ !matrix.trusted_boot }}
       cosign: true
       release: ${{ !matrix.trusted_boot }}
@@ -136,6 +137,7 @@ jobs:
       grype_sarif: true
       trivy: true
       trivy_sarif: true
+      security_scan_mode: "enforce"
       list_release_artifacts: true
       cosign: true
       release: true
@@ -175,6 +177,7 @@ jobs:
       grype_sarif: true
       trivy: true
       trivy_sarif: true
+      security_scan_mode: "enforce"
       list_release_artifacts: true
       cosign: true
       release: true

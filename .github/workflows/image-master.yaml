@@ -29,6 +29,7 @@ jobs:
       version: "auto"
       iso: true
       grype: true
+      security_scan_mode: "enforce"
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"

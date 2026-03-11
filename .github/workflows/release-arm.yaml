@@ -50,6 +50,7 @@ jobs:
       grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
+      security_scan_mode: "enforce"
       list_release_artifacts: true
       cosign: true
       release: true
@@ -131,6 +132,7 @@ jobs:
       grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
+      security_scan_mode: "enforce"
       list_release_artifacts: true
       cosign: true
       release: true
