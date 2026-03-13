@@ -46,7 +46,7 @@ jobs:
       summary_artifacts: true
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
   core-tests:
-    name: ${{ matrix.base_image }}
+    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && format('hadron-trusted, amd64, generic, {0}', matrix.variant) || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && format('hadron, amd64, generic, {0}', matrix.variant) || format('{0}, amd64, generic, {1}', matrix.base_image, matrix.variant)) }}
     secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -79,7 +79,7 @@ jobs:
             release-matcher: "kairos-hadron-0.0.1-core-amd64-generic-v4.0.0.iso"
             test: "upgrade-latest-with-cli"
   standard-tests:
-    name: ${{ matrix.base_image }}
+    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted, amd64, generic, standard' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron, amd64, generic, standard' || format('{0}, amd64, generic, standard', matrix.base_image)) }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     secrets: inherit
     permissions:
