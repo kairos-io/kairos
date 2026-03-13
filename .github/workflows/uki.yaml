@@ -51,7 +51,7 @@ jobs:
           - ""
           - "k3s"
   test_generic:
-    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && format('hadron-trusted, {0}, {1}, {2}', matrix.arch, matrix.model, matrix.variant) || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && format('hadron, {0}, {1}, {2}', matrix.arch, matrix.model, matrix.variant) || format('{0}, {1}, {2}, {3}', matrix.base_image, matrix.arch, matrix.model, matrix.variant)) }}
+    name: hadron-trusted, amd64, generic, standard
     needs: build
     runs-on: kvm
     strategy:
@@ -203,7 +203,7 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
   test_boot_assessment:
-    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && format('hadron-trusted, {0}, {1}, {2}', matrix.arch, matrix.model, matrix.variant) || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && format('hadron, {0}, {1}, {2}', matrix.arch, matrix.model, matrix.variant) || format('{0}, {1}, {2}, {3}', matrix.base_image, matrix.arch, matrix.model, matrix.variant)) }}
+    name: hadron-trusted, amd64, generic, core
     needs: build
     runs-on: kvm
     strategy:
