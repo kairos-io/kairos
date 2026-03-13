@@ -51,7 +51,7 @@ jobs:
           - ""
           - "k3s"
   test_generic:
-    name: hadron-trusted, amd64, generic, standard
+    name: test_generic (hadron-trusted, amd64, generic, standard)
     needs: build
     runs-on: kvm
     strategy:
@@ -203,7 +203,7 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
   test_boot_assessment:
-    name: hadron-trusted, amd64, generic, core
+    name: test_boot_assessment (hadron-trusted, amd64, generic, core)
     needs: build
     runs-on: kvm
     strategy:

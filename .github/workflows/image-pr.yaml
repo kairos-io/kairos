@@ -46,7 +46,7 @@ jobs:
       summary_artifacts: true
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
   core-tests:
-    name: hadron, amd64, generic, core
+    name: core-tests (hadron, amd64, generic, core)
     secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -79,7 +79,7 @@ jobs:
             release-matcher: "kairos-hadron-0.0.1-core-amd64-generic-v4.0.0.iso"
             test: "upgrade-latest-with-cli"
   standard-tests:
-    name: hadron, amd64, generic, standard
+    name: standard-tests (hadron, amd64, generic, standard)
     uses: ./.github/workflows/reusable-qemu-test.yaml
     secrets: inherit
     permissions:
