@@ -40,7 +40,7 @@ jobs:
       registry_repository: "ci-temp-images"
       custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA-uki"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-uki"
-      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && (matrix.kubernetes_distro != '' && '$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO$UKI' || '$VARIANT-$ARCH-$MODEL$UKI') || '' }}
+      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && (matrix.kubernetes_distro != '' && format('standard-amd64-generic-{0}-uki', matrix.kubernetes_distro) || 'core-amd64-generic-uki') || '' }}
       image_labels: "quay.expires-after=6h"
       summary_artifacts: true
     strategy:

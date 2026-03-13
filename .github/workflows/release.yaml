@@ -42,7 +42,7 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: "enforce"
-      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && '$VARIANT-$ARCH-$MODEL$UKI' || '' }}
+      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && (matrix.trusted_boot && 'core-amd64-generic-uki' || 'core-amd64-generic') || '' }}
       list_release_artifacts: ${{ !matrix.trusted_boot }}
       cosign: true
       release: ${{ !matrix.trusted_boot }}
@@ -139,7 +139,7 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: "enforce"
-      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && '$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO$UKI' || '' }}
+      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && 'standard-amd64-generic-k3s' || '' }}
       list_release_artifacts: true
       cosign: true
       release: true
@@ -180,7 +180,7 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: "enforce"
-      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && '$VARIANT-$ARCH-$MODEL-$KUBERNETES_DISTRO$UKI' || '' }}
+      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && 'standard-amd64-generic-k0s' || '' }}
       list_release_artifacts: true
       cosign: true
       release: true
