@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    name: ${{ matrix.base_image }}
+    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -35,6 +35,7 @@ jobs:
       registry_repository: "ci-temp-images"
       custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
+      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && '$VARIANT-$ARCH-$MODEL$UKI' || '' }}
       image_labels: "quay.expires-after=2w"
       summary_artifacts: true
       cleanup: ${{ matrix.cleanup }}
