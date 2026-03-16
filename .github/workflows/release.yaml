@@ -8,7 +8,7 @@ permissions: read-all
 jobs:
   core:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@31c48e122b28e00fbc83c3ed0b632e0118511ffd # v1.0.2
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -103,7 +103,7 @@ jobs:
 
   standard-k3s:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@31c48e122b28e00fbc83c3ed0b632e0118511ffd # v1.0.2
     needs:
       - get-k3s-versions
     permissions:
@@ -143,7 +143,7 @@ jobs:
       release: true
   standard-k0s:
     name: ${{ matrix.base_image }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@31c48e122b28e00fbc83c3ed0b632e0118511ffd # v1.0.2
     needs:
       - get-k0s-versions
     permissions:
