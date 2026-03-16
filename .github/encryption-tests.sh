@@ -44,16 +44,7 @@ if [ "$LABEL" != "local-encryption" ]; then
   # Install cert manager
   kubectl apply -f "https://github.com/jetstack/cert-manager/releases/download/${CERT_MANAGER_VERSION}/cert-manager.yaml"
 
-  # Wait for cert-manager pods to be running first (more reliable than deployment condition)
-  echo "Waiting for cert-manager pods to be ready..."
-  kubectl wait --for=condition=Ready pod --timeout=5m -n cert-manager --all || {
-    echo "Cert-manager pods failed to become ready. Current pod status:"
-    kubectl get pods -n cert-manager
-    kubectl describe pods -n cert-manager
-    exit 1
-  }
-
-  # Then wait for deployments to be available (this ensures the webhook is actually serving)
+  # Wait for cert-manager deployments to become available
   echo "Waiting for cert-manager deployments to be available..."
   kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager --all
 
