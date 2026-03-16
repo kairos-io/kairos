@@ -9,6 +9,10 @@
 # as grype is not always correct
 # So we ignore all the kernel vulnerabilities as grype is not fully reliable
 ignore:
+  # Go vulnerabilities
+  - vulnerability: GO-2026-4479
+    reason: "pion/dtls/v2 is unmaintained with no fix available; only used by optional WebRTC transport in libp2p"
+
   # Affected standard images
   - vulnerability: CVE-2025-68121
     package:
