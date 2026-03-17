@@ -7,7 +7,7 @@ on:
 permissions: read-all
 jobs:
   core:
-    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
+    name: ${{ matrix.image_name }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -20,22 +20,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.4"
-        model:
-          - "generic"
-          - "rpi4"
-        cleanup: [true]
-        grype: [true]
         include:
+          - image_name: "hadron"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            model: "generic"
+            cleanup: true
+            grype: true
+            custom_job_name_format: "core-arm64-generic"
+          - image_name: "hadron"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            model: "rpi4"
+            cleanup: true
+            grype: true
+            custom_job_name_format: "core-arm64-rpi4"
           - model: "nvidia-jetson-agx-orin"
+            image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
             cleanup: true
             grype: true
+            custom_job_name_format: ""
           - model: "nvidia-jetson-orin-nx"
+            image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
+            custom_job_name_format: ""
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
@@ -51,7 +60,7 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: "enforce"
-      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && format('core-arm64-{0}', matrix.model) || '' }}
+      custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: true
       cosign: true
       release: true
@@ -84,7 +93,7 @@ jobs:
           ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   standard:
-    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
+    name: ${{ matrix.image_name }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -105,17 +114,31 @@ jobs:
         model:
           - "generic"
           - "rpi4"
+        image_name:
+          - "hadron"
         cleanup: [false]
         grype: [true]
+        custom_job_name_format:
+          - "standard-arm64-generic-k3s"
+          - "standard-arm64-rpi4-k3s"
+        exclude:
+          - model: "generic"
+            custom_job_name_format: "standard-arm64-rpi4-k3s"
+          - model: "rpi4"
+            custom_job_name_format: "standard-arm64-generic-k3s"
         include:
           - model: "nvidia-jetson-agx-orin"
+            image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
             cleanup: true
             grype: true
+            custom_job_name_format: ""
           - model: "nvidia-jetson-orin-nx"
+            image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
+            custom_job_name_format: ""
     with:
       auroraboot_version: "v0.19.1"
       dockerfile_path: "images/Dockerfile"
@@ -134,7 +157,7 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: "enforce"
-      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && format('standard-arm64-{0}-k3s', matrix.model) || '' }}
+      custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: true
       cosign: true
       release: true

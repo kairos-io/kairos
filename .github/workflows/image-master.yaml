@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
+    name: ${{ matrix.image_name }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -35,15 +35,19 @@ jobs:
       registry_repository: "ci-temp-images"
       custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
-      custom_job_name_format: ${{ (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') || startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:')) && (matrix.kubernetes_distro != '' && format('standard-amd64-generic-{0}', matrix.kubernetes_distro) || 'core-amd64-generic') || '' }}
+      custom_job_name_format: ${{ matrix.custom_job_name_format }}
       image_labels: "quay.expires-after=2w"
       summary_artifacts: true
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
     strategy:
       fail-fast: false
       matrix:
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.4"
-        kubernetes_distro:
-          - ""
-          - "k3s"
+        include:
+          - image_name: "hadron"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            kubernetes_distro: ""
+            custom_job_name_format: "core-amd64-generic"
+          - image_name: "hadron"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            kubernetes_distro: "k3s"
+            custom_job_name_format: "standard-amd64-generic-k3s"
