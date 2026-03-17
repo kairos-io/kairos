@@ -8,6 +8,8 @@ spec:
   template:
     spec:
       containers:
+        - name: kube-rbac-proxy
+          $patch: delete
         - name: manager
           image: quay.io/kairos/kcrypt-challenger:v0.12.1
           imagePullPolicy: IfNotPresent

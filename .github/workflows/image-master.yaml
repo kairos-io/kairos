@@ -16,7 +16,7 @@ concurrency:
 jobs:
   build:
     name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}

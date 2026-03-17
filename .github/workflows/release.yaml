@@ -8,7 +8,7 @@ permissions: read-all
 jobs:
   core:
     name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -104,7 +104,7 @@ jobs:
 
   standard-k3s:
     name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     needs:
       - get-k3s-versions
     permissions:
@@ -145,7 +145,7 @@ jobs:
       release: true
   standard-k0s:
     name: ${{ startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron-trusted:') && 'hadron-trusted' || (startsWith(matrix.base_image, 'ghcr.io/kairos-io/hadron:') && 'hadron' || matrix.base_image) }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@34a4d60415833c98869d13b6968fa93c3fc1dcb0 # v1.0.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     needs:
       - get-k0s-versions
     permissions:
