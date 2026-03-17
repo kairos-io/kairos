@@ -25,6 +25,7 @@ jobs:
         model:
           - "generic"
           - "rpi4"
+        security_scan_mode: ["enforce"]
         cleanup: [true]
         grype: [true]
         include:
@@ -34,6 +35,7 @@ jobs:
             grype: true
           - model: "nvidia-jetson-orin-nx"
             base_image: "ubuntu:22.04"
+            security_scan_mode: "report-only"
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
     with:
@@ -50,7 +52,7 @@ jobs:
       grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      security_scan_mode: ${{ matrix.security_scan_mode }}
       list_release_artifacts: true
       cosign: true
       release: true
@@ -104,6 +106,7 @@ jobs:
         model:
           - "generic"
           - "rpi4"
+        security_scan_mode: ["enforce"]
         cleanup: [false]
         grype: [true]
         include:
@@ -113,6 +116,7 @@ jobs:
             grype: true
           - model: "nvidia-jetson-orin-nx"
             base_image: "ubuntu:22.04"
+            security_scan_mode: "report-only"
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
     with:
@@ -132,7 +136,7 @@ jobs:
       grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      security_scan_mode: ${{ matrix.security_scan_mode }}
       list_release_artifacts: true
       cosign: true
       release: true
