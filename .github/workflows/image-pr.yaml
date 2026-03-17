@@ -50,15 +50,15 @@ jobs:
       summary_artifacts: true
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
   core-tests:
-    name: core-tests (hadron, amd64, generic, core)
+    name: ${{ format('core-tests (hadron, amd64, generic) {0}', matrix.test) }}
     secrets: inherit
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
-      base_image: ${{ matrix.base_image }}
+      base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
       test: ${{ matrix.test }}
-      secureboot: ${{ matrix.secureboot || false}}
+      secureboot: false
       release-matcher: ${{ matrix.release-matcher || '' }}
-      variant: ${{ matrix.variant || 'core' }}
+      variant: "core"
       arch: "amd64"
       model: "generic"
     needs:
@@ -66,24 +66,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        secureboot: [false]
-        variant: ["core"]
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.4"
-        test:
-          - "custom-partitioning"
-          - "acceptance"
-          - "install"
-          - "install-target"
-          - "reset"
-          - "upgrade-with-cli"
-          - "bundles"
         include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+          - test: "custom-partitioning"
+          - test: "acceptance"
+          - test: "install"
+          - test: "install-target"
+          - test: "reset"
+          - test: "upgrade-with-cli"
+          - test: "bundles"
+          - test: "upgrade-latest-with-cli"
             release-matcher: "kairos-hadron-0.0.1-core-amd64-generic-v4.0.0.iso"
-            test: "upgrade-latest-with-cli"
   standard-tests:
-    name: standard-tests (hadron, amd64, generic, standard)
+    name: ${{ format('standard-tests (hadron, amd64, generic) {0}', matrix.test) }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     secrets: inherit
     permissions:
@@ -102,7 +96,7 @@ jobs:
       repository-projects: read
       statuses: read
     with:
-      base_image: ${{ matrix.base_image }}
+      base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
       test: ${{ matrix.test }}
       variant: "standard"
       arch: "amd64"
@@ -115,20 +109,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.4"
-        test:
-          - "provider-qrcode-install"
-          - "provider-upgrade"
-          - "provider-upgrade-k8s"
-          - "provider-decentralized-k8s"
-          - "provider-k3s-disabled"
-          - "encryption-local"
-          - "encryption-remote-auto"
-          - "encryption-remote-static"
-          - "encryption-remote-https-pinned"
-          - "encryption-remote-https-bad-cert"
         include:
-          - base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
-            test: "provider-upgrade-latest-k8s-with-kubernetes"
+          - test: "provider-qrcode-install"
+          - test: "provider-upgrade"
+          - test: "provider-upgrade-k8s"
+          - test: "provider-decentralized-k8s"
+          - test: "provider-k3s-disabled"
+          - test: "encryption-local"
+          - test: "encryption-remote-auto"
+          - test: "encryption-remote-static"
+          - test: "encryption-remote-https-pinned"
+          - test: "encryption-remote-https-bad-cert"
+          - test: "provider-upgrade-latest-k8s-with-kubernetes"
             release-matcher: "kairos-hadron-0.0.1-standard-amd64-generic-*k3sv*.iso"
