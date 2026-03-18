@@ -39,7 +39,7 @@ jobs:
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
     with:
-      auroraboot_version: "v0.19.1"
+      auroraboot_version: "v0.19.4"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -120,7 +120,7 @@ jobs:
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
     with:
-      auroraboot_version: "v0.19.1"
+      auroraboot_version: "v0.19.4"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
