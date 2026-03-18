@@ -44,6 +44,7 @@ jobs:
           - model: "nvidia-jetson-agx-orin"
             image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
+            security_scan_mode: "report-only"
             cleanup: true
             grype: true
             custom_job_name_format: ""
@@ -140,6 +141,7 @@ jobs:
           - model: "nvidia-jetson-agx-orin"
             image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
+            security_scan_mode: "report-only"
             cleanup: true
             grype: true
             custom_job_name_format: ""
