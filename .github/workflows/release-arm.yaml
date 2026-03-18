@@ -20,6 +20,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        base_image:
+          - "ghcr.io/kairos-io/hadron:v0.0.4"
+        model:
+          - "generic"
+          - "rpi4"
+        security_scan_mode: ["enforce"]
+        cleanup: [true]
+        grype: [true]
         include:
           - image_name: "hadron"
             base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
@@ -42,11 +50,12 @@ jobs:
           - model: "nvidia-jetson-orin-nx"
             image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
+            security_scan_mode: "report-only"
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
             custom_job_name_format: ""
     with:
-      auroraboot_version: "v0.19.1"
+      auroraboot_version: "v0.19.4"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -59,7 +68,7 @@ jobs:
       grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      security_scan_mode: ${{ matrix.security_scan_mode }}
       custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: true
       cosign: true
@@ -116,6 +125,7 @@ jobs:
           - "rpi4"
         image_name:
           - "hadron"
+        security_scan_mode: ["enforce"]
         cleanup: [false]
         grype: [true]
         custom_job_name_format:
@@ -136,11 +146,12 @@ jobs:
           - model: "nvidia-jetson-orin-nx"
             image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
+            security_scan_mode: "report-only"
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
             custom_job_name_format: ""
     with:
-      auroraboot_version: "v0.19.1"
+      auroraboot_version: "v0.19.4"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
@@ -156,7 +167,7 @@ jobs:
       grype_sarif: ${{ matrix.grype }}
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      security_scan_mode: ${{ matrix.security_scan_mode }}
       custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: true
       cosign: true

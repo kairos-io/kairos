@@ -53,7 +53,7 @@ jobs:
             grype: false # too many vulns under the L4T rootfs
             custom_job_name_format: ""
     with:
-      auroraboot_version: "v0.19.1"
+      auroraboot_version: "v0.19.4"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}

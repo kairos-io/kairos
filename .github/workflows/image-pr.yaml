@@ -31,7 +31,7 @@ jobs:
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s"
     with:
-      auroraboot_version: "v0.19.1"
+      auroraboot_version: "v0.19.4"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
