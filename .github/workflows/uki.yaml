@@ -55,12 +55,13 @@ jobs:
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s-uki"
   test_generic:
-    name: test_generic (hadron-trusted, amd64, generic, standard)
+    name: test_generic (${{ matrix.image_label }}, ${{ matrix.arch }}, ${{ matrix.model }}, ${{ matrix.variant }})
     needs: build
     runs-on: kvm
     strategy:
       fail-fast: false
       matrix:
+        image_label: ["hadron-trusted"]
         base_image:
           - "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
         arch: ["amd64"]
@@ -207,12 +208,13 @@ jobs:
           path: tests/**/logs/*
           if-no-files-found: warn
   test_boot_assessment:
-    name: test_boot_assessment (hadron-trusted, amd64, generic, core)
+    name: test_boot_assessment (${{ matrix.image_label }}, ${{ matrix.arch }}, ${{ matrix.model }}, ${{ matrix.variant }})
     needs: build
     runs-on: kvm
     strategy:
       fail-fast: false
       matrix:
+        image_label: ["hadron-trusted"]
         base_image:
           - "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
         arch: ["amd64"]
