@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
-    name: ${{ matrix.base_image }}
+    name: ${{ matrix.image_name }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -35,23 +35,41 @@ jobs:
       registry_repository: "ci-temp-images"
       custom_tag_format: "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA"
       custom_artifact_format: "kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL"
+      custom_job_name_format: ${{ matrix.custom_job_name_format }}
       image_labels: "quay.expires-after=2w"
       summary_artifacts: true
       cleanup: ${{ matrix.cleanup }}
     strategy:
       fail-fast: false
       matrix:
-        model: ["generic", "rpi4", "rpi3"]
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.0.4"
-        cleanup: [false]
-        grype: [true]
         include:
+          - image_name: "hadron"
+            model: "generic"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            cleanup: false
+            grype: true
+            custom_job_name_format: "core-arm64-generic"
+          - image_name: "hadron"
+            model: "rpi4"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            cleanup: false
+            grype: true
+            custom_job_name_format: "core-arm64-rpi4"
+          - image_name: "hadron"
+            model: "rpi3"
+            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            cleanup: false
+            grype: true
+            custom_job_name_format: "core-arm64-rpi3"
           - model: "nvidia-jetson-agx-orin"
+            image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
             cleanup: true
             grype: true
+            custom_job_name_format: ""
           - model: "nvidia-jetson-orin-nx"
+            image_name: "ubuntu:22.04"
             base_image: "ubuntu:22.04"
             cleanup: true
             grype: false # too many vulns under the L4T rootfs
+            custom_job_name_format: ""
