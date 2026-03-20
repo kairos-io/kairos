@@ -2,8 +2,6 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-
 KAIROS_SLUG="kairos-io/kairos"
 KAIROS_INIT_SLUG="kairos-io/kairos-init"
 
@@ -65,32 +63,25 @@ component_to_slug() {
   esac
 }
 
-github_slug_from_repo() {
-  local repo="$1"
-  local remote
-  remote="$(git -C "$repo" config --get remote.origin.url 2>/dev/null || true)"
-
-  if [[ "$remote" =~ ^git@github\.com:([^/]+/[^/.]+)(\.git)?$ ]]; then
-    printf '%s\n' "${BASH_REMATCH[1]}"
-    return 0
-  fi
-  if [[ "$remote" =~ ^https://github\.com/([^/]+/[^/.]+)(\.git)?$ ]]; then
-    printf '%s\n' "${BASH_REMATCH[1]}"
-    return 0
-  fi
-  return 1
-}
-
-ensure_ref_exists_local() {
-  local repo="$1"
-  local ref="$2"
-  git -C "$repo" rev-parse --verify "${ref}^{commit}" >/dev/null 2>&1
-}
-
 ensure_ref_exists_gh() {
   local slug="$1"
   local ref="$2"
   gh api "repos/${slug}/commits/${ref}" >/dev/null 2>&1
+}
+
+set_assoc_entry() {
+  local map_name="$1"
+  local key="$2"
+  local value="$3"
+  printf -v "$map_name[$key]" '%s' "$value"
+}
+
+get_assoc_entry() {
+  local map_name="$1"
+  local key="$2"
+  local value=""
+  eval "value=\${$map_name[\"$key\"]:-}"
+  printf '%s\n' "$value"
 }
 
 get_file_content_gh() {
@@ -142,30 +133,28 @@ extract_kairos_init_version() {
 
 load_makefile_versions() {
   local init_ref="$1"
-  local out_name="$2"
+  local map_name="$2"
   local content
   content="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ref" "Makefile")" || return 1
 
-  declare -n out_ref="$out_name"
   local line value
   while IFS= read -r line; do
     case "$line" in
-      "AGENT_VERSION :="*) value="${line#AGENT_VERSION := }"; out_ref["kairos-agent"]="$value" ;;
-      "IMMUCORE_VERSION :="*) value="${line#IMMUCORE_VERSION := }"; out_ref["immucore"]="$value" ;;
-      "KCRYPT_DISCOVERY_CHALLENGER_VERSION :="*) value="${line#KCRYPT_DISCOVERY_CHALLENGER_VERSION := }"; out_ref["kcrypt-discovery-challenger"]="$value" ;;
-      "PROVIDER_KAIROS_VERSION :="*) value="${line#PROVIDER_KAIROS_VERSION := }"; out_ref["provider-kairos"]="$value" ;;
-      "EDGEVPN_VERSION :="*) value="${line#EDGEVPN_VERSION := }"; out_ref["edgevpn"]="$value" ;;
+      "AGENT_VERSION :="*) value="${line#AGENT_VERSION := }"; set_assoc_entry "$map_name" "kairos-agent" "$value" ;;
+      "IMMUCORE_VERSION :="*) value="${line#IMMUCORE_VERSION := }"; set_assoc_entry "$map_name" "immucore" "$value" ;;
+      "KCRYPT_DISCOVERY_CHALLENGER_VERSION :="*) value="${line#KCRYPT_DISCOVERY_CHALLENGER_VERSION := }"; set_assoc_entry "$map_name" "kcrypt-discovery-challenger" "$value" ;;
+      "PROVIDER_KAIROS_VERSION :="*) value="${line#PROVIDER_KAIROS_VERSION := }"; set_assoc_entry "$map_name" "provider-kairos" "$value" ;;
+      "EDGEVPN_VERSION :="*) value="${line#EDGEVPN_VERSION := }"; set_assoc_entry "$map_name" "edgevpn" "$value" ;;
     esac
   done <<<"$content"
 }
 
 load_gomod_versions() {
   local init_ref="$1"
-  local out_name="$2"
+  local map_name="$2"
   local content
   content="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ref" "go.mod")" || return 1
 
-  declare -n out_ref="$out_name"
   local line module owner version rest component
   while IFS= read -r line; do
     if [[ "$line" =~ ^[[:space:]]*(github\.com/(kairos-io|mudler|mauromorales)/[^[:space:]]+)[[:space:]]+([^[:space:]]+) ]]; then
@@ -174,8 +163,8 @@ load_gomod_versions() {
       version="${BASH_REMATCH[3]}"
       rest="${module#github.com/*/}"
       component="${rest%%/*}"
-      if [[ -z "${out_ref[$component]:-}" ]]; then
-        out_ref["$component"]="$version"
+      if [[ -z "$(get_assoc_entry "$map_name" "$component")" ]]; then
+        set_assoc_entry "$map_name" "$component" "$version"
       fi
       if [[ -z "${COMPONENT_SLUG_HINT[$component]:-}" ]]; then
         COMPONENT_SLUG_HINT["$component"]="${owner}/${component}"
@@ -231,14 +220,6 @@ collect_changes_gh() {
     short_sha="${sha:0:7}"
     printf -- '- %s by @%s in %s\n' "$subject" "$commit_author" "$short_sha"
   done <<<"$commit_lines"
-}
-
-collect_changes() {
-  local _unused_target="$1"
-  local from_ref="$2"
-  local to_ref="$3"
-  local slug="$4"
-  collect_changes_gh "$slug" "$from_ref" "$to_ref"
 }
 
 section_title_for_component() {
@@ -306,10 +287,9 @@ append_component_section() {
     return 0
   fi
 
-  local body changes target
+  local body changes
   body="- Version: ${old_version} -> ${new_version}"
-  target=""
-  changes="$(collect_changes "$target" "$old_ref" "$new_ref" "$slug")"
+  changes="$(collect_changes_gh "$slug" "$old_ref" "$new_ref")"
   if [[ -n "$changes" ]]; then
     body+=$'\n'
     body+="$changes"
@@ -403,8 +383,8 @@ done
 output_tmp="$(mktemp)"
 trap 'rm -f "$output_tmp"' EXIT
 
-append_section_changes "$output_tmp" "Kairos changes" "$(collect_changes "" "$OLD_REF" "$NEW_REF" "$KAIROS_SLUG")"
-init_changes="$(collect_changes "" "$OLD_INIT" "$NEW_INIT" "$KAIROS_INIT_SLUG")"
+append_section_changes "$output_tmp" "Kairos changes" "$(collect_changes_gh "$KAIROS_SLUG" "$OLD_REF" "$NEW_REF")"
+init_changes="$(collect_changes_gh "$KAIROS_INIT_SLUG" "$OLD_INIT" "$NEW_INIT")"
 
 init_body="- Version: ${OLD_INIT} -> ${NEW_INIT}"
 if [[ -n "$init_changes" ]]; then
