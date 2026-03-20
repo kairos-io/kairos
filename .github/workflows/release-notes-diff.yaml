@@ -1,0 +1,82 @@
+name: Release Notes Diff
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  generate-diff:
+    if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CURRENT_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve previous final release tag
+        id: prev
+        run: |
+          previous_tag=$(gh api "repos/${{ github.repository }}/releases?per_page=100" | jq -r --arg current "$CURRENT_TAG" '[.[] | select(.draft == false and .prerelease == false and .tag_name != $current) | .tag_name][0] // empty')
+
+          if [ -z "$previous_tag" ] || [ "$previous_tag" = "null" ]; then
+            echo "No previous final release found. Skipping diff generation."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Previous final release: $previous_tag"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "tag=$previous_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release diff markdown
+        if: ${{ steps.prev.outputs.skip == 'false' }}
+        run: |
+          output_file="RELEASE_DIFF_${CURRENT_TAG}.md"
+          ./scripts/kairos-diff.sh "${{ steps.prev.outputs.tag }}" "$CURRENT_TAG" --output "$output_file"
+          echo "output_file=$output_file" >> "$GITHUB_ENV"
+
+      - name: Append diff to release description
+        if: ${{ steps.prev.outputs.skip == 'false' }}
+        id: append
+        run: |
+          header="# Changes since previous version (${{ steps.prev.outputs.tag }})"
+
+          gh release view "$CURRENT_TAG" --repo "${{ github.repository }}" --json body --jq '.body // ""' > current_body.md
+
+          if grep -Fq "$header" current_body.md; then
+            echo "Header already present in release body. Skipping append."
+            echo "appended=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            cat current_body.md
+            echo
+            echo "$header"
+            echo
+            cat "${output_file}"
+          } > combined_body.md
+
+          gh release edit "$CURRENT_TAG" --repo "${{ github.repository }}" --notes-file combined_body.md
+          echo "appended=true" >> "$GITHUB_OUTPUT"
+
+      - name: Write workflow summary
+        if: ${{ steps.prev.outputs.skip == 'false' }}
+        run: |
+          {
+            echo "## Release diff generated"
+            echo
+            echo "- Current release: \\`${CURRENT_TAG}\\`"
+            echo "- Previous final release: \\`${{ steps.prev.outputs.tag }}\\`"
+            if [ "${{ steps.append.outputs.appended }}" = "true" ]; then
+              echo "- Release description updated: \\`yes\\`"
+            else
+              echo "- Release description updated: \\`no (already contained section header)\\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
