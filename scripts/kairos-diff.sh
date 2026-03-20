@@ -73,14 +73,14 @@ set_assoc_entry() {
   local map_name="$1"
   local key="$2"
   local value="$3"
-  printf -v "$map_name[$key]" '%s' "$value"
+  printf -v "${map_name}[$key]" '%s' "$value"
 }
 
 get_assoc_entry() {
   local map_name="$1"
   local key="$2"
   local value=""
-  eval "value=\${$map_name[\"$key\"]:-}"
+  eval "value=\${${map_name}[\"$key\"]:-}"
   printf '%s\n' "$value"
 }
 
