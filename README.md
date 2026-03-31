@@ -43,6 +43,12 @@ Kairos can be used to:
 
 For comprehensive docs, tutorials, and examples see our [documentation](https://kairos.io/getting-started/).
 
+## Integrations
+
+| Integration | Description |
+|---|---|
+| [KubeStellar Console](https://console.kubestellar.io/missions/install-kairos) | Guided install mission with pre-flight checks, step-by-step commands, validation, troubleshooting, and rollback. The [mission definition](https://github.com/kubestellar/console-kb/blob/master/solutions/cncf-install/install-kairos.json) is open source — PRs welcome. |
+
 ## Project status
 
 Check the [Roadmap](https://github.com/orgs/kairos-io/projects/2) for a high-level view of what features are coming to Kairos.
