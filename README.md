@@ -47,7 +47,7 @@ For comprehensive docs, tutorials, and examples see our [documentation](https://
 
 | Integration | Description |
 |---|---|
-| [KubeStellar Console](https://console.kubestellar.io/missions/install-kairos) | Guided install mission with pre-flight checks, step-by-step commands, validation, troubleshooting, and rollback. The [mission definition](https://github.com/kubestellar/console-kb/blob/master/solutions/cncf-install/install-kairos.json) is open source — PRs welcome. |
+| [KubeStellar Console](https://console.kubestellar.io/missions/install-kairos) | Guided install mission with pre-flight checks, step-by-step commands, validation, troubleshooting, and rollback. The [mission definition](https://github.com/kubestellar/console-kb/blob/master/fixes/cncf-install/install-kairos.json) is open source — PRs welcome. |
 
 ## Project status
 
