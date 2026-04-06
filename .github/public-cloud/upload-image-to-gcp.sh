@@ -66,11 +66,27 @@ importGceImage() {
       --labels="version=$kairosVersion"
   else
     echo "Importing image '$name' from GCS."
-    # Clean up any orphaned image import from a previous failed run
-    gcloud migration vms image-imports delete "$name" \
-      --location=europe-west3 \
-      --project="$GCP_PROJECT" \
-      --quiet 2>/dev/null || true
+    # Clean up any orphaned image import from a previous failed run.
+    # The delete should be synchronous but we verify it's gone before proceeding,
+    # because creating a new import while the old one is still deleting can cause
+    # the new import job to fail.
+    if gcloud migration vms image-imports describe "$name" \
+        --location=europe-west3 \
+        --project="$GCP_PROJECT" > /dev/null 2>&1; then
+      echo "Found existing image import '$name', deleting..."
+      gcloud migration vms image-imports delete "$name" \
+        --location=europe-west3 \
+        --project="$GCP_PROJECT" \
+        --quiet
+      # Wait until the resource is actually gone
+      while gcloud migration vms image-imports describe "$name" \
+          --location=europe-west3 \
+          --project="$GCP_PROJECT" > /dev/null 2>&1; do
+        echo "Waiting for old image import to be fully deleted..."
+        sleep 10
+      done
+      echo "Old image import deleted."
+    fi
     gcloud migration vms image-imports create "$name" \
       --image-name="$name" \
       --location=europe-west3 \
@@ -80,6 +96,11 @@ importGceImage() {
       --skip-os-adaptation \
       --labels="version=$kairosVersion"
 
+    # Poll until the image is ready. The image import is async so we need to
+    # check both the image status and the import job state. Without checking
+    # the import job, a failed import leaves us polling NOT_FOUND forever.
+    local maxRetries=60  # 60 * 30s = 30 minutes
+    local retryCount=0
     while true; do
       status=$(gcloud compute images describe "$name" --project="$GCP_PROJECT" --format="value(status)" 2>/dev/null || echo "NOT_FOUND")
 
@@ -90,9 +111,24 @@ importGceImage() {
         echo "Import failed!"
         exit 1
       elif [[ "$status" == "NOT_FOUND" ]]; then
-        echo "Image not found yet, waiting..."
+        # Image doesn't exist yet — check whether the import job is still running
+        importState=$(gcloud migration vms image-imports describe "$name" \
+          --location=europe-west3 \
+          --project="$GCP_PROJECT" \
+          --format="value(recentImageImportJobs[0].state)" 2>/dev/null || echo "UNKNOWN")
+        if [[ "$importState" == "FAILED" ]]; then
+          echo "Image import job failed! Check the import job logs for details."
+          exit 1
+        fi
+        echo "Image not found yet (import state: $importState), waiting..."
       else
         echo "Still in progress... (Current status: $status)"
+      fi
+
+      retryCount=$((retryCount + 1))
+      if [[ $retryCount -ge $maxRetries ]]; then
+        echo "Timed out waiting for image import after $((maxRetries * 30 / 60)) minutes."
+        exit 1
       fi
 
       sleep 30  # Wait before checking again
