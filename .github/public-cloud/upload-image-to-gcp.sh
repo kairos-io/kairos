@@ -117,7 +117,10 @@ importGceImage() {
           --project="$GCP_PROJECT" \
           --format="value(recentImageImportJobs[0].state)" 2>/dev/null || echo "UNKNOWN")
         if [[ "$importState" == "FAILED" ]]; then
-          echo "Image import job failed! Check the import job logs for details."
+          echo "Image import job failed! Dumping import details:"
+          gcloud migration vms image-imports describe "$name" \
+            --location=europe-west3 \
+            --project="$GCP_PROJECT" 2>/dev/null || true
           exit 1
         fi
         echo "Image not found yet (import state: $importState), waiting..."
