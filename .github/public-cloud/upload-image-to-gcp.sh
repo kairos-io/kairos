@@ -66,6 +66,11 @@ importGceImage() {
       --labels="version=$kairosVersion"
   else
     echo "Importing image '$name' from GCS."
+    # Clean up any orphaned image import from a previous failed run
+    gcloud migration vms image-imports delete "$name" \
+      --location=europe-west3 \
+      --project="$GCP_PROJECT" \
+      --quiet 2>/dev/null || true
     gcloud migration vms image-imports create "$name" \
       --image-name="$name" \
       --location=europe-west3 \
@@ -111,12 +116,14 @@ importGceImage() {
     --role='roles/compute.imageUser'
   echo "Image '$name' is now public."
 
-  # Cleanup: delete the image import after the image is imported
+  # Cleanup: delete the image import after the image is imported.
+  # Use || true so a cleanup failure doesn't fail the script after the image
+  # is already imported, tested, and made public.
   echo "Cleaning up by deleting the image import process."
   gcloud migration vms image-imports delete "$name" \
     --location=europe-west3 \
     --project="$GCP_PROJECT" \
-    --quiet
+    --quiet || true
   echo "Import process for '$name' has been deleted."
 }
 
