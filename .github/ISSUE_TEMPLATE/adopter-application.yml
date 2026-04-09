@@ -1,0 +1,181 @@
+name: "Adopter Application"
+description: "Public adopter application for organizations comfortable sharing details on GitHub"
+title: "[Adopter] "
+labels: ["adopter", "cncf", "community"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Before You Submit (Public vs Private)
+
+        Before submitting, please confirm your organization is comfortable sharing this information in a public GitHub issue.
+
+        If you cannot share publicly (or prefer a confidential-first discussion), **do not submit this form** and contact us at **members@kairos.io**.
+
+        **Both public and private paths are valid and supported.**
+
+        - Organizations in **Proof of Concept (PoC)** are welcome.
+        - Public submissions may be visible indefinitely in GitHub history.
+
+  - type: input
+    id: organization_name
+    attributes:
+      label: Organization name
+      placeholder: "Example Corp"
+    validations:
+      required: true
+
+  - type: input
+    id: website_url
+    attributes:
+      label: Website URL (optional)
+      placeholder: "https://example.com"
+      description: "Optional"
+
+  - type: input
+    id: primary_contact
+    attributes:
+      label: Primary contact name (or team name)
+      placeholder: "Jane Doe / Platform Team"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: preferred_contact_method
+    attributes:
+      label: Preferred contact method
+      options:
+        - Email
+        - CNCF Slack
+        - Both
+      description: "Choose how maintainers should contact you."
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        **Contact validation guidance**
+
+        - If you selected **Email** or **Both**, please provide a contact email below.
+        - If you selected **CNCF Slack** or **Both**, please provide a CNCF Slack username below.
+        - GitHub Issue Forms currently cannot enforce conditional required fields based on another field selection.
+
+  - type: input
+    id: contact_email
+    attributes:
+      label: Contact email (optional)
+      placeholder: "name@example.com"
+      description: "Required when Preferred contact method includes Email."
+
+  - type: input
+    id: cncf_slack_username
+    attributes:
+      label: CNCF Slack username (optional)
+      placeholder: "@username"
+      description: "Required when Preferred contact method includes CNCF Slack."
+
+  - type: dropdown
+    id: current_stage
+    attributes:
+      label: Current stage
+      options:
+        - Proof of Concept
+        - Pilot
+        - Pre-production
+        - Production
+    validations:
+      required: true
+
+  - type: textarea
+    id: main_use_cases
+    attributes:
+      label: Main use case(s)
+      placeholder: "Describe what you are using Kairos for."
+    validations:
+      required: true
+
+  - type: textarea
+    id: deployment_scale
+    attributes:
+      label: Deployment footprint/scale
+      description: "You may write 'cannot disclose exact numbers' if needed."
+      placeholder: "Number of clusters/nodes/regions, or 'cannot disclose exact numbers'."
+    validations:
+      required: true
+
+  - type: textarea
+    id: why_kairos
+    attributes:
+      label: Why Kairos
+      placeholder: "What made you choose Kairos?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: key_value_observed
+    attributes:
+      label: Key value observed
+      placeholder: "What value have you observed so far?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: challenges_or_requests
+    attributes:
+      label: Challenges / requested improvements
+      placeholder: "What challenges have you encountered or what improvements do you want?"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: adopter_interview_interest
+    attributes:
+      label: Willing to participate in CNCF adopter interview?
+      options:
+        - "Yes"
+        - "No"
+        - "Maybe"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: visibility_preference
+    attributes:
+      label: Visibility preference
+      options:
+        - Public: org name + logo
+        - Public: org name only
+        - Limited public mention
+        - Prefer private follow-up via members@kairos.io
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: logo_usage_permission
+    attributes:
+      label: Logo usage permission (optional)
+      options:
+        - label: "I grant permission to use our organization logo for Kairos/CNCF adopter materials."
+
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Consent and authorization
+      options:
+        - label: "I confirm I am authorized to share this information publicly."
+          required: true
+        - label: "I understand this issue and my responses will be publicly visible on GitHub."
+          required: true
+        - label: "I understand private onboarding is available at members@kairos.io."
+          required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ## Process and Governance Notes
+
+        - Public submissions are reviewed in the open by maintainers.
+        - Maintainers may ask follow-up questions.
+        - Final listing/interview participation happens only with adopter approval.
+        - Private path is always available via **members@kairos.io**.
