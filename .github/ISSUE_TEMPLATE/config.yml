@@ -6,3 +6,6 @@ contact_links:
   - name: Matrix channel
     url: https://matrix.to/#/#kairos-io:matrix.org
     about: Join our community on Matrix.
+  - name: Private adopter conversation
+    url: mailto:members@kairos.io
+    about: Not ready for a public GitHub issue? Contact us privately.
