@@ -125,6 +125,38 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			selectedEntry := removeSpecialChars(out)
 			Expect(selectedEntry).To(Equal(fmt.Sprintf("%s.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
 		})
+
+		// This test verifies backwards-compatible boot entry selection by partial suffix match.
+		// When a UKI entry has a compound name like "testentry.registration", older cloud-configs
+		// that call `bootentry --select registration` should still work by matching the last
+		// dot-separated segment of the entry name.
+		//
+		// See: https://github.com/kairos-io/kairos/issues/4038
+		// Fix required in kairos-agent pkg/action/bootentries.go selectBootEntrySystemd:
+		// after entryInList fails, also try suffix matching against original entries so that
+		// e.g. "registration" matches "recovery_install-mode_stylus.registration" or
+		// "testentry.registration".
+		PIt("selects boot entry by partial suffix name for backwards compatibility", func() {
+			genericTests(vm)
+
+			By("upgrading a single boot entry with compound name")
+			upgradeImage := os.Getenv("UPGRADE_IMAGE")
+			out, err := vm.Sudo(fmt.Sprintf("kairos-agent --debug upgrade --source oci:%s --boot-entry %s", upgradeImage, os.Getenv("EXPECTED_SINGLE_ENTRY")))
+			Expect(err).ToNot(HaveOccurred(), out)
+
+			// The entry is named "testentry.registration" but we select by the suffix "registration".
+			// This simulates the user calling `bootentry --select registration` when the actual
+			// entry is "recovery_install-mode_stylus.registration" (as in kairos issue #4038).
+			out, err = vm.Sudo("kairos-agent --debug bootentry --select registration")
+			Expect(err).ToNot(HaveOccurred(), out)
+			vm.Reboot()
+			vm.EventuallyConnects(1200)
+
+			out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
+			Expect(err).ToNot(HaveOccurred(), out)
+			selectedEntry := removeSpecialChars(out)
+			Expect(selectedEntry).To(Equal(fmt.Sprintf("%s.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
+		})
 	})
 	Describe("Uki boot assessment tests", Label("uki", "boot-assessment"), func() {
 		BeforeEach(func() {
