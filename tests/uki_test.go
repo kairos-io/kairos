@@ -122,8 +122,8 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 
 			out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
 			Expect(err).ToNot(HaveOccurred(), out)
-			selectedEntry := removeSpecialChars(out)
-			Expect(selectedEntry).To(Equal(fmt.Sprintf("%s.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
+			selectedEntryFileName := removeSpecialChars(out)
+			Expect(selectedEntryFileName).To(Equal(expectedSingleEntryFileName()))
 		})
 
 		// This test verifies backwards-compatible boot entry selection by partial suffix match.
@@ -154,8 +154,8 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 
 			out, err = vm.Sudo("cat /sys/firmware/efi/efivars/LoaderEntrySelected-*")
 			Expect(err).ToNot(HaveOccurred(), out)
-			selectedEntry := removeSpecialChars(out)
-			Expect(selectedEntry).To(Equal(fmt.Sprintf("%s.conf", strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")))))
+			selectedEntryFileName := removeSpecialChars(out)
+			Expect(selectedEntryFileName).To(Equal(expectedSingleEntryFileName()))
 		})
 	})
 	Describe("Uki boot assessment tests", Label("uki", "boot-assessment"), func() {
@@ -207,6 +207,13 @@ func removeSpecialChars(str string) string {
 		}
 		return -1
 	}, str)
+}
+
+// expectedSingleEntryFileName returns the expected LoaderEntrySelected value
+// for the single boot entry used in UKI upgrade tests (EXPECTED_SINGLE_ENTRY env var).
+// The EFI variable stores the conf filename including the .conf extension.
+func expectedSingleEntryFileName() string {
+	return strings.TrimSpace(os.Getenv("EXPECTED_SINGLE_ENTRY")) + ".conf"
 }
 
 func genericTests(vm VM) {
