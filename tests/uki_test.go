@@ -132,11 +132,11 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		// dot-separated segment of the entry name.
 		//
 		// See: https://github.com/kairos-io/kairos/issues/4038
-		// Fix required in kairos-agent pkg/action/bootentries.go selectBootEntrySystemd:
+		// Fixed in kairos-agent pkg/action/bootentries.go selectBootEntrySystemd:
 		// after entryInList fails, also try suffix matching against original entries so that
 		// e.g. "registration" matches "recovery_install-mode_stylus.registration" or
 		// "testentry.registration".
-		PIt("selects boot entry by partial suffix name for backwards compatibility", func() {
+		It("selects boot entry by partial suffix name for backwards compatibility", func() {
 			genericTests(vm)
 
 			By("upgrading a single boot entry with compound name")
