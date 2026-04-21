@@ -22,3 +22,15 @@ ignore:
     package:
       name: stdlib
       location: /usr/bin/edgevpn
+
+  # CVE-2026-27143 is a stdlib vulnerability fixed in go1.25.9/1.26.2.
+  # k3s and k0s have not yet cut releases built with a fixed Go toolchain.
+  # Remove these ignores once k3s and k0s ship binaries built with go1.25.9+ or go1.26.2+.
+  - vulnerability: CVE-2026-27143
+    package:
+      name: stdlib
+      location: /usr/bin/k3s
+  - vulnerability: CVE-2026-27143
+    package:
+      name: stdlib
+      location: /usr/bin/k0s
