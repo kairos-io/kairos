@@ -126,7 +126,7 @@ jobs:
           - "rpi4"
         image_name:
           - "hadron"
-        security_scan_mode: ["enforce"]
+        security_scan_mode: ["report-only"]
         cleanup: [false]
         grype: [true]
         custom_job_name_format:

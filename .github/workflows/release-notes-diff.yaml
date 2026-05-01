@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  actions: read
+  security-events: read
 
 jobs:
   generate-diff:
@@ -18,6 +20,107 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Check for CVEs in standard k3s/k0s images
+        id: cve-check
+        run: |
+          tag="${CURRENT_TAG}"
+
+          # Find workflow runs for this tag from both release workflows
+          workflow_runs=$(gh api "repos/${{ github.repository }}/actions/runs?event=push&per_page=100" \
+            --jq "[.workflow_runs[] | select(.head_branch == \"$tag\" and (.name | test(\"Release (AMD64|ARM)\")))]")
+
+          if [ -z "$workflow_runs" ] || [ "$workflow_runs" = "[]" ]; then
+            echo "No matching workflow runs found for tag $tag"
+            echo "has_cve=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          cve_warning=""
+          has_k3s_cve=false
+          has_k0s_cve=false
+
+          # Check each workflow run for failed or successful jobs with CVE indicators
+          for run_id in $(echo "$workflow_runs" | jq -r '.[].id'); do
+            jobs=$(gh api "repos/${{ github.repository }}/actions/runs/${run_id}/jobs?per_page=100" --jq '.jobs')
+
+            # Check for standard k3s jobs with security issues (jobs that have grype/trivy and are standard)
+            k3s_jobs=$(echo "$jobs" | jq -r '[.[] | select(.name | test("standard.*k3s"; "i"))]')
+            k0s_jobs=$(echo "$jobs" | jq -r '[.[] | select(.name | test("standard.*k0s"; "i"))]')
+
+            # For report-only mode, we need to check the job logs or annotations for CVE findings
+            # Since we changed to report-only, jobs will succeed but may have CVE warnings in annotations
+            for job_id in $(echo "$k3s_jobs" | jq -r '.[].id // empty'); do
+              annotations=$(gh api "repos/${{ github.repository }}/check-runs/${job_id}/annotations" 2>/dev/null || echo "[]")
+              if echo "$annotations" | jq -e '.[] | select(.annotation_level == "warning" and (.message | test("CVE|vulnerability|critical|high"; "i")))' > /dev/null 2>&1; then
+                has_k3s_cve=true
+              fi
+            done
+
+            for job_id in $(echo "$k0s_jobs" | jq -r '.[].id // empty'); do
+              annotations=$(gh api "repos/${{ github.repository }}/check-runs/${job_id}/annotations" 2>/dev/null || echo "[]")
+              if echo "$annotations" | jq -e '.[] | select(.annotation_level == "warning" and (.message | test("CVE|vulnerability|critical|high"; "i")))' > /dev/null 2>&1; then
+                has_k0s_cve=true
+              fi
+            done
+          done
+
+          # Also check code scanning alerts for this ref
+          alerts=$(gh api "repos/${{ github.repository }}/code-scanning/alerts?ref=refs/tags/${tag}&per_page=100" 2>/dev/null || echo "[]")
+
+          if [ "$alerts" != "[]" ] && [ -n "$alerts" ]; then
+            # Check for k3s related CVEs
+            if echo "$alerts" | jq -e '.[] | select(.rule.description | test("k3s"; "i"))' > /dev/null 2>&1; then
+              has_k3s_cve=true
+            fi
+            # Check for k0s related CVEs
+            if echo "$alerts" | jq -e '.[] | select(.rule.description | test("k0s"; "i"))' > /dev/null 2>&1; then
+              has_k0s_cve=true
+            fi
+          fi
+
+          # Build warning message
+          if [ "$has_k3s_cve" = "true" ] || [ "$has_k0s_cve" = "true" ]; then
+            cve_warning="> [!WARNING]\n> **Security Notice:** The standard images in this release contain known CVEs from upstream components"
+            if [ "$has_k3s_cve" = "true" ] && [ "$has_k0s_cve" = "true" ]; then
+              cve_warning="${cve_warning} (k3s and k0s)."
+            elif [ "$has_k3s_cve" = "true" ]; then
+              cve_warning="${cve_warning} (k3s)."
+            else
+              cve_warning="${cve_warning} (k0s)."
+            fi
+            cve_warning="${cve_warning} These vulnerabilities originate from the Kubernetes distribution binaries and are outside our control. Please review the security scan results before deploying to production.\n"
+            echo "has_cve=true" >> "$GITHUB_OUTPUT"
+            # Use a delimiter to handle multiline output
+            {
+              echo "warning<<EOF"
+              echo -e "$cve_warning"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "has_cve=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepend CVE warning to release notes
+        if: ${{ steps.cve-check.outputs.has_cve == 'true' }}
+        run: |
+          warning_header="> [!WARNING]"
+
+          gh release view "$CURRENT_TAG" --repo "${{ github.repository }}" --json body --jq '.body // ""' > current_body.md
+
+          # Check if warning already exists
+          if grep -Fq "$warning_header" current_body.md; then
+            echo "CVE warning already present in release body. Skipping prepend."
+            exit 0
+          fi
+
+          {
+            echo '${{ steps.cve-check.outputs.warning }}'
+            cat current_body.md
+          } > updated_body.md
+
+          gh release edit "$CURRENT_TAG" --repo "${{ github.repository }}" --notes-file updated_body.md
+          echo "CVE warning prepended to release notes."
 
       - name: Resolve previous final release tag
         id: prev

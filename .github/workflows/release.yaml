@@ -144,7 +144,7 @@ jobs:
       grype_sarif: true
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      security_scan_mode: "report-only"
       custom_job_name_format: "standard-amd64-generic-k3s"
       list_release_artifacts: true
       cosign: true
@@ -187,7 +187,7 @@ jobs:
       grype_sarif: true
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      security_scan_mode: "report-only"
       custom_job_name_format: "standard-amd64-generic-k0s"
       list_release_artifacts: true
       cosign: true
