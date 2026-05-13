@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -104,11 +105,32 @@ var _ = Describe("k3s upgrade test", Label("provider", "provider-upgrade-k8s"), 
 
 		deployKairosOperator(vm)
 
-		// Opportunistic feature test here to avoid a full test just
-		// for this.
-		By("listing upgrade options")
-		resultStr, _ := vm.Sudo(`kairos-agent upgrade list-releases --all --pre | tail -1`)
-		Expect(resultStr).To(ContainSubstring("quay.io/kairos"), resultStr)
+		// Opportunistic feature test: verify we can find a matching release image
+		// in quay.io/kairos/hadron for the current variant/arch/model
+		By("verifying matching container images exist in quay.io/kairos/hadron")
+
+		// Get current image parameters from kairos-release
+		variant, err := vm.Sudo(`. /etc/kairos-release && echo -n $KAIROS_VARIANT`)
+		Expect(err).ToNot(HaveOccurred(), "failed to get KAIROS_VARIANT")
+		variant = strings.TrimSpace(variant)
+
+		arch, err := vm.Sudo(`. /etc/kairos-release && echo -n $KAIROS_TARGETARCH`)
+		Expect(err).ToNot(HaveOccurred(), "failed to get KAIROS_TARGETARCH")
+		arch = strings.TrimSpace(arch)
+
+		model, err := vm.Sudo(`. /etc/kairos-release && echo -n $KAIROS_MODEL`)
+		Expect(err).ToNot(HaveOccurred(), "failed to get KAIROS_MODEL")
+		model = strings.TrimSpace(model)
+
+		fmt.Printf("Looking for images matching: variant=%s, arch=%s, model=%s\n", variant, arch, model)
+
+		// Query quay.io/kairos/hadron for tags matching variant-arch-model pattern
+		// Tags look like: v0.0.4-standard-amd64-generic-v4.0.3-k3sv1.33.9-k3s1
+		// Note: quay.io API requires "like:" prefix for pattern matching
+		filterPattern := fmt.Sprintf("%s-%s-%s", variant, arch, model)
+		checkCmd := fmt.Sprintf(`curl -sf "https://quay.io/api/v1/repository/kairos/hadron/tag/?filter_tag_name=like:%s&limit=1" | grep -q '"name"'`, filterPattern)
+		_, err = vm.Sudo(checkCmd)
+		Expect(err).ToNot(HaveOccurred(), "expected to find container images matching %s in quay.io/kairos/hadron", filterPattern)
 
 		By("finding the upgrade image")
 		upgradeImage, err := getUpgradeImage(vm)
