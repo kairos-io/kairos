@@ -44,10 +44,10 @@ jobs:
       matrix:
         include:
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            base_image: "ghcr.io/kairos-io/hadron:v0.2.0"
             kubernetes_distro: ""
             custom_job_name_format: "core-amd64-generic"
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.0.4"
+            base_image: "ghcr.io/kairos-io/hadron:v0.2.0"
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s"
