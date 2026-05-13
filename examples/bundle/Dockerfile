@@ -1,7 +1,7 @@
 FROM golang:1.26 AS build
 
 # Install a binary
-RUN git clone -b v0.38.0 https://github.com/ipfs/kubo.git /kubo
+RUN git clone -b v0.41.0 https://github.com/ipfs/kubo.git /kubo
 WORKDIR /kubo
 RUN go mod tidy
 RUN go mod download
