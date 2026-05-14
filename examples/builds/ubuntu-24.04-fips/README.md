@@ -1,4 +1,4 @@
-# Kairos Ubuntu jammy fips
+# Kairos Ubuntu noble fips
 
 - Edit `pro-attach-config.yaml` with your token
 - run `bash build.sh`
@@ -31,5 +31,5 @@ After install, you can verify that fips is enabled by running:
 kairos@localhost:~$ cat /proc/sys/crypto/fips_enabled
 1
 kairos@localhost:~$ uname -r
-5.15.0-140-fips
+6.8.0-xx-fips
 ```
