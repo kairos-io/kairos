@@ -9,7 +9,7 @@ require (
 	github.com/lmittmann/ppm v1.0.2
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/mudler/edgevpn v0.31.1
-	github.com/mudler/go-processmanager v0.1.0
+	github.com/mudler/go-processmanager v0.1.1
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/spectrocloud/peg v0.0.0-20260123084329-97c9703181cf
