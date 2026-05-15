@@ -170,14 +170,14 @@ jobs:
         with:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}.iso.zip
       - name: Download latest release
-        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
+        uses: robinraju/release-downloader@28fc21f50d76778e7023361aa1f863e717d3d56f # v1.13
         if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher == '' }}
         with:
           latest: true
           fileName: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release_latest }}-${{ inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes' && 'standard' || 'core'}}-${{ inputs.arch }}-${{ inputs.model }}-*${{ inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes' && 'k3sv*' || ''}}.iso
           out-file-path: ""
       - name: Download latest release with release matcher
-        uses: robinraju/release-downloader@daf26c55d821e836577a15f77d86ddc078948b05 # v1.12
+        uses: robinraju/release-downloader@28fc21f50d76778e7023361aa1f863e717d3d56f # v1.13
         if: ${{ (inputs.test == 'upgrade-latest-with-cli' || inputs.test == 'provider-upgrade-latest-k8s-with-kubernetes') && inputs.release-matcher != '' }}
         with:
           latest: true
