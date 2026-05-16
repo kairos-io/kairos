@@ -11,7 +11,7 @@ How to contribute
 -  **Send a pull request** - if you want to contribute code. Please be
    sure to file an issue first.
 -  **Check good first-issue** - check out [good first issues](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) if you want to contribute to a specific problem
--  **Read about our code of conduct and governance**: Kairos is an Open source, community-driven project with a [governance](https://github.com/kairos-io/kairos/blob/master/GOVERNANCE.md) and adopts CNCF [Code of conduct](https://github.com/kairos-io/kairos/blob/master/CODE_OF_CONDUCT.md)
+-  **Read about our code of conduct and governance**: Kairos is an Open source, community-driven project with a [governance](https://github.com/kairos-io/community/blob/main/GOVERNANCE.md) and adopts CNCF [Code of conduct](https://github.com/kairos-io/kairos/blob/master/CODE_OF_CONDUCT.md)
 
 Guiding user stories
 --------------------
