@@ -22,38 +22,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image_name: "hadron"
+          - image_name: "ubuntu"
             model: "rpi4"
-            base_image: "ghcr.io/kairos-io/hadron:v0.2.1"
+            base_image: "ubuntu:26.04"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-rpi4"
-          - image_name: "hadron"
-            model: "rpi3"
-            base_image: "ghcr.io/kairos-io/hadron:v0.2.1"
-            cleanup: false
-            grype: true
-            custom_job_name_format: "core-arm64-rpi3"
-          - image_name: "hadron"
+          - image_name: "ubuntu"
             model: "generic"
-            base_image: "ghcr.io/kairos-io/hadron:v0.2.1"
+            base_image: "ubuntu:26.04"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-generic"
-          - image_name: "ubuntu:22.04"
-            model: "nvidia-jetson-agx-orin"
-            base_image: "ubuntu:22.04"
-            cleanup: true
-            grype: false
-            custom_job_name_format: ""
-          - image_name: "ubuntu:22.04"
-            model: "nvidia-jetson-orin-nx"
-            base_image: "ubuntu:22.04"
-            cleanup: true
-            grype: false # too many vulns under the L4T rootfs
-            custom_job_name_format: ""
     with:
-      auroraboot_version: "v0.19.4"
+      auroraboot_version: "v0.21.1"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}

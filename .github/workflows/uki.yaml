@@ -21,7 +21,7 @@ jobs:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.19.4"
+      auroraboot_version: "v0.21.1"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
@@ -46,12 +46,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - image_name: "hadron-trusted"
-            base_image: "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+          - image_name: "ubuntu"
+            base_image: "ubuntu:26.04"
             kubernetes_distro: ""
             custom_job_name_format: "core-amd64-generic-uki"
-          - image_name: "hadron-trusted"
-            base_image: "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+          - image_name: "ubuntu"
+            base_image: "ubuntu:26.04"
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s-uki"
   test_generic:
@@ -61,9 +61,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image_label: ["hadron-trusted"]
+        image_label: ["ubuntu"]
         base_image:
-          - "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+          - "ubuntu:26.04"
         arch: ["amd64"]
         model: ["generic"]
         variant: ["standard"]
@@ -214,9 +214,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image_label: ["hadron-trusted"]
-        base_image:
-          - "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+        image_label: ["ubuntu"]
+        base_image: ["ubuntu:26.04"]
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core"]
