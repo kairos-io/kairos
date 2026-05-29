@@ -45,19 +45,19 @@ jobs:
         include:
           - image_name: "hadron"
             model: "generic"
-            base_image: "ghcr.io/kairos-io/hadron:v0.2.1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-generic"
           - image_name: "hadron"
             model: "rpi4"
-            base_image: "ghcr.io/kairos-io/hadron:v0.2.1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-rpi4"
           - image_name: "hadron"
             model: "rpi3"
-            base_image: "ghcr.io/kairos-io/hadron:v0.2.1"
+            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-rpi3"
