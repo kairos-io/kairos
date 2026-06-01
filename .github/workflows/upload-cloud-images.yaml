@@ -41,7 +41,7 @@ jobs:
         uses: 'google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db' # v3
       - name: Install deps
         run: |
-          sudo apt update && sudo apt install -y qemu-utils
+          sudo apt update && sudo apt install -y qemu-utils gdisk
       - name: Build and push GCP image
         env:
           GCP_PROJECT: palette-kairos
@@ -71,7 +71,9 @@ jobs:
             exit 0
           fi
 
-          containerImage="quay.io/kairos/hadron:v0.2.1-core-amd64-generic-${latestTag}"
+          # Resolve the hadron container image this kairos release was built with
+          # (version discovered from the published hadron tags, not hardcoded).
+          containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
             -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.4 \
@@ -94,6 +96,12 @@ jobs:
           CURRENT_SIZE=$(echo "$size/$MB"|bc)
           echo "Resizing raw image from \"$size\"MB to \"$ROUNDED_SIZE\"GB"
           qemu-img resize -f raw disk.raw "$ROUNDED_SIZE"G
+          # 'qemu-img resize' grows the file but leaves the GPT backup header at the
+          # old end of the disk. GCP's image import validates the GPT strictly and
+          # fails ("Internal migration service error") on the stranded backup header,
+          # so move it to the new end of the disk and verify the table is clean.
+          sgdisk -e disk.raw
+          sgdisk -v disk.raw
           tar --format=oldgnu -czvf "${file%.*}.tar.gz" disk.raw
 
           .github/public-cloud/upload-image-to-gcp.sh $(ls *.tar.gz) "$latestTag"
@@ -146,7 +154,9 @@ jobs:
             exit 0
           fi
 
-          containerImage="quay.io/kairos/hadron:v0.2.1-core-amd64-generic-${latestTag}"
+          # Resolve the hadron container image this kairos release was built with
+          # (version discovered from the published hadron tags, not hardcoded).
+          containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
           docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
             --privileged \
             -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.4 \
@@ -220,7 +230,9 @@ jobs:
         if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
         run: |
             latestTag=$(cat LATEST_TAG)
-            containerImage="quay.io/kairos/hadron:v0.2.1-core-amd64-generic-${latestTag}"
+            # Resolve the hadron container image this kairos release was built with
+            # (version discovered from the published hadron tags, not hardcoded).
+            containerImage=$(.github/public-cloud/resolve-hadron-container-image.sh "$latestTag")
             docker run -v /var/run/docker.sock:/var/run/docker.sock --net host \
               --privileged \
               -v $PWD:/aurora --rm quay.io/kairos/auroraboot:v0.19.4 \

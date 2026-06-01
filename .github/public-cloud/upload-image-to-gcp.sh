@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script uploads a raw disk image to Google Cloud Storage,
-# imports it as a GCE image, makes it public, and replicates it across regions.
+# creates a GCE image from it, makes it public, and replicates it across regions.
 # Equivalent to AWS AMI upload script.
 
 set -e
@@ -65,77 +65,23 @@ importGceImage() {
       --project "$GCP_PROJECT" \
       --labels="version=$kairosVersion"
   else
-    echo "Importing image '$name' from GCS."
-    # Clean up any orphaned image import from a previous failed run.
-    # The delete should be synchronous but we verify it's gone before proceeding,
-    # because creating a new import while the old one is still deleting can cause
-    # the new import job to fail.
-    if gcloud migration vms image-imports describe "$name" \
-        --location=europe-west3 \
-        --project="$GCP_PROJECT" > /dev/null 2>&1; then
-      echo "Found existing image import '$name', deleting..."
-      gcloud migration vms image-imports delete "$name" \
-        --location=europe-west3 \
-        --project="$GCP_PROJECT" \
-        --quiet
-      # Wait until the resource is actually gone
-      while gcloud migration vms image-imports describe "$name" \
-          --location=europe-west3 \
-          --project="$GCP_PROJECT" > /dev/null 2>&1; do
-        echo "Waiting for old image import to be fully deleted..."
-        sleep 10
-      done
-      echo "Old image import deleted."
-    fi
-    gcloud migration vms image-imports create "$name" \
-      --image-name="$name" \
-      --location=europe-west3 \
-      --target-project="$GCP_PROJECT" \
-      --source-file="gs://$GCS_BUCKET/$fileName" \
-      --family-name="kairos" \
-      --skip-os-adaptation \
+    echo "Creating image '$name' from the raw disk tarball in GCS."
+    # Create the image directly from the gzipped 'disk.raw' tarball in GCS using
+    # the native Compute Engine image-creation path. It is synchronous (returns a
+    # non-zero exit code on failure) and creates the image in a single step, so
+    # there is no async import job to poll or clean up.
+    #
+    # We deliberately do NOT use 'gcloud migration vms image-imports' (Migrate to
+    # Virtual Machines): that service fails on our hadron-based images with an
+    # opaque "Internal migration service error" (gRPC INTERNAL) during its
+    # creatingImage step. We never wanted OS adaptation anyway (the old code
+    # passed --skip-os-adaptation), so the native path is both more reliable and
+    # far simpler.
+    gcloud compute images create "$name" \
+      --project="$GCP_PROJECT" \
+      --source-uri="gs://$GCS_BUCKET/$fileName" \
+      --family="kairos" \
       --labels="version=$kairosVersion"
-
-    # Poll until the image is ready. The image import is async so we need to
-    # check both the image status and the import job state. Without checking
-    # the import job, a failed import leaves us polling NOT_FOUND forever.
-    local maxRetries=60  # 60 * 30s = 30 minutes
-    local retryCount=0
-    while true; do
-      status=$(gcloud compute images describe "$name" --project="$GCP_PROJECT" --format="value(status)" 2>/dev/null || echo "NOT_FOUND")
-
-      if [[ "$status" == "READY" ]]; then
-        echo "Import completed successfully!"
-        break
-      elif [[ "$status" == "FAILED" ]]; then
-        echo "Import failed!"
-        exit 1
-      elif [[ "$status" == "NOT_FOUND" ]]; then
-        # Image doesn't exist yet — check whether the import job is still running
-        importState=$(gcloud migration vms image-imports describe "$name" \
-          --location=europe-west3 \
-          --project="$GCP_PROJECT" \
-          --format="value(recentImageImportJobs[0].state)" 2>/dev/null || echo "UNKNOWN")
-        if [[ "$importState" == "FAILED" ]]; then
-          echo "Image import job failed! Dumping import details:"
-          gcloud migration vms image-imports describe "$name" \
-            --location=europe-west3 \
-            --project="$GCP_PROJECT" 2>/dev/null || true
-          exit 1
-        fi
-        echo "Image not found yet (import state: $importState), waiting..."
-      else
-        echo "Still in progress... (Current status: $status)"
-      fi
-
-      retryCount=$((retryCount + 1))
-      if [[ $retryCount -ge $maxRetries ]]; then
-        echo "Timed out waiting for image import after $((maxRetries * 30 / 60)) minutes."
-        exit 1
-      fi
-
-      sleep 30  # Wait before checking again
-    done
   fi
 
   echo "$name"
@@ -154,16 +100,6 @@ importGceImage() {
     --member='allAuthenticatedUsers' \
     --role='roles/compute.imageUser'
   echo "Image '$name' is now public."
-
-  # Cleanup: delete the image import after the image is imported.
-  # Use || true so a cleanup failure doesn't fail the script after the image
-  # is already imported, tested, and made public.
-  echo "Cleaning up by deleting the image import process."
-  gcloud migration vms image-imports delete "$name" \
-    --location=europe-west3 \
-    --project="$GCP_PROJECT" \
-    --quiet || true
-  echo "Import process for '$name' has been deleted."
 }
 
 # Sanitize names by replacing "." with "-" and removing extensions
