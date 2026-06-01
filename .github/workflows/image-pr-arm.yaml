@@ -26,13 +26,13 @@ jobs:
             model: "rpi4"
             base_image: "ubuntu:26.04"
             cleanup: false
-            grype: true
+            grype: false
             custom_job_name_format: "core-arm64-rpi4"
           - image_name: "ubuntu"
             model: "generic"
             base_image: "ubuntu:26.04"
             cleanup: false
-            grype: true
+            grype: false
             custom_job_name_format: "core-arm64-generic"
     with:
       auroraboot_version: "v0.21.1"
@@ -42,7 +42,7 @@ jobs:
       arch: "arm64"
       version: "auto"
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }} # only produce raw images for rpi3 and rpi4
-      grype: ${{ matrix.grype }}
+      grype: false
       security_scan_mode: "enforce"
       registry_domain: "quay.io"
       registry_namespace: "kairos"

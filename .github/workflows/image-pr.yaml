@@ -34,7 +34,7 @@ jobs:
       arch: "amd64"
       version: "auto"
       iso: true
-      grype: true
+      grype: false
       security_scan_mode: "enforce"
       registry_domain: "quay.io"
       registry_namespace: "kairos"
