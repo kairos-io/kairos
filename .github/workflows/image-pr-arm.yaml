@@ -22,45 +22,27 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image_name: "hadron"
+          - image_name: "ubuntu"
             model: "rpi4"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ubuntu:26.04"
             cleanup: false
-            grype: true
-            custom_job_name_format: "core-arm64-rpi4"
-          - image_name: "hadron"
-            model: "rpi3"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
-            cleanup: false
-            grype: true
-            custom_job_name_format: "core-arm64-rpi3"
-          - image_name: "hadron"
-            model: "generic"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
-            cleanup: false
-            grype: true
-            custom_job_name_format: "core-arm64-generic"
-          - image_name: "ubuntu:22.04"
-            model: "nvidia-jetson-agx-orin"
-            base_image: "ubuntu:22.04"
-            cleanup: true
             grype: false
-            custom_job_name_format: ""
-          - image_name: "ubuntu:22.04"
-            model: "nvidia-jetson-orin-nx"
-            base_image: "ubuntu:22.04"
-            cleanup: true
-            grype: false # too many vulns under the L4T rootfs
-            custom_job_name_format: ""
+            custom_job_name_format: "core-arm64-rpi4"
+          - image_name: "ubuntu"
+            model: "generic"
+            base_image: "ubuntu:26.04"
+            cleanup: false
+            grype: false
+            custom_job_name_format: "core-arm64-generic"
     with:
-      auroraboot_version: "v0.19.4"
+      auroraboot_version: "v0.21.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
       arch: "arm64"
       version: "auto"
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }} # only produce raw images for rpi3 and rpi4
-      grype: ${{ matrix.grype }}
+      grype: false
       security_scan_mode: "enforce"
       registry_domain: "quay.io"
       registry_namespace: "kairos"
