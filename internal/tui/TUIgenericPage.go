@@ -7,12 +7,13 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	sdk "github.com/kairos-io/kairos-sdk/bus"
 )
 
 // genericQuestionPage represents a page that asks a generic question
 type genericQuestionPage struct {
 	genericInput textinput.Model
-	section      YAMLPrompt
+	section      sdk.YAMLPrompt
 }
 
 func (g genericQuestionPage) Init() tea.Cmd {
@@ -66,7 +67,7 @@ func (g genericQuestionPage) ID() string {
 	return idFromSection(g.section)
 }
 
-func idFromSection(section YAMLPrompt) string {
+func idFromSection(section sdk.YAMLPrompt) string {
 	// Generate a unique ID based on the section's YAMLSection.
 	// This could be a simple hash or just the section name.
 	return strings.Replace(section.YAMLSection, ".", "_", -1)
@@ -80,7 +81,7 @@ func (g genericQuestionPage) Configured() bool {
 
 // newGenericQuestionPage initializes a new generic question page with a text input Model.
 // Uses the provided section to set up the input Model.
-func newGenericQuestionPage(section YAMLPrompt) *genericQuestionPage {
+func newGenericQuestionPage(section sdk.YAMLPrompt) *genericQuestionPage {
 	genericInput := textinput.New()
 	genericInput.Placeholder = section.PlaceHolder
 	genericInput.Width = 120
@@ -96,10 +97,10 @@ func newGenericQuestionPage(section YAMLPrompt) *genericQuestionPage {
 type genericBoolPage struct {
 	cursor  int
 	options []string
-	section YAMLPrompt
+	section sdk.YAMLPrompt
 }
 
-func newGenericBoolPage(section YAMLPrompt) *genericBoolPage {
+func newGenericBoolPage(section sdk.YAMLPrompt) *genericBoolPage {
 	return &genericBoolPage{
 		options: []string{"Yes", "No"},
 		cursor:  1, // Default to "No"

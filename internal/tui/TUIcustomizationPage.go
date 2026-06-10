@@ -14,25 +14,10 @@ import (
 
 // Customization Page
 
-type YAMLPrompt struct {
-	YAMLSection string
-	Bool        bool
-	Prompt      string
-	Default     string
-	AskFirst    bool
-	AskPrompt   string
-	IfEmpty     string
-	PlaceHolder string
-}
-
-type EventPayload struct {
-	Config string `json:"config"`
-}
-
 // Discover and run plugins for customization
-func runCustomizationPlugins() ([]YAMLPrompt, error) {
+func runCustomizationPlugins() ([]sdk.YAMLPrompt, error) {
 	bus.Manager.Initialize()
-	var r []YAMLPrompt
+	var r []sdk.YAMLPrompt
 
 	bus.Manager.Response(sdk.EventInteractiveInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
 		if resp.Data == "" {
@@ -43,7 +28,7 @@ func runCustomizationPlugins() ([]YAMLPrompt, error) {
 		}
 	})
 
-	_, err := bus.Manager.Publish(sdk.EventInteractiveInstall, EventPayload{})
+	_, err := bus.Manager.Publish(sdk.EventInteractiveInstall, sdk.EventPayload{})
 	if err != nil {
 		return r, err
 	}
