@@ -15,14 +15,14 @@ import (
 
 // stepDisplay maps an agent progress step to the UI step label.
 var stepDisplay = map[string]string{
-	"partition":      InstallPartitionStep,
-	"before-install": InstallBeforeInstallStep,
-	"active":         InstallActiveStep,
-	"bootloader":     InstallBootloaderStep,
-	"recovery":       InstallRecoveryStep,
-	"passive":        InstallPassiveStep,
-	"after-install":  InstallAfterInstallStep,
-	"done":           InstallCompleteStep,
+	agentrun.StepPartition:     InstallPartitionStep,
+	agentrun.StepBeforeInstall: InstallBeforeInstallStep,
+	agentrun.StepActive:        InstallActiveStep,
+	agentrun.StepBootloader:    InstallBootloaderStep,
+	agentrun.StepRecovery:      InstallRecoveryStep,
+	agentrun.StepPassive:       InstallPassiveStep,
+	agentrun.StepAfterInstall:  InstallAfterInstallStep,
+	agentrun.StepDone:          InstallCompleteStep,
 }
 
 type installProcessPage struct {
@@ -86,11 +86,11 @@ func (p *installProcessPage) Init() tea.Cmd {
 			err := agentrun.Run(agentBin, cfgPath, mainModel.source, mainModel.finishAction,
 				func(ev agentrun.ProgressEvent) {
 					switch ev.Event {
-					case "step":
+					case agentrun.EventStep:
 						if disp, ok := stepDisplay[ev.Step]; ok {
 							p.output <- StepPrefix + disp
 						}
-					case "error":
+					case agentrun.EventError:
 						sawError = true
 						p.output <- ErrorPrefix + ev.Message
 					}
