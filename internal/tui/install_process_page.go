@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/kairos-io/kairos-installer/internal/agentrun"
+	"github.com/kairos-io/kairos-sdk/agentrun"
 )
 
 // stepDisplay maps an agent progress step to the UI step label.

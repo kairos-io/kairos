@@ -105,20 +105,21 @@ You never reimplement partitioning or installation; you only produce a
 
 ### 3. Build on this project as a base — Go
 
-Fork or vendor this repo and customize the bubbletea UI. The building blocks:
+The reusable, TUI-free core lives in **kairos-sdk** so you can import it without
+forking this repo:
 
-- **`internal/agentrun`** — the reference implementation of the install
-  contract: resolve the agent (`ResolveAgentBin`), build the `manual-install`
-  command (`Command`), parse a JSON-Lines progress line (`ParseLine`), and run +
-  stream events (`Run`). Reuse this rather than hand-rolling the invocation and
-  progress parsing.
+- **[`github.com/kairos-io/kairos-sdk/agentrun`](https://pkg.go.dev/github.com/kairos-io/kairos-sdk/agentrun)**
+  — the reference implementation of the install contract: resolve the agent
+  (`ResolveAgentBin`), build the `manual-install` command (`Command`), parse a
+  JSON-Lines progress line (`ParseLine`), and run + stream events (`Run`). Import
+  this rather than hand-rolling the invocation and progress parsing — it's exactly
+  what this installer uses.
+
+To customize the UX itself, fork or vendor this repo:
+
 - **`internal/bus`** — the provider bus used to gather `YAMLPrompt`s (level 1).
 - **`internal/tui`** — the bubbletea model and pages, including
   `cloudconfig.go` which turns the collected model into a `#cloud-config`.
-
-> Reuse note: `agentrun` is the genuinely reusable, TUI-free core. It currently
-> lives under `internal/`; promoting it to an importable package (so custom
-> installers can depend on it without forking) is on the roadmap.
 
 ---
 
@@ -127,11 +128,12 @@ Fork or vendor this repo and customize the bubbletea UI. The building blocks:
 ```
 main.go               flag(--source) → launch the bubbletea program
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
-                      the install page calls agentrun and renders progress
-internal/agentrun/    drives `kairos-agent manual-install` + parses JSON-Lines
-                      progress — no TUI dependencies (unit-tested in isolation)
+                      the install page calls kairos-sdk/agentrun and renders progress
 internal/bus/         provider plugin bus (agent.interactive-install → []YAMLPrompt)
 ```
+
+The agent-driving logic (build `manual-install`, parse JSON-Lines progress) lives
+in `kairos-sdk/agentrun`, so it is shared with any other installer frontend.
 
 Decoupling: this module depends only on `kairos-sdk`, the charmbracelet TUI
 libraries, and `go-pluggable`. It never imports `kairos-agent` — the only
