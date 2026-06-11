@@ -7,19 +7,23 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kairos-io/kairos-installer/internal/bus"
 	sdk "github.com/kairos-io/kairos-sdk/bus"
 	"github.com/mudler/go-pluggable"
 )
 
 // Customization Page
 
+// providerBus discovers and talks to agent-provider-* plugins. The kairos-sdk
+// bus already provides the manager (autoload prefix/paths, Initialize), so we
+// don't keep a local copy.
+var providerBus = sdk.NewBus()
+
 // Discover and run plugins for customization
 func runCustomizationPlugins() ([]sdk.YAMLPrompt, error) {
-	bus.Manager.Initialize()
+	providerBus.Initialize()
 	var r []sdk.YAMLPrompt
 
-	bus.Manager.Response(sdk.EventInteractiveInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
+	providerBus.Response(sdk.EventInteractiveInstall, func(p *pluggable.Plugin, resp *pluggable.EventResponse) {
 		if resp.Data == "" {
 			return
 		}
@@ -28,7 +32,7 @@ func runCustomizationPlugins() ([]sdk.YAMLPrompt, error) {
 		}
 	})
 
-	_, err := bus.Manager.Publish(sdk.EventInteractiveInstall, sdk.EventPayload{})
+	_, err := providerBus.Publish(sdk.EventInteractiveInstall, sdk.EventPayload{})
 	if err != nil {
 		return r, err
 	}
