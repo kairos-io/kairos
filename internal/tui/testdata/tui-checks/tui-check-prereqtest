@@ -1,0 +1,26 @@
+#!/bin/bash
+# tui-check-prereqtest is a minimal interactive-install check plugin used only
+# by the prerequisites round-trip tests. It returns one check of every prompt
+# type and records the apply payload it receives to $PREREQTEST_APPLY_LOG. It
+# never performs any destructive action.
+event="$1"
+payload="$(cat)"
+
+case "$event" in
+  agent.interactive-install.checks)
+    echo '{"data":"[{\"id\":\"t-info\",\"title\":\"Info\",\"message\":\"hi\",\"severity\":\"info\"},{\"id\":\"t-confirm\",\"title\":\"Confirm\",\"severity\":\"warning\",\"prompt\":\"confirm\",\"promptText\":\"Proceed?\"},{\"id\":\"t-text\",\"title\":\"Text\",\"prompt\":\"text\",\"promptText\":\"Name?\",\"placeholder\":\"node\"},{\"id\":\"t-select\",\"title\":\"Select\",\"prompt\":\"select\",\"promptText\":\"Pick\",\"options\":[{\"id\":\"a\",\"label\":\"A\"},{\"id\":\"b\",\"label\":\"B\"}],\"default\":\"a\"},{\"id\":\"t-multi\",\"title\":\"Multi\",\"severity\":\"warning\",\"prompt\":\"multiselect\",\"promptText\":\"Disks\",\"options\":[{\"id\":\"/dev/sdb\",\"label\":\"sdb\"},{\"id\":\"/dev/sdc\",\"label\":\"sdc\"}]}]"}'
+    ;;
+  agent.interactive-install.checks.apply)
+    if [ -n "$PREREQTEST_APPLY_LOG" ]; then
+      printf '%s\n' "$payload" >> "$PREREQTEST_APPLY_LOG"
+    fi
+    if [ "$PREREQTEST_FAIL" = "1" ]; then
+      echo '{"data":"[{\"id\":\"t-multi\",\"success\":false,\"message\":\"boom\"}]"}'
+    else
+      echo '{"data":"[{\"id\":\"t-multi\",\"success\":true,\"message\":\"done\"}]"}'
+    fi
+    ;;
+  *)
+    echo '{}'
+    ;;
+esac

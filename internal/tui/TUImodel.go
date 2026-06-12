@@ -62,6 +62,7 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		log:             l,
 	}
 	mainModel.pages = []Page{
+		newPrerequisitesPage(),
 		newDiskSelectionPage(),
 		newInstallOptionsPage(),
 		newCustomizationPage(),
