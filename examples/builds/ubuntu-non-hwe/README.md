@@ -7,7 +7,7 @@ We are going to assume that you start the process at the root of the Kairos repo
 Let's start by building the base image.
 
 ```
-$ cd examples/byoi/ubuntu-non-hwe
+$ cd examples/builds/ubuntu-non-hwe
 $ docker build -t ubuntu-non-hwe:22.04 .
 [+] Building 58.7s (13/13) FINISHED                                                      docker:default
  => [internal] load build definition from Dockerfile                                               0.0s
