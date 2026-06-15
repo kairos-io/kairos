@@ -25,7 +25,9 @@ jobs:
         model:
           - "generic"
           - "rpi4"
-        security_scan_mode: ["enforce"]
+        # Report-only: the scan still runs and reports, but criticals from the
+        # upstream base image must not block releases. Mirrors master builds.
+        security_scan_mode: ["report-only"]
         cleanup: [true]
         grype: [true]
         include:
