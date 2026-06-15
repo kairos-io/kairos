@@ -45,7 +45,9 @@ jobs:
       grype_sarif: true
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      # Report-only: the scan still runs and reports, but criticals from the
+      # upstream base image must not block releases. Mirrors master builds.
+      security_scan_mode: "report-only"
       custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: ${{ !matrix.trusted_boot }}
       cosign: true
