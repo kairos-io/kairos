@@ -39,7 +39,9 @@ jobs:
       version: "auto"
       iso: true
       grype: true
-      security_scan_mode: "enforce"
+      # Report-only: the scan still runs and reports, but criticals from the
+      # upstream base image must not block PRs. Mirrors master / release builds.
+      security_scan_mode: "report-only"
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"

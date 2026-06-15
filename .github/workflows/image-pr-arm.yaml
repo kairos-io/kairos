@@ -61,7 +61,9 @@ jobs:
       version: "auto"
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }} # only produce raw images for rpi3 and rpi4
       grype: ${{ matrix.grype }}
-      security_scan_mode: "enforce"
+      # Report-only: the scan still runs and reports, but criticals from the
+      # upstream base image must not block PRs. Mirrors master / release builds.
+      security_scan_mode: "report-only"
       registry_domain: "quay.io"
       registry_namespace: "kairos"
       registry_repository: "ci-temp-images"
