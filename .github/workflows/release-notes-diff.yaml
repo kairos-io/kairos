@@ -204,11 +204,11 @@ jobs:
           {
             echo "## Release diff generated"
             echo
-            echo "- Current release: \\`${CURRENT_TAG}\\`"
-            echo "- Previous final release: \\`${{ steps.prev.outputs.tag }}\\`"
+            echo "- Current release: \`${CURRENT_TAG}\`"
+            echo "- Previous final release: \`${{ steps.prev.outputs.tag }}\`"
             if [ "${{ steps.append.outputs.appended }}" = "true" ]; then
-              echo "- Release description updated: \\`yes\\`"
+              echo "- Release description updated: \`yes\`"
             else
-              echo "- Release description updated: \\`no (already contained section header)\\`"
+              echo "- Release description updated: \`no (already contained section header)\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
