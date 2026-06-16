@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to (re)generate notes for (e.g. v4.1.1)"
+        description: "Release tag to (re)generate notes for"
         required: true
         type: string
 
