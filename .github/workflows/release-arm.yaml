@@ -8,7 +8,7 @@ permissions: read-all
 jobs:
   core:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -25,7 +25,9 @@ jobs:
         model:
           - "generic"
           - "rpi4"
-        security_scan_mode: ["enforce"]
+        # Report-only: the scan still runs and reports, but criticals from the
+        # upstream base image must not block releases. Mirrors master builds.
+        security_scan_mode: ["report-only"]
         cleanup: [true]
         grype: [true]
         include:
@@ -70,6 +72,9 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: ${{ matrix.security_scan_mode }}
+      # Don't let the SARIF step fail report-only builds (e.g. upstream k3s
+      # CVEs we can't control); enforce builds still fail on criticals.
+      grype_sarif_fail_build: ${{ matrix.security_scan_mode != 'report-only' }}
       custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: true
       cosign: true
@@ -104,7 +109,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   standard:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -170,6 +175,9 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: ${{ matrix.security_scan_mode }}
+      # Don't let the SARIF step fail report-only builds (e.g. upstream k3s
+      # CVEs we can't control); enforce builds still fail on criticals.
+      grype_sarif_fail_build: ${{ matrix.security_scan_mode != 'report-only' }}
       custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: true
       cosign: true

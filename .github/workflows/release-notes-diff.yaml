@@ -4,6 +4,12 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)generate notes for"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      CURRENT_TAG: ${{ github.event.release.tag_name }}
+      CURRENT_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -125,10 +131,33 @@ jobs:
       - name: Resolve previous final release tag
         id: prev
         run: |
-          previous_tag=$(gh api "repos/${{ github.repository }}/releases?per_page=100" | jq -r --arg current "$CURRENT_TAG" '[.[] | select(.draft == false and .prerelease == false and .tag_name != $current) | .tag_name][0] // empty')
+          # NOTE: per_page=100 reliably times out (HTTP 504) on this repo's releases
+          # endpoint and returns an HTML error page instead of JSON. Releases are
+          # returned newest-first, so a smaller page is enough to find the relevant
+          # releases. We also guard against a non-JSON response so a transient API
+          # hiccup skips diff generation instead of failing the release.
+          releases_json=$(gh api "repos/${{ github.repository }}/releases?per_page=50") || {
+            echo "Could not fetch releases (API error). Skipping diff generation."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          if ! echo "$releases_json" | jq -e 'type == "array"' > /dev/null 2>&1; then
+            echo "Unexpected releases response (not a JSON array). Skipping diff generation."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Resolve the final release that immediately precedes CURRENT_TAG in the
+          # newest-first list. This works for both the release:published trigger
+          # (where CURRENT_TAG is the newest release) and manual workflow_dispatch
+          # runs that target an older tag. If CURRENT_TAG is not among the recent
+          # final releases (e.g. too old for this page), we skip rather than diff
+          # against the wrong base.
+          previous_tag=$(echo "$releases_json" | jq -r --arg current "$CURRENT_TAG" '[.[] | select(.draft == false and .prerelease == false) | .tag_name] as $finals | ($finals | index($current)) as $i | (if $i == null then empty else $finals[$i + 1] end) // empty')
 
           if [ -z "$previous_tag" ] || [ "$previous_tag" = "null" ]; then
-            echo "No previous final release found. Skipping diff generation."
+            echo "No previous final release found for $CURRENT_TAG. Skipping diff generation."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -175,11 +204,11 @@ jobs:
           {
             echo "## Release diff generated"
             echo
-            echo "- Current release: \\`${CURRENT_TAG}\\`"
-            echo "- Previous final release: \\`${{ steps.prev.outputs.tag }}\\`"
+            echo "- Current release: \`${CURRENT_TAG}\`"
+            echo "- Previous final release: \`${{ steps.prev.outputs.tag }}\`"
             if [ "${{ steps.append.outputs.appended }}" = "true" ]; then
-              echo "- Release description updated: \\`yes\\`"
+              echo "- Release description updated: \`yes\`"
             else
-              echo "- Release description updated: \\`no (already contained section header)\\`"
+              echo "- Release description updated: \`no (already contained section header)\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -8,7 +8,7 @@ permissions: read-all
 jobs:
   core:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -45,7 +45,12 @@ jobs:
       grype_sarif: true
       trivy: true
       trivy_sarif: true
-      security_scan_mode: "enforce"
+      # Report-only: the scan still runs and reports, but criticals from the
+      # upstream base image must not block releases. Mirrors master builds.
+      # Both gates must be relaxed: security_scan_mode (the enforce step) AND
+      # grype_sarif_fail_build (the SARIF step, which defaults to true).
+      security_scan_mode: "report-only"
+      grype_sarif_fail_build: false
       custom_job_name_format: ${{ matrix.custom_job_name_format }}
       list_release_artifacts: ${{ !matrix.trusted_boot }}
       cosign: true
@@ -108,7 +113,7 @@ jobs:
 
   standard-k3s:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
     needs:
       - get-k3s-versions
     permissions:
@@ -145,13 +150,16 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: "report-only"
+      # k3s CVEs come from upstream and are out of our control; the SARIF
+      # step must not fail the release. Gating is left to security_scan_mode.
+      grype_sarif_fail_build: false
       custom_job_name_format: "standard-amd64-generic-k3s"
       list_release_artifacts: true
       cosign: true
       release: true
   standard-k0s:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@84ea9b020bdd470081b235a1a99147a98d32c989 # v1.1.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
     needs:
       - get-k0s-versions
     permissions:
@@ -188,6 +196,9 @@ jobs:
       trivy: true
       trivy_sarif: true
       security_scan_mode: "report-only"
+      # k0s CVEs come from upstream and are out of our control; the SARIF
+      # step must not fail the release. Gating is left to security_scan_mode.
+      grype_sarif_fail_build: false
       custom_job_name_format: "standard-amd64-generic-k0s"
       list_release_artifacts: true
       cosign: true
