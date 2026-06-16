@@ -125,7 +125,24 @@ jobs:
       - name: Resolve previous final release tag
         id: prev
         run: |
-          previous_tag=$(gh api "repos/${{ github.repository }}/releases?per_page=100" | jq -r --arg current "$CURRENT_TAG" '[.[] | select(.draft == false and .prerelease == false and .tag_name != $current) | .tag_name][0] // empty')
+          # NOTE: per_page=100 reliably times out (HTTP 504) on this repo's releases
+          # endpoint and returns an HTML error page instead of JSON. Releases are
+          # returned newest-first, so a smaller page is enough to find the previous
+          # final release. We also guard against a non-JSON response so a transient
+          # API hiccup skips diff generation instead of failing the release.
+          releases_json=$(gh api "repos/${{ github.repository }}/releases?per_page=30") || {
+            echo "Could not fetch releases (API error). Skipping diff generation."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          }
+
+          if ! echo "$releases_json" | jq -e 'type == "array"' > /dev/null 2>&1; then
+            echo "Unexpected releases response (not a JSON array). Skipping diff generation."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          previous_tag=$(echo "$releases_json" | jq -r --arg current "$CURRENT_TAG" '[.[] | select(.draft == false and .prerelease == false and .tag_name != $current) | .tag_name][0] // empty')
 
           if [ -z "$previous_tag" ] || [ "$previous_tag" = "null" ]; then
             echo "No previous final release found. Skipping diff generation."
