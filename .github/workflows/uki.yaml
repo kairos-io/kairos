@@ -137,7 +137,7 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Login to Quay Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
@@ -164,7 +164,7 @@ jobs:
           docker run --rm --network=host -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:v0.20.1 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.23.0 --debug build-uki \
             --output-dir /result --output-type container \
             --public-keys /keys \
             --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
@@ -290,7 +290,7 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Login to Quay Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
