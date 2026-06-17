@@ -44,14 +44,14 @@ jobs:
       matrix:
         include:
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             kubernetes_distro: ""
             custom_job_name_format: "core-amd64-generic"
             # Report-only: the scan still runs and reports, but criticals from
             # the upstream base image must not block master builds / tests.
             security_scan_mode: "report-only"
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s"
             # Report-only: k3s CVEs come from upstream and should not block

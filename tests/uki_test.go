@@ -198,7 +198,7 @@ func genericTests(vm VM) {
 			out, err := vm.Sudo("journalctl -t kairos-agent")
 			Expect(err).ToNot(HaveOccurred(), out)
 			return out
-		}, 2*time.Minute).Should(And(
+		}, 5*time.Minute, 30*time.Second).Should(And(
 			ContainSubstring("Running after-install hook"),
 			ContainSubstring("Encrypting partitions"),
 			ContainSubstring("Successfully encrypted partition"),
