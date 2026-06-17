@@ -121,7 +121,7 @@ jobs:
           git fetch --prune --unshallow
       # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6
         with:
           audience: sts.amazonaws.com
           aws-region: eu-central-1
@@ -188,7 +188,7 @@ jobs:
           git fetch --prune --unshallow
       # https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -245,7 +245,7 @@ jobs:
               --set "state_dir=/aurora"
 
       - name: Azure CLI script
-        uses: azure/cli@9f7ce6f37c31b777ec6c6b6d1dfe7db79f497956 # v2
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
         if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
         env:
           GCP_PROJECT: palette-kairos
