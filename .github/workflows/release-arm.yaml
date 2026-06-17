@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.3.0"
+          - "ghcr.io/kairos-io/hadron:v0.4.0"
         model:
           - "generic"
           - "rpi4"
@@ -32,13 +32,13 @@ jobs:
         grype: [true]
         include:
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             model: "generic"
             cleanup: true
             grype: true
             custom_job_name_format: "core-arm64-generic"
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             model: "rpi4"
             cleanup: true
             grype: true
@@ -125,7 +125,7 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.3.0"
+          - "ghcr.io/kairos-io/hadron:v0.4.0"
         model:
           - "generic"
           - "rpi4"

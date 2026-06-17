@@ -19,11 +19,11 @@ jobs:
       matrix:
         include:
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             trusted_boot: false
             custom_job_name_format: "core-amd64-generic"
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             trusted_boot: true
             custom_job_name_format: "core-amd64-generic-uki"
     secrets:
@@ -127,7 +127,7 @@ jobs:
         image_name:
           - "hadron"
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.3.0"
+          - "ghcr.io/kairos-io/hadron:v0.4.0"
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
@@ -173,7 +173,7 @@ jobs:
         image_name:
           - "hadron"
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.3.0"
+          - "ghcr.io/kairos-io/hadron:v0.4.0"
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
