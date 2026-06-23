@@ -224,12 +224,18 @@ func (p *prerequisitesPage) control(cur *prereqField, dir int) {
 			a.Confirmed = !a.Confirmed
 		}
 	case "select":
+		// Single-select: ←/→ cycle through the options, keeping exactly one
+		// (or zero) selected.
 		next := cycleOption(c.Options, a.Selected, dir)
 		if next == "" {
 			a.Selected = nil
 		} else {
 			a.Selected = []string{next}
 		}
+	case "option":
+		// Multi-select: each option is its own focusable field. → selects,
+		// ← deselects, space toggles — independently per option, so any
+		// number of options can be selected at once.
 		id := c.Options[cur.optIdx].ID
 		if dir == 1 {
 			a.Selected = addUnique(a.Selected, id)
