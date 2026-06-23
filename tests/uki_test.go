@@ -220,6 +220,11 @@ func genericTests(vm VM) {
 		Expect(out).To(ContainSubstring("ro"))
 		Expect(out).ToNot(ContainSubstring("rw"))
 	})
+	By("Checking that rootfs is mounted with 0755 permissions", func() {
+		out, err := vm.Sudo(`stat -c "%a" /`)
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(strings.TrimSpace(out)).To(Equal("755"))
+	})
 	By("Checking the boot mode (boot)", func() {
 		out, err := vm.Sudo("stat /run/cos/uki_boot_mode")
 		Expect(err).ToNot(HaveOccurred(), out)

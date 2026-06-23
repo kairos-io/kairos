@@ -146,6 +146,12 @@ var _ = Describe("kairos autoinstall test", Label("acceptance"), func() {
 				Expect(out).To(ContainSubstring("shared"))
 			})
 
+			By("checking rootfs is mounted with 0755 permissions", func() {
+				out, err := vm.Sudo(`stat -c "%a" /`)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(Equal("755"))
+			})
+
 			By("checking that it doesn't has grub data into the cloud config", func() {
 				out, err := vm.Sudo(`cat /oem/90_custom.yaml`)
 				Expect(err).ToNot(HaveOccurred(), out)
