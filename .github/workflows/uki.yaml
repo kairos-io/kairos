@@ -16,12 +16,12 @@ concurrency:
 jobs:
   build:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@8952c3a5f4f6255cc63af88cb3637a9684970c8d # v1.1.3
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.19.4"
+      auroraboot_version: "v0.23.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
@@ -47,11 +47,11 @@ jobs:
       matrix:
         include:
           - image_name: "hadron-trusted"
-            base_image: "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+            base_image: "ghcr.io/kairos-io/hadron-trusted:v0.4.0"
             kubernetes_distro: ""
             custom_job_name_format: "core-amd64-generic-uki"
           - image_name: "hadron-trusted"
-            base_image: "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+            base_image: "ghcr.io/kairos-io/hadron-trusted:v0.4.0"
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s-uki"
   test_generic:
@@ -63,7 +63,7 @@ jobs:
       matrix:
         image_label: ["hadron-trusted"]
         base_image:
-          - "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+          - "ghcr.io/kairos-io/hadron-trusted:v0.4.0"
         arch: ["amd64"]
         model: ["generic"]
         variant: ["standard"]
@@ -111,7 +111,7 @@ jobs:
 
           echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
           echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: '0'
       - name: Set Version
@@ -137,7 +137,7 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Login to Quay Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
@@ -164,7 +164,7 @@ jobs:
           docker run --rm --network=host -v /var/run/docker.sock:/var/run/docker.sock \
             -v $PWD/build:/result \
             -v $PWD/tests/assets/keys:/keys \
-            quay.io/kairos/auroraboot:v0.20.1 --debug build-uki \
+            quay.io/kairos/auroraboot:v0.23.0 --debug build-uki \
             --output-dir /result --output-type container \
             --public-keys /keys \
             --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
@@ -216,7 +216,7 @@ jobs:
       matrix:
         image_label: ["hadron-trusted"]
         base_image:
-          - "ghcr.io/kairos-io/hadron-trusted:v0.0.4"
+          - "ghcr.io/kairos-io/hadron-trusted:v0.4.0"
         arch: ["amd64"]
         model: ["generic"]
         variant: ["core"]
@@ -264,7 +264,7 @@ jobs:
 
           echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
           echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: '0'
       - name: Set Version
@@ -290,7 +290,7 @@ jobs:
           # https://askubuntu.com/a/1081326
           sudo setfacl -m u:runner:rwx /dev/kvm
       - name: Login to Quay Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}

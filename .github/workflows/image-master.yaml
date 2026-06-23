@@ -16,12 +16,12 @@ concurrency:
 jobs:
   build:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@8952c3a5f4f6255cc63af88cb3637a9684970c8d # v1.1.3
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     with:
-      auroraboot_version: "v0.19.4"
+      auroraboot_version: "v0.23.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: "generic"
@@ -44,14 +44,14 @@ jobs:
       matrix:
         include:
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             kubernetes_distro: ""
             custom_job_name_format: "core-amd64-generic"
             # Report-only: the scan still runs and reports, but criticals from
             # the upstream base image must not block master builds / tests.
             security_scan_mode: "report-only"
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s"
             # Report-only: k3s CVEs come from upstream and should not block

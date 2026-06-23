@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@d8ac83e6ed2f143e5a4351f67fcfbceac9cb96c6 # v1.1.2
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@8952c3a5f4f6255cc63af88cb3637a9684970c8d # v1.1.3
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -24,19 +24,19 @@ jobs:
         include:
           - image_name: "hadron"
             model: "rpi4"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-rpi4"
           - image_name: "hadron"
             model: "rpi3"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-rpi3"
           - image_name: "hadron"
             model: "generic"
-            base_image: "ghcr.io/kairos-io/hadron:v0.3.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
             cleanup: false
             grype: true
             custom_job_name_format: "core-arm64-generic"
@@ -53,7 +53,7 @@ jobs:
             grype: false # too many vulns under the L4T rootfs
             custom_job_name_format: ""
     with:
-      auroraboot_version: "v0.19.4"
+      auroraboot_version: "v0.23.0"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
