@@ -220,6 +220,15 @@ func genericTests(vm VM) {
 		Expect(out).To(ContainSubstring("ro"))
 		Expect(out).ToNot(ContainSubstring("rw"))
 	})
+	By("Checking that / has 0755 permissions", func() {
+		// In UKI mode immucore pins the sysroot tmpfs to mode 0755. Without an
+		// explicit mode= the kernel uses 0777 & ~umask, which is non-deterministic
+		// in early boot and can leave / as 0777. Some software (e.g. snapd) requires
+		// / to be 0755. Regression guard for the sysroot tmpfs perms fix.
+		out, err := vm.Sudo(`stat -c "%a" /`)
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(strings.TrimSpace(out)).To(Equal("755"), out)
+	})
 	By("Checking the boot mode (boot)", func() {
 		out, err := vm.Sudo("stat /run/cos/uki_boot_mode")
 		Expect(err).ToNot(HaveOccurred(), out)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/spectrocloud/peg/matcher"
@@ -123,6 +124,14 @@ bundles:
 			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("peerguard"))
 
 			stateAssertVM(vm, "persistent.found", "true")
+			By("Checking that / has 0755 permissions", func() {
+				// Parity with the UKI suite. In normal (non-UKI) boot / is the
+				// image rootfs whose root is 0755; this guards against a
+				// regression where / ends up world-writable (0777).
+				out, err := vm.Sudo(`stat -c "%a" /`)
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(strings.TrimSpace(out)).To(Equal("755"), out)
+			})
 			By("Checking install/recovery services are disabled", func() {
 				if !isFlavor(vm, "alpine") {
 					for _, service := range []string{"kairos-interactive", "kairos-recovery"} {
