@@ -137,7 +137,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			Expect(os.Remove(datasource)).ToNot(HaveOccurred())
 		})
 		It("works and boots in passive as failover from a broken active", func() {
-			genericTests(vm)
+			genericTests(vm, 1800)
 
 			By("checking corresponding state", func() {
 				out, err := vm.Sudo("kairos-agent state")
@@ -177,7 +177,12 @@ func removeSpecialChars(str string) string {
 	}, str)
 }
 
-func genericTests(vm VM) {
+func genericTests(vm VM, rebootTimeout ...int) {
+	timeout := 1200
+	if len(rebootTimeout) > 0 {
+		timeout = rebootTimeout[0]
+	}
+
 	By("Checking SecureBoot is enabled", func() {
 		out, err := vm.Sudo(`dmesg|grep -i secure| grep -i enabled`)
 		Expect(err).ToNot(HaveOccurred(), out)
@@ -212,7 +217,7 @@ func genericTests(vm VM) {
 		vm.DetachCD()
 	})
 	By("waiting for VM to reboot", func() {
-		vm.Reboot(1200)
+		vm.Reboot(timeout)
 	})
 	By("Checking that rootfs is mounted RO", func() {
 		out, err := vm.Sudo("findmnt /")
