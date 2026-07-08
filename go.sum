@@ -409,6 +409,8 @@ github.com/mattn/go-runewidth v0.0.23 h1:7ykA0T0jkPpzSvMS5i9uoNn2Xy3R383f9HDx3Ry
 github.com/mattn/go-runewidth v0.0.23/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
 github.com/mauromorales/xpasswd v0.4.7 h1:s5I/zVkV1UG2fof4f98KVpw4k0aQJ8QKoAQvSAU2GPg=
 github.com/mauromorales/xpasswd v0.4.7/go.mod h1:FZdWdaNfMX97OBXggPsbA5pvXJlx2HJKcJz0/TVQ2YY=
+github.com/mauromorales/xpasswd v0.4.8 h1:Qie3ULymml8r8wgzoabEPLFI+2npwqIAl9C6oaflKEM=
+github.com/mauromorales/xpasswd v0.4.8/go.mod h1:bbsgVAIlwjwZm/hCoijzUbZczeaNsaXyLkJLZPWNeW8=
 github.com/mfridman/tparse v0.18.0 h1:wh6dzOKaIwkUGyKgOntDW4liXSo37qg5AXbIhkMV3vE=
 github.com/mfridman/tparse v0.18.0/go.mod h1:gEvqZTuCgEhPbYk/2lS3Kcxg1GmTxxU7kTC8DvP0i/A=
 github.com/mitchellh/copystructure v1.2.0 h1:vpKXTN4ewci03Vljg/q9QvCGUDttBOGBIa15WveJJGw=
@@ -433,6 +435,8 @@ github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5 h1:FaZD86+A9mV
 github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5/go.mod h1:WmKcT8ONmhDQIqQ+HxU+tkGWjzBEyY/KFO8LTGCu4AI=
 github.com/mudler/yip v1.24.2 h1:cryRBw7HRmKha9wF9ObhuNiuIHiMrRDAU3xRyotzLBE=
 github.com/mudler/yip v1.24.2/go.mod h1:I6EA3+52+ZZcfM6UwFt5K9W6YBg12zhEJfRmHiU8rPM=
+github.com/mudler/yip v1.25.0 h1:4pJa9DHP7gmkSh2ZLHn0gWzU/W0IdBfK48juXdr64Y0=
+github.com/mudler/yip v1.25.0/go.mod h1:uXxkc2Xo0eoex7MyJiUdBIeS3NZAutC2QtvdM3by7MU=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 h1:zYyBkD/k9seD2A7fsi6Oo2LfFZAehjjQMERAvZLEDnQ=
 github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646/go.mod h1:jpp1/29i3P1S/RLdc7JQKbRpFeM1dOBd8T9ki5s+AY8=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=

@@ -14,7 +14,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/kairos-io/kairos-sdk v0.23.2
 	github.com/moby/sys/mountinfo v0.7.2
-	github.com/mudler/yip v1.24.2
+	github.com/mudler/yip v1.25.0
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
 	github.com/spectrocloud-labs/herd v0.4.2
@@ -106,7 +106,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
-	github.com/mauromorales/xpasswd v0.4.7 // indirect
+	github.com/mauromorales/xpasswd v0.4.8 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
