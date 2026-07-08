@@ -7,12 +7,24 @@ on:
         description: "Preview without opening a PR"
         type: boolean
         default: false
+      model:
+        description: "AI model used to update dependencies"
+        type: string
+        default: "gemma-4-e2b-it"
+      agent-prompt:
+        description: "Custom instructions for the update agent (replaces the default update task)"
+        type: string
+        default: ""
+      context-size:
+        description: "Model context size"
+        type: string
+        default: "16384"
 concurrency:
   group: update-deps
   cancel-in-progress: false
 jobs:
   update:
-    runs-on: oracle-vm-16cpu-64gb-x86-64   # needs RAM for LocalAI + model
+    runs-on: oracle-vm-16cpu-64gb-x86-64   # needs RAM for the AI model
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,3 +39,6 @@ jobs:
           language: go
           token: ${{ steps.app-token.outputs.token }}
           dry-run: ${{ github.event.inputs.dry-run || 'false' }}
+          model: ${{ github.event.inputs.model || 'gemma-4-e2b-it' }}
+          agent-prompt: ${{ github.event.inputs.agent-prompt || '' }}
+          context-size: ${{ github.event.inputs.context-size || '16384' }}
