@@ -43,6 +43,28 @@ var _ = Describe("RenderCloudConfig", func() {
 	})
 })
 
+var _ = Describe("RenderRedactedCloudConfig", func() {
+	It("replaces the password and never leaks the original hash", func() {
+		m := &Model{
+			disk:     "/dev/sda",
+			username: "kairos",
+			password: "supersecrethash",
+			sshKeys:  []string{"ssh-ed25519 AAAA"},
+		}
+		out, err := RenderRedactedCloudConfig(m)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(ContainSubstring("***REDACTED***"))
+		Expect(out).ToNot(ContainSubstring("supersecrethash"))
+	})
+
+	It("leaves the original model untouched", func() {
+		m := &Model{disk: "/dev/sda", username: "kairos", password: "supersecrethash"}
+		_, err := RenderRedactedCloudConfig(m)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(m.password).To(Equal("supersecrethash"))
+	})
+})
+
 var _ = Describe("installProcessPage agent resolution", func() {
 	It("reports an error and leaves no temp config when kairos-agent is absent", func() {
 		// No agent anywhere.

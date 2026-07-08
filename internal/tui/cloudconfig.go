@@ -71,6 +71,16 @@ func RenderCloudConfig(m *Model) (string, error) {
 	return addHeader("#cloud-config", string(dat)), nil
 }
 
+// RenderRedactedCloudConfig renders the cloud-config with the user password
+// replaced, for safe inclusion in debug bundles. The input model is not mutated.
+func RenderRedactedCloudConfig(m *Model) (string, error) {
+	clone := *m
+	if clone.password != "" {
+		clone.password = "***REDACTED***"
+	}
+	return RenderCloudConfig(&clone)
+}
+
 // mergeYAML merges objects into a single YAML document (copied from kairos-agent).
 func mergeYAML(objs ...interface{}) ([]byte, error) {
 	finalData := make(map[string]interface{})

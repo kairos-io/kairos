@@ -5,7 +5,16 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
+
+var _ = Describe("diskSelectionPage Help", func() {
+	It("advertises the debug-log hotkey", func() {
+		p := newDiskSelectionPage()
+		Expect(p.Help()).To(ContainSubstring("ctrl+d"))
+	})
+})
 
 func makeDiskPage(n int) *diskSelectionPage {
 	disks := make([]diskStruct, n)

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -9,8 +10,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-
 	"github.com/kairos-io/kairos-sdk/agentrun"
+
+	"github.com/kairos-io/kairos-installer/internal/debugbundle"
 )
 
 // stepDisplay maps an agent progress step to the UI step label.
@@ -83,7 +85,18 @@ func (p *installProcessPage) Init() tea.Cmd {
 			// p.errorMsg, which the bubbletea Update loop writes) keeps the
 			// final error check race-free.
 			sawError := false
-			err := agentrun.Run(agentBin, cfgPath, mainModel.source, mainModel.finishAction,
+
+			// Capture the full agent transcript (raw stdout + stderr) into a
+			// dedicated log so it lands in the debug bundle. Best-effort: a nil
+			// writer discards stderr (alt-screen safe) if the file can't be
+			// opened, and keeps Run's behavior otherwise.
+			var transcript io.Writer
+			if lf, lerr := os.OpenFile(debugbundle.AgentOutputLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); lerr == nil {
+				defer lf.Close()
+				transcript = lf
+			}
+
+			err := agentrun.RunWithOutput(agentBin, cfgPath, mainModel.source, mainModel.finishAction,
 				func(ev agentrun.ProgressEvent) {
 					switch ev.Event {
 					case agentrun.EventStep:
@@ -96,6 +109,7 @@ func (p *installProcessPage) Init() tea.Cmd {
 					}
 				},
 				func(line string) { mainModel.log.Print(line) },
+				transcript,
 			)
 			if err != nil && !sawError {
 				p.output <- ErrorPrefix + err.Error()
@@ -135,7 +149,10 @@ func (p *installProcessPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			} else if strings.HasPrefix(output, ErrorPrefix) {
 				p.errorMsg = strings.TrimPrefix(output, ErrorPrefix)
 				p.step = "Error: " + p.errorMsg
-				return p, nil
+				// Hand the reason to the debug bundle page so it can explain
+				// why it opened instead of silently showing a logs screen.
+				mainModel.installError = p.errorMsg
+				return p, func() tea.Msg { return GoToPageMsg{PageID: DebugBundlePageID} }
 			}
 			return p, func() tea.Msg { return CheckInstallerMsg{} }
 		case <-p.done:

@@ -73,6 +73,12 @@ const (
 	ErrorPrefix           = "ERROR:"
 )
 
+// DebugBundlePageID is the navigation ID of the debug bundle page.
+const DebugBundlePageID = "debug_bundle"
+
+// version is the installer version, overridable at build time via -ldflags.
+var version = "dev"
+
 // Installation steps for show
 const (
 	InstallDefaultStep       = "Preparing installation"

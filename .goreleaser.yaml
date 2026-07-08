@@ -3,6 +3,7 @@ version: 2
 builds:
   - ldflags:
       - -w -s
+      - -X github.com/kairos-io/kairos-installer/internal/tui.version={{ .Version }}
     env:
       - CGO_ENABLED=0
     goos:

@@ -170,7 +170,7 @@ func (p *diskSelectionPage) Title() string {
 }
 
 func (p *diskSelectionPage) Help() string {
-	return genericNavigationHelp
+	return genericNavigationHelp + " • ctrl+d: collect debug logs"
 }
 
 func (p *diskSelectionPage) ID() string { return "disk_selection" }
