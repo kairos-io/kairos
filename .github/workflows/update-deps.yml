@@ -1,0 +1,29 @@
+name: Update dependencies
+on:
+  schedule: [{ cron: "0 5 * * 1" }]   # weekly, Monday 05:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Preview without opening a PR"
+        type: boolean
+        default: false
+concurrency:
+  group: update-deps
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: oracle-vm-16cpu-64gb-x86-64   # needs RAM for LocalAI + model
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.DEPS_BOT_APP_ID }}
+          private-key: ${{ secrets.DEPS_BOT_APP_KEY }}
+      - uses: kairos-io/security/.github/actions/update-deps@main
+        with:
+          language: go
+          token: ${{ steps.app-token.outputs.token }}
+          dry-run: ${{ github.event.inputs.dry-run || 'false' }}
