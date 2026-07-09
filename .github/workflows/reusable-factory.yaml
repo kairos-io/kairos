@@ -211,6 +211,11 @@ on:
         default: false
         description: "List all the artifacts that would be included in the release in the GitHub summary"
 
+      release_extraction_notes:
+        type: boolean
+        default: true
+        description: "For raw builds (which can't be attached as release assets), append instructions to the GitHub release for extracting the raw image from the published -img OCI artifact. Set to false to disable."
+
       cleanup:
         type: boolean
         default: false
@@ -1090,6 +1095,9 @@ jobs:
         if: inputs.release
         env:
           GH_TOKEN: ${{ github.token }}
+          IMG_REF: ${{ steps.setup.outputs.image_tag }}-img
+          REGISTRY_DOMAIN: ${{ inputs.registry_domain }}
+          RELEASE_EXTRACTION_NOTES: ${{ inputs.release_extraction_notes }}
         shell: bash
         run: |
           set -euo pipefail
@@ -1109,42 +1117,71 @@ jobs:
             artifacts/*.iso.sha256.bundle
             artifacts/*.iso.sha256.pem
           )
+          RAW_FILES=( artifacts/*.raw )
           shopt -u nullglob
 
-          if [[ ${#RELEASE_FILES[@]} -eq 0 ]]; then
-            echo "ℹ️ No release artifacts found; skipping release upload."
-            echo "   Looked for:"
-            echo "   - artifacts/*.iso"
-            echo "   - artifacts/*.iso.sha256"
-            echo "   - artifacts/*.iso.sha256.sig"
-            echo "   - artifacts/*.iso.sha256.bundle"
-            echo "   - artifacts/*.iso.sha256.pem"
+          if [[ ${#RELEASE_FILES[@]} -eq 0 && ${#RAW_FILES[@]} -eq 0 ]]; then
+            echo "ℹ️ No release artifacts found; skipping release."
+            echo "   Looked for artifacts/*.iso* and artifacts/*.raw"
             echo "   Current artifacts directory contents:"
             ls -la artifacts || echo "   (artifacts directory not found)"
             exit 0
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "ℹ️ Release $TAG already exists, uploading artifacts"
+            echo "ℹ️ Release $TAG already exists"
           else
             echo "📦 Creating release $TAG (must already exist as a tag)"
             gh release create "$TAG" --verify-tag --title "$TAG" --notes "Release $TAG"
           fi
 
-          echo "⬆️ Uploading release artifacts"
-          MAX_ATTEMPTS=3
-          ATTEMPT=1
-          until gh release upload "$TAG" "${RELEASE_FILES[@]}" --clobber; do
-            if [[ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]]; then
-              echo "❌ Failed to upload release artifacts after $MAX_ATTEMPTS attempts"
-              exit 1
-            fi
+          # Upload ISO-style assets. Raw images are handled separately below
+          # because a raw disk image typically exceeds GitHub's 2 GiB per-file
+          # release-asset limit.
+          if [[ ${#RELEASE_FILES[@]} -gt 0 ]]; then
+            echo "⬆️ Uploading release artifacts"
+            MAX_ATTEMPTS=3
+            ATTEMPT=1
+            until gh release upload "$TAG" "${RELEASE_FILES[@]}" --clobber; do
+              if [[ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]]; then
+                echo "❌ Failed to upload release artifacts after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
 
-            BACKOFF=$((ATTEMPT * 5))
-            echo "⚠️ Upload failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Retrying in ${BACKOFF}s..."
-            sleep "$BACKOFF"
-            ATTEMPT=$((ATTEMPT + 1))
-          done
+              BACKOFF=$((ATTEMPT * 5))
+              echo "⚠️ Upload failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Retrying in ${BACKOFF}s..."
+              sleep "$BACKOFF"
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+          fi
+
+          # Raw builds: the raw image is published as an <image>-img OCI artifact
+          # (see "Create OCI artifact from RAW image"), so append instructions for
+          # extracting it from that image instead of attaching the oversized raw.
+          if [[ ${#RAW_FILES[@]} -gt 0 && "${RELEASE_EXTRACTION_NOTES}" == "true" && -n "${REGISTRY_DOMAIN}" ]]; then
+            MARKER="<!-- kairos-factory:raw-image-extraction -->"
+            CURRENT_BODY="$(gh release view "$TAG" --json body -q .body)"
+            if [[ "$CURRENT_BODY" == *"$MARKER"* ]]; then
+              echo "ℹ️ Raw-image extraction instructions already present on release $TAG"
+            else
+              echo "📝 Appending raw-image extraction instructions to release $TAG"
+              {
+                printf '%s\n\n' "$CURRENT_BODY"
+                printf '%s\n\n' "$MARKER"
+                printf '## Raw disk image\n\n'
+                printf 'This release includes a raw disk image. Raw images exceed GitHub'"'"'s 2 GiB per-file release-asset limit, so instead of being attached here the image is published as an OCI artifact:\n\n'
+                printf '`%s`\n\n' "$IMG_REF"
+                printf 'Extract the raw image with Docker:\n\n'
+                printf '```bash\n'
+                printf 'export IMAGE=%s\n' "$IMG_REF"
+                printf 'container=$(docker create "$IMAGE" noop)   # scratch image: throwaway command, never executed\n'
+                printf 'docker cp "$container:/artifacts/." .\n'
+                printf 'docker rm "$container"\n'
+                printf '```\n\n'
+                printf 'The `.raw` image is now in the current directory, ready to flash.\n'
+              } | gh release edit "$TAG" --notes-file -
+            fi
+          fi
       - name: List Release Artifacts
         if: inputs.list_release_artifacts
         shell: bash
