@@ -15,6 +15,10 @@ pr-message
 
 node_modules/
 
+# Manual riscv64 experiment outputs (scripts/riscv64/*.sh)
+scripts/riscv64/state/
+scripts/riscv64/artifacts/
+
 # editor and IDE paraphernalia
 .idea
 .envrc
