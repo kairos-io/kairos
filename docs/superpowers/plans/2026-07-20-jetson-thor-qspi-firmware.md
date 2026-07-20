@@ -11,6 +11,14 @@
 **Design spec:** `docs/superpowers/specs/2026-07-20-jetson-thor-qspi-firmware-design.md`
 **Tracking issue:** [kairos-io/kairos#4228](https://github.com/kairos-io/kairos/issues/4228)
 
+> **Post-implementation correction.** Three shell code blocks below were amended after
+> implementation exposed defects in them. All three were instances of the same trap: under
+> `set -euo pipefail`, a bare `var="$(cmd)"` assignment dies *silently* when the inner
+> command fails, because `set -e` fires before the script's own `fail` handler can run. The
+> affected sites were the `dpkg-query`, `awk`/`head`, `encode_version`, and inline `stat`
+> substitutions. The blocks now show the corrected `|| fail` form. Also, the dry-run check
+> in Task 3 moved above the payload lookup. Anyone re-running this plan gets the fixed code.
+
 **Repository:** All tasks are in `kairos-io/kairos-init`, not `kairos-io/kairos`. A prerequisite
 commit bumping the Thor L4T pin from `38.4` to `39.2` already exists on branch
 `bump-thor-l4t-39.2` (`pkg/stages/steps_install.go:80-82`).
@@ -326,7 +334,8 @@ if [ ! -r "${NV_BOOT_CONTROL_CONF}" ]; then
 	exit 0
 fi
 
-chipid="$(awk '/^CHIPID/ {print $2}' "${NV_BOOT_CONTROL_CONF}" | head -1)"
+chipid="$(awk '/^CHIPID/ {print $2}' "${NV_BOOT_CONTROL_CONF}" | head -1)" ||
+	fail "cannot determine the chip id from ${NV_BOOT_CONTROL_CONF}"
 case "${chipid}" in
 	0x26) payload_subdir="t26x" ;;
 	*)    log "chip id ${chipid} is not a Thor board; skipping"; exit 0 ;;
@@ -345,10 +354,11 @@ fi
 if [ -n "${KAIROS_QSPI_IMAGE_VERSION:-}" ]; then
 	image_pkg_ver="${KAIROS_QSPI_IMAGE_VERSION}"
 else
-	image_pkg_ver="$(dpkg-query -W -f='${Version}' nvidia-l4t-bootloader 2>/dev/null | cut -d- -f1)"
+	image_pkg_ver="$(dpkg-query -W -f='${Version}' nvidia-l4t-bootloader 2>/dev/null | cut -d- -f1)" || image_pkg_ver=""
 fi
 [ -n "${image_pkg_ver}" ] || fail "cannot determine the L4T bootloader version in this image"
-image_ver="$(encode_version "${image_pkg_ver}")"
+image_ver="$(encode_version "${image_pkg_ver}")" ||
+	fail "cannot parse the L4T bootloader version '${image_pkg_ver}' found in this image"
 
 log "board firmware: ${current_qspi_ver}, image L4T: ${image_ver} (${image_pkg_ver})"
 
@@ -503,15 +513,19 @@ Append to the `JetsonQSPIScript` const in `pkg/bundled/jetson_qspi.go`, immediat
 the closing backtick:
 
 ```bash
-# --- locate the payload -------------------------------------------------------
-capsule_src="${OTA_PACKAGE_DIR}/${payload_subdir}/TEGRA_BL_3834_agx.Cap"
-[ -r "${capsule_src}" ] || fail "capsule payload not found at ${capsule_src}"
-capsule_kb=$(( ( $(stat -c %s "${capsule_src}") + 1023 ) / 1024 ))
-
+# A dry run must exit before anything that requires the real image layout
+# (e.g. OTA_PACKAGE_DIR), since the decision-logic tests exercise this seam
+# without staging fixtures in place.
 if [ "${KAIROS_QSPI_DRY_RUN:-0}" = "1" ]; then
 	log "dry run; not staging"
 	exit 0
 fi
+
+# --- locate the payload -------------------------------------------------------
+capsule_src="${OTA_PACKAGE_DIR}/${payload_subdir}/TEGRA_BL_3834_agx.Cap"
+[ -r "${capsule_src}" ] || fail "capsule payload not found at ${capsule_src}"
+capsule_size="$(stat -c %s "${capsule_src}")" || fail "cannot stat ${capsule_src}"
+capsule_kb=$(( (capsule_size + 1023) / 1024 ))
 
 # --- mount the ESP ------------------------------------------------------------
 # The after-install-chroot hook does not bind-mount the ESP into the chroot, so we
