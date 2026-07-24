@@ -67,7 +67,7 @@ func (s *RemoteAttestationServer) GenerateChallenge(init *AttestationInit) (*Att
 	if err != nil {
 		return nil, nil, err
 	}
-	ap := attest.ActivationParameters{TPMVersion: attest.TPMVersion20, EK: ek.Public, AK: *akParams}
+	ap := attest.ActivationParameters{EK: ek.Public, AK: *akParams}
 	secret, ec, err := ap.Generate()
 	if err != nil {
 		return nil, nil, err

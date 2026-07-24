@@ -8,7 +8,7 @@ ARG KAIROS_INIT_VERSION=v0.16.1
 
 # Stage 1: Build challenger binary
 # renovate: datasource=docker depName=golang
-FROM golang:1.26.4-bookworm AS challenger-builder
+FROM golang:1.26.5-bookworm AS challenger-builder
 WORKDIR /build
 
 # Install OpenSSL development libraries needed for TPM simulator
@@ -28,7 +28,7 @@ RUN CGO_ENABLED=1 go build -o kcrypt-discovery-challenger ./cmd/discovery
 FROM quay.io/kairos/kairos-init:${KAIROS_INIT_VERSION} AS kairos-init-source
 
 # Stage 3: Build optional immucore binary (if ref provided)
-FROM golang:1.26.4-bookworm AS immucore-builder
+FROM golang:1.26.5-bookworm AS immucore-builder
 ARG IMMUCORE_REF
 WORKDIR /build
 
@@ -56,7 +56,7 @@ RUN touch /immucore && touch /immucore-status && \
     fi
 
 # Stage 4: Build optional kairos-agent binary (if ref provided)
-FROM golang:1.26.4-bookworm AS kairos-agent-builder
+FROM golang:1.26.5-bookworm AS kairos-agent-builder
 ARG KAIROS_AGENT_REF
 WORKDIR /build
 
