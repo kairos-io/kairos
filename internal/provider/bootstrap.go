@@ -82,6 +82,9 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 		logger.Info("Overriding edgevpn API endpoint from EDGEVPN_API env: ", v)
 		apiAddress = v
 	}
+	if apiAddress == "" {
+		apiAddress = DefaultEdgeVPNAPIAddress
+	}
 
 	// Do onetimebootstrap if a Kubernetes distribution is enabled.
 	// Those blocks are not required to be enabled in case of a kairos

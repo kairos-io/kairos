@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/kairos-io/provider-kairos/v2/internal/provider"
 	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
 
 	"github.com/kairos-io/kairos-sdk/schema"
@@ -26,7 +27,7 @@ var networkAPI = []cli.Flag{
 		Usage: "Edgevpn API endpoint. Accepts a TCP URL (e.g. http://127.0.0.1:8080) " +
 			"or a unix socket path with the 'unix://' prefix (e.g. unix:///run/edgevpn.sock). " +
 			"Match this to whatever the local edgevpn daemon's APILISTEN is set to.",
-		Value:   "http://localhost:8080",
+		Value:   provider.DefaultEdgeVPNAPIAddress,
 		EnvVars: []string{"EDGEVPN_API"},
 	},
 	&cli.StringFlag{
