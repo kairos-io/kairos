@@ -1,0 +1,14 @@
+{
+  "tasks": [
+    {
+      "id": 1,
+      "status": "pending",
+      "attempts": 0,
+      "commit": "",
+      "decisions": [
+        "Treat @mudler's issue comment as approval of the existing design.",
+        "Limit this run to provider-kairos; kairos-agent rollout remains a follow-up."
+      ]
+    }
+  ]
+}
