@@ -72,19 +72,27 @@ func (p *diskSelectionPage) clampOffset() {
 	}
 }
 
-func newDiskSelectionPage() *diskSelectionPage {
+// scanDisks enumerates installable block devices on the host. It is a
+// package-level var so tests can substitute a deterministic implementation
+// (and so the disk-selection page can refresh its list on every Init without
+// coupling to ghw directly).
+var scanDisks = scanDisksGHW
+
+// scanDisksGHW is the production disk scanner: it asks ghw for the current set
+// of block devices and filters out virtual/undersized ones. It re-queries the
+// kernel on every call, so it picks up disks that appeared/disappeared since
+// the last scan — for example, LVMs that a prerequisites plugin (wipefs) just
+// removed.
+func scanDisksGHW() ([]diskStruct, error) {
 	bl, err := block.New(option.WithDisableTools(), option.WithNullAlerter())
 	if err != nil {
-		fmt.Printf("Error initializing block device info: %v\n", err)
-		return nil
+		return nil, err
 	}
-	var disks []diskStruct
-
 	const minDiskSizeBytes = 1 * 1024 * 1024 * 1024 // 1 GiB
 	excludedDevicePrefixes := []string{"loop", "ram", "sr", "zram"}
 
+	var disks []diskStruct
 	for _, disk := range bl.Disks {
-		// Check if the device name starts with any excluded prefix
 		excluded := false
 		for _, prefix := range excludedDevicePrefixes {
 			if strings.HasPrefix(disk.Name, prefix) {
@@ -93,18 +101,54 @@ func newDiskSelectionPage() *diskSelectionPage {
 			}
 		}
 		if excluded || disk.SizeBytes < minDiskSizeBytes {
-			continue // Skip excluded devices and disks smaller than the minimum size
+			continue // Skip excluded devices and disks smaller than the minimum size.
 		}
-		disks = append(disks, diskStruct{name: filepath.Join("/dev", disk.Name), size: fmt.Sprintf("%.2f GiB", float64(disk.SizeBytes)/float64(1024*1024*1024)), id: len(disks)})
+		disks = append(disks, diskStruct{
+			name: filepath.Join("/dev", disk.Name),
+			size: fmt.Sprintf("%.2f GiB", float64(disk.SizeBytes)/float64(1024*1024*1024)),
+			id:   len(disks),
+		})
 	}
+	return disks, nil
+}
 
+func newDiskSelectionPage() *diskSelectionPage {
+	disks, err := scanDisks()
+	if err != nil {
+		fmt.Printf("Error initializing block device info: %v\n", err)
+		return nil
+	}
 	return &diskSelectionPage{
 		disks:  disks,
 		cursor: 0,
 	}
 }
 
+// Init re-scans the host for available disks every time the page is entered.
+// Prerequisites plugins (e.g. wipefs) can mutate disk state between page
+// construction and the moment the user reaches disk selection, so the cached
+// list from newDiskSelectionPage is not authoritative. Refreshing here keeps
+// the user picking from what actually exists on disk right now.
+//
+// See kairos-io/kairos#4260.
 func (p *diskSelectionPage) Init() tea.Cmd {
+	disks, err := scanDisks()
+	if err != nil {
+		if mainModel.log != nil {
+			mainModel.log.Logger.Warn().Err(err).Msg("Failed to refresh disk list; keeping previous view")
+		}
+		return nil
+	}
+	p.disks = disks
+	// The previously-selected disk may no longer exist. Clamp the cursor into
+	// the new range and reset the scroll window to keep the view sane.
+	if p.cursor >= len(p.disks) {
+		p.cursor = 0
+	}
+	if p.cursor < 0 {
+		p.cursor = 0
+	}
+	p.offset = 0
 	return nil
 }
 
