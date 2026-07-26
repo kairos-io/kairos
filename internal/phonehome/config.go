@@ -113,6 +113,15 @@ type Credentials struct {
 	APIKey string `yaml:"api_key" json:"apiKey"` //nosec G101 -- legitimate credential carrier, populated at runtime
 }
 
+// NodeAddress is one of the node's reported network addresses. It mirrors the
+// Cluster API MachineAddress shape (type + address) and matches the AuroraBoot
+// store.NodeAddress wire contract (kairos-io/kairos#4253). Type is one of
+// InternalIP | ExternalIP | Hostname.
+type NodeAddress struct {
+	Type    string `json:"type"`
+	Address string `json:"address"`
+}
+
 // RegisterRequest is the body sent to POST /api/v1/nodes/register.
 type RegisterRequest struct {
 	MachineID         string            `json:"machineID"`
@@ -121,6 +130,8 @@ type RegisterRequest struct {
 	Group             string            `json:"group,omitempty"`
 	Labels            map[string]string `json:"labels,omitempty"`
 	OSRelease         map[string]string `json:"osRelease,omitempty"`
+	Addresses         []NodeAddress     `json:"addresses,omitempty"`
+	BootState         string            `json:"bootState,omitempty"`
 }
 
 // WSMessage is the envelope for all WebSocket messages.
@@ -134,6 +145,8 @@ type HeartbeatData struct {
 	AgentVersion string            `json:"agentVersion"`
 	OSRelease    map[string]string `json:"osRelease,omitempty"`
 	Labels       map[string]string `json:"labels,omitempty"`
+	Addresses    []NodeAddress     `json:"addresses,omitempty"`
+	BootState    string            `json:"bootState,omitempty"`
 }
 
 // CommandData is received from the management server.

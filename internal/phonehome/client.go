@@ -136,6 +136,8 @@ func (c *Client) Register(ctx context.Context) error {
 		RegistrationToken: c.cfg.RegistrationToken,
 		Group:             c.cfg.Group,
 		Labels:            c.cfg.Labels,
+		Addresses:         gatherAddresses(),
+		BootState:         detectBootState(c.logger.Logger),
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -353,6 +355,8 @@ func (c *Client) sendHeartbeat(conn *websocket.Conn) error {
 		AgentVersion: common.GetVersion(),
 		OSRelease:    gatherSystemInfo(),
 		Labels:       c.cfg.Labels,
+		Addresses:    gatherAddresses(),
+		BootState:    detectBootState(c.logger.Logger),
 	}
 	data, _ := json.Marshal(hb)
 	msg := WSMessage{Type: "heartbeat", Data: data}
@@ -385,7 +389,6 @@ func (c *Client) handleCommand(ctx context.Context, conn *websocket.Conn, cmd Co
 		c.sendCommandStatus(conn, cmd.ID, "Completed", result)
 	}
 }
-
 
 func (c *Client) sendCommandStatus(conn *websocket.Conn, id, phase, result string) {
 	status := CommandStatusData{ID: id, Phase: phase, Result: result}
