@@ -30,8 +30,11 @@ type Disk struct {
 }
 
 type ElementalPartitions struct {
-	BIOS       *Partition `yaml:"-" json:"-"` // We dont want marshal/unmarshal this field
-	EFI        *Partition `yaml:"-" json:"-"` // We dont want marshal/unmarshal this field
+	BIOS *Partition `yaml:"-" json:"-"` // We dont want marshal/unmarshal this field
+	// EFI is not serialized (yaml/json "-"), but its size may be set from
+	// config (e.g. install.partitions.efi.size) via mapstructure, so platforms
+	// that need a larger ESP (e.g. Jetson Thor) can request one.
+	EFI        *Partition `yaml:"-" json:"-" mapstructure:"efi"`
 	OEM        *Partition `yaml:"oem,omitempty" mapstructure:"oem" json:"oem,omitempty"`
 	Recovery   *Partition `yaml:"recovery,omitempty" mapstructure:"recovery" json:"recovery,omitempty"`
 	State      *Partition `yaml:"state,omitempty" mapstructure:"state" json:"state,omitempty"`
@@ -128,9 +131,18 @@ func (ep *ElementalPartitions) PartitionsByMountPoint(descending bool, excludes 
 // SetFirmwarePartitions sets firmware partitions for a given firmware and partition table type.
 func (ep *ElementalPartitions) SetFirmwarePartitions(firmware string, partTable string) error {
 	if firmware == constants.EFI && partTable == constants.GPT {
+		// Preserve a size the caller already set (e.g. from
+		// install.partitions.efi.size in the config) and only fall back to the
+		// default when it is unset. Some platforms (e.g. Jetson Thor, which
+		// stages a ~29MB UEFI firmware capsule on the ESP) need a larger ESP
+		// than the 64MiB default.
+		efiSize := constants.EfiSize
+		if ep.EFI != nil && ep.EFI.Size != 0 {
+			efiSize = ep.EFI.Size
+		}
 		ep.EFI = &Partition{
 			FilesystemLabel: constants.EfiLabel,
-			Size:            constants.EfiSize,
+			Size:            efiSize,
 			Name:            constants.EfiPartName,
 			FS:              constants.EfiFs,
 			MountPoint:      constants.EfiDirTransient,
