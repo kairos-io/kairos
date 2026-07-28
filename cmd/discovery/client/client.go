@@ -120,9 +120,16 @@ func (c *Client) GetPassphrase(partition *partitions.Partition, attempts int) (s
 	return c.waitPassWithTPMAttestation(serverURL, additionalHeaders, partition, attempts)
 }
 
+// attestationEndpointURL builds the TPM attestation endpoint from a challenger
+// server URL, tolerating any number of trailing slashes on the input so that
+// both "http://host/challenge" and "http://host/challenge/" work.
+func attestationEndpointURL(serverURL string) string {
+	return fmt.Sprintf("%s/tpm-attestation", strings.TrimRight(serverURL, "/"))
+}
+
 // waitPassWithTPMAttestation implements the new TPM remote attestation flow over WebSocket
 func (c *Client) waitPassWithTPMAttestation(serverURL string, additionalHeaders map[string]string, p *partitions.Partition, attempts int) (string, error) {
-	attestationEndpoint := fmt.Sprintf("%s/tpm-attestation", serverURL)
+	attestationEndpoint := attestationEndpointURL(serverURL)
 	c.Logger.Debugf("Debug: TPM attestation endpoint: %s", attestationEndpoint)
 
 	// Step 1: Initialize Remote Attestation Client (outside the retry loop)
