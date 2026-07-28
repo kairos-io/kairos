@@ -2,6 +2,7 @@ package phonehome_test
 
 import (
 	"os"
+	"time"
 
 	"github.com/kairos-io/kairos-agent/v2/internal/phonehome"
 	"github.com/kairos-io/kairos-sdk/collector"
@@ -27,11 +28,13 @@ func newCollectorConfig(phonehome map[string]interface{}) *sdkConfig.Config {
 var _ = Describe("LoadFromCollector", func() {
 	It("extracts a phonehome section from a merged cloud-config", func() {
 		c := newCollectorConfig(map[string]interface{}{
-			"url":                "https://example.invalid",
-			"registration_token": "reg-123",
-			"group":              "edge",
-			"labels":             map[string]interface{}{"env": "prod"},
-			"allowed_commands":   []interface{}{"exec", "reboot"},
+			"url":                              "https://example.invalid",
+			"registration_token":               "reg-123",
+			"group":                            "edge",
+			"labels":                           map[string]interface{}{"env": "prod"},
+			"allowed_commands":                 []interface{}{"exec", "reboot"},
+			"artifact_download_retries":        7,
+			"artifact_download_retry_interval": "2s",
 		})
 
 		cfg, ok, err := phonehome.LoadFromCollector(c)
@@ -43,6 +46,8 @@ var _ = Describe("LoadFromCollector", func() {
 		Expect(cfg.Group).To(Equal("edge"))
 		Expect(cfg.Labels).To(HaveKeyWithValue("env", "prod"))
 		Expect(cfg.AllowedCommands).To(ConsistOf("exec", "reboot"))
+		Expect(cfg.ArtifactDownloadRetries).To(Equal(7))
+		Expect(cfg.ArtifactDownloadRetryInterval).To(Equal(2 * time.Second))
 	})
 
 	It("returns ok=false when the phonehome section is absent", func() {

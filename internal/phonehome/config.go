@@ -10,9 +10,12 @@ import (
 )
 
 const (
-	DefaultHeartbeatInterval = 30 * time.Second
-	DefaultReconnectBackoff  = 5 * time.Second
-	MaxReconnectBackoff      = 60 * time.Second
+	DefaultHeartbeatInterval             = 30 * time.Second
+	DefaultReconnectBackoff              = 5 * time.Second
+	MaxReconnectBackoff                  = 60 * time.Second
+	DefaultArtifactDownloadRetries       = 3
+	DefaultArtifactDownloadRetryInterval = 5 * time.Second
+	MaxArtifactDownloadRetryInterval     = 1 * time.Minute
 	// DefaultCredentialsPath is the on-disk location of the node's saved
 	// credentials. It is a filesystem path, not an embedded secret.
 	DefaultCredentialsPath = "/usr/local/.kairos/phonehome-credentials.yaml" //nosec G101 -- path, not credential
@@ -40,6 +43,12 @@ type Config struct {
 	Labels            map[string]string `yaml:"labels"`
 	HeartbeatInterval time.Duration     `yaml:"heartbeat_interval"`
 	ReconnectBackoff  time.Duration     `yaml:"reconnect_backoff"`
+	// ArtifactDownloadRetries is the number of additional attempts made for
+	// transient network failures and HTTP 5xx responses while downloading an
+	// artifact image. ArtifactDownloadRetryInterval is the fixed delay between
+	// attempts. Zero values use the conservative package defaults.
+	ArtifactDownloadRetries       int           `yaml:"artifact_download_retries"`
+	ArtifactDownloadRetryInterval time.Duration `yaml:"artifact_download_retry_interval"`
 	// AllowedCommands is the list of remote commands the node will execute.
 	// When nil, defaults to DefaultAllowedCommands (upgrade/reboot only).
 	// Destructive commands (exec, reset, apply-cloud-config) must be opted-in

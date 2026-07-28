@@ -2,9 +2,12 @@ package phonehome
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -53,7 +56,12 @@ func createArtifactTempFile(config *sdkConfig.Config, artifactID string) (*os.Fi
 // phonehome Run loop stops reconnecting. It is nil-safe (nil => no self-exit,
 // useful for tests and one-shot handler drivers); in production the Client
 // passes its own Stop method in.
-func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed func(string) bool, stop func(), systemConfig *sdkConfig.Config) CommandHandler {
+func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed func(string) bool, stop func(), systemConfig *sdkConfig.Config, phonehomeConfig ...*Config) CommandHandler {
+	retries, retryInterval := artifactDownloadRetrySettings(nil)
+	if len(phonehomeConfig) > 0 {
+		retries, retryInterval = artifactDownloadRetrySettings(phonehomeConfig[0])
+	}
+
 	return func(cmd CommandData) (string, error) {
 		if isAllowed == nil || !isAllowed(cmd.Command) {
 			return "", fmt.Errorf("command %q is not permitted by the phonehome policy; add it to phonehome.allowed_commands in cloud-config to opt in", cmd.Command)
@@ -72,7 +80,7 @@ func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed fun
 			return string(out), err
 
 		case "upgrade", "upgrade-recovery":
-			return handleUpgrade(ctx, cmd, serverURL, apiKey(), systemConfig)
+			return handleUpgrade(ctx, cmd, serverURL, apiKey(), systemConfig, retries, retryInterval)
 
 		case "reset":
 			return handleReset(cmd, systemConfig)
@@ -90,6 +98,24 @@ func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed fun
 			return "", fmt.Errorf("unknown command: %s", cmd.Command)
 		}
 	}
+}
+
+func artifactDownloadRetrySettings(config *Config) (int, time.Duration) {
+	if config == nil {
+		return DefaultArtifactDownloadRetries, DefaultArtifactDownloadRetryInterval
+	}
+	retries := config.ArtifactDownloadRetries
+	if retries <= 0 {
+		retries = DefaultArtifactDownloadRetries
+	}
+	interval := config.ArtifactDownloadRetryInterval
+	if interval <= 0 {
+		interval = DefaultArtifactDownloadRetryInterval
+	}
+	if interval > MaxArtifactDownloadRetryInterval {
+		interval = MaxArtifactDownloadRetryInterval
+	}
+	return retries, interval
 }
 
 // handleUnregister runs the on-host phone-home teardown from inside the
@@ -114,7 +140,7 @@ func handleUnregister(stop func()) (string, error) {
 }
 
 // handleUpgrade downloads the image (if artifact-based) and runs kairos-agent upgrade.
-func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKey string, systemConfig *sdkConfig.Config) (string, error) {
+func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKey string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
 	source := cmd.Args["source"]
 	if source == "" {
 		return "", fmt.Errorf("upgrade requires 'source' arg")
@@ -129,37 +155,9 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 			return "", fmt.Errorf("invalid artifact id %q", artifactID)
 		}
 
-		imageURL := fmt.Sprintf("%s/api/v1/artifacts/%s/image?token=%s",
-			strings.TrimRight(serverURL, "/"), artifactID, apiKey)
-
-		// serverURL is operator-configured via cloud-config, not user input.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil) //nosec G107 -- URL derived from operator cloud-config
+		tarPath, err := downloadArtifact(ctx, serverURL, apiKey, artifactID, systemConfig, retries, retryInterval)
 		if err != nil {
-			return "", fmt.Errorf("building artifact image request: %w", err)
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return "", fmt.Errorf("downloading artifact image: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode != http.StatusOK {
-			return "", fmt.Errorf("downloading artifact image: HTTP %d", resp.StatusCode)
-		}
-
-		f, err := createArtifactTempFile(systemConfig, artifactID)
-		if err != nil {
-			return "", fmt.Errorf("creating tar file: %w", err)
-		}
-		tarPath := f.Name()
-		if _, err = io.Copy(f, resp.Body); err != nil {
-			_ = f.Close()
-			_ = os.Remove(tarPath)
-			return "", fmt.Errorf("writing tar file: %w", err)
-		}
-		if err := f.Close(); err != nil {
-			_ = os.Remove(tarPath)
-			return "", fmt.Errorf("closing tar file: %w", err)
+			return "", err
 		}
 		defer func() { _ = os.Remove(tarPath) }()
 
@@ -189,6 +187,97 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 	}
 
 	return string(out) + "\nUpgrade complete. Rebooting in 10s...", nil
+}
+
+func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
+	imageURL := fmt.Sprintf("%s/api/v1/artifacts/%s/image?token=%s",
+		strings.TrimRight(serverURL, "/"), artifactID, apiKey)
+	attempts := retries + 1
+	if attempts < 1 {
+		attempts = 1
+	}
+
+	var finalErr error
+	backoff := retryInterval
+	for attempt := 1; attempt <= attempts; attempt++ {
+		tarPath, transient, err := downloadArtifactAttempt(ctx, imageURL, artifactID, systemConfig)
+		if err == nil {
+			return tarPath, nil
+		}
+		finalErr = err
+		if !transient {
+			return "", fmt.Errorf("downloading artifact image: %w", err)
+		}
+		if attempt == attempts {
+			break
+		}
+
+		Logger.Warnf("artifact download attempt %d/%d failed: %v; retrying in %s", attempt, attempts, err, backoff)
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return "", fmt.Errorf("downloading artifact image: %w", ctx.Err())
+		case <-timer.C:
+		}
+		if backoff >= MaxArtifactDownloadRetryInterval/2 {
+			backoff = MaxArtifactDownloadRetryInterval
+		} else {
+			backoff *= 2
+		}
+	}
+
+	return "", fmt.Errorf("downloading artifact image after %d attempts: %w", attempts, finalErr)
+}
+
+func downloadArtifactAttempt(ctx context.Context, imageURL, artifactID string, systemConfig *sdkConfig.Config) (string, bool, error) {
+	// serverURL is operator-configured via cloud-config, not user input.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil) //nosec G107 -- URL derived from operator cloud-config
+	if err != nil {
+		return "", false, fmt.Errorf("building request: %w", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", false, ctx.Err()
+		}
+		var networkErr *url.Error
+		if errors.As(err, &networkErr) {
+			err = networkErr.Err
+		}
+		return "", true, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", resp.StatusCode >= http.StatusInternalServerError, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	f, err := createArtifactTempFile(systemConfig, artifactID)
+	if err != nil {
+		return "", false, fmt.Errorf("creating tar file: %w", err)
+	}
+	tarPath := f.Name()
+	if _, err = io.Copy(f, resp.Body); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tarPath)
+		return "", isTransientDownloadError(err), fmt.Errorf("writing tar file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tarPath)
+		return "", false, fmt.Errorf("closing tar file: %w", err)
+	}
+	return tarPath, false, nil
+}
+
+func isTransientDownloadError(err error) bool {
+	if errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var networkErr net.Error
+	return errors.As(err, &networkErr)
 }
 
 // handleReset selects the automatic state-reset boot entry and reboots. Reset

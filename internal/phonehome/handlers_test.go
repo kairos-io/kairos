@@ -1,9 +1,15 @@
 package phonehome
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync/atomic"
+	"time"
 
 	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
 	. "github.com/onsi/ginkgo/v2"
@@ -60,6 +66,95 @@ var _ = Describe("artifact upgrade download", func() {
 		_, err := createArtifactTempFile(config, "artifact-123")
 
 		Expect(err).To(MatchError(ContainSubstring("creating persistent temporary directory")))
+	})
+
+	newMountedConfig := func() *sdkConfig.Config {
+		persistentDir = GinkgoT().TempDir()
+		return &sdkConfig.Config{Mounter: mount.NewFakeMounter([]mount.MountPoint{
+			{Device: "/dev/persistent", Path: persistentDir},
+		})}
+	}
+
+	It("retries transient HTTP failures and succeeds", func() {
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if attempts.Add(1) < 3 {
+				http.Error(w, "temporarily unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			_, _ = w.Write([]byte("artifact image"))
+		}))
+		defer server.Close()
+
+		tarPath, err := downloadArtifact(
+			context.Background(), server.URL, "api-key", "artifact-123",
+			newMountedConfig(), 2, time.Millisecond,
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+		defer func() { _ = os.Remove(tarPath) }()
+		Expect(attempts.Load()).To(Equal(int32(3)))
+		Expect(os.ReadFile(tarPath)).To(Equal([]byte("artifact image")))
+	})
+
+	It("retries transient network errors and succeeds", func() {
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			if attempts.Add(1) == 1 {
+				conn, _, _ := w.(http.Hijacker).Hijack()
+				_ = conn.Close()
+				return
+			}
+			_, _ = w.Write([]byte("artifact image"))
+		}))
+		defer server.Close()
+
+		tarPath, err := downloadArtifact(
+			context.Background(), server.URL, "api-key", "artifact-123",
+			newMountedConfig(), 1, time.Millisecond,
+		)
+
+		Expect(err).ToNot(HaveOccurred())
+		defer func() { _ = os.Remove(tarPath) }()
+		Expect(attempts.Load()).To(Equal(int32(2)))
+		Expect(os.ReadFile(tarPath)).To(Equal([]byte("artifact image")))
+	})
+
+	It("returns the final transient error after retries are exhausted", func() {
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempt := attempts.Add(1)
+			http.Error(w, fmt.Sprintf("failure %d", attempt), http.StatusServiceUnavailable)
+		}))
+		defer server.Close()
+
+		_, err := downloadArtifact(
+			context.Background(), server.URL, "api-key", "artifact-123",
+			newMountedConfig(), 2, time.Millisecond,
+		)
+
+		Expect(attempts.Load()).To(Equal(int32(3)))
+		Expect(err).To(MatchError(And(
+			ContainSubstring("after 3 attempts"),
+			ContainSubstring("HTTP 503"),
+		)))
+	})
+
+	It("does not retry non-transient HTTP 4xx responses", func() {
+		var attempts atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			attempts.Add(1)
+			http.NotFound(w, nil)
+		}))
+		defer server.Close()
+
+		_, err := downloadArtifact(
+			context.Background(), server.URL, "api-key", "artifact-123",
+			newMountedConfig(), 5, time.Millisecond,
+		)
+
+		Expect(attempts.Load()).To(Equal(int32(1)))
+		Expect(err).To(MatchError(ContainSubstring("HTTP 404")))
 	})
 })
 
