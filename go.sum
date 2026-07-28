@@ -331,6 +331,8 @@ github.com/kairos-io/go-nodepair v0.3.0 h1:JIMBAtbNhIAsx89aP61mQDGMuGFoIQH/woK2t
 github.com/kairos-io/go-nodepair v0.3.0/go.mod h1:7i905W/KmR9DAcMSVJr/Wdb84E5Yyu9YLgj7chwX1xs=
 github.com/kairos-io/kairos-sdk v0.24.1-0.20260728090820-aca697363029 h1:t2hUI2o4Fxx5vM70/YPD2kWyYk/dfkBcn9kvGHCFH1M=
 github.com/kairos-io/kairos-sdk v0.24.1-0.20260728090820-aca697363029/go.mod h1:q4FVKESTYMOOFvEbMwYYuCmjjZ9MpslfBQK1vi1lPZ4=
+github.com/kairos-io/kairos-sdk v0.24.1-0.20260728091057-2f736d19bbaf h1:58EMigJlQfRgZJzyAhEKuvur0fB3L2ZWx5VUzLRUKE8=
+github.com/kairos-io/kairos-sdk v0.24.1-0.20260728091057-2f736d19bbaf/go.mod h1:lsRj0qTLq9XgEOAIOMIpGhMakUqhyTS9TVchvw2XIzw=
 github.com/kairos-io/tpm-helpers v0.0.0-20260702080541-9b3e057e2f32 h1:uunggNSibnMrKkvBblxmpsa1BNGHXFqsJf0zyUm0Eas=
 github.com/kairos-io/tpm-helpers v0.0.0-20260702080541-9b3e057e2f32/go.mod h1:VCNa+JJQgXutnWNJvZyNSemeMSy2w+b9SKTkItiIkro=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=
@@ -395,6 +397,8 @@ github.com/moby/moby/api v1.55.0 h1:2/sexvQyqIWS8pRSCFddBfpW2qE7vR7FCL+vN8pxwMc=
 github.com/moby/moby/api v1.55.0/go.mod h1:+RQ6wluLwtYaTd1WnPLykIDPekkuyD/ROWQClE83pzs=
 github.com/moby/moby/client v0.5.0 h1:5XhyPk2fuOWf6RlSFa3MkIIgDZkF25xToXW8Q/BH7cc=
 github.com/moby/moby/client v0.5.0/go.mod h1:rcVpF8ncl9vo5gaIBdol6CnbEtSj1uxMvEV/UrykF/s=
+github.com/moby/moby/client v0.5.1 h1:tYNaJno4c0HXz12y5BiqEDy0rVTYkWzI26lGvnTMiJw=
+github.com/moby/moby/client v0.5.1/go.mod h1:odLstlZ6uSnfvAgVxMpvgmb8SUdd+siH2T0GBuxVAlM=
 github.com/moby/sys/mountinfo v0.7.2 h1:1shs6aH5s4o5H2zQLn796ADW1wMrIwHsyJ2v9KouLrg=
 github.com/moby/sys/mountinfo v0.7.2/go.mod h1:1YOa8w8Ih7uW0wALDUgT1dTTSBrZ+HiBLGws92L2RU4=
 github.com/moby/sys/sequential v0.6.0 h1:qrx7XFUd/5DxtqcoH1h438hF5TmOvzC/lspjy7zgvCU=
