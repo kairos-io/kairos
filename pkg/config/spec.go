@@ -280,6 +280,16 @@ func NewInstallElementalPartitions(log sdkLogger.KairosLogger, spec *spec.Instal
 		Flags:           []string{},
 	}
 	log.Infof("Setting persistent partition size to %dMiB", persistentSize)
+
+	// Carry over a user-configured EFI partition size (install.partitions.efi.size).
+	// The EFI partition itself is created later during Sanitize() by
+	// SetFirmwarePartitions, which preserves a non-zero size we set here and
+	// otherwise applies the default. Some platforms (e.g. Jetson Thor) need a
+	// larger ESP to stage a UEFI firmware capsule.
+	if spec.Partitions.EFI != nil && spec.Partitions.EFI.Size != 0 {
+		pt.EFI = &sdkPartitions.Partition{Size: spec.Partitions.EFI.Size}
+		log.Infof("Setting EFI partition size to %dMiB", spec.Partitions.EFI.Size)
+	}
 	return pt
 }
 
