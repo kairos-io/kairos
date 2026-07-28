@@ -3,7 +3,6 @@
 package e2e_test
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -14,7 +13,7 @@ import (
 
 const registryContainerName = "kairos-agent-e2e-registry"
 
-// Shared across specs. regPort is the host port the registry is published on;
+// regPort is the host port the registry is published on;
 // sourceRepo is the in-registry repo path (e.g. "kairos/source:test").
 var (
 	regPort    int
@@ -35,27 +34,16 @@ func TestE2E(t *testing.T) {
 	RunSpecs(t, "kairos-agent e2e suite")
 }
 
-var _ = SynchronizedBeforeSuite(func() []byte {
-	// Runs once on node 1: start registry, push image.
+var _ = BeforeSuite(func() {
 	port, err := freePort()
 	Expect(err).ToNot(HaveOccurred())
 	repo, err := startRegistry(registryContainerName, baseImage(), port)
-	Expect(err).ToNot(HaveOccurred())
-	return []byte(fmt.Sprintf("%d|%s", port, repo))
-}, func(data []byte) {
-	// Runs on every node: parse the shared port/repo.
-	var repo string
-	var port int
-	_, err := fmt.Sscanf(string(data), "%d|%s", &port, &repo)
 	Expect(err).ToNot(HaveOccurred())
 	regPort = port
 	sourceRepo = repo
 })
 
-var _ = SynchronizedAfterSuite(func() {
-	// Per-node: nothing.
-}, func() {
-	// Node 1: tear down the registry.
+var _ = AfterSuite(func() {
 	_ = stopRegistry(registryContainerName)
 })
 

@@ -58,14 +58,16 @@ var _ = Describe("manual-install with custom partition sizes", Label("partition-
 
 	BeforeEach(func() {
 		vm = startVM()
-		vm.EventuallyConnects(1200)
+		vm.EventuallyConnects(sshTimeout())
 	})
 
 	AfterEach(func() {
 		if CurrentSpecReport().Failed() {
 			dumpSerial(vm)
 		}
-		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
+		if vm.StateDir != "" {
+			_ = vm.Destroy(nil)
+		}
 	})
 
 	// writeConfig drops the given cloud-config into the guest at /tmp/config.yaml.

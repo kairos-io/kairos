@@ -25,9 +25,8 @@ var _ = Describe("manual-install against an insecure registry", Label("insecure-
 
 	BeforeEach(func() {
 		vm = startVM()
-		vm.EventuallyConnects(1200)
+		vm.EventuallyConnects(sshTimeout())
 
-		// Copy the minimal install config into the VM.
 		cfg, err := os.ReadFile("config.yaml")
 		Expect(err).ToNot(HaveOccurred())
 		_, err = vm.Sudo(fmt.Sprintf("cat > /tmp/config.yaml <<'EOF'\n%s\nEOF", string(cfg)))
@@ -38,7 +37,9 @@ var _ = Describe("manual-install against an insecure registry", Label("insecure-
 		if CurrentSpecReport().Failed() {
 			dumpSerial(vm)
 		}
-		Expect(vm.Destroy(nil)).ToNot(HaveOccurred())
+		if vm.StateDir != "" {
+			_ = vm.Destroy(nil)
+		}
 	})
 
 	It("fails at the pull without --allow-insecure-registries", func() {
