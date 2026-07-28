@@ -18,44 +18,14 @@ package utils
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
 	"github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
+	"github.com/kairos-io/kairos-sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	"github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v3"
 )
-
-func onlyYAMLPartialErrors(er error) bool {
-	if merr, ok := er.(*multierror.Error); ok {
-		for _, e := range merr.Errors {
-			// Skip partial unmarshalling errors
-			// TypeError is throwed when it is possible to read the yaml partially
-			// XXX: Seems errors.Is and errors.As are not working as expected here.
-			// Even if the underlying type is yaml.TypeError.
-			var d *yaml.TypeError
-			if fmt.Sprintf("%T", e) != fmt.Sprintf("%T", d) {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func checkYAMLError(cfg *sdkConfig.Config, allErrors, err error) error {
-	if !onlyYAMLPartialErrors(err) {
-		// here we absorb errors only if are related to YAML unmarshalling
-		// As cmdline is parsed out as a yaml file
-		allErrors = multierror.Append(allErrors, err)
-	} else {
-		cfg.Logger.Debug("/proc/cmdline parsing returned errors while unmarshalling. Ignoring as /proc/cmdline fields are turned to a YAML document, and partial failures are valid")
-		cfg.Logger.Debug(err)
-	}
-
-	return allErrors
-}
 
 // RunstageAnalyze
 func RunStageAnalyze(cfg *sdkConfig.Config, stage string) error {
@@ -68,7 +38,6 @@ func RunStage(cfg *sdkConfig.Config, stage string) error {
 }
 
 func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
-	var cmdLineYipURI string
 	var allErrors error
 	var cloudInitPaths []string
 
@@ -89,21 +58,18 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 	stageBefore := fmt.Sprintf("%s.before", stage)
 	stageAfter := fmt.Sprintf("%s.after", stage)
 
-	// Check if the cmdline has the cos.setup key and extract its value to run yip on that given uri
+	// Read the kernel cmdline. Every Kairos-owned stanza (kairos.config_url=,
+	// kairos.config=, legacy bare cos.setup=) is parsed via kairos-sdk/machine
+	// so immucore, kairos-agent and any other consumer stay in lockstep with a
+	// single implementation. See kairos-sdk PR #812.
 	cmdLineOut, err := cfg.Fs.ReadFile("/proc/cmdline")
 	if err != nil {
 		allErrors = multierror.Append(allErrors, err)
 	}
 
-	cmdLine := strings.Split(string(cmdLineOut), " ")
-	for _, line := range cmdLine {
-		if strings.Contains(line, "=") {
-			lineSplit := strings.Split(line, "=")
-			if lineSplit[0] == "cos.setup" {
-				cmdLineYipURI = lineSplit[1]
-				cfg.Logger.Debugf("Found cos.setup stanza on cmdline with value %s", cmdLineYipURI)
-			}
-		}
+	cmdLineYipURI := KairosConfigURIFromString(string(cmdLineOut))
+	if cmdLineYipURI != "" {
+		cfg.Logger.Debugf("Found Kairos config URI on cmdline with value %s", cmdLineYipURI)
 	}
 
 	// Run all stages for each of the default cloud config paths + extra cloud config paths
@@ -133,8 +99,11 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 		}
 	}
 
-	// Run stages encoded from /proc/cmdlines
-	cfg.CloudInitRunner.SetModifier(schema.DotNotationModifier)
+	// Run stages encoded from /proc/cmdline. The SDK-backed modifier converts
+	// generic dot-nested KEY=VALUE tokens (e.g. stages.foo[0].name=bar) to YAML
+	// while skipping Kairos-owned prefixes (kairos.config=, kairos.config_url=,
+	// cos.setup=) so those tokens are not double-processed here.
+	cfg.CloudInitRunner.SetModifier(SDKDotNotationModifier)
 
 	for _, s := range []string{stageBefore, stage, stageAfter} {
 		if analyze {
@@ -142,7 +111,18 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 		} else {
 			err = cfg.CloudInitRunner.Run(s, string(cmdLineOut))
 			if err != nil {
-				allErrors = checkYAMLError(cfg, allErrors, err)
+				// Best-effort: /proc/cmdline is a legacy dot-notation source
+				// for yip stages, not a real config channel. Yip errors here
+				// (yaml.TypeError, "unexpected token", "function not defined",
+				// ...) are all products of arbitrary kernel-cmdline garbage
+				// rather than a broken cloud-config. Demote them to debug in
+				// non-strict mode so a random cmdline token cannot escalate a
+				// clean run into a warn-level "some errors found" surface.
+				if cfg.Strict {
+					allErrors = multierror.Append(allErrors, err)
+				} else {
+					cfg.Logger.Debugf("/proc/cmdline yip parsing returned errors, ignoring on non-strict run: %s", err)
+				}
 			}
 		}
 
@@ -160,4 +140,34 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 	}
 
 	return allErrors
+}
+
+// KairosConfigURIFromString extracts a Kairos config source URI from a cmdline
+// string. It routes through kairos-sdk/machine so kairos.config_url= and the
+// legacy bare cos.setup=URI form both resolve consistently. Returns empty when
+// the cmdline contains no such stanza or when the parsed YAML only carries
+// nested key=value payloads (which are consumed by the config collector, not
+// by RunStage).
+func KairosConfigURIFromString(s string) string {
+	yml, err := machine.KairosCmdlineYAMLFromString(s)
+	if err != nil || len(yml) == 0 {
+		return ""
+	}
+	var m map[string]interface{}
+	if err := yaml.Unmarshal(yml, &m); err != nil {
+		return ""
+	}
+	if v, ok := m["config_url"].(string); ok {
+		return v
+	}
+	return ""
+}
+
+// SDKDotNotationModifier is a yip schema.Modifier backed by
+// machine.DotStringToYAML. Unlike yip's built-in schema.DotNotationModifier it
+// skips Kairos-owned prefixes so those tokens flow exclusively through the
+// KairosCmdlineYAML path instead of being double-processed as generic
+// dot-nested keys.
+func SDKDotNotationModifier(s []byte) ([]byte, error) {
+	return machine.DotStringToYAML(string(s))
 }

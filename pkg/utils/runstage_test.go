@@ -130,6 +130,29 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 		Expect(memLog).To(ContainSubstring(fmt.Sprintf("%s/test.yaml", d)))
 	})
 
+	It("parses cmdline uri from kairos.config_url=", func() {
+		// Modern replacement for the legacy cos.setup= stanza. Both must
+		// resolve through the same SDK-backed helper (kairos-sdk PR #812),
+		// so the RunStage side effect (yip source added) is identical.
+		d, err := fsutils.TempDir(fs, "", "elemental")
+		Expect(err).ToNot(HaveOccurred())
+		err = fs.WriteFile(fmt.Sprintf("%s/test.yaml", d), []byte{}, os.ModePerm)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(writeCmdline(fmt.Sprintf("root=LABEL=X kairos.config_url=%s/test.yaml quiet", d), fs)).To(Succeed())
+		Expect(utils.RunStage(config, "padme")).To(BeNil())
+		Expect(memLog).To(ContainSubstring("padme"))
+		Expect(memLog).To(ContainSubstring(fmt.Sprintf("%s/test.yaml", d)))
+	})
+
+	It("ignores kairos.config=key=value when resolving the URI", func() {
+		// kairos.config=KEY=VALUE stanzas are consumed by the config
+		// collector, not by RunStage — no yip source should be added.
+		writeCmdline("kairos.config=install.auto=true kairos.config=users.0.name=kairos", fs)
+		Expect(utils.RunStage(config, "padme")).To(BeNil())
+		Expect(memLog.String()).ToNot(ContainSubstring("Found Kairos config URI on cmdline"))
+	})
+
 	It("parses cmdline uri with dotnotation", func() {
 		writeCmdline("stages.leia[0].commands[0]='echo beepboop'", fs)
 		config.Logger.SetLevel("debug")
@@ -146,11 +169,15 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 		Expect(memLog.String()).ToNot(ContainSubstring("Some errors found but were ignored. Enable --strict mode to fail on those or --debug to see them in the log"))
 	})
 
-	It("ignores YAML errors", func() {
+	It("tolerates malformed cmdline tokens without user-visible errors", func() {
+		// Old yip schema.DotNotationModifier turned garbage tokens into broken
+		// YAML which yip then surfaced as yaml.TypeError. The SDK-backed
+		// modifier (kairos-sdk PR #812) filters and skips those tokens
+		// upstream, so RunStage completes cleanly. The user-visible contract
+		// is unchanged: no strict-mode surfacing on non-strict runs.
 		config.Logger.SetLevel("debug")
 		writeCmdline("BOOT=death-star sing1!~@$%6^&**le /varlib stag_#var<Lib stages[0]='utterly broken by breaking schema'", fs)
 		Expect(utils.RunStage(config, "leia")).To(BeNil())
-		Expect(memLog.String()).To(ContainSubstring("/proc/cmdline parsing returned errors while unmarshalling"))
 		Expect(memLog.String()).ToNot(ContainSubstring("Some errors found but were ignored. Enable --strict mode to fail on those or --debug to see them in the log"))
 	})
 
