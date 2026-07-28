@@ -25,7 +25,7 @@ import (
 	agentConfig "github.com/kairos-io/kairos-agent/v2/pkg/config"
 	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
 	v1 "github.com/kairos-io/kairos-agent/v2/pkg/implementations/spec"
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
+	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos-agent/v2/tests/mocks"
 	ghwMock "github.com/kairos-io/kairos-sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
@@ -236,6 +236,76 @@ var _ = Describe("Reset action tests", func() {
 				extractor.SideEffect = func(imageRef, destination, platformRef string) error {
 					return fmt.Errorf("error")
 				}
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Fails if some hook fails and strict is set", func() {
+				config.Strict = true
+				cloudInit.Error = true
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Fails formatting the persistent partition", func() {
+				spec.FormatPersistent = true
+				cmdFail = "mkfs.ext4"
+				Expect(reset.Run()).NotTo(BeNil())
+				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}}))
+			})
+			It("Fails unmounting the persistent partition", func() {
+				spec.FormatPersistent = true
+				spec.Partitions.Persistent.MountPoint = "/usr/local"
+				Expect(mounter.Mount("/dev/device5", "/usr/local", "auto", []string{"rw"})).To(Succeed())
+				mounter.ErrorOnUnmount = true
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Fails formatting the OEM partition", func() {
+				spec.FormatOEM = true
+				spec.FormatPersistent = false
+				cmdFail = "mkfs.ext4"
+				Expect(reset.Run()).NotTo(BeNil())
+				Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}}))
+			})
+			It("Fails unmounting the OEM partition", func() {
+				spec.FormatOEM = true
+				Expect(mounter.Mount("/dev/device2", "/oem", "auto", []string{"rw"})).To(Succeed())
+				mounter.ErrorOnUnmount = true
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Fails mounting back the OEM partition", func() {
+				spec.FormatOEM = true
+				mounter.ErrorOnMount = true
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Fails installing grub", func() {
+				err := config.Fs.Remove(filepath.Join(spec.Active.MountPoint, "/usr/share/efi/x86_64/", "shim.efi"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Successfully resets with mounted persistent and OEM partitions", func() {
+				// Do not format persistent so it stays mounted during the reset
+				spec.FormatPersistent = false
+				spec.Partitions.Persistent.MountPoint = "/usr/local"
+				Expect(mounter.Mount("/dev/device5", "/usr/local", "auto", []string{"rw"})).To(Succeed())
+				Expect(mounter.Mount("/dev/device2", "/oem", "auto", []string{"rw"})).To(Succeed())
+				Expect(reset.Run()).To(BeNil())
+			})
+			It("Fails on the after-reset-chroot hook when strict", func() {
+				// Stages read the cmdline, so it needs to exist for the other stages to pass
+				_ = fsutils.MkdirAll(fs, "/proc", constants.DirPerm)
+				Expect(fs.WriteFile("/proc/cmdline", []byte("foo"), constants.FilePerm)).ToNot(HaveOccurred())
+				config.Strict = true
+				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterResetChrootHook}
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Fails on the after-reset hook when strict", func() {
+				// Stages read the cmdline, so it needs to exist for the other stages to pass
+				_ = fsutils.MkdirAll(fs, "/proc", constants.DirPerm)
+				Expect(fs.WriteFile("/proc/cmdline", []byte("foo"), constants.FilePerm)).ToNot(HaveOccurred())
+				config.Strict = true
+				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterResetHook}
+				Expect(reset.Run()).NotTo(BeNil())
+			})
+			It("Fails to set the default grub entry", func() {
+				// Make the grub env file a directory so writing the default entry fails
+				Expect(fsutils.MkdirAll(fs, filepath.Join(spec.Partitions.State.MountPoint, constants.GrubOEMEnv), constants.DirPerm)).ToNot(HaveOccurred())
 				Expect(reset.Run()).NotTo(BeNil())
 			})
 		})

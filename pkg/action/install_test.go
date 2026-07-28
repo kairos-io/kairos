@@ -243,6 +243,30 @@ var _ = Describe("Install action tests", func() {
 			Expect(file).To(ContainSubstring(constants.EjectScript))
 		})
 
+		It("Warns when the eject script cannot be written", func() {
+			// Do not create the /usr/lib/systemd/system-shutdown dir so the write fails
+			// Override cmdline to return like we are booting from cd
+			_ = fsutils.MkdirAll(fs, "/proc", constants.DirPerm)
+			Expect(fs.WriteFile("/proc/cmdline", []byte("cdroot"), constants.FilePerm)).ToNot(HaveOccurred())
+
+			spec.Target = device
+			config.EjectCD = true
+			Expect(installer.Run()).To(BeNil())
+			_, err = fs.Stat("/usr/lib/systemd/system-shutdown/eject")
+			Expect(err).To(HaveOccurred())
+			Expect(memLog.String()).To(ContainSubstring("Could not write eject script"))
+		})
+
+		It("Successfully installs without formatting picking the pre-configured device", Label("no-format", "disk"), func() {
+			spec.NoFormat = true
+			spec.Force = true
+			spec.Target = ""
+			Expect(installer.Run()).To(BeNil())
+			// The ghw mock disk contains a COS_STATE partition, so the device should be detected
+			Expect(spec.Target).To(Equal("/dev/device"))
+			Expect(memLog.String()).To(ContainSubstring("using pre-configured device"))
+		})
+
 		It("ejectcd does nothing if we are not booting from cd", func() {
 			_ = fsutils.MkdirAll(fs, "/usr/lib/systemd/system-shutdown", constants.DirPerm)
 			_, err := fs.Stat("/usr/lib/systemd/system-shutdown/eject")
@@ -292,6 +316,34 @@ var _ = Describe("Install action tests", func() {
 			spec.Target = device
 			config.Strict = true
 			cloudInit.Error = true
+			Expect(installer.Run()).NotTo(BeNil())
+		})
+
+		It("Fails on the after-install-chroot hook when strict", Label("strict"), func() {
+			// Stages read the cmdline, so it needs to exist for the other stages to pass
+			_ = fsutils.MkdirAll(fs, "/proc", constants.DirPerm)
+			Expect(fs.WriteFile("/proc/cmdline", []byte("foo"), constants.FilePerm)).ToNot(HaveOccurred())
+			spec.Target = device
+			config.Strict = true
+			config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterInstallChrootHook}
+			Expect(installer.Run()).NotTo(BeNil())
+		})
+
+		It("Fails on the after-install hook when strict", Label("strict"), func() {
+			// Stages read the cmdline, so it needs to exist for the other stages to pass
+			_ = fsutils.MkdirAll(fs, "/proc", constants.DirPerm)
+			Expect(fs.WriteFile("/proc/cmdline", []byte("foo"), constants.FilePerm)).ToNot(HaveOccurred())
+			spec.Target = device
+			config.Strict = true
+			config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterInstallHook}
+			Expect(installer.Run()).NotTo(BeNil())
+		})
+
+		It("Fails to set the default grub entry", Label("grub"), func() {
+			spec.Target = device
+			spec.GrubDefEntry = "Kairos"
+			// Make the grub env file a directory so writing the default entry fails
+			Expect(fsutils.MkdirAll(fs, filepath.Join(spec.Partitions.State.MountPoint, constants.GrubOEMEnv), constants.DirPerm)).ToNot(HaveOccurred())
 			Expect(installer.Run()).NotTo(BeNil())
 		})
 

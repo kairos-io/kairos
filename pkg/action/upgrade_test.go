@@ -34,11 +34,38 @@ import (
 	sdkImages "github.com/kairos-io/kairos-sdk/types/images"
 	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos-sdk/types/partitions"
+	"github.com/mudler/yip/pkg/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
+
+// stageFailCloudInitRunner is a CloudInitRunner that only fails for a given stage,
+// so hook error paths beyond the first hook can be exercised.
+type stageFailCloudInitRunner struct {
+	failStage string
+}
+
+func (c *stageFailCloudInitRunner) Run(stage string, args ...string) error {
+	if stage == c.failStage {
+		return fmt.Errorf("failure on stage %s", stage)
+	}
+	return nil
+}
+
+func (c *stageFailCloudInitRunner) SetModifier(_ schema.Modifier) {}
+
+func (c *stageFailCloudInitRunner) Analyze(_ string, _ ...string) {}
+
+// failingMountSyscall fails all syscall mount calls, used to trigger cleanup errors
+type failingMountSyscall struct {
+	*v1mock.FakeSyscall
+}
+
+func (f *failingMountSyscall) Mount(_ string, _ string, _ string, _ uintptr, _ string) error {
+	return fmt.Errorf("syscall mount failure")
+}
 
 var _ = Describe("Upgrade Actions test", func() {
 	var config *sdkConfig.Config
@@ -313,6 +340,128 @@ var _ = Describe("Upgrade Actions test", func() {
 				_, err = fs.Stat(spec.Active.File)
 				Expect(err).To(HaveOccurred())
 			})
+			It("Logs with the action helpers", func() {
+				upgrade = action.NewUpgradeAction(config, spec)
+				upgrade.Info("info %s", "message")
+				upgrade.Debug("debug %s", "message")
+				upgrade.Error("error %s", "message")
+				Expect(memLog.String()).To(ContainSubstring("info message"))
+				Expect(memLog.String()).To(ContainSubstring("debug message"))
+				Expect(memLog.String()).To(ContainSubstring("error message"))
+			})
+			It("Fails if the state partition cannot be remounted RW", func() {
+				// Also remove the cmdline so the boot detection fails and logs a warning
+				Expect(fs.RemoveAll("/proc/cmdline")).ToNot(HaveOccurred())
+				mounter.ErrorOnMount = true
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("error detecting boot"))
+			})
+			It("Fails if deploying the image fails", Label("docker"), func() {
+				extractor.SideEffect = func(imageRef, destination, platformRef string) error {
+					return fmt.Errorf("extraction error")
+				}
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("Failed deploying image"))
+			})
+			It("Fails if labeling the passive image fails", Label("docker"), func() {
+				runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+					if command == "tune2fs" {
+						return []byte{}, fmt.Errorf("tune2fs failure")
+					}
+					return []byte{}, nil
+				}
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("Error while labeling the passive image"))
+			})
+			It("Fails if the active image cannot be backed up", Label("docker"), func() {
+				// Replace the active image with a directory so the backup rename fails
+				Expect(fs.RemoveAll(activeImg)).ToNot(HaveOccurred())
+				Expect(fsutils.MkdirAll(fs, filepath.Join(activeImg, "subdir"), constants.DirPerm)).ToNot(HaveOccurred())
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("Failed to move"))
+			})
+			It("Fails on the after-upgrade-chroot hook when strict", Label("docker"), func() {
+				config.Strict = true
+				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterUpgradeChrootHook}
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(constants.AfterUpgradeChrootHook))
+				Expect(memLog.String()).To(ContainSubstring("Error running hook after-upgrade-chroot"))
+			})
+			It("Fails on the after-upgrade hook when strict", Label("docker"), func() {
+				config.Strict = true
+				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterUpgradeHook}
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("Error running hook after-upgrade"))
+			})
+			It("Fails relabeling when umounting the chroot binds fails", Label("docker"), func() {
+				mounter.ErrorOnUnmount = true
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+			})
+			It("Warns but does not fail when the rebranding fails", Label("docker"), func() {
+				// Make the grub env file a directory so writing the default entry fails
+				Expect(fsutils.MkdirAll(fs, filepath.Join(constants.RunningStateDir, constants.GrubOEMEnv), constants.DirPerm)).ToNot(HaveOccurred())
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("failure while rebranding GRUB default entry"))
+			})
+			It("Warns but does not fail when cleanup fails", Label("docker"), func() {
+				config.Syscall = &failingMountSyscall{FakeSyscall: syscall}
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("failure during cleanup"))
+			})
+			It("Successfully upgrades with persistent and OEM partitions", Label("docker"), func() {
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				spec.Partitions.Persistent = &sdkPartitions.Partition{
+					Name:            "device7",
+					FilesystemLabel: constants.PersistentLabel,
+					FS:              "ext4",
+					MountPoint:      "/usr/local",
+					Path:            "/dev/device7",
+				}
+				spec.Partitions.OEM = &sdkPartitions.Partition{
+					Name:            "device6",
+					FilesystemLabel: constants.OEMLabel,
+					FS:              "ext4",
+					MountPoint:      "/oem",
+					Path:            "/dev/device6",
+				}
+				// OEM is already mounted, persistent will be mounted by the upgrade
+				mounter.Mount("/dev/device6", "/oem", "auto", []string{"ro"})
+
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).ToNot(HaveOccurred())
+
+				// This should be the new image
+				info, err := fs.Stat(activeImg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.Size()).To(BeNumerically("==", int64(spec.Active.Size*1024*1024)))
+			})
 			It("Successfully upgrades from directory", Label("directory"), func() {
 				dirSrc, _ := fsutils.TempDir(fs, "", "elementalupgrade")
 				// Create the dir on real os as rsync works on the real os
@@ -451,6 +600,16 @@ var _ = Describe("Upgrade Actions test", func() {
 				_, err = fs.Stat(spec.Active.File)
 				Expect(err).To(HaveOccurred())
 
+			})
+			It("Fails moving the transition image to active", Label("docker"), func() {
+				// Replace the active image with a directory so the final rename fails
+				Expect(fs.RemoveAll(activeImg)).ToNot(HaveOccurred())
+				Expect(fsutils.MkdirAll(fs, filepath.Join(activeImg, "subdir"), constants.DirPerm)).ToNot(HaveOccurred())
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				err := upgrade.Run()
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("Failed to move"))
 			})
 			It("Sets next_entry to cos when upgrading from passive so the new active is tried on reboot", Label("bootentry"), func() {
 				Expect(fsutils.MkdirAll(fs, "/etc/cos", constants.DirPerm)).To(Succeed())

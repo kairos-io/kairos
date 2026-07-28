@@ -3,14 +3,17 @@ package action
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 
 	agentConfig "github.com/kairos-io/kairos-agent/v2/pkg/config"
+	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
 	"github.com/kairos-io/kairos-agent/v2/pkg/utils"
 	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos-agent/v2/tests/mocks"
 	"github.com/kairos-io/kairos-sdk/collector"
 	ghwMock "github.com/kairos-io/kairos-sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
+	sdkInstall "github.com/kairos-io/kairos-sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos-sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
@@ -20,6 +23,9 @@ import (
 )
 
 // TODO: Mock the syscall.StatFS to simulate and test RO/RW partitions and how it mounts it and unmounts it
+
+// Keep a reference to the original version probe before any test overrides it
+var origGetSystemdBootMajorVersion = getSystemdBootMajorVersion
 
 var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 	var config *sdkConfig.Config
@@ -110,6 +116,40 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			It("fails to list the boot entries when there is no loader.conf", func() {
 				err := ListBootEntries(config)
 				Expect(err).To(HaveOccurred())
+			})
+			It("fails to list the boot entries when the EFI partition is missing", func() {
+				ghwTest.Clean()
+				err := ListBootEntries(config)
+				Expect(err).To(HaveOccurred())
+			})
+			It("fails to list the boot entries when the EFI partition cannot be mounted", func() {
+				mounter.ErrorOnMount = true
+				err := ListBootEntries(config)
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("could not mount EFI partition"))
+			})
+			It("defaults to the EFI dir when the EFI partition has no mountpoint", func() {
+				// Recreate the ghw mock with an EFI partition without a mountpoint
+				ghwTest.Clean()
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.AddDisk(sdkPartitions.Disk{
+					Name: "device",
+					Partitions: []*sdkPartitions.Partition{
+						{
+							Name:            "device1",
+							FilesystemLabel: "COS_GRUB",
+							FS:              "ext4",
+						},
+					},
+				})
+				ghwTest.CreateDevices()
+				// The prompt fails as there is no TTY, but the partition was mounted on the default dir
+				err := ListBootEntries(config)
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("Mounting partition COS_GRUB"))
+				// The partition is unmounted again by the cleanup
+				_, err = fs.Stat(cnst.EfiDir)
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 		Context("ListSystemdEntries", func() {
@@ -310,6 +350,24 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 				Expect(ReadOneShotEfiVar(config)).To(Equal("active_foobar.conf"))
 			})
 
+			It("fails when the EFI partition cannot be found", func() {
+				ghwTest.Clean()
+				err := SelectBootEntry(config, "cos")
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("fails when the efi var cannot be written", func() {
+				err := fs.WriteFile("/efi/loader/entries/active.conf", []byte("title kairos\nefi /EFI/kairos/active.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/loader.conf", []byte("default active.conf"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(fs.RemoveAll("/sys/firmware/efi/efivars")).To(Succeed())
+
+				err = SelectBootEntry(config, "active")
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("could not write EFI variable"))
+			})
+
 			// systemd-boot 256 requires the boot assessment suffix in the EFI variable entry ID.
 			Context("systemd-boot 256 workaround", func() {
 				BeforeEach(func() {
@@ -347,6 +405,20 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 					err = SelectBootEntry(config, "active")
 					Expect(err).ToNot(HaveOccurred())
 					Expect(ReadOneShotEfiVar(config)).To(Equal("active+2-1.conf"))
+				})
+
+				It("fails when multiple assessment files match the selected entry", func() {
+					err := fs.WriteFile("/efi/loader/entries/active+3.conf", []byte("title kairos\nefi /EFI/kairos/active.efi\n"), os.ModePerm)
+					Expect(err).ToNot(HaveOccurred())
+					err = fs.WriteFile("/efi/loader/entries/active+2-1.conf", []byte("title kairos\nefi /EFI/kairos/active.efi\n"), os.ModePerm)
+					Expect(err).ToNot(HaveOccurred())
+					err = fs.WriteFile("/efi/loader/loader.conf", []byte(""), os.ModePerm)
+					Expect(err).ToNot(HaveOccurred())
+
+					err = SelectBootEntry(config, "cos")
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("ambiguous"))
+					Expect(memLog.String()).To(ContainSubstring("could not resolve boot entry"))
 				})
 
 				It("includes the assessment suffix in the EFI var for an extra-cmdline installation", func() {
@@ -399,6 +471,113 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 		})
 	})
 
+	Context("conf name conversions", func() {
+		It("systemdConfToBootName fails for non conf files", func() {
+			name, err := systemdConfToBootName("active")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("unknown systemd-boot conf"))
+			Expect(name).To(Equal(""))
+		})
+		It("systemdConfToBootName converts conf files to boot names", func() {
+			Expect(systemdConfToBootName("active.conf")).To(Equal("cos"))
+			Expect(systemdConfToBootName("active_foo.conf")).To(Equal("cos foo"))
+			Expect(systemdConfToBootName("passive.conf")).To(Equal("fallback"))
+			Expect(systemdConfToBootName("passive+3.conf")).To(Equal("fallback"))
+			Expect(systemdConfToBootName("passive_bar.conf")).To(Equal("fallback bar"))
+			Expect(systemdConfToBootName("recovery.conf")).To(Equal("recovery"))
+			Expect(systemdConfToBootName("recovery_baz.conf")).To(Equal("recovery baz"))
+			Expect(systemdConfToBootName("statereset.conf")).To(Equal("statereset"))
+			Expect(systemdConfToBootName("statereset_qux.conf")).To(Equal("statereset qux"))
+			Expect(systemdConfToBootName("my_custom_entry.conf")).To(Equal("my custom entry"))
+		})
+		It("bootNameToSystemdConf converts boot names to conf names", func() {
+			Expect(bootNameToSystemdConf("cos")).To(Equal("active"))
+			Expect(bootNameToSystemdConf("cos foo")).To(Equal("active_foo"))
+			Expect(bootNameToSystemdConf("active")).To(Equal("active"))
+			Expect(bootNameToSystemdConf("active foo")).To(Equal("active_foo"))
+			Expect(bootNameToSystemdConf("fallback")).To(Equal("passive"))
+			Expect(bootNameToSystemdConf("fallback bar")).To(Equal("passive_bar"))
+			Expect(bootNameToSystemdConf("recovery")).To(Equal("recovery"))
+			Expect(bootNameToSystemdConf("recovery baz")).To(Equal("recovery_baz"))
+			Expect(bootNameToSystemdConf("statereset")).To(Equal("statereset"))
+			Expect(bootNameToSystemdConf("statereset qux")).To(Equal("statereset_qux"))
+			Expect(bootNameToSystemdConf("my custom entry")).To(Equal("my_custom_entry"))
+		})
+	})
+
+	Context("efi variables", func() {
+		It("ReadOneShotEfiVar fails when the variable does not exist", func() {
+			_, err := ReadOneShotEfiVar(config)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("couldn't open file"))
+		})
+		It("WriteOneShotEfiVar fails when the efivars dir does not exist", func() {
+			Expect(fs.RemoveAll("/sys/firmware/efi/efivars")).To(Succeed())
+			err := WriteOneShotEfiVar(config, "active.conf")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("couldn't open file"))
+		})
+		It("encodes and decodes UTF16 LE strings with NUL terminators", func() {
+			encoded := EncondeUtf16LEStringNullTerminated("active.conf")
+			Expect(ReadUtf16LEStringNullTerminated(encoded)).To(Equal("active.conf"))
+		})
+	})
+
+	Context("getSystemdBootMajorVersion", func() {
+		It("returns 0 when the systemd-boot binary cannot be read", func() {
+			Expect(origGetSystemdBootMajorVersion("/nonexistent")).To(Equal(uint16(0)))
+		})
+	})
+
+	Context("clearImmutable", func() {
+		It("does nothing for non existing files", func() {
+			Expect(clearImmutable("/this/does/not/exist/at/all")).To(Succeed())
+		})
+		It("returns an error when the file cannot be opened", func() {
+			if os.Geteuid() == 0 {
+				Skip("running as root, permissions are not enforced")
+			}
+			dir := GinkgoT().TempDir()
+			file := filepath.Join(dir, "file")
+			Expect(os.WriteFile(file, []byte("contents"), 0644)).To(Succeed())
+			Expect(os.Chmod(dir, 0o000)).To(Succeed())
+			DeferCleanup(func() {
+				_ = os.Chmod(dir, 0o755)
+			})
+			Expect(clearImmutable(file)).ToNot(Succeed())
+		})
+		It("does nothing for files without the immutable flag", func() {
+			f, err := os.CreateTemp("", "clearimmutable")
+			Expect(err).ToNot(HaveOccurred())
+			defer os.Remove(f.Name())
+			Expect(f.Close()).To(Succeed())
+			// A normal file has no immutable flag, so this should be a no-op.
+			// Depending on the filesystem the ioctl may not be supported, in which
+			// case an errno is returned, which is also a valid covered path.
+			_ = clearImmutable(f.Name())
+		})
+	})
+
+	Context("listSystemdEntries edge cases", func() {
+		It("returns no entries when the entries dir does not exist", func() {
+			entries, err := listSystemdEntries(config, &sdkPartitions.Partition{MountPoint: "/nonexistent"})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(entries).To(HaveLen(0))
+		})
+		It("skips dirs and non conf files", func() {
+			err := fsutils.MkdirAll(fs, "/efi/loader/entries/somedir", os.ModeDir|os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = fs.WriteFile("/efi/loader/entries/notaconf.txt", []byte("whatever"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			err = fs.WriteFile("/efi/loader/entries/active.conf", []byte("title kairos\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+
+			entries, err := listSystemdEntries(config, &sdkPartitions.Partition{MountPoint: "/efi"})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(entries).To(Equal([]string{"cos"}))
+		})
+	})
+
 	Context("findEntryWithAssessment", func() {
 		It("returns the base name unchanged when no assessment file exists", func() {
 			err := fs.WriteFile("/efi/loader/entries/active.conf", []byte("title kairos\n"), os.ModePerm)
@@ -428,6 +607,13 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(result).To(Equal("active"))
 		})
+		It("returns an error when the entries dir cannot be read", func() {
+			Expect(fs.RemoveAll("/efi/loader/entries")).To(Succeed())
+			result, err := findEntryWithAssessment(config, "/efi", "active")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to inspect"))
+			Expect(result).To(Equal("active"))
+		})
 		It("returns an error when multiple assessment files match the same base name", func() {
 			err := fs.WriteFile("/efi/loader/entries/active+3.conf", []byte("title kairos\n"), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
@@ -444,6 +630,13 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 		Context("ListBootEntries", func() {
 			It("fails to list the boot entries when there is no grub files", func() {
 				err := ListBootEntries(config)
+				Expect(err).To(HaveOccurred())
+			})
+			It("fails on the interactive prompt when there is no terminal", func() {
+				err := fs.WriteFile("/etc/cos/grub.cfg", []byte("whatever whatever --id kairos {"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				// There is no TTY in the test environment so the prompt fails
+				err = ListBootEntries(config)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -533,6 +726,112 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 				variables, err := utils.ReadPersistentVariables("/oem/grubenv", config)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(variables["next_entry"]).To(Equal("kairos"))
+			})
+			It("fails to select the boot entry if there is no grub config", func() {
+				err := SelectBootEntry(config, "kairos")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("failed to get any required GRUB configuration file"))
+			})
+			It("fails to select the boot entry if the grubenv cannot be written", func() {
+				err := fs.WriteFile("/etc/cos/grub.cfg", []byte("whatever whatever --id kairos {"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				// No /oem dir, so writing /oem/grubenv fails
+				err = SelectBootEntry(config, "kairos")
+				Expect(err).To(HaveOccurred())
+				Expect(memLog.String()).To(ContainSubstring("could not set default boot entry"))
+			})
+			Context("with encrypted OEM", func() {
+				BeforeEach(func() {
+					config.Install = &sdkInstall.Install{Encrypt: []string{cnst.OEMLabel}}
+					err := fs.WriteFile("/etc/cos/grub.cfg", []byte("whatever whatever --id kairos {"), os.ModePerm)
+					Expect(err).ToNot(HaveOccurred())
+				})
+				It("writes the next entry to the STATE grubenv", func() {
+					// Recreate the ghw mock with a COS_STATE partition so the device can be found
+					ghwTest.Clean()
+					ghwTest = ghwMock.GhwMock{}
+					ghwTest.AddDisk(sdkPartitions.Disk{
+						Name: "device",
+						Partitions: []*sdkPartitions.Partition{
+							{
+								Name:            "device1",
+								FilesystemLabel: "COS_GRUB",
+								FS:              "ext4",
+								MountPoint:      "/efi",
+							},
+							{
+								Name:            "device2",
+								FilesystemLabel: "COS_STATE",
+								FS:              "ext4",
+							},
+						},
+					})
+					ghwTest.CreateDevices()
+					Expect(fsutils.MkdirAll(fs, cnst.StateDir, os.ModeDir|os.ModePerm)).To(Succeed())
+
+					err := SelectBootEntry(config, "kairos")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(memLog.String()).To(ContainSubstring("also writing to STATE partition's grubenv"))
+					Expect(memLog.String()).To(ContainSubstring("Successfully set next_entry in STATE grubenv"))
+					variables, err := utils.ReadPersistentVariables(filepath.Join(cnst.StateDir, cnst.GrubEnv), config)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(variables["next_entry"]).To(Equal("kairos"))
+					// Nothing should have been written to the OEM grubenv
+					_, err = fs.Stat("/oem/grubenv")
+					Expect(err).To(HaveOccurred())
+				})
+				It("warns when the STATE grubenv cannot be written", func() {
+					// Recreate the ghw mock with a COS_STATE partition so the device can be found
+					ghwTest.Clean()
+					ghwTest = ghwMock.GhwMock{}
+					ghwTest.AddDisk(sdkPartitions.Disk{
+						Name: "device",
+						Partitions: []*sdkPartitions.Partition{
+							{
+								Name:            "device2",
+								FilesystemLabel: "COS_STATE",
+								FS:              "ext4",
+							},
+						},
+					})
+					ghwTest.CreateDevices()
+					// No StateDir in the fs, so writing the grubenv fails
+
+					err := SelectBootEntry(config, "kairos")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(memLog.String()).To(ContainSubstring("Could not set default boot entry in STATE grubenv"))
+				})
+				It("does nothing when the STATE device cannot be found", func() {
+					// Default ghw mock has no COS_STATE partition
+					err := SelectBootEntry(config, "kairos")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(memLog.String()).To(ContainSubstring("Could not get STATE device by label"))
+				})
+				It("warns when the STATE partition cannot be remounted RW", func() {
+					// Recreate the ghw mock with a COS_STATE partition so the device can be found
+					ghwTest.Clean()
+					ghwTest = ghwMock.GhwMock{}
+					ghwTest.AddDisk(sdkPartitions.Disk{
+						Name: "device",
+						Partitions: []*sdkPartitions.Partition{
+							{
+								Name:            "device2",
+								FilesystemLabel: "COS_STATE",
+								FS:              "ext4",
+							},
+						},
+					})
+					ghwTest.CreateDevices()
+					Expect(fsutils.MkdirAll(fs, cnst.StateDir, os.ModeDir|os.ModePerm)).To(Succeed())
+					mounter.ErrorOnMount = true
+
+					err := SelectBootEntry(config, "kairos")
+					Expect(err).ToNot(HaveOccurred())
+					Expect(memLog.String()).To(ContainSubstring("Could not remount STATE partition as RW"))
+					variables, err := utils.ReadPersistentVariables(filepath.Join(cnst.StateDir, cnst.GrubEnv), config)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(variables["next_entry"]).To(Equal("kairos"))
+				})
 			})
 		})
 	})

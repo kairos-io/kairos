@@ -17,6 +17,9 @@ limitations under the License.
 package syscall_test
 
 import (
+	"os"
+	sc "syscall"
+
 	v1 "github.com/kairos-io/kairos-agent/v2/pkg/implementations/syscall"
 	v1mock "github.com/kairos-io/kairos-agent/v2/tests/mocks"
 	. "github.com/onsi/ginkgo/v2"
@@ -53,5 +56,18 @@ var _ = Describe("Syscall", Label("types", "syscall"), func() {
 		r := v1.RealSyscall{}
 		err := r.Mount("source", "target", "fstype", 0, "data")
 		Expect(err).To(HaveOccurred())
+	})
+	It("Calling chroot on the real syscall fails (nonexistent path)", func() {
+		r := v1.RealSyscall{}
+		// Use a path that does not exist so the call fails regardless of privileges
+		// and never actually chroots the test process.
+		err := r.Chroot("/this/path/does/not/exist")
+		Expect(err).To(HaveOccurred())
+	})
+	It("Calling Syscall on the real syscall works (getpid)", func() {
+		r := v1.RealSyscall{}
+		pid, _, errno := r.Syscall(sc.SYS_GETPID, 0, 0, 0)
+		Expect(errno).To(BeEquivalentTo(0))
+		Expect(int(pid)).To(Equal(os.Getpid()))
 	})
 })

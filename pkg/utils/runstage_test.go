@@ -18,8 +18,11 @@ package utils_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
+
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/kairos-io/kairos-agent/v2/pkg/cloudinit"
 	agentConfig "github.com/kairos-io/kairos-agent/v2/pkg/config"
@@ -40,6 +43,16 @@ func writeCmdline(s string, fs sdkFs.KairosFS) error {
 		return err
 	}
 	return fs.WriteFile("/proc/cmdline", []byte(s), os.ModePerm)
+}
+
+// multiErrorCIRunner fails every stage with a multierror that does not wrap
+// yaml type errors, so it is not absorbed as a partial unmarshal failure.
+type multiErrorCIRunner struct {
+	v1mock.FakeCloudInitRunner
+}
+
+func (c *multiErrorCIRunner) Run(stage string, args ...string) error {
+	return multierror.Append(nil, errors.New("generic cloud init failure"))
 }
 
 var _ = Describe("run stage", Label("RunStage"), func() {
@@ -139,5 +152,43 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 		Expect(utils.RunStage(config, "leia")).To(BeNil())
 		Expect(memLog.String()).To(ContainSubstring("/proc/cmdline parsing returned errors while unmarshalling"))
 		Expect(memLog.String()).ToNot(ContainSubstring("Some errors found but were ignored. Enable --strict mode to fail on those or --debug to see them in the log"))
+	})
+
+	It("fails in strict mode with non-yaml cloud init errors", func() {
+		config.Logger.SetLevel("debug")
+		config.Strict = true
+		config.CloudInitRunner = &multiErrorCIRunner{}
+		// A cos.setup stanza triggers the extra cmdline stage runs too
+		writeCmdline("cos.setup=/some/file.yaml", fs)
+		// An uncreatable cloud-init path exercises the debug log branch
+		Expect(fs.WriteFile("/blocked-ci", []byte(""), os.ModePerm)).To(Succeed())
+		config.CloudInitPaths = []string{"/blocked-ci/path"}
+
+		err := utils.RunStage(config, "jarjar")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("generic cloud init failure"))
+		Expect(memLog.String()).To(ContainSubstring("Failed creating cloud-init config path"))
+	})
+
+	It("analyzes the stages without running them", func() {
+		config.Logger.SetLevel("debug")
+		mock := &v1mock.FakeCloudInitRunner{}
+		config.CloudInitRunner = mock
+
+		Expect(utils.RunStageAnalyze(config, "obiwan")).To(BeNil())
+		Expect(memLog.String()).To(ContainSubstring("Analyze mode, showing DAG"))
+		// Analyze must not run any stage
+		Expect(mock.ExecStages).To(BeEmpty())
+	})
+
+	It("analyzes the stages when a cos.setup stanza is present", func() {
+		config.Logger.SetLevel("debug")
+		mock := &v1mock.FakeCloudInitRunner{}
+		config.CloudInitRunner = mock
+		writeCmdline("cos.setup=/some/file.yaml", fs)
+
+		Expect(utils.RunStageAnalyze(config, "anakin")).To(BeNil())
+		Expect(memLog.String()).To(ContainSubstring("Analyze mode, showing DAG"))
+		Expect(mock.ExecStages).To(BeEmpty())
 	})
 })
