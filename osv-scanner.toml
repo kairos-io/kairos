@@ -8,5 +8,5 @@ reason = "No fix available in github.com/google/go-attestation yet; pulled in tr
 
 [[IgnoredVulns]]
 id = "GO-2026-5932"
-ignoreUntil = 2026-07-27
+ignoreUntil = 2026-10-27
 reason = "Indirect golang.org/x/crypto dep from kairos-sdk; we do not import golang.org/x/crypto/openpgp. Re-check after upstream/SDK dependency updates."
