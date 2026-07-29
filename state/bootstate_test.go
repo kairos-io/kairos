@@ -21,6 +21,48 @@ var _ = DescribeTable("getNonUKIBootState",
 	Entry("no marker => Unknown", "root=/dev/vda1 ro quiet", Unknown),
 )
 
+var _ = DescribeTable("DetectInRAM",
+	func(cmdline string, want bool) { Expect(DetectInRAM(cmdline)).To(Equal(want)) },
+	Entry("absent", "root=LABEL=COS_ACTIVE ro quiet", false),
+	Entry("bare toggle", "kairos.ram", true),
+	Entry("bare toggle alongside livecd", "root=live:LABEL=COS_LIVE ro kairos.ram rd.live.ram=1", true),
+	Entry("bare toggle alongside recovery", "root=LABEL=COS_RECOVERY kairos.ram", true),
+	Entry("bare toggle with ignored value", "kairos.ram=yes", true),
+	Entry("child kairos.ram.auto_create_partitions", "root=LABEL=COS_ACTIVE kairos.ram.auto_create_partitions", true),
+	Entry("child kairos.ram.oem=64", "root=LABEL=COS_ACTIVE kairos.ram.oem=64", true),
+	Entry("child kairos.ram.wipe", "root=LABEL=COS_ACTIVE kairos.ram.wipe", true),
+	Entry("substring without namespace boundary must NOT match", "root=/dev/sda1 kairos.ramnottreally=1", false),
+	Entry("empty cmdline", "", false),
+)
+
+var _ = Describe("DetectInRAMWithVFS", func() {
+	withCmdline := func(cmdline string) *vfst.TestFS {
+		fs, _, err := vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": cmdline})
+		Expect(err).ToNot(HaveOccurred())
+		return fs
+	}
+
+	It("returns true when kairos.ram is present", func() {
+		v, err := DetectInRAMWithVFS(withCmdline("root=live:LABEL=COS_LIVE ro kairos.ram"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(v).To(BeTrue())
+	})
+
+	It("returns false when kairos.ram is absent", func() {
+		v, err := DetectInRAMWithVFS(withCmdline("root=LABEL=COS_ACTIVE ro"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(v).To(BeFalse())
+	})
+
+	It("returns an error when /proc/cmdline is unreadable", func() {
+		fs, _, err := vfst.NewTestFS(map[string]interface{}{})
+		Expect(err).ToNot(HaveOccurred())
+		v, err := DetectInRAMWithVFS(fs)
+		Expect(err).To(HaveOccurred())
+		Expect(v).To(BeFalse())
+	})
+})
+
 var _ = Describe("DetectBootWithVFS", func() {
 	withCmdline := func(cmdline string) *vfst.TestFS {
 		fs, _, err := vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": cmdline})
@@ -36,6 +78,12 @@ var _ = Describe("DetectBootWithVFS", func() {
 
 	It("recognises an active boot", func() {
 		b, err := DetectBootWithVFS(withCmdline("root=LABEL=COS_ACTIVE ro"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(b).To(Equal(Active))
+	})
+
+	It("classifies an in-RAM boot as Active even from a live medium", func() {
+		b, err := DetectBootWithVFS(withCmdline("root=live:LABEL=COS_LIVE ro kairos.ram rd.live.ram=1"))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(b).To(Equal(Active))
 	})
