@@ -203,6 +203,51 @@ var _ = Describe("mount utils", func() {
 			Expect(utils.IsUKI()).To(BeTrue())
 		})
 	})
+	Context("ConsoleDevices", func() {
+		It("Falls back to the conventional trio when no console= present", func() {
+			Expect(utils.ConsoleDevices()).To(Equal([]string{"/dev/tty1", "/dev/ttyS0", "/dev/console"}))
+		})
+		It("Parses a single console= entry and appends /dev/console", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("console=ttyS1\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.ConsoleDevices()).To(Equal([]string{"/dev/ttyS1", "/dev/console"}))
+		})
+		It("Parses multiple console= entries and strips baud options", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("console=tty0 console=ttyS0,115200n8\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.ConsoleDevices()).To(Equal([]string{"/dev/tty0", "/dev/ttyS0", "/dev/console"}))
+		})
+		It("Does not duplicate /dev/console when explicitly listed", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("console=console\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.ConsoleDevices()).To(Equal([]string{"/dev/console"}))
+		})
+	})
+	Context("BootInRAM", func() {
+		It("Returns false when kairos.ram is absent", func() {
+			Expect(utils.BootInRAM()).To(BeFalse())
+		})
+		It("Returns true when kairos.ram is set on its own", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("kairos.ram\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.BootInRAM()).To(BeTrue())
+		})
+		It("Returns true when kairos.ram is set alongside a live: cmdline", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("root=live:LABEL=COS_LIVE ro kairos.ram rd.live.ram=1\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.BootInRAM()).To(BeTrue())
+		})
+		It("Returns true when kairos.ram is set alongside netboot", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("netboot kairos.ram\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.BootInRAM()).To(BeTrue())
+		})
+		It("Does not match a substring token", func() {
+			err := fs.WriteFile("/proc/cmdline", []byte("kairos.ram_experimental=1\n"), os.ModePerm)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.BootInRAM()).To(BeFalse())
+		})
+	})
 	Context("ParseMount", func() {
 		It("Returns disk path by LABEL", func() {
 			Expect(utils.ParseMount("LABEL=MY_LABEL")).To(Equal("/dev/disk/by-label/MY_LABEL"))

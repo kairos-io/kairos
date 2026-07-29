@@ -93,6 +93,90 @@ The immutable rootfs can be configured with the following kernel parameters:
 
 * `rd.immucore.sysrootwait=<seconds>`: Waits for the sysroot to be mounted up to <seconds> before continuing with the boot process. This is useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready. Sometimes dracut can be really slow and the default 1 minute of waiting is not enough. In those cases you can increase this value to wait more time. Defaults to 60s.
 
+### In-RAM boot (`kairos.ram.*`)
+
+---
+
+The in-RAM workflow boots the OS entirely from memory (livecd/PXE style) while
+still mounting the local `COS_OEM` and `COS_PERSISTENT` partitions from disk,
+so cloud-config and user data behave exactly like on an installed system. The
+typical user is a PXE-served fleet: every machine boots the same image over
+the network, per-machine state lives on the local disk, and "upgrading" means
+swapping the image on the PXE server and rebooting. No `COS_STATE` /
+`COS_ACTIVE` partitions are needed on the disk.
+
+Setting any `kairos.ram.*` stanza enables the mode; the bare `kairos.ram`
+token is only needed when no other stanza is present.
+
+* `kairos.ram`: Enables the in-RAM workflow.
+
+* `kairos.ram.create_partitions`: On first boot, if `COS_OEM` and/or
+  `COS_PERSISTENT` are missing, create (and format) them automatically. With
+  no value, the largest EMPTY candidate (non-removable, non-virtual) disk is
+  auto-selected — disks that already carry a partition table are likely in
+  use by another system, so they are only picked when no empty disk exists
+  (and then the wipe guard below still applies). Largest-first matches the
+  rule kairos-agent uses for `device: auto` at install time. Boot stops with
+  a message only when no eligible disk exists at all. Existing partitions
+  are never touched: if one of the two labels already exists, only the
+  missing one is created.
+
+* `kairos.ram.create_partitions=<device>`: Same, but target an explicit disk
+  (e.g. `kairos.ram.create_partitions=/dev/vda`). The consent rules below
+  still apply — an explicit disk that belongs to another system is refused
+  without `kairos.ram.wipe`, so a typo in the device path cannot destroy or
+  alter a foreign disk.
+
+* `kairos.ram.wipe`: Consent flag for touching disks that already carry
+  partitions belonging to another system. **Destroys all data on the target
+  disk.** Without this flag such a disk stops the boot with an explanation.
+  With it, auto-selection also skips the empty-disk preference and simply
+  takes the largest disk, whatever its state.
+
+* `kairos.ram.oem=<MiB>`: Size of the created `COS_OEM` partition in MiB.
+  Defaults to 64.
+
+* `kairos.ram.persistent=<MiB>`: Size of the created `COS_PERSISTENT`
+  partition in MiB. Defaults to 0, which means "expand to the end of the
+  disk".
+
+#### Disk selection and consent rules
+
+How the target disk is resolved when partitions need creating:
+
+| Selection | `kairos.ram.wipe` | Target |
+|---|---|---|
+| `create_partitions=/dev/X` | any | `/dev/X`, verbatim |
+| bare `create_partitions` | unset | largest EMPTY candidate disk; if none is empty, largest overall (then hits the consent rule below) |
+| bare `create_partitions` | set | largest candidate disk, regardless of state |
+
+And what happens to the resolved target:
+
+| Target disk state | `kairos.ram.wipe` | Result |
+|---|---|---|
+| Empty (no partition table) | any | fresh GPT + partitions created |
+| Already carries `COS_OEM` or `COS_PERSISTENT` | any | append-only: the missing label is created next to the existing one, nothing else is touched |
+| Carries only foreign partitions | unset | **boot halts** with the wipe-required screen |
+| Carries only foreign partitions | set | fresh GPT when both labels are missing (destroys the disk), append otherwise |
+
+Candidate disks exclude removable media (USB, SD), CD-ROM and virtual
+devices (loop, ram, zram, nbd, device-mapper, md). Largest-first matches the
+rule kairos-agent uses for `device: auto` at install time.
+
+When something blocks the boot (missing partitions and no
+`create_partitions` flag, no eligible disk, foreign disk without `wipe`),
+immucore takes over the console with a full-screen message explaining what
+went wrong and the exact stanzas to fix it. On systemd systems, pressing any
+key reboots immediately, and with no input the system reboots automatically
+after 90 seconds through `systemd-reboot.service` (so boot-assessment sees
+the failed boot). On non-systemd systems (e.g. Alpine) the message is
+printed and the boot fails normally.
+
+Sentinel: in-RAM boots are classified as `active_boot` (the running system
+is the current install), so `/run/cos/active_mode` is written as usual, plus
+an additional `/run/cos/in_ram_mode` sentinel for tooling that needs to know
+the rootfs lives in a tmpfs.
+
 
 ### Configuration with an environment file
 

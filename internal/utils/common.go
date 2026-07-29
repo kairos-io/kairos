@@ -18,6 +18,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/immucore/internal/constants"
 	"github.com/kairos-io/kairos-sdk/state"
+	"golang.org/x/term"
 )
 
 // BootStateToLabelDevice lets us know the device we need to mount sysroot on based on labels.
@@ -135,24 +136,279 @@ func GetTarget(dryRun bool) (string, string, error) {
 	return imgs[0], label, nil
 }
 
-// RebootOrWait will reboot the system or wait forever.
-// It will print the error message before rebooting/waiting
-// If the rd.immucore.rebootonfailure is set in the cmdline, it will reboot.
-// If not, it will wait forever.
-// If the error is not nil it will log it.
+// RebootOrWait halts the machine (or reboots it, if
+// rd.immucore.rebootonfailure is on the cmdline) after logging msg + err.
+// Used from UKI paths (SecureBoot missing, kcrypt unlock failed) where the
+// operator does not need to fix anything at the cmdline — the machine is
+// broken enough that rebooting is the sensible default. For missing-config
+// halts that need to display an actionable message on the console, use
+// HaltWithBanner instead.
+//
+// We deliberately do issue a real syscall.Reboot to the kernel. Just
+// returning an error from immucore.service lets systemd move on to
+// initrd-switch-root.target regardless (Conflicts= only stops immucore
+// during the switch, it does not block the switch itself), so boot would
+// continue into a userland where our mounts never happened. `select {}` used
+// to be the "halt" path, but that only blocks the goroutine — same silent
+// boot-continue outcome after systemd's DefaultTimeoutStartSec kicks in.
 func RebootOrWait(msg string, err error) {
 	if err != nil {
 		KLog.Logger.Error().Err(err).Msg(msg)
 	}
+	syscall.Sync()
 	if len(ReadCMDLineArg("rd.immucore.rebootonfailure")) > 0 {
 		KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Rebooting in 10 seconds", msg))
 		time.Sleep(10 * time.Second)
-		_ = syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART)
+		if rerr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART); rerr != nil {
+			KLog.Logger.Err(rerr).Msg("reboot syscall failed; blocking to avoid boot continuation")
+			select {}
+		}
 	}
 	KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Halting boot", msg))
-	// Sleep forever.
-	// We dont want to exit and print panics or kernel panic, so we print our message and wait for the user to ctrl+alt+del
+	if herr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_HALT); herr != nil {
+		KLog.Logger.Err(herr).Msg("halt syscall failed; blocking to avoid boot continuation")
+		select {}
+	}
+}
+
+// SystemdBooted reports whether systemd is PID 1, using the same check as
+// sd_booted(3): /run/systemd/system/ exists only when systemd created it
+// during early boot. Alpine (openrc) and other non-systemd inits lack it.
+func SystemdBooted() bool {
+	st, err := os.Stat("/run/systemd/system")
+	return err == nil && st.IsDir()
+}
+
+// HaltWithBanner is the operator-facing halt used by boot-blocking
+// configuration errors (render the screen with RenderFailureScreen). Unlike
+// RebootOrWait, which just prints a one-line log message, HaltWithBanner
+// takes over the console so the message actually stays put.
+//
+// On systemd systems it never returns:
+//
+//  1. Silences kernel + systemd console logging so the banner is not
+//     clobbered ("A start job is running for ..." et al).
+//  2. Paints banner once on every console derived from the cmdline's
+//     console= stanzas, plus a footer explaining the reboot behavior.
+//  3. Spawns raw-mode key listeners on the same consoles. Any single byte
+//     triggers an immediate reboot.
+//  4. If nobody presses anything within 90 seconds, starts systemd's own
+//     systemd-reboot.service — a clean reboot through the normal machinery
+//     so boot-assessment counters (boot attempts / systemd-bless-boot) see
+//     the failed boot and can act on it.
+//  5. rd.immucore.rebootonfailure short-circuits everything above and just
+//     reboots after 10 seconds — useful for hands-off PXE fleet setups.
+//
+// On non-systemd systems (Alpine/openrc) there is no job engine holding
+// boot for us and no reboot service to trigger: paint the banner, log, and
+// RETURN so the caller can propagate a normal error — same behavior the DAG
+// had before this feature existed.
+//
+// banner is the full pre-rendered screen (ANSI codes included). logMsg is a
+// short one-liner for the structured log. err may be nil.
+func HaltWithBanner(banner, logMsg string, err error) {
+	if err != nil {
+		KLog.Logger.Error().Err(err).Msg(logMsg)
+	}
+	syscall.Sync()
+
+	consoleDevs := ConsoleDevices()
+	consoles := openConsolesForWriting(consoleDevs...)
+
+	if !SystemdBooted() {
+		// Alpine & friends: no systemd to fight over the console and no
+		// reboot service for boot assessment. Show the screen, return, let
+		// the caller fail the step normally.
+		paintBanner(consoles, banner)
+		KLog.Logger.Warn().Msg(fmt.Sprintf("%s - non-systemd host, returning error to the boot flow", logMsg))
+		return
+	}
+
+	if len(ReadCMDLineArg("rd.immucore.rebootonfailure")) > 0 {
+		KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Rebooting in 10 seconds", logMsg))
+		time.Sleep(10 * time.Second)
+		if rerr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART); rerr != nil {
+			KLog.Logger.Err(rerr).Msg("reboot syscall failed; blocking to avoid boot continuation")
+			select {}
+		}
+	}
+
+	// Best-effort silencing stack. Failure of any single step is fine — this
+	// is UX polish, not a correctness step.
+	//
+	//  1. Kernel console loglevel → EMERG-only. Kills `dmesg`-style noise.
+	//  2. systemd's own logging → target null. Kills its journal-to-console
+	//     bridge.
+	//  3. systemd's PID 1 ShowStatus → off via SIGRTMIN+21 (the show-status
+	//     OVERRIDE; the cylon job ticker re-enables the plain state on every
+	//     tick so only the override sticks; D-Bus is not reachable from the
+	//     initrd). See signalShowStatusOff for the musl/glibc signal-number
+	//     dance.
+	//  4. plymouth (if installed) re-enables status output on its own.
+	//     Quit it defensively.
+	_ = os.WriteFile("/proc/sys/kernel/printk", []byte("1 4 1 7\n"), 0o644)
+	_ = exec.Command("systemctl", "log-target", "null").Run()
+	signalShowStatusOff()
+	_ = exec.Command("plymouth", "quit", "--retain-splash").Run()
+
+	// Paint once after a short settle delay: the silencing calls above race
+	// any status line systemd already has in flight, so give those a moment
+	// to land before we draw over them. No periodic refresh — with the
+	// ticker disabled nothing else writes to the console, and repainting
+	// just flickers.
+	const grace = 90 * time.Second
+	footer := fmt.Sprintf("\n>>> Press any key to reboot now."+
+		"\n>>> Without input the system reboots automatically in %d seconds.\n", int(grace.Seconds()))
+	time.Sleep(1 * time.Second)
+	paintBanner(consoles, banner+footer)
+
+	keyPressed := make(chan struct{}, 1)
+	for _, dev := range consoleDevs {
+		go waitForKeyOn(dev, keyPressed)
+	}
+
+	select {
+	case <-keyPressed:
+		KLog.Logger.Warn().Msg("key pressed on console; rebooting")
+	case <-time.After(grace):
+		KLog.Logger.Warn().Msg("no key press within grace period; rebooting")
+	}
+
+	// Reboot through systemd's own service so the failed boot is visible to
+	// boot-assessment (boot counting / bless-boot): a raw reboot(2) would
+	// skip the shutdown machinery entirely.
+	syscall.Sync()
+	if cerr := exec.Command("systemctl", "start", "systemd-reboot.service").Run(); cerr != nil {
+		KLog.Logger.Err(cerr).Msg("starting systemd-reboot.service failed; falling back to reboot(2)")
+		if rerr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART); rerr != nil {
+			KLog.Logger.Err(rerr).Msg("reboot syscall failed; blocking to avoid boot continuation")
+		}
+	}
+	// Block while the reboot request is in flight so we never return into
+	// the DAG and let boot proceed.
 	select {}
+}
+
+// signalShowStatusOff sends SIGRTMIN+21 to PID 1, which makes systemd set
+// show_status_overridden=no. The OVERRIDE part is what matters: the cylon
+// ticker ("A start job is running for X (Ys / no limit)") re-enables plain
+// show_status on every tick via manager_flip_auto_status(m, true, "delay"),
+// so anything that only flips the non-override state (like the
+// systemd.show_status kernel param at runtime) gets immediately undone. Only
+// the override — set by SIGRTMIN+20/21 or the SetShowStatus D-Bus method —
+// survives. D-Bus is not reachable from the initrd (no dbus-daemon; busctl
+// does not speak the /run/systemd/private socket), so the signal is the only
+// initrd-safe channel.
+//
+// The signal NUMBER is libc-dependent, because systemd computes SIGRTMIN+21
+// with the libc it was built against:
+//   - glibc reserves 32-33 for NPTL      → SIGRTMIN=34 → +21 = 55
+//   - musl  reserves 32-34 internally    → SIGRTMIN=35 → +21 = 56
+//
+// Sending the wrong one is actively harmful: 55 on a musl-built systemd is
+// SIGRTMIN+20, which ENABLES status messages. Detect the libc by looking for
+// musl's dynamic loader.
+func signalShowStatusOff() {
+	sigrtmin := 34 // glibc
+	if matches, _ := filepath.Glob("/lib/ld-musl-*"); len(matches) > 0 {
+		sigrtmin = 35 // musl
+	}
+	if err := syscall.Kill(1, syscall.Signal(sigrtmin+21)); err != nil {
+		KLog.Logger.Err(err).Int("signal", sigrtmin+21).Msg("could not send show-status-off signal to PID 1")
+	}
+}
+
+// ConsoleDevices returns the console device paths the operator can actually
+// see, derived from the console= entries on the kernel cmdline (e.g.
+// console=ttyS0,115200 → /dev/ttyS0). The kernel accepts multiple console=
+// stanzas and mirrors output to all of them, so we honor every one. When the
+// cmdline names no console at all, fall back to the conventional trio:
+// video console, first serial, and /dev/console (whatever the kernel picked
+// as primary).
+func ConsoleDevices() []string {
+	var out []string
+	for _, v := range CleanupSlice(ReadCMDLineArg("console=")) {
+		// Strip options after the device name (console=ttyS0,115200n8).
+		dev := strings.SplitN(v, ",", 2)[0]
+		if dev == "" {
+			continue
+		}
+		out = append(out, "/dev/"+dev)
+	}
+	if len(out) == 0 {
+		return []string{"/dev/tty1", "/dev/ttyS0", "/dev/console"}
+	}
+	// Always include /dev/console too — it aliases the last console= entry
+	// from the kernel's point of view, and catches setups where the device
+	// node for a named console is not populated in the initrd yet.
+	return UniqueSlice(append(out, "/dev/console"))
+}
+
+// openConsolesForWriting opens each path for writing. Missing / unopenable
+// devices are silently skipped — headless setups without a serial line are a
+// valid state, and the banner just goes to whichever consoles do exist.
+// Caller is responsible for keeping the files alive; we deliberately do not
+// close them because the paint loop reuses the same fds for the lifetime of
+// the halt.
+func openConsolesForWriting(paths ...string) []*os.File {
+	out := make([]*os.File, 0, len(paths))
+	for _, p := range paths {
+		f, err := os.OpenFile(p, os.O_WRONLY, 0)
+		if err == nil {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// paintBanner writes banner to every open console, ignoring per-fd errors so
+// a briefly-hung serial does not stop us from repainting on video.
+//
+// Newlines are expanded to \r\n before writing: the key-listener goroutines
+// put these same ttys into raw mode (term.MakeRaw clears OPOST/ONLCR), which
+// stops the kernel from translating \n into carriage-return + line-feed on
+// output. Without the expansion every line starts where the previous one
+// ended, staircasing the whole banner across the screen.
+func paintBanner(consoles []*os.File, banner string) {
+	out := strings.ReplaceAll(banner, "\n", "\r\n")
+	for _, f := range consoles {
+		_, _ = f.WriteString(out)
+	}
+}
+
+// waitForKeyOn opens dev, puts it in raw mode so we accept any single byte
+// (not just Enter), and pushes to done on the first successful read. Errors
+// on any of open / raw-mode / read are silent — a headless server without a
+// serial line or a machine without a video console is a valid state; the halt
+// syscall is the other path and does not depend on this succeeding.
+func waitForKeyOn(dev string, done chan<- struct{}) {
+	f, err := os.OpenFile(dev, os.O_RDONLY, 0)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fd := int(f.Fd())
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		// Fall back to cooked-mode read — user has to press Enter but the
+		// reboot still works.
+		var b [1]byte
+		if _, rerr := f.Read(b[:]); rerr == nil {
+			select {
+			case done <- struct{}{}:
+			default:
+			}
+		}
+		return
+	}
+	defer func() { _ = term.Restore(fd, oldState) }()
+	var b [1]byte
+	if _, rerr := f.Read(b[:]); rerr == nil {
+		select {
+		case done <- struct{}{}:
+		default:
+		}
+	}
 }
 
 // DisableImmucore identifies if we need to be disabled
@@ -219,6 +475,19 @@ func IsUKI() bool {
 	}
 
 	return state.DetectUKIboot(string(cmdline))
+}
+
+// BootInRAM returns true when the kernel cmdline enables the in-RAM workflow
+// (kairos.ram token). Wraps kairos-sdk's DetectInRAM and honors the
+// HOST_PROC_CMDLINE seam so tests can drive it. Used only for dispatch in
+// main.go; every step in the DAG should read State.InRAM instead.
+func BootInRAM() bool {
+	cmdline, err := os.ReadFile(GetHostProcCmdline())
+	if err != nil {
+		KLog.Logger.Warn().Err(err).Msg("Error reading /proc/cmdline file " + err.Error())
+		return false
+	}
+	return state.DetectInRAM(string(cmdline))
 }
 
 // CommandWithPath runs a command adding the usual PATH to environment

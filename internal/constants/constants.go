@@ -121,6 +121,33 @@ const (
 	OpUkiExtractCerts      = "extract-certs"
 	OpUkiTransitionSysext  = "uki-transition-sysext"
 	OpUkiCopySysExtensions = "enable-sysext-confext"
+	// InRAMSentinelName is the extra sentinel file written under /run/cos/ when
+	// the kairos.ram workflow is active. It is additive: WriteSentinelDagStep
+	// still writes the BootState-driven sentinel (which is active_mode for
+	// in-RAM boots because kairos-sdk forces BootState=Active) so existing
+	// cloud-init gates keep firing. Tooling that specifically needs to know the
+	// rootfs is on a tmpfs can stat this file.
+	InRAMSentinelName = "in_ram_mode"
+
+	// OpEnsurePartitions runs early in the in-RAM DAG and either confirms that
+	// COS_OEM + COS_PERSISTENT already exist on disk, or auto-creates the
+	// missing ones on the disk selected via kairos.ram.create_partitions.
+	// After it completes, downstream mount steps behave as if the workstation
+	// had been installed normally with an empty OEM.
+	OpEnsurePartitions = "ensure-partitions"
+
+	// Partition labels and default sizes come from kairos-sdk/constants
+	// (OEMLabel, PersistentLabel, OEMSize, PersistentSize) — do not duplicate
+	// them here.
+
+	// Cmdline stanzas driving the ensure-partitions step. All live under the
+	// kairos.ram.* namespace so they sit next to the kairos.ram flag that
+	// enables the in-RAM workflow in the first place. See
+	// EnsurePartitionsDagStep for the exact semantics of each.
+	CmdlineAutoCreatePartitions     = "kairos.ram.create_partitions"
+	CmdlineAutoCreatePartitionsWipe = "kairos.ram.wipe"
+	CmdlineAutoCreateOemSize        = "kairos.ram.oem="
+	CmdlineAutoCreatePersistentSize = "kairos.ram.persistent="
 	UkiLivecdMountPoint    = "/run/initramfs/live"
 	UkiIsoBaseTree         = "/run/rootfsbase"
 	UkiIsoBootImage        = "efiboot.img"

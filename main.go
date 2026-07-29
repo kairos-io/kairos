@@ -46,6 +46,7 @@ func main() {
 			TargetImage:   targetImage,
 			RootMountMode: utils.RootRW(),
 			OverlayBase:   utils.GetOverlayBase(),
+			InRAM:         utils.BootInRAM(),
 		}
 
 		// normalBoot tracks whether we took the full active/passive/recovery mount
@@ -53,13 +54,23 @@ func main() {
 		// live media intentionally disables immucore, and UKI already drops to a
 		// shell from inside its own steps.
 		var normalBoot bool
-		if utils.DisableImmucore() {
+		switch {
+		case st.InRAM:
+			// kairos.ram must win over DisableImmucore below: an in-RAM boot
+			// still has live:LABEL / netboot on the cmdline (that is how the
+			// squashfs got copied into RAM in the first place), and we do NOT
+			// want the live-media no-op path — we still need to mount OEM +
+			// persistent + apply cloud-init from disk.
+			utils.KLog.Logger.Info().Msg("Booting in-RAM (kairos.ram) with OEM+persistent from disk.")
+			normalBoot = true
+			err = dag.RegisterInRAMBoot(st, g)
+		case utils.DisableImmucore():
 			utils.KLog.Logger.Info().Msg("Stanza rd.cos.disable/rd.immucore.disable on the cmdline or booting from CDROM/Netboot/Squash recovery. Disabling immucore.")
 			err = dag.RegisterLiveMedia(st, g)
-		} else if utils.IsUKI() {
+		case utils.IsUKI():
 			utils.KLog.Logger.Info().Msg("UKI booting!")
 			err = dag.RegisterUKI(st, g)
-		} else {
+		default:
 			utils.KLog.Logger.Info().Msg("Booting on active/passive/recovery.")
 			normalBoot = true
 			err = dag.RegisterNormalBoot(st, g)

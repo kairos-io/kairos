@@ -81,6 +81,13 @@ var _ = Describe("mounting immutable setup", func() {
 
 		})
 
+		It("generates in-RAM dag", func() {
+			s := &state.State{Rootdir: "/sysroot", InRAM: true}
+			err := dag.RegisterInRAMBoot(s, g)
+			Expect(err).ToNot(HaveOccurred())
+			checkInRAMDag(g.Analyze(), s.WriteDAG(g))
+		})
+
 		It("Mountop timeouts", func() {
 			_, err := op.MountOPWithFstab("/dev/doesntexist", "/tmp/jojobizarreadventure", "", []string{}, 500*time.Millisecond)
 			Expect(err).To(HaveOccurred())
@@ -156,4 +163,51 @@ func checkDag(dag [][]herd.GraphEntry, actualDag string) {
 	Expect(dag[9][0].Name).To(Equal(cnst.OpMountBind), actualDag)
 	Expect(dag[10][0].Name).To(Equal(cnst.OpWriteFstab), actualDag)
 	Expect(dag[11][0].Name).To(Equal(cnst.OpInitramfsHook), actualDag)
+}
+
+// checkInRAMDag asserts the shape of the DAG produced by RegisterInRAMBoot.
+// It mirrors the normal-boot DAG minus LVM activation, mount-state,
+// discover-state, and mount-root — dracut's rd.live.ram provides /sysroot for
+// us, so we skip straight to waiting for it. Every other step (kcrypt, oem,
+// rootfs, load-config, mounts, overlays, binds, fstab, initramfs) is reused
+// verbatim from the shared step set. ensure-partitions is inserted between
+// wait-for-sysroot and every step that expects Kairos partition labels to
+// exist, so first-boot workstations get their COS_OEM/COS_PERSISTENT created
+// (when the auto-create flag is set) before mount-oem or kcrypt fire.
+func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
+	// Names by op-constant present at each layer. Order within a layer is not
+	// guaranteed, so we assert as a set.
+	expected := [][]string{
+		{"init"},
+		{cnst.OpSentinel, cnst.OpWaitForSysroot, cnst.OpMountTmpfs},
+		{cnst.OpEnsurePartitions},
+		{cnst.OpKcryptUpgrade, cnst.OpMountOEM},
+		{cnst.OpKcryptUnlock, cnst.OpRootfsHook},
+		{cnst.OpLoadConfig},
+		{cnst.OpMountBaseOverlay, cnst.OpCustomMounts},
+		{cnst.OpOverlayMount},
+		{cnst.OpMountBind},
+		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions},
+		{cnst.OpInitramfsHook},
+	}
+	Expect(len(dag)).To(Equal(len(expected)), actualDag)
+	for i, want := range expected {
+		got := make([]string, 0, len(dag[i]))
+		for _, e := range dag[i] {
+			got = append(got, e.Name)
+		}
+		Expect(got).To(ConsistOf(want), actualDag)
+	}
+
+	// Explicitly verify the normal-boot-only steps are absent — that is the
+	// whole point of the in-RAM DAG.
+	all := map[string]bool{}
+	for _, layer := range dag {
+		for _, e := range layer {
+			all[e.Name] = true
+		}
+	}
+	for _, absent := range []string{cnst.OpMountRoot, cnst.OpDiscoverState, cnst.OpMountState, cnst.OpLvmActivate} {
+		Expect(all[absent]).To(BeFalse(), "expected %s to be absent from in-RAM DAG\n%s", absent, actualDag)
+	}
 }

@@ -66,6 +66,17 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 				return err
 			}
 
+			// In-RAM boots also get an additive sentinel so tooling can tell
+			// them apart from a regular Active install. The BootState sentinel
+			// above is already active_mode (kairos-sdk forces BootState=Active
+			// when kairos.ram is present) so existing gates keep firing.
+			if s.InRAM {
+				internalUtils.KLog.Logger.Info().Str("to", cnst.InRAMSentinelName).Msg("Setting in-RAM sentinel file")
+				if err = os.WriteFile(filepath.Join("/run/cos/", cnst.InRAMSentinelName), []byte("1"), os.ModePerm); err != nil {
+					return err
+				}
+			}
+
 			// Lets add a uki sentinel as well!
 			cmdline, _ := os.ReadFile(internalUtils.GetHostProcCmdline())
 			if strings.Contains(string(cmdline), "rd.immucore.uki") {

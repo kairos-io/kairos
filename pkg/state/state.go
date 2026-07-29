@@ -18,6 +18,7 @@ type State struct {
 	TargetImage   string // image from the state partition to mount as loop device e.g. /cOS/active.img
 	TargetDevice  string // e.g. /dev/disk/by-label/COS_ACTIVE
 	RootMountMode string // How to mount the root partition e.g. ro or rw
+	InRAM         bool   // running the kairos.ram workflow: rootfs is a tmpfs staged by dracut's rd.live.ram, OEM+persistent still on disk
 
 	// /run/cos-layout.env (different!)
 	OverlayDirs  []string          // e.g. /var

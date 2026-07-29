@@ -107,6 +107,16 @@ func SDKDotNotationModifier(s []byte) ([]byte, error) {
 	return machine.DotStringToYAML(string(s))
 }
 
+// RunYipStageInline runs a yip stage whose full YAML document is passed as a
+// string, rather than loaded from the default cloud-init directories. Used by
+// steps that need to synthesize a one-shot stage (e.g. ensure-partitions
+// building a layout: block on the fly). The stage name inside yamlBody must
+// match stageName. Returns the raw yip error so the caller can wrap it.
+func RunYipStageInline(stageName, yamlBody string) error {
+	yip := executor.NewExecutor(executor.WithLogger(KLog))
+	return yip.Run(stageName, vfs.OSFS, ImmucoreConsole{}, yamlBody)
+}
+
 func onlyYAMLPartialErrors(er error) bool {
 	if merr, ok := errors.AsType[*multierror.Error](er); ok {
 		for _, e := range merr.Errors {
