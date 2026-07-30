@@ -28,6 +28,7 @@ type prerequisitesPage struct {
 	fields   []prereqField              // flattened focusable items
 	mgr      *pluggable.Manager         // dedicated tui-check plugin manager
 	cursor   int
+	offset   int // first visible line of the scrollable region (see View)
 	loaded   bool
 	applyErr string
 	failure  string // failNone | failRequired | failOptional
@@ -39,6 +40,12 @@ const (
 	failRequired = "required"
 	failOptional = "optional"
 )
+
+// prereqHeaderLines is the number of fixed lines View renders before the
+// scrollable region: the "Pre-installation checks" heading + blank line. It
+// mirrors diskPageHeaderLines and feeds the same height budget as the disk
+// page's scroll window.
+const prereqHeaderLines = 2
 
 // prereqField is a single focusable item on the page. A confirm/select/text
 // check maps to one field; a multiselect check maps to one field per option.
@@ -330,39 +337,107 @@ func (p *prerequisitesPage) proceed() (Page, tea.Cmd) {
 }
 
 func (p *prerequisitesPage) View() string {
-	s := "Pre-installation checks\n\n"
+	const header = "Pre-installation checks\n\n"
 	if !p.loaded {
-		return s + "Checking prerequisites...\n"
+		return header + "Checking prerequisites...\n"
 	}
 
-	// Build the inner content of each box first, then render every box at one
-	// uniform width: the widest content, capped to the screen. This keeps the
-	// boxes aligned without stretching them across the whole screen.
-	inners := make([]string, len(p.checks))
-	contentW := 0
+	region, _, offset, vc := p.window()
+
+	s := header
+	end := offset + vc
+	if end > len(region) {
+		end = len(region)
+	}
+	indicatorStyle := lipgloss.NewStyle().Foreground(kairosText)
+	if offset > 0 {
+		s += indicatorStyle.Render("  ... more above") + "\n"
+	}
+	for i := offset; i < end; i++ {
+		s += region[i] + "\n"
+	}
+	if end < len(region) {
+		s += indicatorStyle.Render("  ... more below") + "\n"
+	}
+	return s
+}
+
+// window renders the full scrollable region, works out which region line the
+// cursor sits on, and clamps the scroll offset so that line stays visible. It
+// returns the region lines, the focused line, and the resolved offset/visible
+// count. A check may render as a multi-line box, and a single multiselect check
+// can be taller than the whole viewport, so the scroll window operates on
+// rendered lines (not whole boxes) and tracks the focused field's exact line —
+// otherwise the cursor walks off-screen exactly like the disk list did before
+// kairos-agent#1237.
+func (p *prerequisitesPage) window() (region []string, focusLine, offset, vc int) {
+	region, focusLine = p.renderRegion()
+	vc = p.visibleCount(len(region))
+	p.clampOffset(len(region), focusLine, vc)
+	return region, focusLine, p.offset, vc
+}
+
+// visibleCount returns how many region lines fit in the available vertical
+// space. It mirrors the content budget applied by Model.View (height minus
+// visibleRows) less the fixed header, reserving two lines for the scroll
+// indicators when the region overflows.
+func (p *prerequisitesPage) visibleCount(regionLen int) int {
+	_, height := effectiveSize(mainModel.width, mainModel.height)
+	avail := height - visibleRows - prereqHeaderLines
+	if regionLen > avail {
+		// Reserve room for the top/bottom "..." scroll indicators.
+		avail -= 2
+	}
+	if avail < 1 {
+		avail = 1
+	}
+	return avail
+}
+
+// clampOffset keeps the scroll window so the focused line stays visible and the
+// offset never runs past the end of the region.
+func (p *prerequisitesPage) clampOffset(regionLen, focusLine, vc int) {
+	if focusLine < p.offset {
+		p.offset = focusLine
+	}
+	if focusLine >= p.offset+vc {
+		p.offset = focusLine - vc + 1
+	}
+	maxOffset := regionLen - vc
+	if maxOffset < 0 {
+		maxOffset = 0
+	}
+	if p.offset > maxOffset {
+		p.offset = maxOffset
+	}
+	if p.offset < 0 {
+		p.offset = 0
+	}
+}
+
+// renderRegion builds every check box (plus the results and error/warning
+// lines) as a flat slice of rendered lines, and returns the line the scroll
+// window must keep visible: the focused field's line, or — once an apply has
+// produced a message — the message line, so it scrolls into view.
+func (p *prerequisitesPage) renderRegion() (region []string, focusLine int) {
+	contentW := p.boxWidth()
+
+	focusCheck := -1
+	if p.cursor >= 0 && p.cursor < len(p.fields) {
+		focusCheck = p.fields[p.cursor].checkIdx
+	}
+
 	for i, c := range p.checks {
-		inners[i] = p.checkInner(i, c)
-		if lw := lipgloss.Width(inners[i]); lw > contentW {
-			contentW = lw
+		box := p.renderBox(c, p.checkInner(i, c), contentW)
+		if i == focusCheck {
+			// +1 for the box's top border line.
+			focusLine = len(region) + 1 + p.fieldLineOffset(c, contentW)
 		}
-	}
-	w, _ := effectiveSize(mainModel.width, mainModel.height)
-	if maxContent := w - 10; contentW > maxContent { // leave room for border + padding + page margin
-		contentW = maxContent
-	}
-	for i, c := range p.checks {
-		box := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(severityColor(c.Severity)).
-			Background(kairosBg).
-			Padding(0, 1).
-			Width(contentW + 2). // +2 for the horizontal padding
-			Render(inners[i])
-		s += box + "\n"
+		region = append(region, strings.Split(box, "\n")...)
 	}
 
 	if len(p.results) > 0 {
-		s += "\nResults:\n"
+		region = append(region, "", "Results:")
 		okStyle := lipgloss.NewStyle().Foreground(kairosAccent)
 		failStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0000"))
 		for _, r := range p.results {
@@ -374,7 +449,7 @@ func (p *prerequisitesPage) View() string {
 			if r.Message != "" {
 				line += ": " + r.Message
 			}
-			s += line + "\n"
+			region = append(region, line)
 		}
 	}
 
@@ -383,9 +458,93 @@ func (p *prerequisitesPage) View() string {
 		if p.failure == failOptional {
 			style = lipgloss.NewStyle().Foreground(kairosAccent).Bold(true)
 		}
-		s += "\n" + style.Render(p.applyErr) + "\n"
+		region = append(region, "")
+		focusLine = len(region) // pull the message into view
+		region = append(region, style.Render(p.applyErr))
 	}
-	return s
+
+	return region, focusLine
+}
+
+// boxWidth returns the uniform width every check box is rendered at: the widest
+// inner content, capped to the screen. This keeps the boxes aligned without
+// stretching them across the whole screen.
+func (p *prerequisitesPage) boxWidth() int {
+	contentW := 0
+	for i, c := range p.checks {
+		if lw := lipgloss.Width(p.checkInner(i, c)); lw > contentW {
+			contentW = lw
+		}
+	}
+	w, _ := effectiveSize(mainModel.width, mainModel.height)
+	if maxContent := w - 10; contentW > maxContent { // leave room for border + padding + page margin
+		contentW = maxContent
+	}
+	if contentW < 1 {
+		contentW = 1
+	}
+	return contentW
+}
+
+// renderBox draws a single check's box around its inner content.
+func (p *prerequisitesPage) renderBox(c prereqs.Check, inner string, contentW int) string {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(severityColor(c.Severity)).
+		Background(kairosBg).
+		Padding(0, 1).
+		Width(contentW + 2). // +2 for the horizontal padding
+		Render(inner)
+}
+
+// fieldLineOffset returns the line index, within a check's box inner content
+// (before the top border), of the currently-focused field. It mirrors the
+// layout produced by checkInner/renderPrompt — title (+message), a blank
+// separator, then the prompt widget — measuring wrapped heights at the box's
+// content width so long titles, messages or option labels are counted
+// correctly.
+func (p *prerequisitesPage) fieldLineOffset(c prereqs.Check, contentW int) int {
+	head := severityStyle(c.Severity).Bold(true).
+		Render(fmt.Sprintf("[%s] %s", strings.ToUpper(severityName(c.Severity)), c.Title))
+	if c.Message != "" {
+		head += "\n" + c.Message
+	}
+	off := wrappedHeight(head, contentW)
+	if !c.Interactive() {
+		return off // display-only check; never actually focused
+	}
+	off++ // blank separator line before the prompt block
+
+	// For a multiselect, each option is its own field and the prompt spans one
+	// line per option (plus an optional prompt-text line). Count the lines above
+	// the focused option.
+	if f := p.fields[p.cursor]; f.kind == "option" {
+		prefix := ""
+		if c.PromptText != "" {
+			prefix = "  " + c.PromptText
+		}
+		for oi := 0; oi < f.optIdx; oi++ {
+			row := fmt.Sprintf("    %s %s %s", " ", "[ ]", c.Options[oi].Label)
+			if prefix != "" {
+				prefix += "\n"
+			}
+			prefix += row
+		}
+		off += wrappedHeight(prefix, contentW)
+	}
+	return off
+}
+
+// wrappedHeight reports how many terminal lines s occupies once wrapped to the
+// given content width, matching how lipgloss lays the boxes out.
+func wrappedHeight(s string, width int) int {
+	if s == "" {
+		return 0
+	}
+	if width < 1 {
+		width = 1
+	}
+	return lipgloss.Height(lipgloss.NewStyle().Width(width).Render(s))
 }
 
 // renderPrompt renders the interactive widget for a check, marking the focused
