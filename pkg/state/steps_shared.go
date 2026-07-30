@@ -77,23 +77,19 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 				}
 			}
 
-			// Lets add a uki sentinel as well!
-			cmdline, _ := os.ReadFile(internalUtils.GetHostProcCmdline())
-			if strings.Contains(string(cmdline), "rd.immucore.uki") {
-				state.DetectUKIboot(string(cmdline))
-				// sentinel for uki mode
-				if state.EfiBootFromInstall(internalUtils.KLog.Logger) {
-					internalUtils.KLog.Logger.Info().Str("to", "uki_boot_mode").Msg("Setting sentinel file")
-					err = os.WriteFile("/run/cos/uki_boot_mode", []byte("1"), os.ModePerm)
-					if err != nil {
-						return err
-					}
-				} else {
-					internalUtils.KLog.Logger.Info().Str("to", "uki_install_mode").Msg("Setting sentinel file")
-					err := os.WriteFile("/run/cos/uki_install_mode", []byte("1"), os.ModePerm)
-					if err != nil {
-						return err
-					}
+			// Let's add a uki sentinel as well! In-RAM UKI boots come from
+			// removable/network media but must behave like an installed
+			// Active system, so they get uki_boot_mode, never
+			// uki_install_mode (which would fire the installer stages).
+cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
+if err != nil {
+	return fmt.Errorf("reading kernel cmdline: %w", err)
+}
+if strings.Contains(string(cmdline), "rd.immucore.uki") {
+				ukiSentinel := internalUtils.UkiSentinel(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM)
+				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
+				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {
+					return err
 				}
 			}
 

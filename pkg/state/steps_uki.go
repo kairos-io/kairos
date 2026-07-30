@@ -519,8 +519,10 @@ func (s *State) UKISetupNetwork(g *herd.Graph) error {
 // (PATH, removable media check, reboot on error).
 func (s *State) UKIUnlock(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpUkiKcrypt, append(opts, TimedCallback(cnst.OpUkiKcrypt, func(_ context.Context) error {
-		// Check if booting from removable media (live CD)
-		if !state.EfiBootFromInstall(internalUtils.KLog.Logger) {
+		// Check if booting from removable media (live CD). The in-RAM
+		// workflow boots from removable/network media on purpose and still
+		// owns encrypted partitions on disk, so it never skips.
+		if internalUtils.SkipUKIUnlock(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM) {
 			internalUtils.KLog.Logger.Debug().Msg("Not unlocking disks as we think we are booting from removable media")
 			return nil
 		}

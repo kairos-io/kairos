@@ -477,6 +477,27 @@ func IsUKI() bool {
 	return state.DetectUKIboot(string(cmdline))
 }
 
+// UkiSentinel returns the UKI sentinel name for the current boot. Booting
+// from an installed system always means boot mode. Removable-media boots are
+// install media by default — except under the in-RAM workflow, where the UKI
+// is PXE/ISO-served on purpose and the system must behave like an installed
+// Active one (installer cloud-init stages key off uki_install_mode and must
+// NOT fire).
+func UkiSentinel(bootedFromInstall, inRAM bool) string {
+	if bootedFromInstall || inRAM {
+		return "uki_boot_mode"
+	}
+	return "uki_install_mode"
+}
+
+// SkipUKIUnlock decides whether the UKI unlock step should skip unlocking
+// partitions. Removable-media boots normally have nothing to unlock — but the
+// in-RAM workflow boots from removable/network media by design and still owns
+// encrypted OEM/persistent partitions on disk.
+func SkipUKIUnlock(bootedFromInstall, inRAM bool) bool {
+	return !bootedFromInstall && !inRAM
+}
+
 // BootInRAM returns true when the kernel cmdline enables the in-RAM workflow
 // (kairos.ram token). Wraps kairos-sdk's DetectInRAM and honors the
 // HOST_PROC_CMDLINE seam so tests can drive it. Used only for dispatch in

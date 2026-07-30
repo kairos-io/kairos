@@ -88,6 +88,32 @@ var _ = Describe("mounting immutable setup", func() {
 			checkInRAMDag(g.Analyze(), s.WriteDAG(g))
 		})
 
+		It("generates UKI dag without ensure-partitions", func() {
+			s := &state.State{Rootdir: "/"}
+			err := dag.RegisterUKI(s, g)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(layerOf(g.Analyze(), cnst.OpEnsurePartitions)).To(Equal(-1), s.WriteDAG(g))
+		})
+
+		It("generates UKI in-RAM dag with ensure-partitions gating unlock and OEM", func() {
+			s := &state.State{Rootdir: "/", InRAM: true}
+			err := dag.RegisterUKI(s, g)
+			Expect(err).ToNot(HaveOccurred())
+			layers := g.Analyze()
+			actualDag := s.WriteDAG(g)
+
+			ensure := layerOf(layers, cnst.OpEnsurePartitions)
+			udev := layerOf(layers, cnst.OpUkiUdev)
+			unlock := layerOf(layers, cnst.OpUkiKcrypt)
+			oem := layerOf(layers, cnst.OpMountOEM)
+
+			// devices must be discovered before we scan/create partitions,
+			// partitions must exist before unlock, unlock before OEM mount.
+			Expect(ensure).To(BeNumerically(">", udev), actualDag)
+			Expect(unlock).To(BeNumerically(">", ensure), actualDag)
+			Expect(oem).To(BeNumerically(">", unlock), actualDag)
+		})
+
 		It("Mountop timeouts", func() {
 			_, err := op.MountOPWithFstab("/dev/doesntexist", "/tmp/jojobizarreadventure", "", []string{}, 500*time.Millisecond)
 			Expect(err).To(HaveOccurred())
@@ -95,6 +121,19 @@ var _ = Describe("mounting immutable setup", func() {
 		})
 	})
 })
+
+// layerOf returns the index of the DAG layer containing the named op, or -1
+// when the op is not registered at all.
+func layerOf(dag [][]herd.GraphEntry, name string) int {
+	for i, layer := range dag {
+		for _, e := range layer {
+			if e.Name == name {
+				return i
+			}
+		}
+	}
+	return -1
+}
 
 func checkLiveCDDag(dag [][]herd.GraphEntry, actualDag string) {
 	Expect(len(dag)).To(Equal(5), actualDag)

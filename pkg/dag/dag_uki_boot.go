@@ -43,11 +43,22 @@ func RegisterUKI(s *state.State, g *herd.Graph) error {
 	// TODO: Implement this properly and enable. Until then, no KMS for UKI.
 	//s.LogIfError(s.UKISetupNetwork(g), "uki network setup")
 
+	// In-RAM trusted boot: the UKI is PXE/ISO-served but OEM + persistent live
+	// on local disk. First boot may need to create them — and under trusted
+	// boot the freshly created partitions are immediately encrypted with the
+	// TPM PCR policy inside the ensure-partitions step, so unlock must wait
+	// for it.
+	ukiUnlockDeps := []string{cnst.OpSentinel, cnst.OpUkiUdev}
+	if s.InRAM {
+		s.LogIfError(s.EnsurePartitionsDagStep(g, cnst.OpSentinel, cnst.OpUkiUdev), "ensure partitions")
+		ukiUnlockDeps = append(ukiUnlockDeps, cnst.OpEnsurePartitions)
+	}
+
 	// Unlock partitions if needed with TPM
 	// TODO: Make it depend on network setup for remote KMS access, as soon as we
 	// fix the OpUkiNetwork step.
 	//s.LogIfError(s.UKIUnlock(g, herd.WithDeps(cnst.OpSentinel, cnst.OpUkiUdev, cnst.OpUkiNetwork)), "uki unlock")
-	s.LogIfError(s.UKIUnlock(g, herd.WithDeps(cnst.OpSentinel, cnst.OpUkiUdev)), "uki unlock")
+	s.LogIfError(s.UKIUnlock(g, herd.WithDeps(ukiUnlockDeps...)), "uki unlock")
 
 	s.LogIfError(s.MountOemDagStep(g, herd.WithDeps(cnst.OpUkiKcrypt), herd.WeakDeps), "oem mount")
 

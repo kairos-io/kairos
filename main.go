@@ -55,6 +55,13 @@ func main() {
 		// shell from inside its own steps.
 		var normalBoot bool
 		switch {
+		case st.InRAM && utils.IsUKI():
+			// Trusted boot in-RAM: the UKI is already the whole system in
+			// RAM, so the regular UKI DAG applies — RegisterUKI keys off
+			// st.InRAM to add partition provisioning (encrypted with the TPM
+			// policy) and to skip the removable-media unlock/sentinel gates.
+			utils.KLog.Logger.Info().Msg("UKI booting in-RAM (kairos.ram) with OEM+persistent from disk!")
+			err = dag.RegisterUKI(st, g)
 		case st.InRAM:
 			// kairos.ram must win over DisableImmucore below: an in-RAM boot
 			// still has live:LABEL / netboot on the cmdline (that is how the

@@ -183,5 +183,46 @@ var _ = Describe("ensure-partitions helpers", func() {
 			Expect(out).To(ContainSubstring("kairos.ram.wipe"))
 			Expect(out).To(ContainSubstring("DESTROYS"))
 		})
+		It("Encryption-failed message names the partition, TPM and the underlying error", func() {
+			out := utils.RenderEncryptionFailedMessage("COS_PERSISTENT", errors.New("tpm2-cryptenroll exploded"))
+			Expect(out).To(ContainSubstring("KAIROS BOOT FAILED"))
+			Expect(out).To(ContainSubstring("COS_PERSISTENT"))
+			Expect(out).To(ContainSubstring("TPM"))
+			Expect(out).To(ContainSubstring("tpm2-cryptenroll exploded"))
+		})
+	})
+
+	Context("PartitionsToEncrypt", func() {
+		It("returns both labels when both partitions were created", func() {
+			Expect(utils.PartitionsToEncrypt(false, false)).To(Equal([]string{"COS_OEM", "COS_PERSISTENT"}))
+		})
+		It("returns only the created sibling when OEM already existed", func() {
+			Expect(utils.PartitionsToEncrypt(true, false)).To(Equal([]string{"COS_PERSISTENT"}))
+		})
+		It("returns only the created sibling when persistent already existed", func() {
+			Expect(utils.PartitionsToEncrypt(false, true)).To(Equal([]string{"COS_OEM"}))
+		})
+		It("returns nothing when both partitions already existed", func() {
+			Expect(utils.PartitionsToEncrypt(true, true)).To(BeEmpty())
+		})
+	})
+
+	Context("UKI in-RAM helpers", func() {
+		It("UkiSentinel is boot mode when booted from an install", func() {
+			Expect(utils.UkiSentinel(true, false)).To(Equal("uki_boot_mode"))
+			Expect(utils.UkiSentinel(true, true)).To(Equal("uki_boot_mode"))
+		})
+		It("UkiSentinel is install mode on removable media without in-RAM", func() {
+			Expect(utils.UkiSentinel(false, false)).To(Equal("uki_install_mode"))
+		})
+		It("UkiSentinel is boot mode on removable media with in-RAM", func() {
+			Expect(utils.UkiSentinel(false, true)).To(Equal("uki_boot_mode"))
+		})
+		It("SkipUKIUnlock only skips on removable media without in-RAM", func() {
+			Expect(utils.SkipUKIUnlock(false, false)).To(BeTrue())
+			Expect(utils.SkipUKIUnlock(false, true)).To(BeFalse())
+			Expect(utils.SkipUKIUnlock(true, false)).To(BeFalse())
+			Expect(utils.SkipUKIUnlock(true, true)).To(BeFalse())
+		})
 	})
 })

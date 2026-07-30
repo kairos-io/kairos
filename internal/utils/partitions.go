@@ -431,6 +431,46 @@ func RenderDiskNotFoundMessage(disk string, candidates []string) string {
 	)
 }
 
+// PartitionsToEncrypt maps the pre-creation presence flags to the list of
+// labels the ensure-partitions step just created — under trusted boot (UKI)
+// exactly those must be encrypted with the TPM policy. Partitions that
+// already existed are left alone: they either carry LUKS from a previous
+// boot or were deliberately created plain by another workflow.
+func PartitionsToEncrypt(oemFound, persistentFound bool) []string {
+	var labels []string
+	if !oemFound {
+		labels = append(labels, sdkConstants.OEMLabel)
+	}
+	if !persistentFound {
+		labels = append(labels, sdkConstants.PersistentLabel)
+	}
+	return labels
+}
+
+// RenderEncryptionFailedMessage explains that a freshly created partition
+// could not be encrypted with the TPM PCR policy under trusted boot. The
+// partition table may be partially initialized at this point, so the fix
+// section points at the TPM prerequisites and at wiping the disk to retry.
+func RenderEncryptionFailedMessage(label string, failErr error) string {
+	var wrong strings.Builder
+	fmt.Fprintf(&wrong, "Encrypting the freshly created %s partition with the TPM\n", label)
+	wrong.WriteString("policy failed:\n")
+	fmt.Fprintf(&wrong, "  %s\n", failErr)
+
+	var fix strings.Builder
+	fix.WriteString("  - Check this machine has a working TPM 2.0 device\n")
+	fix.WriteString("  - Inspect the immucore logs on the next boot for the full error\n")
+	fmt.Fprintf(&fix, "  - The disk may hold a half-encrypted partition now; add %s\n", constants.CmdlineAutoCreatePartitionsWipe)
+	fix.WriteString("    to wipe it and retry from scratch\n")
+
+	return RenderFailureScreen(
+		"RAM mode: partition encryption failed",
+		ramModeIntro(),
+		FailureSection{Title: SectionWhatWentWrong, Body: wrong.String()},
+		FailureSection{Title: SectionHowToFix, Body: fix.String()},
+	)
+}
+
 // RenderWipeRequiredMessage explains that the target disk already has a
 // partition table and the wipe flag is not set. Same reasoning as
 // RenderAmbiguousDiskMessage — halt loudly over overwriting data.
