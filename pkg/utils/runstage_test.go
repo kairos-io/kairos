@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 
 	"github.com/hashicorp/go-multierror"
@@ -53,6 +54,20 @@ type multiErrorCIRunner struct {
 
 func (c *multiErrorCIRunner) Run(stage string, args ...string) error {
 	return multierror.Append(nil, errors.New("generic cloud init failure"))
+}
+
+// argsRecordingCIRunner captures every args tuple passed to Run so specs can
+// assert on the values reaching the runner (in particular that a templated
+// cmdline URI was rendered before handoff).
+type argsRecordingCIRunner struct {
+	v1mock.FakeCloudInitRunner
+	Args [][]string
+}
+
+func (c *argsRecordingCIRunner) Run(stage string, args ...string) error {
+	c.ExecStages = append(c.ExecStages, stage)
+	c.Args = append(c.Args, append([]string{}, args...))
+	return nil
 }
 
 var _ = Describe("run stage", Label("RunStage"), func() {
@@ -143,6 +158,80 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 		Expect(utils.RunStage(config, "padme")).To(BeNil())
 		Expect(memLog).To(ContainSubstring("padme"))
 		Expect(memLog).To(ContainSubstring(fmt.Sprintf("%s/test.yaml", d)))
+	})
+
+	It("renders a templated kairos.config_url before handing it to CloudInitRunner", func() {
+		// The kernel-cmdline path in yip's FromUrl fetches the URI verbatim,
+		// so any {{ .Values.* }} markers must be resolved BEFORE handoff.
+		// This regression uses .Values.node.hostname because it is one of
+		// the few sysinfo fields populated without root privileges.
+		hn, err := os.Hostname()
+		Expect(err).ToNot(HaveOccurred())
+		if hn == "" {
+			Skip("hostname unavailable on this host; cannot verify template rendering")
+		}
+		templated := `http://d/?h={{.Values.node.hostname}}`
+		rendered := "http://d/?h=" + url.QueryEscape(hn)
+
+		mock := &argsRecordingCIRunner{}
+		config.CloudInitRunner = mock
+
+		Expect(writeCmdline(fmt.Sprintf(`kairos.config_url=%q`, templated), fs)).To(Succeed())
+
+		Expect(utils.RunStage(config, "padme")).To(BeNil())
+
+		// Collect every distinct arg the runner received. RunStage also
+		// forwards the raw /proc/cmdline as a source to the dot-notation
+		// modifier pass, so a substring check would be too strict; we
+		// assert on the standalone config_url arg.
+		flat := []string{}
+		for _, tuple := range mock.Args {
+			flat = append(flat, tuple...)
+		}
+		// The rendered URL must reach the runner as its own arg.
+		Expect(flat).To(ContainElement(rendered))
+		// The templated URL must never reach the runner as its own arg.
+		Expect(flat).ToNot(ContainElement(templated))
+	})
+
+	It("aborts RunStage when the templated config_url references an undefined field", func() {
+		mock := &argsRecordingCIRunner{}
+		config.CloudInitRunner = mock
+
+		templated := `http://d/?u={{.Values.definitely_not_a_key}}`
+		Expect(writeCmdline(fmt.Sprintf(`kairos.config_url=%q`, templated), fs)).To(Succeed())
+
+		err := utils.RunStage(config, "padme")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("config_url"))
+
+		// The templated URI must never have reached the runner as a
+		// standalone source arg. The raw /proc/cmdline arg forwarded to
+		// the dot-notation pass legitimately contains the template as a
+		// substring, so we only assert on element equality.
+		flat := []string{}
+		for _, tuple := range mock.Args {
+			flat = append(flat, tuple...)
+		}
+		Expect(flat).ToNot(ContainElement(templated))
+	})
+
+	It("leaves a non-templated kairos.config_url unchanged when handing it to CloudInitRunner", func() {
+		// Regression: URLs without template markers hit the fast path in
+		// RenderConfigURL and must reach the runner byte-for-byte identical.
+		mock := &argsRecordingCIRunner{}
+		config.CloudInitRunner = mock
+
+		plain := "http://d/plain.yaml"
+		Expect(writeCmdline(fmt.Sprintf("root=LABEL=X kairos.config_url=%s quiet", plain), fs)).To(Succeed())
+
+		Expect(utils.RunStage(config, "padme")).To(BeNil())
+
+		flat := []string{}
+		for _, tuple := range mock.Args {
+			flat = append(flat, tuple...)
+		}
+		Expect(flat).To(ContainElement(plain))
 	})
 
 	It("ignores kairos.config=key=value when resolving the URI", func() {

@@ -22,6 +22,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
 	"github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
+	"github.com/kairos-io/kairos-sdk/collector"
 	"github.com/kairos-io/kairos-sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
 	"gopkg.in/yaml.v3"
@@ -70,6 +71,18 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 	cmdLineYipURI := KairosConfigURIFromString(string(cmdLineOut))
 	if cmdLineYipURI != "" {
 		cfg.Logger.Debugf("Found Kairos config URI on cmdline with value %s", cmdLineYipURI)
+		// Templated config_url (e.g. http://d/?u={{ .Values.product.uuid }})
+		// must be resolved against the sysinfo-derived context BEFORE yip's
+		// FromUrl fetches it verbatim. A rendering failure aborts the stage:
+		// silently proceeding would fetch a mangled URL or 404 endpoint.
+		rendered, rerr := collector.RenderConfigURL(cmdLineYipURI)
+		if rerr != nil {
+			return fmt.Errorf("rendering config_url from cmdline: %w", rerr)
+		}
+		if rendered != cmdLineYipURI {
+			cfg.Logger.Debugf("Rendered Kairos config URI to %s", rendered)
+			cmdLineYipURI = rendered
+		}
 	}
 
 	// Run all stages for each of the default cloud config paths + extra cloud config paths
