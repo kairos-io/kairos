@@ -81,6 +81,18 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "/^Makefile$/"
+      ],
+      "matchStrings": [
+        "INSTALLER_VERSION\\s*:=\\s*(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "packageNameTemplate": "kairos-io/kairos-installer"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "/^\\.github\\/workflows\\/.*\\.ya?ml$/"
       ],
       "matchStrings": [
