@@ -3,10 +3,13 @@ package collector_test
 import (
 	"bytes"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	. "github.com/kairos-io/kairos-sdk/collector"
 	. "github.com/onsi/ginkgo/v2"
@@ -292,6 +295,93 @@ info:
 				Expect(info["girlfriend"]).To(Equal("princess"))
 
 				Expect(originalConfig.Values).To(HaveLen(4))
+			})
+		})
+
+		Context("when config_url contains template markers", func() {
+			It("renders {{ .Values.* }} before the HTTP fetch", func() {
+				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
+					return WalkAndEscape(map[string]interface{}{
+						"Values": map[string]interface{}{
+							"product": map[string]interface{}{"uuid": "abc-123"},
+						},
+					}), nil
+				}))
+
+				var gotQuery atomic.Value
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					gotQuery.Store(r.URL.RawQuery)
+					_, _ = w.Write([]byte("#cloud-config\nremote_key: remote_value\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/?uuid={{ .Values.product.uuid }}",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				stored, ok := gotQuery.Load().(string)
+				Expect(ok).To(BeTrue(), "the fake server should have been hit")
+				Expect(stored).To(Equal("uuid=abc-123"))
+				Expect(stored).ToNot(ContainSubstring("{{"))
+				Expect(c.Values).To(HaveKeyWithValue("remote_key", "remote_value"))
+			})
+
+			It("aborts the merge and skips the fetch when rendering errors", func() {
+				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
+					return WalkAndEscape(map[string]interface{}{
+						"Values": map[string]interface{}{
+							"product": map[string]interface{}{"uuid": "abc-123"},
+						},
+					}), nil
+				}))
+
+				var hits atomic.Int32
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					hits.Add(1)
+					_, _ = w.Write([]byte("#cloud-config\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/?u={{ .Values.nope }}",
+				}}
+				err := c.MergeConfigURL()
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("config_url"))
+				Expect(hits.Load()).To(Equal(int32(0)), "the fake server must not be hit when rendering fails")
+			})
+		})
+
+		Context("when config_url has no template markers", func() {
+			It("fetches the plain URL and merges its payload", func() {
+				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
+					return map[string]interface{}{"Values": map[string]interface{}{}}, nil
+				}))
+
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte("#cloud-config\nremote_key: remote_value\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+				Expect(c.Values).To(HaveKeyWithValue("remote_key", "remote_value"))
+			})
+
+			It("does not build the sysinfo context (fast path stays in effect from the wiring site)", func() {
+				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
+					Fail("buildContext must not be called for a plain URL with no template markers")
+					return nil, nil
+				}))
+
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte("#cloud-config\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
 			})
 		})
 	})

@@ -53,8 +53,17 @@ func (c *Config) MergeConfigURL() error {
 		return nil
 	}
 
+	// Render {{ .Values.* }} template markers in the URL before the fetch so
+	// a static config_url can carry per-machine identifiers. Recursion below
+	// re-invokes MergeConfigURL on each downloaded hop, so a fetched config
+	// that itself declares a templated config_url gets rendered next pass.
+	rendered, err := RenderConfigURL(configURL)
+	if err != nil {
+		return fmt.Errorf("rendering config_url template: %w", err)
+	}
+
 	// fetch the remote config
-	remoteConfig, err := fetchRemoteConfig(configURL)
+	remoteConfig, err := fetchRemoteConfig(rendered)
 	if err != nil {
 		return err
 	}
