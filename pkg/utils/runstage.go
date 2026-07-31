@@ -77,7 +77,7 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 		// silently proceeding would fetch a mangled URL or 404 endpoint.
 		rendered, rerr := collector.RenderConfigURL(cmdLineYipURI)
 		if rerr != nil {
-			return fmt.Errorf("rendering config_url from cmdline: %w", rerr)
+			return fmt.Errorf("rendering config_url %q from cmdline: %w", cmdLineYipURI, rerr)
 		}
 		if rendered != cmdLineYipURI {
 			cfg.Logger.Debugf("Rendered Kairos config URI to %s", rendered)
