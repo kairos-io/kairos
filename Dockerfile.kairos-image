@@ -4,7 +4,7 @@
 # If REF is provided, custom binaries will be built from kairos-io repos (ref can be branch or commit)
 ARG IMMUCORE_REF=""
 ARG KAIROS_AGENT_REF=""
-ARG KAIROS_INIT_VERSION=v0.16.1
+ARG KAIROS_INIT_VERSION=v0.16.2
 
 # Stage 1: Build challenger binary
 # renovate: datasource=docker depName=golang
