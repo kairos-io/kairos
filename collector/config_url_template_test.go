@@ -1,8 +1,6 @@
 package collector_test
 
 import (
-	"os"
-
 	. "github.com/kairos-io/kairos-sdk/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -103,7 +101,7 @@ var _ = Describe("RenderConfigURL", func() {
 			Expect(err.Error()).To(ContainSubstring("config_url"))
 		})
 
-		It("fails when a substitution resolves to an empty string", func() {
+		It("fails when a query substitution resolves to an empty string", func() {
 			mockContext(map[string]interface{}{
 				"Values": map[string]interface{}{
 					"product": map[string]interface{}{"uuid": ""},
@@ -112,6 +110,18 @@ var _ = Describe("RenderConfigURL", func() {
 
 			_, err := RenderConfigURL("?uuid={{ .Values.product.uuid }}")
 			Expect(err).To(HaveOccurred())
+		})
+
+		It("fails when a path-segment substitution resolves to an empty string", func() {
+			mockContext(map[string]interface{}{
+				"Values": map[string]interface{}{
+					"node": map[string]interface{}{"hostname": ""},
+				},
+			}, false)
+
+			_, err := RenderConfigURL("http://x/{{ .Values.node.hostname }}/register")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("path segment"))
 		})
 
 		It("fails on a malformed template", func() {
@@ -127,25 +137,43 @@ var _ = Describe("RenderConfigURL", func() {
 		})
 	})
 
-	Describe("default context", func() {
-		It("resolves Random and ProtectedID to non-empty values", func() {
-			out, err := RenderConfigURL("?r={{ .Values.Random }}&p={{ .Values.ProtectedID }}")
-			Expect(err).ToNot(HaveOccurred())
-			Expect(out).To(HavePrefix("?r="))
-			Expect(out).To(ContainSubstring("&p="))
-			Expect(out).ToNot(ContainSubstring("?r=&"))
-			Expect(out).ToNot(HaveSuffix("&p="))
+	Describe("context values", func() {
+		Describe("passthrough of context-provided values", func() {
+			It("passes Random and ProtectedID through unchanged", func() {
+				mockContext(map[string]interface{}{
+					"Values": map[string]interface{}{
+						"Random":      "deadbeefcafebabefeedfacefacefeed",
+						"ProtectedID": "protected-id-value",
+					},
+				}, false)
+
+				out, err := RenderConfigURL("?r={{ .Values.Random }}&p={{ .Values.ProtectedID }}")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(out).To(Equal("?r=deadbeefcafebabefeedfacefacefeed&p=protected-id-value"))
+			})
+
+			It("passes node.hostname through unchanged (after URL-escape)", func() {
+				mockContext(map[string]interface{}{
+					"Values": map[string]interface{}{
+						"node": map[string]interface{}{"hostname": "boxen"},
+					},
+				}, true)
+
+				out, err := RenderConfigURL("?u={{ .Values.node.hostname }}")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(out).To(Equal("?u=boxen"))
+			})
 		})
 
-		It("resolves the host hostname when the system reports one", func() {
-			hn, err := os.Hostname()
-			if err != nil || hn == "" {
-				Skip("hostname unavailable on this host")
-			}
-			out, err := RenderConfigURL("?u={{ .Values.node.hostname }}")
+		// Smoke check that the real defaultBuildContext is still callable.
+		// We do not assert on any specific value: /etc/machine-id and
+		// sysinfo output vary (or are unavailable) on some hosts. Random
+		// is populated unconditionally so the substitution check passes.
+		It("defaultBuildContext returns without error", func() {
+			out, err := RenderConfigURL("?r={{ .Values.Random }}")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(out).To(HavePrefix("?u="))
-			Expect(len(out)).To(BeNumerically(">", len("?u=")))
+			Expect(out).To(HavePrefix("?r="))
+			Expect(len(out)).To(BeNumerically(">", len("?r=")))
 		})
 	})
 })

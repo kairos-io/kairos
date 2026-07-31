@@ -57,12 +57,15 @@ func RenderConfigURL(u string) (string, error) {
 
 	out := buf.String()
 	if strings.Contains(out, "<no value>") {
-		return "", fmt.Errorf("rendering config_url: template resolved to a missing value in %q", u)
+		// Defensive: missingkey=error catches undefined fields before we
+		// reach this branch. If a template still produces "<no value>",
+		// the rendered output usually makes the empty action obvious.
+		return "", fmt.Errorf("rendering config_url: template %q resolved to a missing value; rendered to %q", u, out)
 	}
 
-	// Belt and braces: reject empty substitutions like "?uuid=" or trailing
-	// "&mac=". The check is coarse but catches the common case where a
-	// scalar is defined but blank on this host.
+	// Belt and braces: reject empty substitutions that leave "?uuid=" or a
+	// blank path segment ("http://x//register"). Catches the common case
+	// where a scalar is defined but blank on this host.
 	if err := rejectEmptySubstitutions(u, out); err != nil {
 		return "", fmt.Errorf("rendering config_url: %w", err)
 	}
@@ -108,6 +111,8 @@ func walkAndEscape(m map[string]interface{}) map[string]interface{} {
 	return out
 }
 
+// escapeValue returns v with every string leaf URL-escaped via url.QueryEscape,
+// recursing into nested maps and slices. Other types pass through unchanged.
 func escapeValue(v interface{}) interface{} {
 	switch t := v.(type) {
 	case string:
@@ -125,25 +130,64 @@ func escapeValue(v interface{}) interface{} {
 	}
 }
 
-// rejectEmptySubstitutions inspects the rendered URL for query-string params
-// left empty by a substitution. It compares against the template so params
-// that were literally empty in the template ("?foo=") are not flagged.
+// rejectEmptySubstitutions inspects the rendered URL for empty spots left by
+// substitutions, in both the query string and the path. It compares against
+// the template so parts that were literally empty in the template
+// ("?foo=" or "/foo//bar") are not flagged; only positions the template
+// filled with a "{{ ... }}" action are.
+//
+// It parses the rendered URL via net/url; a rendered URL that will not parse
+// is a fail-loudly case too, since fetching it would blow up later anyway.
 func rejectEmptySubstitutions(tmpl, rendered string) error {
-	// Only look at what follows the first "?" if any; before that, empty
-	// segments have no query-string meaning.
-	qIdx := strings.Index(rendered, "?")
-	if qIdx < 0 {
-		return nil
-	}
-	rq := rendered[qIdx+1:]
-
-	tqIdx := strings.Index(tmpl, "?")
-	var tq string
-	if tqIdx >= 0 {
-		tq = tmpl[tqIdx+1:]
+	parsed, err := url.Parse(rendered)
+	if err != nil {
+		return fmt.Errorf("parsing rendered URL: %w", err)
 	}
 
-	for _, pair := range strings.Split(rq, "&") {
+	// Separate the template's path portion from its query portion so we can
+	// compare each half against the parsed rendered URL. url.Parse cannot
+	// help us here because "{{" is not a valid URL byte, so we string-split.
+	tPath := tmpl
+	var tQuery string
+	if tqIdx := strings.Index(tmpl, "?"); tqIdx >= 0 {
+		tPath = tmpl[:tqIdx]
+		tQuery = tmpl[tqIdx+1:]
+	}
+
+	// Strip the "scheme://host" prefix from the template's path portion so
+	// the segments line up with parsed.Path.
+	if idx := strings.Index(tPath, "://"); idx >= 0 {
+		rest := tPath[idx+3:]
+		if slashIdx := strings.Index(rest, "/"); slashIdx >= 0 {
+			tPath = rest[slashIdx:]
+		} else {
+			tPath = ""
+		}
+	}
+
+	// Path segments: for each non-leading empty segment in the rendered
+	// path, fail if the template's same-position segment contained "{{".
+	// The leading segment ("" from strings.Split of a "/"-prefixed path) is
+	// skipped because it is never a substitution site.
+	if tPath != "" {
+		tSegs := strings.Split(tPath, "/")
+		rSegs := strings.Split(parsed.Path, "/")
+		n := len(tSegs)
+		if len(rSegs) < n {
+			n = len(rSegs)
+		}
+		for i := 1; i < n; i++ {
+			if rSegs[i] == "" && strings.Contains(tSegs[i], "{{") {
+				return fmt.Errorf("substitution in path segment %d resolved to an empty string", i)
+			}
+		}
+	}
+
+	// Query values: for each empty value in the rendered query, fail if
+	// the template's same key had a "{{" substitution (i.e. the emptiness
+	// is a result of an empty variable, not a literal "?foo=" in the
+	// template).
+	for _, pair := range strings.Split(parsed.RawQuery, "&") {
 		eq := strings.IndexByte(pair, '=')
 		if eq < 0 {
 			continue
@@ -153,10 +197,7 @@ func rejectEmptySubstitutions(tmpl, rendered string) error {
 		if val != "" {
 			continue
 		}
-		// Value is empty in the rendered URL. Only fail if the template's
-		// same key had a "{{" substitution (i.e. the emptiness is a result
-		// of an empty variable, not a literal "?foo=" in the template).
-		if templateHadSubstitutionFor(tq, key) {
+		if templateHadSubstitutionFor(tQuery, key) {
 			return fmt.Errorf("substitution for %q resolved to an empty string", key)
 		}
 	}
