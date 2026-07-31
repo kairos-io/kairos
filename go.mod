@@ -3,6 +3,7 @@ module github.com/kairos-io/kairos-sdk
 go 1.26.5
 
 require (
+	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/anatol/luks.go v0.0.0-20260615185044-2658459c8ca5
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/containerd/containerd/v2 v2.3.3
@@ -46,7 +47,6 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Masterminds/goutils v1.1.1 // indirect
 	github.com/Masterminds/semver/v3 v3.4.0 // indirect
-	github.com/Masterminds/sprig/v3 v3.3.0 // indirect
 	github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29 // indirect
 	github.com/Microsoft/hcsshim v0.15.0-rc.1 // indirect
 	github.com/anatol/devmapper.go v0.0.0-20250316020617-2671eefd35d7 // indirect
