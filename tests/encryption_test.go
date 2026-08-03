@@ -104,6 +104,64 @@ stages:
 		})
 	})
 
+	When("using the kairos-agent kcrypt subcommands on a locally encrypted install", Label("encryption-kcrypt-cli"), func() {
+		BeforeEach(func() {
+			config = `#cloud-config
+
+install:
+  grub_options:
+    extra_cmdline: "rd.immucore.debug"
+  encrypted_partitions:
+    - COS_PERSISTENT
+  reboot: false # we will reboot manually
+
+stages:
+  initramfs:
+    - name: "Set user and password"
+      users:
+        kairos:
+          passwd: "kairos"
+          groups:
+            - "admin"
+      hostname: kairos-{{ trunc 4 .Random }}
+`
+		})
+
+		It("checks, reads and cleans up the local passphrase NV index", func() {
+			Expect(installError).ToNot(HaveOccurred(), installationOutput)
+
+			By("rebooting into the installed system")
+			vm.Reboot()
+			vm.EventuallyConnects(1200)
+
+			By("confirming the persistent partition is a LUKS volume")
+			out, err := vm.Sudo("blkid")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+
+			By("running kairos-agent kcrypt checknv on the default NV index")
+			out, err = vm.Sudo("kairos-agent kcrypt checknv")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("NV index 0x1500000 contains data"), out)
+
+			By("reading the passphrase back with kairos-agent kcrypt readnv")
+			out, err = vm.Sudo("kairos-agent kcrypt readnv")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).ToNot(BeEmpty(), out)
+			Expect(out).ToNot(ContainSubstring("Decryption failed"), out)
+
+			By("cleaning up the default NV index with kairos-agent kcrypt cleanupnv")
+			out, err = vm.Sudo("kairos-agent kcrypt cleanupnv --i-know-what-i-am-doing")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("Successfully cleaned up NV index 0x1500000"), out)
+
+			By("verifying kairos-agent kcrypt checknv now reports the NV index as gone")
+			out, err = vm.Sudo("kairos-agent kcrypt checknv")
+			Expect(err).To(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("NV index 0x1500000 does not exist or is empty"), out)
+		})
+	})
+
 	//https://kairos.io/docs/advanced/partition_encryption/#online-mode
 	When("using a remote key management server (automated passphrase generation)", Label("encryption-remote-auto"), func() {
 		// This test uses TOFU (Trust On First Use) mode where the server automatically
