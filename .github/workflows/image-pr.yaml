@@ -122,5 +122,6 @@ jobs:
           - test: "encryption-remote-static"
           - test: "encryption-remote-https-pinned"
           - test: "encryption-remote-https-bad-cert"
+          - test: "encryption-kcrypt-cli"
           - test: "provider-upgrade-latest-k8s-with-kubernetes"
             release-matcher: "kairos-hadron-*-standard-amd64-generic-*k3sv*.iso"
