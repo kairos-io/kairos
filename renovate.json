@@ -15,9 +15,31 @@
         "patch"
       ],
       "automerge": true
+    },
+    {
+      "matchDatasources": [
+        "custom.nvidia-jetson-linux"
+      ],
+      "extractVersion": "(?:^|/)r(?<version>[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)(?:/|$)"
     }
   ],
+  "customDatasources": {
+    "nvidia-jetson-linux": {
+      "defaultRegistryUrlTemplate": "https://docs.nvidia.com/jetson/archives/index.html",
+      "format": "html"
+    }
+  },
   "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^pkg/stages/steps_install\\.go$/"
+      ],
+      "matchStrings": [
+        "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+l4tVersion = getEnvOrDefault\\(\\\"L4T_VERSION\\\", \\\"(?<currentValue>[0-9]+\\.[0-9]+(?:\\.[0-9]+)?)\\\"\\)"
+      ],
+      "versioningTemplate": "loose"
+    },
     {
       "customType": "regex",
       "managerFilePatterns": [
