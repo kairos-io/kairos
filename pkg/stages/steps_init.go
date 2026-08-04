@@ -17,6 +17,7 @@ import (
 	"github.com/kairos-io/kairos-sdk/types/logger"
 	"github.com/mudler/go-pluggable"
 	"github.com/mudler/yip/pkg/schema"
+	"github.com/rs/zerolog"
 )
 
 // This file contains the stages that are run during the init process
@@ -71,11 +72,7 @@ func GetInitrdStage(_ values.System, logger logger.KairosLogger) ([]schema.Stage
 			return []schema.Stage{}, err
 		}
 
-		dracutCmd := fmt.Sprintf("dracut -f /boot/initrd %s", kernel)
-
-		if logger.GetLevel() == 0 {
-			dracutCmd = fmt.Sprintf("dracut -v -f /boot/initrd %s", kernel)
-		}
+		dracutCmd := getDracutCommand(kernel, logger.GetLevel())
 
 		stage = append(stage, []schema.Stage{
 			{
@@ -98,6 +95,14 @@ func GetInitrdStage(_ values.System, logger logger.KairosLogger) ([]schema.Stage
 	}
 
 	return stage, nil
+}
+
+func getDracutCommand(kernel string, level zerolog.Level) string {
+	if level == zerolog.TraceLevel {
+		return fmt.Sprintf("dracut -v -f /boot/initrd %s", kernel)
+	}
+
+	return fmt.Sprintf("dracut -f /boot/initrd %s", kernel)
 }
 
 // GetKairosReleaseStage Returns the kairos-release stage which creates the /etc/kairos-release file
