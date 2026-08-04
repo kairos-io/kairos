@@ -42,6 +42,27 @@ func GetInitrdStage(_ values.System, logger logger.KairosLogger) ([]schema.Stage
 		},
 	}
 
+	// Thor (T264) display bring-up. NVIDIA activates the GPU/display driver at
+	// first boot via nv-load-display-modules.service, which never runs in a
+	// container build - so the display never initializes ("NVRM: Cannot
+	// initialize DCE firmware RM", nvgpu clk-arb / IOMMU failures). Bake the
+	// activation the service would do: select the openrm variant (Thor is
+	// openrm-only), which via nv-modprobe-openrm-l4t-display.conf loads the GPU
+	// power-gating module (nv-gpu-static-pg) before nvidia.ko and blocks nvgpu,
+	// and load nvidia_drm at boot. The depmod below then picks up the override.
+	// See kairos-io/kairos#4228.
+	if values.Model(config.DefaultConfig.Model) == values.Thor {
+		stage = append(stage, schema.Stage{
+			Name: "Activate openrm display driver for Thor",
+			Commands: []string{
+				"mkdir -p /etc/depmod.d /etc/modprobe.d /etc/modules-load.d",
+				"cp /opt/nvidia/nv-disp-module-configs/nv-depmod-openrm-l4t-display.conf /etc/depmod.d/nvidia-display.conf",
+				"cp /opt/nvidia/nv-disp-module-configs/nv-modprobe-openrm-l4t-display.conf /etc/modprobe.d/nvidia-display.conf",
+				"printf 'nvidia_drm\\n' > /etc/modules-load.d/nvidia-display.conf",
+			},
+		})
+	}
+
 	// If we are not using trusted boot we need to create a new initrd
 	if !config.DefaultConfig.TrustedBoot {
 		kernel, err := getLatestKernel(logger)

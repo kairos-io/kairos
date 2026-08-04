@@ -1047,12 +1047,24 @@ var KernelPackagesModels = ModelPackageMap{
 					"nvidia-l4t-vulkan-sc-openrm",
 					"nvidia-l4t-configs",
 					"nvidia-l4t-core",
+					// Ships the QSPI capsule payload (/opt/ota_package/t26x/*.Cap)
+					// and the bootloader version the after-install QSPI check
+					// compares against. Without it the check aborts every Thor
+					// install and there is no capsule to stage. Its firmware-
+					// flashing postinst is a no-op in the container build thanks
+					// to the .nv-l4t-disable-boot-fw-update-in-preinstall sentinel.
+					// See kairos-io/kairos#4228.
+					"nvidia-l4t-bootloader",
 					"nvidia-l4t-cuda",
 					"nvidia-l4t-nvml",
 					"nvidia-l4t-firmware",
 					"nvidia-l4t-extlinux",
 					"nvidia-l4t-initrd",
 					"nvidia-l4t-kernel",
+					// Thor (T264) is openrm-only. The nvgpu variant must NOT be
+					// installed/loaded: NVIDIA selects openrm for tegra264 and the
+					// display bring-up is activated separately (see the "Activate
+					// openrm display driver" install step). See kairos-io/kairos#4228.
 					"nvidia-l4t-kernel-openrm",
 					"nvidia-l4t-kernel-dtbs",
 					"nvidia-l4t-kernel-oot-modules",

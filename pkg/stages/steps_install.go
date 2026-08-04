@@ -77,9 +77,11 @@ func GetInstallStage(sis values.System, logger logger.KairosLogger) ([]schema.St
 	isNvidiaBoard := fmt.Sprintf(`[ "%[1]s" = "nvidia-jetson-agx-orin" ] || [ "%[1]s" = "nvidia-jetson-orin-nx" ] || [ "%[1]s" = "nvidia-jetson-thor" ]`, config.DefaultConfig.Model)
 
 	if values.Model(config.DefaultConfig.Model) == values.Thor {
-		logger.Logger.Info().Msg("NVIDIA Thor detected, using L4T version 38.4 for repository setup")
+		// The L4T version must correspond to the QSPI boot firmware version on the
+		// board, otherwise it black-screens on boot. See kairos-io/kairos#4228.
+		logger.Logger.Info().Msg("NVIDIA Thor detected, using L4T version 39.2 for repository setup")
 		boardModel = "t264"
-		l4tVersion = getEnvOrDefault("L4T_VERSION", "38.4")
+		l4tVersion = getEnvOrDefault("L4T_VERSION", "39.2")
 	}
 
 	stage := []schema.Stage{
@@ -238,6 +240,19 @@ func GetInstallStage(sis values.System, logger logger.KairosLogger) ([]schema.St
 				// Change mountpoint for l4t usb device mode, as rootfs is mounted ro
 				// /srv/data is made through cloud-config
 				"sed -i -e 's|mntpoint=\"/mnt|mntpoint=\"/srv/data|' /opt/nvidia/l4t-usb-device-mode/nv-l4t-usb-device-mode-start.sh || true",
+			},
+		},
+		{
+			Name: "Install Jetson QSPI firmware update script",
+			If:   isNvidiaThorBoard,
+			Files: []schema.File{
+				{
+					Path:        bundled.JetsonQSPIScriptPath,
+					Content:     bundled.JetsonQSPIScript,
+					Permissions: 0o755,
+					Owner:       0,
+					Group:       0,
+				},
 			},
 		},
 	}

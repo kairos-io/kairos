@@ -11,7 +11,7 @@ stages:
         permissions: 0644
         owner: 0
         group: 0
-      - path: /etc/elemental/config.yaml
+      - path: /etc/kairos/config.yaml
         content: |
           #cloud-config
           cosign: false
@@ -22,6 +22,14 @@ stages:
               size: 4500
             recovery-system:
               size: 4500
+            # Enlarge the ESP beyond the 64MiB default. Jetson Thor stages a
+            # ~29MB UEFI firmware capsule on the ESP to upgrade the QSPI boot
+            # firmware; 64MiB leaves too little headroom next to GRUB and shim.
+            # Requires kairos-sdk/kairos-agent that honor a configured EFI size.
+            # See kairos-io/kairos#4228.
+            partitions:
+              efi:
+                size: 128
           upgrade:
             grub-entry-name: "Kairos"
             recovery-system:
