@@ -98,7 +98,8 @@ var _ = Describe("RenderConfigURL", func() {
 
 			_, err := RenderConfigURL("?x={{ .Values.nope }}")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("config_url"))
+			Expect(err.Error()).To(ContainSubstring("rendering config_url: execute"))
+			Expect(err.Error()).To(ContainSubstring("nope"))
 		})
 
 		It("fails when a query substitution resolves to an empty string", func() {
@@ -110,6 +111,8 @@ var _ = Describe("RenderConfigURL", func() {
 
 			_, err := RenderConfigURL("?uuid={{ .Values.product.uuid }}")
 			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resolved to an empty string"))
+			Expect(err.Error()).To(ContainSubstring("uuid"))
 		})
 
 		It("fails when a path-segment substitution resolves to an empty string", func() {
@@ -133,7 +136,7 @@ var _ = Describe("RenderConfigURL", func() {
 
 			_, err := RenderConfigURL("?u={{ .Values.product.uuid")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("config_url"))
+			Expect(err.Error()).To(ContainSubstring("rendering config_url: parse"))
 		})
 	})
 

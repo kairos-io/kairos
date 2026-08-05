@@ -348,7 +348,8 @@ info:
 				}}
 				err := c.MergeConfigURL()
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("config_url"))
+				Expect(err.Error()).To(ContainSubstring("rendering config_url"))
+				Expect(err.Error()).To(ContainSubstring("nope"))
 				Expect(hits.Load()).To(Equal(int32(0)), "the fake server must not be hit when rendering fails")
 			})
 		})
