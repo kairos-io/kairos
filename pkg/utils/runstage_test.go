@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 
 	"github.com/hashicorp/go-multierror"
@@ -162,16 +161,17 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 
 	It("renders a templated kairos.config_url before handing it to CloudInitRunner", func() {
 		// The kernel-cmdline path in yip's FromUrl fetches the URI verbatim,
-		// so any {{ .Values.* }} markers must be resolved BEFORE handoff.
-		// This regression uses .Values.node.hostname because it is one of
-		// the few sysinfo fields populated without root privileges.
-		hn, err := os.Hostname()
-		Expect(err).ToNot(HaveOccurred())
-		if hn == "" {
-			Skip("hostname unavailable on this host; cannot verify template rendering")
-		}
-		templated := `http://d/?h={{.Values.node.hostname}}`
-		rendered := "http://d/?h=" + url.QueryEscape(hn)
+		// so any {{ ... }} markers must be resolved BEFORE handoff. We use
+		// a bare string literal instead of a sysinfo field here so the test
+		// is fully deterministic on any host: the sysinfo-context path is
+		// exercised at the SDK level with a mocked context. This spec's
+		// job is only to prove RunStage invokes RenderConfigURL.
+		// A pipe through Sprig's upper makes it obvious the template ran:
+		// if RenderConfigURL was bypassed, the runner would see the raw
+		// "{{ "hello" | upper }}" markers and this assertion would fail
+		// with an unmistakable diff.
+		templated := `http://d/?h={{ "hello" | upper }}`
+		rendered := `http://d/?h=HELLO`
 
 		mock := &argsRecordingCIRunner{}
 		config.CloudInitRunner = mock
