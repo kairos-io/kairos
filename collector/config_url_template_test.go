@@ -102,31 +102,6 @@ var _ = Describe("RenderConfigURL", func() {
 			Expect(err.Error()).To(ContainSubstring("nope"))
 		})
 
-		It("fails when a query substitution resolves to an empty string", func() {
-			mockContext(map[string]interface{}{
-				"Values": map[string]interface{}{
-					"product": map[string]interface{}{"uuid": ""},
-				},
-			}, false)
-
-			_, err := RenderConfigURL("?uuid={{ .Values.product.uuid }}")
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("resolved to an empty string"))
-			Expect(err.Error()).To(ContainSubstring("uuid"))
-		})
-
-		It("fails when a path-segment substitution resolves to an empty string", func() {
-			mockContext(map[string]interface{}{
-				"Values": map[string]interface{}{
-					"node": map[string]interface{}{"hostname": ""},
-				},
-			}, false)
-
-			_, err := RenderConfigURL("http://x/{{ .Values.node.hostname }}/register")
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("path segment"))
-		})
-
 		It("fails on a malformed template", func() {
 			mockContext(map[string]interface{}{
 				"Values": map[string]interface{}{
@@ -137,6 +112,36 @@ var _ = Describe("RenderConfigURL", func() {
 			_, err := RenderConfigURL("?u={{ .Values.product.uuid")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("rendering config_url: parse"))
+		})
+	})
+
+	Describe("empty values", func() {
+		// Design choice: RenderConfigURL does not reject empty renders on its
+		// own. A user piping through Sprig's required opts into the check;
+		// otherwise a defined-but-empty field renders empty.
+
+		It("renders empty when a bare substitution resolves to empty", func() {
+			mockContext(map[string]interface{}{
+				"Values": map[string]interface{}{
+					"product": map[string]interface{}{"uuid": ""},
+				},
+			}, false)
+
+			out, err := RenderConfigURL("?uuid={{ .Values.product.uuid }}")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(Equal("?uuid="))
+		})
+
+		It("fails when a Sprig required field is empty", func() {
+			mockContext(map[string]interface{}{
+				"Values": map[string]interface{}{
+					"product": map[string]interface{}{"uuid": ""},
+				},
+			}, false)
+
+			_, err := RenderConfigURL(`?uuid={{ required "uuid is required for discovery" .Values.product.uuid }}`)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("uuid is required for discovery"))
 		})
 	})
 
