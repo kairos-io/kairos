@@ -50,6 +50,78 @@ func TestGetEfiGrubFiles(t *testing.T) {
 	}
 }
 
+func TestGetEfiLiveGrubFiles(t *testing.T) {
+	tests := []struct {
+		arch         string
+		fallbackArch string
+		cdGrub       string
+		diskGrub     string
+	}{
+		{
+			arch:     "amd64",
+			cdGrub:   "/usr/lib/grub/x86_64-efi-signed/gcdx64.efi.signed",
+			diskGrub: "/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed",
+		},
+		{
+			arch:     "x86_64",
+			cdGrub:   "/usr/lib/grub/x86_64-efi-signed/gcdx64.efi.signed",
+			diskGrub: "/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed",
+		},
+		{
+			arch:     "arm64",
+			cdGrub:   "/usr/lib/grub/arm64-efi-signed/gcdaa64.efi.signed",
+			diskGrub: "/usr/lib/grub/arm64-efi-signed/grubaa64.efi.signed",
+		},
+		{
+			arch:         "aarch64",
+			fallbackArch: "arm64",
+			cdGrub:       "/usr/lib/grub/arm64-efi-signed/gcdaa64.efi.signed",
+			diskGrub:     "/usr/lib/grub/arm64-efi-signed/grubaa64.efi.signed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.arch, func(t *testing.T) {
+			files := GetEfiLiveGrubFiles(tt.arch)
+			if files[0] != tt.cdGrub {
+				t.Fatalf("GetEfiLiveGrubFiles(%q)[0] = %q, want %q", tt.arch, files[0], tt.cdGrub)
+			}
+			if indexOfString(files, tt.diskGrub) <= indexOfString(files, tt.cdGrub) {
+				t.Fatalf("GetEfiLiveGrubFiles(%q) = %v, want CD grub before disk grub", tt.arch, files)
+			}
+			fallbackArch := tt.fallbackArch
+			if fallbackArch == "" {
+				fallbackArch = tt.arch
+			}
+			for _, path := range GetEfiGrubFiles(fallbackArch) {
+				if indexOfString(files, path) == -1 {
+					t.Fatalf("GetEfiLiveGrubFiles(%q) omitted fallback %q; got %v", tt.arch, path, files)
+				}
+			}
+		})
+	}
+
+	riscvFiles := GetEfiLiveGrubFiles("riscv64")
+	wantRiscvFiles := GetEfiGrubFiles("riscv64")
+	if len(riscvFiles) != len(wantRiscvFiles) {
+		t.Fatalf("GetEfiLiveGrubFiles(\"riscv64\") = %v, want %v", riscvFiles, wantRiscvFiles)
+	}
+	for i := range wantRiscvFiles {
+		if riscvFiles[i] != wantRiscvFiles[i] {
+			t.Fatalf("GetEfiLiveGrubFiles(\"riscv64\") = %v, want %v", riscvFiles, wantRiscvFiles)
+		}
+	}
+}
+
+func indexOfString(items []string, target string) int {
+	for i, item := range items {
+		if item == target {
+			return i
+		}
+	}
+	return -1
+}
+
 func TestGetEfiShimFiles(t *testing.T) {
 	arm64Files := GetEfiShimFiles("arm64")
 	if len(arm64Files) == 0 {

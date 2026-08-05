@@ -379,6 +379,27 @@ func GetEfiGrubFiles(arch string) []string {
 	return modNames
 }
 
+// GetEfiLiveGrubFiles returns possible grub.efi paths ordered for live media.
+// Debian and Ubuntu's gcd*.efi binaries include ISO9660 support and use the
+// /boot/grub prefix, so live ISO builders should prefer them while retaining
+// every disk-oriented path as a fallback.
+func GetEfiLiveGrubFiles(arch string) []string {
+	switch arch {
+	case "arm64", "aarch64":
+		return append(
+			[]string{"/usr/lib/grub/arm64-efi-signed/gcdaa64.efi.signed"},
+			GetEfiGrubFiles("arm64")...,
+		)
+	case "riscv64":
+		return GetEfiGrubFiles(arch)
+	default:
+		return append(
+			[]string{"/usr/lib/grub/x86_64-efi-signed/gcdx64.efi.signed"},
+			GetEfiGrubFiles(arch)...,
+		)
+	}
+}
+
 // GetEfiShimFiles Return possible paths for the shim.efi
 // Used in auroraboot and agent.
 func GetEfiShimFiles(arch string) []string {
