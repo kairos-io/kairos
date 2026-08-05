@@ -87,7 +87,13 @@ func (g *GhwMock) CreateDevices() {
 			_ = os.WriteFile(filepath.Join(diskPath, partition.Name, "dev"), []byte(fmt.Sprintf("%d:6%d\n", indexDisk, indexPart)), 0644)
 			_ = os.WriteFile(filepath.Join(diskPath, partition.Name, "size"), []byte(fmt.Sprintf("%d\n", partition.Size)), 0644)
 			// Create the /run/udev/data/bMAJOR:MINOR file with the data inside to mimic the udev database
-			data := []string{fmt.Sprintf("E:ID_FS_LABEL=%s\n", partition.FilesystemLabel)}
+			var data []string
+			if partition.FilesystemLabel != "" {
+				data = append(data, fmt.Sprintf("E:ID_FS_LABEL=%s\n", partition.FilesystemLabel))
+			}
+			if partition.PartitionLabel != "" {
+				data = append(data, fmt.Sprintf("E:ID_PART_ENTRY_NAME=%s\n", partition.PartitionLabel))
+			}
 			if partition.FS != "" {
 				data = append(data, fmt.Sprintf("E:ID_FS_TYPE=%s\n", partition.FS))
 			}
@@ -276,10 +282,15 @@ func (g *GhwMock) createMultipathPartitionWithMountFormat(parentDiskName string,
 
 	// Create udev data for the partition with multipath-specific entries
 	udevData := []string{
-		fmt.Sprintf("E:ID_FS_LABEL=%s\n", partition.FilesystemLabel),
 		fmt.Sprintf("E:DM_NAME=%s%s\n", parentDiskName, partitionSuffix),
 		fmt.Sprintf("E:DM_UUID=%s\n", partition.UUID), // This indicates it's a multipath partition
 		fmt.Sprintf("E:DM_PART=%d\n", partNum),        // This indicates it's a multipath partition
+	}
+	if partition.FilesystemLabel != "" {
+		udevData = append(udevData, fmt.Sprintf("E:ID_FS_LABEL=%s\n", partition.FilesystemLabel))
+	}
+	if partition.PartitionLabel != "" {
+		udevData = append(udevData, fmt.Sprintf("E:ID_PART_ENTRY_NAME=%s\n", partition.PartitionLabel))
 	}
 	if partition.FS != "" {
 		udevData = append(udevData, fmt.Sprintf("E:ID_FS_TYPE=%s\n", partition.FS))
@@ -355,9 +366,14 @@ func (g *GhwMock) AddMultipathPartition(parentDiskName string, partition *partit
 
 	// Create udev data for the partition with multipath-specific entries
 	udevData := []string{
-		fmt.Sprintf("E:ID_FS_LABEL=%s\n", partition.FilesystemLabel),
 		fmt.Sprintf("E:DM_NAME=%s%s\n", parentDiskName, partitionSuffix),
 		fmt.Sprintf("E:DM_PART=%d\n", partNum), // This indicates it's a multipath partition
+	}
+	if partition.FilesystemLabel != "" {
+		udevData = append(udevData, fmt.Sprintf("E:ID_FS_LABEL=%s\n", partition.FilesystemLabel))
+	}
+	if partition.PartitionLabel != "" {
+		udevData = append(udevData, fmt.Sprintf("E:ID_PART_ENTRY_NAME=%s\n", partition.PartitionLabel))
 	}
 	if partition.FS != "" {
 		udevData = append(udevData, fmt.Sprintf("E:ID_FS_TYPE=%s\n", partition.FS))

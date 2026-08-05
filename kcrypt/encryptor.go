@@ -633,6 +633,11 @@ func findPartitionByLabel(partitionLabel string) (*partitions.Partition, error) 
 	// Find the partition device by label
 	devicePath, err := utils.SH(fmt.Sprintf("blkid -L %s", partitionLabel))
 	devicePath = strings.TrimSpace(devicePath)
+	legacyName := legacyPartitionName(partitionLabel)
+	if (err != nil || devicePath == "") && legacyName != "" {
+		devicePath, err = utils.SH(fmt.Sprintf("blkid -t PARTLABEL=%s -o device", legacyName))
+		devicePath = strings.TrimSpace(devicePath)
+	}
 
 	if err != nil || devicePath == "" {
 		return nil, fmt.Errorf("partition not found")
@@ -647,7 +652,7 @@ func findPartitionByLabel(partitionLabel string) (*partitions.Partition, error) 
 	var partition *partitions.Partition
 	for _, disk := range disks {
 		for _, p := range disk.Partitions {
-			if p.FilesystemLabel == partitionLabel {
+			if p.FilesystemLabel == partitionLabel || (legacyName != "" && p.PartitionLabel == legacyName) {
 				partition = p
 				break
 			}

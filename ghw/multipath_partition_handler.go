@@ -90,9 +90,11 @@ func (m *MultipathPartitionHandler) GetPartitions(paths *Paths, logger *logger.K
 			pt = diskPartTypeUdev(paths, partName, logger)
 		}
 		fsLabel := diskFSLabel(paths, partName, logger)
+		partitionLabel := diskPartitionLabel(paths, partName, logger)
 
 		p := &partitions.Partition{
 			Name:            partName,
+			PartitionLabel:  partitionLabel,
 			Size:            uint(size / (1024 * 1024)),
 			MountPoint:      mp,
 			UUID:            du,

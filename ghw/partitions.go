@@ -171,6 +171,21 @@ func diskFSLabel(paths *Paths, partitionPath string, logger *logger.KairosLogger
 	return UNKNOWN
 }
 
+func diskPartitionLabel(paths *Paths, partitionPath string, logger *logger.KairosLogger) string {
+	info, err := udevInfoPartition(paths, partitionPath, logger)
+	logger.Logger.Trace().Interface("info", info).Msg("Disk partition label")
+	if err != nil {
+		logger.Logger.Error().Str("partition", partitionPath).Interface("info", info).Err(err).Msg("Disk partition label")
+		return UNKNOWN
+	}
+
+	if label, ok := info["ID_PART_ENTRY_NAME"]; ok {
+		logger.Logger.Trace().Str("partition", partitionPath).Str("label", label).Msg("Got partition label")
+		return label
+	}
+	return UNKNOWN
+}
+
 func udevInfoPartition(paths *Paths, partitionPath string, logger *logger.KairosLogger) (map[string]string, error) {
 	// Get device major:minor numbers
 	devNo, err := os.ReadFile(filepath.Join(paths.SysBlock, partitionPath, "dev"))

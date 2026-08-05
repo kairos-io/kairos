@@ -35,6 +35,7 @@ var _ = Describe("GHW functions tests", func() {
 				Partitions: []*partitions.Partition{
 					{
 						Name:            "disk1",
+						PartitionLabel:  "efi",
 						FilesystemLabel: "COS_GRUB",
 						FS:              "ext4",
 						MountPoint:      "/efi",
@@ -57,6 +58,7 @@ var _ = Describe("GHW functions tests", func() {
 			Expect(disks[0].SizeBytes).To(Equal(uint64(1*1024*512)), disks)
 			Expect(len(disks[0].Partitions)).To(Equal(1), disks)
 			Expect(disks[0].Partitions[0].Name).To(Equal("disk1"), disks)
+			Expect(disks[0].Partitions[0].PartitionLabel).To(Equal("efi"), disks)
 			Expect(disks[0].Partitions[0].FilesystemLabel).To(Equal("COS_GRUB"), disks)
 			Expect(disks[0].Partitions[0].FS).To(Equal("ext4"), disks)
 			Expect(disks[0].Partitions[0].MountPoint).To(Equal("/efi"), disks)

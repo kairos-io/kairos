@@ -8,10 +8,42 @@ import (
 	"time"
 
 	"github.com/anatol/luks.go"
+	"github.com/kairos-io/kairos-sdk/constants"
 	"github.com/kairos-io/kairos-sdk/ghw"
 	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos-sdk/types/partitions"
 	"github.com/kairos-io/kairos-sdk/utils"
 )
+
+func encryptedPartitionLabel(partition *partitions.Partition) string {
+	if partition == nil {
+		return ""
+	}
+
+	if partition.FilesystemLabel != "" && partition.FilesystemLabel != "unknown" {
+		return partition.FilesystemLabel
+	}
+
+	switch partition.PartitionLabel {
+	case constants.OEMPartName:
+		return constants.OEMLabel
+	case constants.PersistentPartName:
+		return constants.PersistentLabel
+	default:
+		return ""
+	}
+}
+
+func legacyPartitionName(filesystemLabel string) string {
+	switch filesystemLabel {
+	case constants.OEMLabel:
+		return constants.OEMPartName
+	case constants.PersistentLabel:
+		return constants.PersistentPartName
+	default:
+		return ""
+	}
+}
 
 func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger) error {
 	// Check if device exists and is accessible
@@ -151,8 +183,8 @@ func findEncryptedPartitions(logger sdkLogger.KairosLogger) ([]string, error) {
 						Str("device", p.Path).
 						Str("label", p.FilesystemLabel).
 						Msg("Found unmounted LUKS partition")
-					if p.FilesystemLabel != "" {
-						partitionLabels = append(partitionLabels, p.FilesystemLabel)
+					if label := encryptedPartitionLabel(p); label != "" {
+						partitionLabels = append(partitionLabels, label)
 					}
 				} else {
 					logger.Logger.Info().

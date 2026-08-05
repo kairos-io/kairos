@@ -43,8 +43,10 @@ func (d *DiskPartitionHandler) GetPartitions(paths *Paths, logger *logger.Kairos
 			pt = diskPartTypeUdev(paths, partitionPath, logger)
 		}
 		fsLabel := diskFSLabel(paths, partitionPath, logger)
+		partitionLabel := diskPartitionLabel(paths, partitionPath, logger)
 		p := &partitions.Partition{
 			Name:            fname,
+			PartitionLabel:  partitionLabel,
 			Size:            uint(size / (1024 * 1024)),
 			MountPoint:      mp,
 			UUID:            du,

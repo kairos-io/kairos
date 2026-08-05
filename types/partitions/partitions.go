@@ -9,6 +9,7 @@ import (
 
 type Partition struct {
 	Name            string   `yaml:"name,omitempty" mapstructure:"name" json:"name,omitempty"`
+	PartitionLabel  string   `yaml:"partition_label,omitempty" mapstructure:"partition_label" json:"partition_label,omitempty"`
 	FilesystemLabel string   `yaml:"label,omitempty" mapstructure:"label" json:"label,omitempty"`
 	Size            uint     `yaml:"size,omitempty" mapstructure:"size" json:"size,omitempty"`
 	FS              string   `yaml:"fs,omitempty" mapstrcuture:"fs" json:"fs,omitempty"`
