@@ -2,11 +2,10 @@
 id = "GO-2026-5298"
 ignoreUntil = 2026-10-01
 reason = """
-Fixed in github.com/google/go-attestation v0.6.0+ (GHSA-9r4w-jg96-92mv).
-The OSV database has not yet recorded a fixed version range for this advisory.
+Patched in github.com/google/go-attestation v0.6.1 per GHSA-9r4w-jg96-92mv
+(vulnerable_version_range <= 0.6.0, patched_versions v0.6.1). We are on
+v0.6.1. The OSV database entry still lists the range as introduced=0 with
+no fixed event and no vulnerable_functions, so neither module-version nor
+symbol-level analysis can rule it out. Drop this ignore once OSV records
+the fixed version.
 """
-
-[[IgnoredVulns]]
-id = "GO-2026-5932"
-ignoreUntil = 2026-07-27
-reason = "Indirect golang.org/x/crypto dep; we do not import golang.org/x/crypto/openpgp. No fixed version exists yet. Re-check after upstream dependency updates."
