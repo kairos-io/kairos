@@ -19,7 +19,7 @@ import (
 // product.serial, network[0].macaddress, node.hostname, plus Random and
 // ProtectedID). Sprig's TxtFuncMap is available.
 //
-// If url contains no template markers ("{{" or "}}"), it is returned unchanged
+// If url contains no template start marker ("{{"), it is returned unchanged
 // with no context construction (fast path).
 //
 // Every scalar value the template can read is URL-escaped via url.QueryEscape

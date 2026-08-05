@@ -309,6 +309,7 @@ info:
 				}))
 
 				var gotQuery atomic.Value
+				gotQuery.Store("")
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					gotQuery.Store(r.URL.RawQuery)
 					_, _ = w.Write([]byte("#cloud-config\nremote_key: remote_value\n"))
@@ -320,8 +321,7 @@ info:
 				}}
 				Expect(c.MergeConfigURL()).To(Succeed())
 
-				stored, ok := gotQuery.Load().(string)
-				Expect(ok).To(BeTrue(), "the fake server should have been hit")
+				stored := gotQuery.Load().(string)
 				Expect(stored).To(Equal("uuid=abc-123"))
 				Expect(stored).ToNot(ContainSubstring("{{"))
 				Expect(c.Values).To(HaveKeyWithValue("remote_key", "remote_value"))
