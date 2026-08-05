@@ -203,7 +203,9 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 
 		err := utils.RunStage(config, "padme")
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("config_url"))
+		Expect(err.Error()).To(ContainSubstring("rendering config_url"))
+		Expect(err.Error()).To(ContainSubstring("from cmdline"))
+		Expect(err.Error()).To(ContainSubstring("definitely_not_a_key"))
 
 		// The templated URI must never have reached the runner as a
 		// standalone source arg. The raw /proc/cmdline arg forwarded to
