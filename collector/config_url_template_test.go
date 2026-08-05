@@ -117,7 +117,8 @@ var _ = Describe("RenderConfigURL", func() {
 
 	Describe("empty values", func() {
 		// Design choice: RenderConfigURL does not reject empty renders on its
-		// own. A user piping through Sprig's required opts into the check;
+		// own. A user piping through the Helm-style required helper this
+		// template registers opts into the check;
 		// otherwise a defined-but-empty field renders empty.
 
 		It("renders empty when a bare substitution resolves to empty", func() {
@@ -132,7 +133,7 @@ var _ = Describe("RenderConfigURL", func() {
 			Expect(out).To(Equal("?uuid="))
 		})
 
-		It("fails when a Sprig required field is empty", func() {
+		It("fails when a required-wrapped field is empty", func() {
 			mockContext(map[string]interface{}{
 				"Values": map[string]interface{}{
 					"product": map[string]interface{}{"uuid": ""},
