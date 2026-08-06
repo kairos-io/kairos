@@ -12,7 +12,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jaypipes/ghw v0.25.0
 	github.com/joho/godotenv v1.5.1
-	github.com/kairos-io/kairos-sdk v0.25.1
+	github.com/kairos-io/kairos-sdk v0.25.2
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mudler/yip v1.25.1
 	github.com/onsi/ginkgo/v2 v2.32.0
@@ -84,7 +84,7 @@ require (
 	github.com/google/go-attestation v0.6.1 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-configfs-tsm v0.3.3 // indirect
-	github.com/google/go-containerregistry v0.21.8 // indirect
+	github.com/google/go-containerregistry v0.21.9 // indirect
 	github.com/google/go-tpm-tools v0.4.7 // indirect
 	github.com/google/pprof v0.0.0-20260402051712-545e8a4df936 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
