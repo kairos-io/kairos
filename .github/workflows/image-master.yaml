@@ -57,3 +57,108 @@ jobs:
             # Report-only: k3s CVEs come from upstream and should not block
             # master builds / tests. Mirrors release.yaml (PR #4052).
             security_scan_mode: "report-only"
+  size-history:
+    # Durable ISO size time series: one data point per merge to master,
+    # appended to a CSV on the orphan `size-history` branch, with a Markdown
+    # table and an SVG chart regenerated from it. This is the "over time" half
+    # of the size tracking; the ephemeral per-PR delta lives in image-pr.yaml.
+    name: iso-size-history
+    if: ${{ github.ref_name == 'master' }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # push the size-history branch
+      actions: read      # download the built ISO artifacts
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Download master ISOs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "kairos-hadron-*-amd64-generic.iso.zip"
+          path: candidate
+      - name: Record ISO sizes and render history
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO='${{ github.repository }}'
+          BRANCH='size-history'
+          DATA_DIR="${RUNNER_TEMP}/size-history"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          # Load the existing history branch, or start a fresh orphan one.
+          if git clone --quiet --branch "$BRANCH" --single-branch "$REMOTE" "$DATA_DIR" 2>/dev/null; then
+            echo "Loaded existing '$BRANCH' branch"
+          else
+            echo "No '$BRANCH' branch yet; starting a fresh one"
+            mkdir -p "$DATA_DIR"
+            git -C "$DATA_DIR" init -q -b "$BRANCH"
+          fi
+          # Build a "<merge-sha> <release-tag>" map so the rendered history table
+          # can annotate a merge with its release version (a release shares the
+          # merge's sha, so it never becomes a second row). We dereference
+          # annotated tags to the commit they point at and keep only tags that
+          # correspond to a published release, falling back to all tags if the
+          # releases API is unavailable. A missing map just means no annotations
+          # -- never fail the history on it.
+          TAGS_FILE="${RUNNER_TEMP}/release-tags.txt"
+          : >"$TAGS_FILE"
+          RELEASES="$(gh api "repos/${REPO}/releases" --paginate \
+            --jq '.[].tag_name' 2>/dev/null || true)"
+          git ls-remote --tags "$REMOTE" 2>/dev/null | awk '
+            { sha=$1; ref=$2; d=0
+              if (ref ~ /\^\{\}$/) { d=1; sub(/\^\{\}$/, "", ref) }
+              sub(/^refs\/tags\//, "", ref)
+              if (d) commit[ref]=sha; else if (!(ref in light)) light[ref]=sha
+            }
+            END {
+              for (t in commit) print commit[t], t
+              for (t in light)  if (!(t in commit)) print light[t], t
+            }' >"${RUNNER_TEMP}/all-tags.txt" || true
+          if [ -n "$RELEASES" ]; then
+            awk 'NR==FNR{rel[$0]=1; next} ($2 in rel)' \
+              <(printf '%s\n' "$RELEASES") "${RUNNER_TEMP}/all-tags.txt" \
+              >"$TAGS_FILE" || true
+          else
+            cp "${RUNNER_TEMP}/all-tags.txt" "$TAGS_FILE" 2>/dev/null || true
+          fi
+          scripts/iso-size-history.sh all \
+            "${DATA_DIR}/size-history.csv" '${{ github.sha }}' candidate "$DATA_DIR" \
+            "$REPO" "$TAGS_FILE" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Publish history branch
+        # Never fail the build on a history hiccup; the step summary above is
+        # still written even if the commit/push cannot complete.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REPO='${{ github.repository }}'
+          BRANCH='size-history'
+          DATA_DIR="${RUNNER_TEMP}/size-history"
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
+          cd "$DATA_DIR"
+          git add size-history.csv SIZE_HISTORY.md size-history.svg
+          if git diff --cached --quiet; then
+            echo "No size changes to commit"
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -q -m "size-history: ${{ github.sha }}"
+          # Merges can land close together: rebase-and-retry on push rejection so
+          # two runs don't clobber each other's history.
+          for attempt in 1 2 3 4 5; do
+            if git push --quiet "$REMOTE" "HEAD:${BRANCH}"; then
+              echo "Pushed history (attempt ${attempt})"
+              exit 0
+            fi
+            echo "Push rejected (attempt ${attempt}); syncing and retrying"
+            if git fetch --quiet "$REMOTE" "$BRANCH"; then
+              git rebase --quiet FETCH_HEAD || { git rebase --abort || true; }
+            fi
+            sleep $((attempt * 3))
+          done
+          echo "Could not push history after retries" >&2
+          exit 1
