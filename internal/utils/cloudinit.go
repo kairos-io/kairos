@@ -7,6 +7,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/kairos-io/immucore/internal/constants"
+	"github.com/kairos-io/kairos-sdk/collector"
 	"github.com/kairos-io/kairos-sdk/machine"
 	"github.com/mudler/yip/pkg/console"
 	"github.com/mudler/yip/pkg/executor"
@@ -36,11 +37,28 @@ func RunStage(stage string) error {
 	// resolve to a config source URI which we hand to yip as an additional stage source.
 	// Parsing is delegated to kairos-sdk/machine so immucore, kairos-agent and any other
 	// consumer stay in lockstep. See kairos-sdk PR #812.
+	//
+	// The URI is templated through collector.RenderConfigURL so operators can
+	// inject per-machine values (SMBIOS UUID, MAC, hostname, ...) into a
+	// discovery URL. On template error we append to allErrors and SKIP the
+	// fetch loop for this URI: silently fetching an unintended endpoint is
+	// worse than skipping. Note that RunStage itself always returns nil
+	// today (see the tail comment), so allErrors currently lives only as an
+	// accumulated debug trail. See kairos-sdk PR #820.
 	if uri := KairosConfigURIFromCmdline(); uri != "" {
-		for _, s := range []string{stageBefore, stage, stageAfter} {
-			err = yip.Run(s, vfs.OSFS, c, uri)
-			if err != nil {
-				allErrors = multierror.Append(allErrors, err)
+		var rendered string
+		rendered, err = collector.RenderConfigURL(uri)
+		if err != nil {
+			allErrors = multierror.Append(allErrors, fmt.Errorf("rendering kairos.config_url=%q: %w", uri, err))
+		} else {
+			if rendered != uri {
+				KLog.Debugf("resolved kairos.config_url %q to %q", uri, rendered)
+			}
+			for _, s := range []string{stageBefore, stage, stageAfter} {
+				err = yip.Run(s, vfs.OSFS, c, rendered)
+				if err != nil {
+					allErrors = multierror.Append(allErrors, err)
+				}
 			}
 		}
 	}
