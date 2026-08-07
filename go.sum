@@ -331,6 +331,8 @@ github.com/kairos-io/go-nodepair v0.3.0 h1:JIMBAtbNhIAsx89aP61mQDGMuGFoIQH/woK2t
 github.com/kairos-io/go-nodepair v0.3.0/go.mod h1:7i905W/KmR9DAcMSVJr/Wdb84E5Yyu9YLgj7chwX1xs=
 github.com/kairos-io/kairos-sdk v0.25.2-0.20260805143930-4d8b3f8e770b h1:O3Abh4NU+MsKp8scfSAoAtirY/PQgmqlB4kYS7LZvoU=
 github.com/kairos-io/kairos-sdk v0.25.2-0.20260805143930-4d8b3f8e770b/go.mod h1:ebgJNvYL9JbE4ndZYk7bFCTCdJBFMTAiQvmxm2Ia5Pw=
+github.com/kairos-io/kairos-sdk v0.25.2 h1:gvwdBklzpmYrvNWAHXAblCh5BRaIDU3axRyjRLJGO8s=
+github.com/kairos-io/kairos-sdk v0.25.2/go.mod h1:FuO5nc0EfZu3cC7Bt8LZyEAEeA6vfusl3ExanpeG8WM=
 github.com/kairos-io/tpm-helpers v0.0.0-20260702080541-9b3e057e2f32 h1:uunggNSibnMrKkvBblxmpsa1BNGHXFqsJf0zyUm0Eas=
 github.com/kairos-io/tpm-helpers v0.0.0-20260702080541-9b3e057e2f32/go.mod h1:VCNa+JJQgXutnWNJvZyNSemeMSy2w+b9SKTkItiIkro=
 github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 h1:Z9n2FFNUXsshfwJMBgNA0RU6/i7WVaAegv3PtuIHPMs=
