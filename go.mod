@@ -10,7 +10,7 @@ require (
 	github.com/ipfs/go-log v1.0.5
 	github.com/ipfs/go-log/v2 v2.9.2
 	github.com/kairos-io/go-nodepair v0.3.0
-	github.com/kairos-io/kairos-agent/v2 v2.31.0
+	github.com/kairos-io/kairos-agent/v2 v2.31.1
 	github.com/kairos-io/kairos-sdk v0.25.2
 	github.com/kube-vip/kube-vip v1.2.2
 	github.com/mudler/edgevpn v0.35.3
