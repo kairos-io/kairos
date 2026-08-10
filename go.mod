@@ -15,7 +15,7 @@ require (
 	github.com/kairos-io/kairos-sdk v0.25.2
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mudler/yip v1.25.1
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	github.com/spectrocloud-labs/herd v0.4.2
 	github.com/twpayne/go-vfs/v4 v4.3.0 // v5 requires a bump to go1.20
