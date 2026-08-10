@@ -25,6 +25,10 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+      - name: Fetch bundled binaries
+        env:
+          SKIP_UPX: "true"
+        run: make all
       - name: Run tests
         run: |
           go run github.com/onsi/ginkgo/v2/ginkgo run -p --github-output  --covermode=atomic --coverprofile=coverage.out --race -r ./...
