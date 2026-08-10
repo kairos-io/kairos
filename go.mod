@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/go-logr/logr v1.4.4
-	github.com/google/go-attestation v0.6.2
+	github.com/google/go-attestation v0.6.3
 	github.com/google/go-tpm v0.9.8
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
