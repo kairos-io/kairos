@@ -13,7 +13,7 @@ require (
 	github.com/kairos-io/tpm-helpers v0.0.0-20260702080541-9b3e057e2f32
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
 	github.com/mudler/go-processmanager v0.1.1
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	github.com/spectrocloud/peg v0.0.0-20260123084329-97c9703181cf
 	github.com/spf13/cobra v1.10.2
