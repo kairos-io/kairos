@@ -90,6 +90,11 @@ func GenericKernelDrivers() []string {
 
 var ErrAlreadyMounted = errors.New("already mounted")
 
+// ErrMountTargetMissing is returned when a mount target directory does not exist
+// and cannot be created, typically because it is missing from the OS image and
+// the rootfs is still mounted read-only at that point in the boot.
+var ErrMountTargetMissing = errors.New("mount target does not exist and could not be created")
+
 const (
 	OpCustomMounts         = "custom-mount"
 	OpDiscoverState        = "discover-state"

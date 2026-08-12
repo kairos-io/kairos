@@ -302,6 +302,17 @@ func (s *State) MountCustomOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) 
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Overlay mount start")
 						operation := op.MountWithBaseOverlay(p, s.Rootdir, "/run/overlay")
 						err := operation.Run()
+						// A path that is missing from the OS image cannot be mounted, but it
+						// must not take the whole step down with it: OpMountBind depends on
+						// this one, so failing here silently skips every persistent state
+						// bind (/etc/systemd, /etc/sysconfig, /home, /var/lib/rancher, ...)
+						// and the node boots with a pristine image /etc. Losing one ephemeral
+						// RW path is far less damaging, so warn loudly and carry on.
+						if errors.Is(err, cnst.ErrMountTargetMissing) {
+							internalUtils.KLog.Logger.Warn().Err(err).Str("what", p).
+								Msg("Skipping ephemeral overlay: path is not in the OS image. Writes to it will fail against the read-only rootfs. Create the directory at image build time or drop it from ephemeral_mounts/RW_PATHS.")
+							continue
+						}
 						// Append to errors only if it's not an already mounted error
 						if err != nil && !errors.Is(err, cnst.ErrAlreadyMounted) {
 							internalUtils.KLog.Logger.Err(err).Msg("overlay mount")

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/containerd/containerd/mount"
+	"github.com/kairos-io/immucore/internal/constants"
 	internalUtils "github.com/kairos-io/immucore/internal/utils"
 	"github.com/kairos-io/immucore/pkg/schema"
 )
@@ -108,8 +109,6 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 	rootMount := filepath.Join(root, mountpoint)
 	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
 
-	// TODO: Should we error out if we cant create the target to mount to?
-	_ = internalUtils.CreateIfNotExists(rootMount)
 	upperdir := filepath.Join(base, bindMountPath, ".overlay", "upper")
 	workdir := filepath.Join(base, bindMountPath, ".overlay", "work")
 
@@ -133,6 +132,14 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 		FstabEntry:  *tmpFstab,
 		Target:      rootMount,
 		PrepareCallback: func() error {
+			// The lowerdir has to exist before we can stack an overlay on it. It
+			// usually ships in the OS image, but if it does not we cannot create it
+			// either: the rootfs is still mounted read-only at this point. Report
+			// that clearly instead of letting the mount syscall fail later with a
+			// bare "lstat <path>: no such file or directory".
+			if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
+				return fmt.Errorf("%w: %s: %w", constants.ErrMountTargetMissing, rootMount, err)
+			}
 			// Make sure workdir and/or upper exists
 			_ = os.MkdirAll(upperdir, os.ModePerm)
 			_ = os.MkdirAll(workdir, os.ModePerm)
