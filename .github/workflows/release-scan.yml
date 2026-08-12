@@ -13,11 +13,24 @@ name: 'Release vulnerability scan'
 # The scanned artifact is therefore NOT byte-identical to the shipped one. It is
 # composed from the same sources at the same pins, which is the property that
 # matters for dependency scanning.
+#
 
+# Triggers are deliberately narrow. This is a release gate, so release.yaml
+# calls it via workflow_call. It does NOT run on every pull request: the
+# findings belong to the pinned dependency set, not to the change under review,
+# so an unrelated PR -- including an external contributor's -- would get a red
+# check for CVEs it did not introduce and cannot fix.
+#
+# The pull_request trigger is scoped to the files that actually determine the
+# result: the kairos-init pin, the ignore list, and this workflow itself.
 on:
-  pull_request:
-  workflow_dispatch:
   workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'images/Dockerfile'
+      - 'osv-scanner.toml'
+      - '.github/workflows/release-scan.yml'
 
 permissions:
   contents: read
