@@ -15,8 +15,9 @@ name: 'Release vulnerability scan'
 # matters for dependency scanning.
 #
 
-# Triggers are deliberately narrow. This is a release gate, so release.yaml
-# calls it via workflow_call. It does NOT run on every pull request: the
+# Triggers are deliberately narrow. This is a release gate: release.yaml and
+# release-arm.yaml call it via workflow_call, and every publishing job depends
+# on it, so a release with unignored advisories never publishes. It does NOT run on every pull request: the
 # findings belong to the pinned dependency set, not to the change under review,
 # so an unrelated PR -- including an external contributor's -- would get a red
 # check for CVEs it did not introduce and cannot fix.
