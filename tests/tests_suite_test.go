@@ -417,8 +417,13 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	// Always setup a tpm emulator
 	emulateTPM(stateDir)
 
-	sshPort, err = getFreePort()
-	Expect(err).ToNot(HaveOccurred())
+	if p := os.Getenv("SSH_PORT"); p != "" {
+		sshPort, err = strconv.Atoi(p)
+		Expect(err).ToNot(HaveOccurred())
+	} else {
+		sshPort, err = getFreePort()
+		Expect(err).ToNot(HaveOccurred())
+	}
 	GinkgoLogr.Info("Got SSH port", "port", sshPort, "vm", vmName)
 
 	memory := getEnvOrDefault("MEMORY", "2048")

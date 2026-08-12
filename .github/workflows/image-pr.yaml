@@ -123,6 +123,7 @@ jobs:
           - test: "reset"
           - test: "upgrade-with-cli"
           - test: "bundles"
+          - test: "ssh-hardening"
           - test: "upgrade-latest-with-cli"
             release-matcher: "kairos-hadron-*-core-amd64-generic-v*.iso"
   standard-tests:
