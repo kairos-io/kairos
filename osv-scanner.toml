@@ -23,6 +23,9 @@
 #   upstream-regression     ~60 days. A fix exists but taking it breaks the
 #                           component; needs work in an upstream project we do
 #                           not control, so a short expiry buys nothing.
+#   upstream-fix-pending    ~30 days. The fix is written and submitted upstream
+#                           but not merged. Shorter clock than the above,
+#                           because this one is expected to resolve.
 #
 # Entries below were produced by a real scan of kairos-init v0.16.3's
 # uncompressed bundle on 2026-08-12.
@@ -166,3 +169,27 @@ reason = "upstream-regression: CVE-2026-57497, webtransport-go in edgevpn. Fix v
 id = "GO-2026-5970"
 ignoreUntil = 2026-10-11
 reason = "upstream-regression: CVE-2026-56852, golang.org/x/text in edgevpn. Fix v0.39.0 breaks libp2p peer connectivity in combination with the pion bumps. See mudler/edgevpn#1075."
+
+
+# ---------------------------------------------------------------------------
+# upstream-fix-pending -- both are in the `edgevpn` binary, which ships in every
+# Kairos release from mudler/edgevpn. The fix is written, tested and submitted
+# as https://github.com/mudler/edgevpn/pull/1075; it needs that PR merged and an
+# edgevpn release before EDGEVPN_VERSION can move in kairos-init.
+#
+# Both were also present in provider-kairos and were cleared there by the
+# v2.16.2 release; only the edgevpn copies remain.
+#
+# Both are remote denial-of-service via panic while parsing malformed input,
+# reachable only through go-libp2p's WebRTC transport.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GHSA-34rh-wp3j-6cxc"
+ignoreUntil = 2026-09-11
+reason = "upstream-fix-pending: CVE-2026-54909, pion/stun in edgevpn. Fix v3.1.5 submitted as mudler/edgevpn#1075, awaiting merge and an edgevpn release."
+
+[[IgnoredVulns]]
+id = "GHSA-wg4g-wm44-ch5j"
+ignoreUntil = 2026-09-11
+reason = "upstream-fix-pending: CVE-2026-54908, pion/dtls in edgevpn. Fix v3.1.4 submitted as mudler/edgevpn#1075, awaiting merge and an edgevpn release."

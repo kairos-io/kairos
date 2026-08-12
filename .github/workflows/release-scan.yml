@@ -88,6 +88,12 @@ jobs:
       #   --experimental-plugins artifact  the default plugin set
       #                                    (lockfile, sbom, directory) cannot
       #                                    read Go binaries at all.
+      #   --all-packages                   without it, a scan with no findings
+      #                                    emits an EMPTY results array, which
+      #                                    is indistinguishable from a scan that
+      #                                    read nothing -- and would trip the
+      #                                    false-green guard below on every
+      #                                    clean release.
       #
       # continue-on-error because osv-scanner exits non-zero when it finds
       # vulnerabilities; the reporting step below decides what that means.
@@ -99,6 +105,7 @@ jobs:
             --experimental-plugins artifact \
             --no-ignore \
             --recursive \
+            --all-packages \
             --config osv-scanner.toml \
             --format json \
             --output-file osv.json \
