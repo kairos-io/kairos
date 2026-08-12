@@ -1,0 +1,195 @@
+# Vulnerability ignore list for the release gate in
+# .github/workflows/release-scan.yml. Refs
+# https://github.com/kairos-io/kairos/issues/3985.
+#
+# Policy
+# ------
+#   * If a fix is published and can be taken, BUMP THE COMPONENT. Do not add an
+#     entry here. This list is for what cannot currently be fixed, not for what
+#     is inconvenient to fix.
+#   * Every entry states a reason, prefixed with one of the categories below.
+#   * An expired entry fails the build. That is deliberate -- it forces a
+#     re-look rather than letting an ignore become permanent by neglect.
+#
+# Categories and their expiry, chosen so the gate stays trustworthy:
+#
+#   no-fix-available        90 days. Nothing upstream to wait for, so a short
+#                           expiry would turn the gate red every week with no
+#                           action available. Alarm fatigue is how a blocking
+#                           gate becomes one everyone force-merges past.
+#   prerelease-only-fix     ~2 weeks. A stable release is expected soon.
+#   major-upgrade-required  ~30 days, plus a tracking issue. Needs planned work,
+#                           not a decision taken during a release.
+#   upstream-regression     ~60 days. A fix exists but taking it breaks the
+#                           component; needs work in an upstream project we do
+#                           not control, so a short expiry buys nothing.
+#   upstream-fix-pending    ~30 days. The fix is written and submitted upstream
+#                           but not merged. Shorter clock than the above,
+#                           because this one is expected to resolve.
+#
+# Entries below were produced by a real scan of kairos-init v0.16.3's
+# uncompressed bundle on 2026-08-12.
+
+
+# ---------------------------------------------------------------------------
+# no-fix-available -- no fixed version published upstream.
+# All reached transitively through provider-kairos except x/crypto.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GO-2024-3218"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2023-26248, github.com/libp2p/go-libp2p-kad-dht. No fixed version published. Transitive via provider-kairos."
+
+[[IgnoredVulns]]
+id = "GHSA-q7pp-wcgr-pffx"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2023-36308, github.com/disintegration/imaging. No fixed version published; upstream is effectively unmaintained."
+
+[[IgnoredVulns]]
+id = "GO-2026-5298"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2026-12681, github.com/google/go-attestation. No fixed version published."
+
+[[IgnoredVulns]]
+id = "GO-2026-4736"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2026-30405, github.com/osrg/gobgp/v3. No fixed version published."
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."
+
+
+# ---------------------------------------------------------------------------
+# prerelease-only-fix -- the only published fix is Go 1.27.0-rc.2. Bumping the
+# toolchain to a release candidate to clear CVEs is not a sane release action;
+# these are taken with the stable 1.27.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GO-2026-4970"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-39822, Go stdlib. Fixed only in 1.27.0-rc.2; take with the stable 1.27 toolchain bump."
+
+[[IgnoredVulns]]
+id = "GO-2026-5037"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-27145, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5038"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-42504, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5039"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-42507, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5856"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-42505, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+
+# ---------------------------------------------------------------------------
+# major-upgrade-required -- fixed in containerd 2.3.2, a 1.7 -> 2.3 major
+# upgrade inside provider-kairos. Planned work, not a release-time decision.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GHSA-xhf5-7wjv-pqxp"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53488, containerd. Fixed in 2.3.2, a major upgrade in provider-kairos."
+
+[[IgnoredVulns]]
+id = "GO-2026-5758"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53488 (Go advisory alias), containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GHSA-jpcc-p29g-p8mq"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-47262, containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5475"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-47262 (Go advisory alias), containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5064"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53492, containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5338"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-50195, containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5622"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53489, containerd. Fixed in 2.3.2."
+
+
+# ---------------------------------------------------------------------------
+# upstream-regression -- a fix exists upstream, but taking it breaks the
+# component. Both of these are in the `edgevpn` binary, which ships in every
+# Kairos release from mudler/edgevpn.
+#
+# Bisected against edgevpn's pkg/node suite, which exercises real peer-to-peer
+# connectivity. Both make the "nodes can write to the ledger" spec time out at
+# 240s where an unmodified checkout passes in 10-13s:
+#
+#   webtransport-go v0.11.1 pulls quic-go 0.59.1 -> 0.60.0, and that alone
+#   reproduces it. go-libp2p pins quic-go tightly, so this likely needs a
+#   go-libp2p bump upstream first.
+#
+#   x/text v0.39.0 passes alone but fails in combination with the pion bumps.
+#   x/text supplies IDNA, which multiaddr uses for DNS peer addresses.
+#
+# The two advisories that could be taken safely are in
+# https://github.com/mudler/edgevpn/pull/1075. These two were left out of it
+# deliberately. Full bisection table on that PR.
+#
+# Note both are also present in provider-kairos, where they are already fixed
+# on main -- cutting a provider-kairos release clears them there, leaving only
+# the edgevpn copies these entries cover.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GHSA-g35j-m5xg-vh3q"
+ignoreUntil = 2026-10-11
+reason = "upstream-regression: CVE-2026-57497, webtransport-go in edgevpn. Fix v0.11.1 pulls quic-go 0.60.0, which breaks libp2p peer connectivity. Needs a go-libp2p bump upstream. See mudler/edgevpn#1075."
+
+[[IgnoredVulns]]
+id = "GO-2026-5970"
+ignoreUntil = 2026-10-11
+reason = "upstream-regression: CVE-2026-56852, golang.org/x/text in edgevpn. Fix v0.39.0 breaks libp2p peer connectivity in combination with the pion bumps. See mudler/edgevpn#1075."
+
+
+# ---------------------------------------------------------------------------
+# upstream-fix-pending -- both are in the `edgevpn` binary, which ships in every
+# Kairos release from mudler/edgevpn. The fix is written, tested and submitted
+# as https://github.com/mudler/edgevpn/pull/1075; it needs that PR merged and an
+# edgevpn release before EDGEVPN_VERSION can move in kairos-init.
+#
+# Both were also present in provider-kairos and were cleared there by the
+# v2.16.2 release; only the edgevpn copies remain.
+#
+# Both are remote denial-of-service via panic while parsing malformed input,
+# reachable only through go-libp2p's WebRTC transport.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GHSA-34rh-wp3j-6cxc"
+ignoreUntil = 2026-09-11
+reason = "upstream-fix-pending: CVE-2026-54909, pion/stun in edgevpn. Fix v3.1.5 submitted as mudler/edgevpn#1075, awaiting merge and an edgevpn release."
+
+[[IgnoredVulns]]
+id = "GHSA-wg4g-wm44-ch5j"
+ignoreUntil = 2026-09-11
+reason = "upstream-fix-pending: CVE-2026-54908, pion/dtls in edgevpn. Fix v3.1.4 submitted as mudler/edgevpn#1075, awaiting merge and an edgevpn release."
