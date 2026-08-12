@@ -1,0 +1,129 @@
+# Vulnerability ignore list for the release gate in
+# .github/workflows/release-scan.yml. Refs
+# https://github.com/kairos-io/kairos/issues/3985.
+#
+# Policy
+# ------
+#   * If a fix is published and can be taken, BUMP THE COMPONENT. Do not add an
+#     entry here. This list is for what cannot currently be fixed, not for what
+#     is inconvenient to fix.
+#   * Every entry states a reason, prefixed with one of the categories below.
+#   * An expired entry fails the build. That is deliberate -- it forces a
+#     re-look rather than letting an ignore become permanent by neglect.
+#
+# Categories and their expiry, chosen so the gate stays trustworthy:
+#
+#   no-fix-available        90 days. Nothing upstream to wait for, so a short
+#                           expiry would turn the gate red every week with no
+#                           action available. Alarm fatigue is how a blocking
+#                           gate becomes one everyone force-merges past.
+#   prerelease-only-fix     ~2 weeks. A stable release is expected soon.
+#   major-upgrade-required  ~30 days, plus a tracking issue. Needs planned work,
+#                           not a decision taken during a release.
+#
+# Entries below were produced by a real scan of kairos-init v0.16.3's
+# uncompressed bundle on 2026-08-12.
+
+
+# ---------------------------------------------------------------------------
+# no-fix-available -- no fixed version published upstream.
+# All reached transitively through provider-kairos except x/crypto.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GO-2024-3218"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2023-26248, github.com/libp2p/go-libp2p-kad-dht. No fixed version published. Transitive via provider-kairos."
+
+[[IgnoredVulns]]
+id = "GHSA-q7pp-wcgr-pffx"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2023-36308, github.com/disintegration/imaging. No fixed version published; upstream is effectively unmaintained."
+
+[[IgnoredVulns]]
+id = "GO-2026-5298"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2026-12681, github.com/google/go-attestation. No fixed version published."
+
+[[IgnoredVulns]]
+id = "GO-2026-4736"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: CVE-2026-30405, github.com/osrg/gobgp/v3. No fixed version published."
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+ignoreUntil = 2026-11-10
+reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."
+
+
+# ---------------------------------------------------------------------------
+# prerelease-only-fix -- the only published fix is Go 1.27.0-rc.2. Bumping the
+# toolchain to a release candidate to clear CVEs is not a sane release action;
+# these are taken with the stable 1.27.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GO-2026-4970"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-39822, Go stdlib. Fixed only in 1.27.0-rc.2; take with the stable 1.27 toolchain bump."
+
+[[IgnoredVulns]]
+id = "GO-2026-5037"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-27145, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5038"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-42504, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5039"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-42507, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5856"
+ignoreUntil = 2026-08-26
+reason = "prerelease-only-fix: CVE-2026-42505, Go stdlib. Fixed only in 1.27.0-rc.2."
+
+
+# ---------------------------------------------------------------------------
+# major-upgrade-required -- fixed in containerd 2.3.2, a 1.7 -> 2.3 major
+# upgrade inside provider-kairos. Planned work, not a release-time decision.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GHSA-xhf5-7wjv-pqxp"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53488, containerd. Fixed in 2.3.2, a major upgrade in provider-kairos."
+
+[[IgnoredVulns]]
+id = "GO-2026-5758"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53488 (Go advisory alias), containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GHSA-jpcc-p29g-p8mq"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-47262, containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5475"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-47262 (Go advisory alias), containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5064"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53492, containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5338"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-50195, containerd. Fixed in 2.3.2."
+
+[[IgnoredVulns]]
+id = "GO-2026-5622"
+ignoreUntil = 2026-09-11
+reason = "major-upgrade-required: CVE-2026-53489, containerd. Fixed in 2.3.2."
