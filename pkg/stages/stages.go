@@ -181,6 +181,7 @@ func RunInitStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 	}
 	data.Stages["init"] = append(data.Stages["init"], initrdStage...)
 	data.Stages["init"] = append(data.Stages["init"], GetServicesStage(sis, logger)...)
+	data.Stages["init"] = append(data.Stages["init"], GetSshHardeningStage(sis, logger)...)
 	data.Stages["init"] = append(data.Stages["init"], GetWorkaroundsStage(sis, logger)...)
 	data.Stages["init"] = append(data.Stages["init"], GetCleanupStage(sis, logger)...)
 
