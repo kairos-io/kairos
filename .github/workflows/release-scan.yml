@@ -123,28 +123,35 @@ jobs:
       - name: Report and enforce
         run: |
           set -euo pipefail
+          # One advisory can affect several module versions in the same bundle
+          # (different binaries pin different versions), so a finding is an
+          # (advisory, module@version) pair and the two counts differ. Report
+          # both rather than calling every row an advisory.
           jq -r '
             [ .results[].packages[]
               | . as $pkg
               | .vulnerabilities[]?
               | "| `\(.id)` | `\($pkg.package.name)@\($pkg.package.version)` |"
             ] | unique | .[]' osv.json > findings.md || true
-          COUNT="$(wc -l < findings.md)"
+          FINDINGS="$(wc -l < findings.md)"
+          ADVISORIES="$(jq -r '[.results[].packages[].vulnerabilities[]?.id] | unique | length' osv.json)"
           {
             echo "## Vulnerability scan of the shipped bundle"
             echo
             echo "kairos-init \`${{ steps.pin.outputs.version }}\`, scanned uncompressed."
             echo
-            if [ "${COUNT}" -eq 0 ]; then
+            if [ "${FINDINGS}" -eq 0 ]; then
               echo "No unignored advisories."
             else
+              echo "**${ADVISORIES} advisories**, ${FINDINGS} findings across module versions."
+              echo
               echo "| advisory | module |"
               echo "|---|---|"
               cat findings.md
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
-          if [ "${COUNT}" -gt 0 ]; then
-            echo "::error::${COUNT} unignored advisories in the shipped bundle. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
+          if [ "${FINDINGS}" -gt 0 ]; then
+            echo "::error::${ADVISORIES} unignored advisories (${FINDINGS} findings) in the shipped bundle. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
             exit 1
           fi
 
