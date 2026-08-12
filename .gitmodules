@@ -1,16 +1,16 @@
-[submodule "sub/immucore"]
-	path = sub/immucore
+[submodule "immucore"]
+	path = immucore
 	url = git@github.com:jimmykarily/immucore.git
 	branch = spike/monorepo-extract-root
-[submodule "sub/kairos-agent"]
-	path = sub/kairos-agent
+[submodule "kairos-agent"]
+	path = kairos-agent
 	url = git@github.com:jimmykarily/kairos-agent.git
 	branch = spike/monorepo-extract-root
-[submodule "sub/kcrypt-discovery-challenger"]
-	path = sub/kcrypt-discovery-challenger
+[submodule "kcrypt-discovery-challenger"]
+	path = kcrypt-discovery-challenger
 	url = git@github.com:jimmykarily/kcrypt-discovery-challenger.git
 	branch = spike/monorepo-extract-root
-[submodule "sub/kairos-sdk"]
-	path = sub/kairos-sdk
+[submodule "kairos-sdk"]
+	path = kairos-sdk
 	url = git@github.com:kairos-io/kairos-sdk.git
 	branch = main

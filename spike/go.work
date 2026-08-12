@@ -2,8 +2,8 @@ go 1.26.5
 
 use (
 	.
-	../sub/immucore
-	../sub/kairos-agent
-	../sub/kcrypt-discovery-challenger
-	../sub/kairos-sdk
+	../immucore
+	../kairos-agent
+	../kcrypt-discovery-challenger
+	../kairos-sdk
 )

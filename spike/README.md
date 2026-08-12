@@ -9,13 +9,13 @@ on kairos-io/kairos#4301.
 
 ```
 kairos/
-  sub/immucore/                       submodule, spike/monorepo-extract-root branch
-  sub/kairos-agent/                   submodule, spike/monorepo-extract-root branch
-  sub/kcrypt-discovery-challenger/    submodule, spike/monorepo-extract-root branch
-  sub/kairos-sdk/                     submodule, pinned at v0.25.2 (main tracking)
+  immucore/                       submodule, spike/monorepo-extract-root branch
+  kairos-agent/                   submodule, spike/monorepo-extract-root branch
+  kcrypt-discovery-challenger/    submodule, spike/monorepo-extract-root branch
+  kairos-sdk/                     submodule, pinned at v0.25.2 (main tracking)
   spike/
     go.mod                            module github.com/kairos-io/kairos/spike
-    go.work                           unifies spike + the three subs
+    go.work                           unifies spike + the four submoduled sources
     main.go                           argv[0] dispatcher
     register_immucore.go              always linked
     register_kcrypt.go                always linked
@@ -26,7 +26,7 @@ Each sub-repo's `main.go` was reduced to a thin stub that calls into a new
 `pkg/cmd` (or `pkg/discovery` for kcrypt) package. Standalone builds of each
 sub-repo still work unchanged.
 
-`sub/kairos-sdk` is included in the workspace as a sibling so all three
+`kairos-sdk` is included in the workspace as a sibling so all three
 sub-tools resolve `github.com/kairos-io/kairos-sdk` to the same source
 tree, instead of each pulling a possibly-different tagged release via the
 module proxy. Bumping the sdk in a monorepo world would be one commit
@@ -93,10 +93,10 @@ Reproduce with the commands above; add `-trimpath -ldflags="-s -w"` to strip.
 To pick up new commits from a sub-repo's tracked branch:
 
 ```
-git -C sub/immucore pull
-git add sub/immucore
-git commit -m "bump sub/immucore"
+git -C immucore pull
+git add immucore
+git commit -m "bump immucore"
 ```
 
 For kairos-sdk, the same command bumps every sub-tool at once, since they
-all resolve through the workspace to `sub/kairos-sdk`.
+all resolve through the workspace to `kairos-sdk`.
