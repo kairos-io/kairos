@@ -1,0 +1,10 @@
+go 1.26.5
+
+use (
+	.
+	../../kairos-agent
+	../../immucore
+	../../kcrypt-discovery-challenger
+	../../kairos-sdk
+	../../yip
+)
