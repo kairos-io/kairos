@@ -7,21 +7,15 @@
 //	kcrypt-discovery-challenger      -> kcrypt discovery client
 //	kairos <sub> [args...]           -> same as invoking the sub directly
 //
-// Sub-tool wiring is added incrementally as each source repo extracts its
-// cobra/urfave root into an importable package.
+// Which subs are linked in depends on build tags. See register_*.go for the
+// per-sub wiring and the build tag that gates it.
 package main
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	immucore "github.com/kairos-io/immucore/pkg/cmd"
 )
-
-func init() {
-	register("immucore", immucore.Run)
-}
 
 // subEntrypoint runs a sub-tool. os.Args is expected to be already shaped as
 // if the sub-tool were invoked directly (os.Args[0] = the sub's own name).
