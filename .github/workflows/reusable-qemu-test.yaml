@@ -173,6 +173,19 @@ jobs:
           sudo mkdir -p /etc/luet/repos.conf.d/
           sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
           LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
+      - name: Install cinc-auditor and openssh-client for the DevSec ssh-baseline profile
+        # cinc-auditor is a FOSS drop-in for chef/inspec (InSpec >= 5 is no
+        # longer under an OSS licence). It runs the profile from
+        # https://github.com/dev-sec/ssh-baseline against the booted VM over
+        # SSH; nothing gets installed inside the image. openssh-client
+        # gives us ssh-keygen (for the ephemeral test key) and ssh (for
+        # the post-install readiness probe) — the self-hosted runners
+        # don't ship it by default.
+        if: ${{ inputs.test == 'ssh-hardening' }}
+        run: |
+          sudo apt-get install -y openssh-client
+          curl -L https://omnitruck.cinc.sh/install.sh | sudo bash -s -- -P cinc-auditor
+          cinc-auditor --version
       - name: Setup bridge network for VM-to-VM communication
         if: inputs.use_bridge_network
         run: |
