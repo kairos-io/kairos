@@ -10,3 +10,7 @@
 	path = sub/kcrypt-discovery-challenger
 	url = git@github.com:jimmykarily/kcrypt-discovery-challenger.git
 	branch = spike/monorepo-extract-root
+[submodule "sub/kairos-sdk"]
+	path = sub/kairos-sdk
+	url = git@github.com:kairos-io/kairos-sdk.git
+	branch = main
