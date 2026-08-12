@@ -20,6 +20,9 @@
 #   prerelease-only-fix     ~2 weeks. A stable release is expected soon.
 #   major-upgrade-required  ~30 days, plus a tracking issue. Needs planned work,
 #                           not a decision taken during a release.
+#   upstream-regression     ~60 days. A fix exists but taking it breaks the
+#                           component; needs work in an upstream project we do
+#                           not control, so a short expiry buys nothing.
 #
 # Entries below were produced by a real scan of kairos-init v0.16.3's
 # uncompressed bundle on 2026-08-12.
@@ -127,3 +130,39 @@ reason = "major-upgrade-required: CVE-2026-50195, containerd. Fixed in 2.3.2."
 id = "GO-2026-5622"
 ignoreUntil = 2026-09-11
 reason = "major-upgrade-required: CVE-2026-53489, containerd. Fixed in 2.3.2."
+
+
+# ---------------------------------------------------------------------------
+# upstream-regression -- a fix exists upstream, but taking it breaks the
+# component. Both of these are in the `edgevpn` binary, which ships in every
+# Kairos release from mudler/edgevpn.
+#
+# Bisected against edgevpn's pkg/node suite, which exercises real peer-to-peer
+# connectivity. Both make the "nodes can write to the ledger" spec time out at
+# 240s where an unmodified checkout passes in 10-13s:
+#
+#   webtransport-go v0.11.1 pulls quic-go 0.59.1 -> 0.60.0, and that alone
+#   reproduces it. go-libp2p pins quic-go tightly, so this likely needs a
+#   go-libp2p bump upstream first.
+#
+#   x/text v0.39.0 passes alone but fails in combination with the pion bumps.
+#   x/text supplies IDNA, which multiaddr uses for DNS peer addresses.
+#
+# The two advisories that could be taken safely are in
+# https://github.com/mudler/edgevpn/pull/1075. These two were left out of it
+# deliberately. Full bisection table on that PR.
+#
+# Note both are also present in provider-kairos, where they are already fixed
+# on main -- cutting a provider-kairos release clears them there, leaving only
+# the edgevpn copies these entries cover.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GHSA-g35j-m5xg-vh3q"
+ignoreUntil = 2026-10-11
+reason = "upstream-regression: CVE-2026-57497, webtransport-go in edgevpn. Fix v0.11.1 pulls quic-go 0.60.0, which breaks libp2p peer connectivity. Needs a go-libp2p bump upstream. See mudler/edgevpn#1075."
+
+[[IgnoredVulns]]
+id = "GO-2026-5970"
+ignoreUntil = 2026-10-11
+reason = "upstream-regression: CVE-2026-56852, golang.org/x/text in edgevpn. Fix v0.39.0 breaks libp2p peer connectivity in combination with the pion bumps. See mudler/edgevpn#1075."
