@@ -9,6 +9,27 @@ on:
         required: false
     inputs:
       # Dockerfile path
+      ref:
+        description: |
+          Git ref or SHA to check out. Defaults to the ref that triggered the
+          calling workflow, which is the right answer for every ordinary caller.
+
+          Set this only when the caller must build something other than its own
+          trigger ref -- the motivating case is a `pull_request_target` workflow
+          that needs to build a fork pull request's head commit, since that
+          event's context is the base branch.
+
+          Only `ref` is exposed, deliberately: a pull request's head commit is
+          reachable from the base repository via `refs/pull/<n>/head`, so no
+          second repository ever needs naming, and omitting `repository` means
+          this cannot be pointed at code outside the calling repo.
+
+          Security note for callers: passing an untrusted ref here in a workflow
+          that also has access to secrets means running that code with those
+          secrets. This input is neutral; the caller carries the risk.
+        type: string
+        required: false
+        default: ''
       dockerfile_path:
         type: string
 
@@ -277,6 +298,9 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with:
           fetch-depth: '0'
+          # Empty is actions/checkout's own default, so unset behaves exactly as
+          # before for every existing caller.
+          ref: ${{ inputs.ref }}
 
       - name: Validate inputs and setup Dockerfile
         shell: bash
