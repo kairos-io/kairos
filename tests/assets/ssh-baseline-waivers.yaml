@@ -1,0 +1,61 @@
+---
+# Waivers for controls the DevSec ssh-baseline profile can't verify
+# meaningfully against a Kairos+hadron build. Each waived control
+# documents why. Everything not listed here must pass.
+
+sshd-18:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: >-
+    LoginGraceTime is set to 30 in the hardening drop-in, but sshd -T
+    normalises the value to bare seconds ("30") whereas the profile
+    literally compares against "30s". Semantically compliant, format
+    mismatch beyond our control from within the config file.
+
+sshd-29:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: >-
+    OpenSSH >= 8.7 renamed ChallengeResponseAuthentication to
+    KbdInteractiveAuthentication. The drop-in sets the modern name to
+    "no"; sshd -T emits only the modern name, so the profile's lookup
+    of the old name returns nil.
+
+sshd-30:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: >-
+    Hadron's OpenSSH is built without --with-kerberos5. KerberosAuthentication
+    is not a valid directive in that build, so sshd -T does not emit it and
+    the profile sees nil. Kerberos is unreachable; the intent of the control
+    is satisfied.
+
+sshd-31:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: See sshd-30. Same krb5-not-compiled-in rationale.
+
+sshd-32:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: See sshd-30. Same krb5-not-compiled-in rationale.
+
+sshd-33:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: >-
+    Hadron's OpenSSH is built without GSSAPI. The directive is not accepted
+    by that build and would emit "Unsupported option"; sshd -T does not
+    emit it either. GSSAPI is unreachable.
+
+sshd-34:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: See sshd-33. Same GSSAPI-not-compiled-in rationale.
+
+sshd-45:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: >-
+    Hadron's OpenSSH is built with --disable-lastlog. PrintLastLog is not
+    a valid directive in that build and sshd -T does not emit it.
