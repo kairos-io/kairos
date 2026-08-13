@@ -1,0 +1,25 @@
+#cloud-config
+
+# Install-phase cloud-config for the ssh-hardening test — also the
+# canonical example we point users at when documenting DevSec
+# ssh-baseline compliance.
+#
+# install.ssh_hardening: true is a kairos-sdk-schema field that
+# kairos-agent consumes at install time: it drops
+# /etc/ssh/sshd_config.d/50-kairos-hardening-authn.conf on the target
+# with the three auth-mode directives kairos-init deliberately leaves
+# permissive (PasswordAuthentication no, AuthenticationMethods
+# publickey, ChallengeResponseAuthentication no). Kairos-agent also
+# refuses to install if no user has ssh_authorized_keys (would lock
+# everyone out) and warns if any user still has passwd (unused, since
+# password auth will be off).
+
+install:
+  ssh_hardening: true
+
+users:
+  - name: kairos
+    groups:
+      - admin
+    ssh_authorized_keys:
+      - "@PUBKEY@"
