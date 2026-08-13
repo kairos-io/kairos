@@ -53,7 +53,12 @@ jobs:
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
   core-tests:
     name: ${{ format('core-tests (hadron, amd64, generic) {0}', matrix.test) }}
-    secrets: inherit
+    # Explicit rather than `secrets: inherit`. reusable-qemu-test.yaml only ever
+    # reads these two, and these jobs boot an image built from the pull request
+    # under review -- so they get the registry credential and nothing else.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
       base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
@@ -81,7 +86,12 @@ jobs:
   standard-tests:
     name: ${{ format('standard-tests (hadron, amd64, generic) {0}', matrix.test) }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
-    secrets: inherit
+    # Explicit rather than `secrets: inherit`. reusable-qemu-test.yaml only ever
+    # reads these two, and these jobs boot an image built from the pull request
+    # under review -- so they get the registry credential and nothing else.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
     permissions:
       contents: write
       security-events: write

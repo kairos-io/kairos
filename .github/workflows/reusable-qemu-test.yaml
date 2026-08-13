@@ -37,6 +37,14 @@ on:
         type: boolean
         default: false
 
+    secrets:
+      QUAY_USERNAME:
+        description: "Registry user for pulling the image under test from ci-temp-images."
+        required: true
+      QUAY_PASSWORD:
+        description: "Registry token matching QUAY_USERNAME."
+        required: true
+
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
     runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
