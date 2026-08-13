@@ -39,10 +39,13 @@ on:
 
     secrets:
       QUAY_USERNAME:
-        description: "Registry user for pulling the image under test from ci-temp-images."
+        description: |
+          Registry user for quay.io/kairos/ci-temp-images. Needs WRITE, not just
+          read: this workflow pulls the image under test and also pushes a
+          bundles-test image back to the same repository.
         required: true
       QUAY_PASSWORD:
-        description: "Registry token matching QUAY_USERNAME."
+        description: "Registry token matching QUAY_USERNAME. Same write scope."
         required: true
 
 jobs:
