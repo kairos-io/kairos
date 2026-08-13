@@ -4,66 +4,154 @@ on:
   push:
     branches:
       - 'main'
+  pull_request:
 
 permissions:
   contents: read
 
 concurrency:
-  group: build-main-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  group: docker-build-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
+
 jobs:
-  build-linux-amd64:
-    runs-on: 'ubuntu-24.04'
-    steps:
-      - uses: actions/checkout@v7
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-      - name: Build the docker image
-        uses: docker/build-push-action@v7
-        id: build-linux-amd64
-        with:
-          provenance: false
-          context: .
-          file: Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: ttl.sh/kairos:${{ github.sha }}-amd64
-  build-linux-arm64:
-    runs-on: 'ubuntu-24.04-arm'
-    steps:
-      - uses: actions/checkout@v7
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-      - name: Build the docker image
-        uses: docker/build-push-action@v7
-        id: build-linux-amr64
-        with:
-          provenance: false
-          context: .
-          file: Dockerfile
-          platforms: linux/arm64
-          push: true
-          tags: ttl.sh/kairos:${{ github.sha }}-arm64
+  # Per-arch build. Pushes the image to the FINAL registry (quay for main,
+  # ghcr for PRs) by digest only, so no mutable tag exists between build and
+  # manifest assembly. The old ttl.sh handoff was unauthenticated and let
+  # anyone substitute image content at our predictable per-sha tag; content
+  # addressing via digest makes that impossible.
+  #
+  # Fork PRs are skipped: GITHUB_TOKEN is read-only for them so a ghcr push
+  # would fail. Same-repo PRs (and pushes to main) run normally.
   build:
-    needs:
-      - build-linux-amd64
-      - build-linux-arm64
-    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
+      - name: Compute image target
+        id: image
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "name=ghcr.io/${{ github.repository_owner }}/kairos-init" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=quay.io/kairos/kairos-init" >> "$GITHUB_OUTPUT"
+          fi
+          platform=${{ matrix.platform }}
+          echo "pair=${platform//\//-}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
       - uses: docker/login-action@v4
+        if: github.event_name == 'push'
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - uses: docker/metadata-action@v6
-        id: metadata
+      - uses: docker/login-action@v4
+        if: github.event_name == 'pull_request'
         with:
-          images: quay.io/kairos/kairos-init
-      - uses: int128/docker-manifest-create-action@v2
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
         id: build
+        uses: docker/build-push-action@v7
         with:
-          index-annotations: ${{ steps.metadata.outputs.labels }}
-          tags: ${{ steps.metadata.outputs.tags }}
-          sources: |
-            ttl.sh/kairos:${{ github.sha }}-arm64
-            ttl.sh/kairos:${{ github.sha }}-amd64
+          context: .
+          file: Dockerfile
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ steps.image.outputs.pair }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Assemble the multi-arch manifest from the per-arch digests and push the
+  # tagged reference. Main pushes get the docker-metadata-action-derived
+  # tag set (main, sha, semver as applicable); PRs get pr-<N>.
+  merge:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Compute image target
+        id: image
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "name=ghcr.io/${{ github.repository_owner }}/kairos-init" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=quay.io/kairos/kairos-init" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/login-action@v4
+        if: github.event_name == 'push'
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - uses: docker/login-action@v4
+        if: github.event_name == 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags for main pushes
+        if: github.event_name == 'push'
+        id: docker-meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+
+      - name: Create manifest and push
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PUSH_TAGS: ${{ steps.docker-meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            tag_args="-t ${IMAGE}:pr-${PR_NUMBER}"
+          else
+            tag_args=""
+            while IFS= read -r t; do
+              [ -n "$t" ] && tag_args="$tag_args -t $t"
+            done <<< "$PUSH_TAGS"
+          fi
+          # shellcheck disable=SC2046  # digests are hex, no whitespace risk
+          docker buildx imagetools create $tag_args \
+            $(printf "${IMAGE}@sha256:%s " *)
