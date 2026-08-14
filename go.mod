@@ -23,7 +23,7 @@ require (
 	github.com/pterm/pterm v0.12.83
 	github.com/rs/zerolog v1.35.1
 	github.com/sanity-io/litter v1.5.8
-	github.com/sirupsen/logrus v1.9.4
+	github.com/sirupsen/logrus v1.10.0
 	github.com/spf13/viper v1.21.0
 	golang.org/x/net v0.58.0
 	golang.org/x/oauth2 v0.36.0
