@@ -518,6 +518,8 @@ github.com/spectrocloud-labs/herd v0.4.2 h1:90cYZmW0yxNw4PEbqNGSerrtqKSx1nvRbSwA
 github.com/spectrocloud-labs/herd v0.4.2/go.mod h1:WBlMIs1QZ7XtVrt9rAAFZpkh/fZYA4l2gGOCUS1LDHE=
 github.com/spectrocloud/peg v0.0.0-20260123084329-97c9703181cf h1:a+7u0cej2bndaptNr3WBvEca7uEfuylu13BN9bBrv68=
 github.com/spectrocloud/peg v0.0.0-20260123084329-97c9703181cf/go.mod h1:Zn1mquDB6bEGmGwXtvevvY2o0GkTc0Fb3RGJw1BlZBk=
+github.com/spectrocloud/peg v0.0.0-20260813125620-d8627da0983c h1:Ew+J3O2b6ZRCm6X3efhHEI0A9GsZrc/RzEjKtDejnOI=
+github.com/spectrocloud/peg v0.0.0-20260813125620-d8627da0983c/go.mod h1:h3Pm6CUy+5OQu+FAat6JClmALzywFS1al+RyS4ZgPpA=
 github.com/spf13/afero v1.15.0 h1:b/YBCLWAJdFWJTN9cLhiXXcD7mzKn9Dm86dNnfyQw1I=
 github.com/spf13/afero v1.15.0/go.mod h1:NC2ByUVxtQs4b3sIUphxK0NioZnmxgyCrfzeuq8lxMg=
 github.com/spf13/cast v1.10.0 h1:h2x0u2shc1QuLHfxi+cTJvs30+ZAHOGRic8uyGTDWxY=

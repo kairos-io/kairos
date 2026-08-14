@@ -42,7 +42,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/kairos-io/tpm-helpers v0.0.0-20260702080541-9b3e057e2f32
 	github.com/labstack/echo/v5 v5.3.1
-	github.com/spectrocloud/peg v0.0.0-20260123084329-97c9703181cf
+	github.com/spectrocloud/peg v0.0.0-20260813125620-d8627da0983c
 	github.com/twpayne/go-vfs/v5 v5.0.5
 	github.com/urfave/cli/v2 v2.27.7
 )
