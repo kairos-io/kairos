@@ -131,6 +131,34 @@ on:
         type: boolean
         default: false
 
+      sbom:
+        type: boolean
+        default: true
+        description: |
+          Attach an SBOM attestation to the pushed image. Default true, so every
+          existing caller keeps its current behaviour.
+
+          Set false only when the attestation cannot be attached at all. BuildKit
+          refuses a single attestation larger than 41943040 bytes (40 MiB) and
+          fails the whole push, so an image whose SBOM crosses that line cannot
+          be published while this is true. The image itself is fine in that case:
+          the layers, manifest and config all export successfully and only the
+          attestation step fails.
+
+          The images that hit this are the ones with very large file counts --
+          the NVIDIA Jetson images, whose CUDA userspace produces an SPDX
+          document past the limit. Package versions are not the cause and
+          bumping them does not help, because the document scales with how many
+          packages and files an image contains, not with how old they are.
+
+          Turning this off is a real loss: consumers of that image get no
+          attached bill of materials. Prefer these first, and use this input when
+          neither is available:
+            1. Shrink the document -- package-level SPDX without file-level
+               entries is typically far under the limit.
+            2. Publish the SBOM as a separate artifact rather than an inline
+               attestation, which the 40 MiB cap does not apply to.
+
       # SARIF generation and upload toggles
       grype_sarif:
         type: boolean
@@ -863,7 +891,10 @@ jobs:
           sarif_file: 'grype.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
 
-      - name: Push Kairos image (build and push with SBOM)
+      # The step name no longer promises an SBOM, because `sbom` is now an
+      # input. A step called "with SBOM" that pushed without one would be the
+      # kind of small lie that costs someone an afternoon.
+      - name: Push Kairos image
         if: inputs.registry_domain != ''
         uses: docker/build-push-action@v7
         with:
@@ -871,7 +902,7 @@ jobs:
           file: ${{ env.DOCKERFILE_PATH }}
           platforms: linux/${{ inputs.arch }}
           push: true
-          sbom: true
+          sbom: ${{ inputs.sbom }}
           tags: ${{ steps.setup.outputs.image_tag }}
           labels: ${{ inputs.image_labels }}
           build-args: |
