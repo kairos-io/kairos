@@ -193,3 +193,60 @@ reason = "upstream-fix-pending: CVE-2026-54909, pion/stun in edgevpn. Fix v3.1.5
 id = "GHSA-wg4g-wm44-ch5j"
 ignoreUntil = 2026-09-11
 reason = "upstream-fix-pending: CVE-2026-54908, pion/dtls in edgevpn. Fix v3.1.4 submitted as mudler/edgevpn#1075, awaiting merge and an edgevpn release."
+
+
+# ---------------------------------------------------------------------------
+# upstream-fix-pending -- Go stdlib advisories carried by the `edgevpn` binary,
+# which kairos-init consumes as a prebuilt tarball from mudler/edgevpn. Found
+# by a scan of kairos-init v0.17.0's uncompressed bundle on 2026-08-14.
+#
+# All eight are fixed in Go 1.26.6. Every binary Kairos builds itself already
+# ships at 1.26.6 and reports clean; edgevpn v0.35.3 was released from 1.26.4,
+# and the version of Go a release was built with is not something a consumer
+# can override. There is no code change to make anywhere -- these clear the
+# moment mudler cuts any edgevpn release from a current toolchain, which is
+# why the clock here is short rather than the 90 days no-fix-available buys.
+#
+# EDGEVPN_VERSION in kairos-init moves at the same time as the pion fixes
+# above, so these should be re-looked at together with mudler/edgevpn#1075.
+# ---------------------------------------------------------------------------
+
+[[IgnoredVulns]]
+id = "GO-2026-5026"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-39821, golang.org/x/net/idna in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
+
+[[IgnoredVulns]]
+id = "GO-2026-5942"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-46600, golang.org/x/net/dns/dnsmessage in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
+
+[[IgnoredVulns]]
+id = "GO-2026-5972"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-33818, encoding/asn1 in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
+
+[[IgnoredVulns]]
+id = "GO-2026-6088"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-56859, encoding/xml in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
+
+[[IgnoredVulns]]
+id = "GO-2026-6089"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-56853, net/http in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
+
+[[IgnoredVulns]]
+id = "GO-2026-6090"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-56862, crypto/tls in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
+
+[[IgnoredVulns]]
+id = "GO-2026-6091"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-56858, html/template in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
+
+[[IgnoredVulns]]
+id = "GO-2026-6218"
+ignoreUntil = 2026-09-13
+reason = "upstream-fix-pending: CVE-2026-56860, net/url in the edgevpn binary. Fixed in Go 1.26.6; edgevpn v0.35.3 was built with 1.26.4. Needs an edgevpn release from a current toolchain."
