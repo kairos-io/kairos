@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/anatol/luks.go v0.0.0-20260615185044-2658459c8ca5
 	github.com/avast/retry-go v3.0.0+incompatible
-	github.com/containerd/containerd/v2 v2.3.3
+	github.com/containerd/containerd/v2 v2.3.4
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/diskfs/go-diskfs v1.9.4
 	github.com/distribution/reference v0.6.0
