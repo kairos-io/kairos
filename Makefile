@@ -1,10 +1,10 @@
 # Variables
-IMMUCORE_VERSION := v0.20.1
-AGENT_VERSION := v2.31.1
-KCRYPT_DISCOVERY_CHALLENGER_VERSION := v0.13.3
-PROVIDER_KAIROS_VERSION := v2.16.2
+IMMUCORE_VERSION := v0.20.2
+AGENT_VERSION := v2.31.2
+KCRYPT_DISCOVERY_CHALLENGER_VERSION := v0.13.4
+PROVIDER_KAIROS_VERSION := v2.16.3
 EDGEVPN_VERSION := v0.35.3
-INSTALLER_VERSION := v0.1.4
+INSTALLER_VERSION := v0.1.5
 ARCH ?= $(shell uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')
 BINARY_NAMES := kairos-agent immucore kcrypt-discovery-challenger provider-kairos
 OUTPUT_DIR := pkg/bundled/binaries
