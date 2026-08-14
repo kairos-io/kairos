@@ -37,6 +37,17 @@ on:
         type: boolean
         default: false
 
+    secrets:
+      QUAY_USERNAME:
+        description: |
+          Registry user for quay.io/kairos/ci-temp-images. Needs WRITE, not just
+          read: this workflow pulls the image under test and also pushes a
+          bundles-test image back to the same repository.
+        required: true
+      QUAY_PASSWORD:
+        description: "Registry token matching QUAY_USERNAME. Same write scope."
+        required: true
+
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
     runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}

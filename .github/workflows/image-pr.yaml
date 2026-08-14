@@ -16,8 +16,12 @@ jobs:
     name: ${{ matrix.image_name }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@730309d995590a11ea0620ccad0c4832b5fb03a9 # v1.4.0
     secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
+      # The PR path only ever writes quay.io/kairos/ci-temp-images, so it uses
+      # the kairos+prci robot, which has Write on that repository and nothing
+      # else. QUAY_USERNAME/QUAY_PASSWORD is the credential release.yaml uses to
+      # publish permanent images and does not belong on a PR path.
+      registry_username: ${{ secrets.QUAY_PR_USERNAME }}
+      registry_password: ${{ secrets.QUAY_PR_PASSWORD }}
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +57,13 @@ jobs:
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
   core-tests:
     name: ${{ format('core-tests (hadron, amd64, generic) {0}', matrix.test) }}
-    secrets: inherit
+    # Explicit rather than `secrets: inherit`, and scoped to the ci-temp-images
+    # robot. These jobs boot an image built from the pull request under review;
+    # they pull it from ci-temp-images and push a bundles-test image back there,
+    # so Write on that one repository is all they need.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
       base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
@@ -81,7 +91,13 @@ jobs:
   standard-tests:
     name: ${{ format('standard-tests (hadron, amd64, generic) {0}', matrix.test) }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
-    secrets: inherit
+    # Explicit rather than `secrets: inherit`, and scoped to the ci-temp-images
+    # robot. These jobs boot an image built from the pull request under review;
+    # they pull it from ci-temp-images and push a bundles-test image back there,
+    # so Write on that one repository is all they need.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
     permissions:
       contents: write
       security-events: write
