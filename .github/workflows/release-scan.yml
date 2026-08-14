@@ -127,6 +127,70 @@ jobs:
             exit 1
           fi
 
+      # osv-scanner compares the stdlib version string verbatim. A binary built
+      # with the boringcrypto toolchain reports its version as, for example,
+      # "1.26.6-X:boringcrypto", and semver orders that BELOW plain "1.26.6"
+      # because the suffix reads as a prerelease. So every stdlib advisory
+      # fixed in 1.26.6 still matches the FIPS binaries, even though they were
+      # built from that toolchain and carry the fix -- the very same advisories
+      # report clean against the non-FIPS binaries at plain "1.26.6".
+      #
+      # This drops exactly that case: a stdlib finding on a -X:boringcrypto
+      # build whose base version is at or past a published fix on the SAME
+      # major.minor track. A genuinely old boringcrypto build, or one whose
+      # only published fix sits on another track, is left in place -- the
+      # filter fails closed. Whatever it removes is listed in the job summary,
+      # so this suppresses nothing silently.
+      - name: Normalize boringcrypto stdlib versions
+        run: |
+          set -euo pipefail
+          cp osv.json osv.raw.json
+          jq '
+            def strip_pre: sub("-.*$"; "");
+            def arr: strip_pre | split(".") | map(tonumber? // 0);
+            def covered($base):
+              [ .affected[]?.ranges[]?.events[]?.fixed // empty ]
+              | map(arr)
+              | any(.[0] == $base[0] and .[1] == $base[1] and .[2] <= $base[2]);
+            .results |= map(
+              .packages |= map(
+                if (.package.name == "stdlib"
+                    and (.package.version | test("-X:boringcrypto$")))
+                then
+                  (.package.version | arr) as $base
+                  | .vulnerabilities = [ .vulnerabilities[]? | select(covered($base) | not) ]
+                else . end
+              )
+            )' osv.raw.json > osv.json
+
+          jq -r '
+            [ .results[].packages[]
+              | . as $pkg
+              | .vulnerabilities[]?
+              | "\(.id) \($pkg.package.name)@\($pkg.package.version)"
+            ] | unique | .[]' osv.raw.json | sort > all.before
+          jq -r '
+            [ .results[].packages[]
+              | . as $pkg
+              | .vulnerabilities[]?
+              | "\(.id) \($pkg.package.name)@\($pkg.package.version)"
+            ] | unique | .[]' osv.json | sort > all.after
+          SUPPRESSED="$(comm -23 all.before all.after || true)"
+          if [ -n "${SUPPRESSED}" ]; then
+            {
+              echo "## Boringcrypto stdlib findings normalized"
+              echo
+              echo "Fixed on the same major.minor track as the build's base version:"
+              echo
+              echo '```'
+              echo "${SUPPRESSED}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+            echo "normalized $(echo "${SUPPRESSED}" | wc -l) boringcrypto stdlib findings"
+          else
+            echo "no boringcrypto stdlib findings to normalize"
+          fi
+
       - name: Report and enforce
         run: |
           set -euo pipefail
