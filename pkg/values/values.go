@@ -69,21 +69,23 @@ const (
 	Generic Model = "generic"
 	Rpi3    Model = "rpi3"
 	Rpi4    Model = "rpi4"
-	AgxOrin Model = "nvidia-jetson-agx-orin"
-	OrinNX  Model = "nvidia-jetson-orin-nx"
-	Thor    Model = "nvidia-jetson-thor"
+	AgxOrin  Model = "nvidia-jetson-agx-orin"
+	OrinNX   Model = "nvidia-jetson-orin-nx"
+	Thor     Model = "nvidia-jetson-thor"
+	DgxSpark Model = "nvidia-dgx-spark"
 )
 
-var SupportedModels = []Model{Generic, Rpi3, Rpi4, AgxOrin, OrinNX, Thor}
+var SupportedModels = []Model{Generic, Rpi3, Rpi4, AgxOrin, OrinNX, Thor, DgxSpark}
 
 // modelArch maps a Model to the target architecture that kairos-init must run under.
 // Generic is architecture-agnostic and is intentionally omitted.
 var modelArch = map[Model]Architecture{
-	Rpi3:    ArchARM64,
-	Rpi4:    ArchARM64,
-	AgxOrin: ArchARM64,
-	OrinNX:  ArchARM64,
-	Thor:    ArchARM64,
+	Rpi3:     ArchARM64,
+	Rpi4:     ArchARM64,
+	AgxOrin:  ArchARM64,
+	OrinNX:   ArchARM64,
+	Thor:     ArchARM64,
+	DgxSpark: ArchARM64,
 }
 
 // RequiredArch returns the target architecture required for this model.

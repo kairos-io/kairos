@@ -197,6 +197,41 @@ var BasePackagesModels = ModelPackageMap{
 					"fuse3",
 				},
 			},
+			// NVIDIA DGX Spark (GB10 Grace-Blackwell). Unlike the Jetson models
+			// this is a standard arm64 UEFI/SBSA machine; platform repos are set up
+			// in the DGX Spark repo stage (BaseOS/dgx + Spark). CUDA (sbsa) is not
+			// configured here (it can be added downstream if needed).
+			// Minimal + headless (no X/Wayland). Validated on hardware to resolve
+			// These are the base packages available from stock Ubuntu ports at
+			// "Install base packages" time (main + restricted). The NVIDIA-repo
+			// packages (Mellanox + nvidia-spark-*) are installed in a dedicated
+			// stage AFTER the DGX repo-setup - see steps_install.go - because the
+			// base-packages stage runs before the repos are configured.
+			DgxSpark: {
+				Common: {
+					"bridge-utils",
+					"fuse3",
+					// kernel: Canonical/NVIDIA HWE "-nvidia" flavour (6.17-nvidia)
+					"linux-image-nvidia-hwe-24.04",
+					// GPU kernel module: PREBUILT nvidia.ko matching the HWE kernel
+					// ABI (ships nvidia{,-uvm,-modeset,-drm}.ko already compiled).
+					// nvidia-headless-*-open would otherwise rely on DKMS to build
+					// the module at install time against the RUNNING kernel - which
+					// in a container image build is the build host's kernel, not the
+					// target -nvidia one, so DKMS never produces a module and
+					// nvidia-smi fails on the installed system. The prebuilt package
+					// tracks linux-image-nvidia-hwe-24.04 so they upgrade in lockstep.
+					"linux-modules-nvidia-580-open-nvidia-hwe-24.04",
+					// GPU: headless open driver (no X/Wayland) + nvidia-smi. From
+					// Ubuntu restricted (nvidia-headless-580-open, nvidia-utils-580).
+					"nvidia-headless-580-open",
+					"nvidia-utils-580",
+					// firmware updates via fwupd (UEFI capsule / ESRT) - no custom staging
+					"fwupd",
+					// Mellanox / ConnectX userspace from Ubuntu
+					"rdma-core",
+				},
+			},
 		},
 	},
 }

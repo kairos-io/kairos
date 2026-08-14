@@ -506,6 +506,11 @@ function setExtraConsole {
 		echo "Found Thor model, setting console options"
 		set baseExtraConsole="console=ttyUTC0,115200 earlycon=tegra_utc,mmio32,0xc5a0000"
 	fi
+    # nvidia dgx spark (GB10) - standard SBSA serial console
+    if test $KAIROS_MODEL == "nvidia-dgx-spark"; then
+		echo "Found DGX Spark model, setting console options"
+		set baseExtraConsole="console=ttyS0,921600"
+	fi
 }
 
 function setExtraArgs {
@@ -523,6 +528,12 @@ function setExtraArgs {
 		echo "Found Thor model, setting ignore unused options"
 		# on Thor we need to set the ignore unused so devices don't die during booting
 		set baseExtraArgs="pd_ignore_unused clk_ignore_unused fbcon=map:0 nospectre_bhb efi=runtime"
+	fi
+    # nvidia dgx spark (GB10) - platform args from the nvidia-spark-* grub.d drop-ins
+    # on the stock DGX OS (Kairos uses its own grub template, so set them explicitly)
+    if test $KAIROS_MODEL == "nvidia-dgx-spark"; then
+		echo "Found DGX Spark model, setting platform options"
+		set baseExtraArgs="initcall_blacklist=tegra234_cbb_init pci=pcie_bus_safe iommu.passthrough=0"
 	fi
 }
 

@@ -75,6 +75,10 @@ func GetInstallStage(sis values.System, logger logger.KairosLogger) ([]schema.St
 	isNvidiaThorBoard := fmt.Sprintf(`[ "%s" = "nvidia-jetson-thor" ]`, config.DefaultConfig.Model)
 	// This matches any of the nvidia boards for steps shared between them
 	isNvidiaBoard := fmt.Sprintf(`[ "%[1]s" = "nvidia-jetson-agx-orin" ] || [ "%[1]s" = "nvidia-jetson-orin-nx" ] || [ "%[1]s" = "nvidia-jetson-thor" ]`, config.DefaultConfig.Model)
+	// DGX Spark (GB10) is a standard arm64 UEFI/SBSA machine, NOT an L4T/Jetson
+	// board - it uses its own public repos, so it is deliberately excluded from
+	// the isNvidiaBoard (L4T) steps above.
+	isDgxSpark := fmt.Sprintf(`[ "%s" = "nvidia-dgx-spark" ]`, config.DefaultConfig.Model)
 
 	if values.Model(config.DefaultConfig.Model) == values.Thor {
 		// The L4T version must correspond to the QSPI boot firmware version on the
@@ -213,6 +217,46 @@ func GetInstallStage(sis values.System, logger logger.KairosLogger) ([]schema.St
 				"echo 'deb [signed-by=/usr/share/keyrings/nvidia-drivers-2204.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/ /' | tee -a /etc/apt/sources.list.d/nvidia-drivers.list",
 				"echo 'deb [signed-by=/usr/share/keyrings/nvidia-drivers-2004.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/ /' | tee -a /etc/apt/sources.list.d/nvidia-drivers.list",
 				fmt.Sprintf("echo 'deb [signed-by=/usr/share/keyrings/jetson-ota.gpg] https://repo.download.nvidia.com/jetson/%s r%s main' | tee -a /etc/apt/sources.list.d/nvidia-drivers.list", boardModel, l4tVersion),
+			},
+		},
+		{
+			// DGX Spark (GB10): standard arm64 UEFI/SBSA machine with its OWN public
+			// repos (not L4T/jetson). The kernel (linux-image-nvidia-hwe-24.04) and
+			// the open GPU driver (nvidia-headless-580-open/nvidia-utils-580) come
+			// from stock Ubuntu ports (noble-updates/main + restricted), so no
+			// canonical-nvidia PPA and no CUDA repo are needed here. We only add the
+			// NVIDIA BaseOS/dgx + Spark repos for the Mellanox and nvidia-spark-*
+			// platform packages. Those repos publish no fetchable key and gpg
+			// keyserver/dirmngr is unavailable in the build sandbox, so their keys
+			// are embedded (see pkg/bundled/dgx_keys.go). CUDA, if wanted, is a
+			// downstream concern (add the CUDA sbsa repo in the derived image).
+			Name: "Setup NVIDIA DGX Spark repositories",
+			If:   isDgxSpark,
+			Commands: []string{
+				"install -d -m 0755 /usr/share/keyrings",
+				// To add the CUDA (sbsa) repo back (e.g. for host CUDA in a derived
+				// image), uncomment the two lines below (curl must be present; the
+				// CUDA key is published at the repo root, apt accepts the .asc):
+				// "curl -fSsL https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/3bf863cc.pub -o /usr/share/keyrings/nvidia-cuda-sbsa.asc",
+				// "echo 'deb [signed-by=/usr/share/keyrings/nvidia-cuda-sbsa.asc] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/sbsa/ /' > /etc/apt/sources.list.d/nvidia-cuda-sbsa.list",
+				// BaseOS/dgx + Spark: embedded keys (base64 binary keyrings), no gpg/curl needed
+				fmt.Sprintf("echo %s | base64 -d > /usr/share/keyrings/nvidia-dgx.gpg", bundled.DgxRepoKeyBase64),
+				fmt.Sprintf("echo %s | base64 -d > /usr/share/keyrings/nvidia-spark.gpg", bundled.SparkRepoKeyBase64),
+				"echo 'deb [signed-by=/usr/share/keyrings/nvidia-dgx.gpg] https://repo.download.nvidia.com/baseos/ubuntu/noble/arm64/ noble common dgx' > /etc/apt/sources.list.d/nvidia-dgx.list",
+				"echo 'deb [signed-by=/usr/share/keyrings/nvidia-dgx.gpg] https://repo.download.nvidia.com/baseos/ubuntu/noble/arm64/ noble-updates common dgx' >> /etc/apt/sources.list.d/nvidia-dgx.list",
+				"echo 'deb [signed-by=/usr/share/keyrings/nvidia-spark.gpg] https://repo.download.nvidia.com/spark/ubuntu/arm64/ noble-updates common' > /etc/apt/sources.list.d/nvidia-spark.list",
+			},
+		},
+		{
+			// Installed here (not in the base package map) because the base-packages
+			// stage runs before the DGX repos above are configured. These come from
+			// the Spark/BaseOS repos: Mellanox tooling + the platform config packages
+			// (grub PCI args, initcall blacklist, fstab).
+			Name: "Install NVIDIA DGX Spark packages",
+			If:   isDgxSpark,
+			Commands: []string{
+				"apt-get update",
+				"apt-get install -y --no-install-recommends nvidia-mlnx-tools nvidia-spark-mlnx-firmware-manager nvidia-spark-grub-pci nvidia-spark-initcall-bl nvidia-spark-fstab-config",
 			},
 		},
 		{
