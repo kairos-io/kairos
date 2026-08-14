@@ -1,6 +1,6 @@
 module github.com/kairos-io/kairos-challenger
 
-go 1.26.5
+go 1.26.6
 
 require (
 	github.com/go-logr/logr v1.4.4
