@@ -194,9 +194,16 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 		Expect(flat).ToNot(ContainElement(templated))
 	})
 
-	It("aborts RunStage when the templated config_url references an undefined field", func() {
+	It("drops the cmdline URI but still runs the cloud-init paths when the template references an undefined field", func() {
+		// Regression: a bad template on the cmdline used to return from
+		// runstage before the cloud-init path loop. Hook() then discarded
+		// the error on a non-strict run, so every stage from every file
+		// under /oem, /etc/kairos and /system/oem was skipped in silence.
+		// One unrenderable cmdline token must never disable the file-based
+		// configs, which are the real config channel.
 		mock := &argsRecordingCIRunner{}
 		config.CloudInitRunner = mock
+		config.Strict = true
 
 		templated := `http://d/?u={{.Values.definitely_not_a_key}}`
 		Expect(writeCmdline(fmt.Sprintf(`kairos.config_url=%q`, templated), fs)).To(Succeed())
@@ -207,14 +214,20 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 		Expect(err.Error()).To(ContainSubstring("from cmdline"))
 		Expect(err.Error()).To(ContainSubstring("definitely_not_a_key"))
 
-		// The templated URI must never have reached the runner as a
-		// standalone source arg. The raw /proc/cmdline arg forwarded to
-		// the dot-notation pass legitimately contains the template as a
-		// substring, so we only assert on element equality.
+		Expect(mock.ExecStages).To(ContainElements("padme.before", "padme", "padme.after"))
+
 		flat := []string{}
 		for _, tuple := range mock.Args {
 			flat = append(flat, tuple...)
 		}
+		// A default cloud-init path only reaches the runner from the file
+		// loop, so this is what proves the loop was not skipped.
+		Expect(flat).To(ContainElement("/system/oem"))
+
+		// The templated URI must never have reached the runner as a
+		// standalone source arg. The raw /proc/cmdline arg forwarded to
+		// the dot-notation pass legitimately contains the template as a
+		// substring, so we only assert on element equality.
 		Expect(flat).ToNot(ContainElement(templated))
 	})
 

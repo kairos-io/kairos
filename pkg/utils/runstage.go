@@ -73,13 +73,17 @@ func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 		cfg.Logger.Debugf("Found Kairos config URI on cmdline with value %s", cmdLineYipURI)
 		// Templated config_url (e.g. http://d/?u={{ .Values.product.uuid }})
 		// must be resolved against the sysinfo-derived context BEFORE yip's
-		// FromUrl fetches it verbatim. A rendering failure aborts the stage:
-		// silently proceeding would fetch a mangled URL or 404 endpoint.
+		// FromUrl fetches it verbatim. A rendering failure drops the cmdline
+		// URI: fetching it unrendered would hit a mangled URL or a 404, and
+		// returning here would skip every cloud-init file as well, which is
+		// the far bigger failure. The error is collected and reported like
+		// any other, so a bad template still shows up in the log.
 		rendered, rerr := collector.RenderConfigURL(cmdLineYipURI)
 		if rerr != nil {
-			return fmt.Errorf("rendering config_url %q from cmdline: %w", cmdLineYipURI, rerr)
-		}
-		if rendered != cmdLineYipURI {
+			cfg.Logger.Errorf("Failed to render config_url %q from cmdline, ignoring it: %s", cmdLineYipURI, rerr)
+			allErrors = multierror.Append(allErrors, fmt.Errorf("rendering config_url %q from cmdline: %w", cmdLineYipURI, rerr))
+			cmdLineYipURI = ""
+		} else if rendered != cmdLineYipURI {
 			cfg.Logger.Debugf("Rendered Kairos config URI to %s", rendered)
 			cmdLineYipURI = rendered
 		}
