@@ -4,6 +4,7 @@ run:
 linters:
   enable:
     - dupl
+    - exhaustive
     - ginkgolinter
     - gocheckcompilerdirectives
     - goconst
@@ -13,6 +14,12 @@ linters:
     - misspell
     - revive
     - zerologlint
+  settings:
+    exhaustive:
+      # Keep this false. Every switch that missed state.AutoReset in #611 and
+      # #613 already had a default arm. Set this to true and the linter stops
+      # reporting the exact shape of bug it is here to catch.
+      default-signifies-exhaustive: false
   exclusions:
     generated: lax
     presets:

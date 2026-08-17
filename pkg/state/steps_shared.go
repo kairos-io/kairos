@@ -54,6 +54,8 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 				sentinel = "autoreset_mode"
 			case state.LiveCD:
 				sentinel = "live_mode"
+			case state.Unknown:
+				sentinel = string(state.Unknown)
 			default:
 				sentinel = string(state.Unknown)
 			}
@@ -461,6 +463,8 @@ func bootStateToExtensionSubDir(b state.Boot) (string, bool) {
 		return "passive", true
 	case state.Recovery, state.AutoReset:
 		return "recovery", true
+	case state.LiveCD, state.Unknown:
+		return "", false
 	default:
 		return "", false
 	}

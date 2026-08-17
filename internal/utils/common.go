@@ -34,6 +34,8 @@ func bootStateToSysrootLabel(b state.Boot) string {
 		return "COS_PASSIVE"
 	case state.Recovery, state.AutoReset:
 		return "COS_SYSTEM"
+	case state.LiveCD, state.Unknown:
+		return ""
 	default:
 		return ""
 	}
@@ -48,6 +50,8 @@ func bootStateToImagesLabel(b state.Boot) string {
 		return "COS_STATE"
 	case state.Recovery, state.AutoReset:
 		return "COS_RECOVERY"
+	case state.LiveCD, state.Unknown:
+		return ""
 	default:
 		return ""
 	}
