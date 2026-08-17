@@ -24,6 +24,7 @@ type InstallSchema struct {
 	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty" mapstructure:"extra-partitions"`
 	Force                  bool                `json:"force,omitempty" mapstructure:"force"`
 	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty" mapstructure:"extra-dirs-rootfs"`
+	SSHHardening           bool                `json:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
 	Active                 Image               `json:"system,omitempty" mapstructure:"system"`
 	Recovery               Image               `json:"recovery-system,omitempty" mapstructure:"recovery-system"`
 	Passive                Image               `json:"passive,omitempty" mapstructure:"recovery-system"`

@@ -2,6 +2,7 @@ package schema
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
@@ -129,4 +130,57 @@ func NewConfigFromYAML(s string, st interface{}) (*KConfig, error) {
 		return kc, err
 	}
 	return kc, nil
+}
+
+// ValidateSemantics runs cross-field checks that JSON Schema cannot express
+// on its own. Returns a list of warnings that callers should surface to the
+// user, and an error for constraints that would leave the system in an
+// unusable state (e.g. ssh_hardening: true with no ssh_authorized_keys).
+//
+// Only meaningful when kc.Source was parsed against RootSchema.
+func (kc *KConfig) ValidateSemantics() ([]string, error) {
+	// Route through JSON so the existing `json:"..."` tags on RootSchema
+	// (and its nested types) do the field mapping. yaml.v3 alone would
+	// lowercase the Go field name and miss snake_case keys such as
+	// `ssh_hardening` or `ssh_authorized_keys`.
+	//
+	// Type-level mismatches are IsValid()'s job to surface; if the
+	// config cannot even be shaped into a RootSchema we return no
+	// findings and let JSON Schema validation report the actual error.
+	jsonBytes, err := json.Marshal(kc.parsed)
+	if err != nil {
+		return nil, nil
+	}
+	var root RootSchema
+	if err := json.Unmarshal(jsonBytes, &root); err != nil {
+		return nil, nil
+	}
+
+	var warnings []string
+
+	if root.Install.SSHHardening {
+		haveKey := false
+		var usersWithPasswd []string
+		for _, u := range root.Users {
+			if len(u.SSHAuthorizedKeys) > 0 {
+				haveKey = true
+			}
+			if u.Passwd != "" {
+				usersWithPasswd = append(usersWithPasswd, u.Name)
+			}
+		}
+		if !haveKey {
+			return warnings, fmt.Errorf(
+				"install.ssh_hardening: true requires at least one user with ssh_authorized_keys; " +
+					"otherwise the installed system would be unreachable over SSH")
+		}
+		for _, name := range usersWithPasswd {
+			warnings = append(warnings, fmt.Sprintf(
+				"install.ssh_hardening: true disables password authentication; the passwd set on user %q "+
+					"will be unused over SSH (remove it if intentional, or drop install.ssh_hardening if not)",
+				name))
+		}
+	}
+
+	return warnings, nil
 }

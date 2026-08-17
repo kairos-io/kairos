@@ -35,4 +35,5 @@ type Install struct {
 	ExtraDirsRootfs        []string                       `yaml:"extra-dirs-rootfs,omitempty" mapstructure:"extra-dirs-rootfs" json:"extra-dirs-rootfs,omitempty"`
 	Force                  bool                           `yaml:"force,omitempty" mapstructure:"force" json:"force,omitempty"`
 	NoUsers                bool                           `yaml:"nousers,omitempty" mapstructure:"nousers" json:"nousers,omitempty"`
+	SSHHardening           bool                           `yaml:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" json:"ssh_hardening,omitempty"`
 }
