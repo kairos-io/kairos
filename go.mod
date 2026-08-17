@@ -13,7 +13,7 @@ require (
 	github.com/jaypipes/ghw v0.25.0 // indirect
 	github.com/joho/godotenv v1.5.1
 	github.com/kairos-io/go-nodepair v0.3.0
-	github.com/kairos-io/kairos-sdk v0.25.2
+	github.com/kairos-io/kairos-sdk v0.25.3
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
 	github.com/mudler/go-processmanager v0.1.1
 	github.com/mudler/yip v1.25.1
@@ -33,7 +33,7 @@ require (
 )
 
 require (
-	github.com/containerd/containerd/v2 v2.3.3
+	github.com/containerd/containerd/v2 v2.3.4
 	github.com/distribution/reference v0.6.0
 	github.com/foxboron/go-uefi v0.0.0-20251010190908-d29549a44f29
 	github.com/go-viper/mapstructure/v2 v2.5.0

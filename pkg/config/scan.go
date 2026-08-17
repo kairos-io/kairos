@@ -96,6 +96,21 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 		}
 	}
 
+	if kc != nil {
+		warnings, err := kc.ValidateSemantics()
+		if err != nil {
+			// Semantic errors are always fatal (they describe configs
+			// that would leave the installed system unusable) regardless
+			// of --strict-validation.
+			return result, fmt.Errorf("ERROR: %s", err.Error())
+		}
+		if !o.NoLogs {
+			for _, w := range warnings {
+				fmt.Printf("WARNING: %s\n", w)
+			}
+		}
+	}
+
 	// If we got debug enabled via cloud config, set it on viper so its available everywhere
 	if result.Debug {
 		viper.Set("debug", true)

@@ -37,6 +37,10 @@ func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 	if err != nil {
 		c.Logger.Logger.Warn().Err(err).Msg("could not create custom mounts")
 	}
+	err = SSHHardening{}.Run(c, spec)
+	if err != nil {
+		c.Logger.Logger.Warn().Err(err).Msg("could not install ssh_hardening drop-in")
+	}
 	err = CopyLogs{}.Run(c, spec)
 	if err != nil {
 		c.Logger.Logger.Warn().Err(err).Msg("could not copy logs")
