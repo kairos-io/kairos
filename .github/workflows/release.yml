@@ -30,6 +30,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   build-linux-amd64:
     runs-on: 'ubuntu-24.04'
+    # The push to the temp registry has hung for hours more than once. With no
+    # timeout the job sits until the 6 hour default, and GitHub serves no log
+    # while a run is in progress, so the cause stays unreadable.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Set up Docker Buildx
@@ -46,6 +50,7 @@ jobs:
           tags: ttl.sh/kairos:${{ github.sha }}-amd64 # This are just temp images to build the final one
   build-linux-arm64:
     runs-on: 'ubuntu-24.04-arm'
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Set up Docker Buildx
@@ -65,6 +70,7 @@ jobs:
     # --platform=$BUILDPLATFORM in the Dockerfile so QEMU is only needed for
     # platform registration, not for actual execution.
     runs-on: 'ubuntu-24.04'
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU
