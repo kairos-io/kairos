@@ -449,6 +449,23 @@ func (s *State) EnableSysAndConfExtensions(g *herd.Graph, opts ...herd.OpOption)
 	}))...)
 }
 
+// bootStateToExtensionSubDir returns the sub-directory of the extension source
+// that a boot state installs from. The second value is false for a boot state
+// that installs no extensions. AutoReset runs the recovery image, so it reads
+// the recovery directory.
+func bootStateToExtensionSubDir(b state.Boot) (string, bool) {
+	switch b {
+	case state.Active:
+		return "active", true
+	case state.Passive:
+		return "passive", true
+	case state.Recovery, state.AutoReset:
+		return "recovery", true
+	default:
+		return "", false
+	}
+}
+
 // validateAndEnableSysConfExtensions is the common logic for validating and enabling both sys and conf extensions,
 // as they work in a similar way, just different source and destination dirs and different validation for sys extensions.
 func validateAndEnableSysConfExtensions(s *State, extType string) error {
@@ -474,17 +491,12 @@ func validateAndEnableSysConfExtensions(s *State, extType string) error {
 		return errors.New("unknown extension type")
 	}
 
-	switch r.BootState {
-	case state.Active:
-		dir = filepath.Join(sourceDir, "active")
-	case state.Passive:
-		dir = filepath.Join(sourceDir, "passive")
-	case state.Recovery:
-		dir = filepath.Join(sourceDir, "recovery")
-	default:
+	subDir, known := bootStateToExtensionSubDir(r.BootState)
+	if !known {
 		internalUtils.KLog.Logger.Debug().Str("state", string(r.BootState)).Msg("Not copying sysextensions as we are not in a state that we know off")
 		return nil
 	}
+	dir = filepath.Join(sourceDir, subDir)
 	// move to use dir with the full path from here so its simpler
 	entries, err := os.ReadDir(s.path(dir))
 	// We don't care if the dir does not exist
