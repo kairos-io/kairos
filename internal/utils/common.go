@@ -21,22 +21,49 @@ import (
 	"golang.org/x/term"
 )
 
+// bootStateToSysrootLabel maps a boot state to the filesystem label of the
+// image that becomes sysroot. It returns an empty string for a state we cannot
+// mount from (LiveCD, Unknown), which callers treat as "no target".
+// AutoReset runs the recovery image and then resets, so it resolves like
+// Recovery.
+func bootStateToSysrootLabel(b state.Boot) string {
+	switch b {
+	case state.Active:
+		return "COS_ACTIVE"
+	case state.Passive:
+		return "COS_PASSIVE"
+	case state.Recovery, state.AutoReset:
+		return "COS_SYSTEM"
+	default:
+		return ""
+	}
+}
+
+// bootStateToImagesLabel maps a boot state to the label of the partition that
+// holds the boot images. AutoReset boots the recovery image, so its images live
+// on the recovery partition.
+func bootStateToImagesLabel(b state.Boot) string {
+	switch b {
+	case state.Active, state.Passive:
+		return "COS_STATE"
+	case state.Recovery, state.AutoReset:
+		return "COS_RECOVERY"
+	default:
+		return ""
+	}
+}
+
 // BootStateToLabelDevice lets us know the device we need to mount sysroot on based on labels.
 func BootStateToLabelDevice() string {
 	runtime, err := state.NewRuntimeWithLogger(KLog.Logger)
 	if err != nil {
 		return ""
 	}
-	switch runtime.BootState {
-	case state.Active:
-		return filepath.Join("/dev/disk/by-label", "COS_ACTIVE")
-	case state.Passive:
-		return filepath.Join("/dev/disk/by-label", "COS_PASSIVE")
-	case state.Recovery:
-		return filepath.Join("/dev/disk/by-label", "COS_SYSTEM")
-	default:
+	label := bootStateToSysrootLabel(runtime.BootState)
+	if label == "" {
 		return ""
 	}
+	return filepath.Join("/dev/disk/by-label", label)
 }
 
 // GetRootDir returns the proper dir to mount all the stuff
@@ -442,12 +469,8 @@ func GetState() string {
 			if err != nil {
 				return err
 			}
-			switch r.BootState {
-			case state.Active, state.Passive:
-				label = "COS_STATE"
-			case state.Recovery:
-				label = "COS_RECOVERY"
-			default:
+			label = bootStateToImagesLabel(r.BootState)
+			if label == "" {
 				return errors.New("could not get label")
 			}
 			return nil
