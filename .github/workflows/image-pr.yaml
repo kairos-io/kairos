@@ -1,7 +1,24 @@
 name: 'Build AMD64 images (PR)'
 
+# SETUP REQUIRED BEFORE THIS MERGES.
+#
+# The `external` environment must exist with required reviewers. Without it,
+# this file is strictly worse than what it replaces: `pull_request_target`
+# hands secrets to every fork pull request, and the `authorize` job below then
+# gates nothing. GitHub creates a referenced environment implicitly, with no
+# protection rules, so an absent environment fails open rather than closed.
+#
+# Settings -> Environments -> New environment -> `external`
+#   -> Required reviewers -> the maintainers team.
+# `internal` needs no protection rules; same-repo pull requests run unattended.
+#
+# Why this shape at all: GitHub does not pass secrets to a workflow triggered by
+# `pull_request` from a fork, so an outside contributor's build fails at the
+# registry login and every job after it skips. `pull_request_target` does pass
+# them, which is why the approval gate has to come with it.
+
 on:
-  pull_request:
+  pull_request_target:
 
 permissions:
   contents: write
@@ -12,8 +29,24 @@ concurrency:
   group: ci-pr-amd64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
+  # Nothing else in this workflow starts until this job does. A pull request
+  # from a fork lands in the `external` environment and waits for a reviewer;
+  # a same-repo pull request lands in `internal` and goes straight through, so
+  # maintainer and renovate branches keep running unattended.
+  #
+  # The job itself does nothing. The environment is the gate, and a reviewer
+  # approving it is a person saying they have read the diff they are about to
+  # run with the ci-temp-images credentials.
+  authorize:
+    name: authorize
+    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'external' || 'internal' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
+
   build:
     name: ${{ matrix.image_name }}
+    needs: authorize
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@730309d995590a11ea0620ccad0c4832b5fb03a9 # v1.4.0
     secrets:
       # The PR path only ever writes quay.io/kairos/ci-temp-images, so it uses
@@ -35,6 +68,9 @@ jobs:
             kubernetes_distro: "k3s"
             custom_job_name_format: "standard-amd64-generic-k3s"
     with:
+      # pull_request_target's context is the base branch, so the ref has to be
+      # named explicitly or this would build master and test nothing.
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
       auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
@@ -66,6 +102,7 @@ jobs:
       QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
       base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
       test: ${{ matrix.test }}
       secureboot: false
@@ -114,6 +151,7 @@ jobs:
       repository-projects: read
       statuses: read
     with:
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
       base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
       test: ${{ matrix.test }}
       variant: "standard"
