@@ -36,6 +36,19 @@ on:
         required: false
         type: boolean
         default: false
+      ref:
+        description: |
+          Git ref to check out. Leave empty for the ref that triggered the
+          calling workflow, which is right for every ordinary caller.
+
+          Set it only when the caller must test something other than its own
+          trigger ref. The motivating case is a `pull_request_target` workflow,
+          whose context is the base branch: without this the tests would run
+          the base branch's test code against an image built from the pull
+          request. Pass `refs/pull/<n>/head`.
+        required: false
+        type: string
+        default: ''
 
     secrets:
       QUAY_USERNAME:
@@ -103,6 +116,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref }}
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         timeout-minutes: 5
