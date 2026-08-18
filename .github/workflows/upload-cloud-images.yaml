@@ -1,8 +1,23 @@
 name: Upload cloud images
+
+# This used to trigger on the same `push: tags: v*` event as "Release AMD64
+# artifacts", independently. GitHub Actions has no cross-workflow `needs:`, so
+# nothing sequenced them: this workflow queried quay.io/kairos/hadron for the
+# tag "Release AMD64 artifacts" publishes, and it ran first -- sometimes by
+# minutes. mauromorales/mission-control#174 has timestamps from v4.2.0-rc1
+# proving it: AWS and GCP both failed to resolve the tag almost three minutes
+# before the job that publishes it had even finished.
+#
+# workflow_run makes this a real dependency instead of a timing guess: this
+# workflow now only starts once "Release AMD64 artifacts" has actually
+# completed, and the `if: ... == 'success'` guard on every job below means a
+# failed or skipped release run (e.g. blocked by the vulnerability scan gate)
+# is not treated as "the tag might exist, try anyway".
 on:
-  push:
-    tags:
-      - 'v*'  # Triggers on any tag that starts with 'v'
+  workflow_run:
+    workflows: ["Release AMD64 artifacts"]
+    types:
+      - completed
   schedule:
     # Everyday at 2am
     - cron: '0 2 * * *'
@@ -19,6 +34,11 @@ jobs:
   upload-gcp:
     name: Upload to GCP
     runs-on: ubuntu-latest
+    # Only run for a workflow_run event when the release build actually
+    # succeeded -- a failed or skipped run means the hadron tag this job
+    # needs was never published. schedule/workflow_dispatch have no
+    # workflow_run context at all, so they are unaffected and always run.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       id-token: write
     steps:
@@ -26,6 +46,10 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # workflow_run's default checkout context is this repo's default
+          # branch, not the tag that triggered the release build -- pin to
+          # the exact commit the release build itself ran on.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
       - run: |
           git fetch --prune --unshallow
       # https://github.com/google-github-actions/auth?tab=readme-ov-file#authenticate-to-google-cloud-from-github-actions
@@ -110,6 +134,8 @@ jobs:
   upload-aws:
     name: Upload to AWS
     runs-on: ubuntu-latest
+    # See upload-gcp's identical guard above.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
       id-token: write
     steps:
@@ -117,6 +143,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
       - run: |
           git fetch --prune --unshallow
       # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
@@ -177,6 +204,10 @@ jobs:
     runs-on: ubuntu-latest
     # https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust?pivots=identity-wif-apps-methods-azp#github-actions
     environment: azure-push
+    # See upload-gcp's identical guard above. Azure's own version check only
+    # ever matches a stable (non-RC) tag, so this guard rarely changes its
+    # behavior in practice -- kept for consistency with the other two jobs.
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       shouldBuild: ${{ steps.checkPushed.outputs.shouldBuild }}
     steps:
@@ -184,6 +215,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
       - run: |
           git fetch --prune --unshallow
       # https://github.com/Azure/login?tab=readme-ov-file#azure-login-action
