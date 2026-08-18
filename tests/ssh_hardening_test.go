@@ -86,6 +86,70 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 			_, _ = vm.Sudo("nohup sh -c 'sleep 2; reboot' >/dev/null 2>&1 &")
 		})
 
+		By("dumping installed-system state (best-effort diagnostic)", func() {
+			// The two probable failure modes look identical from the
+			// outside: sshd refuses the key. This step tries to reach
+			// the guest via any auth method that answers and dumps
+			// state so triage does not have to be guesswork. Silent
+			// no-op if neither works; the hard probe below surfaces
+			// the real error.
+			sshPort := vm.SSHPort()
+
+			runKey := func(cmd string) (string, error) {
+				c := exec.Command("ssh",
+					"-i", keyPath,
+					"-o", "IdentitiesOnly=yes",
+					"-o", "PreferredAuthentications=publickey",
+					"-o", "StrictHostKeyChecking=no",
+					"-o", "UserKnownHostsFile=/dev/null",
+					"-o", "PasswordAuthentication=no",
+					"-o", "ConnectTimeout=5",
+					"-p", sshPort,
+					user()+"@127.0.0.1",
+					cmd)
+				out, err := c.CombinedOutput()
+				return string(out), err
+			}
+
+			var run func(string) (string, error)
+			var via string
+
+			deadline := time.Now().Add(90 * time.Second)
+			for time.Now().Before(deadline) {
+				if _, err := runKey("true"); err == nil {
+					run = runKey
+					via = "ephemeral key"
+					break
+				}
+				if _, err := vm.Sudo("true"); err == nil {
+					run = vm.Sudo
+					via = "peg password"
+					break
+				}
+				time.Sleep(5 * time.Second)
+			}
+			if run == nil {
+				GinkgoWriter.Printf("diagnostic: neither key nor password auth reachable in 90s; the probe below will surface why\n")
+				return
+			}
+			GinkgoWriter.Printf("diagnostic: reached the installed system via %s\n", via)
+
+			dump := func(label, cmd string) {
+				out, _ := run(cmd)
+				GinkgoWriter.Printf("\n=== %s ===\n$ %s\n%s\n", label, cmd, out)
+			}
+			dump("kairos user", "getent passwd kairos 2>&1; id kairos 2>&1")
+			dump("kairos home", "ls -la /home/kairos 2>&1")
+			dump("kairos .ssh", "ls -la /home/kairos/.ssh 2>&1")
+			dump("authorized_keys content", "cat /home/kairos/.ssh/authorized_keys 2>&1")
+			dump("sshd drop-ins", "ls -la /etc/ssh/sshd_config.d 2>&1")
+			dump("50-kairos-hardening-authn.conf", "cat /etc/ssh/sshd_config.d/50-kairos-hardening-authn.conf 2>&1")
+			dump("sshd -T (auth relevant)", "sudo sshd -T 2>&1 | grep -Ei 'passwordauth|kbdinteractive|authenticationmethods|pubkeyauth|maxauthtries' ")
+			dump("/oem listing", "ls -la /oem 2>&1")
+			dump("/oem/10_ssh_hardening.yaml", "cat /oem/10_ssh_hardening.yaml 2>&1")
+			dump("kairos-agent state", "kairos-agent state 2>&1 | head -30")
+		})
+
 		By("waiting for sshd on the installed system to accept the ephemeral key", func() {
 			sshPort := vm.SSHPort()
 			Eventually(func() error {
