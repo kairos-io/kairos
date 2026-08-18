@@ -156,6 +156,11 @@ jobs:
           # a pull_request_target run tests the base branch's test code
           # against an image built from the pull request's own code.
           ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/head', github.event.pull_request.number) || '' }}
+          # actions/checkout refuses to fetch a non-default ref inside a
+          # pull_request_target workflow otherwise -- see reusable-factory.yaml's
+          # own checkout step (kairos-io/kairos-factory-action#60) for the fix
+          # this mirrors.
+          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
       - name: Set Version
         run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
       - name: Install Go
@@ -315,6 +320,11 @@ jobs:
           # a pull_request_target run tests the base branch's test code
           # against an image built from the pull request's own code.
           ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/head', github.event.pull_request.number) || '' }}
+          # actions/checkout refuses to fetch a non-default ref inside a
+          # pull_request_target workflow otherwise -- see reusable-factory.yaml's
+          # own checkout step (kairos-io/kairos-factory-action#60) for the fix
+          # this mirrors.
+          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
       - name: Set Version
         run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
       - name: Install Go
