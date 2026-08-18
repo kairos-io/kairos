@@ -1,18 +1,8 @@
 name: Upload cloud images
 
-# This used to trigger on the same `push: tags: v*` event as "Release AMD64
-# artifacts", independently. GitHub Actions has no cross-workflow `needs:`, so
-# nothing sequenced them: this workflow queried quay.io/kairos/hadron for the
-# tag "Release AMD64 artifacts" publishes, and it ran first -- sometimes by
-# minutes. mauromorales/mission-control#174 has timestamps from v4.2.0-rc1
-# proving it: AWS and GCP both failed to resolve the tag almost three minutes
-# before the job that publishes it had even finished.
-#
-# workflow_run makes this a real dependency instead of a timing guess: this
-# workflow now only starts once "Release AMD64 artifacts" has actually
-# completed, and the `if: ... == 'success'` guard on every job below means a
-# failed or skipped release run (e.g. blocked by the vulnerability scan gate)
-# is not treated as "the tag might exist, try anyway".
+# Sequenced after "Release AMD64 artifacts" actually publishes the hadron tag
+# these jobs need, instead of racing the same tag push. See the commit
+# message for why (mauromorales/mission-control#174 has the evidence).
 on:
   workflow_run:
     workflows: ["Release AMD64 artifacts"]
