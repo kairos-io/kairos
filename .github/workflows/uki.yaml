@@ -1,6 +1,22 @@
 name: Build UKI images
+
+# Same gate as image-pr.yaml, and for the same reason: GitHub does not pass
+# secrets to a `pull_request` run from a fork, so this workflow failed at the
+# registry login for every outside contributor. `pull_request_target` passes
+# them, gated by the fork-pr-builds environment below. Background: #4307,
+# #4323.
+#
+# The push-to-master trigger is untouched: pull_request_target's approval gate
+# only applies to the pull_request path, and authorize's environment
+# expression below checks github.event_name first so a push never routes
+# through fork-pr-builds.
+#
+# `fork-pr-builds` already exists with the maintainers team as required
+# reviewers (created 2026-08-13). Do not rename it to something that does not
+# exist -- GitHub creates a referenced environment implicitly and with no
+# protection rules, so a typo here fails open.
 on:
-  pull_request:
+  pull_request_target:
   push:
     branches:
       - master
@@ -14,8 +30,21 @@ concurrency:
   group: ci-uki-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
+  # Nothing else in this workflow starts until this job does. See
+  # image-pr.yaml's authorize job for the full reasoning -- this is the same
+  # gate, extended with an explicit event_name check so a push to master
+  # (which has no `github.event.pull_request` at all) always lands in
+  # `internal` rather than evaluating the fork check against a null PR object.
+  authorize:
+    name: authorize
+    environment: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr-builds' || 'internal' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
+
   build:
     name: ${{ matrix.image_name }}
+    needs: authorize
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
     secrets:
       # The PR path only ever writes quay.io/kairos/ci-temp-images, so it uses
@@ -25,6 +54,11 @@ jobs:
       registry_username: ${{ secrets.QUAY_PR_USERNAME }}
       registry_password: ${{ secrets.QUAY_PR_PASSWORD }}
     with:
+      # pull_request_target's context is the base branch, so the ref has to be
+      # named explicitly on that path or this would build master and test
+      # nothing. Empty on a push -- reusable-factory.yaml then falls back to
+      # the ref that triggered it, which is already correct for a push.
+      ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/head', github.event.pull_request.number) || '' }}
       auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
@@ -118,6 +152,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: '0'
+          # Same reasoning as the build job's ref input above: without this,
+          # a pull_request_target run tests the base branch's test code
+          # against an image built from the pull request's own code.
+          ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/head', github.event.pull_request.number) || '' }}
+          # actions/checkout refuses to fetch a non-default ref inside a
+          # pull_request_target workflow otherwise -- see reusable-factory.yaml's
+          # own checkout step (kairos-io/kairos-factory-action#60) for the fix
+          # this mirrors.
+          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
       - name: Set Version
         run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
       - name: Install Go
@@ -273,6 +316,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: '0'
+          # Same reasoning as the build job's ref input above: without this,
+          # a pull_request_target run tests the base branch's test code
+          # against an image built from the pull request's own code.
+          ref: ${{ github.event_name == 'pull_request_target' && format('refs/pull/{0}/head', github.event.pull_request.number) || '' }}
+          # actions/checkout refuses to fetch a non-default ref inside a
+          # pull_request_target workflow otherwise -- see reusable-factory.yaml's
+          # own checkout step (kairos-io/kairos-factory-action#60) for the fix
+          # this mirrors.
+          allow-unsafe-pr-checkout: ${{ github.event_name == 'pull_request_target' }}
       - name: Set Version
         run: echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
       - name: Install Go
