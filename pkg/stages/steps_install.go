@@ -85,7 +85,7 @@ func GetInstallStage(sis values.System, logger logger.KairosLogger) ([]schema.St
 		// board, otherwise it black-screens on boot. See kairos-io/kairos#4228.
 		boardModel = "t264"
 		// renovate: datasource=custom.nvidia-jetson-linux depName=nvidia-jetson-linux
-		l4tVersion = getEnvOrDefault("L4T_VERSION", "39.2")
+		l4tVersion = getEnvOrDefault("L4T_VERSION", "39.2.1")
 		logger.Logger.Info().Msgf("NVIDIA Thor detected, using L4T version %s for repository setup", l4tVersion)
 	}
 
