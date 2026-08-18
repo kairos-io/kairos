@@ -1,7 +1,18 @@
 name: 'Build ARM images (PR)'
 
+# Same gate as image-pr.yaml, and for the same reason: GitHub does not pass
+# secrets to a `pull_request` run from a fork, so this workflow failed at the
+# registry login for every outside contributor. `pull_request_target` passes
+# them, gated by the fork-pr-builds environment below. Background: #4307,
+# #4323.
+#
+# `fork-pr-builds` already exists with the maintainers team as required
+# reviewers (created 2026-08-13). Do not rename it to something that does not
+# exist -- GitHub creates a referenced environment implicitly and with no
+# protection rules, so a typo here fails open.
+
 on:
-  pull_request:
+  pull_request_target:
 
 permissions:
   contents: write
@@ -12,8 +23,19 @@ concurrency:
   group: ci-pr-arm64-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 jobs:
+  # Nothing else in this workflow starts until this job does. See
+  # image-pr.yaml's authorize job for the full reasoning -- this is the same
+  # gate, unchanged.
+  authorize:
+    name: authorize
+    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr-builds' || 'internal' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
+
   build:
     name: ${{ matrix.image_name }}
+    needs: authorize
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
     secrets:
       # The PR path only ever writes quay.io/kairos/ci-temp-images, so it uses
@@ -57,6 +79,9 @@ jobs:
             grype: false # too many vulns under the L4T rootfs
             custom_job_name_format: ""
     with:
+      # pull_request_target's context is the base branch, so the ref has to be
+      # named explicitly or this would build master and test nothing.
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
       auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
