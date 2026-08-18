@@ -329,6 +329,15 @@ jobs:
           # Empty is actions/checkout's own default, so unset behaves exactly as
           # before for every existing caller.
           ref: ${{ inputs.ref }}
+          # actions/checkout refuses to fetch a non-default ref inside a
+          # pull_request_target workflow otherwise -- the exact "pwn request"
+          # guard https://gh.io/securely-using-pull_request_target describes.
+          # `ref`'s own doc above already carries this: "passing an untrusted
+          # ref here... this input is neutral; the caller carries the risk."
+          # A caller that leaves `ref` at its default (every ordinary caller)
+          # is unaffected -- this only takes effect together with a non-empty
+          # ref, which is the one case this input exists for.
+          allow-unsafe-pr-checkout: ${{ inputs.ref != '' }}
 
       - name: Validate inputs and setup Dockerfile
         shell: bash
