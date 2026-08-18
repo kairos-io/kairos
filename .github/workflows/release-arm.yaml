@@ -6,9 +6,19 @@ on:
       - v*
 permissions: read-all
 jobs:
+  # Release gate: refuse to publish artifacts containing known-vulnerable
+  # dependencies. Scans the binaries this release will actually ship, for the
+  # kairos-init version pinned in images/Dockerfile. See
+  # .github/workflows/release-scan.yml and
+  # https://github.com/kairos-io/kairos/issues/3985.
+  vulnerability-scan:
+    uses: ./.github/workflows/release-scan.yml
+
   core:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@8952c3a5f4f6255cc63af88cb3637a9684970c8d # v1.1.3
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
+    needs:
+      - vulnerability-scan
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
@@ -21,7 +31,7 @@ jobs:
       fail-fast: false
       matrix:
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.4.0"
+          - "ghcr.io/kairos-io/hadron:v0.5.1"
         model:
           - "generic"
           - "rpi4"
@@ -32,13 +42,13 @@ jobs:
         grype: [true]
         include:
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
             model: "generic"
             cleanup: true
             grype: true
             custom_job_name_format: "core-arm64-generic"
           - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.4.0"
+            base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
             model: "rpi4"
             cleanup: true
             grype: true
@@ -58,11 +68,16 @@ jobs:
             grype: false # too many vulns under the L4T rootfs
             custom_job_name_format: ""
     with:
-      auroraboot_version: "v0.23.0"
+      auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
       model: ${{ matrix.model }}
+      # BuildKit refuses an attestation over 40 MiB and fails the whole push.
+      # The Jetson SBOM crosses it because of the CUDA userspace; the image
+      # itself builds and exports fine. Bumping packages cannot help, as the
+      # document scales with file count, not with version age.
+      sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       version: "auto"
       no_cache: true
       registry_domain: "quay.io"
@@ -109,11 +124,12 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   standard:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@8952c3a5f4f6255cc63af88cb3637a9684970c8d # v1.1.3
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
     needs:
+      - vulnerability-scan
       - get-k3s-versions
     permissions:
       id-token: write  # OIDC support
@@ -125,7 +141,7 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
         base_image:
-          - "ghcr.io/kairos-io/hadron:v0.4.0"
+          - "ghcr.io/kairos-io/hadron:v0.5.1"
         model:
           - "generic"
           - "rpi4"
@@ -158,11 +174,16 @@ jobs:
             grype: false # too many vulns under the L4T rootfs
             custom_job_name_format: ""
     with:
-      auroraboot_version: "v0.23.0"
+      auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
       base_image: ${{ matrix.base_image }}
       arch: "arm64"
       model: ${{ matrix.model }}
+      # BuildKit refuses an attestation over 40 MiB and fails the whole push.
+      # The Jetson SBOM crosses it because of the CUDA userspace; the image
+      # itself builds and exports fine. Bumping packages cannot help, as the
+      # document scales with file count, not with version age.
+      sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       kubernetes_version: ${{ matrix.kubernetes_version }}
       kubernetes_distro: "k3s"
       version: "auto"

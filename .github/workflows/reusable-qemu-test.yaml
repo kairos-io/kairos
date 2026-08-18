@@ -36,6 +36,30 @@ on:
         required: false
         type: boolean
         default: false
+      ref:
+        description: |
+          Git ref to check out. Leave empty for the ref that triggered the
+          calling workflow, which is right for every ordinary caller.
+
+          Set it only when the caller must test something other than its own
+          trigger ref. The motivating case is a `pull_request_target` workflow,
+          whose context is the base branch: without this the tests would run
+          the base branch's test code against an image built from the pull
+          request. Pass `refs/pull/<n>/head`.
+        required: false
+        type: string
+        default: ''
+
+    secrets:
+      QUAY_USERNAME:
+        description: |
+          Registry user for quay.io/kairos/ci-temp-images. Needs WRITE, not just
+          read: this workflow pulls the image under test and also pushes a
+          bundles-test image back to the same repository.
+        required: true
+      QUAY_PASSWORD:
+        description: "Registry token matching QUAY_USERNAME. Same write scope."
+        required: true
 
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
@@ -89,9 +113,18 @@ jobs:
           echo "Flavor Release: $FLAVOR_RELEASE"
           echo "Flavor Release Latest: $FLAVOR_RELEASE_LATEST"
       - name: Checkout code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref }}
+          # actions/checkout refuses to fetch a non-default ref inside a
+          # pull_request_target workflow otherwise -- the exact "pwn request"
+          # guard https://gh.io/securely-using-pull_request_target describes.
+          # Same fix, same reasoning, as kairos-io/kairos-factory-action#60:
+          # `ref`'s own doc above already says the caller carries the risk.
+          # A caller that leaves `ref` empty (every ordinary caller) is
+          # unaffected.
+          allow-unsafe-pr-checkout: ${{ inputs.ref != '' }}
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         timeout-minutes: 5
@@ -116,7 +149,7 @@ jobs:
               insecure = true
               http = true
       - name: Login to Quay Registry
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}

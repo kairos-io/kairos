@@ -62,6 +62,8 @@ You can find us at:
 
 The [:handshake: community repository](https://github.com/kairos-io/community) contains information about how to get involved, Code of conduct, Maintainers, Contribution guidelines, including also links to our weekly meeting notes, roadmap, and more.
 
+Looking for something to work on? Browse Kairos issues that need a hand on [CLOTributor](https://clotributor.dev/search?project=kairos&foundation=cncf).
+
 ## Governance
 
 The Kairos project governance can be found [in the community repository](https://github.com/kairos-io/community/blob/main/GOVERNANCE.md). 

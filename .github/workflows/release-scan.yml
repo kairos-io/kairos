@@ -1,0 +1,235 @@
+---
+name: 'Release vulnerability scan'
+
+# Scans the binaries Kairos actually ships, for the kairos-init version this
+# repo pins. Refs https://github.com/kairos-io/kairos/issues/3985.
+#
+# Why this exists as a separate job rather than relying on the scanning already
+# in release.yaml: kairos-init UPX-compresses the bundled binaries, and a
+# UPX-packed Go binary no longer exposes its module metadata, so the
+# dependencies we ship are invisible to a scanner. This job rebuilds the bundle
+# with SKIP_UPX=true purely so it can be read.
+#
+# The scanned artifact is therefore NOT byte-identical to the shipped one. It is
+# composed from the same sources at the same pins, which is the property that
+# matters for dependency scanning.
+#
+
+# Triggers are deliberately narrow. This is a release gate: release.yaml and
+# release-arm.yaml call it via workflow_call, and every publishing job depends
+# on it, so a release with unignored advisories never publishes. It does NOT run on every pull request: the
+# findings belong to the pinned dependency set, not to the change under review,
+# so an unrelated PR -- including an external contributor's -- would get a red
+# check for CVEs it did not introduce and cannot fix.
+#
+# The pull_request trigger is scoped to the files that actually determine the
+# result: the kairos-init pin, the ignore list, and this workflow itself.
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'images/Dockerfile'
+      - 'osv-scanner.toml'
+      - '.github/workflows/release-scan.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  scan-shipped-bundle:
+    name: scan shipped bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kairos
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Resolve the pinned kairos-init version
+        id: pin
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -m1 '^ARG KAIROS_INIT=' images/Dockerfile | cut -d= -f2)"
+          if [ -z "${VERSION}" ]; then
+            echo "::error::could not read ARG KAIROS_INIT from images/Dockerfile"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Scanning the bundle composed by kairos-init ${VERSION}"
+
+      - name: Checkout kairos-init at that version
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: kairos-io/kairos-init
+          ref: ${{ steps.pin.outputs.version }}
+          path: kairos-init
+
+      # SKIP_UPX is the whole point of this job -- see the header comment.
+      - name: Download the shipped binaries, uncompressed
+        working-directory: kairos-init
+        run: SKIP_UPX=true make download
+
+      - name: Install osv-scanner
+        env:
+          OSV_SCANNER_VERSION: v2.5.0
+        run: |
+          set -euo pipefail
+          curl -sSfL --retry 5 --retry-all-errors --retry-delay 2 \
+            "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64" \
+            -o /usr/local/bin/osv-scanner
+          chmod +x /usr/local/bin/osv-scanner
+          osv-scanner --version
+
+      # Two flags are load-bearing. Without either, the scan finds nothing and
+      # reports success -- a false green, which is worse than no gate at all.
+      #
+      #   --no-ignore                      kairos-init's .gitignore excludes
+      #                                    pkg/bundled/binaries/, and osv-scanner
+      #                                    honours .gitignore by default.
+      #   --experimental-plugins artifact  the default plugin set
+      #                                    (lockfile, sbom, directory) cannot
+      #                                    read Go binaries at all.
+      #   --all-packages                   without it, a scan with no findings
+      #                                    emits an EMPTY results array, which
+      #                                    is indistinguishable from a scan that
+      #                                    read nothing -- and would trip the
+      #                                    false-green guard below on every
+      #                                    clean release.
+      #
+      # continue-on-error because osv-scanner exits non-zero when it finds
+      # vulnerabilities; the reporting step below decides what that means.
+      - name: Scan
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          osv-scanner scan source \
+            --experimental-plugins artifact \
+            --no-ignore \
+            --recursive \
+            --all-packages \
+            --config osv-scanner.toml \
+            --format json \
+            --output-file osv.json \
+            kairos-init/pkg/bundled/binaries
+
+      # A clean result only means something if the scanner actually read the
+      # binaries. Zero extracted packages is a broken scan, not a pass.
+      - name: Guard against a false green
+        run: |
+          set -euo pipefail
+          if [ ! -s osv.json ]; then
+            echo "::error::osv-scanner produced no output file"
+            exit 1
+          fi
+          PACKAGES="$(jq '[.results[].packages[]] | length' osv.json)"
+          echo "extracted packages: ${PACKAGES}"
+          if [ "${PACKAGES}" -eq 0 ]; then
+            echo "::error::scanner extracted 0 packages -- it did not read the shipped binaries. Treating as a failure, not as clean."
+            exit 1
+          fi
+
+      # osv-scanner compares the stdlib version string verbatim. A binary built
+      # with the boringcrypto toolchain reports its version as, for example,
+      # "1.26.6-X:boringcrypto", and semver orders that BELOW plain "1.26.6"
+      # because the suffix reads as a prerelease. So every stdlib advisory
+      # fixed in 1.26.6 still matches the FIPS binaries, even though they were
+      # built from that toolchain and carry the fix -- the very same advisories
+      # report clean against the non-FIPS binaries at plain "1.26.6".
+      #
+      # This drops exactly that case: a stdlib finding on a -X:boringcrypto
+      # build whose base version is at or past a published fix on the SAME
+      # major.minor track. A genuinely old boringcrypto build, or one whose
+      # only published fix sits on another track, is left in place -- the
+      # filter fails closed. Whatever it removes is listed in the job summary,
+      # so this suppresses nothing silently.
+      - name: Normalize boringcrypto stdlib versions
+        run: |
+          set -euo pipefail
+          cp osv.json osv.raw.json
+          jq '
+            def strip_pre: sub("-.*$"; "");
+            def arr: strip_pre | split(".") | map(tonumber? // 0);
+            def covered($base):
+              [ .affected[]?.ranges[]?.events[]?.fixed // empty ]
+              | map(arr)
+              | any(.[0] == $base[0] and .[1] == $base[1] and .[2] <= $base[2]);
+            .results |= map(
+              .packages |= map(
+                if (.package.name == "stdlib"
+                    and (.package.version | test("-X:boringcrypto$")))
+                then
+                  (.package.version | arr) as $base
+                  | .vulnerabilities = [ .vulnerabilities[]? | select(covered($base) | not) ]
+                else . end
+              )
+            )' osv.raw.json > osv.json
+
+          jq -r '
+            [ .results[].packages[]
+              | . as $pkg
+              | .vulnerabilities[]?
+              | "\(.id) \($pkg.package.name)@\($pkg.package.version)"
+            ] | unique | .[]' osv.raw.json | sort > all.before
+          jq -r '
+            [ .results[].packages[]
+              | . as $pkg
+              | .vulnerabilities[]?
+              | "\(.id) \($pkg.package.name)@\($pkg.package.version)"
+            ] | unique | .[]' osv.json | sort > all.after
+          SUPPRESSED="$(comm -23 all.before all.after || true)"
+          if [ -n "${SUPPRESSED}" ]; then
+            {
+              echo "## Boringcrypto stdlib findings normalized"
+              echo
+              echo "Fixed on the same major.minor track as the build's base version:"
+              echo
+              echo '```'
+              echo "${SUPPRESSED}"
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+            echo "normalized $(echo "${SUPPRESSED}" | wc -l) boringcrypto stdlib findings"
+          else
+            echo "no boringcrypto stdlib findings to normalize"
+          fi
+
+      - name: Report and enforce
+        run: |
+          set -euo pipefail
+          # One advisory can affect several module versions in the same bundle
+          # (different binaries pin different versions), so a finding is an
+          # (advisory, module@version) pair and the two counts differ. Report
+          # both rather than calling every row an advisory.
+          jq -r '
+            [ .results[].packages[]
+              | . as $pkg
+              | .vulnerabilities[]?
+              | "| `\(.id)` | `\($pkg.package.name)@\($pkg.package.version)` |"
+            ] | unique | .[]' osv.json > findings.md || true
+          FINDINGS="$(wc -l < findings.md)"
+          ADVISORIES="$(jq -r '[.results[].packages[].vulnerabilities[]?.id] | unique | length' osv.json)"
+          {
+            echo "## Vulnerability scan of the shipped bundle"
+            echo
+            echo "kairos-init \`${{ steps.pin.outputs.version }}\`, scanned uncompressed."
+            echo
+            if [ "${FINDINGS}" -eq 0 ]; then
+              echo "No unignored advisories."
+            else
+              echo "**${ADVISORIES} advisories**, ${FINDINGS} findings across module versions."
+              echo
+              echo "| advisory | module |"
+              echo "|---|---|"
+              cat findings.md
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+          if [ "${FINDINGS}" -gt 0 ]; then
+            echo "::error::${ADVISORIES} unignored advisories (${FINDINGS} findings) in the shipped bundle. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
+            exit 1
+          fi
+
+      - name: Upload scan output
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: osv-scan
+          path: osv.json
+          if-no-files-found: warn
