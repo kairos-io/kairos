@@ -15,7 +15,7 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 	"gopkg.in/yaml.v3"
 
-	client "github.com/kairos-io/kairos/kcrypt/cmd/discovery/client"
+	client "github.com/kairos-io/kairos/kcrypt/discovery/client"
 )
 
 var installationOutput string
