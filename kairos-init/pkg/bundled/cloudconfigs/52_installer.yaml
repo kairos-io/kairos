@@ -1,0 +1,130 @@
+name: "Start installer on tty1"
+stages:
+  initramfs:
+    # Start installer if we get the install-mode cmdline and NOT the install-mode-interactive cmdline as we can have both
+    # and we dont want to trigger both
+    # Works in livecd or uki install mode
+    # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
+    - if: |
+        (grep -q "install-mode" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+      only_service_manager: "systemd"
+      files:
+        - &webui-service
+          path: /etc/systemd/system/kairos-webui.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=kairos webui installer
+            After=sysinit.target
+            [Service]
+            ExecStart=/usr/bin/kairos-agent webui
+            TimeoutStopSec=10s
+            [Install]
+            WantedBy=multi-user.target
+        - path: /etc/systemd/system/kairos-installer.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=kairos installer
+            After=multi-user.target
+            [Service]
+            Type=simple
+            StandardInput=tty
+            StandardOutput=tty
+            LimitNOFILE=49152
+            ExecStartPre=-/bin/sh -c "dmesg -D"
+            TTYPath=/dev/tty1
+            RemainAfterExit=yes
+            # Stop systemd messages on tty
+            ExecStartPre=-/usr/bin/kill -SIGRTMIN+21 1
+            ExecStart=/usr/bin/kairos-agent install
+            # Start systemd messages on tty
+            ExecStartPost=-/usr/bin/kill -SIGRTMIN+20 1
+            TimeoutStopSec=10s
+            [Install]
+            WantedBy=multi-user.target
+      commands:
+        - systemctl disable getty@tty1
+        - systemctl stop getty@tty1
+        - systemctl mask getty@tty1
+        - systemctl enable kairos-installer
+        - systemctl enable kairos-webui
+    # Starts installer on boot for openRC based systems
+    # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
+    - if: |
+        (grep -q "install-mode" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+      only_service_manager: "openrc"
+      commands:
+        - sed -i -e 's/tty1.*//g' /etc/inittab
+        - echo "tty1::respawn:/usr/bin/kairos-agent install tty1" >> /etc/inittab
+    # Starts interactive installer on boot for systemd based systems in livecd or uki install mode
+    # TODO: Drop interactive-install keyword in Kairos 4.0.0
+    - if: |
+        (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline) && \
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+      only_service_manager: "systemd"
+      files:
+        - path: /etc/systemd/system/kairos-interactive.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=kairos interactive-installer
+            After=multi-user.target
+            [Service]
+            ## Dont mark it as running until it finishes
+            Type=oneshot
+            # input/output to tty as its interactive
+            # otherwise it will be silent and with no input
+            StandardInput=tty
+            StandardOutput=tty
+            LimitNOFILE=49152
+            ExecStartPre=-/bin/sh -c "dmesg -D"
+            TTYPath=/dev/tty1
+            RemainAfterExit=yes
+            # Stop systemd messages on tty
+            ExecStartPre=-/usr/bin/kill -SIGRTMIN+21 1
+            ExecStart=/usr/bin/kairos-agent interactive-install --shell
+            # Start systemd messages on tty
+            ExecStartPost=-/usr/bin/kill -SIGRTMIN+20 1
+            TimeoutStopSec=10s
+            # Restart if it fails, like user doing control+c
+            Restart=on-failure
+            [Install]
+            WantedBy=multi-user.target
+      commands:
+        - systemctl stop kairos-installer
+        - systemctl disable kairos-installer
+        - systemctl disable getty@tty1
+        - systemctl stop getty@tty1
+        - systemctl mask getty@tty1
+        - systemctl enable kairos-interactive
+    # Starts installer on boot for openRC based systems
+    # TODO: Drop interactive-install keyword in Kairos 4.0.0
+    - if: |
+        (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline) && \
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+      only_service_manager: "openrc"
+      commands:
+        - sed -i -e 's/tty1.*//g' /etc/inittab
+        - echo "tty1::respawn:/usr/bin/kairos-agent interactive-install --shell tty1" >> /etc/inittab
+  boot:
+    - if: |
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+      only_service_manager: "openrc"
+      commands:
+        - rc-service kairos-webui start
+    - if: |
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+      only_service_manager: "systemd"
+      files:
+        - <<: *webui-service
+      commands:
+        - systemctl start kairos-webui

@@ -1,0 +1,41 @@
+name: "Enable QEMU tools"
+stages:
+  boot:
+    - name: "Enable QEMU"
+      if: |
+          grep -qiFx "QEMU" /sys/class/dmi/id/sys_vendor 2>/dev/null ||
+            grep -qiE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name 2>/dev/null
+      only_service_manager: "openrc"
+      commands:
+        - rc-service qemu-guest-agent start
+    - name: "Enable QEMU"
+      if: |
+          grep -qiFx "QEMU" /sys/class/dmi/id/sys_vendor 2>/dev/null ||
+            grep -qiE "qemu|kvm|Virtual Machine" /sys/class/dmi/id/product_name 2>/dev/null
+      only_service_manager: "systemd"
+      commands:
+        - systemctl start qemu-guest-agent
+    - name: "Enable VBOX"
+      if: |
+          grep -iE "Virtualbox" /sys/class/dmi/id/product_name
+      only_service_manager: "openrc"
+      commands:
+        - rc-service open-vm-tools start
+    - name: "Enable VBOX"
+      if: |
+          grep -iE "Virtualbox" /sys/class/dmi/id/product_name
+      only_service_manager: "systemd"
+      commands:
+        - systemctl start vmtoolsd
+    - name: "Enable VMWARE"
+      if: |
+        grep -iE "VMware" /sys/class/dmi/id/product_name
+      only_service_manager: "openrc"
+      commands:
+        - rc-service open-vm-tools start
+    - name: "Enable VMWARE"
+      if: |
+        grep -iE "VMware" /sys/class/dmi/id/product_name
+      only_service_manager: "systemd"
+      commands:
+        - systemctl start vmtoolsd

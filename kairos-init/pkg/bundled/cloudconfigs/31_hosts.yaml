@@ -1,0 +1,50 @@
+## Ensure that /etc/hostname and /etc/hosts are persistent across reboots
+## by storing them in /usr/local/etc/ and symlinking them
+## This is skipped in recovery mode or if they are already symlinks
+## Also, set a default hostname if not already set
+## This is done in the initramfs stage to ensure it's set early
+## Use MachineID for consistent hostname generation
+## Note: trunc 4 .MachineID takes the first 4 characters of the MachineID
+## This ensures the hostname is unique per machine but consistent across reboots
+## This should be overridden by user configuration if provided
+## We should run the hosts part before the hostname, as yip will try to update the hosts file when changing the hostname
+## so we get the proper name added to the hosts file
+stages:
+  initramfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -L "/etc/hosts" ]'
+      name: "Ensure persistent hosts file"
+      directories:
+        - path: "/usr/local/etc/"
+          permissions: 0755
+          owner: 0
+          group: 0
+      files:
+        - path: "/usr/local/etc/hosts"
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            127.0.0.1 localhost
+            ::1       localhost
+      commands:
+        - rm -f /etc/hosts
+        - ln -sf /usr/local/etc/hosts /etc/hosts
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -d /usr/local/etc ]' # check that /usr/local/etc doesnt not exist already
+      name: "Ensure persistent /etc/ directory"
+      directories:
+        - path: "/usr/local/etc/"
+          permissions: 0755
+          owner: 0
+          group: 0
+    # Check that hostname is not already a symlink and the persistent file does not exist
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -L "/etc/hostname" ]'
+      name: "Ensure persistent hostname"
+      files:
+        - path: "/usr/local/etc/hostname"
+          permissions: 0644
+          owner: 0
+          group: 0
+      commands:
+        - rm -f /etc/hostname
+        - ln -sf /usr/local/etc/hostname /etc/hostname
+      hostname: kairos-{{ trunc 4 .MachineID }}

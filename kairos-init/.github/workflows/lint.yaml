@@ -1,0 +1,16 @@
+name: Lint
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - '**'
+permissions:
+  contents: read
+jobs:
+  call-workflow:
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@d38a45447609f936c9d519bd14ed771b7214ad42 # v0.0.10
+    with:
+      yamldirs: ".github/workflows/ pkg/bundled/cloudconfigs/"
+      is-go: false

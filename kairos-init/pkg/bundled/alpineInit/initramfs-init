@@ -1,0 +1,582 @@
+#!/bin/sh
+
+VERSION=3.8.2-kairos5
+INIT=/sbin/init
+sysroot="$ROOT"/sysroot
+# This is where we mount the livecd
+liveroot=/run/initramfs/live
+# This is where we mount the root squash file
+rootfsbase=/run/rootfsbase
+# This is the base dir for the overlay, it needs to be RW
+rootRW=/run/overlay
+# This is the name of the rootfs squash that comes in the livecd/netboot
+rootfssquash=rootfs.squashfs
+
+# some helpers
+ebegin() {
+	last_emsg="$*"
+	echo "$last_emsg..." > "$ROOT"/dev/kmsg
+	echo -n " * $last_emsg: "
+}
+eend() {
+	if [ "$1" = 0 ] || [ $# -lt 1 ] ; then
+		echo "$last_emsg: ok." > "$ROOT"/dev/kmsg
+		echo "ok."
+	else
+		shift
+		echo "$last_emsg: failed. $*" > "$ROOT"/dev/kmsg
+		echo "failed. $*"
+		echo "initramfs emergency recovery shell launched. Type 'exit' to continue boot"
+		/bin/busybox sh
+	fi
+}
+
+# same as eend but this wont drop us to a shell and continue booting
+eend_no_break() {
+	if [ "$1" = 0 ] || [ $# -lt 1 ] ; then
+		echo "$last_emsg: ok." > "$ROOT"/dev/kmsg
+		echo "ok."
+	else
+		shift
+		echo "$last_emsg: failed. $*" > "$ROOT"/dev/kmsg
+		echo "failed. $*"
+	fi
+}
+
+# find mount dir and mount opts for given device in an fstab
+get_fstab_mount_info() {
+	local search_dev="$1"
+	local fstab="$2"
+	local mntopts=
+	case "$search_dev" in
+	UUID*|LABEL*) search_dev=$(findfs "$search_dev");;
+	esac
+	[ -r "$fstab" ] || return 1
+	local search_maj_min=$(stat -L -c '%t,%T' $search_dev)
+	while read dev mnt fs mntopts chk; do
+		case "$dev" in
+		UUID*|LABEL*) dev=$(findfs "$dev");;
+		esac
+		if [ -b "$dev" ] || [ -n "$ROOT" ]; then
+			local maj_min=$(stat -L -c '%t,%T' $dev)
+			if [ "$maj_min" = "$search_maj_min" ]; then
+				echo "$mnt $mntopts"
+				return
+			fi
+		fi
+	done < $fstab
+}
+
+#  add a boot service to $sysroot
+rc_add() {
+	mkdir -p $sysroot/etc/runlevels/$2
+	ln -sf /etc/files.d/$1 $sysroot/etc/runlevels/$2/$1
+}
+
+# Recursively resolve tty aliases like console or tty0
+list_console_devices() {
+	if ! [ -e "$ROOT"/sys/class/tty/$1/active ]; then
+		echo $1
+		return
+	fi
+
+	for dev in $(cat "$ROOT"/sys/class/tty/$1/active); do
+		list_console_devices $dev
+	done
+}
+
+detect_serial_consoles() {
+	local n=$(awk '$7 ~ /CTS/ || $7 ~ /DSR/ { print $1 }' "$ROOT"/proc/tty/driver/serial 2>/dev/null)
+	if [ -n "$n" ]; then
+		echo ttyS${n%:}
+	fi
+	for i in "$ROOT"/sys/class/tty/*; do
+    if [ -e "$i"/device ]; then
+      echo ${i##*/}
+    fi
+  done
+}
+
+setup_inittab_console() {
+	term=vt100
+	# Inquire the kernel for list of console= devices
+	consoles="$(for c in console $(detect_serial_consoles); do list_console_devices $c; done)"
+	for tty in $consoles; do
+		# ignore tty devices that gives I/O error
+		if ! stty -g -F /dev/$tty >/dev/null 2>/dev/null; then
+			continue
+		fi
+		# do nothing if inittab already have the tty set up
+		if ! grep -q "^$tty:" $sysroot/etc/inittab 2>/dev/null; then
+			echo "# enable login on alternative console" \
+				>> $sysroot/etc/inittab
+			# Baudrate of 0 keeps settings from kernel
+			echo "$tty::respawn:/sbin/getty -L 0 $tty $term" \
+				>> $sysroot/etc/inittab
+		fi
+		if [ -e "$sysroot"/etc/securetty ] && ! grep -q -w "$tty" "$sysroot"/etc/securetty; then
+			echo "$tty" >> "$sysroot"/etc/securetty
+		fi
+	done
+}
+
+# relocate mountpoint according given fstab and set mount options
+remount_fstab_entry() {
+	local fstab="${1}"
+	local dir=
+	if ! [ -e "$repofile" ]; then
+		return
+	fi
+	cat - "$repofile" | while read dir; do
+		# skip http(s)/ftp repos for netboot
+		if [ -z "$dir" ] || ! [ -d "$ROOT/$dir" -o -f "$ROOT/$dir" ]; then
+			continue
+		fi
+		local dev=$(df -P "$dir" | tail -1 | awk '{print $1}')
+		local mntinfo="$(get_fstab_mount_info "$dev" "$fstab")"
+		local mnt="${mntinfo% *}"
+		local mntopts="${mntinfo#* }"
+		if [ -n "$mnt" ]; then
+			local oldmnt=$(awk -v d=$ROOT$dev '$1==d {print $2}' "$ROOT"/proc/mounts 2>/dev/null)
+			if [ "$oldmnt" != "$mnt" ]; then
+				mkdir -p "$mnt"
+				mount -o move "$oldmnt" "$mnt"
+			fi
+			if [ -n "$mntopts" ]; then
+				mount -o remount,"$mntopts" "$mnt"
+			fi
+		fi
+	done
+}
+rtc_exists() {
+	local rtc=
+	for rtc in /dev/rtc /dev/rtc[0-9]*; do
+		[ -e "$rtc" ] && break
+	done
+	[ -e "$rtc" ]
+}
+
+# support for eudev. see /etc/init.d/udev*
+eudev_start()
+{
+
+	if [ -e /proc/sys/kernel/hotplug ]; then
+		echo "" >/proc/sys/kernel/hotplug
+	fi
+  ebegin "Start udev"
+	udevd -d
+
+	# store persistent-rules that got created while booting
+	# when / was still read-only
+	# create /etc/udev/rules.d
+	[ -d /etc/udev/rules.d ] || mkdir -p /etc/udev/rules.d
+
+	local file dest
+	for file in /run/udev/tmp-rules--*; do
+		dest=${file##*tmp-rules--}
+		[ "$dest" = '*' ] && break
+		type=${dest##70-persistent-}
+		type=${type%%.rules}
+		cat "$file" >> /etc/udev/rules.d/"$dest" && rm -f "$file"
+	done
+
+	udevadm hwdb --update
+
+	# Populating /dev with existing devices through uevents
+	udevadm trigger --type=subsystems --action=add
+	udevadm trigger --type=devices --action=add
+	eend $?
+}
+
+
+# retry function
+retry() {
+  retries=$1
+  shift
+
+  count=0
+  until "$@"; do
+    exit=$?
+    wait=$((count + 1))
+    count=$((count + 1))
+    if [ "$count" -lt "$retries" ]; then
+      echo "Retry $count/$retries exited $exit, retrying in $wait seconds..."
+      sleep $wait
+    else
+      echo "Retry $count/$retries exited $exit, no more retries left."
+      return $exit
+    fi
+  done
+}
+
+# uses the first network interface with state 'up'.
+ip_choose_if() {
+	for x in "$ROOT"/sys/class/net/eth*; do
+    # skip lo device
+		if grep -iq up $x/operstate 2>/dev/null;then
+			[ -e "$x" ] && echo ${x##*/} && return
+		fi
+	done
+	[ -e "$x" ] && echo ${x##*/} && return
+}
+
+device_up() {
+	for x in "$ROOT"/sys/class/net/eth*; do
+	  # skip lo device
+		if grep -iq up $x/operstate 2>/dev/null;then
+		  [ -e "$x" ] && echo "Found up device: ${x##*/}" && return
+		fi
+	done
+	[ -e "$x" ] && echo ${x##*/} && return
+}
+
+configure_ip() {
+  # Sometimes it takes a bit for the device to come in UP state
+  # so first check for any eth devices are in UP state before getting the device
+  retry 5 device_up
+
+  device=$(ip_choose_if)
+
+	if [ -z "$device" ]; then
+		echo "ERROR: IP requested but no network device was found"
+		return 0
+	fi
+
+  # automatic configuration
+  if [ ! -e "$ROOT"/usr/share/udhcpc/default.script ]; then
+    echo "ERROR: DHCP requested but not present in initrd"
+    return 0
+  fi
+  ebegin "Obtaining IP via DHCP ($device)"
+  ifconfig "$device" 0.0.0.0
+  # -q and -n means exit if got a lease or dont
+  # -S means log to syslog
+  # -A 10 is the timeout
+  udhcpc -i "$device" -f -q -n -S -A 10
+  eend_no_break $?
+  return 0
+}
+
+is_url() {
+	case "$1" in
+	http://*|https://*|ftp://*)
+		return 0;;
+	*)
+		return 1;;
+	esac
+}
+
+rd_break() {
+  if grep -q "rd.break=$1" /proc/cmdline; then
+    echo "initramfs emergency recovery shell launched" > "$ROOT"/dev/kmsg
+    echo "initramfs emergency recovery shell launched"
+    exec /bin/busybox sh
+  fi
+}
+
+/bin/busybox mkdir -p "$ROOT"/usr/bin \
+	"$ROOT"/usr/sbin \
+	"$ROOT"/proc \
+	"$ROOT"/sys \
+	"$ROOT"/dev \
+	"$sysroot" \
+	"$ROOT"/media/cdrom \
+	"$ROOT"/media/usb \
+	"$ROOT"/tmp \
+	"$ROOT"/etc \
+	"$ROOT"/var/lock \
+	"$ROOT"/run/lock \
+	"$ROOT"/run/cryptsetup
+
+# Spread out busybox symlinks and make them available without full path
+/bin/busybox --install -s
+export PATH="$PATH:/usr/bin:/bin:/usr/sbin:/sbin"
+
+
+
+mount -t sysfs -o noexec,nosuid,nodev sysfs /sys
+mount -t devtmpfs -o exec,nosuid,mode=0755,size=2M devtmpfs /dev 2>/dev/null \
+	|| mount -t tmpfs -o exec,nosuid,mode=0755,size=2M tmpfs /dev
+
+# Make sure /dev/null is a device node. If /dev/null does not exist yet, the command
+# mounting the devtmpfs will create it implicitly as an file with the "2>" redirection.
+# The -c check is required to deal with initramfs with pre-seeded device nodes without
+# error message.
+[ -c /dev/null ] || mknod -m 666 /dev/null c 1 3
+
+# Make sure /dev/kmsg is a device node. Writing to /dev/kmsg allows the use of the
+# earlyprintk kernel option to monitor early files progress. As above, the -c check
+# prevents an error if the device node has already been seeded.
+[ -c /dev/kmsg ] || mknod -m 660 /dev/kmsg c 1 11
+
+mount -t proc -o noexec,nosuid,nodev proc /proc
+# pty device nodes (later system will need it)
+[ -c /dev/ptmx ] || mknod -m 666 /dev/ptmx c 5 2
+[ -d /dev/pts ] || mkdir -m 755 /dev/pts
+mount -t devpts -o gid=5,mode=0620,noexec,nosuid devpts /dev/pts
+
+# shared memory area (later system will need it)
+[ -d /dev/shm ] || mkdir /dev/shm
+mount -t tmpfs -o nodev,nosuid,noexec shm /dev/shm
+
+# mount run
+mount -t tmpfs -o nodev,nosuid,noexec,rw tmpfs /run
+
+echo "Alpine Init $VERSION" > "$ROOT"/dev/kmsg
+echo "Alpine Init $VERSION"
+
+# pick first keymap if found
+for map in "$ROOT"/etc/keymap/*; do
+	if [ -f "$map" ]; then
+		ebegin "Setting keymap ${map##*/}"
+		zcat "$map" | loadkmap
+		eend
+		break
+	fi
+done
+
+# hide kernel messages
+# dmesg -n 1
+rd_break pre-modprobe
+# load available drivers to get access to media
+ebegin "Loading boot drivers"
+modprobe -a ahci virtio_blk virtio_net virtio_console virtio_pci nvme overlay usb_storage libata cdrom sr_mod iso9660 loop squashfs simpledrm ext4 tpm dm_mod dm_crypt 2> /dev/null
+if [ -f "$ROOT"/etc/modules ] ; then
+	sed 's/\#.*//g' < /etc/modules |
+	while read module args; do
+		modprobe -q $module $args
+	done
+fi
+# workaround for vmware
+if grep -q VMware /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null; then
+	modprobe -a ata_piix mptspi sr-mod 2> /dev/null
+fi
+
+eend
+
+rd_break post-modprobe
+
+rd_break pre-udev
+# persistent device names from eudev in order for immucore to mount stuff
+[ -x "/sbin/udevadm" ] && eudev_start
+rd_break post-udev
+
+rd_break pre-network
+# Dont enable network if we got rd.neednet=0, otherwise do it by default
+if grep -vq "rd.neednet=0" /proc/cmdline;then
+  configure_ip
+fi
+rd_break post-network
+
+# Path for booting from netboot
+if grep -q netboot /proc/cmdline; then
+  echo "Netbooting"
+  rd_break pre-netboot
+
+  for x in $(cat /proc/cmdline); do
+    # shellcheck disable=SC2039
+    [[ $x = root=live:* ]] || continue
+    root=${x#root=live:}
+  done
+
+  if ! is_url "$root";then
+    echo "$root is not a valid url, cannot continue"
+    echo "initramfs emergency recovery shell launched"
+    exec /bin/busybox sh
+  fi
+  sync
+  # Create mountpoints
+  ebegin "Create mountpoints"
+  mkdir -p $rootRW $rootfsbase $sysroot$rootRW $sysroot$rootfsbase
+  eend $?
+
+  ebegin "Download rootfs"
+  wget -q "$root" -O /tmp/$rootfssquash
+  eend $?
+
+  # Mount squashfs into loop device
+  ebegin "Mount rootfs as squashfs device"
+  retry 5 losetup /dev/loop0 /tmp/$rootfssquash
+  eend $?
+  sync
+  rd_break post-netboot
+fi
+
+# Path for booting from livecd
+if grep -q cdroot /proc/cmdline ;then
+  rd_break pre-livecd
+  echo "Mounting Live Media"
+  sync
+  label=$(grep -o CDLABEL.* /proc/cmdline | cut -f 1 -d ' ' | cut -f 2 -d '=' )
+  # Create mountpoints
+  ebegin "Create mountpoints"
+  mkdir -p $liveroot $rootRW $rootfsbase $sysroot$liveroot $sysroot$rootRW $sysroot$rootfsbase
+  eend $?
+  # Between udev starting, we loading the modules and the cdrom appearing sometimes there is a delay, so lets wait a bit here
+  ebegin "Waiting for Live Media to be available"
+  retry 10 test -e /dev/disk/by-label/$label
+  eend
+  # Mount read-only livecd
+  ebegin "Mount Live Media RO"
+  retry 10 mount /dev/disk/by-label/$label $liveroot
+  eend $?
+  sync
+  # Mount squashfs into loop device
+  ebegin "Mount rootfs as squashfs device"
+  retry 5 losetup /dev/loop0 $liveroot/$rootfssquash
+  eend $?
+  sync
+  rd_break post-livecd
+fi
+
+# shared path for netboot and livecd, we expect the rootfs to be already in /dev/loop0
+if grep -q cdroot /proc/cmdline || grep -q netboot /proc/cmdline;then
+    rd_break pre-mounts
+    # Mount loop device into the rootfsbase
+    ebegin "Mount loop device into rootfsbase"
+    retry 5 mount /dev/loop0 $rootfsbase
+    eend $?
+    sync
+    # Mount writable overlay tmpfs
+    ebegin "Mount base overlay"
+    mount -t tmpfs -o "mode=0755,rw,size=25%" root-tmpfs $rootRW
+    eend $?
+    sync
+    # Create additional mountpoints and do the overlay mount
+    mkdir -p $rootRW/work $rootRW/root
+    ebegin "Mount rootfs overlay into sysroot"
+    mount -t overlay -o lowerdir=$rootfsbase,upperdir=$rootRW/root,workdir=$rootRW/work overlayfs $sysroot
+    eend $?
+    sync
+    rd_break pre-immucore
+  	# immucore to run the initramfs and rootfs stages
+    ebegin "Run immucore"
+    immucore
+    eend $?
+    rd_break post-immucore
+    # Move current mounts into sysroot mounts
+    # shellcheck disable=SC2002
+    cat "$ROOT"/proc/mounts 2>/dev/null | while read DEV DIR TYPE OPTS ; do
+      # shellcheck disable=SC2166
+      if [ "$DIR" != "/" -a "$DIR" != "$sysroot" -a -d "$DIR" ]; then
+        ebegin "Moving $DIR to $sysroot$DIR"
+        mkdir -p $sysroot$DIR
+        mount -o move $DIR $sysroot$DIR
+        eend $?
+      fi
+    done
+    rd_break post-mounts
+    # stop udevd, will be relaunched by openrc
+    udevadm control --exit
+
+    # hide kernel messages from now on
+    dmesg -n 1
+
+  	# shellcheck disable=SC2093
+  	exec switch_root "$sysroot" "$INIT"
+  	echo "initramfs emergency recovery shell launched"
+  	exec /bin/busybox sh
+fi
+
+rd_break pre-immucore
+# Path for booting active/passive/recovery
+ebegin "Run immucore"
+immucore
+eend $?
+
+rd_break post-immucore
+
+# by now the system should be mounted in /sysroot
+if [ -f "$sysroot/etc/.default_boot_services" ]; then
+	# add some boot services by default
+	ebegin "Adding default boot services"
+	rc_add devfs sysinit
+	rc_add dmesg sysinit
+	rc_add mdev sysinit
+	rc_add hwdrivers sysinit
+	rc_add modloop sysinit
+	rc_add sshd default
+	rc_add udev sysinit
+
+	rc_add modules boot
+	rc_add sysctl boot
+	rc_add hostname boot
+	rc_add bootmisc boot
+	rc_add syslog boot
+
+	rc_add mount-ro shutdown
+	rc_add killprocs shutdown
+	rc_add savecache shutdown
+	rc_add firstboot default
+
+
+	rm -f "$sysroot/etc/.default_boot_services"
+	eend
+fi
+
+
+# copy keys so apk finds them. apk looks for stuff relative --root
+mkdir -p $sysroot/etc/apk/keys/
+cp -a /etc/apk/keys $sysroot/etc/apk
+
+
+# silently fix apk arch in case the apkovl does not match
+if [ -r "$sysroot"/etc/apk/arch ]; then
+	apk_arch="$(apk --print-arch)"
+	if [ -n "$apk_arch" ]; then
+		echo "$apk_arch" > "$sysroot"/etc/apk/arch
+	fi
+fi
+
+# TODO: Use this at the start to set an aprox time for the initramfs?
+# use swclock if no RTC is found
+if rtc_exists || [ "$(uname -m)" = "s390x" ]; then
+	rc_add hwclock boot
+else
+	rc_add swclock boot
+fi
+
+
+rd_break pre-binds
+# Mount bind system mounts to sysroot to keep them going
+mkdir -p $sysroot/sys $sysroot/proc $sysroot/dev $sysroot/run
+mount -o bind /sys $sysroot/sys
+mount -o bind /proc $sysroot/proc
+mount -o bind /dev $sysroot/dev
+mount -o bind /run $sysroot/run
+rd_break post-binds
+
+# remount according default fstab from package
+if [ -z "$has_fstab" ] && [ -f "$sysroot"/etc/fstab ]; then
+	remount_fstab_entry "$sysroot"/etc/fstab
+fi
+
+rd_break pre-console
+# fix inittab if alternative console
+setup_inittab_console
+rd_break post-console
+
+! [ -f "$sysroot"/etc/resolv.conf ] && [ -f /etc/resolv.conf ] && \
+	cp /etc/resolv.conf "$sysroot"/etc
+
+if [ ! -x "${sysroot}${INIT}" ]; then
+	echo "$INIT not found in new root. Launching emergency recovery shell"
+	echo "Type exit to continue boot."
+	/bin/busybox sh
+fi
+
+rd_break pre-switch
+# stop udevd, will be relaunched by openrc
+udevadm control --exit
+# hide kernel messages from now on
+dmesg -n 1
+# switch over to new root
+echo ""
+# shellcheck disable=SC2093
+exec switch_root "$sysroot" "$INIT"
+
+# If it fails, drop to recovery shell
+echo "initramfs emergency recovery shell launched"
+# shellcheck disable=SC2093
+exec /bin/busybox sh
+reboot

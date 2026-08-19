@@ -1,0 +1,135 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'main'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-image-matrix-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  testing_build_matrix:
+    name: ${{ matrix.platform }} - ${{ matrix.base_image }} - ${{ matrix.model || 'generic' }}${{ matrix.trusted_boot && '-uki' || ''}}${{ matrix.variant == 'standard' && ' - ' || '' }} ${{ matrix.kubernetes_provider != '' && matrix.kubernetes_provider || '' }} ${{ matrix.kubernetes_version != '' && matrix.kubernetes_version || '' }}${{ matrix.fips == true && ' - FIPS' || '' }}
+    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu-24.04-arm' || matrix.platform == 'riscv64' && 'ubuntu-24.04-riscv' || 'ubuntu-24.04' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ "amd64", "arm64" ]
+        base_image: 
+         - "ubuntu:20.04"
+         - "ubuntu:24.04"
+         - "ubuntu:25.10"
+         - "ubuntu:26.04"
+         - "debian:12"
+         - "debian:13"
+         - "fedora:42"
+         - "fedora:43"
+         - "alpine:3.21"
+         - "alpine:3.23"
+         - "opensuse/leap:15.6"
+         - "opensuse/leap:16.0"
+         - "opensuse/tumbleweed"
+         - "rockylinux/rockylinux:9"
+         - "rockylinux/rockylinux:10"
+         - "almalinux:9"
+         - "almalinux:10"
+         - "oraclelinux:9"
+         - "oraclelinux:10"
+         - "quay.io/centos/centos:stream9"
+         - "quay.io/centos/centos:stream10"
+         - "registry.suse.com/suse/sle-micro-rancher/5.4:latest"
+        include:
+          - platform: "amd64"
+            base_image: "ubuntu:22.04"
+            kubernetes_provider: "k3s"
+            kubernetes_version: "v1.32.1+k3s1"
+          - platform: "amd64"
+            base_image: "ubuntu:22.04"
+            kubernetes_provider: "k0s"
+            kubernetes_version: "v1.32.1+k0s.0"
+          - platform: "amd64"
+            base_image: "fedora:41"
+            fips: true
+          - platform: "amd64"
+            base_image: "ubuntu:24.04"
+            trusted_boot: "true"
+          - platform: "amd64"
+            base_image: "ubuntu:25.10"
+            trusted_boot: "true"
+          - platform: "amd64"
+            base_image: "ubuntu:26.04"
+            trusted_boot: "true"
+          - platform: "amd64"
+            base_image: "fedora:41"
+            trusted_boot: "true"
+            fips: false
+          - platform: "arm64"
+            base_image: "ubuntu:22.04"
+            model: "nvidia-jetson-agx-orin"
+            fips: false
+          - platform: "arm64"
+            base_image: "ubuntu:22.04"
+            model: "nvidia-jetson-orin-nx"
+            fips: false
+          - platform: "arm64"
+            base_image: "ubuntu:22.04"
+            model: "rpi4"
+            fips: false
+          - platform: "amd64"
+            base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
+          - platform: "amd64"
+            base_image: "ghcr.io/kairos-io/hadron:main"
+          - platform: "arm64"
+            base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
+          - platform: "arm64"
+            base_image: "ghcr.io/kairos-io/hadron:main"
+          - platform: "arm64"
+            base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
+            model: "rpi4"
+            fips: false
+          - platform: "arm64"
+            base_image: "ghcr.io/kairos-io/hadron:main"
+            model: "rpi4"
+            fips: false
+          - platform: "riscv64"
+            base_image: "ubuntu:24.04"
+            model: "generic"
+            fips: false
+          - platform: "riscv64"
+            base_image: "debian:13"
+            model: "generic"
+            fips: false
+          - platform: "riscv64"
+            base_image: "fedorariscv/base:42"
+            model: "generic"
+            fips: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Get version for docker build
+        run:  echo "VERSION=$(git describe --tags --dirty )" >> $GITHUB_ENV
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Build the docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.test
+          platforms: linux/${{ matrix.platform }}
+          push: false
+          tags: kairos-${{ matrix.base_image }}
+          build-args: |
+            BASE_IMAGE=${{ matrix.base_image }}
+            PROVIDER_NAME=${{ matrix.kubernetes_provider || '' }}
+            PROVIDER_VERSION=${{ matrix.kubernetes_version || '' }}
+            VERSION=${{ env.VERSION }}
+            FIPS=${{ matrix.fips || false }}
+            TRUSTED_BOOT=${{ matrix.trusted_boot || 'false' }}
+            MODEL=${{ matrix.model || 'generic' }}

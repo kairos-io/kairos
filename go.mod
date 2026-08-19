@@ -28,6 +28,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/hashicorp/go-version v1.9.0
 	github.com/hashicorp/mdns v1.0.7
 	github.com/itchyny/gojq v0.12.19
 	github.com/jaypipes/ghw v0.25.0

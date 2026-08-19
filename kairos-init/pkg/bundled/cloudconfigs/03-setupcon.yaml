@@ -1,0 +1,19 @@
+name: "Fonts fix for ubuntu QR code display"
+stages:
+  initramfs.after:
+    - name: "setup console fonts"
+      only_os: "Ubuntu.*|Debian.*"
+      files:
+        - path: /etc/default/console-setup
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            ACTIVE_CONSOLES="/dev/tty[1-6]"
+            FONT="default8x16.psf.gz"
+            CHARMAP="UTF-8"
+            CODESET="guess"
+            FONTFACE="default"
+            FONTSIZE="8x16"
+      commands:
+        - setupcon
