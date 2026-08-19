@@ -14,11 +14,55 @@ jobs:
   vulnerability-scan:
     uses: ./.github/workflows/release-scan.yml
 
+  # Build every binary (default + FIPS matrix) and push the two container
+  # images (kcrypt-challenger, kairos-init) to quay under the release tag.
+  # Same reusable workflow the PR / master builds use, just parameterised
+  # for the release destination. Downstream jobs `needs: binaries` so no
+  # ISO/UKI factory-action job starts until the kairos-init image is
+  # available for images/Dockerfile to pull.
+  binaries:
+    uses: ./.github/workflows/_binaries-reusable.yaml
+    with:
+      matrix_scope: release
+      image_registry: quay.io/kairos
+      image_tag: ${{ github.ref_name }}
+      image_extra_tag: latest
+      push_images: true
+      registry_login: quay
+    secrets: inherit
+
+  # Attach the per-arch archives + combined checksums to the GitHub Release
+  # the tag created.
+  release-upload:
+    needs: binaries
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download every arch's archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'binaries-linux-*'
+          path: dist/download
+      - name: Consolidate
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
+          find dist/download -name 'checksums-*.txt' -exec cat {} \; | sort -u > dist/release/checksums.txt
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/release/* --clobber
+
   core:
     name: ${{ matrix.image_name }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
     needs:
       - vulnerability-scan
+      - binaries
     permissions:
       id-token: write  # OIDC support
       contents: write
@@ -126,6 +170,7 @@ jobs:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
     needs:
       - vulnerability-scan
+      - binaries
       - get-k3s-versions
     permissions:
       id-token: write  # OIDC support
@@ -173,6 +218,7 @@ jobs:
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
     needs:
       - vulnerability-scan
+      - binaries
       - get-k0s-versions
     permissions:
       id-token: write  # OIDC support
