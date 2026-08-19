@@ -1,0 +1,124 @@
+name: "Create openrc services"
+stages:
+  initramfs:
+    - name: "Create OpenRC services"
+      only_service_manager: "openrc"
+      files:
+      - path: /etc/init.d/cos-setup-boot
+        permissions: 0755
+        owner: 0
+        group: 0
+        content: |
+          #!/sbin/openrc-run
+
+          depend() {
+            provide cos-setup-boot
+          }
+
+          start() {
+            kairos-agent run-stage boot
+            eend 0
+          }
+      - path: /etc/init.d/cos-setup-network
+        permissions: 0755
+        owner: 0
+        group: 0
+        content: |
+          #!/sbin/openrc-run
+
+          depend() {
+            after net
+            provide cos-setup-network
+          }
+
+          start() {
+            kairos-agent run-stage network
+            eend 0
+          }
+      - path: /etc/init.d/cos-setup-reconcile
+        permissions: 0755
+        owner: 0
+        group: 0
+        content: |
+          #!/sbin/openrc-run
+
+          depend() {
+            provide cos-setup-reconcile
+          }
+
+          supervisor=supervise-daemon
+          name="cos-setup-reconcile"
+          command="cos-setup-reconcile"
+          supervise_daemon_args="--stdout /var/log/cos-setup-reconcile.log --stderr /var/log/cos-setup-reconcile.log"
+          pidfile="/run/cos-setup-reconcile.pid"
+          respawn_delay=360
+          set -o allexport
+          if [ -f /etc/environment ]; then . /etc/environment; fi
+          set +o allexport
+      - path: /etc/init.d/kairos-agent
+        content: |
+          #!/sbin/openrc-run
+
+          depend() {
+            provide kairos-agent
+            after cos-setup-network
+            use net
+          }
+
+          start() {
+              mkdir -p /var/log/kairos
+              kairos-agent start &> /var/log/kairos/agent.log &
+              return 0
+          }
+
+          stop() {
+              kill -9 $(pgrep -f "kairos-agent start")
+              return 0
+          }
+        permissions: 0755
+        owner: 0
+        group: 0
+      - path: /etc/init.d/kairos-webui
+        content: |
+          #!/sbin/openrc-run
+
+          depend() {
+            provide kairos-webui
+          }
+
+          supervisor=supervise-daemon
+          name="kairos-webui"
+          command="kairos-agent webui"
+          supervise_daemon_args="--stdout /var/log/kairos/webui.log --stderr /var/log/kairos/webui.log"
+          pidfile="/run/${RC_SVCNAME}.pid"
+          respawn_delay=5
+          set -o allexport
+          if [ -f /etc/environment ]; then . /etc/environment; fi
+          set +o allexport
+        permissions: 0755
+        owner: 0
+        group: 0
+      - path: /etc/issue
+        content: |
+
+
+          ██╗  ██╗ █████╗ ██╗██████╗  ██████╗ ███████╗
+          ██║ ██╔╝██╔══██╗██║██╔══██╗██╔═══██╗██╔════╝
+          █████╔╝ ███████║██║██████╔╝██║   ██║███████╗
+          ██╔═██╗ ██╔══██║██║██╔══██╗██║   ██║╚════██║
+          ██║  ██╗██║  ██║██║██║  ██║╚██████╔╝███████║
+          ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝
+
+
+          Kernel \r on an \m (\l)
+        permissions: 0755
+        owner: 0
+        group: 0
+    - name: "Enable OpenRC services"
+      only_service_manager: "openrc"
+      commands:
+        - mkdir -p /etc/runlevels/default
+        - ln -sf ../../init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot
+        - ln -sf ../../init.d/cos-setup-network /etc/runlevels/default/cos-setup-network
+        - ln -sf ../../init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile
+        - ln -sf ../../init.d/kairos-agent /etc/runlevels/default/kairos-agent

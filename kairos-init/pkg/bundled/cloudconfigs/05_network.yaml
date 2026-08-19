@@ -1,0 +1,90 @@
+name: "Default network configuration"
+stages:
+  rootfs.before:
+    - name: "Enable systemd-network config files for DHCP"  # Needed if systemd-networkd runs in the initramfs!
+      only_service_manager: "systemd"
+      only_os: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|SUSE.*|[Oo]penSUSE.*|Hadron.*|Red.*Hat.*"
+      directories:
+        - path: "/etc/systemd/network"  # doesnt exist on initramfs
+          permissions: 0775
+          owner: 0
+          group: 0
+      files:
+        - path: /etc/systemd/network/20-dhcp.network
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Match]
+            Name=en*
+            [Network]
+            DHCP=yes
+            [DHCP]
+            ClientIdentifier=mac
+        - path: /etc/systemd/network/20-dhcp-legacy.network
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Match]
+            Name=eth*
+            [Network]
+            DHCP=yes
+            [DHCP]
+            ClientIdentifier=mac
+  initramfs:
+    - name: "Enable systemd-network config files for DHCP"
+      only_service_manager: "systemd"
+      only_os: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|SUSE.*|[Oo]penSUSE.*|Hadron.*|Red.*Hat.*"
+      files:
+        - path: /etc/systemd/network/20-dhcp.network
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Match]
+            Name=en*
+            [Network]
+            DHCP=yes
+            [DHCP]
+            ClientIdentifier=mac
+        - path: /etc/systemd/network/20-dhcp-legacy.network
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Match]
+            Name=eth*
+            [Network]
+            DHCP=yes
+            [DHCP]
+            ClientIdentifier=mac
+      commands:
+        - networkctl reload  # TODO: No systemd in initramfs is there?
+    - name: "Disable NetworkManager and wicked" ## TODO: Check which distros this affects and set the only_os or move it to init
+      only_service_manager: "systemd"
+      only_os: "[Oo]penSUSE.*|SUSE.*"
+      systemctl:
+        disable:
+          - NetworkManager
+          - wicked
+    - name: "Link /etc/resolv.conf to systemd resolv.conf"
+      if: '[ -f /etc/hosts ]'
+      only_service_manager: "systemd"
+      commands:
+        - rm /etc/resolv.conf
+        - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+    - name: "Enabled systemd-networkd on Red Hat if available"
+      only_os: "Red.*Hat.*"
+      only_service_manager: "systemd"
+      if: '[ -f /usr/lib/systemd/systemd-networkd ]'
+      systemctl:
+        enable:
+          - systemd-networkd
+    - name: "Enable systemd-resolved on Red Hat if available"
+      only_os: "Red.*Hat.*"
+      only_service_manager: "systemd"
+      if: '[ -f /usr/lib/systemd/systemd-resolved ]'
+      systemctl:
+        enable:
+          - systemd-resolved

@@ -1,0 +1,35 @@
+name: "Enable EFI assessment"
+stages:
+  initramfs:
+    - name: "Override systemd-boot services to enable RW on /efi partition"
+      if: '[ -e "/run/cos/uki_boot_mode" ]'
+      only_service_manager: "systemd"
+      files:
+        - path: /etc/systemd/system/systemd-bless-boot.service.d/override.conf
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Service]
+            # Allow RW on /efi partition
+            ExecStartPre=mount -o remount,rw /efi
+            # Remove the assessment suffix from loader.conf if any
+            ExecStartPost=sed -i -E 's/(default\s+)*\+[0-9]+(-[0-9]+)?(\.conf)/\1\3/' /efi/loader/loader.conf
+            # Revert back to RO on /efi partition
+            ExecStartPost=mount -o remount,ro /efi
+        - path: /etc/systemd/system/systemd-boot-random-seed.service.d/override.conf
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Service]
+            # Allow RW on /efi partition
+            ExecStartPre=mount -o remount,rw /efi
+            # Revert back to RO on /efi partition
+            ExecStartPost=mount -o remount,ro /efi
+    - name: "Enable boot assessment"
+      if: '[ -e "/run/cos/uki_boot_mode" ]'
+      only_service_manager: "systemd"
+      systemctl:
+        enable:
+          - "systemd-bless-boot"

@@ -1,0 +1,37 @@
+name: "Root autologin"
+stages:
+  initramfs:
+    # TODO: Drop interactive-install keyword in Kairos 4.0.0
+    - if: |
+        (grep -qv "interactive-install" /proc/cmdline || grep -qv "install-mode-interactive" /proc/cmdline ) && \
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+      only_service_manager: "systemd"
+      files:
+        - path: /etc/systemd/system/serial-getty@ttyS0.service.d/override.conf
+          content: |
+            [Service]
+            ExecStart=
+            ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+          permissions: 0644
+        - path: /etc/systemd/system/getty@tty1.service.d/override.conf
+          content: |
+            [Service]
+            ExecStart=
+            ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
+          permissions: 0644
+    - name: "Autologin on livecd for OpenRC"
+      # TODO: Drop interactive-install keyword in Kairos 4.0.0
+      if: |
+        (grep -qv "interactive-install" /proc/cmdline || grep -qv "install-mode-interactive" /proc/cmdline) && \
+        [ -f /run/cos/live_mode ]
+      only_service_manager: "openrc"
+      files:
+        - path: /etc/motd
+          content: |
+            You are booting from livecd mode. Run 'kairos-agent install' to install the system.
+          permissions: 0644
+      commands:
+        - sed -i -e 's/tty1.*//g' /etc/inittab
+        - sed -i -e 's/ttyS0.*//g' /etc/inittab
+        - echo "tty1::respawn:/sbin/agetty --autologin root -i --noclear tty1" >> /etc/inittab
+        - echo "ttyS0::respawn:/sbin/agetty --autologin root -i --noclear ttyS0" >> /etc/inittab

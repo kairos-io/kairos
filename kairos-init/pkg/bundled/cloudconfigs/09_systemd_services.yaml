@@ -1,0 +1,145 @@
+# Rootfs Kairos OEM configuration file
+#
+# This file is part of Kairos and will get reset during upgrades.
+
+name: "Default config"
+stages:
+  boot:
+    - name: "Default sysctl settings"
+      sysctl:
+        # This source explains why we are using this number
+        # https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes/a3327deff89d2428d48596ce0e643531f9944f99
+        net.core.rmem_max: 7500000
+        vm.max_map_count: 262144
+        fs.inotify.max_user_instances: 8192
+        fs.inotify.max_user_watches: 524288
+  initramfs:
+    - name: "Default systemd config"
+      only_service_manager: "systemd"
+      systemctl:
+        enable:
+          - multi-user.target
+          - getty@tty1
+          - iscsid
+          - logrotate.timer
+        mask:
+          - purge-kernels
+      commands:
+        - systemctl set-default multi-user.target
+    - name: "Create systemd services"
+      only_service_manager: "systemd"
+      files:
+        - path: /etc/systemd/system/cos-setup-boot.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=cOS system configuration
+            Before=getty.target
+
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            ExecStart=/usr/bin/kairos-agent run-stage boot
+
+            [Install]
+            WantedBy=multi-user.target
+        - path: /etc/systemd/system/cos-setup-fs.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=cOS system after FS setup
+            DefaultDependencies=no
+            After=local-fs.target
+            Wants=local-fs.target
+            Before=sysinit.target
+
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            ExecStart=/usr/bin/kairos-agent run-stage fs
+
+            [Install]
+            WantedBy=sysinit.target
+        - path: /etc/systemd/system/cos-setup-network.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=cOS setup after network
+            After=network-online.target
+
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            ExecStart=/usr/bin/kairos-agent run-stage network
+
+            [Install]
+            WantedBy=multi-user.target
+        - path: /etc/systemd/system/cos-setup-reconcile.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=cOS setup reconciler
+
+            [Service]
+            Nice=19
+            IOSchedulingClass=2
+            IOSchedulingPriority=7
+            Type=oneshot
+            ExecStart=/bin/bash -c "systemd-inhibit /usr/bin/kairos-agent run-stage reconcile"
+            TimeoutStopSec=180
+            KillMode=process
+            KillSignal=SIGINT
+
+            [Install]
+            WantedBy=multi-user.target
+        - path: /etc/systemd/system/cos-setup-reconcile.timer
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=cOS setup reconciler
+
+            [Timer]
+            OnBootSec=5min
+            OnUnitActiveSec=60min
+            Unit=cos-setup-reconcile.service
+
+            [Install]
+            WantedBy=multi-user.target
+    - name: "Override systemd-tpm2-setup/systemd-pcrproduct with temporary RW under /efi"
+      only_service_manager: "systemd"
+      if: '[ -e "/run/cos/uki_boot_mode" ]'
+      systemctl:
+        overrides:
+          - name: "efi-rw.conf"
+            service: systemd-tpm2-setup
+            content: |
+              [Service]
+              # Allow RW on /efi partition
+              ExecStartPre=mount -o remount,rw /efi
+              # Revert back to RO on /efi partition
+              ExecStartPost=mount -o remount,ro /efi
+          - name: "efi-rw.conf"
+            service: systemd-pcrproduct
+            content: |
+              [Service]
+              # Allow RW on /efi partition
+              ExecStartPre=mount -o remount,rw /efi
+              # Revert back to RO on /efi partition
+              ExecStartPost=mount -o remount,ro /efi
+    - name: "Enable systemd services"
+      only_service_manager: "systemd"
+      commands:
+        - ln -sf /etc/systemd/system/cos-setup-reconcile.timer /etc/systemd/system/multi-user.target.wants/cos-setup-reconcile.timer
+        - ln -sf /etc/systemd/system/cos-setup-fs.service /etc/systemd/system/sysinit.target.wants/cos-setup-fs.service
+        - ln -sf /etc/systemd/system/cos-setup-boot.service /etc/systemd/system/multi-user.target.wants/cos-setup-boot.service
+        - ln -sf /etc/systemd/system/cos-setup-network.service /etc/systemd/system/multi-user.target.wants/cos-setup-network.service

@@ -1,0 +1,6 @@
+stages:
+  boot.before:
+    - name: "Setup higher limit for open files"
+      only_service_manager: "openrc"
+      commands:
+        - echo 'rc_ulimit="-n 1048576"' >> /etc/rc.conf

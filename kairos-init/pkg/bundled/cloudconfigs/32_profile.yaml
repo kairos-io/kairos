@@ -1,0 +1,15 @@
+name: "Profile extensions"
+stages:
+  initramfs:
+    - name: "Set KUBECONFIG to access k9s and kubectl"
+      files:
+        - path: /etc/profile.d/kairos.sh
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            if [ -z "$KUBECONFIG" ]; then
+                if [ -e /etc/rancher/k3s/k3s.yaml ]; then
+                    export KUBECONFIG="/etc/rancher/k3s/k3s.yaml"
+                fi
+            fi

@@ -1,0 +1,45 @@
+name: "Datasource handling"
+stages:
+  rootfs.before:
+    - &moveOldUserdata
+      name: "Move old datasource to new location"
+      if: '[ -d /oem/userdata ] && [ ! -d /oem/95_userdata ]' # If old userdata exists and new one does not
+      commands:
+      - mv -f /oem/userdata /oem/95_userdata
+    - &removeOldUserdata
+      name: "Remove old userdata"
+      if: '[ -d /oem/userdata ] && [ -d /oem/95_userdata ]' # If both exist, remove the old one
+      commands:
+      - rm -rf /oem/userdata
+    - &datasource
+      if: '[ ! -e /oem/95_userdata ] && ([ ! -f /run/cos/uki_boot_mode ] || grep -q "kairos.pull_datasources" /proc/cmdline )'
+      name: "Pull data from provider"
+      datasource:
+        providers: ["cdrom", "gcp", "openstack", "aws", "azure", "hetzner", "packet", "vultr", "digitalocean", "metaldata", "vmware", "config-drive", "maas"]
+        path: "/oem/95_userdata"
+    - if: '[ ! -e /oem/95_userdata ]'
+      name: "Sentinel file for userdata"
+      files:
+      - path: /run/.userdata_load
+  initramfs.before:
+    - <<: *moveOldUserdata
+    - <<: *removeOldUserdata
+    - <<: *datasource
+    - if: '[ ! -e /oem/95_userdata ]'
+      files:
+      - path: /run/.userdata_load
+  # After network, if no datasource could be pulled, we stop trying
+  network:
+    - <<: *moveOldUserdata
+    - <<: *removeOldUserdata
+    - <<: *datasource
+    - if: '[ -e /oem/95_userdata ] && [ -f /run/.userdata_load ]'
+      name: "Run stages if userdata is found"
+      commands:
+      - kairos-agent run-stage initramfs --override-cloud-init-paths /oem/95_userdata
+      - kairos-agent run-stage boot --override-cloud-init-paths /oem/95_userdata
+      - rm -rf /run/.userdata_load
+    - if: '[ ! -e /oem/95_userdata ] && [ -f /run/.userdata_load ]'
+      name: "Remove userdata sentinel"
+      commands:
+      - rm -rf /run/.userdata_load

@@ -1,0 +1,31 @@
+name: "Fix home directory permissions (kairos issue #2797)"
+stages:
+  network:
+    - name: "Fix home dir ownership"
+      files:
+        - path: /usr/local/bin/fix-home-dir-ownership
+          permissions: 0755
+          content: |
+            #!/bin/bash
+            set -e
+            SENTINEL_FILE="/usr/local/.kairos/skip-home-directory-ownership-fix"
+            if [ -f $SENTINEL_FILE ]; then
+              echo "Skipping ownership fix because sentinel file was found: $SENTINEL_FILE"
+            exit 0
+            fi
+
+            # Iterate over users in /etc/passwd and chown their directories
+            awk -F: '$3 >= 1000 && $6 ~ /^\/home\// {print $1, $6}' /etc/passwd | while read -r user homedir; do
+                    if [ -d "$homedir" ]; then  # Check if the home directory exists
+                    echo "Changing ownership of $homedir to $user"
+                    chown -R "$user":"$user" "$homedir"
+                    else
+                    echo "Directory $homedir does not exist for user $user"
+                    fi
+            done
+
+            # Write the sentinel file
+            mkdir -p "$(dirname $SENTINEL_FILE)"
+            echo "https://github.com/kairos-io/kairos/issues/2843" > $SENTINEL_FILE
+      commands:
+        - "/usr/local/bin/fix-home-dir-ownership"

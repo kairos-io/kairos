@@ -1,0 +1,192 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          git fetch --prune --unshallow
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: '~> v2'
+          args: release --clean --parallelism=1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-linux-amd64:
+    runs-on: 'ubuntu-24.04'
+    # The push to the temp registry has hung for hours more than once. With no
+    # timeout the job sits until the 6 hour default, and GitHub serves no log
+    # while a run is in progress, so the cause stays unreadable.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          provenance: false
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          outputs: type=image,name=quay.io/kairos/kairos-init,push-by-digest=true,name-canonical=true,push=true
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-linux-amd64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  build-linux-arm64:
+    runs-on: 'ubuntu-24.04-arm'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          provenance: false
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          outputs: type=image,name=quay.io/kairos/kairos-init,push-by-digest=true,name-canonical=true,push=true
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-linux-arm64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  build-linux-riscv64:
+    # No native riscv64 runner available; build stage cross-compiles natively via
+    # --platform=$BUILDPLATFORM in the Dockerfile so QEMU is only needed for
+    # platform registration, not for actual execution.
+    runs-on: 'ubuntu-24.04'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: riscv64
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          provenance: false
+          context: .
+          file: Dockerfile
+          platforms: linux/riscv64
+          build-args: |
+            SKIP_UPX=1
+          outputs: type=image,name=quay.io/kairos/kairos-init,push-by-digest=true,name-canonical=true,push=true
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: digests-linux-riscv64
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+  build:
+    needs:
+      - build-linux-amd64
+      - build-linux-arm64
+      - build-linux-riscv64
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - uses: docker/metadata-action@v6
+        id: metadata
+        with:
+          images: quay.io/kairos/kairos-init
+      - name: Create manifest and push
+        working-directory: /tmp/digests
+        env:
+          IMAGE: quay.io/kairos/kairos-init
+          PUSH_TAGS: ${{ steps.metadata.outputs.tags }}
+          PUSH_LABELS: ${{ steps.metadata.outputs.labels }}
+        run: |
+          set -euo pipefail
+          tag_args=()
+          while IFS= read -r t; do
+            [ -n "$t" ] && tag_args+=(-t "$t")
+          done <<< "$PUSH_TAGS"
+          # index-annotations, which int128/docker-manifest-create-action set
+          # before. A label value can contain spaces, so these go in an array.
+          annotation_args=()
+          while IFS= read -r l; do
+            [ -n "$l" ] && annotation_args+=(--annotation "index:$l")
+          done <<< "$PUSH_LABELS"
+          # An empty tag list would publish a manifest nobody can pull, so stop
+          # rather than let docker/metadata-action produce nothing quietly.
+          if [ ${#tag_args[@]} -eq 0 ]; then
+            echo "docker/metadata-action returned no tags" >&2
+            exit 1
+          fi
+          if [ -z "$(echo *)" ] || [ "$(echo *)" = "*" ]; then
+            echo "no per-arch digests were downloaded" >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2046  # digests are hex, no whitespace risk
+          docker buildx imagetools create "${tag_args[@]}" "${annotation_args[@]}" \
+            $(printf "${IMAGE}@sha256:%s " *)
+      - name: Inspect the manifest
+        run: |
+          docker buildx imagetools inspect \
+            "$(head -n1 <<< '${{ steps.metadata.outputs.tags }}')"

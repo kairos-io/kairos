@@ -1,0 +1,21 @@
+name: "L4T RootFS Prep for Orin NX"
+stages:
+  initramfs.before:
+    - name: "Apply NVIDIA binaries"
+      if: '[ -f "/proc/device-tree/model" ] && grep -i "Orin NX" "/proc/device-tree/model"'
+      commands:
+        - |
+          #!/bin/bash
+          set -e
+
+          TEGRA_DIR="Linux_for_Tegra"
+
+          if [ -d "$TEGRA_DIR" ]; then
+              cd "$TEGRA_DIR"
+              if [ ! -e bootloader/esp.img ]; then
+                ./apply_binaries.sh
+              fi
+          else
+              echo "Error: directory '$TEGRA_DIR' does not exist." >&2
+              exit 1
+          fi

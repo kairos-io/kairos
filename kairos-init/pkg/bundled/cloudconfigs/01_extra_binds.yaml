@@ -1,0 +1,23 @@
+# This file will set specific binds for specific distros
+# both in Normal and trusted boot paths.
+# Does not apply to livecd, recovery or reset.
+name: "Extra binds for specific distros"
+stages:
+  rootfs:
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -e "/run/cos/uki_install_mode" ] && [ ! -e "/run/cos/autoreset_mode" ]'
+      only_os: "Ubuntu.*|Debian.*"
+      name: "Extra layout configuration for active/passive mode (Ubuntu/Debian)"
+      environment_file: /run/cos/extra-layout.env
+      environment:
+        PERSISTENT_STATE_PATHS: >-
+          /snap
+          /var/snap
+          /var/lib/snapd
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -e "/run/cos/uki_install_mode" ] && [ ! -e "/run/cos/autoreset_mode" ]'
+      only_os: "Red.*Hat.*|CentOS.*|Fedora.*|Rocky.*|AlmaLinux.*|Oracle.*Linux.*|SLES.*|[Oo]penSUSE.*|SUSE.*"
+      name: "Extra layout configuration for active/passive mode"
+      environment_file: /run/cos/extra-layout.env
+      environment:
+        PERSISTENT_STATE_PATHS: >-
+          /usr/share/pki/trust
+          /usr/share/pki/trust/anchors

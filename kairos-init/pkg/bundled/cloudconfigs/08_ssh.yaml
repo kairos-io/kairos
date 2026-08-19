@@ -1,0 +1,19 @@
+# SSH Kairos OEM configuration file
+#
+# This file is part of Kairos and will get reset during upgrades.
+
+name: "Default config"
+stages:
+  initramfs:
+    - name: "Generate host keys"
+      # First-boot only: generate ed25519 (preferred) and RSA-4096
+      # (compatibility fallback) host keys. ECDSA is intentionally
+      # omitted because bundled.SshdHardeningConfig does not advertise
+      # ecdsa-sha2-* in HostKeyAlgorithms, so any ECDSA key would be
+      # dead weight. /etc/ssh is on the persistent overlay (see
+      # 00_rootfs.yaml) so once created the keys survive reboots.
+      # Guard each keygen with `test -f` so later boots do not clobber
+      # the fingerprints clients pinned via TOFU.
+      commands:
+        - test -f /etc/ssh/ssh_host_rsa_key     || ssh-keygen -t rsa -b 4096 -f /etc/ssh/ssh_host_rsa_key -N ''
+        - test -f /etc/ssh/ssh_host_ed25519_key || ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ''
