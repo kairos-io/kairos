@@ -11,11 +11,12 @@ CERT_MANAGER_VERSION="v1.16.5"
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CLUSTER_NAME=$(echo $RANDOM | md5sum | head -c 10; echo;)
-export KUBECONFIG=$(mktemp)
+KUBECONFIG=$(mktemp)
+export KUBECONFIG
 
 # https://unix.stackexchange.com/a/423052
 getFreePort() {
-  echo $(comm -23 <(seq "30000" "30200" | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n "1")
+  comm -23 <(seq "30000" "30200" | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n "1"
 }
 
 cleanup() {
@@ -46,7 +47,8 @@ kubectl wait --for=condition=Available deployment --timeout=2m -n cert-manager -
 # Replace the CLUSTER_IP in the kustomize resource
 # Only needed for debugging so that we can access the server from the host
 # (the 10.0.2.2 IP address is only useful from within qemu)
-export CLUSTER_IP=$(docker inspect "k3d-${CLUSTER_NAME}-server-0"  | jq -r '.[0].NetworkSettings.Networks[].IPAddress')
+CLUSTER_IP=$(docker inspect "k3d-${CLUSTER_NAME}-server-0"  | jq -r '.[0].NetworkSettings.Networks[].IPAddress')
+export CLUSTER_IP
 envsubst \
     < "$SCRIPT_DIR/../tests/assets/challenger-server-ingress.template.yaml" \
     > "$SCRIPT_DIR/../tests/assets/challenger-server-ingress.yaml"
@@ -63,4 +65,4 @@ export KMS_ADDRESS="10.0.2.2.challenger.sslip.io"
 # https://github.com/google/go-tpm-tools/blob/215e2ab8d3ee0a9aab1249e908313c2ecddd692e/simulator/internal/internal_cross.go#L19
 export CGO_ENABLED=1
 
-go run github.com/onsi/ginkgo/v2/ginkgo -v --nodes $GINKGO_NODES --label-filter $LABEL --fail-fast -r ./tests/
+go run github.com/onsi/ginkgo/v2/ginkgo -v --nodes "$GINKGO_NODES" --label-filter "$LABEL" --fail-fast -r ./tests/
