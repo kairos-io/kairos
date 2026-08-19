@@ -1,0 +1,16 @@
+# syntax=docker/dockerfile:1
+ARG BASE
+ARG KAIROS_INIT=quay.io/kairos/kairos-init:latest
+ARG VERSION=v0.0.0-e2e
+
+FROM ${KAIROS_INIT} AS kairos-init
+
+FROM ${BASE}
+ARG VERSION
+COPY --from=kairos-init /kairos-init /kairos-init
+RUN /kairos-init -l debug -s install --version "${VERSION}"
+# The under-test binary, built by `make build-agent-e2e` next to this Dockerfile.
+COPY kairos-agent /usr/bin/kairos-agent
+RUN chmod +x /usr/bin/kairos-agent
+RUN /kairos-init -l debug -s init --version "${VERSION}"
+RUN rm -f /kairos-init

@@ -1,0 +1,34 @@
+name: goreleaser
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          git fetch --prune --unshallow
+      - name: Generate version
+        run: echo "VERSION=$(git describe --always --tags --dirty)" >> $GITHUB_ENV
+      - name: Install gcc for arm64
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu libssl-dev
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: 'go.mod'
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ env.VERSION }}

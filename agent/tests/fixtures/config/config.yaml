@@ -1,0 +1,27 @@
+cosign-key: "someKey"
+repositories:
+- name: "testrepo"
+  priority: 2
+  uri: docker:registry.org/repo
+  type: "docker"
+cloud-init-paths:
+- "some/path"
+- "some/alternate/path"
+
+install:
+  target: "someDisk"
+
+  no-format: true
+  system:
+    uri: docker:some/image:latest
+  recovery-system:
+    uri: docker:recovery/image:latest
+
+reset:
+  tty: ttyS1
+
+upgrade:
+  system:
+    uri: channel:system/cos
+  recovery-system:
+    uri: channel:system/jeos

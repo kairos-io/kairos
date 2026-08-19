@@ -1,0 +1,44 @@
+name: E2E tests
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+permissions:
+  contents: read
+env:
+  FORCE_COLOR: 1
+concurrency:
+  group: ci-e2e-tests-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Setup Go environment
+        uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils
+      - name: Build the test ISO and run the suite
+        run: make run-e2e-tests
+      - name: Upload serial logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-serial-logs
+          path: tests/e2e/logs/
+          if-no-files-found: ignore
