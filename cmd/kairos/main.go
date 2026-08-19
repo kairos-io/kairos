@@ -21,10 +21,22 @@ import (
 // if the sub-tool were invoked directly (os.Args[0] = the sub's own name).
 type subEntrypoint func() int
 
-var subs = map[string]subEntrypoint{}
+// subs holds the canonical names shown in usage. aliases maps alternate names
+// (typically the historical argv[0] names used by symlinks, e.g. "kairos-agent")
+// to their canonical short form.
+var (
+	subs    = map[string]subEntrypoint{}
+	aliases = map[string]string{}
+)
 
-func register(name string, run subEntrypoint) {
+// register wires a canonical short name to a run func, plus any number of
+// alternate names that dispatch to the same sub-tool. Only the canonical name
+// is listed in usage.
+func register(name string, run subEntrypoint, alts ...string) {
 	subs[name] = run
+	for _, a := range alts {
+		aliases[a] = name
+	}
 }
 
 func main() {
@@ -42,6 +54,9 @@ func main() {
 		exe = sub
 	}
 
+	if canonical, ok := aliases[exe]; ok {
+		exe = canonical
+	}
 	run, ok := subs[exe]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "kairos: unknown sub-tool %q\n", exe)
