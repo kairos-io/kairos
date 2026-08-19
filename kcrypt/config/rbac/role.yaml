@@ -1,0 +1,42 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - watch
+- apiGroups:
+  - keyserver.kairos.io
+  resources:
+  - sealedvolumes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - keyserver.kairos.io
+  resources:
+  - sealedvolumes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - keyserver.kairos.io
+  resources:
+  - sealedvolumes/status
+  verbs:
+  - get
+  - patch
+  - update
