@@ -1,0 +1,239 @@
+name: Binaries
+
+# One workflow that produces the same artifacts on every trigger, differing
+# only in what happens at the publish step:
+#
+#   pull_request     -> build + archive; upload archives as PR artifacts.
+#                       Container images are BUILT but not pushed (verify
+#                       they compile). Matrix: amd64 + arm64, default only.
+#
+#   push to master   -> build + archive + push images to
+#                       ghcr.io/kairos-io/kairos/*:master. Matrix same as PR.
+#                       No GitHub Release.
+#
+#   push tag v*      -> full matrix (amd64+arm64+riscv64 + FIPS-amd64+arm64).
+#                       Archives uploaded to the GitHub Release the tag
+#                       creates. Container images pushed to
+#                       quay.io/kairos/kairos-init and quay.io/kairos/kcrypt-challenger,
+#                       both at :<tag> and :latest.
+#
+# The `make binaries` and `make archives` commands are identical across
+# triggers, which is the whole point: the same artifact contents whether
+# you are validating a PR or cutting a release.
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+  push:
+    branches: [master]
+    tags: ['v*']
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-binaries-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  # Dynamic matrix so PR/master runs stay small (amd64 + arm64, default)
+  # while a release tag exercises the full matrix (amd64+arm64+riscv64
+  # default plus amd64+arm64 FIPS).
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          if [[ "$IS_TAG" == "true" ]]; then
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"riscv64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"}]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history so `git describe` in the Makefile produces the real
+          # version string.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install cross-compiler (FIPS-arm64)
+        if: matrix.variant == 'fips' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y crossbuild-essential-arm64
+
+      - name: Build binaries
+        run: make binaries ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+
+      - name: Package archives
+        run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-linux-${{ matrix.arch }}${{ matrix.variant == 'fips' && '-fips' || '' }}
+          path: dist/archives/*
+
+  images:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download default-variant artifacts (amd64 + arm64)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'binaries-linux-@(amd64|arm64)'
+          path: dist/download
+
+      - name: Reassemble dist/linux-<arch>/
+        # Container images consume binaries from dist/linux-<arch>/, so
+        # extract the per-arch archives back into that layout.
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            mkdir -p dist/linux-$arch
+            for tarball in dist/download/binaries-linux-$arch/*.tar.gz; do
+              [ -f "$tarball" ] || continue
+              tar -xzf "$tarball" -C dist/linux-$arch
+            done
+            ls -l dist/linux-$arch
+          done
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Compute registry + tags
+        id: tags
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "registry=quay.io/kairos"                >> "$GITHUB_OUTPUT"
+            echo "tag=${GITHUB_REF#refs/tags/}"           >> "$GITHUB_OUTPUT"
+            echo "extra_tag=latest"                       >> "$GITHUB_OUTPUT"
+            echo "push=true"                              >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF" == "refs/heads/master" ]]; then
+            echo "registry=ghcr.io/kairos-io/kairos"      >> "$GITHUB_OUTPUT"
+            echo "tag=master"                             >> "$GITHUB_OUTPUT"
+            echo "extra_tag="                             >> "$GITHUB_OUTPUT"
+            echo "push=true"                              >> "$GITHUB_OUTPUT"
+          else
+            # pull_request: build to verify but do not push.
+            echo "registry=ghcr.io/kairos-io/kairos"      >> "$GITHUB_OUTPUT"
+            echo "tag=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "extra_tag="                             >> "$GITHUB_OUTPUT"
+            echo "push=false"                             >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Login to ghcr.io
+        if: steps.tags.outputs.push == 'true' && github.ref == 'refs/heads/master'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to quay.io
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build & (optionally) push kcrypt-challenger
+        env:
+          REGISTRY: ${{ steps.tags.outputs.registry }}
+          TAG: ${{ steps.tags.outputs.tag }}
+          EXTRA_TAG: ${{ steps.tags.outputs.extra_tag }}
+          PUSH: ${{ steps.tags.outputs.push }}
+        run: |
+          set -euo pipefail
+          args=(--platform "linux/amd64,linux/arm64" -f cmd/kcrypt-challenger/Dockerfile
+                -t "$REGISTRY/kcrypt-challenger:$TAG")
+          [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kcrypt-challenger:$EXTRA_TAG")
+          [ "$PUSH" = "true" ] && args+=(--push)
+          docker buildx build "${args[@]}" .
+
+      - name: Build & (optionally) push kairos-init
+        env:
+          REGISTRY: ${{ steps.tags.outputs.registry }}
+          TAG: ${{ steps.tags.outputs.tag }}
+          EXTRA_TAG: ${{ steps.tags.outputs.extra_tag }}
+          PUSH: ${{ steps.tags.outputs.push }}
+        run: |
+          set -euo pipefail
+          args=(--platform "linux/amd64,linux/arm64" -f kairos-init/Dockerfile
+                -t "$REGISTRY/kairos-init:$TAG")
+          [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kairos-init:$EXTRA_TAG")
+          [ "$PUSH" = "true" ] && args+=(--push)
+          docker buildx build "${args[@]}" .
+
+  release:
+    # Only on tag pushes: attach every arch's archives + a combined
+    # checksums file to the GitHub Release the tag created.
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download every arch's archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'binaries-linux-*'
+          path: dist/download
+
+      - name: Consolidate archives + checksums
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
+          # Merge per-arch checksums into one.
+          find dist/download -name 'checksums-*.txt' -exec cat {} \; \
+            | sort -u > dist/release/checksums.txt
+          ls -l dist/release/
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF#refs/tags/}" dist/release/* --clobber
