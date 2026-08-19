@@ -1,0 +1,23 @@
+# Version control + IDE state — huge, never needed inside the build context.
+.git
+.github
+.idea
+.vscode
+
+# Build outputs from prior local runs — never send back into a new build.
+build/
+dist/
+coverage.out
+coverprofile.out
+immucore
+*.iso
+*.iso.sha256
+*.qcow2
+
+# The build script itself + its Dockerfile do not need to be inside the image.
+tests/
+.dockerignore
+
+# Local scratch / editor cruft.
+*.swp
+.DS_Store

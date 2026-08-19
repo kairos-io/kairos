@@ -1,0 +1,88 @@
+# Make sure to check the documentation at http://goreleaser.com
+version: 2
+builds:
+  - ldflags:
+      - -w -s -X "github.com/kairos-io/immucore/internal/version.version={{.Tag}}" -X "github.com/kairos-io/immucore/internal/version.gitCommit={{.Commit}}"
+    gcflags:
+      - -l
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - riscv64
+    binary: '{{ .ProjectName }}'
+    tags:
+      - nogit
+      - nounpack
+    id: default
+  - ldflags:
+      - -w -s -X "github.com/kairos-io/immucore/internal/version.version={{.Tag}}" -X "github.com/kairos-io/immucore/internal/version.gitCommit={{.Commit}}"
+    gcflags:
+      - -l
+    env:
+      - CGO_ENABLED=0
+      - GOEXPERIMENT=boringcrypto
+    goos:
+      - linux
+    goarch:
+      - amd64
+    binary: '{{ .ProjectName }}'
+    tags:
+      - nogit
+      - nounpack
+    id: fips-amd64
+    hooks:
+      post:
+        - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+  - ldflags:
+      - -w -s -X "github.com/kairos-io/immucore/internal/version.version={{.Tag}}" -X "github.com/kairos-io/immucore/internal/version.gitCommit={{.Commit}}"
+    gcflags:
+      - -l
+    env:
+      - CGO_ENABLED=0
+      - GOEXPERIMENT=boringcrypto
+      - CC=aarch64-linux-gnu-gcc
+    goos:
+      - linux
+    goarch:
+      - arm64
+    binary: '{{ .ProjectName }}'
+    tags:
+      - nogit
+      - nounpack
+    id: fips-arm64
+    hooks:
+      post:
+        - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}-{{ .Tag }}-source'
+archives:
+  - id: default-archive
+    ids:
+      - default
+    name_template: '{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
+  - id: fips-archive
+    ids:
+     - fips-arm64
+     - fips-amd64
+    name_template: '{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}-fips'
+checksum:
+  name_template: '{{ .ProjectName }}-{{ .Tag }}-checksums.txt'
+snapshot:
+  version_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^Merge pull request'
+env:
+  - GOSUMDB=sum.golang.org
+before:
+  hooks:
+    - go mod tidy

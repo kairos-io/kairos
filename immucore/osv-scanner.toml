@@ -1,0 +1,19 @@
+[[IgnoredVulns]]
+id = "GO-2026-5064"
+reason = "No upstream fix is available yet."
+
+[[IgnoredVulns]]
+id = "GO-2026-5338"
+reason = "No upstream fix is available yet."
+
+[[IgnoredVulns]]
+id = "GO-2026-5622"
+reason = "No upstream fix is available yet."
+
+[[IgnoredVulns]]
+id = "GO-2026-5298"
+reason = "No upstream fix is available yet."
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+reason = "No upstream fix is available yet."
