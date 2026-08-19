@@ -1,10 +1,19 @@
 package version
 
-import "runtime"
+import (
+	"runtime"
+
+	monoversion "github.com/kairos-io/kairos/internal/version"
+)
 
 var (
-	version = "v0.0.1"
-	// gitCommit is the git sha1 + dirty if build from a dirty git.
+	// version is a legacy alias for the monorepo-wide version string.
+	// Set once at package init time from internal/version.Version, which is
+	// itself injected at build time via ldflags. See internal/version.
+	version = monoversion.Version
+	// gitCommit is the git sha1 + dirty if built from a dirty git. The
+	// monorepo-wide Version already carries this suffix via git describe;
+	// this variable is kept for backward-compatible BuildInfo output.
 	gitCommit = "none"
 )
 

@@ -9,8 +9,18 @@
 
 GO      ?= go
 GOFLAGS ?= -trimpath
-LDFLAGS ?= -s -w
 BIN_DIR ?= bin
+
+# VERSION is the human-readable version string every binary reports.
+# Format: git describe (e.g. v1.2.3, or v1.2.3-5-gabc1234 between tags, plus
+# a "-dirty" suffix if the tree has uncommitted changes). Falls back to "dev"
+# outside a git checkout.
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
+# LDFLAGS default: strip debug/symbol tables and inject the version. Override
+# to add your own -X flags; if you override LDFLAGS, remember to include -X
+# for the version or every binary will report "dev".
+LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/internal/version.Version=$(VERSION)
 
 .PHONY: all
 all: kairos kairos-slim kcrypt-challenger

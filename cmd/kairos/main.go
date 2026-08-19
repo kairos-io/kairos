@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/kairos-io/kairos/internal/version"
 )
 
 // subEntrypoint runs a sub-tool. os.Args is expected to be already shaped as
@@ -42,12 +44,17 @@ func register(name string, run subEntrypoint, alts ...string) {
 func main() {
 	exe := filepath.Base(os.Args[0])
 
-	// argv[0] == "kairos": treat argv[1] as the sub name and shift args left
-	// so the sub sees a normal os.Args.
+	// argv[0] == "kairos": handle top-level flags, then treat argv[1] as the
+	// sub name and shift args left so the sub sees a normal os.Args.
 	if exe == "kairos" {
 		if len(os.Args) < 2 {
 			usage()
 			os.Exit(2)
+		}
+		switch os.Args[1] {
+		case "--version", "-v", "version":
+			fmt.Println("kairos", version.Version)
+			os.Exit(0)
 		}
 		sub := os.Args[1]
 		os.Args = append([]string{sub}, os.Args[2:]...)
