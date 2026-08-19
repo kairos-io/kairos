@@ -14,6 +14,8 @@ runs:
   steps:
     - id: find_ovmf
       shell: bash
+      env:
+        PREFER_SECBOOT: ${{ inputs.prefer_secboot }}
       run: |
         # In Ubuntu 24.04, OVMF files have different names.
         # The _4M variant is 4MB (newer standard), vs the older 2MB variant.
@@ -21,8 +23,6 @@ runs:
         # OVMF_CODE_4M.fd is the standard variant without secure boot.
         #
         # Note: The CODE and VARS files must match in size (both 4M or both 2M).
-
-        PREFER_SECBOOT="${{ inputs.prefer_secboot }}"
 
         if [ -f /usr/share/OVMF/OVMF_CODE.fd ]; then
           # Legacy 2MB variant (Ubuntu 22.04 and earlier)
