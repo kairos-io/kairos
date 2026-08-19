@@ -15,9 +15,9 @@ import (
 
 	"github.com/kairos-io/kairos/agent/internal/agent"
 	"github.com/kairos-io/kairos/agent/internal/bus"
-	"github.com/kairos-io/kairos/agent/internal/common"
 	"github.com/kairos-io/kairos/agent/internal/phonehome"
 	"github.com/kairos-io/kairos/agent/internal/webui"
+	"github.com/kairos-io/kairos/internal/version"
 	"github.com/kairos-io/kairos/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/agent/pkg/config"
 	"github.com/kairos-io/kairos/agent/pkg/constants"
@@ -663,14 +663,12 @@ The validate command expects a configuration file as its only argument. Local fi
 			},
 		},
 		Action: func(c *cli.Context) error {
-			var version string
-			if c.String("version") != "" {
-				version = c.String("version")
-			} else {
-				version = common.VERSION
+			ver := c.String("version")
+			if ver == "" {
+				ver = version.Version
 			}
 
-			json, err := schema.JSONSchema(version)
+			json, err := schema.JSONSchema(ver)
 
 			if err != nil {
 				return err
@@ -795,9 +793,9 @@ The validate command expects a configuration file as its only argument. Local fi
 		},
 		Action: func(c *cli.Context) error {
 			if c.Bool("long") {
-				fmt.Printf("%+v\n", common.Get())
+				fmt.Printf("kairos %s\ngo     %s\n", version.Version, runtime.Version())
 			} else {
-				fmt.Println(common.VERSION)
+				fmt.Println(version.Version)
 			}
 			return nil
 		},
@@ -1530,7 +1528,7 @@ func Run() int {
 			},
 		},
 		Name:    "kairos-agent",
-		Version: common.VERSION,
+		Version: version.Version,
 		Authors: []*cli.Author{
 			{
 				Name: "Ettore Di Giacinto",

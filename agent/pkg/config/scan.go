@@ -2,9 +2,10 @@ package config
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/joho/godotenv"
-	version "github.com/kairos-io/kairos/agent/internal/common"
+	"github.com/kairos-io/kairos/internal/version"
 	"github.com/kairos-io/kairos/sdk/collector"
 	"github.com/kairos-io/kairos/sdk/schema"
 	"github.com/kairos-io/kairos/sdk/state"
@@ -120,8 +121,8 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 		result.Logger.SetLevel("debug")
 	}
 
-	result.Logger.Logger.Info().Interface("version", version.GetVersion()).Msg("Kairos Agent")
-	result.Logger.Logger.Debug().Interface("version", version.Get()).Msg("Kairos Agent")
+	result.Logger.Logger.Info().Str("version", version.Version).Msg("Kairos Agent")
+	result.Logger.Logger.Debug().Str("version", version.Version).Str("go", runtime.Version()).Msg("Kairos Agent")
 
 	// Try to load the kairos version from the kairos-release file
 	// Best effort, if it fails, we just ignore it

@@ -7,12 +7,13 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/kairos-io/kairos/immucore/internal/constants"
 	"github.com/kairos-io/kairos/immucore/internal/utils"
-	"github.com/kairos-io/kairos/immucore/internal/version"
 	"github.com/kairos-io/kairos/immucore/pkg/dag"
 	"github.com/kairos-io/kairos/immucore/pkg/state"
+	"github.com/kairos-io/kairos/internal/version"
 	"github.com/spectrocloud-labs/herd"
 	"github.com/urfave/cli/v2"
 )
@@ -21,7 +22,7 @@ import (
 func NewApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "immucore"
-	app.Version = version.GetVersion()
+	app.Version = version.Version
 	app.Authors = []*cli.Author{{Name: "Kairos authors"}}
 	app.Copyright = "kairos authors"
 	app.Action = func(c *cli.Context) (err error) {
@@ -31,8 +32,7 @@ func NewApp() *cli.App {
 		utils.MountBasic()
 		utils.SetLogger()
 
-		v := version.Get()
-		utils.KLog.Logger.Info().Str("commit", v.GitCommit).Str("compiled_with", v.GoVersion).Str("version", v.Version).Msg("Immucore")
+		utils.KLog.Logger.Info().Str("version", version.Version).Str("go", runtime.Version()).Msg("Immucore")
 
 		cmdline, _ := os.ReadFile(utils.GetHostProcCmdline())
 		utils.KLog.Logger.Debug().Str("content", string(cmdline)).Msg("cmdline")
@@ -124,18 +124,6 @@ func NewApp() *cli.App {
 	app.Flags = []cli.Flag{
 		&cli.BoolFlag{
 			Name: "dry-run",
-		},
-	}
-	app.Commands = []*cli.Command{
-		{
-			Name:  "version",
-			Usage: "version",
-			Action: func(_ *cli.Context) error {
-				utils.SetLogger()
-				v := version.Get()
-				utils.KLog.Logger.Info().Str("commit", v.GitCommit).Str("compiled_with", v.GoVersion).Str("version", v.Version).Msg("Immucore")
-				return nil
-			},
 		},
 	}
 	return app
