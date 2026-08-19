@@ -1,0 +1,19 @@
+domain: kairos.io
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+projectName: kcrypt-controller
+repo: github.com/kairos-io/kairos-challenger
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kairos.io
+  group: keyserver
+  kind: SealedVolume
+  path: github.com/kairos-io/kairos-challenger/api/v1alpha1
+  version: v1alpha1
+version: "3"

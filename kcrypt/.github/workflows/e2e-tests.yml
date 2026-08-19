@@ -1,0 +1,107 @@
+name: End to end tests
+on:
+  push:
+    paths-ignore:
+      - 'README.md'
+    branches:
+      - main
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+
+concurrency:
+  group: ci-e2e-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  build-iso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - name: Build ISO
+        run: |
+          make kairos-iso
+        env:
+          IMMUCORE_REF: main
+          KAIROS_AGENT_REF: main
+      - uses: actions/upload-artifact@v7
+        with:
+          name: challenger.iso.zip
+          path: |
+            build/*.iso
+  e2e-tests:
+    needs:
+      - build-iso
+    runs-on: kvm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Basic encryption tests
+          - label: "local-encryption"
+          - label: "remote-auto"
+          - label: "remote-static"
+          - label: "remote-https-pinned"
+          - label: "remote-https-bad-cert"
+          - label: "discoverable-kms"
+          # Consolidated remote attestation workflow test
+          - label: "remote-complete-workflow"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install deps
+        run: |
+          curl -L https://github.com/mudler/luet/releases/download/0.33.0/luet-0.33.0-linux-amd64 -o luet
+          chmod +x luet
+          sudo mv luet /usr/bin/luet
+          sudo mkdir -p /etc/luet/repos.conf.d/
+          sudo luet repo add -y kairos --url quay.io/kairos/packages --type docker
+          LUET_NOLOCK=true sudo -E luet install -y container/kubectl utils/k3d
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: challenger.iso.zip
+      - name: Run tests
+        env:
+          LABEL: ${{ matrix.label }}
+          KVM: true
+          CGO_ENABLED: 1
+        run: |
+          sudo apt update && \
+          sudo apt install -y git qemu-system-x86 qemu-utils swtpm jq make glibc-tools \
+          openssl curl gettext ca-certificates curl gnupg lsb-release build-essential \
+          libssl-dev
+
+          export ISO=$PWD/$(ls *.iso)
+          # update controllers
+          make test
+          # Generate controller image
+          for attempt in 1 2 3; do
+            if make docker-build; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              exit 1
+            fi
+            echo "docker-build failed (attempt $attempt), retrying in 10s..."
+            sleep 10
+          done
+          # We run with sudo to be able to access /dev/kvm
+          sudo -E ./scripts/e2e-tests.sh
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: ${{ matrix.label }}-test.logs.zip
+          path: tests/**/logs/*
+          if-no-files-found: warn

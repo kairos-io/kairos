@@ -1,0 +1,6 @@
+apiVersion: keyserver.kairos.io/v1alpha1
+kind: SealedVolume
+metadata:
+  name: sealedvolume-sample
+spec:
+  # TODO(user): Add fields here

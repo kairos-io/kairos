@@ -1,0 +1,156 @@
+# Multi-stage Dockerfile to build Kairos image with challenger
+
+# Build arguments for optional custom binaries
+# If REF is provided, custom binaries will be built from kairos-io repos (ref can be branch or commit)
+ARG IMMUCORE_REF=""
+ARG KAIROS_AGENT_REF=""
+ARG KAIROS_INIT_VERSION=v0.16.4
+
+# Stage 1: Build challenger binary
+# renovate: datasource=docker depName=golang
+FROM golang:1.26.6-bookworm AS challenger-builder
+WORKDIR /build
+
+# Install OpenSSL development libraries needed for TPM simulator
+RUN apt-get update && apt-get install -y libssl-dev && rm -rf /var/lib/apt/lists/*
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+RUN go mod verify
+
+# Copy source and build
+COPY cmd/ ./cmd/
+COPY pkg/ ./pkg/
+RUN CGO_ENABLED=1 go build -o kcrypt-discovery-challenger ./cmd/discovery
+
+# Stage 2: Pull kairos-init from container (can be overridden from build context)
+FROM quay.io/kairos/kairos-init:${KAIROS_INIT_VERSION} AS kairos-init-source
+
+# Stage 3: Build optional immucore binary (if ref provided)
+FROM golang:1.26.6-bookworm AS immucore-builder
+ARG IMMUCORE_REF
+WORKDIR /build
+
+# Repository URL (hardcoded)
+ENV IMMUCORE_REPO="https://github.com/kairos-io/immucore"
+
+# Create placeholder and optional binary (placeholder ensures COPY always succeeds)
+RUN touch /immucore && touch /immucore-status && \
+    if [ -n "$IMMUCORE_REF" ]; then \
+        apt-get update && apt-get install -y git libssl-dev && rm -rf /var/lib/apt/lists/* && \
+        git clone "$IMMUCORE_REPO" immucore && \
+        cd immucore && \
+        git checkout "$IMMUCORE_REF" && \
+        GIT_COMMIT=$(git rev-parse --short HEAD) && \
+        GIT_FULL_COMMIT=$(git rev-parse HEAD) && \
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.0.1") && \
+        if CGO_ENABLED=0 go build -ldflags "-X 'github.com/kairos-io/immucore/internal/version.gitCommit=${GIT_FULL_COMMIT}' -X 'github.com/kairos-io/immucore/internal/version.version=${VERSION}'" -o /immucore .; then \
+            echo "immucore built successfully (commit: ${GIT_COMMIT}, version: ${VERSION})" > /immucore-status; \
+        else \
+            echo "immucore build failed" > /immucore-status; \
+            exit 1; \
+        fi; \
+    else \
+        echo "immucore not built (no ref provided)" > /immucore-status; \
+    fi
+
+# Stage 4: Build optional kairos-agent binary (if ref provided)
+FROM golang:1.26.6-bookworm AS kairos-agent-builder
+ARG KAIROS_AGENT_REF
+WORKDIR /build
+
+# Repository URL (hardcoded)
+ENV KAIROS_AGENT_REPO="https://github.com/kairos-io/kairos-agent"
+
+# Create placeholder and optional binary (placeholder ensures COPY always succeeds)
+RUN touch /kairos-agent && touch /kairos-agent-status && \
+    if [ -n "$KAIROS_AGENT_REF" ]; then \
+        apt-get update && apt-get install -y git libssl-dev && rm -rf /var/lib/apt/lists/* && \
+        git clone "$KAIROS_AGENT_REPO" kairos-agent && \
+        cd kairos-agent && \
+        git checkout "$KAIROS_AGENT_REF" && \
+        GIT_COMMIT=$(git rev-parse --short HEAD) && \
+        GIT_FULL_COMMIT=$(git rev-parse HEAD) && \
+        VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "v0.0.1") && \
+        if CGO_ENABLED=0 go build -ldflags "-X 'github.com/kairos-io/kairos-agent/v2/internal/common.gitCommit=${GIT_FULL_COMMIT}' -X 'github.com/kairos-io/kairos-agent/v2/internal/common.VERSION=${VERSION}'" -o /kairos-agent .; then \
+            echo "kairos-agent built successfully (commit: ${GIT_COMMIT}, version: ${VERSION})" > /kairos-agent-status; \
+        else \
+            echo "kairos-agent build failed" > /kairos-agent-status; \
+            exit 1; \
+        fi; \
+    else \
+        echo "kairos-agent not built (no ref provided)" > /kairos-agent-status; \
+    fi
+
+# Stage 5: Build custom Kairos base
+# renovate: datasource=github-releases depName=kairos-io/kairos
+# Note: Fedora version is hardcoded due to Docker BuildKit limitation with ARG in FROM
+FROM fedora:45 AS kairos-base
+
+# Build arguments
+ARG KAIROS_INIT_VERSION
+
+# Copy kairos-init binary from container
+# Note: For local development, you can override by building a custom kairos-init image
+# or by mounting it as a volume in a custom build step
+COPY --from=kairos-init-source /kairos-init /kairos-init
+
+# STAGE 1: Run kairos-init INSTALL stage only (installs packages, kernel, etc.)
+# This will install the default immucore and kairos-agent from packages
+RUN /kairos-init -l debug -m "generic" -t "false" -s "install" --version "${KAIROS_INIT_VERSION}"
+
+# STAGE 1.5: Install additional packages needed for UKI network setup
+# Install dhcpcd for temporary DHCP during early boot (for remote KMS access)
+# Install avahi-tools for debugging discoverable-kms test
+RUN dnf install -y dhcpcd && dnf clean all
+
+# Disable and mask avahi-daemon to prevent port 5353 conflicts with simple-mdns-server
+RUN systemctl disable avahi-daemon.service avahi-daemon.socket 2>/dev/null || true && \
+    systemctl mask avahi-daemon.service avahi-daemon.socket 2>/dev/null || true
+
+# Disable and mask firewalld to allow network communication in test VMs
+RUN systemctl disable firewalld.service 2>/dev/null || true && \
+    systemctl mask firewalld.service 2>/dev/null || true
+
+# STAGE 1.6: Replace the installed binaries with our custom versions (if built)
+# This happens AFTER package installation but BEFORE initramfs generation
+# Copy binaries and status files (placeholders ensure COPY always succeeds)
+COPY --from=immucore-builder /immucore /tmp/immucore
+COPY --from=immucore-builder /immucore-status /tmp/immucore-status
+COPY --from=kairos-agent-builder /kairos-agent /tmp/kairos-agent
+COPY --from=kairos-agent-builder /kairos-agent-status /tmp/kairos-agent-status
+
+# Conditionally use custom binaries if they were built (check if file has content)
+RUN if [ -s /tmp/immucore ]; then \
+        cp /tmp/immucore /usr/bin/immucore && chmod +x /usr/bin/immucore && \
+        echo "Using custom immucore:" && /usr/bin/immucore --version && cat /tmp/immucore-status; \
+    else \
+        echo "Using package-provided immucore" && cat /tmp/immucore-status; \
+    fi && \
+    if [ -s /tmp/kairos-agent ]; then \
+        cp /tmp/kairos-agent /usr/bin/kairos-agent && chmod +x /usr/bin/kairos-agent && \
+        echo "Using custom kairos-agent" && cat /tmp/kairos-agent-status; \
+    else \
+        echo "Using package-provided kairos-agent" && cat /tmp/kairos-agent-status; \
+    fi
+
+# STAGE 2: Run kairos-init INIT stage (generates initramfs with our custom binaries)
+RUN /kairos-init -l debug -m "generic" -t "false" -s "init" --version "${KAIROS_INIT_VERSION}" && \
+    /kairos-init validate -t "false"
+
+# Verify the initramfs was created
+RUN ls -lh /boot/initrd && echo "Custom Kairos base image built successfully with custom binaries"
+
+# Stage 6: Final image with challenger
+FROM kairos-base AS final-image
+ARG IMAGE="kcrypt-challenger:latest"
+
+# Copy challenger binary from builder
+COPY --from=challenger-builder /build/kcrypt-discovery-challenger /system/discovery/kcrypt-discovery-challenger
+
+# Verify immucore version in image
+RUN echo "Final immucore version in image:" && /usr/bin/immucore --version
+
+# Add hardcoded root password for debugging
+RUN echo 'root:root' | chpasswd
