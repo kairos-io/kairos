@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-attestation/attest"
-	keyserverv1alpha1 "github.com/kairos-io/kairos-challenger/api/v1alpha1"
+	keyserverv1alpha1 "github.com/kairos-io/kairos/kcrypt/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

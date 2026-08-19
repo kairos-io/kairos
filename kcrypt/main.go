@@ -35,9 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	keyserverv1alpha1 "github.com/kairos-io/kairos-challenger/api/v1alpha1"
-	"github.com/kairos-io/kairos-challenger/controllers"
-	"github.com/kairos-io/kairos-challenger/pkg/challenger"
+	keyserverv1alpha1 "github.com/kairos-io/kairos/kcrypt/api/v1alpha1"
+	"github.com/kairos-io/kairos/kcrypt/controllers"
+	"github.com/kairos-io/kairos/kcrypt/pkg/challenger"
 	//+kubebuilder:scaffold:imports
 )
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/mdns"
-	loggerpkg "github.com/kairos-io/kairos-sdk/types/logger"
+	loggerpkg "github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 const (

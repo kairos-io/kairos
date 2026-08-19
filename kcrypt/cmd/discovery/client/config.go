@@ -1,8 +1,8 @@
 package client
 
 import (
-	"github.com/kairos-io/kairos-sdk/kcrypt"
-	loggerpkg "github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/kcrypt"
+	loggerpkg "github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 type Client struct {

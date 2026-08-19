@@ -22,7 +22,7 @@ import (
 	machine "github.com/spectrocloud/peg/pkg/machine"
 	"github.com/spectrocloud/peg/pkg/machine/types"
 
-	"github.com/kairos-io/kairos-challenger/pkg/kube"
+	"github.com/kairos-io/kairos/kcrypt/pkg/kube"
 )
 
 // Global VM variable for fail handler access

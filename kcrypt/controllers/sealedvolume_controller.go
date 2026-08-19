@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	keyserverv1alpha1 "github.com/kairos-io/kairos-challenger/api/v1alpha1"
+	keyserverv1alpha1 "github.com/kairos-io/kairos/kcrypt/api/v1alpha1"
 )
 
 // SealedVolumeReconciler reconciles a SealedVolume object

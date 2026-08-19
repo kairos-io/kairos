@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/google/go-attestation/attest"
-	. "github.com/kairos-io/kairos-challenger/pkg/attestation"
+	. "github.com/kairos-io/kairos/kcrypt/pkg/attestation"
 	tpmhelpers "github.com/kairos-io/tpm-helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
