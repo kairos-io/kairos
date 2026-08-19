@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"github.com/kairos-io/kairos-sdk/state"
+	"github.com/kairos-io/kairos/sdk/state"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

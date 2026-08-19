@@ -6,9 +6,9 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/kairos-io/immucore/internal/constants"
-	"github.com/kairos-io/kairos-sdk/collector"
-	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos/immucore/internal/constants"
+	"github.com/kairos-io/kairos/sdk/collector"
+	"github.com/kairos-io/kairos/sdk/machine"
 	"github.com/mudler/yip/pkg/console"
 	"github.com/mudler/yip/pkg/executor"
 	"github.com/twpayne/go-vfs/v4"

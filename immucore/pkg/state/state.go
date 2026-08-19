@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/deniswernert/go-fstab"
-	internalUtils "github.com/kairos-io/immucore/internal/utils"
+	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
 	"github.com/spectrocloud-labs/herd"
 )
 

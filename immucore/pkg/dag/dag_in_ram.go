@@ -1,9 +1,9 @@
 package dag
 
 import (
-	cnst "github.com/kairos-io/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/immucore/internal/utils"
-	"github.com/kairos-io/immucore/pkg/state"
+	cnst "github.com/kairos-io/kairos/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
+	"github.com/kairos-io/kairos/immucore/pkg/state"
 	"github.com/spectrocloud-labs/herd"
 )
 

@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/containerd/containerd/mount"
-	"github.com/kairos-io/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/immucore/internal/utils"
-	"github.com/kairos-io/immucore/pkg/schema"
+	"github.com/kairos-io/kairos/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
+	"github.com/kairos-io/kairos/immucore/pkg/schema"
 )
 
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L129

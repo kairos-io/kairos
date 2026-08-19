@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	cnst "github.com/kairos-io/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/immucore/internal/utils"
-	"github.com/kairos-io/immucore/pkg/op"
-	"github.com/kairos-io/kairos-sdk/utils"
+	cnst "github.com/kairos-io/kairos/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
+	"github.com/kairos-io/kairos/immucore/pkg/op"
+	"github.com/kairos-io/kairos/sdk/utils"
 	"github.com/spectrocloud-labs/herd"
 )
 

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kairos-io/immucore/internal/constants"
-	"github.com/kairos-io/immucore/internal/utils"
-	"github.com/kairos-io/immucore/internal/version"
-	"github.com/kairos-io/immucore/pkg/dag"
-	"github.com/kairos-io/immucore/pkg/state"
+	"github.com/kairos-io/kairos/immucore/internal/constants"
+	"github.com/kairos-io/kairos/immucore/internal/utils"
+	"github.com/kairos-io/kairos/immucore/internal/version"
+	"github.com/kairos-io/kairos/immucore/pkg/dag"
+	"github.com/kairos-io/kairos/immucore/pkg/state"
 	"github.com/spectrocloud-labs/herd"
 	"github.com/urfave/cli/v2"
 )

@@ -1,12 +1,12 @@
 package state_test
 
 import (
-	"github.com/kairos-io/immucore/pkg/op"
-	"github.com/kairos-io/immucore/pkg/state"
+	"github.com/kairos-io/kairos/immucore/pkg/op"
+	"github.com/kairos-io/kairos/immucore/pkg/state"
 	"time"
 
-	cnst "github.com/kairos-io/immucore/internal/constants"
-	"github.com/kairos-io/immucore/pkg/dag"
+	cnst "github.com/kairos-io/kairos/immucore/internal/constants"
+	"github.com/kairos-io/kairos/immucore/pkg/dag"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spectrocloud-labs/herd"

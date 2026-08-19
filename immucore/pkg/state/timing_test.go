@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kairos-io/immucore/pkg/state"
+	"github.com/kairos-io/kairos/immucore/pkg/state"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spectrocloud-labs/herd"

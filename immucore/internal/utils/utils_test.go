@@ -6,8 +6,8 @@ import (
 
 	"github.com/containerd/containerd/mount"
 	"github.com/jaypipes/ghw/pkg/block"
-	"github.com/kairos-io/immucore/internal/utils"
-	"github.com/kairos-io/immucore/tests/mocks"
+	"github.com/kairos-io/kairos/immucore/internal/utils"
+	"github.com/kairos-io/kairos/immucore/tests/mocks"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v4"

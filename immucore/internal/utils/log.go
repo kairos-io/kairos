@@ -3,8 +3,8 @@ package utils
 import (
 	"os"
 
-	"github.com/kairos-io/immucore/internal/constants"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/immucore/internal/constants"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 // KLog is the generic KairosLogger that we pass to kcrypt calls.

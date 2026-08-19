@@ -3,8 +3,8 @@ package op
 import (
 	"github.com/containerd/containerd/mount"
 	"github.com/deniswernert/go-fstab"
-	"github.com/kairos-io/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/immucore/internal/utils"
+	"github.com/kairos-io/kairos/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
 	"github.com/moby/sys/mountinfo"
 )
 
