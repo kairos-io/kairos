@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	semver "github.com/hashicorp/go-version"
-	"github.com/kairos-io/kairos-init/pkg/values"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 // GetLatest returns the latest kernel version installed under /lib/modules for

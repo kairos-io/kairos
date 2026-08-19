@@ -3,8 +3,8 @@ package values
 import (
 	"testing"
 
-	"github.com/kairos-io/kairos-init/pkg/config"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 // The after-install QSPI firmware check reads the bootloader version and stages

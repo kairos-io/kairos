@@ -6,11 +6,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/kairos-init/pkg/bundled"
-	"github.com/kairos-io/kairos-init/pkg/config"
-	"github.com/kairos-io/kairos-init/pkg/stages"
-	"github.com/kairos-io/kairos-init/pkg/values"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/kairos-init/pkg/bundled"
+	"github.com/kairos-io/kairos/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/kairos-init/pkg/stages"
+	"github.com/kairos-io/kairos/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
 )
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/kairos-init/pkg/values"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 func newTestLogger() logger.KairosLogger {

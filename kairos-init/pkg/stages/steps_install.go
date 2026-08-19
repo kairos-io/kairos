@@ -11,16 +11,16 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos/sdk/bus"
 	"github.com/mudler/go-pluggable"
 
 	semver "github.com/hashicorp/go-version"
-	"github.com/kairos-io/kairos-init/pkg/bundled"
-	"github.com/kairos-io/kairos-init/pkg/config"
-	"github.com/kairos-io/kairos-init/pkg/values"
-	"github.com/kairos-io/kairos-sdk/constants"
-	"github.com/kairos-io/kairos-sdk/installer"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/kairos-init/pkg/bundled"
+	"github.com/kairos-io/kairos/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/sdk/installer"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
 )
 
