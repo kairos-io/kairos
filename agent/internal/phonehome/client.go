@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kairos-io/kairos/agent/internal/common"
+	"github.com/kairos-io/kairos/internal/version"
 	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -352,7 +352,7 @@ func (c *Client) heartbeatLoop(ctx context.Context, conn *websocket.Conn) {
 
 func (c *Client) sendHeartbeat(conn *websocket.Conn) error {
 	hb := HeartbeatData{
-		AgentVersion: common.GetVersion(),
+		AgentVersion: version.Version,
 		OSRelease:    gatherSystemInfo(),
 		Labels:       c.cfg.Labels,
 		Addresses:    gatherAddresses(),

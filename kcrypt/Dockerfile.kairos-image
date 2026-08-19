@@ -153,4 +153,5 @@ COPY --from=challenger-builder /build/kcrypt-discovery-challenger /system/discov
 RUN echo "Final immucore version in image:" && /usr/bin/immucore --version
 
 # Add hardcoded root password for debugging
+# hadolint ignore=DL4006
 RUN echo 'root:root' | chpasswd

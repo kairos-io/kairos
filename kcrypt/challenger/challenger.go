@@ -14,12 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package challenger
 
 import (
 	"context"
 	"flag"
-	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -53,7 +52,10 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
-func main() {
+// Run runs the kcrypt challenger server (kubernetes controller manager) and
+// returns a process exit code. It is called from the cmd/kcrypt-challenger
+// binary; nothing in the multi-call kairos binary links it in.
+func Run() int {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
@@ -94,7 +96,7 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		return 1
 	}
 
 	reconciler := &controllers.SealedVolumeReconciler{
@@ -103,22 +105,22 @@ func main() {
 	}
 	if err = reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SealedVolume")
-		os.Exit(1)
+		return 1
 	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
+		return 1
 	}
 	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up ready check")
-		os.Exit(1)
+		return 1
 	}
 	clientset, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "unable to get clientset")
-		os.Exit(1)
+		return 1
 	}
 
 	serverLog := ctrl.Log.WithName("server")
@@ -128,6 +130,7 @@ func main() {
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }

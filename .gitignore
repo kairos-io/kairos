@@ -5,6 +5,7 @@
 /kairos
 /dist
 /build
+/bin
 /keys
 /trivy-cache
 coverage.out
