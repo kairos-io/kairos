@@ -14,7 +14,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/kairos-io/kairos-sdk/machine"
+	"github.com/kairos-io/kairos/sdk/machine"
 
 	"github.com/avast/retry-go"
 	"github.com/itchyny/gojq"

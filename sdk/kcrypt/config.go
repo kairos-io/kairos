@@ -1,9 +1,9 @@
 package kcrypt
 
 import (
-	"github.com/kairos-io/kairos-sdk/collector"
-	"github.com/kairos-io/kairos-sdk/kcrypt/bus"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/collector"
+	"github.com/kairos-io/kairos/sdk/kcrypt/bus"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 // DefaultConfigDirs are the default directories to scan for Kairos configuration.

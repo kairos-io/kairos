@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/utils"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 const udevTimeout = 30 * time.Second

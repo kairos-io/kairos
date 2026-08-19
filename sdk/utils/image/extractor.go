@@ -1,8 +1,8 @@
 package image
 
 import (
-	imagetypes "github.com/kairos-io/kairos-sdk/types/images"
-	"github.com/kairos-io/kairos-sdk/utils"
+	imagetypes "github.com/kairos-io/kairos/sdk/types/images"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 // OCIImageExtractor is the default implementation of imagetypes.ImageExtractor:

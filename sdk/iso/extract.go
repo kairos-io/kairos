@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/diskfs/go-diskfs"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 
 	"io"
 	"os"

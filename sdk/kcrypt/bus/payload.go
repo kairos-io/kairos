@@ -1,7 +1,7 @@
 package bus
 
 import (
-	"github.com/kairos-io/kairos-sdk/types/partitions"
+	"github.com/kairos-io/kairos/sdk/types/partitions"
 )
 
 // KcryptConfig represents the kcrypt configuration from Kairos config merged with cmdline options.

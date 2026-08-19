@@ -3,7 +3,7 @@ package partitions
 import (
 	"testing"
 
-	"github.com/kairos-io/kairos-sdk/constants"
+	"github.com/kairos-io/kairos/sdk/constants"
 )
 
 func TestSetFirmwarePartitionsEFIDefaultSize(t *testing.T) {

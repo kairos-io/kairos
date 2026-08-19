@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	. "github.com/kairos-io/kairos-sdk/collector"
+	. "github.com/kairos-io/kairos/sdk/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"

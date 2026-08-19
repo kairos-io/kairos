@@ -1,4 +1,4 @@
-module github.com/kairos-io/kairos-sdk
+module github.com/kairos-io/kairos
 
 go 1.26.5
 

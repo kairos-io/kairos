@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 type ServiceUnit struct {

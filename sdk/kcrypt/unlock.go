@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/anatol/luks.go"
-	"github.com/kairos-io/kairos-sdk/constants"
-	"github.com/kairos-io/kairos-sdk/ghw"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/types/partitions"
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/sdk/ghw"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/types/partitions"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 func encryptedPartitionLabel(partition *partitions.Partition) string {

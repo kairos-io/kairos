@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/kairos-io/kairos-sdk/constants"
+	"github.com/kairos-io/kairos/sdk/constants"
 )
 
 type Partition struct {

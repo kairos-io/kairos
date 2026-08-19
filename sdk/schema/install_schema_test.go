@@ -1,7 +1,7 @@
 package schema_test
 
 import (
-	. "github.com/kairos-io/kairos-sdk/schema"
+	. "github.com/kairos-io/kairos/sdk/schema"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

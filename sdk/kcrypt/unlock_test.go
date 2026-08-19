@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kairos-io/kairos-sdk/ghw/mocks"
-	"github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/types/partitions"
+	"github.com/kairos-io/kairos/sdk/ghw/mocks"
+	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/types/partitions"
 )
 
 func TestEncryptedPartitionLabel(t *testing.T) {

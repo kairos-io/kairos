@@ -8,8 +8,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/kairos-sdk/agentrun"
-	"github.com/kairos-io/kairos-sdk/constants"
+	"github.com/kairos-io/kairos/sdk/agentrun"
+	"github.com/kairos-io/kairos/sdk/constants"
 )
 
 var _ = Describe("agentrun", func() {

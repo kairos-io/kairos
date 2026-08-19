@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kairos-io/kairos-sdk/ghw"
-	"github.com/kairos-io/kairos-sdk/ghw/mocks"
-	"github.com/kairos-io/kairos-sdk/types/partitions"
+	"github.com/kairos-io/kairos/sdk/ghw"
+	"github.com/kairos-io/kairos/sdk/ghw/mocks"
+	"github.com/kairos-io/kairos/sdk/types/partitions"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

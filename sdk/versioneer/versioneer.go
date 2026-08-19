@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 const (

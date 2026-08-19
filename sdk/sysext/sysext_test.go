@@ -18,9 +18,9 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/utils"
-	imageUtils "github.com/kairos-io/kairos-sdk/utils/image"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/utils"
+	imageUtils "github.com/kairos-io/kairos/sdk/utils/image"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

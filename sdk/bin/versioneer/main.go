@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/kairos-io/kairos-sdk/versioneer"
+	"github.com/kairos-io/kairos/sdk/versioneer"
 	"github.com/urfave/cli/v2"
 )
 

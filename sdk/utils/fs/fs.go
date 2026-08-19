@@ -4,7 +4,7 @@ import (
 	"os"
 	"syscall"
 
-	sdkTypes "github.com/kairos-io/kairos-sdk/types/fs"
+	sdkTypes "github.com/kairos-io/kairos/sdk/types/fs"
 	"github.com/twpayne/go-vfs/v4"
 )
 

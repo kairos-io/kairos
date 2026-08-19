@@ -1,7 +1,7 @@
 package collector_test
 
 import (
-	. "github.com/kairos-io/kairos-sdk/collector"
+	. "github.com/kairos-io/kairos/sdk/collector"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/types/partitions"
+	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/types/partitions"
 )
 
 type DiskPartitionHandler struct {
