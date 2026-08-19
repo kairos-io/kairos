@@ -1,0 +1,121 @@
+package schema_test
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+
+	. "github.com/kairos-io/kairos-sdk/schema"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+)
+
+var _ = Describe("Validate", func() {
+	Context("JSONSchema", func() {
+		It("returns a schema with a url to the given version", func() {
+			out, err := JSONSchema("0.0.0")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(strings.Contains(out, `$schema": "https://kairos.io/0.0.0/cloud-config.json"`)).To(BeTrue())
+		})
+	})
+
+	Context("Validate", func() {
+		var yaml string
+
+		Context("with commands defined as a scalar", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: example
+stages:
+  example:
+    - commands: "echo whoops"`
+			})
+
+			It("rejects the invalid stage", func() {
+				Expect(Validate(yaml)).To(MatchError(ContainSubstring("expected array, but got string")))
+			})
+		})
+
+		Context("With a really long config string", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+vpn:
+  network_token: "dssdnfjkldashfkjhasdkhfkasjdhfkjhasdjkfhaksjdhfkjashjdkfhioreqwhfuihqweruifhuewrbfhuewrfuyequfhuiehuifheqrihfuiqrehfuirqheiufhreqiuhfuiqheiufhqeuihfuiqrehfiuhqreuifrhiuqehfiuhqeirhfiuewhrfhqwehfriuewhfuihewiuhfruewhrifhwiuehrfiuhweiurfhwueihrfuiwehufhweuihrfuiwerhfuihewruifhewuihfiouwehrfiouhwei"
+`
+			})
+			It("validates", func() {
+				Expect(Validate(yaml)).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("with a valid config", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos`
+			})
+
+			It("is successful reading it from file", func() {
+				f, err := os.MkdirTemp("", "tests")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(f)
+
+				path := filepath.Join(f, "config.yaml")
+				err = os.WriteFile(path, []byte(yaml), 0655)
+				Expect(err).ToNot(HaveOccurred())
+				err = Validate(path)
+				Expect(err).ToNot(HaveOccurred())
+			})
+			It("is successful reading it from a string", func() {
+				Expect(Validate(yaml)).ToNot(HaveOccurred())
+			})
+		})
+
+		Context("without a header", func() {
+			BeforeEach(func() {
+				yaml = `users:
+  - name: kairos
+    passwd: kairos`
+			})
+
+			It("is fails", func() {
+				f, err := os.MkdirTemp("", "tests")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(f)
+
+				path := filepath.Join(f, "config.yaml")
+				err = os.WriteFile(path, []byte(yaml), 0655)
+				Expect(err).ToNot(HaveOccurred())
+				err = Validate(path)
+				Expect(err).To(MatchError("missing #cloud-config header"))
+			})
+		})
+
+		Context("with an invalid rule", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: 007
+    passwd: kairos`
+			})
+
+			It("is fails", func() {
+				f, err := os.MkdirTemp("", "tests")
+				Expect(err).ToNot(HaveOccurred())
+				defer os.RemoveAll(f)
+
+				path := filepath.Join(f, "config.yaml")
+				err = os.WriteFile(path, []byte(yaml), 0655)
+				Expect(err).ToNot(HaveOccurred())
+				err = Validate(path)
+				Expect(err.Error()).To(MatchRegexp("expected string, but got number"))
+			})
+		})
+	})
+})
