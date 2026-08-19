@@ -1,0 +1,12 @@
+[[IgnoredVulns]]
+id = "GHSA-q7pp-wcgr-pffx"
+reason = "No impact since we don't work with TIFF image files"
+
+[[IgnoredVulns]]
+id = "GHSA-9r4w-jg96-92mv"
+reason = "No fix available in github.com/google/go-attestation yet; pulled in transitively by tpm-helpers for TPM attestation and not used to parse untrusted EFI signature lists"
+
+[[IgnoredVulns]]
+id = "GO-2026-5932"
+ignoreUntil = 2026-10-27
+reason = "Indirect golang.org/x/crypto dep from kairos-sdk; we do not import golang.org/x/crypto/openpgp. Re-check after upstream/SDK dependency updates."

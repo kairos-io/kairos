@@ -1,0 +1,11 @@
+#cloud-config
+install:
+  device: "/dev/vda"
+  auto: true
+  reboot: false
+  poweroff: false
+users:
+- name: kairos
+  passwd: kairos
+  groups:
+    - admin
