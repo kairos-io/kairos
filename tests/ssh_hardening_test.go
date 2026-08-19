@@ -2,6 +2,7 @@ package mos_test
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -81,9 +82,28 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 
 		By("triggering reboot into the installed system", func() {
 			// vm.Reboot() would call EventuallyConnects with password
-			// auth, which the ssh_hardening drop-in has disabled. Detach
-			// and let the key probe below observe the returning sshd.
-			_, _ = vm.Sudo("nohup sh -c 'sleep 2; reboot' >/dev/null 2>&1 &")
+			// auth, which the ssh_hardening drop-in has disabled. We
+			// still want a synchronous reboot though: peg's Sudo blocks
+			// until the ssh session ends, so this returns (with a
+			// discarded connection-lost error) only once systemd has
+			// actually started tearing the guest down.
+			_, _ = vm.Sudo("systemctl reboot")
+		})
+
+		By("waiting for the guest to actually go down before we look at it", func() {
+			// Without this the diagnostic below races the shutdown and
+			// runs against the live-CD session that is still up (its
+			// default kairos:kairos password would answer, which would
+			// be very confusing).
+			sshAddr := "127.0.0.1:" + vm.SSHPort()
+			Eventually(func() error {
+				c, err := net.DialTimeout("tcp", sshAddr, 2*time.Second)
+				if err == nil {
+					_ = c.Close()
+					return fmt.Errorf("ssh port still accepting connections")
+				}
+				return nil
+			}, 90*time.Second, 3*time.Second).Should(Succeed())
 		})
 
 		By("dumping installed-system state (best-effort diagnostic)", func() {
