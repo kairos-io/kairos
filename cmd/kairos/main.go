@@ -3,8 +3,8 @@
 // It dispatches to a sub-tool based on argv[0]:
 //
 //	immucore                         -> immucore boot flow
-//	kairos-agent                     -> kairos-agent CLI
-//	kcrypt-discovery-challenger      -> kcrypt discovery client
+//	agent                            -> kairos-agent CLI
+//	kcrypt                           -> kcrypt discovery client
 //	kairos <sub> [args...]           -> same as invoking the sub directly
 //
 // Which subs are linked in depends on build tags. See register_*.go for the

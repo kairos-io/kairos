@@ -5,5 +5,9 @@ import (
 )
 
 func init() {
-	register("kcrypt-discovery-challenger", kcrypt.Run)
+	// "kcrypt-discovery-challenger" is the historical binary name used by
+	// symlink invocation and existing scripts; it is registered as an alias
+	// so `kairos kcrypt`, `kairos kcrypt-discovery-challenger`, and the
+	// symlink `./kcrypt-discovery-challenger` all resolve to the same code.
+	register("kcrypt", kcrypt.Run, "kcrypt-discovery-challenger")
 }
