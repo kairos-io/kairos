@@ -20,8 +20,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/implementations/http"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/agent/pkg/implementations/http"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -21,15 +21,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	"github.com/kairos-io/kairos-agent/v2/pkg/elemental"
-	v1 "github.com/kairos-io/kairos-agent/v2/pkg/implementations/spec"
-	agentState "github.com/kairos-io/kairos-agent/v2/pkg/state"
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils"
-	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
-	"github.com/kairos-io/kairos-sdk/state"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkImages "github.com/kairos-io/kairos-sdk/types/images"
+	"github.com/kairos-io/kairos/agent/pkg/constants"
+	"github.com/kairos-io/kairos/agent/pkg/elemental"
+	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/spec"
+	agentState "github.com/kairos-io/kairos/agent/pkg/state"
+	"github.com/kairos-io/kairos/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/sdk/state"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkImages "github.com/kairos-io/kairos/sdk/types/images"
 )
 
 // UpgradeAction represents the struct that will run the upgrade from start to finish

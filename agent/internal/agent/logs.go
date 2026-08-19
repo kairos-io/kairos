@@ -8,15 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/config"
-	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
-	"github.com/kairos-io/kairos-sdk/collector"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkFS "github.com/kairos-io/kairos-sdk/types/fs"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
-	sdkLogs "github.com/kairos-io/kairos-sdk/types/logs"
-	sdkRunner "github.com/kairos-io/kairos-sdk/types/runner"
+	"github.com/kairos-io/kairos/agent/pkg/config"
+	"github.com/kairos-io/kairos/agent/pkg/constants"
+	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/sdk/collector"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkFS "github.com/kairos-io/kairos/sdk/types/fs"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	sdkLogs "github.com/kairos-io/kairos/sdk/types/logs"
+	sdkRunner "github.com/kairos-io/kairos/sdk/types/runner"
 )
 
 // LogsResult represents the collected logs

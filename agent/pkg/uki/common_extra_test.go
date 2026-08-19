@@ -22,10 +22,10 @@ import (
 	"os"
 	"path/filepath"
 
-	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
-	sdkutils "github.com/kairos-io/kairos-sdk/utils"
+	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
+	"github.com/kairos-io/kairos/agent/pkg/utils"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	sdkutils "github.com/kairos-io/kairos/sdk/utils"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

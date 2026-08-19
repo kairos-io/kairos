@@ -17,8 +17,8 @@ limitations under the License.
 package mocks
 
 import (
-	sdkImages "github.com/kairos-io/kairos-sdk/types/images"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	sdkImages "github.com/kairos-io/kairos/sdk/types/images"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 )
 
 type FakeImageExtractor struct {

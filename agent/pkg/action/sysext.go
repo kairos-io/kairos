@@ -9,8 +9,8 @@ import (
 	"regexp"
 
 	"github.com/distribution/reference"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 	"github.com/twpayne/go-vfs/v5"
 )
 

@@ -17,7 +17,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/kairos-io/kairos-sdk/agentrun"
+	"github.com/kairos-io/kairos/sdk/agentrun"
 )
 
 // stepEvent is the JSON shape of a step line: {"event":"step","step":"..."}.

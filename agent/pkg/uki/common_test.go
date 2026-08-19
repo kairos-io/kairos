@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"os"
 
-	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
+	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -8,10 +8,10 @@ import (
 	"github.com/diskfs/go-diskfs/partition"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/gofrs/uuid"
-	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	sdkConstants "github.com/kairos-io/kairos-sdk/constants"
-	"github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/types/partitions"
+	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
+	sdkConstants "github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/types/partitions"
 	"github.com/sanity-io/litter"
 )
 

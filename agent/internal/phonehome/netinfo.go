@@ -1,6 +1,6 @@
 package phonehome
 
-import "github.com/kairos-io/kairos-sdk/state"
+import "github.com/kairos-io/kairos/sdk/state"
 
 // gatherAddresses collects the node's routable network addresses plus its
 // hostname and maps them to the AuroraBoot NodeAddress wire type

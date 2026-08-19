@@ -19,10 +19,10 @@ package action
 import (
 	"path/filepath"
 
-	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils"
-	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
+	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
+	"github.com/kairos-io/kairos/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
 )
 
 // Hook is RunStage wrapper that only adds logic to ignore errors

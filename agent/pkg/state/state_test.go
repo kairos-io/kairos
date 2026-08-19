@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/state"
+	"github.com/kairos-io/kairos/agent/pkg/state"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

@@ -19,7 +19,7 @@ package k8s_test
 import (
 	"os"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils/k8s"
+	"github.com/kairos-io/kairos/agent/pkg/utils/k8s"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

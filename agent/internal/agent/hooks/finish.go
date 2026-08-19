@@ -1,8 +1,8 @@
 package hook
 
 import (
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkSpec "github.com/kairos-io/kairos-sdk/types/spec"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkSpec "github.com/kairos-io/kairos/sdk/types/spec"
 )
 
 // Finish is a hook that runs after the install process.

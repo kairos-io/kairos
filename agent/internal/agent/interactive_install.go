@@ -3,10 +3,10 @@ package agent
 import (
 	"fmt"
 
-	"github.com/kairos-io/kairos-sdk/constants"
-	"github.com/kairos-io/kairos-sdk/installer"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/sdk/installer"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 // InteractiveInstall resolves an external installer binary and delegates the

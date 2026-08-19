@@ -20,8 +20,8 @@ import (
 	"os"
 	sc "syscall"
 
-	v1 "github.com/kairos-io/kairos-agent/v2/pkg/implementations/syscall"
-	v1mock "github.com/kairos-io/kairos-agent/v2/tests/mocks"
+	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/syscall"
+	v1mock "github.com/kairos-io/kairos/agent/tests/mocks"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -19,12 +19,12 @@ package action
 import (
 	"bytes"
 
-	agentConfig "github.com/kairos-io/kairos-agent/v2/pkg/config"
-	v1mock "github.com/kairos-io/kairos-agent/v2/tests/mocks"
-	"github.com/kairos-io/kairos-sdk/collector"
-	"github.com/kairos-io/kairos-sdk/kcrypt"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	agentConfig "github.com/kairos-io/kairos/agent/pkg/config"
+	v1mock "github.com/kairos-io/kairos/agent/tests/mocks"
+	"github.com/kairos-io/kairos/sdk/collector"
+	"github.com/kairos-io/kairos/sdk/kcrypt"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

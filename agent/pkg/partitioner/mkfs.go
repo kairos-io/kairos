@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/types/runner"
+	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/types/runner"
 )
 
 type MkfsCall struct {

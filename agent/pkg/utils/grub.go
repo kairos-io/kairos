@@ -25,13 +25,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
-	"github.com/kairos-io/kairos-sdk/state"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkFS "github.com/kairos-io/kairos-sdk/types/fs"
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/agent/pkg/constants"
+	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
+	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/sdk/state"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkFS "github.com/kairos-io/kairos/sdk/types/fs"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 // Grub is the struct that will allow us to install grub to the target device

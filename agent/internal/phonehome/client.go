@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kairos-io/kairos-agent/v2/internal/common"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/agent/internal/common"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 	"gopkg.in/yaml.v3"
 )
 

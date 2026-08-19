@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	sdkFs "github.com/kairos-io/kairos-sdk/types/fs"
+	sdkFs "github.com/kairos-io/kairos/sdk/types/fs"
 	"gopkg.in/yaml.v3"
 )
 

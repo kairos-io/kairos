@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	fsutils "github.com/kairos-io/kairos-agent/v2/pkg/utils/fs"
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils/partitions"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkSpec "github.com/kairos-io/kairos-sdk/types/spec"
+	"github.com/kairos-io/kairos/agent/pkg/constants"
+	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/agent/pkg/utils/partitions"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkSpec "github.com/kairos-io/kairos/sdk/types/spec"
 )
 
 type SysExtPostInstall struct{}

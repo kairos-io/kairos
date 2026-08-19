@@ -11,7 +11,7 @@ You may obtain a copy of the License at
 package utils_test
 
 import (
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils"
+	"github.com/kairos-io/kairos/agent/pkg/utils"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"

@@ -5,15 +5,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/action"
-	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	"github.com/kairos-io/kairos-agent/v2/pkg/elemental"
-	v1 "github.com/kairos-io/kairos-agent/v2/pkg/implementations/spec"
-	elementalUtils "github.com/kairos-io/kairos-agent/v2/pkg/utils"
-	events "github.com/kairos-io/kairos-sdk/bus"
-	"github.com/kairos-io/kairos-sdk/signatures"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/agent/pkg/action"
+	"github.com/kairos-io/kairos/agent/pkg/constants"
+	"github.com/kairos-io/kairos/agent/pkg/elemental"
+	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/spec"
+	elementalUtils "github.com/kairos-io/kairos/agent/pkg/utils"
+	events "github.com/kairos-io/kairos/sdk/bus"
+	"github.com/kairos-io/kairos/sdk/signatures"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/sdk/utils"
 )
 
 type UpgradeAction struct {

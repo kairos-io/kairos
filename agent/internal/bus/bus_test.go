@@ -4,7 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos-agent/v2/internal/bus"
+	"github.com/kairos-io/kairos/agent/internal/bus"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

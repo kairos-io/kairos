@@ -21,8 +21,8 @@ import (
 	"os/exec"
 
 	"github.com/hashicorp/go-multierror"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
-	sdkRunner "github.com/kairos-io/kairos-sdk/types/runner"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	sdkRunner "github.com/kairos-io/kairos/sdk/types/runner"
 )
 
 // cloudInitConsole represents a yip's Console implementations using

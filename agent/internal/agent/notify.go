@@ -3,10 +3,10 @@ package agent
 import (
 	"fmt"
 
-	"github.com/kairos-io/kairos-agent/v2/internal/bus"
-	"github.com/kairos-io/kairos-agent/v2/pkg/config"
-	events "github.com/kairos-io/kairos-sdk/bus"
-	"github.com/kairos-io/kairos-sdk/collector"
+	"github.com/kairos-io/kairos/agent/internal/bus"
+	"github.com/kairos-io/kairos/agent/pkg/config"
+	events "github.com/kairos-io/kairos/sdk/bus"
+	"github.com/kairos-io/kairos/sdk/collector"
 	"github.com/mudler/go-pluggable"
 	"gopkg.in/yaml.v3"
 )

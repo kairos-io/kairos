@@ -19,9 +19,9 @@ package runner_test
 import (
 	"bytes"
 
-	v1 "github.com/kairos-io/kairos-agent/v2/pkg/implementations/runner"
-	v1mock "github.com/kairos-io/kairos-agent/v2/tests/mocks"
-	"github.com/kairos-io/kairos-sdk/types/logger"
+	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/runner"
+	v1mock "github.com/kairos-io/kairos/agent/tests/mocks"
+	"github.com/kairos-io/kairos/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kairos-io/kairos-agent/v2/internal/phonehome"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/agent/internal/phonehome"
+	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

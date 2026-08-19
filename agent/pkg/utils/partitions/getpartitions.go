@@ -25,11 +25,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	"github.com/kairos-io/kairos-sdk/ghw"
-	sdkFS "github.com/kairos-io/kairos-sdk/types/fs"
-	"github.com/kairos-io/kairos-sdk/types/logger"
-	sdkPartitions "github.com/kairos-io/kairos-sdk/types/partitions"
+	"github.com/kairos-io/kairos/agent/pkg/constants"
+	"github.com/kairos-io/kairos/sdk/ghw"
+	sdkFS "github.com/kairos-io/kairos/sdk/types/fs"
+	"github.com/kairos-io/kairos/sdk/types/logger"
+	sdkPartitions "github.com/kairos-io/kairos/sdk/types/partitions"
 	log "github.com/sirupsen/logrus"
 )
 

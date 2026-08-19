@@ -26,13 +26,13 @@ import (
 	"github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/partition/gpt"
 	"github.com/gofrs/uuid"
-	sdkConstants "github.com/kairos-io/kairos-sdk/constants"
-	"github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/types/partitions"
+	sdkConstants "github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/sdk/types/partitions"
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
+	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
 )
 
 const (

@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kairos-io/kairos-agent/v2/internal/phonehome"
-	"github.com/kairos-io/kairos-sdk/constants"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
+	"github.com/kairos-io/kairos/agent/internal/phonehome"
+	"github.com/kairos-io/kairos/sdk/constants"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
 )
 
 func phoneHomeServiceUnit(agentBin string) string {

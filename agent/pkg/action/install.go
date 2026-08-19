@@ -22,18 +22,18 @@ import (
 
 	"time"
 
-	hook "github.com/kairos-io/kairos-agent/v2/internal/agent/hooks"
-	"github.com/kairos-io/kairos-agent/v2/pkg/config"
-	cnst "github.com/kairos-io/kairos-agent/v2/pkg/constants"
-	"github.com/kairos-io/kairos-agent/v2/pkg/elemental"
-	v1 "github.com/kairos-io/kairos-agent/v2/pkg/implementations/spec"
-	"github.com/kairos-io/kairos-agent/v2/pkg/progress"
-	"github.com/kairos-io/kairos-agent/v2/pkg/state"
-	"github.com/kairos-io/kairos-agent/v2/pkg/utils"
-	"github.com/kairos-io/kairos-sdk/agentrun"
-	events "github.com/kairos-io/kairos-sdk/bus"
-	sdkConstants "github.com/kairos-io/kairos-sdk/constants"
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
+	hook "github.com/kairos-io/kairos/agent/internal/agent/hooks"
+	"github.com/kairos-io/kairos/agent/pkg/config"
+	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
+	"github.com/kairos-io/kairos/agent/pkg/elemental"
+	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/agent/pkg/progress"
+	"github.com/kairos-io/kairos/agent/pkg/state"
+	"github.com/kairos-io/kairos/agent/pkg/utils"
+	"github.com/kairos-io/kairos/sdk/agentrun"
+	events "github.com/kairos-io/kairos/sdk/bus"
+	sdkConstants "github.com/kairos-io/kairos/sdk/constants"
+	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
 )
 
 func (i *InstallAction) installHook(hook string, chroot bool) error {
