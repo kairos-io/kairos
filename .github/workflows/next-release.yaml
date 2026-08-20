@@ -119,7 +119,7 @@ jobs:
       arch: 'amd64'
       model: 'generic'
       secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/hadron'
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
 
   qemu-tests-standard:
@@ -147,7 +147,7 @@ jobs:
       arch: 'amd64'
       model: 'generic'
       secureboot: false
-      container_image_prefix: 'ghcr.io/kairos-io/kairos/hadron'
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
 
   # Copy the scratch manifests to their final tags only if both
