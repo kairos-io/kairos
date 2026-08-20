@@ -143,6 +143,14 @@ jobs:
       custom_tag_format: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
       trusted_boot: ${{ inputs.trusted_boot }}
+      # Factory-action's keys_dir is "required when trusted_boot is
+      # true" but has no sensible default -- if we leave it empty
+      # the build-uki step mounts the repo root as /keys and
+      # auroraboot exits with "keys directory does not contain
+      # required file: db.auth" because db.auth lives at
+      # tests/assets/keys/db.auth, not at /db.auth. Pass the path
+      # unconditionally; factory-action ignores it on non-UKI cells.
+      keys_dir: 'tests/assets/keys'
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}
