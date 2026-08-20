@@ -94,8 +94,8 @@ jobs:
           - {name: 'pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
           - {name: 'pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'pr-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
-          - {name: 'pr-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
+          - {name: 'pr-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'pr-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
           # only builds on that. grype/sbom off (too many upstream L4T
           # vulns to enforce, non-cataloguable binaries in the rootfs).
@@ -111,9 +111,6 @@ jobs:
             iso: false
             trusted_boot: false
             kubernetes_distro: ''
-            grype: false
-            sbom: false
-            cleanup: true
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
@@ -124,9 +121,6 @@ jobs:
             iso: false
             trusted_boot: false
             kubernetes_distro: ''
-            grype: false
-            sbom: false
-            cleanup: true
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
@@ -152,10 +146,16 @@ jobs:
       registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
       registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
-      raw: ${{ matrix.raw || false }}
-      grype: ${{ matrix.grype == null && true || matrix.grype }}
-      sbom: ${{ matrix.sbom == null && true || matrix.sbom }}
-      cleanup: ${{ matrix.cleanup || false }}
+      # Model-derived knobs. GitHub expressions cannot cleanly do
+      # `matrix.foo || default` when foo is a boolean, because the
+      # ternary short-circuits on falsy values and treats an
+      # explicit `false` the same as "unset". Old release-arm.yaml
+      # sidestepped the whole class by deriving these from the
+      # model string, which is what we do here.
+      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
+      grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit

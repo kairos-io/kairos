@@ -86,8 +86,8 @@ jobs:
           - {name: 'next-release-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
           - {name: 'next-release-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'next-release-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
-          - {name: 'next-release-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
+          - {name: 'next-release-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'next-release-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. See pr.yaml for the base_image /
           # grype / sbom / cleanup / registry rationale. Release path
           # stays on quay ci-temp-images the same as PR since the
@@ -99,9 +99,6 @@ jobs:
             iso: false
             trusted_boot: false
             kubernetes_distro: ''
-            grype: false
-            sbom: false
-            cleanup: true
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
@@ -112,9 +109,6 @@ jobs:
             iso: false
             trusted_boot: false
             kubernetes_distro: ''
-            grype: false
-            sbom: false
-            cleanup: true
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
@@ -132,10 +126,11 @@ jobs:
       registry_domain: ${{ matrix.registry_domain || 'quay.io' }}
       registry_namespace: ${{ matrix.registry_namespace || 'kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
-      raw: ${{ matrix.raw || false }}
-      grype: ${{ matrix.grype == null && true || matrix.grype }}
-      sbom: ${{ matrix.sbom == null && true || matrix.sbom }}
-      cleanup: ${{ matrix.cleanup || false }}
+      # Model-derived knobs; see pr.yaml for the rationale.
+      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
+      grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
       release: true
     secrets: inherit
 
