@@ -1,0 +1,75 @@
+name: release (next)
+
+# Thin release pipeline. Runs alongside the existing release.yaml /
+# release-arm.yaml during the validation period. Retired once we
+# converge and cut an rc tag against it.
+#
+# Trigger: push tags matching v*. Same shape as next-pr.yaml and
+# next-master.yaml, differing in the matrix (full release matrix
+# including FIPS and riscv64), the registry (quay.io/kairos instead of
+# ghcr), and the presence of the upload-release step that attaches
+# binary archives to the GH Release the tag created.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-next-release-${{ github.ref }}-${{ github.repository }}
+  cancel-in-progress: false   # do NOT cancel a release run mid-way
+
+jobs:
+  unit-tests:
+    uses: ./.github/workflows/_next-unit-tests.yaml
+    secrets: inherit
+
+  vulnerability-scan:
+    uses: ./.github/workflows/release-scan.yml
+
+  build-binaries:
+    uses: ./.github/workflows/_next-build-binaries.yaml
+    with:
+      matrix_scope: release
+    secrets: inherit
+
+  build-images:
+    needs: build-binaries
+    uses: ./.github/workflows/_next-build-images.yaml
+    with:
+      image_registry: quay.io/kairos
+      image_tag: ${{ github.ref_name }}
+      image_extra_tag: latest
+      push_images: true
+      registry_login: quay
+    secrets: inherit
+
+  upload-release:
+    needs: build-binaries
+    uses: ./.github/workflows/_next-upload-release.yaml
+    secrets: inherit
+
+  build-iso:
+    needs: [build-images, vulnerability-scan]
+    uses: ./.github/workflows/_next-build-iso.yaml
+    with:
+      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
+      # Release ISO matrix: hadron with trusted_boot on/off, plus the
+      # kubernetes flavors (k3s, k0s) at their latest releases. The full
+      # per-k8s-version matrix is currently done in release.yaml via
+      # dynamic version fetch; kept out of this step for the first cut
+      # of the next-pipeline until we split k3s/k0s into their own
+      # dynamic-matrix pre-step. TODO before retiring release.yaml.
+      matrix: |
+        [
+          {"name": "next-release-core-amd64-generic",     "arch": "amd64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true,  "trusted_boot": false},
+          {"name": "next-release-core-amd64-generic-uki", "arch": "amd64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": false, "trusted_boot": true}
+        ]
+      registry_domain: quay.io
+      registry_namespace: kairos
+      release: true
+    secrets: inherit

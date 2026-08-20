@@ -1,0 +1,45 @@
+name: Upload release (step)
+
+# Reusable step: attach every arch's binary archives and a consolidated
+# checksums file to the GitHub Release the current tag created. Only
+# called from the release pipeline (tag events); no-op on PR/master.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'git ref to check out'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Download every arch's archives
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'next-binaries-linux-*'
+          path: dist/download
+
+      - name: Consolidate archives + checksums
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
+          find dist/download -name 'checksums-*.txt' -exec cat {} \; | sort -u > dist/release/checksums.txt
+          ls -l dist/release/
+
+      - name: Upload to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/release/* --clobber

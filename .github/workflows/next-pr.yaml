@@ -1,0 +1,84 @@
+name: PR (next)
+
+# Thin PR pipeline. Runs alongside the existing binaries.yaml /
+# image-pr*.yaml during the validation period. The old workflows will
+# be retired once this one produces the artifacts we expect against
+# real PRs on this branch.
+#
+# Trigger: pull_request during the validation window. pull_request
+# reads the workflow file from the PR's HEAD, so we can iterate on
+# this file inside a PR against master without pre-merging.
+# Downside: fork PRs do not get secrets, so their image-push step
+# will fail at docker login. Same-repo PRs (which is how we exercise
+# this branch itself) work fine.
+#
+# When we're happy and retire the old workflows in a single move,
+# flip this to `pull_request_target` and reintroduce the `authorize`
+# job below (fork-pr-builds environment gate) so fork PRs get the
+# same treatment image-pr.yaml gives them today.
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-next-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  # Under pull_request (as opposed to pull_request_target), the workflow
+  # already runs against the PR's HEAD ref by default; no explicit
+  # `ref:` needed on the reusable calls.
+  unit-tests:
+    uses: ./.github/workflows/_next-unit-tests.yaml
+    secrets: inherit
+
+  build-binaries:
+    uses: ./.github/workflows/_next-build-binaries.yaml
+    with:
+      matrix_scope: ci
+    secrets: inherit
+
+  build-images:
+    needs: build-binaries
+    uses: ./.github/workflows/_next-build-images.yaml
+    with:
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: pr-${{ github.event.pull_request.number }}
+      # Same-repo PRs can push to ghcr with the built-in GITHUB_TOKEN.
+      # Fork PRs cannot (no secrets under pull_request); the step will
+      # fail cleanly at docker login. That is acceptable during the
+      # validation window; the pull_request_target switch below is
+      # where fork handling gets wired back in.
+      push_images: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      registry_login: ghcr
+    secrets: inherit
+
+  build-iso:
+    needs: build-images
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/_next-build-iso.yaml
+    with:
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
+      # PR ISO matrix: one representative cell each for amd64/arm64,
+      # generic model, no kubernetes distro. Enough to prove the ISO
+      # builds and the fresh kairos-init is consumed correctly; the
+      # full release matrix runs on tag.
+      matrix: |
+        [
+          {"name": "next-pr-amd64-generic", "arch": "amd64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true, "trusted_boot": false},
+          {"name": "next-pr-arm64-generic", "arch": "arm64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true, "trusted_boot": false}
+        ]
+      registry_domain: ghcr.io
+      registry_namespace: kairos-io/kairos
+      release: false
+    secrets: inherit

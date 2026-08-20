@@ -1,0 +1,128 @@
+name: Build images (step)
+
+# Reusable step: multi-arch (linux/amd64 + linux/arm64) container
+# images for kcrypt-challenger and kairos-init, using the per-arch
+# binaries the build-binaries step uploaded as workflow artifacts.
+#
+# On PR the caller typically pushes to ghcr.io/kairos-io/kairos with a
+# pr-<N> tag; on master to :master; on release tags to quay.io/kairos
+# at :<tag> and :latest. `push_images=false` builds without pushing
+# (compile-verify).
+
+on:
+  workflow_call:
+    inputs:
+      image_registry:
+        description: 'Container image registry prefix, e.g. quay.io/kairos'
+        type: string
+        required: true
+
+      image_tag:
+        description: 'Primary image tag'
+        type: string
+        required: true
+
+      image_extra_tag:
+        description: 'Optional second image tag (e.g. "latest" on release), empty otherwise'
+        type: string
+        default: ''
+
+      push_images:
+        description: 'true to push to the registry, false to only build (verify)'
+        type: boolean
+        default: false
+
+      registry_login:
+        description: '"ghcr" | "quay" | "" (no login; only valid when push_images is false)'
+        type: string
+        default: ''
+
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Download default-variant artifacts (amd64 + arm64)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'next-binaries-linux-@(amd64|arm64)'
+          path: dist/download
+
+      - name: Reassemble dist/linux-<arch>/
+        # Container images consume binaries from dist/linux-<arch>/, so
+        # extract the per-arch archives back into that layout.
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            mkdir -p "dist/linux-$arch"
+            for tarball in "dist/download/next-binaries-linux-$arch"/*.tar.gz; do
+              [ -f "$tarball" ] || continue
+              tar -xzf "$tarball" -C "dist/linux-$arch"
+            done
+            ls -l "dist/linux-$arch"
+          done
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to ghcr.io
+        if: inputs.push_images && inputs.registry_login == 'ghcr'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to quay.io
+        if: inputs.push_images && inputs.registry_login == 'quay'
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Build & (optionally) push kcrypt-challenger
+        env:
+          REGISTRY: ${{ inputs.image_registry }}
+          TAG: ${{ inputs.image_tag }}
+          EXTRA_TAG: ${{ inputs.image_extra_tag }}
+          PUSH: ${{ inputs.push_images }}
+        run: |
+          set -euo pipefail
+          args=(--platform "linux/amd64,linux/arm64" -f cmd/kcrypt-challenger/Dockerfile
+                -t "$REGISTRY/kcrypt-challenger:$TAG")
+          [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kcrypt-challenger:$EXTRA_TAG")
+          [ "$PUSH" = "true" ] && args+=(--push)
+          docker buildx build "${args[@]}" .
+
+      - name: Build & (optionally) push kairos-init
+        env:
+          REGISTRY: ${{ inputs.image_registry }}
+          TAG: ${{ inputs.image_tag }}
+          EXTRA_TAG: ${{ inputs.image_extra_tag }}
+          PUSH: ${{ inputs.push_images }}
+        run: |
+          set -euo pipefail
+          args=(--platform "linux/amd64,linux/arm64" -f kairos-init/Dockerfile
+                -t "$REGISTRY/kairos-init:$TAG")
+          [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kairos-init:$EXTRA_TAG")
+          [ "$PUSH" = "true" ] && args+=(--push)
+          docker buildx build "${args[@]}" .

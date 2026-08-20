@@ -1,0 +1,100 @@
+name: Build ISO (step)
+
+# Reusable step: build a Kairos OS ISO/UKI via kairos-io/kairos-factory-action
+# using the caller-supplied kairos-init container image. This is the
+# "connect the fresh kairos-init to the ISO build" step -- the caller
+# passes the exact image reference the build-images step just published,
+# and this step overrides images/Dockerfile's KAIROS_INIT_IMAGE ARG so
+# the ISO embeds the freshly-built kairos-init.
+#
+# Matrix (base_image x kubernetes flavor x trusted_boot) is expanded
+# by the caller via a JSON-blob input, so both the PR and release
+# pipelines can pass different sets without this step knowing.
+
+on:
+  workflow_call:
+    inputs:
+      kairos_init_image:
+        description: 'Full image reference to use for kairos-init, e.g. quay.io/kairos/kairos-init:v4.4.0 or ghcr.io/kairos-io/kairos/kairos-init:pr-42'
+        type: string
+        required: true
+
+      matrix:
+        description: 'JSON array of matrix cells (see next-pr.yaml / next-release.yaml for shape)'
+        type: string
+        required: true
+
+      registry_domain:
+        description: 'Registry to push the built OCI image to (e.g. quay.io)'
+        type: string
+        default: 'quay.io'
+
+      registry_namespace:
+        description: 'Registry namespace under the domain (e.g. kairos)'
+        type: string
+        default: 'kairos'
+
+      release:
+        description: 'Whether factory-action should attach ISO artifacts to the GH Release'
+        type: boolean
+        default: false
+
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref). factory-action does its own checkout; this is passed through.'
+        type: string
+        required: false
+        default: ''
+
+    secrets:
+      registry_username:
+        required: false
+      registry_password:
+        required: false
+
+permissions:
+  id-token: write
+  contents: write
+  security-events: write
+  actions: read
+
+jobs:
+  iso:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(inputs.matrix) }}
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
+    secrets:
+      registry_username: ${{ secrets.registry_username }}
+      registry_password: ${{ secrets.registry_password }}
+    with:
+      ref: ${{ inputs.ref }}
+      auroraboot_version: 'v0.26.2'
+      dockerfile_path: 'images/Dockerfile'
+      # Override images/Dockerfile's KAIROS_INIT_IMAGE default. This is
+      # what makes PRs and releases exercise the freshly-built kairos-init
+      # rather than the pinned default.
+      build_args: KAIROS_INIT_IMAGE=${{ inputs.kairos_init_image }}
+      base_image: ${{ matrix.base_image }}
+      arch: ${{ matrix.arch }}
+      model: ${{ matrix.model }}
+      version: 'auto'
+      no_cache: true
+      registry_domain: ${{ inputs.registry_domain }}
+      registry_namespace: ${{ inputs.registry_namespace }}
+      trusted_boot: ${{ matrix.trusted_boot || false }}
+      iso: ${{ matrix.iso || false }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      kubernetes_version: ${{ matrix.kubernetes_version }}
+      grype: true
+      grype_sarif: true
+      trivy: true
+      trivy_sarif: true
+      # Report-only: upstream base image CVEs must not block a release.
+      security_scan_mode: 'report-only'
+      grype_sarif_fail_build: false
+      custom_job_name_format: ${{ matrix.name }}
+      list_release_artifacts: ${{ inputs.release && (matrix.iso || false) }}
+      cosign: ${{ inputs.release }}
+      release: ${{ inputs.release && (matrix.iso || false) }}

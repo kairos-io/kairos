@@ -1,0 +1,65 @@
+name: master (next)
+
+# Thin master pipeline. Runs alongside the existing binaries.yaml /
+# image-master*.yaml during the validation period. Retired once we
+# converge.
+#
+# Trigger: push to master. Same shape as next-pr.yaml, differing only
+# in tags (:master instead of :pr-N) and the absence of the fork-PR
+# gate (master is trusted).
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ci-next-master-${{ github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    uses: ./.github/workflows/_next-unit-tests.yaml
+    secrets: inherit
+
+  build-binaries:
+    uses: ./.github/workflows/_next-build-binaries.yaml
+    with:
+      matrix_scope: ci
+    secrets: inherit
+
+  build-images:
+    needs: build-binaries
+    uses: ./.github/workflows/_next-build-images.yaml
+    with:
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: master
+      push_images: true
+      registry_login: ghcr
+    secrets: inherit
+
+  build-iso:
+    needs: build-images
+    uses: ./.github/workflows/_next-build-iso.yaml
+    with:
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master
+      # master ISO matrix: same representative cells as PR. Full matrix
+      # is release-only.
+      matrix: |
+        [
+          {"name": "next-master-amd64-generic", "arch": "amd64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true, "trusted_boot": false},
+          {"name": "next-master-arm64-generic", "arch": "arm64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true, "trusted_boot": false}
+        ]
+      registry_domain: ghcr.io
+      registry_namespace: kairos-io/kairos
+      release: false
+    secrets: inherit
