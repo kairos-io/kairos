@@ -5,22 +5,21 @@ name: PR
 # binaries.yaml / image-pr*.yaml / uki.yaml / lint.yaml /
 # unit-tests.yaml were retired together with this rename.
 #
-# Trigger: pull_request_target. GitHub does not pass secrets to a
-# pull_request workflow triggered from a fork, so an outside
-# contributor's build would fail at registry login and every
-# downstream job would skip. pull_request_target passes them, which
-# is why every job below `needs: authorize` and every reusable is
-# passed an explicit `ref: refs/pull/<N>/head`. Same pattern the
-# old image-pr.yaml used before we retired it (issue #4307).
-#
-# Shape: authorize -> build -> test -> push. PR tags are ephemeral
-# by convention (they collide only with themselves, old ones age
-# out), so we push the images before qemu tests run rather than
-# through a scratch tag; a red run just leaves a broken pr-N tag
-# that dies the next time the PR is retriggered.
+# Trigger: pull_request (TRANSITIONAL). The intended trigger is
+# pull_request_target with an `authorize` job on a `fork-pr-builds`
+# environment, matching what the old image-pr.yaml did before we
+# retired it. That flip is a one-line change but only takes effect
+# once THIS file lives on master: pull_request_target resolves the
+# workflow file from the base branch, and master does not yet have
+# pr.yaml. Keeping pull_request here lets this branch validate its
+# own new pipeline against HEAD; a follow-up commit on master
+# flips to pull_request_target and reintroduces the authorize job.
+# Fork PRs run without secrets in the meantime, same shape they
+# had before under pull_request (image push / qemu tests skipped
+# via the same-repo `if:` guards below).
 
 on:
-  pull_request_target:
+  pull_request:
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
@@ -42,45 +41,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Fork-PR review gate. Nothing else starts until this job does.
-  # A PR from a fork lands in the `fork-pr-builds` environment and
-  # waits for a maintainer; a same-repo PR lands in `internal` and
-  # goes straight through, so maintainer / renovate branches keep
-  # running unattended.
-  #
-  # `fork-pr-builds` was created on 2026-08-13 with the maintainers
-  # team as required reviewers. `internal` intentionally carries no
-  # protection rules; it exists only because the environment name
-  # has to resolve on both paths. Do NOT rename either to something
-  # that does not exist -- GitHub creates a referenced environment
-  # implicitly with no protection rules, so a typo fails open.
-  authorize:
-    name: authorize
-    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr-builds' || 'internal' }}
-    runs-on: ubuntu-latest
-    steps:
-      - run: 'true'
+  # authorize + `fork-pr-builds` env gate go here when we flip to
+  # pull_request_target after this file lands on master. See the
+  # header block above.
 
   unit-tests:
-    needs: authorize
     uses: ./.github/workflows/_unit-tests.yaml
-    with:
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   lint:
-    needs: authorize
     uses: ./.github/workflows/_lint.yaml
-    with:
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   build-binaries:
-    needs: authorize
     uses: ./.github/workflows/_build-binaries.yaml
     with:
       matrix_scope: ci
-      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   # unit-tests + lint are hard gates for anything that publishes
@@ -93,7 +69,11 @@ jobs:
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: pr-${{ github.event.pull_request.number }}
-      push_images: true
+      # Fork PRs under pull_request get a read-only GITHUB_TOKEN and
+      # no org secrets, so the ghcr login step would fail. Skip the
+      # push there; the pull_request_target follow-up drops this
+      # guard (an env gate takes over).
+      push_images: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
       registry_login: ghcr
       ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
@@ -103,6 +83,9 @@ jobs:
   # check (qemu is not viable on the arm64 CI hardware).
   build-iso:
     needs: build-images
+    # Skip on fork PRs -- no secrets to push the OS image. Dropped
+    # when the pull_request_target flip lands (env gate takes over).
+    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -144,6 +127,7 @@ jobs:
 
   qemu-tests-core:
     needs: build-iso
+    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -172,6 +156,7 @@ jobs:
 
   qemu-tests-standard:
     needs: build-iso
+    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -207,6 +192,7 @@ jobs:
   # reusable-qemu-test.yaml.
   qemu-tests-uki:
     needs: build-iso
+    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
