@@ -126,6 +126,16 @@ jobs:
       no_cache: true
       registry_domain: ${{ inputs.registry_domain }}
       registry_namespace: ${{ inputs.registry_namespace }}
+      # Force factory-action to name the image tag and ISO artifact
+      # the same way reusable-qemu-test.yaml expects to find them.
+      # Factory-action's default artifact format is
+      # `kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION` (no
+      # $FLAVOR, plus a trailing version), but reusable-qemu-test.yaml
+      # downloads `kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip`
+      # and expects the container image tag to end in $COMMIT_SHA.
+      # These two overrides are the same ones image-pr.yaml uses today.
+      custom_tag_format: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA'
+      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL'
       trusted_boot: ${{ inputs.trusted_boot }}
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
