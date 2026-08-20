@@ -5,21 +5,22 @@ name: PR
 # binaries.yaml / image-pr*.yaml / uki.yaml / lint.yaml /
 # unit-tests.yaml were retired together with this rename.
 #
-# Trigger: pull_request. Reads the workflow file from the PR HEAD
-# so we can iterate inside a PR against master without pre-merging.
-# Fork PRs don't get secrets: their image-push and qemu-tests jobs
-# are gated off with an if: check. Flipping to pull_request_target
-# + reintroducing the authorize (fork-pr-builds env gate) is a
-# follow-up so fork PRs get the same treatment same-repo PRs do.
+# Trigger: pull_request_target. GitHub does not pass secrets to a
+# pull_request workflow triggered from a fork, so an outside
+# contributor's build would fail at registry login and every
+# downstream job would skip. pull_request_target passes them, which
+# is why every job below `needs: authorize` and every reusable is
+# passed an explicit `ref: refs/pull/<N>/head`. Same pattern the
+# old image-pr.yaml used before we retired it (issue #4307).
 #
-# Shape: build -> test -> push. PR tags are ephemeral by convention
-# (they collide only with themselves, and old ones age out), so we
-# push the images before qemu tests run rather than through a
-# scratch tag; a red run just leaves a broken pr-N tag that dies
-# the next time the PR is retriggered.
+# Shape: authorize -> build -> test -> push. PR tags are ephemeral
+# by convention (they collide only with themselves, old ones age
+# out), so we push the images before qemu tests run rather than
+# through a scratch tag; a red run just leaves a broken pr-N tag
+# that dies the next time the PR is retriggered.
 
 on:
-  pull_request:
+  pull_request_target:
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
@@ -29,8 +30,7 @@ on:
 
 permissions:
   # See _build-iso.yaml for the reusable-workflow permission
-  # rationale. Fork PRs still receive read-only under pull_request
-  # regardless of what we declare; this only elevates same-repo PRs.
+  # rationale (callers must cover callee).
   contents: write
   packages: write
   id-token: write
@@ -38,40 +38,64 @@ permissions:
   actions: read
 
 concurrency:
-  group: ci-next-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  group: ci-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
   cancel-in-progress: true
 
 jobs:
+  # Fork-PR review gate. Nothing else starts until this job does.
+  # A PR from a fork lands in the `fork-pr-builds` environment and
+  # waits for a maintainer; a same-repo PR lands in `internal` and
+  # goes straight through, so maintainer / renovate branches keep
+  # running unattended.
+  #
+  # `fork-pr-builds` was created on 2026-08-13 with the maintainers
+  # team as required reviewers. `internal` intentionally carries no
+  # protection rules; it exists only because the environment name
+  # has to resolve on both paths. Do NOT rename either to something
+  # that does not exist -- GitHub creates a referenced environment
+  # implicitly with no protection rules, so a typo fails open.
+  authorize:
+    name: authorize
+    environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr-builds' || 'internal' }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'true'
+
   unit-tests:
+    needs: authorize
     uses: ./.github/workflows/_unit-tests.yaml
+    with:
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   lint:
+    needs: authorize
     uses: ./.github/workflows/_lint.yaml
+    with:
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   build-binaries:
+    needs: authorize
     uses: ./.github/workflows/_build-binaries.yaml
     with:
       matrix_scope: ci
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
-  # unit-tests is a hard gate for anything that publishes downstream
-  # -- an image push is visible outside the run, so a red unit-test
-  # suite must stop it. build-binaries runs in parallel with tests
-  # since it is not visible until images/isos consume it.
+  # unit-tests + lint are hard gates for anything that publishes
+  # downstream. An image push is visible outside the run, so a red
+  # test or lint suite must stop it. build-binaries runs in parallel
+  # with tests since it is not visible until images / isos consume it.
   build-images:
     needs: [build-binaries, unit-tests, lint]
     uses: ./.github/workflows/_build-images.yaml
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: pr-${{ github.event.pull_request.number }}
-      # Same-repo PRs push with the built-in GITHUB_TOKEN. Fork PRs
-      # cannot (no secrets under pull_request); the step fails at
-      # docker login. Acceptable during the validation window; fork
-      # handling gets wired back in when we flip to pull_request_target.
-      push_images: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      push_images: true
       registry_login: ghcr
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   # PR ISO matrix: amd64 core (no k8s) and amd64 standard (k3s)
@@ -79,20 +103,19 @@ jobs:
   # check (qemu is not viable on the arm64 CI hardware).
   build-iso:
     needs: build-images
-    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {name: 'next-pr-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'next-pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
-          - {name: 'next-pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'pr-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          - {name: 'pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
           # base image from hadron (extra tpm/measured-boot bits); the
           # -uki suffix on the artifact/tag comes from the $UKI token
           # in _build-iso.yaml's custom formats.
-          - {name: 'next-pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
-          - {name: 'next-pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
+          - {name: 'pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
@@ -106,6 +129,7 @@ jobs:
       registry_domain: ghcr.io
       registry_namespace: kairos-io/kairos
       release: false
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   # QEMU test suites. Matrix at THIS level (caller side) calling
@@ -120,7 +144,6 @@ jobs:
 
   qemu-tests-core:
     needs: build-iso
-    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -144,11 +167,11 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       release-matcher: ${{ matrix.release-matcher || '' }}
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   qemu-tests-standard:
     needs: build-iso
-    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +197,7 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       release-matcher: ${{ matrix.release-matcher || '' }}
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
   # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
@@ -183,7 +207,6 @@ jobs:
   # reusable-qemu-test.yaml.
   qemu-tests-uki:
     needs: build-iso
-    if: github.event.pull_request.head.repo.full_name == github.repository
     strategy:
       fail-fast: false
       matrix:
@@ -198,4 +221,5 @@ jobs:
       arch: 'amd64'
       model: 'generic'
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
