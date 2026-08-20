@@ -73,11 +73,12 @@ fetch() {
     curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" | tar -xz -C "$staging"
 }
 
-# edgevpn tarballs use x86_64/aarch64 instead of amd64/arm64.
+# edgevpn amd64 tarball is named x86_64; arm64 and riscv64 match GOARCH.
+# (Do not "fix" arm64 to aarch64 -- that asset does not exist in the
+# edgevpn release, and curl -fsSL will 404.)
 case "$ARCH" in
   amd64) edgevpn_arch=x86_64 ;;
-  arm64) edgevpn_arch=aarch64 ;;
-  riscv64) edgevpn_arch=riscv64 ;;
+  *)     edgevpn_arch=$ARCH ;;
 esac
 
 # Defaults
