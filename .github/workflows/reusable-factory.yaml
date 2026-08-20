@@ -1142,6 +1142,11 @@ jobs:
           files=(artifacts/*.iso artifacts/*.raw artifacts/*.vhd artifacts/*.tar)
           if [ "${#files[@]}" -gt 0 ]; then
             echo "🔍 Computing SHA256 checksums"
+            # artifacts/ and its contents are written by auroraboot
+            # running in a docker container as root, so the runner
+            # user cannot create the `.sha256` sibling that `tee`
+            # tries to write. Reclaim ownership before the loop.
+            sudo chown -R "$(id -u):$(id -g)" artifacts
             for f in "${files[@]}"; do
               sha256sum "$f" | tee "${f}.sha256"
             done
