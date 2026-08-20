@@ -68,8 +68,40 @@ on:
         type: string
         default: 'kairos'
 
+      registry_repository:
+        description: |
+          Optional override for the repository segment of the push
+          target. Factory-action defaults it to the base_image FLAVOR
+          (e.g. "hadron" -> ghcr.io/kairos-io/kairos/hadron), which
+          creates a per-flavor org package. For flavors whose
+          per-flavor package does not exist yet (e.g. ubuntu-based
+          NVIDIA cells), the caller can point this at an existing
+          catch-all repo like "ci-temp-images" on quay.
+        type: string
+        default: ''
+
       release:
         description: 'Whether factory-action should attach ISO artifacts to the GH Release'
+        type: boolean
+        default: false
+
+      # Model-specific factory-action knobs. Defaults match what
+      # the generic amd64/arm64 cells want; the rpi and nvidia
+      # cells override.
+      raw:
+        description: 'Produce a raw disk image (rpi3/rpi4 need this)'
+        type: boolean
+        default: false
+      grype:
+        description: 'Run grype security scan (nvidia bases have too many L4T vulns to enforce)'
+        type: boolean
+        default: true
+      sbom:
+        description: 'Attach an SBOM to the image (nvidia jetson bases contain non-cataloguable binaries)'
+        type: boolean
+        default: true
+      cleanup:
+        description: 'Have factory-action free space on the runner before building (nvidia builds need this because L4T rootfs is huge)'
         type: boolean
         default: false
 
@@ -126,6 +158,7 @@ jobs:
       no_cache: true
       registry_domain: ${{ inputs.registry_domain }}
       registry_namespace: ${{ inputs.registry_namespace }}
+      registry_repository: ${{ inputs.registry_repository }}
       # Force factory-action to name the image tag and ISO artifact
       # the same way reusable-qemu-test.yaml expects to find them.
       # Factory-action's default artifact format is
@@ -160,12 +193,15 @@ jobs:
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}
-      grype: true
-      grype_sarif: true
+      raw: ${{ inputs.raw }}
+      grype: ${{ inputs.grype }}
+      grype_sarif: ${{ inputs.grype }}
       trivy: true
       trivy_sarif: true
+      sbom: ${{ inputs.sbom }}
       security_scan_mode: 'report-only'
       grype_sarif_fail_build: false
+      cleanup: ${{ inputs.cleanup }}
       custom_job_name_format: ${{ inputs.name }}
       list_release_artifacts: ${{ inputs.release && inputs.iso }}
       cosign: ${{ inputs.release }}

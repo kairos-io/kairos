@@ -93,6 +93,43 @@ jobs:
           - {name: 'pr-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
           - {name: 'pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          # rpi cells: raw disk image, no ISO. Still on hadron base.
+          - {name: 'pr-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
+          - {name: 'pr-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
+          # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
+          # only builds on that. grype/sbom off (too many upstream L4T
+          # vulns to enforce, non-cataloguable binaries in the rootfs).
+          # cleanup=true because L4T eats runner disk. Push destination
+          # switches to quay.io/kairos/ci-temp-images because the
+          # ghcr.io/kairos-io/kairos/ubuntu package does not exist yet
+          # and needs the same seed dance hadron got; ci-temp-images
+          # is already public and existing.
+          - name: 'pr-arm64-nvidia-agx-orin'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-agx-orin'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            grype: false
+            sbom: false
+            cleanup: true
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
+          - name: 'pr-arm64-nvidia-orin-nx'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-orin-nx'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            grype: false
+            sbom: false
+            cleanup: true
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
           # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
           # base image from hadron (extra tpm/measured-boot bits); the
           # -uki suffix on the artifact/tag comes from the $UKI token
@@ -109,8 +146,16 @@ jobs:
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      registry_domain: ghcr.io
-      registry_namespace: kairos-io/kairos
+      # Per-cell registry override lets nvidia (ubuntu-based) cells
+      # push to quay.io/kairos/ci-temp-images; hadron cells fall
+      # through to the ghcr defaults.
+      registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
+      registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
+      registry_repository: ${{ matrix.registry_repository || '' }}
+      raw: ${{ matrix.raw || false }}
+      grype: ${{ matrix.grype == null && true || matrix.grype }}
+      sbom: ${{ matrix.sbom == null && true || matrix.sbom }}
+      cleanup: ${{ matrix.cleanup || false }}
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit

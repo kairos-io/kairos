@@ -73,6 +73,37 @@ jobs:
           - {name: 'next-master-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'next-master-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
           - {name: 'next-master-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          # rpi cells: raw disk image, no ISO. Still on hadron base.
+          - {name: 'next-master-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
+          - {name: 'next-master-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: '', raw: true}
+          # NVIDIA Jetson cells. See pr.yaml for the base_image /
+          # grype / sbom / cleanup / registry rationale.
+          - name: 'next-master-arm64-nvidia-agx-orin'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-agx-orin'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            grype: false
+            sbom: false
+            cleanup: true
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
+          - name: 'next-master-arm64-nvidia-orin-nx'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-orin-nx'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            grype: false
+            sbom: false
+            cleanup: true
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
           # UKI cells feed qemu-tests-uki (see next-pr.yaml for the shape).
           - {name: 'next-master-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
           - {name: 'next-master-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
@@ -87,8 +118,13 @@ jobs:
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      registry_domain: ghcr.io
-      registry_namespace: kairos-io/kairos
+      registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
+      registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
+      registry_repository: ${{ matrix.registry_repository || '' }}
+      raw: ${{ matrix.raw || false }}
+      grype: ${{ matrix.grype == null && true || matrix.grype }}
+      sbom: ${{ matrix.sbom == null && true || matrix.sbom }}
+      cleanup: ${{ matrix.cleanup || false }}
       release: false
     secrets: inherit
 
