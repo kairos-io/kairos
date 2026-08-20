@@ -1,278 +1,211 @@
-name: Release AMD64 artifacts
+name: release
+
+# The release pipeline. Shape mirrors master.yaml with three
+# differences:
+#   - The registry is quay.io/kairos, not ghcr.io/kairos-io/kairos.
+#   - The ISO matrix carries a UKI/trusted-boot cell (from what
+#     was uki.yaml before retirement) and an arm64 cell (built
+#     for release artifacts; qemu is not viable on arm64 in CI).
+#   - upload-release attaches the built binary archives to the
+#     GitHub Release the tag created, gated on qemu-tests-* and
+#     unit-tests all passing so a red run cannot ship broken
+#     binaries.
+#
+# Test-before-push: images and OS builds first land on
+# :<tag>-scratch. On green, promote-images copies the manifest to
+# :<tag> and :latest via docker buildx imagetools create.
+#
+# Partial parity note: release-legacy.yaml still fires on the same
+# v* trigger and provides the k3s/k0s per-version ISO matrix that
+# this pipeline does not yet build. The plan is to port that
+# dynamic-matrix pre-step here and then delete release-legacy.yaml
+# in a follow-up.
 
 on:
   push:
     tags:
-      - v*
-permissions: read-all
+      - 'v*'
+
+permissions:
+  # See _build-iso.yaml for the reusable-workflow permission
+  # rationale. contents:write is also required to attach artifacts
+  # to the GitHub Release the tag created.
+  contents: write
+  packages: write
+  id-token: write
+  security-events: write
+  actions: read
+
+concurrency:
+  group: ci-next-release-${{ github.ref }}-${{ github.repository }}
+  cancel-in-progress: false   # do NOT cancel a release run mid-way
+
 jobs:
-  # Release gate: refuse to publish artifacts containing known-vulnerable
-  # dependencies. Scans the binaries this release will actually ship, for the
-  # kairos-init version pinned in images/Dockerfile. See
-  # .github/workflows/release-scan.yml and
-  # https://github.com/kairos-io/kairos/issues/3985.
+  unit-tests:
+    uses: ./.github/workflows/_unit-tests.yaml
+    secrets: inherit
+
+  lint:
+    uses: ./.github/workflows/_lint.yaml
+    secrets: inherit
+
   vulnerability-scan:
     uses: ./.github/workflows/release-scan.yml
 
-  # Build every binary (default + FIPS matrix) and push the two container
-  # images (kcrypt-challenger, kairos-init) to quay under the release tag.
-  # Same reusable workflow the PR / master builds use, just parameterised
-  # for the release destination. Downstream jobs `needs: binaries` so no
-  # ISO/UKI factory-action job starts until the kairos-init image is
-  # available for images/Dockerfile to pull.
-  binaries:
-    uses: ./.github/workflows/_binaries-reusable.yaml
+  build-binaries:
+    uses: ./.github/workflows/_build-binaries.yaml
     with:
       matrix_scope: release
+    secrets: inherit
+
+  build-images:
+    needs: [build-binaries, unit-tests, lint]
+    uses: ./.github/workflows/_build-images.yaml
+    with:
       image_registry: quay.io/kairos
-      image_tag: ${{ github.ref_name }}
-      image_extra_tag: latest
+      # Scratch tag: qemu tests consume this, promote-images copies
+      # to the final tag + :latest on green.
+      image_tag: ${{ github.ref_name }}-scratch
       push_images: true
       registry_login: quay
     secrets: inherit
 
-  # Attach the per-arch archives + combined checksums to the GitHub Release
-  # the tag created.
-  release-upload:
-    needs: binaries
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Download every arch's archives
-        uses: actions/download-artifact@v4
-        with:
-          pattern: 'binaries-linux-*'
-          path: dist/download
-      - name: Consolidate
-        run: |
-          set -euo pipefail
-          mkdir -p dist/release
-          find dist/download -name '*.tar.gz' -exec cp {} dist/release/ \;
-          find dist/download -name 'checksums-*.txt' -exec cat {} \; | sort -u > dist/release/checksums.txt
-      - name: Upload to GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${GITHUB_REF#refs/tags/}" dist/release/* --clobber
-
-  core:
-    name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
-    needs:
-      - vulnerability-scan
-      - binaries
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
+  build-iso:
+    needs: [build-images, vulnerability-scan]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
-            trusted_boot: false
-            custom_job_name_format: "core-amd64-generic"
-          - image_name: "hadron"
-            base_image: "ghcr.io/kairos-io/hadron:v0.5.1"
-            trusted_boot: true
-            custom_job_name_format: "core-amd64-generic-uki"
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
+          - {name: 'next-release-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'next-release-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          # UKI cells feed qemu-tests-uki (see next-pr.yaml for the shape).
+          # hadron-trusted is a distinct base image from hadron; both UKI
+          # cells set iso:true because factory-action still produces the
+          # bootable UKI-iso even with trusted_boot=true.
+          - {name: 'next-release-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'next-release-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
+          - {name: 'next-release-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+    uses: ./.github/workflows/_build-iso.yaml
     with:
-      auroraboot_version: "v0.26.2"
-      dockerfile_path: "images/Dockerfile"
-      # Point images/Dockerfile's FROM at the kairos-init image the
-      # `binaries` job pushed to quay earlier in the same run, so this
-      # release's ISOs use the fresh kairos-init instead of the ARG
-      # default pinned in the Dockerfile.
-      build_args: KAIROS_INIT=${{ github.ref_name }}
+      name: ${{ matrix.name }}
+      # Consume the scratch kairos-init that build-images just published.
+      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
-      arch: "amd64"
-      model: "generic"
-      version: "auto"
-      no_cache: true
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
-      iso: ${{ !matrix.trusted_boot }}
-      grype: true
-      grype_sarif: true
-      trivy: true
-      trivy_sarif: true
-      # Report-only: the scan still runs and reports, but criticals from the
-      # upstream base image must not block releases. Mirrors master builds.
-      # Both gates must be relaxed: security_scan_mode (the enforce step) AND
-      # grype_sarif_fail_build (the SARIF step, which defaults to true).
-      security_scan_mode: "report-only"
-      grype_sarif_fail_build: false
-      custom_job_name_format: ${{ matrix.custom_job_name_format }}
-      list_release_artifacts: ${{ !matrix.trusted_boot }}
-      cosign: true
-      release: ${{ !matrix.trusted_boot }}
-  get-k3s-versions:
-    runs-on: ubuntu-latest
-    outputs:
-      kubernetes_versions: ${{ steps.get-k3s-releases.outputs.kubernetes_versions }}
-    steps:
-      - run: |
-          sudo apt update && sudo apt install -y jq curl
-      - name: Get latest k3s releases
-        id: get-k3s-releases
-        run: |
-          kubernetes_versions=$(curl -s https://api.github.com/repos/k3s-io/k3s/releases | jq -r '
-            [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
-            | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k3s[0-9]+$")))
-            | map({
-               version: .,
-               minor: (split(".")[1:2]|join("")),
-               patch: (split(".")[2:3]|join("")|split("+")[0]),
-               revision: (split("+k3s")[1])
-             })
-           | group_by(.minor)
-           | map(sort_by([(.patch | tonumber), (.revision | tonumber)]) | reverse | .[0])
-           | sort_by(.minor | tonumber)
-           | reverse
-           | .[0:3]
-           | map(.version)
-          ' | jq -c '.')
-          echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      registry_domain: quay.io
+      registry_namespace: kairos
+      release: true
+    secrets: inherit
 
-  get-k0s-versions:
-    runs-on: ubuntu-latest
-    outputs:
-      kubernetes_versions: ${{ steps.get-k0s-releases.outputs.kubernetes_versions }}
-    steps:
-      - run: |
-          sudo apt update && sudo apt install -y jq curl
-      - name: Get latest k0s releases
-        id: get-k0s-releases
-        run: |
-          kubernetes_versions=$(curl -s https://api.github.com/repos/k0sproject/k0s/releases | jq -r '
-           [.[] | select(.prerelease == false and .draft == false and (.tag_name | test("rc") | not)) | .tag_name]
-           | map(select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+\\+k0s\\.[0-9]+$")))
-           | map({
-             version: .,
-             minor: (split(".")[1:2]|join("")),
-             patch: (split(".")[2:3]|join("")|split("+")[0]),
-             revision: (split("+k0s.")[1])
-           })
-           | group_by(.minor)
-           | map(sort_by([(.patch | tonumber), (.revision | tonumber)]) | reverse | .[0])
-           | sort_by(.minor | tonumber)
-           | reverse
-           | .[0:3]
-           | map(.version)
-           '| jq -c '.')
-          echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
+  # QEMU tests exercise amd64 core and amd64 standard. arm64 has no
+  # cell here on purpose: qemu-on-amd64-runners-emulating-arm64 is
+  # too slow to be usable, and hosted arm64 runners are not
+  # available. The k3s/k0s per-version matrix from the old
+  # release.yaml is not yet wired here; it needs a dynamic-matrix
+  # pre-step and will be added before we retire release.yaml.
 
-  standard-k3s:
-    name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
-    needs:
-      - vulnerability-scan
-      - binaries
-      - get-k3s-versions
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
+  qemu-tests-core:
+    needs: build-iso
     strategy:
       fail-fast: false
       matrix:
-        image_name:
-          - "hadron"
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.5.1"
-        kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
+        include:
+          - {test: 'custom-partitioning'}
+          - {test: 'acceptance'}
+          - {test: 'install'}
+          - {test: 'install-target'}
+          - {test: 'reset'}
+          - {test: 'upgrade-with-cli'}
+          - {test: 'bundles'}
+          - {test: 'ssh-hardening'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
-      auroraboot_version: "v0.26.2"
-      dockerfile_path: "images/Dockerfile"
-      # Point images/Dockerfile's FROM at the kairos-init image the
-      # `binaries` job pushed to quay earlier in the same run, so this
-      # release's ISOs use the fresh kairos-init instead of the ARG
-      # default pinned in the Dockerfile.
-      build_args: KAIROS_INIT=${{ github.ref_name }}
-      base_image: ${{ matrix.base_image }}
-      arch: "amd64"
-      model: "generic"
-      version: "auto"
-      no_cache: true
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
-      iso: true
-      kubernetes_version: ${{ matrix.kubernetes_version }}
-      kubernetes_distro: "k3s"
-      grype: true
-      grype_sarif: true
-      trivy: true
-      trivy_sarif: true
-      security_scan_mode: "report-only"
-      # k3s CVEs come from upstream and are out of our control; the SARIF
-      # step must not fail the release. Gating is left to security_scan_mode.
-      grype_sarif_fail_build: false
-      custom_job_name_format: "standard-amd64-generic-k3s"
-      list_release_artifacts: true
-      cosign: true
-      release: true
-  standard-k0s:
-    name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
-    needs:
-      - vulnerability-scan
-      - binaries
-      - get-k0s-versions
-    permissions:
-      id-token: write  # OIDC support
-      contents: write
-      security-events: write
-      actions: read
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  qemu-tests-standard:
+    needs: build-iso
     strategy:
       fail-fast: false
       matrix:
-        image_name:
-          - "hadron"
-        base_image:
-          - "ghcr.io/kairos-io/hadron:v0.5.1"
-        kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
-    secrets:
-      registry_username: ${{ secrets.QUAY_USERNAME }}
-      registry_password: ${{ secrets.QUAY_PASSWORD }}
+        include:
+          - {test: 'provider-qrcode-install'}
+          - {test: 'provider-upgrade-k8s'}
+          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-k3s-disabled'}
+          - {test: 'encryption-local'}
+          - {test: 'encryption-remote-auto'}
+          - {test: 'encryption-remote-static'}
+          - {test: 'encryption-remote-https-pinned'}
+          - {test: 'encryption-remote-https-bad-cert'}
+          - {test: 'encryption-kcrypt-cli'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
-      auroraboot_version: "v0.26.2"
-      dockerfile_path: "images/Dockerfile"
-      # Point images/Dockerfile's FROM at the kairos-init image the
-      # `binaries` job pushed to quay earlier in the same run, so this
-      # release's ISOs use the fresh kairos-init instead of the ARG
-      # default pinned in the Dockerfile.
-      build_args: KAIROS_INIT=${{ github.ref_name }}
-      base_image: ${{ matrix.base_image }}
-      arch: "amd64"
-      model: "generic"
-      version: "auto"
-      no_cache: true
-      registry_domain: "quay.io"
-      registry_namespace: "kairos"
-      iso: true
-      kubernetes_version: ${{ matrix.kubernetes_version }}
-      kubernetes_distro: "k0s"
-      grype: true
-      grype_sarif: true
-      trivy: true
-      trivy_sarif: true
-      security_scan_mode: "report-only"
-      # k0s CVEs come from upstream and are out of our control; the SARIF
-      # step must not fail the release. Gating is left to security_scan_mode.
-      grype_sarif_fail_build: false
-      custom_job_name_format: "standard-amd64-generic-k0s"
-      list_release_artifacts: true
-      cosign: true
-      release: true
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  qemu-tests-uki:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'generic', variant: 'standard'}
+          - {test: 'boot-assessment', variant: 'core'}
+    uses: ./.github/workflows/_uki-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      variant: ${{ matrix.variant }}
+      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
+      arch: 'amd64'
+      model: 'generic'
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  # Copy the scratch manifests to their final tags only if both
+  # qemu suites pass. `docker buildx imagetools create` promotes
+  # by reference (digest preserved, no image bytes pulled). Also
+  # tag :latest on the final promotion.
+  promote-images:
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Promote kairos-init and kcrypt-challenger scratch -> :<tag> + :latest
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for img in kairos-init kcrypt-challenger; do
+            src="quay.io/kairos/${img}:${TAG}-scratch"
+            dst_tag="quay.io/kairos/${img}:${TAG}"
+            dst_latest="quay.io/kairos/${img}:latest"
+            echo "Promoting $src -> $dst_tag and $dst_latest"
+            docker buildx imagetools create -t "$dst_tag" -t "$dst_latest" "$src"
+          done
+
+  upload-release:
+    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-uki]
+    uses: ./.github/workflows/_upload-release.yaml
+    secrets: inherit

@@ -1,9 +1,10 @@
-name: master (next)
+name: master
 
-# Thin master pipeline. Runs alongside binaries.yaml / image-master*.yaml
-# during the validation window; retired in one move once we're happy.
+# The master pipeline. Retires binaries.yaml / image-master*.yaml /
+# uki.yaml / lint.yaml / unit-tests.yaml (deleted together with
+# this rename).
 #
-# Trigger: push to master. Shape mirrors next-pr.yaml with two
+# Trigger: push to master. Shape mirrors pr.yaml with two
 # differences:
 #   - No fork-PR guard (master is trusted).
 #   - Test-before-push semantics for the "master" tag itself:
@@ -24,7 +25,7 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  # See _next-build-iso.yaml for the reusable-workflow permission
+  # See _build-iso.yaml for the reusable-workflow permission
   # rationale (callers must cover callee).
   contents: write
   packages: write
@@ -38,22 +39,22 @@ concurrency:
 
 jobs:
   unit-tests:
-    uses: ./.github/workflows/_next-unit-tests.yaml
+    uses: ./.github/workflows/_unit-tests.yaml
     secrets: inherit
 
   lint:
-    uses: ./.github/workflows/_next-lint.yaml
+    uses: ./.github/workflows/_lint.yaml
     secrets: inherit
 
   build-binaries:
-    uses: ./.github/workflows/_next-build-binaries.yaml
+    uses: ./.github/workflows/_build-binaries.yaml
     with:
       matrix_scope: ci
     secrets: inherit
 
   build-images:
     needs: [build-binaries, unit-tests, lint]
-    uses: ./.github/workflows/_next-build-images.yaml
+    uses: ./.github/workflows/_build-images.yaml
     with:
       image_registry: ghcr.io/kairos-io/kairos
       # Scratch tag: qemu tests consume this, promote-images copies
@@ -75,7 +76,7 @@ jobs:
           # UKI cells feed qemu-tests-uki (see next-pr.yaml for the shape).
           - {name: 'next-master-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
           - {name: 'next-master-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
-    uses: ./.github/workflows/_next-build-iso.yaml
+    uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
       # Consume the scratch kairos-init that build-images just published.
@@ -155,7 +156,7 @@ jobs:
         include:
           - {test: 'generic', variant: 'standard'}
           - {test: 'boot-assessment', variant: 'core'}
-    uses: ./.github/workflows/_next-uki-test.yaml
+    uses: ./.github/workflows/_uki-test.yaml
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}

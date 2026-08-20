@@ -115,28 +115,35 @@ tidy:
 lint-workflows: lint-workflows-yaml lint-workflows-actions
 	@echo 'workflow lint: ok'
 
-# yamllint runs twice: strict (warnings -> errors) over next-* files
-# so a warning that tomorrow's yamllint image promotes to error
-# cannot slip through, and non-strict over the pre-monorepo workflows
+# yamllint runs twice: strict (warnings -> errors) over the canonical
+# pipeline files (pr.yaml, master.yaml, release.yaml and every
+# `_*.yaml` reusable we own) so a warning that tomorrow's yamllint
+# image promotes to error cannot slip through, and non-strict over
+# the leftovers (release-legacy.yaml, upload-cloud-images.yaml, etc.)
 # to preserve the CI contract without dragging in unrelated cleanup.
-# Once the old workflows are retired the second call goes away and
-# the first widens to the whole directory.
+# When release-legacy.yaml is retired the second call goes away and
+# the first widens to every workflow file.
 lint-workflows-yaml:
-	@find .github/workflows -maxdepth 1 \( -name 'next-*.yaml' -o -name '_next-*.yaml' \) -print0 \
+	@find .github/workflows -maxdepth 1 \
+	    \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
+	    ! -name '_binaries-reusable.yaml' -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint --strict
 	@find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) \
-	    ! -name 'next-*' ! -name '_next-*' -print0 \
+	    ! -name 'pr.yaml' ! -name 'master.yaml' ! -name 'release.yaml' \
+	    ! -name '_*.yaml' -o -name '_binaries-reusable.yaml' -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint
 
-# actionlint over the next-* pipelines only. The pre-monorepo
-# workflows (uki.yaml, upload-cloud-images.yaml, reusable-qemu-test.yaml,
-# release*.yaml) carry ~60 pre-existing shellcheck findings we do not
-# want to fix as drive-by, and CI does not currently run actionlint on
-# them either. When the next-* pipeline replaces the old ones the
-# glob widens to `.github/workflows/*.y{a,}ml`.
+# actionlint over the canonical pipeline only. release-legacy.yaml,
+# _binaries-reusable.yaml, upload-cloud-images.yaml, and
+# reusable-qemu-test.yaml carry pre-existing shellcheck-through-
+# actionlint findings we do not want to fix as drive-by, and CI does
+# not currently run actionlint on them either. When
+# release-legacy.yaml is retired this glob widens.
 lint-workflows-actions:
 	@docker run --rm -v "$$PWD":/repo -w /repo rhysd/actionlint -color \
-	    $$(find .github/workflows -maxdepth 1 \( -name 'next-*.yaml' -o -name '_next-*.yaml' \))
+	    $$(find .github/workflows -maxdepth 1 \
+	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
+	        ! -name '_binaries-reusable.yaml')
 
 # ============================================================================
 # Release targets: cross-compile the full binary set for a specific ARCH and

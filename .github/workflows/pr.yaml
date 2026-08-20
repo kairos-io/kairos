@@ -1,15 +1,16 @@
-name: PR (next)
+name: PR
 
-# Thin PR pipeline. Runs alongside the existing binaries.yaml /
-# image-pr*.yaml during the validation window; retired in one move
-# once we're happy.
+# The PR pipeline. Every downstream job (image push, ISO build,
+# qemu tests) lives under this workflow; the pre-monorepo
+# binaries.yaml / image-pr*.yaml / uki.yaml / lint.yaml /
+# unit-tests.yaml were retired together with this rename.
 #
 # Trigger: pull_request. Reads the workflow file from the PR HEAD
 # so we can iterate inside a PR against master without pre-merging.
 # Fork PRs don't get secrets: their image-push and qemu-tests jobs
-# are gated off with an if: check. When we retire the old workflows
-# we flip this to pull_request_target and reintroduce the authorize
-# job (fork-pr-builds env gate).
+# are gated off with an if: check. Flipping to pull_request_target
+# + reintroducing the authorize (fork-pr-builds env gate) is a
+# follow-up so fork PRs get the same treatment same-repo PRs do.
 #
 # Shape: build -> test -> push. PR tags are ephemeral by convention
 # (they collide only with themselves, and old ones age out), so we
@@ -27,7 +28,7 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  # See _next-build-iso.yaml for the reusable-workflow permission
+  # See _build-iso.yaml for the reusable-workflow permission
   # rationale. Fork PRs still receive read-only under pull_request
   # regardless of what we declare; this only elevates same-repo PRs.
   contents: write
@@ -42,15 +43,15 @@ concurrency:
 
 jobs:
   unit-tests:
-    uses: ./.github/workflows/_next-unit-tests.yaml
+    uses: ./.github/workflows/_unit-tests.yaml
     secrets: inherit
 
   lint:
-    uses: ./.github/workflows/_next-lint.yaml
+    uses: ./.github/workflows/_lint.yaml
     secrets: inherit
 
   build-binaries:
-    uses: ./.github/workflows/_next-build-binaries.yaml
+    uses: ./.github/workflows/_build-binaries.yaml
     with:
       matrix_scope: ci
     secrets: inherit
@@ -61,7 +62,7 @@ jobs:
   # since it is not visible until images/isos consume it.
   build-images:
     needs: [build-binaries, unit-tests, lint]
-    uses: ./.github/workflows/_next-build-images.yaml
+    uses: ./.github/workflows/_build-images.yaml
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: pr-${{ github.event.pull_request.number }}
@@ -89,10 +90,10 @@ jobs:
           # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
           # base image from hadron (extra tpm/measured-boot bits); the
           # -uki suffix on the artifact/tag comes from the $UKI token
-          # in _next-build-iso.yaml's custom formats.
+          # in _build-iso.yaml's custom formats.
           - {name: 'next-pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
           - {name: 'next-pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
-    uses: ./.github/workflows/_next-build-iso.yaml
+    uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
@@ -111,7 +112,7 @@ jobs:
   # reusable-qemu-test.yaml directly, because matrix + uses on a
   # leaf reusable is a supported pattern; matrix + uses on an
   # intermediate reusable that itself calls another reusable is
-  # the shape that broke earlier (see _next-build-iso.yaml).
+  # the shape that broke earlier (see _build-iso.yaml).
   #
   # Each test cell downloads the ISO artifact factory-action
   # produced during build-iso and boots it under qemu. Test labels
@@ -178,7 +179,7 @@ jobs:
   # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
   # dynamically-built upgrade image; `boot-assessment` runs against
   # the core UKI ISO and only checks boot slots. Both live in
-  # _next-uki-test.yaml since their shape diverges from the regular
+  # _uki-test.yaml since their shape diverges from the regular
   # reusable-qemu-test.yaml.
   qemu-tests-uki:
     needs: build-iso
@@ -189,7 +190,7 @@ jobs:
         include:
           - {test: 'generic', variant: 'standard'}
           - {test: 'boot-assessment', variant: 'core'}
-    uses: ./.github/workflows/_next-uki-test.yaml
+    uses: ./.github/workflows/_uki-test.yaml
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}

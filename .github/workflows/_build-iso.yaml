@@ -136,7 +136,7 @@ jobs:
       # These two overrides are the same ones image-pr.yaml uses today.
       # $UKI is `-uki` for trusted-boot builds, empty otherwise. UKI
       # tests download by name with -uki suffix and pull the image
-      # from a tag ending in -uki (see _next-uki-test.yaml). Without
+      # from a tag ending in -uki (see _uki-test.yaml). Without
       # $UKI here, trusted-boot cells would collide with non-UKI
       # ones and neither the ISO artifact nor the container image
       # would resolve.
