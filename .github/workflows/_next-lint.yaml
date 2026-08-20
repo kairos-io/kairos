@@ -1,0 +1,27 @@
+name: Lint (step)
+
+# Reusable step: workflow-file linting via the same
+# kairos-io/linting-composite-action the standalone lint.yaml uses
+# today, so a green run of this step is a 1:1 substitute. Wired as
+# a hard gate before build-images in each next-* pipeline so a red
+# lint suite blocks image push, same shape unit-tests already has.
+# When we retire the old workflows, lint.yaml goes away with them.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@d38a45447609f936c9d519bd14ed771b7214ad42  # v0.0.10
+    with:
+      yamldirs: '.github/workflows/'
+      is-go: false

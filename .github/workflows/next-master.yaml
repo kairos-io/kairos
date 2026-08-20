@@ -41,6 +41,10 @@ jobs:
     uses: ./.github/workflows/_next-unit-tests.yaml
     secrets: inherit
 
+  lint:
+    uses: ./.github/workflows/_next-lint.yaml
+    secrets: inherit
+
   build-binaries:
     uses: ./.github/workflows/_next-build-binaries.yaml
     with:
@@ -48,7 +52,7 @@ jobs:
     secrets: inherit
 
   build-images:
-    needs: [build-binaries, unit-tests]
+    needs: [build-binaries, unit-tests, lint]
     uses: ./.github/workflows/_next-build-images.yaml
     with:
       image_registry: ghcr.io/kairos-io/kairos
