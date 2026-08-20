@@ -86,8 +86,16 @@ on:
 # reusable can see the org-level QUAY_* secrets.
 
 permissions:
-  id-token: write
+  # packages: write is required for factory-action's push to ghcr:
+  # the GITHUB_TOKEN a reusable workflow receives is capped at the
+  # permissions THIS workflow declares, not what the caller has, so
+  # omitting it here scopes the token to packages:none and ghcr
+  # answers "installation not allowed to Write organization package"
+  # even when the linked package's Manage Actions access already
+  # grants the repo write.
   contents: write
+  packages: write
+  id-token: write
   security-events: write
   actions: read
 
