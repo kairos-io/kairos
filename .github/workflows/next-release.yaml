@@ -53,22 +53,26 @@ jobs:
     uses: ./.github/workflows/_next-upload-release.yaml
     secrets: inherit
 
+  # Release ISO matrix: hadron with trusted_boot on/off. The per-k8s-version
+  # k3s/k0s matrix from release.yaml is not yet wired here (needs a dynamic-
+  # matrix pre-step); it will be added before we retire release.yaml.
   build-iso:
     needs: [build-images, vulnerability-scan]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: 'next-release-core-amd64-generic',     arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true,  trusted_boot: false }
+          - { name: 'next-release-core-amd64-generic-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: false, trusted_boot: true }
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
+      name: ${{ matrix.name }}
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
-      # Release ISO matrix: hadron with trusted_boot on/off, plus the
-      # kubernetes flavors (k3s, k0s) at their latest releases. The full
-      # per-k8s-version matrix is currently done in release.yaml via
-      # dynamic version fetch; kept out of this step for the first cut
-      # of the next-pipeline until we split k3s/k0s into their own
-      # dynamic-matrix pre-step. TODO before retiring release.yaml.
-      matrix: |
-        [
-          {"name": "next-release-core-amd64-generic",     "arch": "amd64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true,  "trusted_boot": false},
-          {"name": "next-release-core-amd64-generic-uki", "arch": "amd64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": false, "trusted_boot": true}
-        ]
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
       registry_domain: quay.io
       registry_namespace: kairos
       release: true

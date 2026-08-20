@@ -47,18 +47,24 @@ jobs:
       registry_login: ghcr
     secrets: inherit
 
+  # master ISO matrix: same representative cells as PR. Full matrix is release-only.
   build-iso:
     needs: build-images
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: 'next-master-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false }
+          - { name: 'next-master-arm64-generic', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false }
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
+      name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master
-      # master ISO matrix: same representative cells as PR. Full matrix
-      # is release-only.
-      matrix: |
-        [
-          {"name": "next-master-amd64-generic", "arch": "amd64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true, "trusted_boot": false},
-          {"name": "next-master-arm64-generic", "arch": "arm64", "base_image": "ghcr.io/kairos-io/hadron:v0.5.1", "model": "generic", "iso": true, "trusted_boot": false}
-        ]
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
       registry_domain: ghcr.io
       registry_namespace: kairos-io/kairos
       release: false
