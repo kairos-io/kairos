@@ -151,6 +151,12 @@ jobs:
       # tests/assets/keys/db.auth, not at /db.auth. Pass the path
       # unconditionally; factory-action ignores it on non-UKI cells.
       keys_dir: 'tests/assets/keys'
+      # sysext_dir bakes work.sysext.raw + hello-broke.sysext.raw into
+      # the UKI ISO. Without it the boot-assessment test's sysext
+      # assertions ("/run/extensions should contain work.sysext.raw",
+      # uki_test.go:296-303) fail because there is no sysext to load.
+      # Same shape as keys_dir; ignored on non-UKI cells.
+      sysext_dir: '$PWD/tests/assets/sysext'
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}

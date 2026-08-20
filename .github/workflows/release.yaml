@@ -166,7 +166,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'generic', variant: 'standard'}
+          - {test: 'install-upgrade', variant: 'standard'}
           - {test: 'boot-assessment', variant: 'core'}
     uses: ./.github/workflows/_uki-test.yaml
     with:

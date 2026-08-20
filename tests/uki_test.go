@@ -39,7 +39,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	Describe("Uki tests", Label("uki", "generic"), func() {
+	Describe("Uki install + upgrade tests", Label("uki", "install-upgrade"), func() {
 		BeforeEach(func() {
 			datasource = CreateDatasource("assets/uki-install.yaml")
 			Expect(os.Setenv("DATASOURCE", datasource)).ToNot(HaveOccurred())

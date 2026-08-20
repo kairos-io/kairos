@@ -4,12 +4,12 @@ name: UKI qemu test (step)
 # swtpm and run the ginkgo suite filtered by a UKI-specific label.
 # Split out from reusable-qemu-test.yaml because the UKI flow is
 # materially different: the artifact name has an -uki suffix, the
-# runner needs OVMF secure-boot firmware, the "generic" spec expects
+# runner needs OVMF secure-boot firmware, the install-upgrade spec expects
 # a dynamically-built and pushed upgrade image plus a couple of
 # EXPECTED_* env vars, and the whole thing runs on the `kvm`
 # self-hosted label (not `fast`).
 #
-# Mirrors the old uki.yaml's test_generic (variant=standard, test=
+# Mirrors the old uki.yaml's test_generic (variant=standard, test=install-upgrade, was test=
 # generic, upgrade image required) and test_boot_assessment
 # (variant=core, test=boot-assessment, no upgrade image). One
 # reusable, both cells, driven off inputs.
@@ -33,12 +33,12 @@ on:
         default: 'generic'
 
       variant:
-        description: 'core (paired with boot-assessment) or standard (paired with generic)'
+        description: 'core (paired with boot-assessment) or standard (paired with install-upgrade)'
         type: string
         required: true
 
       test:
-        description: 'ginkgo label filter: generic or boot-assessment'
+        description: 'ginkgo label filter: install-upgrade or boot-assessment'
         type: string
         required: true
 
@@ -132,7 +132,7 @@ jobs:
         # (see "Build & push UKI upgrade image" below). boot-assessment
         # never talks to quay -- it downloads the UKI ISO artifact
         # from GitHub Actions storage and pulls no container images.
-        if: inputs.test == 'generic'
+        if: inputs.test == 'install-upgrade'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: quay.io
@@ -158,17 +158,17 @@ jobs:
           name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-uki.iso.zip
 
       - name: Set up Docker Buildx
-        if: inputs.test == 'generic'
+        if: inputs.test == 'install-upgrade'
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
         with:
           driver-opts: network=host
 
       - name: Build & push UKI upgrade image
-        # Only the generic spec needs an upgrade target: it installs
+        # Only the install-upgrade spec needs an upgrade target: it installs
         # off the UKI ISO and then upgrades to a slightly-modified
         # copy of the same image, verifying the version string flips.
         # boot-assessment only cares about boot slots, no upgrade.
-        if: inputs.test == 'generic'
+        if: inputs.test == 'install-upgrade'
         env:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           UPGRADE_IMAGE_REGISTRY: ${{ inputs.upgrade_image_registry }}
@@ -224,7 +224,7 @@ jobs:
           mv "$PWD"/kairos-*-uki.iso "$PWD/build/" 2>/dev/null || true
           ISO=$(ls "$PWD"/build/kairos-*-uki.iso)
           export ISO
-          if [ "$TEST_LABEL" = 'generic' ]; then
+          if [ "$TEST_LABEL" = 'install-upgrade' ]; then
             UPGRADE_IMAGE=$(cat "$PWD/build/upgrade_image_name")
             export UPGRADE_IMAGE
             export EXPECTED_NEW_VERSION="mynewversion"
