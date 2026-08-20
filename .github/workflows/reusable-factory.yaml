@@ -304,6 +304,14 @@ jobs:
       actions: read
       security-events: write
       models: none
+      # packages: write is required for the "Push Kairos image" step
+      # to push the built OS image to ghcr or quay when the caller
+      # opts into push_images. Job-level permissions here override
+      # workflow-level and any permissions the caller declares, so
+      # omitting this caps GITHUB_TOKEN to packages:none regardless
+      # of what next-*.yaml / _next-build-iso.yaml grant, and ghcr
+      # returns "installation not allowed to Write organization package".
+      packages: write
     name: ${{ inputs.custom_job_name_format != '' && inputs.custom_job_name_format || format('{0}-{1}-{2}-{3}{4}{5}', inputs.base_image, (inputs.kubernetes_distro != '' && 'standard' || 'core'), inputs.arch, inputs.model, (inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || ''), (inputs.trusted_boot && '-uki' || '')) }}
     runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     steps:
