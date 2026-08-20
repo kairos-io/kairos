@@ -68,8 +68,25 @@ symlinks: kairos
 	ln -sf kairos $(BIN_DIR)/kcrypt-discovery-challenger
 
 .PHONY: test
-test:
+test: kairos-init-embed-stubs
 	$(GO) test ./...
+
+# kairos-init/pkg/bundled/bundled.go uses //go:embed binaries/*, and
+# bundled_fips.go uses //go:embed binaries/fips/* (excluded on riscv64).
+# Compiling the package -- which `go test ./...` does even if the tests
+# don't inspect the bytes -- requires those files to exist. For unit
+# tests we do not need REAL binaries, only files, so touch zero-byte
+# placeholders. Guarded with `test -e || touch` so a preceding real
+# `make binaries` is never clobbered.
+.PHONY: kairos-init-embed-stubs
+kairos-init-embed-stubs:
+	@mkdir -p kairos-init/pkg/bundled/binaries/fips
+	@for f in kairos-agent immucore kcrypt-discovery-challenger provider-kairos kairos-installer edgevpn version-info.yaml; do \
+	    [ -e kairos-init/pkg/bundled/binaries/$$f ] || : > kairos-init/pkg/bundled/binaries/$$f; \
+	done
+	@for f in kairos-agent immucore kcrypt-discovery-challenger provider-kairos; do \
+	    [ -e kairos-init/pkg/bundled/binaries/fips/$$f ] || : > kairos-init/pkg/bundled/binaries/fips/$$f; \
+	done
 
 .PHONY: tidy
 tidy:

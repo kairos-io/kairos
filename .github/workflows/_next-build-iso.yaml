@@ -79,11 +79,11 @@ on:
         required: false
         default: ''
 
-    secrets:
-      registry_username:
-        required: false
-      registry_password:
-        required: false
+# No `secrets:` block on workflow_call: registry credentials are
+# derived from inputs.registry_domain inside the job (ghcr.io ->
+# github.actor + GITHUB_TOKEN, quay.io -> QUAY_USERNAME + QUAY_PASSWORD),
+# which only works when the caller uses `secrets: inherit` so this
+# reusable can see the org-level QUAY_* secrets.
 
 permissions:
   id-token: write
@@ -96,8 +96,13 @@ jobs:
     name: ${{ inputs.name }}
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
     secrets:
-      registry_username: ${{ secrets.registry_username }}
-      registry_password: ${{ secrets.registry_password }}
+      # ghcr.io accepts github.actor + GITHUB_TOKEN; the token is
+      # write-scoped only for same-repo events (push, same-repo PR).
+      # Fork PR jobs are gated off at the caller with an if: check.
+      # quay.io uses the repo-level QUAY_USERNAME/QUAY_PASSWORD, which
+      # reach this reusable only because callers pass `secrets: inherit`.
+      registry_username: ${{ inputs.registry_domain == 'ghcr.io' && github.actor || secrets.QUAY_USERNAME }}
+      registry_password: ${{ inputs.registry_domain == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.QUAY_PASSWORD }}
     with:
       ref: ${{ inputs.ref }}
       auroraboot_version: 'v0.26.2'
