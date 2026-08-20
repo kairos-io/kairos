@@ -131,6 +131,7 @@ jobs:
       arch: 'amd64'
       model: 'generic'
       secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/hadron'
       release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
 
@@ -161,5 +162,6 @@ jobs:
       arch: 'amd64'
       model: 'generic'
       secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/hadron'
       release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
