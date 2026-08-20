@@ -93,6 +93,43 @@ tidy:
 	$(GO) mod tidy
 
 # ============================================================================
+# Local workflow lint. Mirrors the two checks CI runs on every push:
+#
+#   * lint.yaml calls the kairos-io/linting-composite-action, which under
+#     the hood runs cytopia/yamllint against .github/workflows/. Rule set
+#     comes from the repo-level .yamllint file. `make lint-workflows-yaml`
+#     produces the same output; xargs's exit-code-123 is what CI trips on.
+#
+#   * actionlint validates step/job-level GitHub Actions semantics that
+#     yamllint does not touch (unknown contexts, bad matrix keys, missing
+#     inputs). Not currently a CI job on this repo, but the errors it
+#     catches manifest as workflow "startup_failure" once GitHub tries to
+#     load the file. Adding it locally is the cheapest gate against that.
+#
+# Both use the same images the CI check uses (or an equivalent), so a green
+# `make lint-workflows` is a strong signal the next push will not trip the
+# lint job. Requires Docker.
+# ============================================================================
+
+.PHONY: lint-workflows lint-workflows-yaml lint-workflows-actions
+lint-workflows: lint-workflows-yaml lint-workflows-actions
+	@echo 'workflow lint: ok'
+
+lint-workflows-yaml:
+	@find .github/workflows/ -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -print0 \
+	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint
+
+# actionlint over the next-* pipelines only. The pre-monorepo
+# workflows (uki.yaml, upload-cloud-images.yaml, reusable-qemu-test.yaml,
+# release*.yaml) carry ~60 pre-existing shellcheck findings we do not
+# want to fix as drive-by, and CI does not currently run actionlint on
+# them either. When the next-* pipeline replaces the old ones the
+# glob widens to `.github/workflows/*.y{a,}ml`.
+lint-workflows-actions:
+	@docker run --rm -v "$$PWD":/repo -w /repo rhysd/actionlint -color \
+	    $$(find .github/workflows -maxdepth 1 \( -name 'next-*.yaml' -o -name '_next-*.yaml' \))
+
+# ============================================================================
 # Release targets: cross-compile the full binary set for a specific ARCH and
 # optionally a FIPS variant, so CI and local dev can produce the same
 # artifacts. Nothing here publishes; publishing is the workflow's job.
