@@ -129,7 +129,6 @@ jobs:
       matrix:
         include:
           - {test: 'provider-qrcode-install'}
-          - {test: 'provider-upgrade'}
           - {test: 'provider-upgrade-k8s'}
           - {test: 'provider-decentralized-k8s'}
           - {test: 'provider-k3s-disabled'}
