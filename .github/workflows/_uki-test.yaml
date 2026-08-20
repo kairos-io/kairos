@@ -127,6 +127,12 @@ jobs:
           sudo setfacl -m u:runner:rwx /dev/kvm
 
       - name: Login to quay.io
+        # Only the generic cell needs quay: it pushes the freshly-
+        # built UKI upgrade image to quay.io/kairos/ci-temp-images
+        # (see "Build & push UKI upgrade image" below). boot-assessment
+        # never talks to quay -- it downloads the UKI ISO artifact
+        # from GitHub Actions storage and pulls no container images.
+        if: inputs.test == 'generic'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: quay.io
