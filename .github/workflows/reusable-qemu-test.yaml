@@ -169,6 +169,16 @@ jobs:
               insecure = true
               http = true
       - name: Login to Quay Registry
+        # Only the bundles test actually pushes to quay -- it builds
+        # a per-run bundles-test image and pushes it to
+        # quay.io/kairos/ci-temp-images:bundles-test (see "Prepare
+        # test bundle" step below). Every other cell either pulls
+        # nothing at CI level or reaches public quay repos
+        # (luet's quay.io/kairos/packages) which need no login. The
+        # OS image lives at ghcr.io/kairos-io/kairos/${flavor} now,
+        # not at ci-temp-images, so IMAGE_NAME pulls from ghcr
+        # inside the VM and needs no CI-level quay creds either.
+        if: inputs.test == 'bundles'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: quay.io
