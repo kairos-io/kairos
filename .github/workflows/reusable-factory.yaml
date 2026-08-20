@@ -1131,10 +1131,18 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts
-          if ls artifacts/*.{iso,raw,vhd,tar} 1> /dev/null 2>&1; then
+          # Enable nullglob so patterns that match nothing (e.g. *.raw
+          # when only an ISO was produced) expand to empty rather than
+          # staying literal. Without this, `ls artifacts/*.{iso,raw,vhd,tar}`
+          # was passing the literal string `artifacts/*.raw` to ls,
+          # ls returned non-zero, and the whole step reported
+          # "No artifact files found to checksum" even when a valid
+          # ISO was sitting right there.
+          shopt -s nullglob
+          files=(artifacts/*.iso artifacts/*.raw artifacts/*.vhd artifacts/*.tar)
+          if [ "${#files[@]}" -gt 0 ]; then
             echo "🔍 Computing SHA256 checksums"
-            for f in artifacts/*.{iso,raw,vhd,tar}; do
-              [ -f "$f" ] || continue
+            for f in "${files[@]}"; do
               sha256sum "$f" | tee "${f}.sha256"
             done
           else
