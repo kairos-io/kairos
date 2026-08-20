@@ -94,7 +94,7 @@ permissions:
 jobs:
   iso:
     name: ${{ inputs.name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea  # v1.4.2
     secrets:
       # ghcr.io accepts github.actor + GITHUB_TOKEN; the token is
       # write-scoped only for same-repo events (push, same-repo PR).

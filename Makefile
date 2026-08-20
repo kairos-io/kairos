@@ -115,8 +115,17 @@ tidy:
 lint-workflows: lint-workflows-yaml lint-workflows-actions
 	@echo 'workflow lint: ok'
 
+# yamllint runs twice: strict (warnings -> errors) over next-* files
+# so a warning that tomorrow's yamllint image promotes to error
+# cannot slip through, and non-strict over the pre-monorepo workflows
+# to preserve the CI contract without dragging in unrelated cleanup.
+# Once the old workflows are retired the second call goes away and
+# the first widens to the whole directory.
 lint-workflows-yaml:
-	@find .github/workflows/ -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) -print0 \
+	@find .github/workflows -maxdepth 1 \( -name 'next-*.yaml' -o -name '_next-*.yaml' \) -print0 \
+	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint --strict
+	@find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) \
+	    ! -name 'next-*' ! -name '_next-*' -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint
 
 # actionlint over the next-* pipelines only. The pre-monorepo
