@@ -68,6 +68,9 @@ jobs:
           - {name: 'next-master-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'next-master-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
           - {name: 'next-master-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          # UKI cells feed qemu-tests-uki (see next-pr.yaml for the shape).
+          - {name: 'next-master-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'next-master-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
       name: ${{ matrix.name }}
@@ -140,6 +143,24 @@ jobs:
       release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
 
+  qemu-tests-uki:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'generic', variant: 'standard'}
+          - {test: 'boot-assessment', variant: 'core'}
+    uses: ./.github/workflows/_next-uki-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      variant: ${{ matrix.variant }}
+      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
+      arch: 'amd64'
+      model: 'generic'
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
   # Copy the scratch manifests under :master only if the qemu suites
   # both pass. Uses `docker buildx imagetools create` because it
   # promotes the multi-arch manifest by reference without pulling
@@ -147,7 +168,7 @@ jobs:
   # pinned :master-scratch@sha256:xxx before promotion, the same
   # sha256 is what :master now points at.
   promote-images:
-    needs: [qemu-tests-core, qemu-tests-standard]
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki]
     runs-on: ubuntu-latest
     steps:
       - name: Login to ghcr.io

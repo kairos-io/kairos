@@ -1,0 +1,235 @@
+name: UKI qemu test (step)
+
+# Reusable step: boot a UKI/trusted-boot ISO under qemu with OVMF +
+# swtpm and run the ginkgo suite filtered by a UKI-specific label.
+# Split out from reusable-qemu-test.yaml because the UKI flow is
+# materially different: the artifact name has an -uki suffix, the
+# runner needs OVMF secure-boot firmware, the "generic" spec expects
+# a dynamically-built and pushed upgrade image plus a couple of
+# EXPECTED_* env vars, and the whole thing runs on the `kvm`
+# self-hosted label (not `fast`).
+#
+# Mirrors the old uki.yaml's test_generic (variant=standard, test=
+# generic, upgrade image required) and test_boot_assessment
+# (variant=core, test=boot-assessment, no upgrade image). One
+# reusable, both cells, driven off inputs.
+
+on:
+  workflow_call:
+    inputs:
+      base_image:
+        description: 'Base OCI image the trusted-boot Kairos flavor was built on top of (e.g. ghcr.io/kairos-io/hadron-trusted:v0.5.1)'
+        type: string
+        required: true
+
+      arch:
+        description: 'linux/<arch>: amd64 (arm64 UKI qemu is not viable on our CI hardware)'
+        type: string
+        default: 'amd64'
+
+      model:
+        description: 'Kairos model'
+        type: string
+        default: 'generic'
+
+      variant:
+        description: 'core (paired with boot-assessment) or standard (paired with generic)'
+        type: string
+        required: true
+
+      test:
+        description: 'ginkgo label filter: generic or boot-assessment'
+        type: string
+        required: true
+
+      container_image_prefix:
+        description: |
+          Where the fresh trusted-boot OS image lives. The literal
+          `${flavor}` token is expanded from base_image, matching the
+          same convention reusable-qemu-test.yaml uses. The tag suffix
+          `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>-uki`
+          is appended internally.
+        type: string
+        default: 'quay.io/kairos/ci-temp-images'
+
+      upgrade_image_registry:
+        description: |
+          Registry to push the dynamically-built UKI upgrade image to.
+          The `generic` test uses this image via UPGRADE_IMAGE inside
+          the VM. Kept at quay ci-temp-images by default because that
+          repo is public and short-TTL, matching the old uki.yaml
+          behavior.
+        type: string
+        default: 'quay.io/kairos/ci-temp-images'
+
+      ref:
+        description: 'git ref to check out; empty = the trigger event ref'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test:
+    runs-on: kvm
+    name: ${{ inputs.test }}
+    steps:
+      - name: Split base image
+        id: split
+        env:
+          BASE_IMAGE_FULL: ${{ inputs.base_image }}
+        run: |
+          BASE_IMAGE="${BASE_IMAGE_FULL%%:*}"
+          BASE_TAG="${BASE_IMAGE_FULL#*:}"
+          [ "$BASE_TAG" = "$BASE_IMAGE_FULL" ] && BASE_TAG=latest
+          # Multi-segment registry paths (ghcr.io/kairos-io/hadron-trusted):
+          # flavor is the last segment, flavor_release is the tag.
+          if [[ "$BASE_IMAGE" == *"/"* ]]; then
+            SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
+            if [[ $SLASH_COUNT -eq 1 ]]; then
+              FLAVOR="${BASE_IMAGE%%/*}"
+              FLAVOR_RELEASE="${BASE_IMAGE#*/}-$BASE_TAG"
+            else
+              FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
+              FLAVOR_RELEASE="$BASE_TAG"
+            fi
+          else
+            FLAVOR="$BASE_IMAGE"
+            FLAVOR_RELEASE="$BASE_TAG"
+          fi
+          echo "flavor=$FLAVOR" >> "$GITHUB_OUTPUT"
+          echo "flavor_release=$FLAVOR_RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Set Version
+        run: echo "VERSION=$(git describe --tags --dirty)" >> "$GITHUB_ENV"
+
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        timeout-minutes: 5
+        with:
+          go-version-file: tests/go.mod
+          cache-dependency-path: tests/go.sum
+          cache: ${{ runner.environment == 'self-hosted' && 'false' || 'true' }}
+
+      - name: Enable KVM group perms and install qemu/ovmf/swtpm
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
+          sudo setfacl -m u:runner:rwx /dev/kvm
+
+      - name: Login to quay.io
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Compute IMAGE_NAME (fresh trusted-boot OS image)
+        env:
+          PREFIX_TEMPLATE: ${{ inputs.container_image_prefix }}
+          FLAVOR: ${{ steps.split.outputs.flavor }}
+          FLAVOR_RELEASE: ${{ steps.split.outputs.flavor_release }}
+          VARIANT: ${{ inputs.variant }}
+          ARCH: ${{ inputs.arch }}
+          MODEL: ${{ inputs.model }}
+          SHA: ${{ github.sha }}
+        run: |
+          PREFIX="${PREFIX_TEMPLATE//\$\{flavor\}/$FLAVOR}"
+          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${SHA}-uki" >> "$GITHUB_ENV"
+
+      - name: Download UKI ISO artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: kairos-${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}-uki.iso.zip
+
+      - name: Set up Docker Buildx
+        if: inputs.test == 'generic'
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c  # v4
+        with:
+          driver-opts: network=host
+
+      - name: Build & push UKI upgrade image
+        # Only the generic spec needs an upgrade target: it installs
+        # off the UKI ISO and then upgrades to a slightly-modified
+        # copy of the same image, verifying the version string flips.
+        # boot-assessment only cares about boot slots, no upgrade.
+        if: inputs.test == 'generic'
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          UPGRADE_IMAGE_REGISTRY: ${{ inputs.upgrade_image_registry }}
+        run: |
+          set -euo pipefail
+          echo "Building upgrade image on top of $IMAGE_NAME"
+          docker buildx build --load -t upgrade-image - <<EOF
+          FROM ${IMAGE_NAME}
+          RUN sed -i 's/^KAIROS_VERSION=.*/KAIROS_VERSION="mynewversion"/' /etc/kairos-release
+          EOF
+
+          mkdir -p "$PWD/build"
+          docker run --rm --network=host \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$PWD/build":/result \
+            -v "$PWD/tests/assets/keys":/keys \
+            quay.io/kairos/auroraboot:v0.26.2 --debug build-uki \
+              --output-dir /result --output-type container \
+              --public-keys /keys \
+              --tpm-pcr-private-key /keys/tpm2-pcr-private.pem \
+              --sb-key /keys/db.key --sb-cert /keys/db.pem \
+              docker:upgrade-image
+
+          image=$(docker load -i build/*.tar | grep "Loaded image" \
+                    | awk -F: '{ st = index($0,":"); print substr($0,st+1) }' \
+                    | sed 's/+/-/g' | xargs)
+          rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
+          temp_image="${UPGRADE_IMAGE_REGISTRY}:${image/:latest/-${rand}}"
+          DOCKER_BUILDKIT=1 docker build --label quay.expires-after="6h" --tag "$temp_image" - <<EOF
+          FROM $image
+          EOF
+          docker push "$temp_image"
+          echo "$temp_image" > build/upgrade_image_name
+
+      - name: Find OVMF firmware
+        id: find_ovmf
+        uses: ./.github/actions/find-ovmf-firmware
+        with:
+          prefer_secboot: true
+
+      - name: Run tests
+        env:
+          MEMORY: 6000
+          CPUS: 4
+          FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
+          UKI_TEST: true
+          TEST_LABEL: ${{ inputs.test }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$PWD/build"
+          # ISO from download-artifact lands in $PWD; the ginkgo
+          # tests look for it under $PWD/build/ so move it there.
+          mv "$PWD"/kairos-*-uki.iso "$PWD/build/" 2>/dev/null || true
+          ISO=$(ls "$PWD"/build/kairos-*-uki.iso)
+          export ISO
+          if [ "$TEST_LABEL" = 'generic' ]; then
+            UPGRADE_IMAGE=$(cat "$PWD/build/upgrade_image_name")
+            export UPGRADE_IMAGE
+            export EXPECTED_NEW_VERSION="mynewversion"
+            export EXPECTED_SINGLE_ENTRY="testentry"
+          fi
+          cp tests/go.* .
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_LABEL" --fail-fast -r ./tests/
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: failure()
+        with:
+          name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}-uki.logs.zip
+          path: tests/**/logs/*
+          if-no-files-found: warn

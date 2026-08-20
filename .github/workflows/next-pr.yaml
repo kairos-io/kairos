@@ -82,6 +82,12 @@ jobs:
           - {name: 'next-pr-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'next-pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
           - {name: 'next-pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
+          # base image from hadron (extra tpm/measured-boot bits); the
+          # -uki suffix on the artifact/tag comes from the $UKI token
+          # in _next-build-iso.yaml's custom formats.
+          - {name: 'next-pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'next-pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
       name: ${{ matrix.name }}
@@ -163,4 +169,28 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       release-matcher: ${{ matrix.release-matcher || '' }}
+    secrets: inherit
+
+  # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
+  # dynamically-built upgrade image; `boot-assessment` runs against
+  # the core UKI ISO and only checks boot slots. Both live in
+  # _next-uki-test.yaml since their shape diverges from the regular
+  # reusable-qemu-test.yaml.
+  qemu-tests-uki:
+    needs: build-iso
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'generic', variant: 'standard'}
+          - {test: 'boot-assessment', variant: 'core'}
+    uses: ./.github/workflows/_next-uki-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      variant: ${{ matrix.variant }}
+      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
+      arch: 'amd64'
+      model: 'generic'
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
