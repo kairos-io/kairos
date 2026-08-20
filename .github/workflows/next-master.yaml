@@ -1,12 +1,17 @@
 name: master (next)
 
-# Thin master pipeline. Runs alongside the existing binaries.yaml /
-# image-master*.yaml during the validation period. Retired once we
-# converge.
+# Thin master pipeline. Runs alongside binaries.yaml / image-master*.yaml
+# during the validation window; retired in one move once we're happy.
 #
-# Trigger: push to master. Same shape as next-pr.yaml, differing only
-# in tags (:master instead of :pr-N) and the absence of the fork-PR
-# gate (master is trusted).
+# Trigger: push to master. Shape mirrors next-pr.yaml with two
+# differences:
+#   - No fork-PR guard (master is trusted).
+#   - Test-before-push semantics for the "master" tag itself:
+#     images and OS builds first land on :master-scratch, qemu
+#     tests run against the scratch tag, and only on green does a
+#     final promote step copy the scratch manifest under :master.
+#     A red run leaves the scratch tag alone (it will be
+#     overwritten by the next push) and never advances :master.
 
 on:
   push:
@@ -19,8 +24,8 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  # Match _next-build-iso.yaml's permission demand; see next-pr.yaml
-  # for the rationale (reusable-workflow caller must cover callee).
+  # See _next-build-iso.yaml for the reusable-workflow permission
+  # rationale (callers must cover callee).
   contents: write
   packages: write
   id-token: write
@@ -43,34 +48,119 @@ jobs:
     secrets: inherit
 
   build-images:
-    needs: build-binaries
+    needs: [build-binaries, unit-tests]
     uses: ./.github/workflows/_next-build-images.yaml
     with:
       image_registry: ghcr.io/kairos-io/kairos
-      image_tag: master
+      # Scratch tag: qemu tests consume this, promote-images copies
+      # the manifest to :master on green.
+      image_tag: master-scratch
       push_images: true
       registry_login: ghcr
     secrets: inherit
 
-  # master ISO matrix: same representative cells as PR. Full matrix is release-only.
   build-iso:
     needs: build-images
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {name: 'next-master-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
-          - {name: 'next-master-arm64-generic', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
+          - {name: 'next-master-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'next-master-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          - {name: 'next-master-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master
+      # Consume the scratch kairos-init that build-images just published.
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
       registry_domain: ghcr.io
       registry_namespace: kairos-io/kairos
       release: false
     secrets: inherit
+
+  qemu-tests-core:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'custom-partitioning'}
+          - {test: 'acceptance'}
+          - {test: 'install'}
+          - {test: 'install-target'}
+          - {test: 'reset'}
+          - {test: 'upgrade-with-cli'}
+          - {test: 'bundles'}
+          - {test: 'ssh-hardening'}
+          - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      release-matcher: ${{ matrix.release-matcher || '' }}
+    secrets: inherit
+
+  qemu-tests-standard:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'provider-qrcode-install'}
+          - {test: 'provider-upgrade'}
+          - {test: 'provider-upgrade-k8s'}
+          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-k3s-disabled'}
+          - {test: 'encryption-local'}
+          - {test: 'encryption-remote-auto'}
+          - {test: 'encryption-remote-static'}
+          - {test: 'encryption-remote-https-pinned'}
+          - {test: 'encryption-remote-https-bad-cert'}
+          - {test: 'encryption-kcrypt-cli'}
+          - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      release-matcher: ${{ matrix.release-matcher || '' }}
+    secrets: inherit
+
+  # Copy the scratch manifests under :master only if the qemu suites
+  # both pass. Uses `docker buildx imagetools create` because it
+  # promotes the multi-arch manifest by reference without pulling
+  # the image bytes and without changing the digest -- if consumers
+  # pinned :master-scratch@sha256:xxx before promotion, the same
+  # sha256 is what :master now points at.
+  promote-images:
+    needs: [qemu-tests-core, qemu-tests-standard]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote kairos-init and kcrypt-challenger scratch -> :master
+        run: |
+          set -euo pipefail
+          for img in kairos-init kcrypt-challenger; do
+            src="ghcr.io/kairos-io/kairos/${img}:master-scratch"
+            dst="ghcr.io/kairos-io/kairos/${img}:master"
+            echo "Promoting $src -> $dst"
+            docker buildx imagetools create -t "$dst" "$src"
+          done

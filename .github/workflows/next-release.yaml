@@ -1,14 +1,23 @@
 name: release (next)
 
-# Thin release pipeline. Runs alongside the existing release.yaml /
-# release-arm.yaml during the validation period. Retired once we
-# converge and cut an rc tag against it.
+# Thin release pipeline. Runs alongside release.yaml / release-arm.yaml
+# during the validation window; retired once we cut an rc tag through
+# it and it holds up.
 #
-# Trigger: push tags matching v*. Same shape as next-pr.yaml and
-# next-master.yaml, differing in the matrix (full release matrix
-# including FIPS and riscv64), the registry (quay.io/kairos instead of
-# ghcr), and the presence of the upload-release step that attaches
-# binary archives to the GH Release the tag created.
+# Trigger: push tags matching v*. Shape mirrors next-master.yaml with
+# three differences:
+#   - The registry is quay.io/kairos, not ghcr.io/kairos-io/kairos.
+#   - The ISO matrix also carries a UKI/trusted-boot cell (from
+#     the old uki.yaml) and an arm64 cell (built for release
+#     artifacts; qemu is not viable on arm64 in CI).
+#   - upload-release attaches the built binary archives to the
+#     GitHub Release the tag created, gated on qemu-tests-* and
+#     unit-tests both passing so a red run cannot ship broken
+#     binaries.
+#
+# Test-before-push: images and OS builds first land on
+# :<tag>-scratch. On green, promote-images copies the manifest to
+# :<tag> and :latest via docker buildx imagetools create.
 
 on:
   push:
@@ -16,9 +25,9 @@ on:
       - 'v*'
 
 permissions:
-  # Match _next-build-iso.yaml's permission demand; see next-pr.yaml
-  # for the rationale. contents:write is also required to attach
-  # artifacts to the GitHub Release the tag created.
+  # See _next-build-iso.yaml for the reusable-workflow permission
+  # rationale. contents:write is also required to attach artifacts
+  # to the GitHub Release the tag created.
   contents: write
   packages: write
   id-token: write
@@ -44,42 +53,129 @@ jobs:
     secrets: inherit
 
   build-images:
-    needs: build-binaries
+    needs: [build-binaries, unit-tests]
     uses: ./.github/workflows/_next-build-images.yaml
     with:
       image_registry: quay.io/kairos
-      image_tag: ${{ github.ref_name }}
-      image_extra_tag: latest
+      # Scratch tag: qemu tests consume this, promote-images copies
+      # to the final tag + :latest on green.
+      image_tag: ${{ github.ref_name }}-scratch
       push_images: true
       registry_login: quay
     secrets: inherit
 
-  upload-release:
-    needs: build-binaries
-    uses: ./.github/workflows/_next-upload-release.yaml
-    secrets: inherit
-
-  # Release ISO matrix: hadron with trusted_boot on/off. The per-k8s-version
-  # k3s/k0s matrix from release.yaml is not yet wired here (needs a dynamic-
-  # matrix pre-step); it will be added before we retire release.yaml.
   build-iso:
     needs: [build-images, vulnerability-scan]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {name: 'next-release-core-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
-          - {name: 'next-release-core-amd64-generic-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: false, trusted_boot: true}
+          - {name: 'next-release-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'next-release-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          - {name: 'next-release-amd64-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: false, trusted_boot: true, kubernetes_distro: ''}
+          - {name: 'next-release-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
+      # Consume the scratch kairos-init that build-images just published.
+      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
       registry_domain: quay.io
       registry_namespace: kairos
       release: true
+    secrets: inherit
+
+  # QEMU tests exercise amd64 core and amd64 standard. arm64 has no
+  # cell here on purpose: qemu-on-amd64-runners-emulating-arm64 is
+  # too slow to be usable, and hosted arm64 runners are not
+  # available. The k3s/k0s per-version matrix from the old
+  # release.yaml is not yet wired here; it needs a dynamic-matrix
+  # pre-step and will be added before we retire release.yaml.
+
+  qemu-tests-core:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'custom-partitioning'}
+          - {test: 'acceptance'}
+          - {test: 'install'}
+          - {test: 'install-target'}
+          - {test: 'reset'}
+          - {test: 'upgrade-with-cli'}
+          - {test: 'bundles'}
+          - {test: 'ssh-hardening'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+    secrets: inherit
+
+  qemu-tests-standard:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'provider-qrcode-install'}
+          - {test: 'provider-upgrade'}
+          - {test: 'provider-upgrade-k8s'}
+          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-k3s-disabled'}
+          - {test: 'encryption-local'}
+          - {test: 'encryption-remote-auto'}
+          - {test: 'encryption-remote-static'}
+          - {test: 'encryption-remote-https-pinned'}
+          - {test: 'encryption-remote-https-bad-cert'}
+          - {test: 'encryption-kcrypt-cli'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+    secrets: inherit
+
+  # Copy the scratch manifests to their final tags only if both
+  # qemu suites pass. `docker buildx imagetools create` promotes
+  # by reference (digest preserved, no image bytes pulled). Also
+  # tag :latest on the final promotion.
+  promote-images:
+    needs: [qemu-tests-core, qemu-tests-standard]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Promote kairos-init and kcrypt-challenger scratch -> :<tag> + :latest
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          for img in kairos-init kcrypt-challenger; do
+            src="quay.io/kairos/${img}:${TAG}-scratch"
+            dst_tag="quay.io/kairos/${img}:${TAG}"
+            dst_latest="quay.io/kairos/${img}:latest"
+            echo "Promoting $src -> $dst_tag and $dst_latest"
+            docker buildx imagetools create -t "$dst_tag" -t "$dst_latest" "$src"
+          done
+
+  upload-release:
+    needs: [unit-tests, qemu-tests-core, qemu-tests-standard]
+    uses: ./.github/workflows/_next-upload-release.yaml
     secrets: inherit
