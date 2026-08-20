@@ -27,8 +27,19 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  contents: read
+  # The reusable _next-build-iso.yaml requests id-token/contents/
+  # security-events writes and actions:read for factory-action's
+  # cosign attest and SARIF upload. A reusable-workflow caller must
+  # declare permissions that meet or exceed the callee's, so grant
+  # the union here. Under pull_request (not pull_request_target),
+  # fork PRs still receive read-only regardless of what we declare;
+  # this block only elevates same-repo PRs, which is the shape we
+  # need during the validation window.
+  contents: write
   packages: write
+  id-token: write
+  security-events: write
+  actions: read
 
 concurrency:
   group: ci-next-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
@@ -74,8 +85,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: 'next-pr-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false }
-          - { name: 'next-pr-arm64-generic', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false }
+          - {name: 'next-pr-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
+          - {name: 'next-pr-arm64-generic', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
       name: ${{ matrix.name }}

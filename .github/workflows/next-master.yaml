@@ -19,8 +19,13 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  contents: read
+  # Match _next-build-iso.yaml's permission demand; see next-pr.yaml
+  # for the rationale (reusable-workflow caller must cover callee).
+  contents: write
   packages: write
+  id-token: write
+  security-events: write
+  actions: read
 
 concurrency:
   group: ci-next-master-${{ github.ref }}-${{ github.repository }}
@@ -54,8 +59,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: 'next-master-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false }
-          - { name: 'next-master-arm64-generic', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false }
+          - {name: 'next-master-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
+          - {name: 'next-master-arm64-generic', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
       name: ${{ matrix.name }}

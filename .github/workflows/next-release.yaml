@@ -16,8 +16,14 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  # Match _next-build-iso.yaml's permission demand; see next-pr.yaml
+  # for the rationale. contents:write is also required to attach
+  # artifacts to the GitHub Release the tag created.
+  contents: write
   packages: write
+  id-token: write
+  security-events: write
+  actions: read
 
 concurrency:
   group: ci-next-release-${{ github.ref }}-${{ github.repository }}
@@ -62,8 +68,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: 'next-release-core-amd64-generic',     arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true,  trusted_boot: false }
-          - { name: 'next-release-core-amd64-generic-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: false, trusted_boot: true }
+          - {name: 'next-release-core-amd64-generic', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false}
+          - {name: 'next-release-core-amd64-generic-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: false, trusted_boot: true}
     uses: ./.github/workflows/_next-build-iso.yaml
     with:
       name: ${{ matrix.name }}
