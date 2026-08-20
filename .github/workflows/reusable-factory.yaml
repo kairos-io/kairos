@@ -33,6 +33,32 @@ on:
       dockerfile_path:
         type: string
 
+      build_args:
+        type: string
+        required: false
+        default: ''
+        description: |
+          Extra --build-arg values to pass to the user's Dockerfile, one
+          per line, in KEY=VALUE form.
+
+          Appended AFTER the built-in build-args (BASE_IMAGE, MODEL,
+          KUBERNETES_*, TRUSTED_BOOT, VERSION). Docker's --build-arg is
+          last-wins for a given KEY, so a caller can override any
+          built-in by including it here (e.g. `VERSION=custom`) as well
+          as any Dockerfile ARG default the built-ins do not cover.
+
+          Motivating case: the Kairos monorepo release workflow passes
+          `KAIROS_INIT=<the-release-tag>` (via the github.ref_name
+          expression on the caller side) so the ISO build uses the
+          kairos-init image freshly published earlier in the same run,
+          instead of the ARG default pinned in images/Dockerfile.
+
+          DO NOT pass secrets through this input. Docker build args are
+          printed in build logs (visible to anyone with read access to
+          workflow logs) and can be recovered from image layer history.
+          Use docker secrets (BuildKit `--secret`) or dedicated CI
+          secret-injection mechanisms for anything sensitive.
+
       # Kairos version for fallback Dockerfile
       kairos_version:
         type: string
@@ -679,6 +705,7 @@ jobs:
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ steps.setup.outputs.version }}
+            ${{ inputs.build_args }}
 
       - name: Check for Grype config
         if: inputs.grype || inputs.grype_sarif
@@ -921,6 +948,7 @@ jobs:
             KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
             TRUSTED_BOOT=${{ inputs.trusted_boot }}
             VERSION=${{ steps.setup.outputs.version }}
+            ${{ inputs.build_args }}
 
       - name: Generate ISO artifact
         if: inputs.iso && inputs.model == 'generic'
