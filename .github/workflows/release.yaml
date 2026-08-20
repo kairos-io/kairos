@@ -59,7 +59,7 @@ jobs:
 
   core:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
     needs:
       - vulnerability-scan
       - binaries
@@ -86,6 +86,11 @@ jobs:
     with:
       auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
+      # Point images/Dockerfile's FROM at the kairos-init image the
+      # `binaries` job pushed to quay earlier in the same run, so this
+      # release's ISOs use the fresh kairos-init instead of the ARG
+      # default pinned in the Dockerfile.
+      build_args: KAIROS_INIT=${{ github.ref_name }}
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
@@ -167,7 +172,7 @@ jobs:
 
   standard-k3s:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
     needs:
       - vulnerability-scan
       - binaries
@@ -191,6 +196,11 @@ jobs:
     with:
       auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
+      # Point images/Dockerfile's FROM at the kairos-init image the
+      # `binaries` job pushed to quay earlier in the same run, so this
+      # release's ISOs use the fresh kairos-init instead of the ARG
+      # default pinned in the Dockerfile.
+      build_args: KAIROS_INIT=${{ github.ref_name }}
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
@@ -215,7 +225,7 @@ jobs:
       release: true
   standard-k0s:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@38ba03a49cced0fc4173d12e496993774b2f42ea # v1.4.2
     needs:
       - vulnerability-scan
       - binaries
@@ -239,6 +249,11 @@ jobs:
     with:
       auroraboot_version: "v0.26.2"
       dockerfile_path: "images/Dockerfile"
+      # Point images/Dockerfile's FROM at the kairos-init image the
+      # `binaries` job pushed to quay earlier in the same run, so this
+      # release's ISOs use the fresh kairos-init instead of the ARG
+      # default pinned in the Dockerfile.
+      build_args: KAIROS_INIT=${{ github.ref_name }}
       base_image: ${{ matrix.base_image }}
       arch: "amd64"
       model: "generic"
