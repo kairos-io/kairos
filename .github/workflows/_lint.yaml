@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   lint:
-    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@d0ade44c2695dfe7fffee53961495127444d53fb  # main @ ref-input
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@6d48f21028c3fe44c036a89b54b54931415999c0  # main @ ref-input
     with:
       yamldirs: '.github/workflows/'
       is-go: false
