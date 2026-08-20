@@ -17,6 +17,18 @@ on:
         type: string
         default: "10m"
 
+      # Git ref every lint job should check out. Leave empty for the
+      # ref that triggered the calling workflow (right for every
+      # ordinary caller). Set it when the caller runs under
+      # `pull_request_target` and needs the PR HEAD's code linted
+      # rather than the base branch's -- pass
+      # `refs/pull/<n>/head`. Same knob and same reasoning as
+      # kairos-io/kairos-factory-action's `ref` input.
+      ref:
+        required: false
+        type: string
+        default: ""
+
 jobs:
   golangci_lint:
     runs-on: ubuntu-latest
@@ -25,6 +37,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref }}
       - name: golangci-lint
         env:
           GOLANGCILINT_VERSION: latest-alpine
@@ -35,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: hadolint
         env:
           HADOLINT_VERSION: 2.12.0-alpine
@@ -45,6 +60,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: renovate-validate
         env:
           RENOVATE_VERSION: "35"
@@ -55,6 +72,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: shellcheck-lint
         env:
           SHELLCHECK_VERSION: v0.9.0
@@ -65,6 +84,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: yamllint
         shell: bash
         run: find ${{ inputs.yamldirs }} -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint
