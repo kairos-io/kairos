@@ -115,6 +115,8 @@ jobs:
       registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
       registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
+      # UKI-only: see pr.yaml for the testentry rationale.
+      single_efi_cmdline: 'testentry: nothing'
       # Model-derived knobs; see pr.yaml for the rationale.
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}

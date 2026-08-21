@@ -146,6 +146,10 @@ jobs:
       registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
       registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
+      # UKI-only: bake an extra `testentry` EFI entry so the
+      # install-upgrade qemu test has something to upgrade.
+      # Factory-action ignores it on non-UKI cells.
+      single_efi_cmdline: 'testentry: nothing'
       # Model-derived knobs. GitHub expressions cannot cleanly do
       # `matrix.foo || default` when foo is a boolean, because the
       # ternary short-circuits on falsy values and treats an

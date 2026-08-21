@@ -105,6 +105,18 @@ on:
         type: boolean
         default: false
 
+      single_efi_cmdline:
+        description: |
+          Bake an extra single-EFI boot entry into the UKI, in
+          `name: kernel-cmdline` form. The install-upgrade qemu test
+          upgrades this entry to verify UKI upgrade semantics; pass
+          `testentry: nothing` on PR/master so the test finds the
+          entry. Release builds leave it empty so no test-only boot
+          entry ships in a released ISO. Factory-action ignores
+          this input when trusted_boot is false.
+        type: string
+        default: ''
+
       ref:
         description: 'git ref to check out (passthrough to factory-action)'
         type: string
@@ -190,6 +202,7 @@ jobs:
       # uki_test.go:296-303) fail because there is no sysext to load.
       # Same shape as keys_dir; ignored on non-UKI cells.
       sysext_dir: '$PWD/tests/assets/sysext'
+      single_efi_cmdline: ${{ inputs.single_efi_cmdline }}
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}
