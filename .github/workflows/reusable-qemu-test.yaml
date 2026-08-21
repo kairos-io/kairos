@@ -69,6 +69,16 @@ on:
         required: false
         type: string
         default: 'quay.io/kairos/ci-temp-images'
+      kcrypt_challenger_image:
+        description: |
+          Fully-qualified image reference for the kcrypt-challenger
+          Deployment the encryption suite spins up (e.g.
+          `ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-1234`). Only
+          consumed by encryption-* tests; the script errors out if the
+          test is encryption-* and this is empty.
+        required: false
+        type: string
+        default: ''
 
     secrets:
       QUAY_USERNAME:
@@ -308,6 +318,7 @@ jobs:
           CPUS: 2
           DRIVE_SIZE: 50000
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
+          KCRYPT_CHALLENGER_IMAGE: ${{ inputs.kcrypt_challenger_image }}
         run: |
           # Pick a k3s image
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | grep k3s | head -1 )

@@ -72,8 +72,9 @@ jobs:
       registry_login: ghcr
     secrets: inherit
 
-  # kcrypt-challenger pipe: parallel to the kairos pipe, only gates
-  # promote-images (nothing on the qemu path consumes it).
+  # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
+  # cells of qemu-tests-standard-encryption below consume its image; the
+  # rest of the qemu path does not. Also gates promote-images.
   build-kcrypt-challenger:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
@@ -208,12 +209,6 @@ jobs:
           - {test: 'provider-upgrade-k8s'}
           - {test: 'provider-decentralized-k8s'}
           - {test: 'provider-k3s-disabled'}
-          - {test: 'encryption-local'}
-          - {test: 'encryption-remote-auto'}
-          - {test: 'encryption-remote-static'}
-          - {test: 'encryption-remote-https-pinned'}
-          - {test: 'encryption-remote-https-bad-cert'}
-          - {test: 'encryption-kcrypt-cli'}
           - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -225,6 +220,31 @@ jobs:
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       release-matcher: ${{ matrix.release-matcher || '' }}
+    secrets: inherit
+
+  # See pr.yaml for the rationale on splitting encryption cells out.
+  qemu-tests-standard-encryption:
+    needs: [build-iso, build-image-kcrypt-challenger]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'encryption-local'}
+          - {test: 'encryption-remote-auto'}
+          - {test: 'encryption-remote-static'}
+          - {test: 'encryption-remote-https-pinned'}
+          - {test: 'encryption-remote-https-bad-cert'}
+          - {test: 'encryption-kcrypt-cli'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:master-scratch
     secrets: inherit
 
   qemu-tests-uki:
@@ -255,7 +275,7 @@ jobs:
     # qemu suites + arm build gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :master-scratch before this job can promote it.
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-image-kcrypt-challenger]
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-standard-encryption, qemu-tests-uki, build-iso-arm, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
     steps:
       - name: Login to ghcr.io
