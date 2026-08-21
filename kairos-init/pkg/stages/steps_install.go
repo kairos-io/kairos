@@ -524,6 +524,14 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 		"/system/discovery/kcrypt-discovery-challenger": config.DefaultConfig.VersionOverrides.KcryptChallenger,
 	}
 
+	// One embedded write of /usr/bin/kairos serves every dest via
+	// symlink. Track the write with a local so a leftover file or
+	// symlink at that path (from a re-run against an already-baked
+	// rootfs, or an older kairos-init layout) does not shadow our
+	// write: os.Stat follows symlinks, so a legacy link that points
+	// somewhere valid would falsely satisfy the guard.
+	kairosWritten := false
+
 	for dest, version := range binaries {
 		if version != "" {
 			// Create the directory if it doesn't exist
@@ -549,28 +557,31 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 				return err
 			}
 		} else {
-			// Use embedded binaries
-			var data []byte
-			switch dest {
-			case constants.AgentDefaultPath:
-				data = bundled.EmbeddedAgent
-			case "/usr/bin/immucore":
-				data = bundled.EmbeddedImmucore
-			case "/system/discovery/kcrypt-discovery-challenger":
-				data = bundled.EmbeddedKcryptChallenger
-			}
-
-			// Create the directory if it doesn't exist
-			if _, err := os.Stat(filepath.Dir(dest)); os.IsNotExist(err) {
-				err := os.MkdirAll(filepath.Dir(dest), 0755)
-				if err != nil {
-					l.Logger.Error().Err(err).Str("dir", filepath.Dir(dest)).Msg("Failed to create directory")
+			const kairosPath = "/usr/bin/kairos"
+			if !kairosWritten {
+				blob := bundled.EmbeddedKairos
+				if config.DefaultConfig.Fips {
+					blob = bundled.EmbeddedKairosFips
 				}
+				if err := os.MkdirAll(filepath.Dir(kairosPath), 0755); err != nil {
+					l.Logger.Error().Err(err).Str("dir", filepath.Dir(kairosPath)).Msg("Failed to create directory")
+					return err
+				}
+				_ = os.Remove(kairosPath)
+				if err := os.WriteFile(kairosPath, blob, 0755); err != nil {
+					l.Logger.Error().Err(err).Str("binary", kairosPath).Msg("Failed to write embedded kairos binary")
+					return err
+				}
+				kairosWritten = true
 			}
-
-			err := os.WriteFile(dest, data, 0755)
-			if err != nil {
-				l.Logger.Error().Err(err).Str("binary", dest).Msg("Failed to write embedded binary")
+			if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
+				l.Logger.Error().Err(err).Str("dir", filepath.Dir(dest)).Msg("Failed to create directory")
+				return err
+			}
+			// os.Symlink refuses to overwrite an existing entry.
+			_ = os.Remove(dest)
+			if err := os.Symlink(kairosPath, dest); err != nil {
+				l.Logger.Error().Err(err).Str("dest", dest).Str("target", kairosPath).Msg("Failed to symlink to kairos multi-call binary")
 				return err
 			}
 		}
@@ -673,13 +684,6 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 		}
 	}
 
-	// Link /system/providers/agent-provider-kairos to /usr/bin/kairos, not sure what uses it?
-	// TODO: Check if this is needed, maybe we can remove it?
-	err = os.Symlink("/system/providers/agent-provider-kairos", "/usr/bin/kairos")
-	if err != nil {
-		l.Logger.Error().Err(err).Msg("Failed to create symlink")
-		return err
-	}
 	return nil
 }
 
@@ -776,6 +780,12 @@ func DownloadAndExtract(url, dest string, binaryName ...string) error {
 		}
 
 		if header.Typeflag == tar.TypeReg && strings.HasSuffix(header.Name, targetBinary) {
+			// os.Create follows a symlink at dest and writes through
+			// to its target. With the multi-call layout, dest may be
+			// a legacy symlink to /usr/bin/kairos (e.g. /usr/bin/immucore
+			// from a prior kairos-init run), and writing through would
+			// truncate the multi-call binary. Break the link first.
+			_ = os.Remove(dest)
 			outFile, err := os.Create(dest)
 			if err != nil {
 				return fmt.Errorf("failed to create file: %w", err)

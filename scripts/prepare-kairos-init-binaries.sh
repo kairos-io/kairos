@@ -2,31 +2,19 @@
 # Populate kairos-init/pkg/bundled/binaries/ so `go build ./kairos-init`
 # has files to //go:embed.
 #
-# kairos-init is a single-flavor binary that embeds BOTH default and
-# FIPS versions of the other Kairos binaries; it switches between them
-# at install time based on the user's --fips flag. So every kairos-init
-# build (except on riscv64) needs both binaries/ and binaries/fips/
-# populated regardless of VARIANT. bundled_fips.go's build constraint
-# is `!riscv64`, not `fips`, which is what forces this.
-#
-# What lands where:
-#   binaries/kairos-agent, immucore, kcrypt-discovery-challenger
-#     Copied from BIN_SOURCE (dist/linux-<arch>/), which the
-#     binaries-early Make target populated with in-tree default builds.
-#   binaries/provider-kairos, kairos-installer, edgevpn
-#     Downloaded from their pre-monorepo GitHub Releases at the
-#     versions pinned below. When those repos are absorbed too the
-#     fetches become cp-from-BIN_SOURCE.
-#   binaries/fips/kairos-agent, immucore, kcrypt-discovery-challenger,
-#   provider-kairos
-#     Downloaded from FIPS release tarballs of the respective repos.
-#     Kairos-init switches to these at install time when --fips is set.
-#     Skipped on riscv64 because bundled_fips.go is excluded there.
+# kairos-init embeds default and FIPS binaries side by side and picks
+# between them at install time based on the user's --fips flag. Because
+# bundled_fips.go's build constraint is `!riscv64` (not `fips`), every
+# non-riscv64 build needs both binaries/ and binaries/fips/ populated
+# regardless of VARIANT.
 
 set -euo pipefail
 
 : "${ARCH:?ARCH must be set (amd64, arm64, or riscv64)}"
 : "${BIN_SOURCE:?BIN_SOURCE must point at the dist/linux-<arch>/ output}"
+if [[ "$ARCH" != "riscv64" ]]; then
+    : "${BIN_SOURCE_FIPS:?BIN_SOURCE_FIPS must point at the dist/linux-<arch>-fips/ output}"
+fi
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST_ROOT="$REPO_ROOT/kairos-init/pkg/bundled/binaries"
@@ -38,21 +26,17 @@ fi
 
 # --- External binary versions ---
 # Bump these when the corresponding repo cuts a release you want to consume.
-# Follow-up: absorb provider-kairos and kairos-installer into the monorepo
-# so these fetches are replaced by in-tree cp; only edgevpn (github.com/mudler)
-# stays external. FIPS versions of the in-tree binaries stay external until
-# the release pipeline builds FIPS variants in-tree and hands them here.
+# Absorbing provider-kairos and kairos-installer into the monorepo would
+# replace these fetches by in-tree cp; only edgevpn (github.com/mudler) is
+# genuinely external.
 : "${PROVIDER_KAIROS_VERSION:=v2.16.4}"
 : "${INSTALLER_VERSION:=v0.1.5}"
 : "${EDGEVPN_VERSION:=v0.35.4}"
-: "${AGENT_FIPS_VERSION:=v2.31.4}"
-: "${IMMUCORE_FIPS_VERSION:=v0.20.4}"
-: "${KCRYPT_DISCOVERY_FIPS_VERSION:=v0.13.4}"
 
-# --- Copy in-tree default binaries ---
-for b in kairos-agent immucore kcrypt-discovery-challenger; do
-    cp "$BIN_SOURCE/$b" "$DEST_ROOT/$b"
-done
+cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
+if [[ "$ARCH" != "riscv64" ]]; then
+    cp "$BIN_SOURCE_FIPS/kairos" "$DEST_FIPS/kairos"
+fi
 
 # --- Fetch defaults from external repos (provider-kairos, kairos-installer, edgevpn) ---
 tmpdir=$(mktemp -d)
@@ -81,18 +65,16 @@ case "$ARCH" in
   *)     edgevpn_arch=$ARCH ;;
 esac
 
-# Defaults
+# Defaults (external repos only; the in-tree kairos multi-call and its
+# FIPS twin were cp'd from BIN_SOURCE / BIN_SOURCE_FIPS above).
 fetch provider-kairos  "$PROVIDER_KAIROS_VERSION" default ""  ""             ""
 fetch kairos-installer "$INSTALLER_VERSION"       default ""  ""             ""
 fetch edgevpn          "$EDGEVPN_VERSION"         default ""  "$edgevpn_arch" mudler
 
-# FIPS embeds (bundled_fips.go is compiled on every non-riscv64 build,
-# so these files must exist for `go build` to satisfy //go:embed).
+# FIPS provider-kairos stays external (mudler/kairos-io repo). No FIPS
+# variant of edgevpn or kairos-installer.
 if [[ "$ARCH" != "riscv64" ]]; then
-    fetch kairos-agent                 "$AGENT_FIPS_VERSION"           fips "-fips" ""              ""
-    fetch immucore                     "$IMMUCORE_FIPS_VERSION"        fips "-fips" ""              ""
-    fetch kcrypt-discovery-challenger  "$KCRYPT_DISCOVERY_FIPS_VERSION" fips "-fips" ""              ""
-    fetch provider-kairos              "$PROVIDER_KAIROS_VERSION"      fips "-fips" ""              ""
+    fetch provider-kairos "$PROVIDER_KAIROS_VERSION" fips "-fips" "" ""
 fi
 
 # Move each fetched executable into the right destination dir.

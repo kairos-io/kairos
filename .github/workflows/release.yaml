@@ -110,21 +110,47 @@ jobs:
            ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> "$GITHUB_OUTPUT"
 
-  build-binaries:
-    uses: ./.github/workflows/_build-binaries.yaml
+  # kairos-init pipe: gates build-iso + qemu-tests.
+  build-kairos:
+    uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: release
     secrets: inherit
 
-  build-images:
-    needs: [build-binaries, unit-tests, lint]
-    uses: ./.github/workflows/_build-images.yaml
+  build-kairos-init:
+    needs: build-kairos
+    uses: ./.github/workflows/_build-kairos-init.yaml
+    with:
+      matrix_scope: release
+    secrets: inherit
+
+  build-image-kairos-init:
+    needs: [build-kairos-init, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kairos-init.yaml
     with:
       image_registry: quay.io/kairos
       # Scratch tag: qemu tests consume this, promote-images copies
       # to the final tag + :latest on green.
       image_tag: ${{ github.ref_name }}-scratch
-      push_images: true
+      push: true
+      registry_login: quay
+    secrets: inherit
+
+  # kcrypt-challenger pipe: parallel to the kairos pipe, only gates
+  # promote-images / upload-release.
+  build-kcrypt-challenger:
+    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
+    with:
+      matrix_scope: release
+    secrets: inherit
+
+  build-image-kcrypt-challenger:
+    needs: [build-kcrypt-challenger, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    with:
+      image_registry: quay.io/kairos
+      image_tag: ${{ github.ref_name }}-scratch
+      push: true
       registry_login: quay
     secrets: inherit
 
@@ -134,7 +160,7 @@ jobs:
   # so a broken arm build blocks the final tag advance and the
   # release-artifact upload.
   build-iso:
-    needs: [build-images, vulnerability-scan]
+    needs: [build-image-kairos-init, vulnerability-scan]
     strategy:
       fail-fast: false
       matrix:
@@ -150,7 +176,7 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      # Consume the scratch kairos-init that build-images just published.
+      # Consume the scratch kairos-init that build-image-kairos-init just published.
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
@@ -164,7 +190,7 @@ jobs:
     secrets: inherit
 
   build-iso-arm:
-    needs: [build-images, vulnerability-scan]
+    needs: [build-image-kairos-init, vulnerability-scan]
     strategy:
       fail-fast: false
       matrix:
@@ -220,7 +246,7 @@ jobs:
   # already exercises), just built + published as release
   # artifacts. Same shape release-legacy.yaml carried.
   build-iso-k3s:
-    needs: [build-images, vulnerability-scan, get-k3s-versions]
+    needs: [build-image-kairos-init, vulnerability-scan, get-k3s-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -242,7 +268,7 @@ jobs:
     secrets: inherit
 
   build-iso-k0s:
-    needs: [build-images, vulnerability-scan, get-k0s-versions]
+    needs: [build-image-kairos-init, vulnerability-scan, get-k0s-versions]
     strategy:
       fail-fast: false
       matrix:
@@ -345,7 +371,10 @@ jobs:
   # by reference (digest preserved, no image bytes pulled). Also
   # tag :latest on the final promotion.
   promote-images:
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s]
+    # qemu suites + iso matrices gate the kairos-init side; the
+    # kcrypt-challenger image is on a parallel pipe and must also be
+    # pushed to :<tag>-scratch before this job can promote it.
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
     steps:
       - name: Login to quay.io
@@ -368,6 +397,8 @@ jobs:
           done
 
   upload-release:
-    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s]
+    # Uploads every tarball to the GitHub Release. Waits on both
+    # pipes so the release ships kairos + kairos-init + kcrypt-challenger.
+    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-kcrypt-challenger]
     uses: ./.github/workflows/_upload-release.yaml
     secrets: inherit

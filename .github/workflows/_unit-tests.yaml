@@ -1,4 +1,4 @@
-name: Unit tests (step)
+name: Unit tests
 
 # Reusable step: `go test ./...` for the whole monorepo. Same
 # invocation as the standalone unit-tests.yaml; extracted so both the

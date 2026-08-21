@@ -1,4 +1,4 @@
-name: UKI qemu test (step)
+name: UKI qemu test
 
 # Reusable step: boot a UKI/trusted-boot ISO under qemu with OVMF +
 # swtpm and run the ginkgo suite filtered by a UKI-specific label.

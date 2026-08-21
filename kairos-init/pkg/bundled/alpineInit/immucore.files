@@ -14,8 +14,8 @@
 /lib/udev/*
 /usr/lib/udev/*
 /usr/lib/libudev*
+/usr/bin/kairos
 /usr/bin/immucore
-/usr/bin/kairos-agent
 /usr/bin/rsync
 /usr/bin/dbus-uuidgen
 /usr/sbin/multipath

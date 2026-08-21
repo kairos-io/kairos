@@ -1,10 +1,10 @@
-name: Build ISO (step)
+name: Build ISO
 
 # Reusable step: build a single Kairos OS ISO/UKI via
 # kairos-io/kairos-factory-action, using the caller-supplied kairos-init
 # container image. This is the "connect the fresh kairos-init to the
 # ISO build" step -- the caller passes the exact image reference the
-# build-images step just published, and this step overrides
+# build-image-kairos-init step just published, and this step overrides
 # images/Dockerfile's KAIROS_INIT_IMAGE ARG so the ISO embeds it.
 #
 # Single-cell by design: the caller expands the matrix over base_image

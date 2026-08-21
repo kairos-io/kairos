@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/spectrocloud/peg/matcher"
@@ -123,6 +124,29 @@ bundles:
 			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("peerguard"))
 
 			stateAssertVM(vm, "persistent.found", "true")
+
+			By("Checking the multi-call binary layout", func() {
+				out, err := vm.Sudo("test -f /usr/bin/kairos && ! test -L /usr/bin/kairos && echo ok")
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(out).To(ContainSubstring("ok"), "/usr/bin/kairos should be a real file, not a symlink")
+
+				for _, link := range []string{
+					"/usr/bin/kairos-agent",
+					"/usr/bin/immucore",
+					"/system/discovery/kcrypt-discovery-challenger",
+				} {
+					out, err := vm.Sudo(fmt.Sprintf("readlink -f %s", link))
+					Expect(err).ToNot(HaveOccurred(), out)
+					Expect(strings.TrimSpace(out)).To(Equal("/usr/bin/kairos"),
+						"expected %s to resolve to /usr/bin/kairos, got %q", link, out)
+					// And confirm it is a symlink, not a real duplicate.
+					out, err = vm.Sudo(fmt.Sprintf("test -L %s && echo symlink", link))
+					Expect(err).ToNot(HaveOccurred(), out)
+					Expect(out).To(ContainSubstring("symlink"),
+						"%s should be a symlink to /usr/bin/kairos", link)
+				}
+			})
+
 			By("Checking install/recovery services are disabled", func() {
 				if !isFlavor(vm, "alpine") {
 					for _, service := range []string{"kairos-interactive", "kairos-recovery"} {

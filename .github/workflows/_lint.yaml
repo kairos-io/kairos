@@ -1,12 +1,12 @@
-name: Lint (step)
+name: Lint
 
 # Reusable step: workflow-file linting via the same
 # kairos-io/linting-composite-action the pre-monorepo lint.yaml
 # used, extended with a `ref` input so the composite's own
 # checkout can be pointed at the PR HEAD when this pipeline runs
 # under pull_request_target. Wired as a hard gate before
-# build-images in every pipeline; a red lint suite blocks image
-# push, same shape unit-tests has.
+# the image-build jobs in every pipeline; a red lint suite blocks
+# image push, same shape unit-tests has.
 
 on:
   workflow_call:

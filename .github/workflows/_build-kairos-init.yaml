@@ -1,0 +1,114 @@
+name: Build kairos-init
+
+# Reusable step: for each arch, download the multi-call kairos that
+# _build-kairos.yaml produced under both the default and FIPS variants,
+# fetch the external binaries kairos-init also embeds, then compile
+# the kairos-init binary and upload it as its own workflow artifact.
+#
+# Matrix is per-arch (no variant): kairos-init is a single binary
+# that carries both default and FIPS multi-call kairos internally
+# and dispatches at install time.
+
+on:
+  workflow_call:
+    inputs:
+      matrix_scope:
+        description: |
+          "ci" -> amd64 + arm64 (PR + master).
+          "release" -> amd64 + arm64 + riscv64.
+        type: string
+        required: true
+
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          SCOPE: ${{ inputs.matrix_scope }}
+        run: |
+          if [[ "$SCOPE" == "release" ]]; then
+            echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"},{"arch":"riscv64"}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"}]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Download default multi-call kairos artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: kairos-linux-${{ matrix.arch }}
+          path: dist/download/default
+
+      - name: Download FIPS multi-call kairos artifact
+        # FIPS is not built on riscv64.
+        if: matrix.arch != 'riscv64'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: kairos-linux-${{ matrix.arch }}-fips
+          path: dist/download/fips
+
+      - name: Reassemble dist/linux-${{ matrix.arch }}{,-fips}/
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/linux-${{ matrix.arch }}"
+          for tarball in dist/download/default/*.tar.gz; do
+            [ -f "$tarball" ] || continue
+            tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}"
+          done
+          if [ "${{ matrix.arch }}" != "riscv64" ]; then
+            mkdir -p "dist/linux-${{ matrix.arch }}-fips"
+            for tarball in dist/download/fips/*.tar.gz; do
+              [ -f "$tarball" ] || continue
+              tar -xzf "$tarball" -C "dist/linux-${{ matrix.arch }}-fips"
+            done
+          fi
+          ls -l "dist/linux-${{ matrix.arch }}"
+          [ "${{ matrix.arch }}" = "riscv64" ] || ls -l "dist/linux-${{ matrix.arch }}-fips"
+
+      - name: Build kairos-init
+        # kairos-init compiles under the default variant flag; the
+        # FIPS multi-call kairos is embedded via bundled_fips.go.
+        run: make kairos-init ARCH=${{ matrix.arch }} VARIANT=default
+
+      - name: Package kairos-init archive
+        run: make archives ARCH=${{ matrix.arch }} VARIANT=default
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: kairos-init-linux-${{ matrix.arch }}
+          # The archives step above rebuilds the whole dist/archives/
+          # directory including tarballs for every binary present in
+          # dist/linux-<arch>/. Ship only the kairos-init tarball
+          # here; the multi-call kairos already has its own artifact
+          # from _build-kairos.yaml and re-uploading would duplicate.
+          path: dist/archives/kairos-init-*.tar.gz

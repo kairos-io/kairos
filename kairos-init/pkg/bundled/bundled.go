@@ -5,14 +5,8 @@ import (
 )
 
 //nolint:staticcheck
-//go:embed binaries/kairos-agent
-var EmbeddedAgent []byte
-
-//go:embed binaries/immucore
-var EmbeddedImmucore []byte
-
-//go:embed binaries/kcrypt-discovery-challenger
-var EmbeddedKcryptChallenger []byte
+//go:embed binaries/kairos
+var EmbeddedKairos []byte
 
 //go:embed binaries/provider-kairos
 var EmbeddedKairosProvider []byte
@@ -232,7 +226,7 @@ install() {
     declare systemdutildir=${systemdutildir}
     declare systemdsystemunitdir=${systemdsystemunitdir}
 
-    inst_check_multiple immucore kairos-agent
+    inst_check_multiple immucore
     # add utils used by yip stages
     inst_check_multiple sync udevadm blkid lsblk e2fsck mount umount rsync cryptsetup gawk awk mkfs.ext2 mkfs.ext3 mkfs.ext4 mkfs.vfat
     # add mkfs.fat using inst_multiple which doesnt check for existence

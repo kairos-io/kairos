@@ -1,0 +1,81 @@
+name: Build kairos
+
+# Reusable step: cross-compile the multi-call kairos binary for the
+# requested ARCH/VARIANT matrix and upload per-cell workflow artifacts.
+#
+# This is the input to _build-kairos-init.yaml (which embeds both
+# variants' kairos into the kairos-init binary + container image).
+# kcrypt-challenger builds on its own parallel pipe -- nothing here
+# needs it.
+
+on:
+  workflow_call:
+    inputs:
+      matrix_scope:
+        description: |
+          "ci" -> amd64 + arm64, both default and FIPS (PR + master).
+          "release" -> full 5-cell matrix (amd64+arm64+riscv64 default
+          plus amd64+arm64 FIPS).
+        type: string
+        required: true
+
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          SCOPE: ${{ inputs.matrix_scope }}
+        run: |
+          if [[ "$SCOPE" == "release" ]]; then
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"riscv64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Install cross-compiler (FIPS-arm64)
+        if: matrix.variant == 'fips' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y crossbuild-essential-arm64
+
+      - name: Build kairos
+        run: make kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+
+      - name: Package archives
+        run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: kairos-linux-${{ matrix.arch }}${{ matrix.variant == 'fips' && '-fips' || '' }}
+          path: dist/archives/*

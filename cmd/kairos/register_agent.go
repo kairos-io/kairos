@@ -1,5 +1,3 @@
-//go:build !initramfs
-
 package main
 
 import (

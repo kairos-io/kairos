@@ -1,18 +1,23 @@
-name: Build binaries (step)
+name: Build kcrypt-challenger
 
-# Reusable step: cross-compile every Kairos binary for the requested
-# ARCH/VARIANT matrix and upload per-cell workflow artifacts.
-# Downstream steps consume the artifacts to build container images
-# and, on tag events, to attach to a GitHub Release.
+# Reusable step: cross-compile the kcrypt-challenger controller-manager
+# binary for the requested ARCH/VARIANT matrix and upload per-cell
+# workflow artifacts.
+#
+# Runs in parallel to _build-kairos.yaml. Nothing on the kairos-init /
+# build-iso / qemu-tests path depends on this; only the
+# _build-image-kcrypt-challenger.yaml step downstream (and via that
+# the release / promote workflows) consumes the artifact.
 
 on:
   workflow_call:
     inputs:
       matrix_scope:
         description: |
-          "ci" -> amd64 + arm64 default only (PR + master).
+          "ci" -> amd64 + arm64, both default and FIPS (PR + master).
           "release" -> full 5-cell matrix (amd64+arm64+riscv64 default
-          plus amd64+arm64 FIPS).
+          plus amd64+arm64 FIPS). Keeps parity with _build-kairos.yaml
+          so both pipes have matching FIPS coverage.
         type: string
         required: true
 
@@ -38,7 +43,7 @@ jobs:
           if [[ "$SCOPE" == "release" ]]; then
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"riscv64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
           else
-            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"}]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
           fi
 
   build:
@@ -65,8 +70,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y crossbuild-essential-arm64
 
-      - name: Build binaries
-        run: make binaries ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+      - name: Build kcrypt-challenger
+        run: make kcrypt-challenger ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
 
       - name: Package archives
         run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
@@ -74,5 +79,5 @@ jobs:
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: binaries-linux-${{ matrix.arch }}${{ matrix.variant == 'fips' && '-fips' || '' }}
+          name: kcrypt-challenger-linux-${{ matrix.arch }}${{ matrix.variant == 'fips' && '-fips' || '' }}
           path: dist/archives/*

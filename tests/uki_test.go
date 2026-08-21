@@ -220,6 +220,26 @@ func genericTests(vm VM) {
 		Expect(out).To(ContainSubstring("ro"))
 		Expect(out).ToNot(ContainSubstring("rw"))
 	})
+	By("Checking the multi-call binary layout (UKI)", func() {
+		out, err := vm.Sudo("test -f /usr/bin/kairos && ! test -L /usr/bin/kairos && echo ok")
+		Expect(err).ToNot(HaveOccurred(), out)
+		Expect(out).To(ContainSubstring("ok"), "/usr/bin/kairos should be a real file, not a symlink")
+
+		for _, link := range []string{
+			"/usr/bin/kairos-agent",
+			"/usr/bin/immucore",
+			"/system/discovery/kcrypt-discovery-challenger",
+		} {
+			out, err := vm.Sudo(fmt.Sprintf("readlink -f %s", link))
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(strings.TrimSpace(out)).To(Equal("/usr/bin/kairos"),
+				"expected %s to resolve to /usr/bin/kairos, got %q", link, out)
+			out, err = vm.Sudo(fmt.Sprintf("test -L %s && echo symlink", link))
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("symlink"),
+				"%s should be a symlink to /usr/bin/kairos", link)
+		}
+	})
 	By("Checking the boot mode (boot)", func() {
 		out, err := vm.Sudo("stat /run/cos/uki_boot_mode")
 		Expect(err).ToNot(HaveOccurred(), out)

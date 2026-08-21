@@ -74,25 +74,56 @@ jobs:
       ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
-  build-binaries:
+  # The kairos-init pipe (multi-call kairos -> kairos-init -> image ->
+  # iso -> qemu). This is the critical path for the qemu suites below.
+  build-kairos:
     needs: authorize
-    uses: ./.github/workflows/_build-binaries.yaml
+    uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: ci
       ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
-  # unit-tests + lint are hard gates for anything that publishes
-  # downstream. An image push is visible outside the run, so a red
-  # test or lint suite must stop it. build-binaries runs in parallel
-  # with tests since it is not visible until images / isos consume it.
-  build-images:
-    needs: [build-binaries, unit-tests, lint]
-    uses: ./.github/workflows/_build-images.yaml
+  build-kairos-init:
+    needs: build-kairos
+    uses: ./.github/workflows/_build-kairos-init.yaml
+    with:
+      matrix_scope: ci
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  # unit-tests + lint gate any image push (visible outside the run).
+  # The kairos-init image is what build-iso consumes.
+  build-image-kairos-init:
+    needs: [build-kairos-init, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kairos-init.yaml
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: pr-${{ github.event.pull_request.number }}
-      push_images: true
+      push: true
+      registry_login: ghcr
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  # The kcrypt-challenger pipe runs in parallel to the kairos pipe.
+  # Nothing on the build-iso / qemu-tests path depends on it -- the
+  # encryption tests today pin a published kcrypt-challenger tag, not
+  # the just-built one -- so it only gates promote / upload-release.
+  build-kcrypt-challenger:
+    needs: authorize
+    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
+    with:
+      matrix_scope: ci
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  build-image-kcrypt-challenger:
+    needs: [build-kcrypt-challenger, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    with:
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: pr-${{ github.event.pull_request.number }}
+      push: true
       registry_login: ghcr
       ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
@@ -110,7 +141,7 @@ jobs:
   # still fails the whole PR, but qemu proceeds in parallel.
 
   build-iso:
-    needs: build-images
+    needs: build-image-kairos-init
     strategy:
       fail-fast: false
       matrix:
@@ -146,7 +177,7 @@ jobs:
     secrets: inherit
 
   build-iso-arm:
-    needs: build-images
+    needs: build-image-kairos-init
     strategy:
       fail-fast: false
       matrix:

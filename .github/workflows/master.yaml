@@ -46,21 +46,47 @@ jobs:
     uses: ./.github/workflows/_lint.yaml
     secrets: inherit
 
-  build-binaries:
-    uses: ./.github/workflows/_build-binaries.yaml
+  # kairos-init pipe: gates build-iso + qemu-tests.
+  build-kairos:
+    uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: ci
     secrets: inherit
 
-  build-images:
-    needs: [build-binaries, unit-tests, lint]
-    uses: ./.github/workflows/_build-images.yaml
+  build-kairos-init:
+    needs: build-kairos
+    uses: ./.github/workflows/_build-kairos-init.yaml
+    with:
+      matrix_scope: ci
+    secrets: inherit
+
+  build-image-kairos-init:
+    needs: [build-kairos-init, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kairos-init.yaml
     with:
       image_registry: ghcr.io/kairos-io/kairos
       # Scratch tag: qemu tests consume this, promote-images copies
       # the manifest to :master on green.
       image_tag: master-scratch
-      push_images: true
+      push: true
+      registry_login: ghcr
+    secrets: inherit
+
+  # kcrypt-challenger pipe: parallel to the kairos pipe, only gates
+  # promote-images (nothing on the qemu path consumes it).
+  build-kcrypt-challenger:
+    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
+    with:
+      matrix_scope: ci
+    secrets: inherit
+
+  build-image-kcrypt-challenger:
+    needs: [build-kcrypt-challenger, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    with:
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: master-scratch
+      push: true
       registry_login: ghcr
     secrets: inherit
 
@@ -69,7 +95,7 @@ jobs:
   # promote-images below waits on build-iso-arm too so a broken
   # arm build still keeps :master-scratch from advancing to :master.
   build-iso:
-    needs: build-images
+    needs: build-image-kairos-init
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +108,7 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      # Consume the scratch kairos-init that build-images just published.
+      # Consume the scratch kairos-init that build-image-kairos-init just published.
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
@@ -97,7 +123,7 @@ jobs:
     secrets: inherit
 
   build-iso-arm:
-    needs: build-images
+    needs: build-image-kairos-init
     strategy:
       fail-fast: false
       matrix:
@@ -226,7 +252,10 @@ jobs:
   # pinned :master-scratch@sha256:xxx before promotion, the same
   # sha256 is what :master now points at.
   promote-images:
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm]
+    # qemu suites + arm build gate the kairos-init side; the
+    # kcrypt-challenger image is on a parallel pipe and must also be
+    # pushed to :master-scratch before this job can promote it.
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
     steps:
       - name: Login to ghcr.io
