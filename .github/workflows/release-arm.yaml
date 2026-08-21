@@ -16,7 +16,7 @@ jobs:
 
   core:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@e2108928941a741b690e3f879f46e5f0706ae565 # v1.4.5
     needs:
       - vulnerability-scan
     secrets:
@@ -124,7 +124,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> $GITHUB_OUTPUT
   standard:
     name: ${{ matrix.image_name }}
-    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@9bf6ee71187036eb832f28c29f0c699507bc1ca3 # v1.4.1
+    uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@e2108928941a741b690e3f879f46e5f0706ae565 # v1.4.5
     secrets:
       registry_username: ${{ secrets.QUAY_USERNAME }}
       registry_password: ${{ secrets.QUAY_PASSWORD }}
