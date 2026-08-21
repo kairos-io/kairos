@@ -63,6 +63,9 @@ if [ "$LABEL" != "local-encryption" ]; then
   # run the tests against an image that has nothing to do with
   # the change under test and claim success.
   : "${KCRYPT_CHALLENGER_IMAGE:?KCRYPT_CHALLENGER_IMAGE not set. Pass the image ref for the kcrypt-challenger to test, e.g. ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-4356}"
+  # envsubst wants the literal '${VAR}' text as its whitelist argument;
+  # single-quoting keeps the shell from expanding it first.
+  # shellcheck disable=SC2016
   envsubst '${KCRYPT_CHALLENGER_IMAGE}' \
       < "$SCRIPT_DIR/../tests/assets/encryption/challenger-patch.template.yaml" \
       > "$SCRIPT_DIR/../tests/assets/encryption/challenger-patch.yaml"
