@@ -78,9 +78,18 @@ jobs:
       ref: refs/pull/${{ github.event.pull_request.number }}/head
     secrets: inherit
 
-  # PR ISO matrix: amd64 core (no k8s) and amd64 standard (k3s)
-  # feed the qemu-tests-* jobs; arm64 core is a build-only smoke
-  # check (qemu is not viable on the arm64 CI hardware).
+  # ISO matrix is split into two jobs so qemu-tests-* start as soon
+  # as the amd64 cells they consume are ready, without waiting for
+  # the slow arm64/nvidia builds that no test consumes.
+  #
+  # build-iso: amd64 core, amd64 standard, amd64 standard-uki,
+  # amd64 core-uki -- everything the qemu suites boot.
+  # build-iso-arm: arm64 core + rpi3 + rpi4 + both nvidia jetson
+  # cells -- build-only smoke coverage (no qemu on arm64 in CI).
+  #
+  # Nothing downstream in PR waits on build-iso-arm; a failure there
+  # still fails the whole PR, but qemu proceeds in parallel.
+
   build-iso:
     needs: build-images
     # Skip on fork PRs -- no secrets to push the OS image. Dropped
@@ -92,14 +101,49 @@ jobs:
         include:
           - {name: 'pr-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
+          # base image from hadron (extra tpm/measured-boot bits); the
+          # -uki suffix on the artifact/tag comes from the $UKI token
+          # in _build-iso.yaml's custom formats.
+          - {name: 'pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
+    uses: ./.github/workflows/_build-iso.yaml
+    with:
+      name: ${{ matrix.name }}
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      # All cells here are hadron/ghcr; nvidia + ubuntu-based ones
+      # live in build-iso-arm below and override the registry there.
+      registry_domain: 'ghcr.io'
+      registry_namespace: 'kairos-io/kairos'
+      # UKI-only: bake an extra `testentry` EFI entry so the
+      # install-upgrade qemu test has something to upgrade.
+      # Factory-action ignores it on non-UKI cells.
+      single_efi_cmdline: 'testentry: nothing'
+      release: false
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  build-iso-arm:
+    needs: build-images
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - {name: 'pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
           - {name: 'pr-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'pr-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
-          # only builds on that. grype/sbom off (too many upstream L4T
-          # vulns to enforce, non-cataloguable binaries in the rootfs).
-          # cleanup=true because L4T eats runner disk. Push destination
+          # only builds on that. Model-derived knobs (grype/sbom/
+          # cleanup) turn off scans and enable disk cleanup; see
+          # _build-iso.yaml's caller expression. Push destination
           # switches to quay.io/kairos/ci-temp-images because the
           # ghcr.io/kairos-io/kairos/ubuntu package does not exist yet
           # and needs the same seed dance hadron got; ci-temp-images
@@ -124,12 +168,6 @@ jobs:
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
-          # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
-          # base image from hadron (extra tpm/measured-boot bits); the
-          # -uki suffix on the artifact/tag comes from the $UKI token
-          # in _build-iso.yaml's custom formats.
-          - {name: 'pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
-          - {name: 'pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
@@ -140,22 +178,9 @@ jobs:
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      # Per-cell registry override lets nvidia (ubuntu-based) cells
-      # push to quay.io/kairos/ci-temp-images; hadron cells fall
-      # through to the ghcr defaults.
       registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
       registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
-      # UKI-only: bake an extra `testentry` EFI entry so the
-      # install-upgrade qemu test has something to upgrade.
-      # Factory-action ignores it on non-UKI cells.
-      single_efi_cmdline: 'testentry: nothing'
-      # Model-derived knobs. GitHub expressions cannot cleanly do
-      # `matrix.foo || default` when foo is a boolean, because the
-      # ternary short-circuits on falsy values and treats an
-      # explicit `false` the same as "unset". Old release-arm.yaml
-      # sidestepped the whole class by deriving these from the
-      # model string, which is what we do here.
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}

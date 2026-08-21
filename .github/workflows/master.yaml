@@ -64,6 +64,10 @@ jobs:
       registry_login: ghcr
     secrets: inherit
 
+  # ISO matrix split so qemu-tests-* unblock as soon as the amd64
+  # cells they consume are ready. See pr.yaml for the rationale.
+  # promote-images below waits on build-iso-arm too so a broken
+  # arm build still keeps :master-scratch from advancing to :master.
   build-iso:
     needs: build-images
     strategy:
@@ -72,12 +76,35 @@ jobs:
         include:
           - {name: 'next-master-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'next-master-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          # UKI cells feed qemu-tests-uki (see pr.yaml for the shape).
+          - {name: 'next-master-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'next-master-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
+    uses: ./.github/workflows/_build-iso.yaml
+    with:
+      name: ${{ matrix.name }}
+      # Consume the scratch kairos-init that build-images just published.
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      registry_domain: 'ghcr.io'
+      registry_namespace: 'kairos-io/kairos'
+      single_efi_cmdline: 'testentry: nothing'
+      release: false
+    secrets: inherit
+
+  build-iso-arm:
+    needs: build-images
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - {name: 'next-master-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          # rpi cells: raw disk image, no ISO. Still on hadron base.
           - {name: 'next-master-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'next-master-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          # NVIDIA Jetson cells. See pr.yaml for the base_image /
-          # grype / sbom / cleanup / registry rationale.
           - name: 'next-master-arm64-nvidia-agx-orin'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
@@ -98,13 +125,9 @@ jobs:
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
-          # UKI cells feed qemu-tests-uki (see next-pr.yaml for the shape).
-          - {name: 'next-master-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
-          - {name: 'next-master-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      # Consume the scratch kairos-init that build-images just published.
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
@@ -115,9 +138,6 @@ jobs:
       registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
       registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
-      # UKI-only: see pr.yaml for the testentry rationale.
-      single_efi_cmdline: 'testentry: nothing'
-      # Model-derived knobs; see pr.yaml for the rationale.
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
@@ -206,7 +226,7 @@ jobs:
   # pinned :master-scratch@sha256:xxx before promotion, the same
   # sha256 is what :master now points at.
   promote-images:
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki]
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm]
     runs-on: ubuntu-latest
     steps:
       - name: Login to ghcr.io

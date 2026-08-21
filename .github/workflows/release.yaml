@@ -70,6 +70,11 @@ jobs:
       registry_login: quay
     secrets: inherit
 
+  # ISO matrix split so qemu-tests-* unblock as soon as the amd64
+  # cells they consume are ready. See pr.yaml for the rationale.
+  # promote-images and upload-release both wait on build-iso-arm too
+  # so a broken arm build blocks the final tag advance and the
+  # release-artifact upload.
   build-iso:
     needs: [build-images, vulnerability-scan]
     strategy:
@@ -78,20 +83,37 @@ jobs:
         include:
           - {name: 'next-release-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'next-release-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
-          # UKI cells feed qemu-tests-uki (see next-pr.yaml for the shape).
+          # UKI cells feed qemu-tests-uki (see pr.yaml for the shape).
           # hadron-trusted is a distinct base image from hadron; both UKI
           # cells set iso:true because factory-action still produces the
           # bootable UKI-iso even with trusted_boot=true.
           - {name: 'next-release-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
           - {name: 'next-release-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
+    uses: ./.github/workflows/_build-iso.yaml
+    with:
+      name: ${{ matrix.name }}
+      # Consume the scratch kairos-init that build-images just published.
+      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      registry_domain: 'quay.io'
+      registry_namespace: 'kairos'
+      release: true
+    secrets: inherit
+
+  build-iso-arm:
+    needs: [build-images, vulnerability-scan]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - {name: 'next-release-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          # rpi cells: raw disk image, no ISO. Still on hadron base.
           - {name: 'next-release-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'next-release-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          # NVIDIA Jetson cells. See pr.yaml for the base_image /
-          # grype / sbom / cleanup / registry rationale. Release path
-          # stays on quay ci-temp-images the same as PR since the
-          # ubuntu ghcr package still does not exist.
           - name: 'next-release-arm64-nvidia-agx-orin'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
@@ -115,7 +137,6 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      # Consume the scratch kairos-init that build-images just published.
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
@@ -126,7 +147,6 @@ jobs:
       registry_domain: ${{ matrix.registry_domain || 'quay.io' }}
       registry_namespace: ${{ matrix.registry_namespace || 'kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
-      # Model-derived knobs; see pr.yaml for the rationale.
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
@@ -216,7 +236,7 @@ jobs:
   # by reference (digest preserved, no image bytes pulled). Also
   # tag :latest on the final promotion.
   promote-images:
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki]
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm]
     runs-on: ubuntu-latest
     steps:
       - name: Login to quay.io
@@ -239,6 +259,6 @@ jobs:
           done
 
   upload-release:
-    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-uki]
+    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm]
     uses: ./.github/workflows/_upload-release.yaml
     secrets: inherit
