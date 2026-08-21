@@ -119,31 +119,27 @@ lint-workflows: lint-workflows-yaml lint-workflows-actions
 # pipeline files (pr.yaml, master.yaml, release.yaml and every
 # `_*.yaml` reusable we own) so a warning that tomorrow's yamllint
 # image promotes to error cannot slip through, and non-strict over
-# the leftovers (release-legacy.yaml, upload-cloud-images.yaml, etc.)
-# to preserve the CI contract without dragging in unrelated cleanup.
-# When release-legacy.yaml is retired the second call goes away and
-# the first widens to every workflow file.
+# the leftover independent workflows (upload-cloud-images.yaml,
+# reusable-qemu-test.yaml, scorecards.yaml, etc.) to preserve the CI
+# contract without dragging in unrelated cleanup.
 lint-workflows-yaml:
 	@find .github/workflows -maxdepth 1 \
 	    \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
-	    ! -name '_binaries-reusable.yaml' -print0 \
+	    -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint --strict
 	@find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) \
 	    ! -name 'pr.yaml' ! -name 'master.yaml' ! -name 'release.yaml' \
-	    ! -name '_*.yaml' -o -name '_binaries-reusable.yaml' -print0 \
+	    ! -name '_*.yaml' -print0 \
 	    | xargs -0 -r -n1 docker run --rm -v "$$PWD":/work -w /work cytopia/yamllint
 
-# actionlint over the canonical pipeline only. release-legacy.yaml,
-# _binaries-reusable.yaml, upload-cloud-images.yaml, and
-# reusable-qemu-test.yaml carry pre-existing shellcheck-through-
+# actionlint over the canonical pipeline only. reusable-qemu-test.yaml
+# and upload-cloud-images.yaml carry pre-existing shellcheck-through-
 # actionlint findings we do not want to fix as drive-by, and CI does
-# not currently run actionlint on them either. When
-# release-legacy.yaml is retired this glob widens.
+# not currently run actionlint on them either.
 lint-workflows-actions:
 	@docker run --rm -v "$$PWD":/repo -w /repo rhysd/actionlint -color \
 	    $$(find .github/workflows -maxdepth 1 \
-	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \) \
-	        ! -name '_binaries-reusable.yaml')
+	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
 
 # ============================================================================
 # Release targets: cross-compile the full binary set for a specific ARCH and
