@@ -58,6 +58,15 @@ if [ "$LABEL" != "local-encryption" ]; then
       < "$SCRIPT_DIR/../tests/assets/encryption/challenger-server-ingress.template.yaml" \
       > "$SCRIPT_DIR/../tests/assets/encryption/challenger-server-ingress.yaml"
 
+  # KCRYPT_CHALLENGER_IMAGE is required. No default on purpose:
+  # a silent fallback to a published tag would let a CI misconfig
+  # run the tests against an image that has nothing to do with
+  # the change under test and claim success.
+  : "${KCRYPT_CHALLENGER_IMAGE:?KCRYPT_CHALLENGER_IMAGE not set. Pass the image ref for the kcrypt-challenger to test, e.g. ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-4356}"
+  envsubst '${KCRYPT_CHALLENGER_IMAGE}' \
+      < "$SCRIPT_DIR/../tests/assets/encryption/challenger-patch.template.yaml" \
+      > "$SCRIPT_DIR/../tests/assets/encryption/challenger-patch.yaml"
+
   # Install the challenger server kustomization
   kubectl apply -k "$SCRIPT_DIR/../tests/assets/encryption/"
   kubectl wait --for=condition=Available deployment/kcrypt-controller-controller-manager -n default --timeout=2m

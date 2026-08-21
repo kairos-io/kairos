@@ -331,6 +331,24 @@ jobs:
           - {test: 'provider-upgrade-k8s'}
           - {test: 'provider-decentralized-k8s'}
           - {test: 'provider-k3s-disabled'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  # See pr.yaml for the rationale on splitting encryption cells out.
+  qemu-tests-standard-encryption:
+    needs: [build-iso, build-image-kcrypt-challenger]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - {test: 'encryption-local'}
           - {test: 'encryption-remote-auto'}
           - {test: 'encryption-remote-static'}
@@ -346,6 +364,7 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      kcrypt_challenger_image: quay.io/kairos/kcrypt-challenger:${{ github.ref_name }}-scratch
     secrets: inherit
 
   qemu-tests-uki:
@@ -374,7 +393,7 @@ jobs:
     # qemu suites + iso matrices gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :<tag>-scratch before this job can promote it.
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-image-kcrypt-challenger]
+    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-standard-encryption, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
     steps:
       - name: Login to quay.io
@@ -399,6 +418,6 @@ jobs:
   upload-release:
     # Uploads every tarball to the GitHub Release. Waits on both
     # pipes so the release ships kairos + kairos-init + kcrypt-challenger.
-    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-kcrypt-challenger]
+    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-standard-encryption, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-kcrypt-challenger]
     uses: ./.github/workflows/_upload-release.yaml
     secrets: inherit
