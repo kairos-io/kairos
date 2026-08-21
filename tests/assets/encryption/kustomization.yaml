@@ -2,7 +2,7 @@
 namespace: default
 
 bases:
-  - github.com/kairos-io/kcrypt-challenger/config/default
+  - ../../../kcrypt/config/default
 
 resources:
   - challenger-server-ingress.yaml
