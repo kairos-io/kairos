@@ -136,8 +136,10 @@ jobs:
       registry_login: quay
     secrets: inherit
 
-  # kcrypt-challenger pipe: parallel to the kairos pipe, only gates
-  # promote-images / upload-release.
+  # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
+  # cells of qemu-tests-standard-encryption below consume its image; the
+  # rest of the qemu path does not. Also gates promote-images and
+  # upload-release.
   build-kcrypt-challenger:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:

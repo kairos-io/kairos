@@ -72,8 +72,9 @@ jobs:
       registry_login: ghcr
     secrets: inherit
 
-  # kcrypt-challenger pipe: parallel to the kairos pipe, only gates
-  # promote-images (nothing on the qemu path consumes it).
+  # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
+  # cells of qemu-tests-standard-encryption below consume its image; the
+  # rest of the qemu path does not. Also gates promote-images.
   build-kcrypt-challenger:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
