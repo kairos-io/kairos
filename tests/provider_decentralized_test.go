@@ -140,15 +140,23 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			}
 		})
 
+		// The provider-kairos binary lives at /system/providers/agent-provider-kairos
+		// on the installed system. Pre-monorepo it was also symlinked at /usr/bin/kairos,
+		// which is now the multi-call dispatcher for immucore/agent/kcrypt. Whether
+		// `kairos <cmd>` should still route to a provider is an open question tracked
+		// in kairos-io/kairos#3926 (multi-provider composability); the absolute path
+		// here keeps the test neutral while that lands.
+		const providerKairos = "/system/providers/agent-provider-kairos"
+
 		vmForEach("checking if it has a working kubeconfig", vms, func(vm VM) {
 			var out string
 			Eventually(func() string {
-				out, _ = vm.Sudo("kairos get-kubeconfig")
+				out, _ = vm.Sudo(providerKairos + " get-kubeconfig")
 				return out
 			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
 			Eventually(func() string {
-				vm.Sudo("kairos get-kubeconfig > kubeconfig")
+				vm.Sudo(providerKairos + " get-kubeconfig > kubeconfig")
 				out, _ = vm.Sudo("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
 				return out
 			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
@@ -160,7 +168,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Expect(err).ToNot(HaveOccurred(), uuid)
 			Expect(uuid).ToNot(Equal(""))
 			Eventually(func() string {
-				out, _ = vm.Sudo("kairos role list")
+				out, _ = vm.Sudo(providerKairos + " role list")
 				return out
 			}, 900*time.Second, 10*time.Second).Should(And(
 				ContainSubstring(uuid),
