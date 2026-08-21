@@ -19,6 +19,27 @@ name: PR
 # authorize job or those findings become real.
 
 on:
+  # Transitional: both triggers active for this PR only.
+  # `pull_request_target` is the destination shape (fork PRs get
+  # secrets, gated by the authorize env). `pull_request` is kept
+  # so the PR that ADDS pull_request_target can run its own CI:
+  # pull_request reads HEAD's workflow file, pull_request_target
+  # reads master's. Master's pr.yaml still has only pull_request
+  # today, so without the pull_request line here the workflow
+  # would not fire on this PR at all.
+  #
+  # Once this PR merges, master's pr.yaml carries BOTH triggers.
+  # A one-line follow-up PR then removes the pull_request trigger;
+  # that follow-up runs via master's pull_request_target trigger,
+  # so it can validate itself too. See MIGRATION.md for the
+  # sequencing.
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
   pull_request_target:
     paths-ignore:
       - 'docs/**'
