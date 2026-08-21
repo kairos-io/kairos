@@ -27,7 +27,7 @@ jobs:
     if: |
       (github.event_name == 'issues' && (github.event.action == 'labeled' || github.event.action == 'unlabeled')) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.process_existing == 'true')
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,45 +37,45 @@ jobs:
         with:
           script: |
             const { createOnboardingIssue, commentAndClose, ROLE_TYPES } = require('./.github/scripts/create-onboarding-issue.js');
-            
+
             // Helper function to detect application type from issue title
             function detectApplicationType(title) {
               const maintainerMatch = title.match(/^New Maintainer - (.+)$/);
               if (maintainerMatch) {
                 return { roleType: ROLE_TYPES.MAINTAINER, applicantName: maintainerMatch[1].trim() };
               }
-              
+
               const contributorMatch = title.match(/^New Contributor - (.+)$/);
               if (contributorMatch) {
                 return { roleType: ROLE_TYPES.CONTRIBUTOR, applicantName: contributorMatch[1].trim() };
               }
-              
+
               return null;
             }
-            
+
             if (context.eventName === 'workflow_dispatch') {
               // Manual trigger - process existing issues
               console.log('🔍 Processing existing issues with gitvote/passed label...');
-              
+
               const issues = await github.rest.issues.listForRepo({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 state: 'open',
                 labels: 'gitvote/passed'
               });
-              
+
               console.log(`Found ${issues.data.length} issues with gitvote/passed label`);
-              
+
               for (const issue of issues.data) {
                 const appType = detectApplicationType(issue.title);
                 if (!appType) {
                   console.log(`⚠️  Skipping issue #${issue.number} - not a recognized application issue`);
                   continue;
                 }
-                
+
                 const { roleType, applicantName } = appType;
                 console.log(`📝 Processing ${roleType} application issue #${issue.number}: "${applicantName}"`);
-                
+
                 try {
                   const result = await createOnboardingIssue(github, context, applicantName, issue.number, roleType);
                   if (result.alreadyExists) {
@@ -88,7 +88,7 @@ jobs:
                   console.error(`❌ Error processing issue #${issue.number}:`, error.message);
                 }
               }
-              
+
             } else {
               // Label add/remove trigger - process single issue based on current labels
               const issue = context.payload.issue;
@@ -109,7 +109,7 @@ jobs:
                 console.log('ℹ️  Skipping: not a recognized application issue (maintainer or contributor).');
                 return;
               }
-              
+
               const { roleType, applicantName } = appType;
 
               console.log(`🎉 Vote passed for ${roleType} application. Creating onboarding issue...`);
@@ -121,4 +121,3 @@ jobs:
               await commentAndClose(github, context, issue.number, result.issueNumber, applicantName, roleType);
               console.log(`✅ Successfully created ${roleType} onboarding issue #${result.issueNumber} and closed issue #${issue.number}`);
             }
-

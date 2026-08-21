@@ -1,0 +1,29 @@
+name: Lint (step)
+
+# Reusable step: workflow-file linting via the same
+# kairos-io/linting-composite-action the pre-monorepo lint.yaml
+# used, extended with a `ref` input so the composite's own
+# checkout can be pointed at the PR HEAD when this pipeline runs
+# under pull_request_target. Wired as a hard gate before
+# build-images in every pipeline; a red lint suite blocks image
+# push, same shape unit-tests has.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@6d48f21028c3fe44c036a89b54b54931415999c0  # main @ ref-input
+    with:
+      yamldirs: '.github/workflows/'
+      is-go: false
+      ref: ${{ inputs.ref }}

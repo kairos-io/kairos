@@ -1,35 +1,32 @@
-name: release
+name: master
 
-# The release pipeline. Shape mirrors master.yaml with three
+# The master pipeline. Retires binaries.yaml / image-master*.yaml /
+# uki.yaml / lint.yaml / unit-tests.yaml (deleted together with
+# this rename).
+#
+# Trigger: push to master. Shape mirrors pr.yaml with two
 # differences:
-#   - The registry is quay.io/kairos, not ghcr.io/kairos-io/kairos.
-#   - The ISO matrix carries a UKI/trusted-boot cell (from what
-#     was uki.yaml before retirement) and an arm64 cell (built
-#     for release artifacts; qemu is not viable on arm64 in CI).
-#   - upload-release attaches the built binary archives to the
-#     GitHub Release the tag created, gated on qemu-tests-* and
-#     unit-tests all passing so a red run cannot ship broken
-#     binaries.
-#
-# Test-before-push: images and OS builds first land on
-# :<tag>-scratch. On green, promote-images copies the manifest to
-# :<tag> and :latest via docker buildx imagetools create.
-#
-# Partial parity note: release-legacy.yaml still fires on the same
-# v* trigger and provides the k3s/k0s per-version ISO matrix that
-# this pipeline does not yet build. The plan is to port that
-# dynamic-matrix pre-step here and then delete release-legacy.yaml
-# in a follow-up.
+#   - No fork-PR guard (master is trusted).
+#   - Test-before-push semantics for the "master" tag itself:
+#     images and OS builds first land on :master-scratch, qemu
+#     tests run against the scratch tag, and only on green does a
+#     final promote step copy the scratch manifest under :master.
+#     A red run leaves the scratch tag alone (it will be
+#     overwritten by the next push) and never advances :master.
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [master]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
 
 permissions:
   # See _build-iso.yaml for the reusable-workflow permission
-  # rationale. contents:write is also required to attach artifacts
-  # to the GitHub Release the tag created.
+  # rationale (callers must cover callee).
   contents: write
   packages: write
   id-token: write
@@ -37,8 +34,8 @@ permissions:
   actions: read
 
 concurrency:
-  group: ci-next-release-${{ github.ref }}-${{ github.repository }}
-  cancel-in-progress: false   # do NOT cancel a release run mid-way
+  group: ci-next-master-${{ github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
 
 jobs:
   unit-tests:
@@ -49,72 +46,66 @@ jobs:
     uses: ./.github/workflows/_lint.yaml
     secrets: inherit
 
-  vulnerability-scan:
-    uses: ./.github/workflows/release-scan.yml
-
   build-binaries:
     uses: ./.github/workflows/_build-binaries.yaml
     with:
-      matrix_scope: release
+      matrix_scope: ci
     secrets: inherit
 
   build-images:
     needs: [build-binaries, unit-tests, lint]
     uses: ./.github/workflows/_build-images.yaml
     with:
-      image_registry: quay.io/kairos
+      image_registry: ghcr.io/kairos-io/kairos
       # Scratch tag: qemu tests consume this, promote-images copies
-      # to the final tag + :latest on green.
-      image_tag: ${{ github.ref_name }}-scratch
+      # the manifest to :master on green.
+      image_tag: master-scratch
       push_images: true
-      registry_login: quay
+      registry_login: ghcr
     secrets: inherit
 
   # ISO matrix split so qemu-tests-* unblock as soon as the amd64
   # cells they consume are ready. See pr.yaml for the rationale.
-  # promote-images and upload-release both wait on build-iso-arm too
-  # so a broken arm build blocks the final tag advance and the
-  # release-artifact upload.
+  # promote-images below waits on build-iso-arm too so a broken
+  # arm build still keeps :master-scratch from advancing to :master.
   build-iso:
-    needs: [build-images, vulnerability-scan]
+    needs: build-images
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {name: 'next-release-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'next-release-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          - {name: 'next-master-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'next-master-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
           # UKI cells feed qemu-tests-uki (see pr.yaml for the shape).
-          # hadron-trusted is a distinct base image from hadron; both UKI
-          # cells set iso:true because factory-action still produces the
-          # bootable UKI-iso even with trusted_boot=true.
-          - {name: 'next-release-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
-          - {name: 'next-release-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
+          - {name: 'next-master-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'next-master-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
       # Consume the scratch kairos-init that build-images just published.
-      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      registry_domain: 'quay.io'
-      registry_namespace: 'kairos'
-      release: true
+      registry_domain: 'ghcr.io'
+      registry_namespace: 'kairos-io/kairos'
+      single_efi_cmdline: 'testentry: nothing'
+      release: false
     secrets: inherit
 
   build-iso-arm:
-    needs: [build-images, vulnerability-scan]
+    needs: build-images
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {name: 'next-release-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'next-release-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'next-release-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - name: 'next-release-arm64-nvidia-agx-orin'
+          - {name: 'next-master-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'next-master-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'next-master-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - name: 'next-master-arm64-nvidia-agx-orin'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
             model: 'nvidia-jetson-agx-orin'
@@ -124,7 +115,7 @@ jobs:
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
-          - name: 'next-release-arm64-nvidia-orin-nx'
+          - name: 'next-master-arm64-nvidia-orin-nx'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
             model: 'nvidia-jetson-orin-nx'
@@ -137,29 +128,22 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      registry_domain: ${{ matrix.registry_domain || 'quay.io' }}
-      registry_namespace: ${{ matrix.registry_namespace || 'kairos' }}
+      registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
+      registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
-      release: true
+      release: false
     secrets: inherit
-
-  # QEMU tests exercise amd64 core and amd64 standard. arm64 has no
-  # cell here on purpose: qemu-on-amd64-runners-emulating-arm64 is
-  # too slow to be usable, and hosted arm64 runners are not
-  # available. The k3s/k0s per-version matrix from the old
-  # release.yaml is not yet wired here; it needs a dynamic-matrix
-  # pre-step and will be added before we retire release.yaml.
 
   qemu-tests-core:
     needs: build-iso
@@ -175,6 +159,7 @@ jobs:
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
+          - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
       test: ${{ matrix.test }}
@@ -184,6 +169,7 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
 
   qemu-tests-standard:
@@ -202,6 +188,7 @@ jobs:
           - {test: 'encryption-remote-https-pinned'}
           - {test: 'encryption-remote-https-bad-cert'}
           - {test: 'encryption-kcrypt-cli'}
+          - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
       test: ${{ matrix.test }}
@@ -211,6 +198,7 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
 
   qemu-tests-uki:
@@ -231,34 +219,28 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
 
-  # Copy the scratch manifests to their final tags only if both
-  # qemu suites pass. `docker buildx imagetools create` promotes
-  # by reference (digest preserved, no image bytes pulled). Also
-  # tag :latest on the final promotion.
+  # Copy the scratch manifests under :master only if the qemu suites
+  # both pass. Uses `docker buildx imagetools create` because it
+  # promotes the multi-arch manifest by reference without pulling
+  # the image bytes and without changing the digest -- if consumers
+  # pinned :master-scratch@sha256:xxx before promotion, the same
+  # sha256 is what :master now points at.
   promote-images:
     needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm]
     runs-on: ubuntu-latest
     steps:
-      - name: Login to quay.io
+      - name: Login to ghcr.io
         uses: docker/login-action@v3
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Promote kairos-init and kcrypt-challenger scratch -> :<tag> + :latest
-        env:
-          TAG: ${{ github.ref_name }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote kairos-init and kcrypt-challenger scratch -> :master
         run: |
           set -euo pipefail
           for img in kairos-init kcrypt-challenger; do
-            src="quay.io/kairos/${img}:${TAG}-scratch"
-            dst_tag="quay.io/kairos/${img}:${TAG}"
-            dst_latest="quay.io/kairos/${img}:latest"
-            echo "Promoting $src -> $dst_tag and $dst_latest"
-            docker buildx imagetools create -t "$dst_tag" -t "$dst_latest" "$src"
+            src="ghcr.io/kairos-io/kairos/${img}:master-scratch"
+            dst="ghcr.io/kairos-io/kairos/${img}:master"
+            echo "Promoting $src -> $dst"
+            docker buildx imagetools create -t "$dst" "$src"
           done
-
-  upload-release:
-    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-uki, build-iso-arm]
-    uses: ./.github/workflows/_upload-release.yaml
-    secrets: inherit

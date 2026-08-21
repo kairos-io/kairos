@@ -1,0 +1,285 @@
+name: PR
+
+# The PR pipeline. Every downstream job (image push, ISO build,
+# qemu tests) lives under this workflow; the pre-monorepo
+# binaries.yaml / image-pr*.yaml / uki.yaml / lint.yaml /
+# unit-tests.yaml were retired together with this rename.
+#
+# Trigger: pull_request (TRANSITIONAL). The intended trigger is
+# pull_request_target with an `authorize` job on a `fork-pr-builds`
+# environment, matching what the old image-pr.yaml did before we
+# retired it. That flip is a one-line change but only takes effect
+# once THIS file lives on master: pull_request_target resolves the
+# workflow file from the base branch, and master does not yet have
+# pr.yaml. Keeping pull_request here lets this branch validate its
+# own new pipeline against HEAD; a follow-up commit on master
+# flips to pull_request_target and reintroduces the authorize job.
+# Fork PRs run without secrets in the meantime, same shape they
+# had before under pull_request (image push / qemu tests skipped
+# via the same-repo `if:` guards below).
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+
+permissions:
+  # See _build-iso.yaml for the reusable-workflow permission
+  # rationale (callers must cover callee).
+  contents: write
+  packages: write
+  id-token: write
+  security-events: write
+  actions: read
+
+concurrency:
+  group: ci-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  # authorize + `fork-pr-builds` env gate go here when we flip to
+  # pull_request_target after this file lands on master. See the
+  # header block above.
+
+  unit-tests:
+    uses: ./.github/workflows/_unit-tests.yaml
+    secrets: inherit
+
+  lint:
+    uses: ./.github/workflows/_lint.yaml
+    secrets: inherit
+
+  build-binaries:
+    uses: ./.github/workflows/_build-binaries.yaml
+    with:
+      matrix_scope: ci
+    secrets: inherit
+
+  # unit-tests + lint are hard gates for anything that publishes
+  # downstream. An image push is visible outside the run, so a red
+  # test or lint suite must stop it. build-binaries runs in parallel
+  # with tests since it is not visible until images / isos consume it.
+  build-images:
+    needs: [build-binaries, unit-tests, lint]
+    uses: ./.github/workflows/_build-images.yaml
+    with:
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: pr-${{ github.event.pull_request.number }}
+      # Fork PRs under pull_request get a read-only GITHUB_TOKEN and
+      # no org secrets, so the ghcr login step would fail. Skip the
+      # push there; the pull_request_target follow-up drops this
+      # guard (an env gate takes over).
+      push_images: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      registry_login: ghcr
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  # ISO matrix is split into two jobs so qemu-tests-* start as soon
+  # as the amd64 cells they consume are ready, without waiting for
+  # the slow arm64/nvidia builds that no test consumes.
+  #
+  # build-iso: amd64 core, amd64 standard, amd64 standard-uki,
+  # amd64 core-uki -- everything the qemu suites boot.
+  # build-iso-arm: arm64 core + rpi3 + rpi4 + both nvidia jetson
+  # cells -- build-only smoke coverage (no qemu on arm64 in CI).
+  #
+  # Nothing downstream in PR waits on build-iso-arm; a failure there
+  # still fails the whole PR, but qemu proceeds in parallel.
+
+  build-iso:
+    needs: build-images
+    # Skip on fork PRs -- no secrets to push the OS image. Dropped
+    # when the pull_request_target flip lands (env gate takes over).
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: 'pr-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s'}
+          # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
+          # base image from hadron (extra tpm/measured-boot bits); the
+          # -uki suffix on the artifact/tag comes from the $UKI token
+          # in _build-iso.yaml's custom formats.
+          - {name: 'pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s'}
+          - {name: 'pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: ''}
+    uses: ./.github/workflows/_build-iso.yaml
+    with:
+      name: ${{ matrix.name }}
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      # All cells here are hadron/ghcr; nvidia + ubuntu-based ones
+      # live in build-iso-arm below and override the registry there.
+      registry_domain: 'ghcr.io'
+      registry_namespace: 'kairos-io/kairos'
+      # UKI-only: bake an extra `testentry` EFI entry so the
+      # install-upgrade qemu test has something to upgrade.
+      # Factory-action ignores it on non-UKI cells.
+      single_efi_cmdline: 'testentry: nothing'
+      release: false
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  build-iso-arm:
+    needs: build-images
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: 'pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          # rpi cells: raw disk image, no ISO. Still on hadron base.
+          - {name: 'pr-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'pr-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
+          # only builds on that. Model-derived knobs (grype/sbom/
+          # cleanup) turn off scans and enable disk cleanup; see
+          # _build-iso.yaml's caller expression. Push destination
+          # switches to quay.io/kairos/ci-temp-images because the
+          # ghcr.io/kairos-io/kairos/ubuntu package does not exist yet
+          # and needs the same seed dance hadron got; ci-temp-images
+          # is already public and existing.
+          - name: 'pr-arm64-nvidia-agx-orin'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-agx-orin'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
+          - name: 'pr-arm64-nvidia-orin-nx'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-orin-nx'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
+    uses: ./.github/workflows/_build-iso.yaml
+    with:
+      name: ${{ matrix.name }}
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
+      registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
+      registry_repository: ${{ matrix.registry_repository || '' }}
+      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
+      grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
+      release: false
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  # QEMU test suites. Matrix at THIS level (caller side) calling
+  # reusable-qemu-test.yaml directly, because matrix + uses on a
+  # leaf reusable is a supported pattern; matrix + uses on an
+  # intermediate reusable that itself calls another reusable is
+  # the shape that broke earlier (see _build-iso.yaml).
+  #
+  # Each test cell downloads the ISO artifact factory-action
+  # produced during build-iso and boots it under qemu. Test labels
+  # match the ginkgo labels in tests/.
+
+  qemu-tests-core:
+    needs: build-iso
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'custom-partitioning'}
+          - {test: 'acceptance'}
+          - {test: 'install'}
+          - {test: 'install-target'}
+          - {test: 'reset'}
+          - {test: 'upgrade-with-cli'}
+          - {test: 'bundles'}
+          - {test: 'ssh-hardening'}
+          - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      release-matcher: ${{ matrix.release-matcher || '' }}
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  qemu-tests-standard:
+    needs: build-iso
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'provider-qrcode-install'}
+          - {test: 'provider-upgrade-k8s'}
+          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-k3s-disabled'}
+          - {test: 'encryption-local'}
+          - {test: 'encryption-remote-auto'}
+          - {test: 'encryption-remote-static'}
+          - {test: 'encryption-remote-https-pinned'}
+          - {test: 'encryption-remote-https-bad-cert'}
+          - {test: 'encryption-kcrypt-cli'}
+          - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      release-matcher: ${{ matrix.release-matcher || '' }}
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit
+
+  # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
+  # dynamically-built upgrade image; `boot-assessment` runs against
+  # the core UKI ISO and only checks boot slots. Both live in
+  # _uki-test.yaml since their shape diverges from the regular
+  # reusable-qemu-test.yaml.
+  qemu-tests-uki:
+    needs: build-iso
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'install-upgrade', variant: 'standard'}
+          - {test: 'boot-assessment', variant: 'core'}
+    uses: ./.github/workflows/_uki-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      variant: ${{ matrix.variant }}
+      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
+      arch: 'amd64'
+      model: 'generic'
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+    secrets: inherit

@@ -49,6 +49,26 @@ on:
         required: false
         type: string
         default: ''
+      container_image_prefix:
+        description: |
+          Registry path (registry/namespace/repo, no tag) where the Kairos
+          OS container image was pushed. Combined with the tag suffix
+          `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>` to
+          form the IMAGE_NAME ginkgo tests docker-pull from inside the VM.
+
+          The literal `${flavor}` (bash brace syntax) is expanded to the
+          flavor derived from base_image; use it when each flavor lives
+          in its own repo, e.g.
+              container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+          which produces ghcr.io/kairos-io/kairos/hadron for the hadron
+          base image and ghcr.io/kairos-io/kairos/ubuntu for ubuntu.
+
+          Default matches the pre-monorepo image-pr.yaml / release.yaml
+          shape, which puts every flavor in one ci-temp-images repo and
+          disambiguates via the tag.
+        required: false
+        type: string
+        default: 'quay.io/kairos/ci-temp-images'
 
     secrets:
       QUAY_USERNAME:
@@ -149,6 +169,16 @@ jobs:
               insecure = true
               http = true
       - name: Login to Quay Registry
+        # Only the bundles test actually pushes to quay -- it builds
+        # a per-run bundles-test image and pushes it to
+        # quay.io/kairos/ci-temp-images:bundles-test (see "Prepare
+        # test bundle" step below). Every other cell either pulls
+        # nothing at CI level or reaches public quay repos
+        # (luet's quay.io/kairos/packages) which need no login. The
+        # OS image lives at ghcr.io/kairos-io/kairos/${flavor} now,
+        # not at ci-temp-images, so IMAGE_NAME pulls from ghcr
+        # inside the VM and needs no CI-level quay creds either.
+        if: inputs.test == 'bundles'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: quay.io
@@ -207,9 +237,20 @@ jobs:
           prefer_secboot: true
         id: find_ovmf
       - name: Set Image tag
+        env:
+          PREFIX_TEMPLATE: ${{ inputs.container_image_prefix }}
+          FLAVOR: ${{ steps.split.outputs.flavor }}
+          FLAVOR_RELEASE: ${{ steps.split.outputs.flavor_release }}
+          VARIANT: ${{ inputs.variant }}
+          ARCH: ${{ inputs.arch }}
+          MODEL: ${{ inputs.model }}
+          SHA: ${{ github.sha }}
         run: |
-          IMAGE_NAME="quay.io/kairos/ci-temp-images:${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}"
-          echo "IMAGE_NAME=$IMAGE_NAME-${{ github.sha }}" >> $GITHUB_ENV
+          # Expand the literal `${flavor}` token in the caller-provided
+          # prefix. Callers that don't use the token (or take the
+          # default) pass through unchanged.
+          PREFIX="${PREFIX_TEMPLATE//\$\{flavor\}/$FLAVOR}"
+          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${SHA}" >> "$GITHUB_ENV"
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
