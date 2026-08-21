@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout kairos
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Resolve the pinned kairos-init version
         id: pin
@@ -57,7 +57,7 @@ jobs:
           echo "Scanning the bundle composed by kairos-init ${VERSION}"
 
       - name: Checkout kairos-init at that version
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: kairos-io/kairos-init
           ref: ${{ steps.pin.outputs.version }}
