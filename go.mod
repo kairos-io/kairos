@@ -51,7 +51,7 @@ require (
 	github.com/saferwall/pe v1.6.5
 	github.com/sanity-io/litter v1.5.8
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
-	github.com/sirupsen/logrus v1.9.4
+	github.com/sirupsen/logrus v1.10.1
 	github.com/spectrocloud-labs/herd v0.4.2
 	github.com/spectrocloud/peg v0.0.0-20260813125620-d8627da0983c
 	github.com/spf13/cobra v1.10.2
