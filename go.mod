@@ -3,7 +3,7 @@ module github.com/kairos-io/kairos
 go 1.26.5
 
 require (
-	github.com/Masterminds/semver/v3 v3.4.0
+	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/anatol/luks.go v0.0.0-20260615185044-2658459c8ca5
 	github.com/avast/retry-go v3.0.0+incompatible
