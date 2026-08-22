@@ -65,6 +65,7 @@ var defaultRetryPredicate = func(err error) bool {
 
 func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string) error {
 	reader := mutate.Extract(img)
+	defer reader.Close()
 
 	var options archive.ApplyOpt
 	if len(excludes) > 0 {
@@ -88,8 +89,15 @@ func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string)
 		})
 	}
 
-	_, err := archive.Apply(context.Background(), targetDestination, reader, options)
+	if _, err := archive.Apply(context.Background(), targetDestination, reader, options); err != nil {
+		return err
+	}
 
+	// archive.Apply stops at the tar end marker. mutate.Extract can write that
+	// marker while closing its tar writer after a layer read failure, leaving
+	// the producer error pending on the pipe. Drain the reader so that error is
+	// observed before reporting a successful extraction.
+	_, err := io.Copy(io.Discard, reader)
 	return err
 }
 
