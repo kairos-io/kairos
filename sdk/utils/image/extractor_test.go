@@ -3,6 +3,7 @@ package image_test
 import (
 	"archive/tar"
 	"bytes"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"net/url"
@@ -22,6 +23,23 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+var errLayerRead = errors.New("injected layer read failure")
+
+type failingLayer struct {
+	v1.Layer
+	contents []byte
+}
+
+func (l failingLayer) Uncompressed() (io.ReadCloser, error) {
+	return io.NopCloser(io.MultiReader(bytes.NewReader(l.contents), errorReader{})), nil
+}
+
+type errorReader struct{}
+
+func (errorReader) Read([]byte) (int, error) {
+	return 0, errLayerRead
+}
 
 // currentUserImage builds a single-layer image whose one file is owned by the
 // current uid/gid, so ExtractOCIImage's chown succeeds when the suite runs
@@ -56,6 +74,40 @@ func currentUserImage() (v1.Image, error) {
 }
 
 var _ = Describe("OCIImageExtractor", func() {
+	It("returns a layer read error after applying partial tar content", func() {
+		var partialTar bytes.Buffer
+		tw := tar.NewWriter(&partialTar)
+		content := []byte("partial content")
+		Expect(tw.WriteHeader(&tar.Header{
+			Name:     "partial.txt",
+			Typeflag: tar.TypeReg,
+			Mode:     0o644,
+			Size:     int64(len(content)),
+			Uid:      os.Getuid(),
+			Gid:      os.Getgid(),
+		})).To(Succeed())
+		_, err := tw.Write(content)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(tw.Flush()).To(Succeed())
+
+		baseImage, err := currentUserImage()
+		Expect(err).ToNot(HaveOccurred())
+		layers, err := baseImage.Layers()
+		Expect(err).ToNot(HaveOccurred())
+		img, err := mutate.AppendLayers(empty.Image, failingLayer{
+			Layer:    layers[0],
+			contents: partialTar.Bytes(),
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		destDir, err := os.MkdirTemp("", "sdk-partial-extractor-*")
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(os.RemoveAll, destDir)
+
+		err = image.ExtractOCIImage(img, destDir)
+		Expect(err).To(MatchError(ContainSubstring(errLayerRead.Error())))
+	})
+
 	Describe("against a registry with an untrusted (self-signed) TLS certificate", func() {
 		var (
 			server   *httptest.Server
