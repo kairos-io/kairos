@@ -17,6 +17,14 @@ name: PR
 # fork-pr-builds environment and wait for a maintainer to review
 # the diff before any secret-bearing job runs. Do NOT drop the
 # authorize job or those findings become real.
+#
+# Every reusable call below sets `caller-vetted-ref: true`. That
+# is what unlocks actions/checkout's `allow-unsafe-pr-checkout`
+# opt-in inside each reusable. It is honest to assert here because
+# `needs: authorize` puts every fork PR through the fork-pr-builds
+# environment approval before its ref is fetched. Removing the
+# `authorize` gate without also removing these assertions turns
+# the codeql-flagged "pwn request" attack surface real.
 
 on:
   pull_request_target:
@@ -65,6 +73,7 @@ jobs:
     uses: ./.github/workflows/_unit-tests.yaml
     with:
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   lint:
@@ -72,6 +81,7 @@ jobs:
     uses: ./.github/workflows/_lint.yaml
     with:
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   # The kairos-init pipe (multi-call kairos -> kairos-init -> image ->
@@ -82,6 +92,7 @@ jobs:
     with:
       matrix_scope: ci
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   build-kairos-init:
@@ -90,6 +101,7 @@ jobs:
     with:
       matrix_scope: ci
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   # unit-tests + lint gate any image push (visible outside the run).
@@ -103,6 +115,7 @@ jobs:
       push: true
       registry_login: ghcr
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   # The kcrypt-challenger pipe runs in parallel to the kairos pipe.
@@ -115,6 +128,7 @@ jobs:
     with:
       matrix_scope: ci
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   build-image-kcrypt-challenger:
@@ -126,6 +140,7 @@ jobs:
       push: true
       registry_login: ghcr
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   # ISO matrix is split into two jobs so qemu-tests-* start as soon
@@ -174,6 +189,7 @@ jobs:
       single_efi_cmdline: 'testentry: nothing'
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   build-iso-arm:
@@ -233,6 +249,7 @@ jobs:
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   # QEMU test suites. Matrix at THIS level (caller side) calling
@@ -271,6 +288,7 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       release-matcher: ${{ matrix.release-matcher || '' }}
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   qemu-tests-standard:
@@ -295,6 +313,7 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       release-matcher: ${{ matrix.release-matcher || '' }}
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   # encryption-* tests spin up a k3s cluster with a kcrypt-challenger
@@ -324,6 +343,7 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-${{ github.event.pull_request.number }}
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit
 
   # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
@@ -348,4 +368,5 @@ jobs:
       model: 'generic'
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
     secrets: inherit

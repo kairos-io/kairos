@@ -49,6 +49,21 @@ on:
         required: false
         type: string
         default: ''
+      caller-vetted-ref:
+        description: |
+          Caller assertion required to unlock actions/checkout's
+          `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if
+          the caller has its own authorization gate in front of
+          this workflow -- e.g. a `pull_request_target` pipeline
+          whose `authorize` job pins the run to a GitHub
+          Environment that requires maintainer review before the
+          fork's `ref` is fetched. Without such a gate, leaving
+          this false keeps the `pull_request_target` + fork-ref
+          combination blocked at checkout time (the guard
+          described at https://gh.io/securely-using-pull_request_target).
+        required: false
+        type: boolean
+        default: false
       container_image_prefix:
         description: |
           Registry path (registry/namespace/repo, no tag) where the Kairos
@@ -147,14 +162,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
-          # actions/checkout refuses to fetch a non-default ref inside a
-          # pull_request_target workflow otherwise -- the exact "pwn request"
-          # guard https://gh.io/securely-using-pull_request_target describes.
-          # Same fix, same reasoning, as kairos-io/kairos-factory-action#60:
-          # `ref`'s own doc above already says the caller carries the risk.
-          # A caller that leaves `ref` empty (every ordinary caller) is
-          # unaffected.
-          allow-unsafe-pr-checkout: ${{ inputs.ref != '' }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         timeout-minutes: 5
