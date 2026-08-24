@@ -363,6 +363,11 @@ jobs:
           - {test: 'encryption-remote-static'}
           - {test: 'encryption-remote-https-pinned'}
           - {test: 'encryption-remote-https-bad-cert'}
+          - {test: 'encryption-remote-complete-workflow'}
+          - {test: 'encryption-remote-ek-only'}
+          - {test: 'encryption-remote-selective-pcr'}
+          - {test: 'encryption-remote-ek-reenroll'}
+          - {test: 'encryption-remote-mixed-modes'}
           - {test: 'encryption-kcrypt-cli'}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
