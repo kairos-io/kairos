@@ -11,13 +11,16 @@
     <img src="https://img.shields.io/badge/licence-APL2-brightgreen"
          alt="license">
   </a>
-  <a href="https://github.com/kairos-io/immucore/issues"><img src="https://img.shields.io/github/issues/kairos-io/immucore"></a>
+  <a href="https://github.com/kairos-io/kairos/issues"><img src="https://img.shields.io/github/issues/kairos-io/kairos"></a>
   <a href="https://kairos.io/docs/" target=_blank> <img src="https://img.shields.io/badge/Documentation-blue"
          alt="docs"></a>
   <img src="https://img.shields.io/badge/made%20with-Go-blue">
-  <img src="https://goreportcard.com/badge/github.com/kairos-io/immucore" alt="go report card" />
 </p>
 
+
+> Immucore lives in the Kairos monorepo. See the
+> [root README](../README.md) for the full repository layout. Import
+> path: `github.com/kairos-io/kairos/immucore`.
 
 ## What is Immucore?
 
