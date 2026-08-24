@@ -11,12 +11,10 @@
     <img src="https://img.shields.io/badge/licence-APL2-brightgreen"
          alt="license">
   </a>
-  <a href="https://github.com/kairos-io/kcrypt-challenger/issues"><img src="https://img.shields.io/github/issues/kairos-io/kcrypt-challenger"></a>
+  <a href="https://github.com/kairos-io/kairos/issues"><img src="https://img.shields.io/github/issues/kairos-io/kairos"></a>
   <a href="https://kairos.io/docs/" target=_blank> <img src="https://img.shields.io/badge/Documentation-blue"
          alt="docs"></a>
   <img src="https://img.shields.io/badge/made%20with-Go-blue">
-  <img src="https://goreportcard.com/badge/github.com/kairos-io/kcrypt-challenger" alt="go report card" />
-  <a href="https://github.com/kairos-io/kcrypt-challenger/actions/workflows/e2e-tests.yml?query=branch%3Amain"> <img src="https://github.com/kairos-io/kcrypt-challenger/actions/workflows/e2e-tests.yml/badge.svg?branch=main"></a>
 </p>
 
 
@@ -55,6 +53,14 @@ Contribute
 </td>
 </tr>
 </table>
+
+> kcrypt lives in the Kairos monorepo. See the
+> [root README](../README.md) for the full repository layout. Import
+> paths: `github.com/kairos-io/kairos/kcrypt/discovery` for the
+> device-side discovery binary and
+> `github.com/kairos-io/kairos/kcrypt/challenger` for the in-cluster
+> server. The `kcrypt-challenger` binary is built at
+> `cmd/kcrypt-challenger/` and ships as its own container image.
 
 | :exclamation: | This is experimental! |
 |-|:-|
@@ -118,49 +124,18 @@ TEST SUITE: None
 $ helm install kairos-challenger kairos/kcrypt-challenger
 ```
 
-## Building Kairos Images
+## Building Kairos images
 
-The Makefile provides several targets for building Kairos ISO images with the kcrypt-challenger integrated.
+Kairos ISO and UKI builds are driven from the monorepo root, not
+from this directory. The canonical pipeline lives under
+`.github/workflows/` (see `_build-iso.yaml` and the release
+workflow); for local one-off builds, the root `Makefile` and the
+kairos-init image are the entry points.
 
-### Building Standard ISO
-
-Build a standard Kairos ISO with the challenger:
-
-```bash
-make kairos-iso
-```
-
-### Building ISO with Custom Binaries
-
-Build an ISO using custom versions of immucore or kairos-agent from their repositories:
-
-```bash
-make kairos-iso IMMUCORE_REF=main KAIROS_AGENT_REF=main NO_CACHE=true
-```
-
-**Parameters:**
-- `IMMUCORE_REF`: Git branch, tag, or commit hash for immucore (e.g., `main`, `v1.0.0`)
-- `KAIROS_AGENT_REF`: Git branch, tag, or commit hash for kairos-agent (e.g., `main`, `v1.0.0`)
-- `NO_CACHE`: Set to `true` to build without using Docker cache (useful for fresh builds)
-
-### Building UKI (Unified Kernel Image) ISO
-
-Build a UKI ISO with secure boot signing support:
-
-```bash
-make kairos-iso-uki
-```
-
-**Prerequisites:**
-- Secure boot keys must be generated first using `make genkeys`
-- Keys are stored in `$(HOME)/tmp/keys` by default (configurable via `KEYS_DIR`)
-
-**Generate keys:**
-```bash
-make genkeys KEYS_ORG="Your Organization Name"
-```
-
-The UKI ISO includes secure boot signing and TPM PCR signing capabilities.
+The legacy `kcrypt/Makefile` targets `kairos-iso` and `kairos-iso-uki`
+still exist but pin `IMMUCORE_REF` / `KAIROS_AGENT_REF` against the
+now-archived per-repo sources; they are scheduled for removal along
+with `kcrypt/Dockerfile.kairos-image` (see #4367).
 
 ## Remote Attestation Flow
 

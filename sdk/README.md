@@ -23,7 +23,12 @@ With Kairos you can build immutable, bootable Kubernetes and OS images for your 
 Kairos (formerly `c3os`) is an open-source project which brings Edge, cloud, and bare metal lifecycle OS management into the same design principles with a unified Cloud Native API.
 
 
-This repo provides the SDK for kairos
+This directory holds the Kairos SDK, importable externally as
+`github.com/kairos-io/kairos/sdk`. It is one component of the Kairos
+monorepo (see the [root README](../README.md) for the full layout);
+old imports of `github.com/kairos-io/kairos-sdk` continue to resolve
+against the archived kairos-sdk repo's tags, and new bumps should
+point at this path instead.
 
 
 

@@ -1,5 +1,11 @@
 # kairos-init
 
+> kairos-init lives in the Kairos monorepo. See the
+> [root README](../README.md) for the full repository layout. The
+> published `quay.io/kairos/kairos-init` image is built from this
+> directory and embeds the multi-call `kairos` binary shipped from
+> `cmd/kairos/`.
+
 kairos-init is an initializer for container images to be Kairosified.
 
 You only need to run this once inside a Dockerfile to have a system that has all the necessary tools to run Kairos.
