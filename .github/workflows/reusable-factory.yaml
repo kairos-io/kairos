@@ -1200,7 +1200,7 @@ jobs:
         if: inputs.cosign
         uses: sigstore/cosign-installer@main
         with:
-          cosign-release: "v2.6.1"
+          cosign-release: "v3.1.3"
 
       - name: Sign image and artifact checksums with cosign
         if: inputs.cosign && inputs.registry_domain != ''
