@@ -278,6 +278,7 @@ jobs:
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
+          - {test: 'zfs'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:

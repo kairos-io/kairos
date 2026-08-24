@@ -319,6 +319,7 @@ jobs:
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
+          - {test: 'zfs'}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
       test: ${{ matrix.test }}
