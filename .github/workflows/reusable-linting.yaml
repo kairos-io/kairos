@@ -29,6 +29,21 @@ on:
         type: string
         default: ""
 
+      # Caller assertion required to unlock actions/checkout's
+      # `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if
+      # the caller has its own authorization gate in front of this
+      # workflow -- e.g. a `pull_request_target` pipeline whose
+      # `authorize` job pins the run to a GitHub Environment that
+      # requires maintainer review before the fork's `ref` is
+      # fetched. Without such a gate, leaving this false keeps the
+      # `pull_request_target` + fork-ref combination blocked at
+      # checkout time (the guard described at
+      # https://gh.io/securely-using-pull_request_target).
+      caller-vetted-ref:
+        required: false
+        type: boolean
+        default: false
+
 jobs:
   golangci_lint:
     runs-on: ubuntu-latest
@@ -38,6 +53,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
       - name: golangci-lint
         env:
           GOLANGCILINT_VERSION: latest-alpine
@@ -50,6 +66,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
       - name: hadolint
         env:
           HADOLINT_VERSION: 2.12.0-alpine
@@ -62,11 +79,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
       - name: renovate-validate
         env:
           RENOVATE_VERSION: "35"
         shell: bash
-        run: docker run -v "$PWD":/work -w /work renovate/renovate renovate-config-validator 
+        run: docker run -v "$PWD":/work -w /work renovate/renovate renovate-config-validator
 
   shellcheck-lint:
     runs-on: ubuntu-latest
@@ -74,6 +92,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
       - name: shellcheck-lint
         env:
           SHELLCHECK_VERSION: v0.9.0
@@ -86,6 +105,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
       - name: yamllint
         shell: bash
         run: find ${{ inputs.yamldirs }} -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint
