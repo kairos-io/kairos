@@ -534,30 +534,36 @@ kcrypt:
 			rebootAndConnect(testVM)
 			verifyEncryptedPartition(testVM)
 
+			// Fetch the fields directly via jsonpath rather than substring-matching
+			// against the full YAML dump: kubectl's YAML encoder wraps multi-line
+			// PEM strings in a block scalar (`ekPublicKey: |\n  ...`) and emits
+			// hex PCR values unquoted, both of which the pre-monorepo checks
+			// were written against but never actually ran, so their assumptions
+			// were never validated.
+
 			By("Verifying EK was learned and stored")
 			Eventually(func() bool {
-				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName, "-o", "yaml")
+				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName,
+					"-o", "jsonpath={.spec.attestation.ekPublicKey}")
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return false
 				}
-				outStr := string(out)
-				return strings.Contains(outStr, "ekPublicKey:") &&
-					!strings.Contains(outStr, "ekPublicKey: \"\"") &&
-					!strings.Contains(outStr, "ekPublicKey: |")
+				return strings.HasPrefix(strings.TrimSpace(string(out)), "-----BEGIN")
 			}, 30*time.Second, 5*time.Second).Should(BeTrue())
 
 			By("Verifying NO PCRs were stored")
 			Eventually(func() bool {
-				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName, "-o", "yaml")
+				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName,
+					"-o", "jsonpath={.spec.attestation.pcrValues.pcrs}")
 				out, err := cmd.CombinedOutput()
 				if err != nil {
 					return false
 				}
-				outStr := string(out)
-				return !strings.Contains(outStr, "pcrValues:") ||
-					strings.Contains(outStr, "pcrValues: null") ||
-					strings.Contains(outStr, "pcrValues: {}")
+				// jsonpath returns an empty string when the field is absent
+				// and the literal "map[]" when it is present but empty.
+				got := strings.TrimSpace(string(out))
+				return got == "" || got == "map[]"
 			}, 30*time.Second, 5*time.Second).Should(BeTrue())
 
 			By("Verifying subsequent boot works with EK enforcement but no PCR checks")
@@ -798,34 +804,24 @@ kcrypt:
 
 			By("Getting the learned EK and PCR values")
 			sealedVolumeName := getSealedVolumeName(tpmHash)
-			var learnedEK, learnedPCR0, learnedPCR7 string
-			Eventually(func() bool {
-				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName, "-o", "yaml")
+			// Use jsonpath to read the fields directly. The pre-monorepo
+			// substring-scrape against `kubectl get -o yaml` output was
+			// fragile against how kubectl chooses to render (block scalars,
+			// unquoted hex, etc.) and had no CI cell to catch drift.
+			readSealedVolumeField := func(path string) string {
+				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName,
+					"-o", "jsonpath={"+path+"}")
 				out, err := cmd.CombinedOutput()
 				if err != nil {
-					return false
+					return ""
 				}
-				outStr := string(out)
-				lines := strings.Split(outStr, "\n")
-				for i, line := range lines {
-					if strings.Contains(line, "ekPublicKey:") {
-						if i+1 < len(lines) {
-							learnedEK = strings.TrimSpace(lines[i+1])
-						}
-					}
-					if strings.Contains(line, "\"0\":") {
-						parts := strings.Split(line, "\"0\":")
-						if len(parts) > 1 {
-							learnedPCR0 = strings.TrimSpace(strings.Trim(parts[1], "\""))
-						}
-					}
-					if strings.Contains(line, "\"7\":") {
-						parts := strings.Split(line, "\"7\":")
-						if len(parts) > 1 {
-							learnedPCR7 = strings.TrimSpace(strings.Trim(parts[1], "\""))
-						}
-					}
-				}
+				return strings.TrimSpace(string(out))
+			}
+			var learnedEK, learnedPCR0, learnedPCR7 string
+			Eventually(func() bool {
+				learnedEK = readSealedVolumeField(".spec.attestation.ekPublicKey")
+				learnedPCR0 = readSealedVolumeField(`.spec.attestation.pcrValues.pcrs.0`)
+				learnedPCR7 = readSealedVolumeField(`.spec.attestation.pcrValues.pcrs.7`)
 				return learnedEK != "" && learnedPCR0 != "" && learnedPCR7 != ""
 			}, 30*time.Second, 5*time.Second).Should(BeTrue())
 
@@ -841,36 +837,18 @@ kcrypt:
 
 			By("Verifying PCR 0 was re-enrolled (learned new value)")
 			Eventually(func() bool {
-				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName, "-o", "yaml")
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					return false
-				}
-				outStr := string(out)
-				return strings.Contains(outStr, "\"0\":") && !strings.Contains(outStr, "\"0\": \"\"")
+				return readSealedVolumeField(`.spec.attestation.pcrValues.pcrs.0`) != ""
 			}, 30*time.Second, 5*time.Second).Should(BeTrue())
 
 			By("Verifying PCR 7 remained in enforcement mode (same value)")
-			Eventually(func() bool {
-				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName, "-o", "yaml")
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					return false
-				}
-				outStr := string(out)
-				return strings.Contains(outStr, fmt.Sprintf("\"7\": \"%s\"", learnedPCR7))
-			}, 30*time.Second, 5*time.Second).Should(BeTrue())
+			Eventually(func() string {
+				return readSealedVolumeField(`.spec.attestation.pcrValues.pcrs.7`)
+			}, 30*time.Second, 5*time.Second).Should(Equal(learnedPCR7))
 
 			By("Verifying EK remained in enforcement mode")
-			Eventually(func() bool {
-				cmd := exec.Command("kubectl", "get", "sealedvolume", sealedVolumeName, "-o", "yaml")
-				out, err := cmd.CombinedOutput()
-				if err != nil {
-					return false
-				}
-				outStr := string(out)
-				return strings.Contains(outStr, "ekPublicKey:") && strings.Contains(outStr, learnedEK)
-			}, 30*time.Second, 5*time.Second).Should(BeTrue())
+			Eventually(func() string {
+				return readSealedVolumeField(".spec.attestation.ekPublicKey")
+			}, 30*time.Second, 5*time.Second).Should(Equal(learnedEK))
 		})
 	})
 })
