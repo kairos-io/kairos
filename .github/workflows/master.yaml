@@ -47,17 +47,38 @@ jobs:
     secrets: inherit
 
   # kairos-init pipe: gates build-iso + qemu-tests.
+  #
+  # matrix_scope: full -- the same value release.yaml passes. Names
+  # the architecture set this builds (amd64+arm64, default+FIPS, plus
+  # riscv64 default), not what kind of run this is. See
+  # _build-kairos.yaml/_build-kairos-init.yaml for the actual matrix.
+  #
+  # Since the monorepo CI reshape (ae314796, ea046bc3), riscv64 only
+  # built on a v* release tag, so a riscv64-breaking change to
+  # images/Dockerfile or kairos-init reached a release before anything
+  # caught it -- the exact code path hadron's build depends on directly
+  # (curl's images/Dockerfile and docker build --platform=linux/riscv64
+  # against it; see kairos-io/hadron's Makefile KAIROS_DOCKERFILE_REF).
+  # This restores that regression check on every master push, the
+  # earliest point it can be caught, without touching pr.yaml -- every
+  # contributor's PR stays exactly as fast as it is today.
+  #
+  # Known cost, not hidden: riscv64 under QEMU is slow (observed ~2h+
+  # for a from-scratch riscv64 build elsewhere in the org). This adds
+  # that to every master push, not just releases. Left as a draft for
+  # a maintainer to weigh against the regression-safety gap above --
+  # not something to wave through unreviewed.
   build-kairos:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
-      matrix_scope: ci
+      matrix_scope: full
     secrets: inherit
 
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
-      matrix_scope: ci
+      matrix_scope: full
     secrets: inherit
 
   build-image-kairos-init:

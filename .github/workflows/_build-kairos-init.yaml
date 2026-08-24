@@ -14,8 +14,8 @@ on:
     inputs:
       matrix_scope:
         description: |
-          "ci" -> amd64 + arm64 (PR + master).
-          "release" -> amd64 + arm64 + riscv64.
+          "ci" -> amd64 + arm64 (PR only).
+          "full" -> amd64 + arm64 + riscv64. Used by both master and release
         type: string
         required: true
 
@@ -38,7 +38,7 @@ jobs:
         env:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
-          if [[ "$SCOPE" == "release" ]]; then
+          if [[ "$SCOPE" == "full" ]]; then
             echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"},{"arch":"riscv64"}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"include":[{"arch":"amd64"},{"arch":"arm64"}]}' >> "$GITHUB_OUTPUT"

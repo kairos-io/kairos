@@ -13,9 +13,9 @@ on:
     inputs:
       matrix_scope:
         description: |
-          "ci" -> amd64 + arm64, both default and FIPS (PR + master).
-          "release" -> full 5-cell matrix (amd64+arm64+riscv64 default
-          plus amd64+arm64 FIPS).
+          "ci" -> amd64 + arm64, both default and FIPS (PR only).
+          "full" -> full 5-cell matrix (amd64+arm64+riscv64 default plus
+          amd64+arm64 FIPS). Used by both master and release.
         type: string
         required: true
 
@@ -38,7 +38,7 @@ jobs:
         env:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
-          if [[ "$SCOPE" == "release" ]]; then
+          if [[ "$SCOPE" == "full" ]]; then
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"riscv64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
           else
             echo 'matrix={"include":[{"arch":"amd64","variant":"default"},{"arch":"arm64","variant":"default"},{"arch":"amd64","variant":"fips"},{"arch":"arm64","variant":"fips"}]}' >> "$GITHUB_OUTPUT"
