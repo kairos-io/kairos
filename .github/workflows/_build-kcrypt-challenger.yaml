@@ -26,6 +26,21 @@ on:
         type: string
         required: false
         default: ''
+      caller-vetted-ref:
+        description: |
+          Caller assertion required to unlock actions/checkout's
+          `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if
+          the caller has its own authorization gate in front of
+          this workflow -- e.g. a `pull_request_target` pipeline
+          whose `authorize` job pins the run to a GitHub
+          Environment that requires maintainer review before the
+          fork's `ref` is fetched. Without such a gate, leaving
+          this false keeps the `pull_request_target` + fork-ref
+          combination blocked at checkout time (the guard
+          described at https://gh.io/securely-using-pull_request_target).
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -58,6 +73,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
