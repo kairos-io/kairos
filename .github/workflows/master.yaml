@@ -48,15 +48,10 @@ jobs:
 
   # kairos-init pipe: gates build-iso + qemu-tests.
   #
-  # matrix_scope: full -- the same value release.yaml passes, renamed
-  # from "release" (what this was first written as) specifically
-  # because that name was confusing here: master.yaml doesn't cut a
-  # release, and reading "matrix_scope: release" in this file invites
-  # exactly that misreading. "full" names what it actually controls --
-  # the set of architectures built (amd64+arm64, default+FIPS, plus
-  # riscv64 default) -- with no claim about what kind of run this is.
-  # See _build-kairos.yaml/_build-kairos-init.yaml for the actual
-  # matrix each value produces.
+  # matrix_scope: full -- the same value release.yaml passes. Names
+  # the architecture set this builds (amd64+arm64, default+FIPS, plus
+  # riscv64 default), not what kind of run this is. See
+  # _build-kairos.yaml/_build-kairos-init.yaml for the actual matrix.
   #
   # Since the monorepo CI reshape (ae314796, ea046bc3), riscv64 only
   # built on a v* release tag, so a riscv64-breaking change to

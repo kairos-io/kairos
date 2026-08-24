@@ -112,10 +112,10 @@ jobs:
 
   # kairos-init pipe: gates build-iso + qemu-tests.
   #
-  # matrix_scope: full, renamed from "release" -- master.yaml now calls
-  # these same two reusable workflows with the same value, since master
-  # builds riscv64 too (see master.yaml's own comment). "full" names
-  # the architecture set this produces, not which workflow calls it.
+  # matrix_scope: full -- master.yaml calls these same two reusable
+  # workflows with the same value, since master builds riscv64 too
+  # (see master.yaml's own comment). "full" names the architecture set
+  # this produces, not which workflow calls it.
   build-kairos:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
