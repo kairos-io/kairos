@@ -11,6 +11,14 @@ permissions:
   actions: read
   security-events: write
   id-token: write
+  # reusable-factory.yaml's build job requests packages: write for its
+  # ghcr push step. A reusable workflow's GITHUB_TOKEN is capped at the
+  # caller's declared permissions, so without this the smoke jobs fail
+  # startup with "requesting packages: write but only allowed packages:
+  # none". Safe here: this workflow triggers on pull_request (fork PRs
+  # get a read-only GITHUB_TOKEN regardless of what the YAML says) and
+  # push to main (same-repo, trusted).
+  packages: write
 
 concurrency:
   group: factory-smoke-${{ github.workflow }}-${{ github.ref }}

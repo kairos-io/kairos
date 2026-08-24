@@ -30,6 +30,27 @@ on:
         type: string
         required: false
         default: ''
+      caller-vetted-ref:
+        description: |
+          Caller assertion required to unlock actions/checkout's
+          `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if the caller
+          has its own authorization gate in front of this workflow -- e.g.
+          a `pull_request_target` pipeline whose `authorize` job pins the run
+          to a GitHub Environment that requires maintainer review before the
+          fork's `ref` is fetched. Without such a gate, leaving this false
+          keeps the `pull_request_target` + fork-ref combination blocked at
+          checkout time (the guard described at
+          https://gh.io/securely-using-pull_request_target).
+
+          Legacy behavior: for backward compatibility this reusable also opts
+          into `allow-unsafe-pr-checkout` when `ref` is non-empty and this
+          input is unset, matching how earlier versions of this workflow
+          worked. New callers should set this input explicitly; the legacy
+          `ref != ''` fallback is scheduled for removal in the next major
+          version.
+        type: boolean
+        required: false
+        default: false
       dockerfile_path:
         type: string
 
@@ -366,12 +387,12 @@ jobs:
           # actions/checkout refuses to fetch a non-default ref inside a
           # pull_request_target workflow otherwise -- the exact "pwn request"
           # guard https://gh.io/securely-using-pull_request_target describes.
-          # `ref`'s own doc above already carries this: "passing an untrusted
-          # ref here... this input is neutral; the caller carries the risk."
-          # A caller that leaves `ref` at its default (every ordinary caller)
-          # is unaffected -- this only takes effect together with a non-empty
-          # ref, which is the one case this input exists for.
-          allow-unsafe-pr-checkout: ${{ inputs.ref != '' }}
+          # The `caller-vetted-ref` input is the explicit way to opt in;
+          # `inputs.ref != ''` is retained as a legacy fallback so existing
+          # callers that predate the input keep working. New callers should
+          # set caller-vetted-ref; the fallback will be dropped in the next
+          # major version.
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref || inputs.ref != '' }}
 
       - name: Validate inputs and setup Dockerfile
         shell: bash
