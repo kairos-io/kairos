@@ -15,9 +15,7 @@ on:
         description: |
           "ci" -> amd64 + arm64, both default and FIPS (PR only).
           "full" -> full 5-cell matrix (amd64+arm64+riscv64 default plus
-          amd64+arm64 FIPS). Used by both master and release -- it's the
-          set of architectures to build, not a statement about whether
-          this run is a release. Don't read "full" as "release-only".
+          amd64+arm64 FIPS). Used by both master and release.
         type: string
         required: true
 

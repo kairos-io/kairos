@@ -15,9 +15,7 @@ on:
       matrix_scope:
         description: |
           "ci" -> amd64 + arm64 (PR only).
-          "full" -> amd64 + arm64 + riscv64. Used by both master and
-          release -- the set of architectures to build, not a statement
-          about whether this run is a release.
+          "full" -> amd64 + arm64 + riscv64. Used by both master and release
         type: string
         required: true
 
