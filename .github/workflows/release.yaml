@@ -313,6 +313,8 @@ jobs:
           - {test: 'acceptance'}
           - {test: 'install'}
           - {test: 'install-target'}
+          - {test: 'insecure-registry'}
+          - {test: 'partition-validation'}
           - {test: 'reset'}
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
