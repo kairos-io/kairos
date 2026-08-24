@@ -48,15 +48,20 @@ jobs:
 
   # kairos-init pipe: gates build-iso + qemu-tests.
   #
-  # matrix_scope: release, not ci -- deliberately, even though this is
-  # the master pipeline. "release" is exactly "ci" (amd64+arm64,
-  # default+FIPS) plus one more cell, riscv64 default -- confirmed from
-  # _build-kairos.yaml/_build-kairos-init.yaml's own matrix-computation
-  # step, they're not two independently-defined matrices that happen to
-  # overlap. Since the monorepo CI reshape (ae314796, ea046bc3), riscv64
-  # only builds on a v* release tag, so a riscv64-breaking change to
-  # images/Dockerfile or kairos-init reaches a release before anything
-  # catches it -- the exact code path hadron's build depends on directly
+  # matrix_scope: full -- the same value release.yaml passes, renamed
+  # from "release" (what this was first written as) specifically
+  # because that name was confusing here: master.yaml doesn't cut a
+  # release, and reading "matrix_scope: release" in this file invites
+  # exactly that misreading. "full" names what it actually controls --
+  # the set of architectures built (amd64+arm64, default+FIPS, plus
+  # riscv64 default) -- with no claim about what kind of run this is.
+  # See _build-kairos.yaml/_build-kairos-init.yaml for the actual
+  # matrix each value produces.
+  #
+  # Since the monorepo CI reshape (ae314796, ea046bc3), riscv64 only
+  # built on a v* release tag, so a riscv64-breaking change to
+  # images/Dockerfile or kairos-init reached a release before anything
+  # caught it -- the exact code path hadron's build depends on directly
   # (curl's images/Dockerfile and docker build --platform=linux/riscv64
   # against it; see kairos-io/hadron's Makefile KAIROS_DOCKERFILE_REF).
   # This restores that regression check on every master push, the
@@ -71,14 +76,14 @@ jobs:
   build-kairos:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
-      matrix_scope: release
+      matrix_scope: full
     secrets: inherit
 
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
-      matrix_scope: release
+      matrix_scope: full
     secrets: inherit
 
   build-image-kairos-init:

@@ -111,17 +111,22 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> "$GITHUB_OUTPUT"
 
   # kairos-init pipe: gates build-iso + qemu-tests.
+  #
+  # matrix_scope: full, renamed from "release" -- master.yaml now calls
+  # these same two reusable workflows with the same value, since master
+  # builds riscv64 too (see master.yaml's own comment). "full" names
+  # the architecture set this produces, not which workflow calls it.
   build-kairos:
     uses: ./.github/workflows/_build-kairos.yaml
     with:
-      matrix_scope: release
+      matrix_scope: full
     secrets: inherit
 
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
-      matrix_scope: release
+      matrix_scope: full
     secrets: inherit
 
   build-image-kairos-init:
