@@ -172,16 +172,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'release-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'release-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell (see pr.yaml for rationale).
-          - {name: 'release-amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
+          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
           # UKI cells feed qemu-tests-uki (see pr.yaml for the shape).
           # hadron-trusted is a distinct base image from hadron; both UKI
           # cells set iso:true because factory-action still produces the
           # bootable UKI-iso even with trusted_boot=true.
-          - {name: 'release-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
-          - {name: 'release-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
     # See build-iso in pr.yaml for why this override exists.
     name: build-iso
     uses: ./.github/workflows/_build-iso.yaml
@@ -207,10 +207,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'release-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'release-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'release-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - name: 'release-arm64-nvidia-agx-orin'
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - name: 'arm64-nvidia-agx-orin'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
             model: 'nvidia-jetson-agx-orin'
@@ -220,7 +220,7 @@ jobs:
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
-          - name: 'release-arm64-nvidia-orin-nx'
+          - name: 'arm64-nvidia-orin-nx'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
             model: 'nvidia-jetson-orin-nx'
@@ -267,7 +267,7 @@ jobs:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
-      name: 'release-amd64-standard-k3s-${{ matrix.kubernetes_version }}'
+      name: 'amd64-standard-k3s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
       arch: 'amd64'
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
@@ -289,7 +289,7 @@ jobs:
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
-      name: 'release-amd64-standard-k0s-${{ matrix.kubernetes_version }}'
+      name: 'amd64-standard-k0s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
       arch: 'amd64'
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
