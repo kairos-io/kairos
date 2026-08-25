@@ -19,7 +19,7 @@ package runner
 import (
 	"os/exec"
 
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 type Runner interface {

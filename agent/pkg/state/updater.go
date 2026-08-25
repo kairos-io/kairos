@@ -3,7 +3,7 @@ package state
 import (
 	"time"
 
-	sdkFs "github.com/kairos-io/kairos/sdk/types/fs"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 )
 
 // BackupSuffix is appended to a corrupt state file before writing a fresh one.

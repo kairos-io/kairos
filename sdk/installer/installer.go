@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 // Existing reports whether an installer is already present under root, returning

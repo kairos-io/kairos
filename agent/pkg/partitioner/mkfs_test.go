@@ -19,11 +19,11 @@ package partitioner
 import (
 	"errors"
 
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/kairos/agent/tests/mocks"
+	"github.com/kairos-io/kairos/v4/agent/tests/mocks"
 )
 
 var _ = ginkgo.Describe("Mkfs", ginkgo.Label("mkfs"), func() {

@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
-	agentConfig "github.com/kairos-io/kairos/agent/pkg/config"
-	"github.com/kairos-io/kairos/sdk/collector"
-	"github.com/kairos-io/kairos/sdk/state"
+	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"

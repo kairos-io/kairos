@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kairos-io/kairos/kcrypt/pkg/attestation"
-	"github.com/kairos-io/kairos/sdk/kcrypt/bus"
-	"github.com/kairos-io/kairos/sdk/state"
-	loggerpkg "github.com/kairos-io/kairos/sdk/types/logger"
-	"github.com/kairos-io/kairos/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/kcrypt/pkg/attestation"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
+	"github.com/kairos-io/kairos/v4/sdk/state"
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	"github.com/kairos-io/tpm-helpers"
 	"github.com/mudler/go-pluggable"
 )

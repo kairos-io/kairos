@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"os"
 
-	hook "github.com/kairos-io/kairos/agent/internal/agent/hooks"
-	"github.com/kairos-io/kairos/agent/internal/bus"
-	"github.com/kairos-io/kairos/agent/pkg/config"
-	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/spec"
-	events "github.com/kairos-io/kairos/sdk/bus"
-	"github.com/kairos-io/kairos/sdk/collector"
-	"github.com/kairos-io/kairos/sdk/machine"
-	"github.com/kairos-io/kairos/sdk/utils"
+	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
+	"github.com/kairos-io/kairos/v4/agent/internal/bus"
+	"github.com/kairos-io/kairos/v4/agent/pkg/config"
+	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	events "github.com/kairos-io/kairos/v4/sdk/bus"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // Run starts the agent provider emitting the bootstrap event.

@@ -6,12 +6,12 @@ import (
 
 	"path/filepath"
 
-	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/agent/pkg/utils"
-	"github.com/kairos-io/kairos/sdk/collector"
-	"github.com/kairos-io/kairos/sdk/machine"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
-	sdkSpec "github.com/kairos-io/kairos/sdk/types/spec"
+	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 )
 
 // GrubPostInstallOptions is a hook that runs after the install process to add grub options.

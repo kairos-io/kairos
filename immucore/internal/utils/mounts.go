@@ -9,8 +9,8 @@ import (
 
 	"github.com/containerd/containerd/mount"
 	"github.com/deniswernert/go-fstab"
-	"github.com/kairos-io/kairos/sdk/constants"
-	"github.com/kairos-io/kairos/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/ghw"
 )
 
 // https://github.com/kairos-io/packages/blob/7c3581a8ba6371e5ce10c3a98bae54fde6a505af/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L58

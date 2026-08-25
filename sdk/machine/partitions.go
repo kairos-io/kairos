@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 func Umount(path string) error {

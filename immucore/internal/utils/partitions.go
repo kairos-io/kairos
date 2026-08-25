@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/jaypipes/ghw"
-	"github.com/kairos-io/kairos/immucore/internal/constants"
-	sdkConstants "github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 // KairosPartitionsPresent scans block devices via ghw and reports whether the

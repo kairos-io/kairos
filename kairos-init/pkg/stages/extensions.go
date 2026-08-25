@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/kairos-init/pkg/config"
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/schema"
 	"github.com/sanity-io/litter"
 	"github.com/twpayne/go-vfs/v5"

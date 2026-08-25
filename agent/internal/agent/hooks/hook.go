@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
-	sdkSpec "github.com/kairos-io/kairos/sdk/types/spec"
-	"github.com/kairos-io/kairos/sdk/utils"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 type Interface interface {

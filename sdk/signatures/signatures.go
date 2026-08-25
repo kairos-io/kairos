@@ -15,9 +15,9 @@ import (
 	"github.com/foxboron/go-uefi/efi/signature"
 	"github.com/foxboron/go-uefi/efi/util"
 	"github.com/foxboron/go-uefi/pkcs7"
-	"github.com/kairos-io/kairos/sdk/types/certs"
-	"github.com/kairos-io/kairos/sdk/types/fs"
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/types/certs"
+	"github.com/kairos-io/kairos/v4/sdk/types/fs"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	peparser "github.com/saferwall/pe"
 )
 

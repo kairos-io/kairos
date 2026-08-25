@@ -1,18 +1,18 @@
 package config
 
 import (
-	"github.com/kairos-io/kairos/sdk/collector"
-	"github.com/kairos-io/kairos/sdk/types/bundles"
-	"github.com/kairos-io/kairos/sdk/types/cloudinitrunner"
-	"github.com/kairos-io/kairos/sdk/types/fs"
-	"github.com/kairos-io/kairos/sdk/types/http"
-	"github.com/kairos-io/kairos/sdk/types/images"
-	"github.com/kairos-io/kairos/sdk/types/install"
-	"github.com/kairos-io/kairos/sdk/types/logger"
-	log "github.com/kairos-io/kairos/sdk/types/logs"
-	"github.com/kairos-io/kairos/sdk/types/platform"
-	"github.com/kairos-io/kairos/sdk/types/runner"
-	"github.com/kairos-io/kairos/sdk/types/syscall"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/types/bundles"
+	"github.com/kairos-io/kairos/v4/sdk/types/cloudinitrunner"
+	"github.com/kairos-io/kairos/v4/sdk/types/fs"
+	"github.com/kairos-io/kairos/v4/sdk/types/http"
+	"github.com/kairos-io/kairos/v4/sdk/types/images"
+	"github.com/kairos-io/kairos/v4/sdk/types/install"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
+	log "github.com/kairos-io/kairos/v4/sdk/types/logs"
+	"github.com/kairos-io/kairos/v4/sdk/types/platform"
+	"github.com/kairos-io/kairos/v4/sdk/types/runner"
+	"github.com/kairos-io/kairos/v4/sdk/types/syscall"
 	"k8s.io/mount-utils"
 )
 

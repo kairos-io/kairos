@@ -5,12 +5,12 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/sdk/bundles"
-	"github.com/kairos-io/kairos/sdk/machine"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
-	sdkSpec "github.com/kairos-io/kairos/sdk/types/spec"
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/sdk/bundles"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // BundlePostInstall install bundles just after installation

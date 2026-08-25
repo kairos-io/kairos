@@ -19,11 +19,11 @@ package spec_test
 import (
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/agent/pkg/implementations/spec"
-	sdkConstants "github.com/kairos-io/kairos/sdk/constants"
-	sdkImages "github.com/kairos-io/kairos/sdk/types/images"
-	sdkPartitions "github.com/kairos-io/kairos/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
+	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

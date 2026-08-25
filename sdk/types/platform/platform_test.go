@@ -3,7 +3,7 @@ package platform_test
 import (
 	"fmt"
 
-	sdkPlatform "github.com/kairos-io/kairos/sdk/types/platform"
+	sdkPlatform "github.com/kairos-io/kairos/v4/sdk/types/platform"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"

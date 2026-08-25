@@ -1,7 +1,7 @@
 package constants_test
 
 import (
-	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
+	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

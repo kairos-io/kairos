@@ -16,8 +16,8 @@ import (
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 	"github.com/joho/godotenv"
-	"github.com/kairos-io/kairos/immucore/internal/constants"
-	"github.com/kairos-io/kairos/sdk/state"
+	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	"golang.org/x/term"
 )
 

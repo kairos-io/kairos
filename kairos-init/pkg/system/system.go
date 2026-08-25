@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/kairos-io/kairos/kairos-init/pkg/values"
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/sanity-io/litter"
 )
 

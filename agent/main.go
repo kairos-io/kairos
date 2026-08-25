@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/kairos-io/kairos/agent/pkg/cmd"
+	"github.com/kairos-io/kairos/v4/agent/pkg/cmd"
 )
 
 func main() {

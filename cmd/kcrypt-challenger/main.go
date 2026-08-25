@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/kairos-io/kairos/kcrypt/challenger"
+	"github.com/kairos-io/kairos/v4/kcrypt/challenger"
 )
 
 func main() {

@@ -1,7 +1,7 @@
 package main
 
 import (
-	kcrypt "github.com/kairos-io/kairos/kcrypt/discovery"
+	kcrypt "github.com/kairos-io/kairos/v4/kcrypt/discovery"
 )
 
 func init() {

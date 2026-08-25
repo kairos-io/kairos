@@ -1,7 +1,7 @@
 package main
 
 import (
-	immucore "github.com/kairos-io/kairos/immucore/pkg/cmd"
+	immucore "github.com/kairos-io/kairos/v4/immucore/pkg/cmd"
 )
 
 func init() {

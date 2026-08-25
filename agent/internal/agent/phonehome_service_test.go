@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 func TestPhoneHomeServiceUnit(t *testing.T) {

@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/sdk/mounts"
-	"github.com/kairos-io/kairos/sdk/state"
+	"github.com/kairos-io/kairos/v4/sdk/mounts"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 )
 
 // WriteCloudConfigData adds cloud config data in runtime.

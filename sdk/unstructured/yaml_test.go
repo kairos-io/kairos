@@ -1,7 +1,7 @@
 package unstructured_test
 
 import (
-	. "github.com/kairos-io/kairos/sdk/unstructured"
+	. "github.com/kairos-io/kairos/v4/sdk/unstructured"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"

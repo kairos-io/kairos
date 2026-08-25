@@ -15,9 +15,9 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/kairos-io/kairos/agent/internal/agent"
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/sdk/schema"
+	"github.com/kairos-io/kairos/v4/agent/internal/agent"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/labstack/echo/v5"
 	process "github.com/mudler/go-processmanager"
 	"github.com/nxadm/tail"

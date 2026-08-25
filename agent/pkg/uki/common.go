@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/agent/pkg/utils"
-	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
-	sdkFs "github.com/kairos-io/kairos/sdk/types/fs"
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
-	sdkutils "github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/sanity-io/litter"
 )
 

@@ -6,8 +6,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/kairos/agent/pkg/progress"
-	"github.com/kairos-io/kairos/sdk/agentrun"
+	"github.com/kairos-io/kairos/v4/agent/pkg/progress"
+	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 )
 
 var _ = Describe("Progress events", func() {

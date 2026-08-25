@@ -16,7 +16,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 // EnvAgentBin overrides agent discovery with an explicit path.

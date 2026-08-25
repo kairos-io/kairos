@@ -3,12 +3,12 @@ package config_test
 import (
 	"strings"
 
-	"github.com/kairos-io/kairos/agent/pkg/config"
-	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/spec"
-	sdkConstants "github.com/kairos-io/kairos/sdk/constants"
-	sdkImages "github.com/kairos-io/kairos/sdk/types/images"
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
-	sdkPartitions "github.com/kairos-io/kairos/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/agent/pkg/config"
+	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/viper"

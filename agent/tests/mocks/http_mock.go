@@ -19,7 +19,7 @@ package mocks
 import (
 	"errors"
 
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 // FakeHTTPClient is an implementation of HTTPClient interface used for testing

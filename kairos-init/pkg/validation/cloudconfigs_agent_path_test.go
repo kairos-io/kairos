@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/kairos-io/kairos/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

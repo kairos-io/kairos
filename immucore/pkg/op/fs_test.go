@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/immucore/internal/constants"
-	"github.com/kairos-io/kairos/immucore/pkg/op"
+	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

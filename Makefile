@@ -19,7 +19,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # LDFLAGS default: strip debug/symbol tables and inject the version. Override
 # to add your own -X flags; if you override LDFLAGS, remember to include -X
 # for the version or every binary will report "dev".
-LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/internal/version.Version=$(VERSION)
+LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(VERSION)
 
 .PHONY: test
 test: kairos-init-embed-stubs

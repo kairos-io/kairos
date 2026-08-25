@@ -3,7 +3,7 @@ package system
 import (
 	"testing"
 
-	"github.com/kairos-io/kairos/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 )
 
 func TestDetectFromReleaseIDs(t *testing.T) {

@@ -1,9 +1,9 @@
 package install
 
 import (
-	"github.com/kairos-io/kairos/sdk/types/bundles"
-	"github.com/kairos-io/kairos/sdk/types/images"
-	"github.com/kairos-io/kairos/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/sdk/types/bundles"
+	"github.com/kairos-io/kairos/v4/sdk/types/images"
+	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 )
 
 // You would probably be thinking, why is the Install struct in here? Well, the types

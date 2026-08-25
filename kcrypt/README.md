@@ -56,9 +56,9 @@ Contribute
 
 > kcrypt lives in the Kairos monorepo. See the
 > [root README](../README.md) for the full repository layout. Import
-> paths: `github.com/kairos-io/kairos/kcrypt/discovery` for the
+> paths: `github.com/kairos-io/kairos/v4/kcrypt/discovery` for the
 > device-side discovery binary and
-> `github.com/kairos-io/kairos/kcrypt/challenger` for the in-cluster
+> `github.com/kairos-io/kairos/v4/kcrypt/challenger` for the in-cluster
 > server. The `kcrypt-challenger` binary is built at
 > `cmd/kcrypt-challenger/` and ships as its own container image.
 

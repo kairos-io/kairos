@@ -3,9 +3,9 @@ package system
 import (
 	"fmt"
 
-	"github.com/kairos-io/kairos/sdk/mounts"
-	"github.com/kairos-io/kairos/sdk/state"
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/mounts"
+	"github.com/kairos-io/kairos/v4/sdk/state"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 func SetGRUBOptions(opts map[string]string) Option {

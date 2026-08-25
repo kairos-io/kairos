@@ -23,9 +23,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/agent/pkg/utils/fs"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
 // Chroot represents the struct that will allow us to run commands inside a given chroot

@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/sdk/ghw"
-	"github.com/kairos-io/kairos/sdk/types/images"
-	"github.com/kairos-io/kairos/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/types/images"
+	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 )
 
 // InstallSpec struct represents all the installation action details

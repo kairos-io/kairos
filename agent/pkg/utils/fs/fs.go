@@ -32,7 +32,7 @@ import (
 	"syscall"
 	"time"
 
-	sdkFS "github.com/kairos-io/kairos/sdk/types/fs"
+	sdkFS "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	"github.com/twpayne/go-vfs/v5"
 	"github.com/twpayne/go-vfs/v5/vfst"
 )

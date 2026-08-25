@@ -1,9 +1,9 @@
 package hook
 
 import (
-	"github.com/kairos-io/kairos/sdk/machine"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
-	sdkSpec "github.com/kairos-io/kairos/sdk/types/spec"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 	"github.com/mudler/yip/pkg/schema"
 	yip "github.com/mudler/yip/pkg/schema"
 )

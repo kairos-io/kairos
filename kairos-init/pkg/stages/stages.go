@@ -1,10 +1,10 @@
 package stages
 
 import (
-	"github.com/kairos-io/kairos/kairos-init/pkg/config"
-	"github.com/kairos-io/kairos/kairos-init/pkg/system"
-	"github.com/kairos-io/kairos/kairos-init/pkg/values"
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/system"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/yip/pkg/console"
 	"github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/schema"

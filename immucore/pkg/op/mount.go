@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/containerd/containerd/mount"
-	"github.com/kairos-io/kairos/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
-	"github.com/kairos-io/kairos/immucore/pkg/schema"
+	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 )
 
 // MountOPWithFstab creates and executes a mount operation.

@@ -19,7 +19,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 
-	"github.com/kairos-io/kairos/sdk/utils/image"
+	"github.com/kairos-io/kairos/v4/sdk/utils/image"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

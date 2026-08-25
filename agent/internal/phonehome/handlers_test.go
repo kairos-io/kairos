@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/mount-utils"

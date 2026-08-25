@@ -6,18 +6,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/kairos/agent/pkg/action"
-	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/spec"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/action"
+	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 
-	hook "github.com/kairos-io/kairos/agent/internal/agent/hooks"
-	"github.com/kairos-io/kairos/agent/pkg/config"
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/agent/pkg/elemental"
-	"github.com/kairos-io/kairos/agent/pkg/utils"
-	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
-	events "github.com/kairos-io/kairos/sdk/bus"
-	sdkutils "github.com/kairos-io/kairos/sdk/utils"
+	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
+	"github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	events "github.com/kairos-io/kairos/v4/sdk/bus"
+	sdkutils "github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 type InstallAction struct {

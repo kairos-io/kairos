@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kairos-io/kairos/sdk/state"
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/state"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 func PrepareWrite(partition state.PartitionState, mountpath string) error {

@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kairos-io/kairos/sdk/kcrypt"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/tpm-helpers"
 )
 

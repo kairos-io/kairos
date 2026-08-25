@@ -17,7 +17,7 @@ limitations under the License.
 package imageextractor
 
 import (
-	image "github.com/kairos-io/kairos/sdk/utils/image"
+	image "github.com/kairos-io/kairos/v4/sdk/utils/image"
 )
 
 // OCIImageExtractor is the default ImageExtractor implementation. It now lives in

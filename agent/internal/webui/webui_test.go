@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kairos-io/kairos/agent/internal/webui"
+	"github.com/kairos-io/kairos/v4/agent/internal/webui"
 	"github.com/labstack/echo/v5"
 
 	. "github.com/onsi/ginkgo/v2"
