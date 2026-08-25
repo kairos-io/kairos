@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	"github.com/distribution/reference"
+	"github.com/kairos-io/kairos/v4/sdk/extensions"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/twpayne/go-vfs/v5"
@@ -303,6 +304,22 @@ func InstallExtension(cfg *sdkConfig.Config, uri, extType string) error {
 	}
 
 	return nil
+}
+
+// InstallCatalogExtension resolves and installs a system extension from a catalog.
+func InstallCatalogExtension(cfg *sdkConfig.Config, reader io.Reader, name, version, architecture string) (extensions.Resolved, error) {
+	catalog, err := extensions.Parse(reader)
+	if err != nil {
+		return extensions.Resolved{}, err
+	}
+	resolved, err := catalog.Resolve(name, version, architecture)
+	if err != nil {
+		return extensions.Resolved{}, err
+	}
+	if err := InstallExtension(cfg, "oci:"+resolved.OCI, sysext); err != nil {
+		return extensions.Resolved{}, err
+	}
+	return resolved, nil
 }
 
 // RemoveExtension removes a extension from the system
