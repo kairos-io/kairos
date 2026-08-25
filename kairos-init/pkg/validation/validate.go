@@ -9,11 +9,11 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/joho/godotenv"
-	"github.com/kairos-io/kairos/kairos-init/pkg/config"
-	"github.com/kairos-io/kairos/kairos-init/pkg/kernel"
-	"github.com/kairos-io/kairos/kairos-init/pkg/system"
-	"github.com/kairos-io/kairos/kairos-init/pkg/values"
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/kernel"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/system"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 // Default systemd search paths in order of precedence

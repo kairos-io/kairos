@@ -14,11 +14,11 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/google/go-attestation/attest"
 
-	keyserverv1alpha1 "github.com/kairos-io/kairos/kcrypt/api/v1alpha1"
+	keyserverv1alpha1 "github.com/kairos-io/kairos/v4/kcrypt/api/v1alpha1"
 
-	"github.com/kairos-io/kairos/kcrypt/controllers"
-	"github.com/kairos-io/kairos/kcrypt/pkg/attestation"
-	"github.com/kairos-io/kairos/kcrypt/pkg/kube"
+	"github.com/kairos-io/kairos/v4/kcrypt/controllers"
+	"github.com/kairos-io/kairos/v4/kcrypt/pkg/attestation"
+	"github.com/kairos-io/kairos/v4/kcrypt/pkg/kube"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

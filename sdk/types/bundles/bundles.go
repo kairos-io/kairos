@@ -1,6 +1,6 @@
 package bundles
 
-import "github.com/kairos-io/kairos/sdk/bundles"
+import "github.com/kairos-io/kairos/v4/sdk/bundles"
 
 type Bundles []Bundle
 

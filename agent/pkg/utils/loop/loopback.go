@@ -6,8 +6,8 @@ import (
 	"syscall"
 	"unsafe"
 
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
-	"github.com/kairos-io/kairos/sdk/types/images"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/images"
 	"golang.org/x/sys/unix"
 )
 

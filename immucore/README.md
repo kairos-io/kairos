@@ -20,7 +20,7 @@
 
 > Immucore lives in the Kairos monorepo. See the
 > [root README](../README.md) for the full repository layout. Import
-> path: `github.com/kairos-io/kairos/immucore`.
+> path: `github.com/kairos-io/kairos/v4/immucore`.
 
 ## What is Immucore?
 

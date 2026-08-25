@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
-	"github.com/kairos-io/kairos/sdk/ghw"
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // UpgradeKcryptPartitions will try check for the uuid of the persistent partition and upgrade its uuid.

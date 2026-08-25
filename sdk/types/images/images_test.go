@@ -17,7 +17,7 @@ limitations under the License.
 package images_test
 
 import (
-	"github.com/kairos-io/kairos/sdk/types/images"
+	"github.com/kairos-io/kairos/v4/sdk/types/images"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

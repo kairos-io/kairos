@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/kairos-io/kairos/agent/pkg/github"
+	"github.com/kairos-io/kairos/v4/agent/pkg/github"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"golang.org/x/oauth2"

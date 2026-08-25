@@ -13,12 +13,12 @@ import (
 
 	"github.com/foxboron/go-uefi/efi"
 	"github.com/hashicorp/go-multierror"
-	cnst "github.com/kairos-io/kairos/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
-	"github.com/kairos-io/kairos/immucore/pkg/op"
-	"github.com/kairos-io/kairos/immucore/pkg/schema"
-	"github.com/kairos-io/kairos/sdk/signatures"
-	"github.com/kairos-io/kairos/sdk/state"
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
+	"github.com/kairos-io/kairos/v4/sdk/signatures"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	"github.com/spectrocloud-labs/herd"
 )
 

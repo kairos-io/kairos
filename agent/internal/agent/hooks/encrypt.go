@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	internalutils "github.com/kairos-io/kairos/agent/pkg/utils"
-	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
-	"github.com/kairos-io/kairos/sdk/kcrypt"
-	"github.com/kairos-io/kairos/sdk/machine"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // Encrypt is the unified encryption method that works for both UKI and non-UKI modes

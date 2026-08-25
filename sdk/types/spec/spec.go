@@ -1,6 +1,6 @@
 package spec
 
-import "github.com/kairos-io/kairos/sdk/types/partitions"
+import "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 
 // Spec is the interface that all specs need to implement.
 type Spec interface {

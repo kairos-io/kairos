@@ -1,7 +1,7 @@
 package phonehome
 
 import (
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 // Logger is the package-level logger used by DefaultCommandHandler and

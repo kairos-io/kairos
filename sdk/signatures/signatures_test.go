@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/foxboron/go-uefi/efi/attributes"
-	sdkTypes "github.com/kairos-io/kairos/sdk/types/fs"
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
-	fsUtils "github.com/kairos-io/kairos/sdk/utils/fs"
+	sdkTypes "github.com/kairos-io/kairos/v4/sdk/types/fs"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	fsUtils "github.com/kairos-io/kairos/v4/sdk/utils/fs"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v4/vfst"

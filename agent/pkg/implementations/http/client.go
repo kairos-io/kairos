@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/cavaliergopher/grab/v3"
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 type Client struct {

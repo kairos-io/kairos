@@ -4,9 +4,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/kairos-io/kairos/agent/internal/phonehome"
-	"github.com/kairos-io/kairos/sdk/collector"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

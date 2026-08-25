@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"gopkg.in/yaml.v3"
 )
 

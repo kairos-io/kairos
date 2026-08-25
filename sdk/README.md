@@ -24,7 +24,7 @@ Kairos (formerly `c3os`) is an open-source project which brings Edge, cloud, and
 
 
 This directory holds the Kairos SDK, importable externally as
-`github.com/kairos-io/kairos/sdk`. It is one component of the Kairos
+`github.com/kairos-io/kairos/v4/sdk`. It is one component of the Kairos
 monorepo (see the [root README](../README.md) for the full layout);
 old imports of `github.com/kairos-io/kairos-sdk` continue to resolve
 against the archived kairos-sdk repo's tags, and new bumps should

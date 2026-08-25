@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/kairos-io/kairos/kairos-init/pkg/bundled"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

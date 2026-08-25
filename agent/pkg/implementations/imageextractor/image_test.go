@@ -33,7 +33,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
-	"github.com/kairos-io/kairos/agent/pkg/implementations/imageextractor"
+	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

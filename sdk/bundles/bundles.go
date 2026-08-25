@@ -11,8 +11,8 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/hashicorp/go-multierror"
-	"github.com/kairos-io/kairos/sdk/utils"
-	"github.com/kairos-io/kairos/sdk/utils/image"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/utils/image"
 	registrytypes "github.com/moby/moby/api/types/registry"
 )
 

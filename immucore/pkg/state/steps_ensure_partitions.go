@@ -7,10 +7,10 @@ import (
 	"os"
 	"time"
 
-	cnst "github.com/kairos-io/kairos/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
-	sdkConstants "github.com/kairos-io/kairos/sdk/constants"
-	"github.com/kairos-io/kairos/sdk/kcrypt"
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/spectrocloud-labs/herd"
 )
 

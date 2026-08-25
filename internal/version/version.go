@@ -4,7 +4,7 @@
 //
 // Set at build time via:
 //
-//	-ldflags "-X github.com/kairos-io/kairos/internal/version.Version=<value>"
+//	-ldflags "-X github.com/kairos-io/kairos/v4/internal/version.Version=<value>"
 //
 // The Makefile at the repo root injects `git describe --tags --always --dirty`
 // by default.

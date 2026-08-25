@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kairos-io/kairos/agent/internal/kairos"
+	"github.com/kairos-io/kairos/v4/agent/internal/kairos"
 
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/pterm/pterm"
 )
 

@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/kairos-io/kairos/kcrypt/discovery"
+	"github.com/kairos-io/kairos/v4/kcrypt/discovery"
 )
 
 func main() {

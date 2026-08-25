@@ -4,13 +4,13 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	internalutils "github.com/kairos-io/kairos/agent/pkg/utils"
-	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
-	"github.com/kairos-io/kairos/sdk/machine"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
-	sdkSpec "github.com/kairos-io/kairos/sdk/types/spec"
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 type CopyLogs struct{}

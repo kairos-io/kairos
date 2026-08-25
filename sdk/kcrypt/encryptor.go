@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/kairos-io/kairos/sdk/collector"
-	"github.com/kairos-io/kairos/sdk/ghw"
-	"github.com/kairos-io/kairos/sdk/kcrypt/bus"
-	"github.com/kairos-io/kairos/sdk/state"
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
-	"github.com/kairos-io/kairos/sdk/types/partitions"
-	"github.com/kairos-io/kairos/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
+	"github.com/kairos-io/kairos/v4/sdk/state"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/mudler/go-pluggable"
 )
 

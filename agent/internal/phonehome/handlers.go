@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kairos-io/kairos/agent/pkg/action"
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/action"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
 var selectBootEntry = action.SelectBootEntry

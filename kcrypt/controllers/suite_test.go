@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	keyserverv1alpha1 "github.com/kairos-io/kairos/kcrypt/api/v1alpha1"
+	keyserverv1alpha1 "github.com/kairos-io/kairos/v4/kcrypt/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 

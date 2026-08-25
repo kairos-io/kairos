@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/kairos-io/kairos/agent/pkg/state"
+	"github.com/kairos-io/kairos/v4/agent/pkg/state"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

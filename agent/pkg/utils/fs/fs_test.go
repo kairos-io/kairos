@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	fsutils "github.com/kairos-io/kairos/agent/pkg/utils/fs"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v5"

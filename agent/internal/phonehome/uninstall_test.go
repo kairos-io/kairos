@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kairos-io/kairos/agent/internal/phonehome"
+	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

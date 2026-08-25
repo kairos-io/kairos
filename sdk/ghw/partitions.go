@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kairos-io/kairos/sdk/types/logger"
-	"github.com/kairos-io/kairos/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 )
 
 type PartitionHandler interface {

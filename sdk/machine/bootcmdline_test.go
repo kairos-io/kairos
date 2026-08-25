@@ -3,7 +3,7 @@ package machine_test
 import (
 	"os"
 
-	. "github.com/kairos-io/kairos/sdk/machine"
+	. "github.com/kairos-io/kairos/v4/sdk/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

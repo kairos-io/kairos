@@ -1,7 +1,7 @@
 package main
 
 import (
-	agent "github.com/kairos-io/kairos/agent/pkg/cmd"
+	agent "github.com/kairos-io/kairos/v4/agent/pkg/cmd"
 )
 
 func init() {

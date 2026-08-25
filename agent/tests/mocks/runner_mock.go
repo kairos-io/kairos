@@ -21,7 +21,7 @@ import (
 	"os/exec"
 	"strings"
 
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 type FakeRunner struct {

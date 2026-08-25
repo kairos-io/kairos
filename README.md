@@ -63,7 +63,7 @@ image initializer all live in one source tree, share a single
 - `kcrypt/challenger/` -- in-cluster kcrypt-challenger package
   (was `kairos-io/kcrypt-challenger`).
 - `sdk/` -- Kairos SDK, importable externally at
-  `github.com/kairos-io/kairos/sdk` (was `kairos-io/kairos-sdk`).
+  `github.com/kairos-io/kairos/v4/sdk` (was `kairos-io/kairos-sdk`).
 - `kairos-init/` -- image initializer that installs the multi-call
   binary plus symlinks into a base image
   (was `kairos-io/kairos-init`).

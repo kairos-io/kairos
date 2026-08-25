@@ -3,7 +3,7 @@ package phonehome
 import (
 	"sync"
 
-	"github.com/kairos-io/kairos/sdk/state"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	"github.com/rs/zerolog"
 )
 

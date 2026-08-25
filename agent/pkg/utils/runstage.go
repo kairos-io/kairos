@@ -20,11 +20,11 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/agent/pkg/utils/fs"
-	"github.com/kairos-io/kairos/sdk/collector"
-	"github.com/kairos-io/kairos/sdk/machine"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"gopkg.in/yaml.v3"
 )
 

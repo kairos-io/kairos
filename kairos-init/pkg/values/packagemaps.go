@@ -6,8 +6,8 @@ import (
 	"text/template"
 
 	semver "github.com/hashicorp/go-version"
-	"github.com/kairos-io/kairos/kairos-init/pkg/config"
-	"github.com/kairos-io/kairos/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 // packagemaps is a map of packages to install for each distro.

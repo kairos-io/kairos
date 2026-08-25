@@ -19,12 +19,12 @@ package action
 import (
 	"time"
 
-	cnst "github.com/kairos-io/kairos/agent/pkg/constants"
-	"github.com/kairos-io/kairos/agent/pkg/elemental"
-	v1 "github.com/kairos-io/kairos/agent/pkg/implementations/spec"
-	"github.com/kairos-io/kairos/agent/pkg/state"
-	"github.com/kairos-io/kairos/agent/pkg/utils"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/agent/pkg/elemental"
+	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	"github.com/kairos-io/kairos/v4/agent/pkg/state"
+	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
 func (r *ResetAction) resetHook(hook string, chroot bool) error {

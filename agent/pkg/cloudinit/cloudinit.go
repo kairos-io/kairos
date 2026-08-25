@@ -17,8 +17,8 @@ limitations under the License.
 package cloudinit
 
 import (
-	sdkLogger "github.com/kairos-io/kairos/sdk/types/logger"
-	sdkRunner "github.com/kairos-io/kairos/sdk/types/runner"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	sdkRunner "github.com/kairos-io/kairos/v4/sdk/types/runner"
 	"github.com/mudler/yip/pkg/executor"
 	"github.com/mudler/yip/pkg/plugins"
 	"github.com/mudler/yip/pkg/schema"

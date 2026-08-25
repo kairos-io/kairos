@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	cnst "github.com/kairos-io/kairos/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/kairos/immucore/internal/utils"
-	"github.com/kairos-io/kairos/immucore/pkg/state"
-	"github.com/kairos-io/kairos/sdk/ghw"
-	"github.com/kairos-io/kairos/sdk/types/partitions"
-	"github.com/kairos-io/kairos/sdk/utils"
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
+	"github.com/kairos-io/kairos/v4/sdk/ghw"
+	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/spectrocloud-labs/herd"
 )
 

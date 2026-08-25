@@ -9,11 +9,11 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/kairos-io/kairos/immucore/internal/constants"
-	"github.com/kairos-io/kairos/immucore/internal/utils"
-	"github.com/kairos-io/kairos/immucore/pkg/dag"
-	"github.com/kairos-io/kairos/immucore/pkg/state"
-	"github.com/kairos-io/kairos/internal/version"
+	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/dag"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
+	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/spectrocloud-labs/herd"
 	"github.com/urfave/cli/v2"
 )

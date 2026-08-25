@@ -16,7 +16,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos/internal/version"
+	"github.com/kairos-io/kairos/v4/internal/version"
 )
 
 // subEntrypoint runs a sub-tool. os.Args is expected to be already shaped as

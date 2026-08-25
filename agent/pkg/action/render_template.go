@@ -6,8 +6,8 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/kairos-io/kairos/sdk/state"
-	sdkConfig "github.com/kairos-io/kairos/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/state"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"gopkg.in/yaml.v3"
 )
 

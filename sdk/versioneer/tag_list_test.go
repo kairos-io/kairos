@@ -3,7 +3,7 @@ package versioneer_test
 import (
 	"fmt"
 
-	"github.com/kairos-io/kairos/sdk/versioneer"
+	"github.com/kairos-io/kairos/v4/sdk/versioneer"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
