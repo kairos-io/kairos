@@ -105,6 +105,18 @@ on:
         type: boolean
         default: false
 
+      fips:
+        description: |
+          Build the FIPS-flavored image. Passes FIPS=fips to
+          images/Dockerfile so kairos-init installs the FIPS variant of
+          the multi-call kairos binary. Caller must also point base_image
+          at a FIPS-hardened base (e.g. ghcr.io/kairos-io/hadron-fips)
+          for the resulting image to be end-to-end FIPS-capable; passing
+          this flag alone against a non-FIPS base produces a partial-FIPS
+          image and defeats the point.
+        type: boolean
+        default: false
+
       single_efi_cmdline:
         description: |
           Bake an extra single-EFI boot entry into the UKI, in
@@ -178,7 +190,11 @@ jobs:
       # Point images/Dockerfile at the caller-supplied kairos-init.
       # This is what makes PRs / releases exercise the freshly-built
       # kairos-init rather than the ARG default in images/Dockerfile.
-      build_args: KAIROS_INIT_IMAGE=${{ inputs.kairos_init_image }}
+      # When `fips` is true the FIPS=fips build_arg switches
+      # kairos-init to embed the FIPS variant of the multi-call binary.
+      build_args: |
+        KAIROS_INIT_IMAGE=${{ inputs.kairos_init_image }}
+        ${{ inputs.fips && 'FIPS=fips' || '' }}
       base_image: ${{ inputs.base_image }}
       arch: ${{ inputs.arch }}
       model: ${{ inputs.model }}
