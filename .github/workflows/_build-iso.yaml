@@ -172,7 +172,11 @@ permissions:
 
 jobs:
   iso:
-    name: ${{ inputs.name }}
+    # No `name:` override here on purpose: the caller's matrix job
+    # already includes ${{ matrix.name }} in its own name, so any
+    # override here would repeat it in the check-run identifier.
+    # Defaults to the job_id `iso`, which becomes the middle segment
+    # you see in check names like `build-iso / amd64-core / iso / ...`.
     uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@1e6159c7e150b3ea63fdded7349be7db1f33066f  # v1.5.0
     secrets:
       # ghcr.io accepts github.actor + GITHUB_TOKEN; the token is
