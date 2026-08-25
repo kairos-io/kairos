@@ -177,21 +177,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'pr-amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'pr-amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell. hadron-fips is a distinct base image from
           # hadron (FIPS-hardened kernel + userspace); passing fips:true
           # additionally flips the FIPS=fips build_arg in images/Dockerfile
           # so kairos-init installs the FIPS variant of the multi-call
           # kairos binary. Both switches are required for an
           # end-to-end FIPS image; either alone is a footgun.
-          - {name: 'pr-amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
+          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
           # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
           # base image from hadron (extra tpm/measured-boot bits); the
           # -uki suffix on the artifact/tag comes from the $UKI token
           # in _build-iso.yaml's custom formats.
-          - {name: 'pr-amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
-          - {name: 'pr-amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
     # Explicit name overrides the auto-generated
     # `build-iso (<every matrix value in parens>)` GitHub Actions
     # produces by default. Without this, adding or renaming any
@@ -231,10 +231,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'pr-arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'pr-arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'pr-arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
           # only builds on that. Model-derived knobs (grype/sbom/
           # cleanup) turn off scans and enable disk cleanup; see
@@ -243,7 +243,7 @@ jobs:
           # ghcr.io/kairos-io/kairos/ubuntu package does not exist yet
           # and needs the same seed dance hadron got; ci-temp-images
           # is already public and existing.
-          - name: 'pr-arm64-nvidia-agx-orin'
+          - name: 'arm64-nvidia-agx-orin'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
             model: 'nvidia-jetson-agx-orin'
@@ -253,7 +253,7 @@ jobs:
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
-          - name: 'pr-arm64-nvidia-orin-nx'
+          - name: 'arm64-nvidia-orin-nx'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
             model: 'nvidia-jetson-orin-nx'
