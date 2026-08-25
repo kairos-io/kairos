@@ -8,7 +8,7 @@ name: Build kcrypt-challenger image
 # -fips variant).
 #
 # Runs in parallel to the kairos-init image build; nothing on the
-# build-iso / qemu-tests path depends on this.
+# build-iso / tests path depends on this.
 
 on:
   workflow_call:

@@ -119,7 +119,7 @@ jobs:
     secrets: inherit
 
   # The kcrypt-challenger pipe runs in parallel to the kairos pipe.
-  # Nothing on the build-iso / qemu-tests path depends on it -- the
+  # Nothing on the build-iso / tests path depends on it -- the
   # encryption tests today pin a published kcrypt-challenger tag, not
   # the just-built one -- so it only gates promote / upload-release.
   build-kcrypt-challenger:
@@ -143,7 +143,7 @@ jobs:
       caller-vetted-ref: true
     secrets: inherit
 
-  # ISO matrix is split into two jobs so qemu-tests-* start as soon
+  # ISO matrix is split into two jobs so test-* start as soon
   # as the amd64 cells they consume are ready, without waiting for
   # the slow arm64/nvidia builds that no test consumes.
   #
@@ -170,14 +170,14 @@ jobs:
           # kairos binary. Both switches are required for an
           # end-to-end FIPS image; either alone is a footgun.
           - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
-          # UKI cells feed qemu-tests-uki. hadron-trusted is a distinct
+          # UKI cells feed test-uki. hadron-trusted is a distinct
           # base image from hadron (extra tpm/measured-boot bits); the
           # -uki suffix on the artifact/tag comes from the $UKI token
           # in _build-iso.yaml's custom formats.
           - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
           - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
           # Ubuntu 20.04: non-Hadron initramfs builder coverage for
-          # the multi-call kairos symlinks. Feeds qemu-tests-core-ubuntu-20.
+          # the multi-call kairos symlinks. Feeds test-core-ubuntu-20.
           - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
@@ -275,7 +275,7 @@ jobs:
   # produced during build-iso and boots it under qemu. Test labels
   # match the ginkgo labels in tests/.
 
-  qemu-tests-core:
+  test-core:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -313,7 +313,7 @@ jobs:
   # deeper matrix here would double a slow build for no extra signal.
   # Consumes pr-amd64-core-fips's ISO artifact (base_image = hadron-fips,
   # variant computed as core because kubernetes_distro is empty).
-  qemu-tests-core-fips:
+  test-core-fips:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -335,8 +335,8 @@ jobs:
       caller-vetted-ref: true
     secrets: inherit
 
-  # Same smoke shape as qemu-tests-core-fips.
-  qemu-tests-core-ubuntu-20:
+  # Same smoke shape as test-core-fips.
+  test-core-ubuntu-20:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -358,7 +358,7 @@ jobs:
       caller-vetted-ref: true
     secrets: inherit
 
-  qemu-tests-standard:
+  test-standard:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -386,9 +386,9 @@ jobs:
 
   # encryption-* tests spin up a k3s cluster with a kcrypt-challenger
   # Deployment, and that deployment now runs the image this PR just
-  # built. Split out from qemu-tests-standard so only these cells gate
+  # built. Split out from test-standard so only these cells gate
   # on build-image-kcrypt-challenger.
-  qemu-tests-standard-encryption:
+  test-standard-encryption:
     needs: [build-iso, build-image-kcrypt-challenger]
     strategy:
       fail-fast: false
@@ -425,7 +425,7 @@ jobs:
   # the core UKI ISO and only checks boot slots. Both live in
   # _uki-test.yaml since their shape diverges from the regular
   # reusable-qemu-test.yaml.
-  qemu-tests-uki:
+  test-uki:
     needs: build-iso
     strategy:
       fail-fast: false

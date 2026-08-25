@@ -11,7 +11,7 @@ name: release
 #     get-*-versions pre-jobs that hit the upstream GitHub API
 #     for the latest three minors.
 #   - upload-release attaches the built binary archives to the
-#     GitHub Release the tag created, gated on qemu-tests-* and
+#     GitHub Release the tag created, gated on test-* and
 #     unit-tests all passing so a red run cannot ship broken
 #     binaries.
 #
@@ -110,7 +110,7 @@ jobs:
            ' | jq -c '.')
           echo "kubernetes_versions=$kubernetes_versions" >> "$GITHUB_OUTPUT"
 
-  # kairos-init pipe: gates build-iso + qemu-tests.
+  # kairos-init pipe: gates build-iso + tests.
   #
   # matrix_scope: full -- master.yaml calls these same two reusable
   # workflows with the same value, since master builds riscv64 too
@@ -142,7 +142,7 @@ jobs:
     secrets: inherit
 
   # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
-  # cells of qemu-tests-standard-encryption below consume its image; the
+  # cells of test-standard-encryption below consume its image; the
   # rest of the qemu path does not. Also gates promote-images and
   # upload-release.
   build-kcrypt-challenger:
@@ -161,7 +161,7 @@ jobs:
       registry_login: quay
     secrets: inherit
 
-  # ISO matrix split so qemu-tests-* unblock as soon as the amd64
+  # ISO matrix split so test-* unblock as soon as the amd64
   # cells they consume are ready. See pr.yaml for the rationale.
   # promote-images and upload-release both wait on build-iso-arm too
   # so a broken arm build blocks the final tag advance and the
@@ -176,7 +176,7 @@ jobs:
           - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell (see pr.yaml for rationale).
           - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
-          # UKI cells feed qemu-tests-uki (see pr.yaml for the shape).
+          # UKI cells feed test-uki (see pr.yaml for the shape).
           # hadron-trusted is a distinct base image from hadron; both UKI
           # cells set iso:true because factory-action still produces the
           # bootable UKI-iso even with trusted_boot=true.
@@ -256,7 +256,7 @@ jobs:
   # kubernetes_version is fed by the get-*-versions job's output.
   # A cell per (top-3 minor) x (k3s or k0s), each a full standard
   # ISO. Not qemu-tested at release time (that would 6x the qemu
-  # suite for marginal signal on top of what qemu-tests-standard
+  # suite for marginal signal on top of what test-standard
   # already exercises), just built + published as release
   # artifacts. Same shape release-legacy.yaml carried.
   build-iso-k3s:
@@ -310,7 +310,7 @@ jobs:
   # ISOs from build-iso-k3s / build-iso-k0s are not qemu-tested at
   # release either (see note on those jobs above).
 
-  qemu-tests-core:
+  test-core:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -339,7 +339,7 @@ jobs:
     secrets: inherit
 
   # FIPS smoke coverage (see pr.yaml for rationale).
-  qemu-tests-core-fips:
+  test-core-fips:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -360,7 +360,7 @@ jobs:
     secrets: inherit
 
   # Ubuntu 20.04 smoke coverage (see pr.yaml for rationale).
-  qemu-tests-core-ubuntu-20:
+  test-core-ubuntu-20:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -380,7 +380,7 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
 
-  qemu-tests-standard:
+  test-standard:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -403,7 +403,7 @@ jobs:
     secrets: inherit
 
   # See pr.yaml for the rationale on splitting encryption cells out.
-  qemu-tests-standard-encryption:
+  test-standard-encryption:
     needs: [build-iso, build-image-kcrypt-challenger]
     strategy:
       fail-fast: false
@@ -433,7 +433,7 @@ jobs:
       kcrypt_challenger_image: quay.io/kairos/kcrypt-challenger:${{ github.ref_name }}-scratch
     secrets: inherit
 
-  qemu-tests-uki:
+  test-uki:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -460,7 +460,7 @@ jobs:
     # qemu suites + iso matrices gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :<tag>-scratch before this job can promote it.
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-standard-encryption, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-image-kcrypt-challenger]
+    needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
     steps:
       - name: Login to quay.io
@@ -485,6 +485,6 @@ jobs:
   upload-release:
     # Uploads every tarball to the GitHub Release. Waits on both
     # pipes so the release ships kairos + kairos-init + kcrypt-challenger.
-    needs: [unit-tests, qemu-tests-core, qemu-tests-standard, qemu-tests-standard-encryption, qemu-tests-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-kcrypt-challenger]
+    needs: [unit-tests, test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-kcrypt-challenger]
     uses: ./.github/workflows/_upload-release.yaml
     secrets: inherit
