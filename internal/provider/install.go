@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos/v4/sdk/bus"
 
 	"github.com/kairos-io/go-nodepair"
 	"github.com/mudler/go-pluggable"

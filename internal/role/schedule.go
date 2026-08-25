@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
 	"github.com/mudler/edgevpn/api/client/service"
 	"github.com/samber/lo"

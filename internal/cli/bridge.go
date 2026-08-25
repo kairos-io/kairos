@@ -8,7 +8,7 @@ import (
 
 	"github.com/ipfs/go-log/v2"
 	qr "github.com/kairos-io/go-nodepair/qrcode"
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/mudler/edgevpn/api"
 	"github.com/mudler/edgevpn/cmd"
 	"github.com/mudler/edgevpn/pkg/logger"

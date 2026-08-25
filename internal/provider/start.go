@@ -3,7 +3,7 @@ package provider
 import (
 	"os"
 
-	"github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos/v4/sdk/bus"
 
 	"github.com/mudler/go-pluggable"
 )

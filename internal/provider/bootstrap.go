@@ -7,12 +7,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kairos-io/kairos-sdk/bus"
-	"github.com/kairos-io/kairos-sdk/machine"
-	"github.com/kairos-io/kairos-sdk/machine/openrc"
-	"github.com/kairos-io/kairos-sdk/machine/systemd"
-	loggerpkg "github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/bus"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
+	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
+	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
 	"github.com/kairos-io/provider-kairos/v2/internal/role"
 	p2p "github.com/kairos-io/provider-kairos/v2/internal/role/p2p"
@@ -21,7 +21,7 @@ import (
 
 	"github.com/kairos-io/provider-kairos/v2/internal/services"
 
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/mudler/edgevpn/api/client/service"
 	"github.com/mudler/go-pluggable"
 )

@@ -1,10 +1,10 @@
 package services
 
 import (
-	"github.com/kairos-io/kairos-sdk/machine/openrc"
-	"github.com/kairos-io/kairos-sdk/machine/systemd"
-	loggerpkg "github.com/kairos-io/kairos-sdk/types/logger"
-	"github.com/kairos-io/kairos-sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
+	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // K0s Services start here

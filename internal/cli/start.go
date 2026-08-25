@@ -9,7 +9,7 @@ import (
 	"github.com/kairos-io/provider-kairos/v2/internal/provider"
 	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
 
-	"github.com/kairos-io/kairos-sdk/schema"
+	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/mudler/edgevpn/pkg/node"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"

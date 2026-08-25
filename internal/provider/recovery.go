@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kairos-io/kairos-sdk/utils"
-	strutils "github.com/kairos-io/kairos-sdk/utils/strings"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
+	strutils "github.com/kairos-io/kairos/v4/sdk/utils/strings"
 
 	nodepair "github.com/kairos-io/go-nodepair"
 	"github.com/mudler/go-pluggable"

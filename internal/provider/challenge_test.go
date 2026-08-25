@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/kairos-io/kairos-sdk/bus"
+	"github.com/kairos-io/kairos/v4/sdk/bus"
 
 	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
 

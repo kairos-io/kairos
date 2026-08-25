@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	"github.com/kairos-io/kairos-sdk/utils"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 
 	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
 	"github.com/kairos-io/provider-kairos/v2/internal/role"
