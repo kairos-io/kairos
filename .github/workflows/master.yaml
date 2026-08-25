@@ -129,7 +129,6 @@ jobs:
           # UKI cells feed qemu-tests-uki (see pr.yaml for the shape).
           - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
           - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
-    # See build-iso in pr.yaml for why this override exists.
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
@@ -178,7 +177,6 @@ jobs:
             registry_domain: 'quay.io'
             registry_namespace: 'kairos'
             registry_repository: 'ci-temp-images'
-    # See build-iso in pr.yaml for why this override exists.
     name: build-iso-arm / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
@@ -217,7 +215,6 @@ jobs:
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
-    # See build-iso in pr.yaml for why this override exists.
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -240,7 +237,6 @@ jobs:
         include:
           - {test: 'install'}
           - {test: 'acceptance'}
-    # See build-iso in pr.yaml for why this override exists.
     name: test-core-fips / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -264,7 +260,6 @@ jobs:
           - {test: 'provider-decentralized-k8s'}
           - {test: 'provider-k3s-disabled'}
           - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
-    # See build-iso in pr.yaml for why this override exists.
     name: test-standard / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -296,7 +291,6 @@ jobs:
           - {test: 'encryption-remote-ek-reenroll'}
           - {test: 'encryption-remote-mixed-modes'}
           - {test: 'encryption-kcrypt-cli'}
-    # See build-iso in pr.yaml for why this override exists.
     name: test-standard-encryption / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     with:
@@ -318,7 +312,6 @@ jobs:
         include:
           - {test: 'install-upgrade', variant: 'standard'}
           - {test: 'boot-assessment', variant: 'core'}
-    # See build-iso in pr.yaml for why this override exists.
     name: test-uki / ${{ matrix.test }}
     uses: ./.github/workflows/_uki-test.yaml
     with:
