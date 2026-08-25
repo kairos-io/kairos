@@ -109,14 +109,6 @@ on:
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
     runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
-    # No `name:` override here on purpose: the caller's matrix job
-    # already includes the test label in its own name, so any override
-    # here would repeat it in the check-run identifier. Defaults to
-    # the job_id `test`, which is the trailing segment you see in
-    # check names like `test-core / acceptance / test`.
-    #
-    # SecureBoot was previously appended here; it is still identifiable
-    # from the workflow file (input value + test label).
     steps:
       - name: Split base image
         id: split
