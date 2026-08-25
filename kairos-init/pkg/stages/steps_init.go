@@ -260,6 +260,23 @@ func GetWorkaroundsStage(_ values.System, l logger.KairosLogger) []schema.Stage 
 			},
 		},
 		{
+			// Debian/Ubuntu's grub-efi-riscv64-bin ships its prebuilt EFI
+			// binary under a "monolithic" subdirectory, unlike every other
+			// arch's grub-efi package. AuroraBoot's riscv64 search list
+			// (getEfiGrubFilesForArch) looks for it one level up, at
+			// /usr/lib/grub/riscv64-efi/grubriscv64.efi -- without this link
+			// that search comes up empty inside the rootfs, and AuroraBoot
+			// falls back to whatever grubriscv64.efi happens to exist on the
+			// build host instead of the one this image actually installed.
+			Name:       "Link Debian/Ubuntu riscv64 grub EFI binary to the path AuroraBoot expects",
+			OnlyIfOs:   "Ubuntu.*|Debian.*",
+			OnlyIfArch: "riscv64",
+			If:         "test -f /usr/lib/grub/riscv64-efi/monolithic/grubriscv64.efi && ! test -e /usr/lib/grub/riscv64-efi/grubriscv64.efi",
+			Commands: []string{
+				"ln -s monolithic/grubriscv64.efi /usr/lib/grub/riscv64-efi/grubriscv64.efi",
+			},
+		},
+		{
 			Name:     "Fixup sudo perms",
 			OnlyIfOs: "Ubuntu.*|Debian.*",
 			Commands: []string{
