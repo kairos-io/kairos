@@ -12,7 +12,7 @@ import (
 	"syscall"
 
 	"github.com/google/shlex"
-	"github.com/kairos-io/kairos-sdk/schema"
+	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/urfave/cli/v2"
 )
 
