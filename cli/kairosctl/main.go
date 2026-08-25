@@ -40,6 +40,7 @@ func Start() error {
 			&iCli.CreateConfigCMD,
 			&iCli.GenerateTokenCMD,
 			&iCli.ValidateSchemaCMD,
+			&iCli.EditConfigCMD,
 		},
 	}
 
