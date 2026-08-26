@@ -83,6 +83,20 @@ on:
         required: false
         default: false
 
+    # Declared rather than inherited, so the caller chooses the quay
+    # account. Only the install-upgrade cell logs in at all: it pushes
+    # the freshly built UKI upgrade image to ci-temp-images.
+    secrets:
+      QUAY_USERNAME:
+        description: |
+          Registry user with WRITE on quay.io/kairos/ci-temp-images.
+          On the pull request path this must be the scoped robot,
+          never the account that publishes permanent images.
+        required: false
+      QUAY_PASSWORD:
+        description: "Registry token matching QUAY_USERNAME."
+        required: false
+
 permissions:
   contents: read
   packages: read

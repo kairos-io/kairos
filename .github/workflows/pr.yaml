@@ -260,7 +260,13 @@ jobs:
       release: false
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
-    secrets: inherit
+    # ci-temp-images pushes on the pull request path use the
+    # scoped `kairos+prci` robot, never the account release.yaml
+    # publishes permanent images with. Restores what #4323 and
+    # #4327 established before the monorepo pipeline landed.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
 
   # QEMU test suites. Matrix at THIS level (caller side) calling
   # reusable-qemu-test.yaml directly, because matrix + uses on a
@@ -302,7 +308,13 @@ jobs:
       release-matcher: ${{ matrix.release-matcher || '' }}
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
-    secrets: inherit
+    # ci-temp-images pushes on the pull request path use the
+    # scoped `kairos+prci` robot, never the account release.yaml
+    # publishes permanent images with. Restores what #4323 and
+    # #4327 established before the monorepo pipeline landed.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
 
   # FIPS smoke coverage. install + acceptance is the cheapest signal
   # that the FIPS variant of the multi-call kairos binary boots and
@@ -330,7 +342,13 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
-    secrets: inherit
+    # ci-temp-images pushes on the pull request path use the
+    # scoped `kairos+prci` robot, never the account release.yaml
+    # publishes permanent images with. Restores what #4323 and
+    # #4327 established before the monorepo pipeline landed.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
 
   qemu-tests-standard:
     needs: build-iso
@@ -356,7 +374,13 @@ jobs:
       release-matcher: ${{ matrix.release-matcher || '' }}
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
-    secrets: inherit
+    # ci-temp-images pushes on the pull request path use the
+    # scoped `kairos+prci` robot, never the account release.yaml
+    # publishes permanent images with. Restores what #4323 and
+    # #4327 established before the monorepo pipeline landed.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
 
   # encryption-* tests spin up a k3s cluster with a kcrypt-challenger
   # Deployment, and that deployment now runs the image this PR just
@@ -392,7 +416,13 @@ jobs:
       kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-${{ github.event.pull_request.number }}
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
-    secrets: inherit
+    # ci-temp-images pushes on the pull request path use the
+    # scoped `kairos+prci` robot, never the account release.yaml
+    # publishes permanent images with. Restores what #4323 and
+    # #4327 established before the monorepo pipeline landed.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}
 
   # UKI qemu tests. `generic` needs the standard (k3s) UKI ISO plus a
   # dynamically-built upgrade image; `boot-assessment` runs against
@@ -418,4 +448,10 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
-    secrets: inherit
+    # ci-temp-images pushes on the pull request path use the
+    # scoped `kairos+prci` robot, never the account release.yaml
+    # publishes permanent images with. Restores what #4323 and
+    # #4327 established before the monorepo pipeline landed.
+    secrets:
+      QUAY_USERNAME: ${{ secrets.QUAY_PR_USERNAME }}
+      QUAY_PASSWORD: ${{ secrets.QUAY_PR_PASSWORD }}

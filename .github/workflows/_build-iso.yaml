@@ -150,11 +150,26 @@ on:
         required: false
         default: false
 
-# No `secrets:` block on workflow_call: registry credentials are
-# derived from inputs.registry_domain inside the job (ghcr.io ->
-# github.actor + GITHUB_TOKEN, quay.io -> QUAY_USERNAME + QUAY_PASSWORD),
-# which only works when the caller uses `secrets: inherit` so this
-# reusable can see the org-level QUAY_* secrets.
+    # Registry credentials are derived from inputs.registry_domain
+    # inside the job: ghcr.io -> github.actor + GITHUB_TOKEN,
+    # quay.io -> these two.
+    #
+    # These are DECLARED rather than left to `secrets: inherit` so a
+    # caller can decide which quay account to hand over. `inherit`
+    # still satisfies a declared secret, so master.yaml and
+    # release.yaml keep working unchanged, while pr.yaml passes the
+    # scoped ci-temp-images robot instead of the production account.
+    secrets:
+      QUAY_USERNAME:
+        description: |
+          Registry user, used only when inputs.registry_domain is
+          quay.io. On the pull request path this must be the
+          ci-temp-images-scoped robot, never the account that
+          publishes permanent images.
+        required: false
+      QUAY_PASSWORD:
+        description: "Registry token matching QUAY_USERNAME."
+        required: false
 
 permissions:
   # packages: write is required for factory-action's push to ghcr:
