@@ -1,0 +1,65 @@
+name: Factory Showcase Examples
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+  id-token: write
+
+concurrency:
+  group: factory-showcase-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  showcase-core-amd64-debian:
+    name: showcase-core-amd64-debian
+    uses: ./.github/workflows/reusable-factory.yaml
+    with:
+      base_image: debian:bookworm
+      arch: amd64
+      model: generic
+      version: auto
+      summary_artifacts: true
+
+  showcase-arm64-jetson-ubuntu:
+    name: showcase-arm64-jetson-ubuntu
+    uses: ./.github/workflows/reusable-factory.yaml
+    with:
+      base_image: ubuntu:22.04
+      arch: arm64
+      model: nvidia-jetson-agx-orin
+      version: auto
+      cleanup: true
+      summary_artifacts: true
+
+  showcase-uki-amd64-fedora-k3s:
+    name: showcase-uki-amd64-fedora-k3s
+    uses: ./.github/workflows/reusable-factory.yaml
+    with:
+      base_image: fedora:41
+      arch: amd64
+      model: generic
+      version: auto
+      kubernetes_distro: k3s
+      trusted_boot: true
+      keys_dir: .github/assets/uki-test-keys
+      single_efi_cmdline: "showcase-entry: present"
+      iso: true
+      summary_artifacts: true
+
+  showcase-raw-arm64-rpi4-opensuse-leap-k3s:
+    name: showcase-raw-arm64-rpi4-opensuse-leap-k3s
+    uses: ./.github/workflows/reusable-factory.yaml
+    with:
+      base_image: opensuse/leap:15.6
+      arch: arm64
+      model: rpi4
+      version: auto
+      kubernetes_distro: k3s
+      raw: true
+      summary_artifacts: true

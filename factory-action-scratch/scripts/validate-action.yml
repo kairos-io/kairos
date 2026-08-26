@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# Validation script for Kairos Factory Action
+set -e
+
+echo "🔍 Validating Kairos Factory Action..."
+
+# Check if action.yml exists
+if [[ ! -f "action.yml" ]]; then
+    echo "❌ Error: action.yml not found"
+    exit 1
+fi
+
+# Validate YAML syntax
+echo "📝 Validating YAML syntax..."
+if ! python3 -c "import yaml; yaml.safe_load(open('action.yml'))" 2>/dev/null; then
+    echo "❌ Error: Invalid YAML syntax in action.yml"
+    exit 1
+fi
+
+# Check required fields
+echo "🔧 Checking required fields..."
+
+# Check name
+if ! grep -q "^name:" action.yml; then
+    echo "❌ Error: Missing 'name' field"
+    exit 1
+fi
+
+# Check description
+if ! grep -q "^description:" action.yml; then
+    echo "❌ Error: Missing 'description' field"
+    exit 1
+fi
+
+# Check inputs
+if ! grep -q "^inputs:" action.yml; then
+    echo "❌ Error: Missing 'inputs' section"
+    exit 1
+fi
+
+# Check outputs
+if ! grep -q "^outputs:" action.yml; then
+    echo "❌ Error: Missing 'outputs' section"
+    exit 1
+fi
+
+# Check runs
+if ! grep -q "^runs:" action.yml; then
+    echo "❌ Error: Missing 'runs' section"
+    exit 1
+fi
+
+# Check using
+if ! grep -q "using: 'composite'" action.yml; then
+    echo "❌ Error: Action must use 'composite' runs"
+    exit 1
+fi
+
+# Check steps
+if ! grep -q "^steps:" action.yml; then
+    echo "❌ Error: Missing 'steps' section"
+    exit 1
+fi
+
+# Validate required inputs
+echo "📋 Validating required inputs..."
+
+REQUIRED_INPUTS=("version")
+for input in "${REQUIRED_INPUTS[@]}"; do
+    if ! grep -A 5 "^\s*$input:" action.yml | grep -q "required: true"; then
+        echo "❌ Error: Input '$input' should be required"
+        exit 1
+    fi
+done
+
+# Check for common issues
+echo "🔍 Checking for common issues..."
+
+# Check for proper step IDs
+if grep -q "steps\." action.yml | grep -v "id:"; then
+    echo "⚠️  Warning: Some steps reference outputs without IDs"
+fi
+
+# Check for proper output references
+if grep -q "outputs\." action.yml | grep -v "steps\."; then
+    echo "⚠️  Warning: Outputs should reference steps"
+fi
+
+echo "✅ Action validation completed successfully!"
+echo ""
+echo "📊 Summary:"
+echo "  - YAML syntax: ✅ Valid"
+echo "  - Required fields: ✅ Present"
+echo "  - Composite action: ✅ Correct"
+echo "  - Required inputs: ✅ Validated"
+echo ""
+echo "🚀 Action is ready for use!" 

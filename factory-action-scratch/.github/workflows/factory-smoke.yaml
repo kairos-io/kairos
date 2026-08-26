@@ -1,0 +1,69 @@
+name: Factory Smoke Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  actions: read
+  security-events: write
+  id-token: write
+  # reusable-factory.yaml's build job requests packages: write for its
+  # ghcr push step. A reusable workflow's GITHUB_TOKEN is capped at the
+  # caller's declared permissions, so without this the smoke jobs fail
+  # startup with "requesting packages: write but only allowed packages:
+  # none". Safe here: this workflow triggers on pull_request (fork PRs
+  # get a read-only GITHUB_TOKEN regardless of what the YAML says) and
+  # push to main (same-repo, trusted).
+  packages: write
+
+concurrency:
+  group: factory-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke-standard-amd64-hadron-k3s-iso:
+    name: smoke-standard-amd64-hadron-k3s-iso
+    uses: ./.github/workflows/reusable-factory.yaml
+    with:
+      base_image: ghcr.io/kairos-io/hadron:v0.0.4
+      arch: amd64
+      model: generic
+      version: auto
+      kubernetes_distro: k3s
+      iso: true
+      grype: true
+      security_scan_mode: report-only
+      summary_artifacts: true
+
+  smoke-raw-arm64-rpi4-hadron-k0s:
+    name: smoke-raw-arm64-rpi4-hadron-k0s
+    uses: ./.github/workflows/reusable-factory.yaml
+    with:
+      base_image: ghcr.io/kairos-io/hadron:v0.0.4
+      arch: arm64
+      model: rpi4
+      version: auto
+      kubernetes_distro: k0s
+      raw: true
+      security_scan_mode: report-only
+      summary_artifacts: true
+
+  smoke-uki-amd64-hadron-trusted-k3s:
+    name: smoke-uki-amd64-hadron-trusted-k3s
+    uses: ./.github/workflows/reusable-factory.yaml
+    with:
+      base_image: ghcr.io/kairos-io/hadron-trusted:v0.0.4
+      arch: amd64
+      model: generic
+      version: auto
+      kubernetes_distro: k3s
+      trusted_boot: true
+      keys_dir: .github/assets/uki-test-keys
+      single_efi_cmdline: "smoke-entry: present"
+      iso: true
+      security_scan_mode: report-only
+      summary_artifacts: true

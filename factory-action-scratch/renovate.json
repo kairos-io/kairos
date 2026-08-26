@@ -1,0 +1,120 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/reusable-factory\\.yaml$/"
+      ],
+      "matchStrings": [
+        "kairos_version:[\\s\\S]*?default: \"(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "kairos-io/kairos",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^README\\.md$/"
+      ],
+      "matchStrings": [
+        "\\| `kairos_version` \\| string \\| no \\| `(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)` \\|"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "kairos-io/kairos",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/reusable-factory\\.yaml$/"
+      ],
+      "matchStrings": [
+        "base_image:[\\s\\S]*?default: \"ghcr.io/kairos-io/hadron:(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/kairos-io/hadron",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/factory-smoke\\.yaml$/"
+      ],
+      "matchStrings": [
+        "base_image: ghcr.io/kairos-io/hadron:(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/kairos-io/hadron",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/factory-smoke\\.yaml$/"
+      ],
+      "matchStrings": [
+        "base_image: ghcr.io/kairos-io/hadron-trusted:(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/kairos-io/hadron-trusted",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^README\\.md$/"
+      ],
+      "matchStrings": [
+        "base_image: \"ghcr.io/kairos-io/hadron:(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/kairos-io/hadron",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^README\\.md$/"
+      ],
+      "matchStrings": [
+        "\\| `base_image` \\| string \\| no \\| `ghcr.io/kairos-io/hadron:(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)` \\|"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/kairos-io/hadron",
+      "versioningTemplate": "semver",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "kairos-io/kairos"
+      ],
+      "commitMessageTopic": "kairos_version"
+    },
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "ghcr.io/kairos-io/hadron",
+        "ghcr.io/kairos-io/hadron-trusted"
+      ],
+      "commitMessageTopic": "hadron base image"
+    }
+  ]
+}

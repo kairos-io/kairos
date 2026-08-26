@@ -1,0 +1,1486 @@
+name: Build Kairos Image
+
+on:
+  workflow_call:
+    secrets:
+      registry_username:
+        required: false
+      registry_password:
+        required: false
+    inputs:
+      # Dockerfile path
+      ref:
+        description: |
+          Git ref or SHA to check out. Defaults to the ref that triggered the
+          calling workflow, which is the right answer for every ordinary caller.
+
+          Set this only when the caller must build something other than its own
+          trigger ref -- the motivating case is a `pull_request_target` workflow
+          that needs to build a fork pull request's head commit, since that
+          event's context is the base branch.
+
+          Only `ref` is exposed, deliberately: a pull request's head commit is
+          reachable from the base repository via `refs/pull/<n>/head`, so no
+          second repository ever needs naming, and omitting `repository` means
+          this cannot be pointed at code outside the calling repo.
+
+          Security note for callers: passing an untrusted ref here in a workflow
+          that also has access to secrets means running that code with those
+          secrets. This input is neutral; the caller carries the risk.
+        type: string
+        required: false
+        default: ''
+      caller-vetted-ref:
+        description: |
+          Caller assertion required to unlock actions/checkout's
+          `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if the caller
+          has its own authorization gate in front of this workflow -- e.g.
+          a `pull_request_target` pipeline whose `authorize` job pins the run
+          to a GitHub Environment that requires maintainer review before the
+          fork's `ref` is fetched. Without such a gate, leaving this false
+          keeps the `pull_request_target` + fork-ref combination blocked at
+          checkout time (the guard described at
+          https://gh.io/securely-using-pull_request_target).
+
+          Legacy behavior: for backward compatibility this reusable also opts
+          into `allow-unsafe-pr-checkout` when `ref` is non-empty and this
+          input is unset, matching how earlier versions of this workflow
+          worked. New callers should set this input explicitly; the legacy
+          `ref != ''` fallback is scheduled for removal in the next major
+          version.
+        type: boolean
+        required: false
+        default: false
+      dockerfile_path:
+        type: string
+
+      build_args:
+        type: string
+        required: false
+        default: ''
+        description: |
+          Extra --build-arg values to pass to the user's Dockerfile, one
+          per line, in KEY=VALUE form.
+
+          Appended AFTER the built-in build-args (BASE_IMAGE, MODEL,
+          KUBERNETES_*, TRUSTED_BOOT, VERSION). Docker's --build-arg is
+          last-wins for a given KEY, so a caller can override any
+          built-in by including it here (e.g. `VERSION=custom`) as well
+          as any Dockerfile ARG default the built-ins do not cover.
+
+          Motivating case: the Kairos monorepo release workflow passes
+          `KAIROS_INIT=<the-release-tag>` (via the github.ref_name
+          expression on the caller side) so the ISO build uses the
+          kairos-init image freshly published earlier in the same run,
+          instead of the ARG default pinned in images/Dockerfile.
+
+          DO NOT pass secrets through this input. Docker build args are
+          printed in build logs (visible to anyone with read access to
+          workflow logs) and can be recovered from image layer history.
+          Use docker secrets (BuildKit `--secret`) or dedicated CI
+          secret-injection mechanisms for anything sensitive.
+
+      # Kairos version for fallback Dockerfile
+      kairos_version:
+        type: string
+        default: "v4.0.0"
+        description: "Kairos version to use when downloading the fallback Dockerfile"
+
+      # Core build parameters
+      base_image:
+        type: string
+        default: "ghcr.io/kairos-io/hadron:v0.0.4"
+
+      model:
+        type: string
+        default: "generic"
+
+      arch:
+        type: string
+        default: "amd64"
+
+      kubernetes_distro:
+        type: string
+        required: false
+        description: "Kubernetes distribution to include. Must be either 'k0s' or 'k3s'. If not specified, no Kubernetes distribution will be included."
+
+      kubernetes_version:
+        type: string
+        default: "auto"
+
+      version:
+        type: string
+        required: true
+
+      trusted_boot:
+        type: boolean
+        default: false
+
+      no_cache:
+        type: boolean
+        default: false
+
+      allow_insecure_registries:
+        type: boolean
+        default: false
+        description: "Allow auroraboot to pull container images from registries over plain HTTP or with untrusted/self-signed TLS certificates when generating artifacts (ISO/UKI/RAW). Useful on self-hosted runners that pull from a local or in-cluster registry (e.g. localhost:5000/...). Passed to auroraboot as --allow-insecure-registries, and as --set allow-insecure-registries=true for the RAW flow."
+
+      # Individual artifact types
+      iso:
+        type: boolean
+        default: false
+
+      raw:
+        type: boolean
+        default: false
+
+      vhd:
+        type: boolean
+        default: false
+
+      gce:
+        type: boolean
+        default: false
+
+      tar:
+        type: boolean
+        default: false
+
+      # Checksums
+      compute_checksums:
+        type: boolean
+        default: true
+
+      output_format:
+        type: string
+        default: "auto"
+
+      # Security and signing
+      security_checks:
+        type: string
+        default: ""
+
+      security_scan_mode:
+        type: string
+        default: "legacy"
+        description: "Security scan policy: legacy|enforce|report-only"
+
+      # Individual security checks
+      cosign:
+        type: boolean
+        default: false
+
+      grype:
+        type: boolean
+        default: false
+
+      trivy:
+        type: boolean
+        default: false
+
+      sbom:
+        type: boolean
+        default: true
+        description: |
+          Attach an SBOM attestation to the pushed image. Default true, so every
+          existing caller keeps its current behaviour.
+
+          Set false only when the attestation cannot be attached at all. BuildKit
+          refuses a single attestation larger than 41943040 bytes (40 MiB) and
+          fails the whole push, so an image whose SBOM crosses that line cannot
+          be published while this is true. The image itself is fine in that case:
+          the layers, manifest and config all export successfully and only the
+          attestation step fails.
+
+          The images that hit this are the ones with very large file counts --
+          the NVIDIA Jetson images, whose CUDA userspace produces an SPDX
+          document past the limit. Package versions are not the cause and
+          bumping them does not help, because the document scales with how many
+          packages and files an image contains, not with how old they are.
+
+          Turning this off is a real loss: consumers of that image get no
+          attached bill of materials. Prefer these first, and use this input when
+          neither is available:
+            1. Shrink the document -- package-level SPDX without file-level
+               entries is typically far under the limit.
+            2. Publish the SBOM as a separate artifact rather than an inline
+               attestation, which the 40 MiB cap does not apply to.
+
+      # SARIF generation and upload toggles
+      grype_sarif:
+        type: boolean
+        default: false
+
+      grype_sarif_fail_build:
+        type: boolean
+        default: true
+        description: "Whether the Grype SARIF scan step should fail the job when vulnerabilities at/above the severity cutoff are found. Set to false to prevent SARIF generation from failing the job; build gating may still occur via security_scan_mode when grype/trivy scans are enabled."
+
+      trivy_sarif:
+        type: boolean
+        default: false
+
+      # Scanner configs (optional)
+      grype_config:
+        type: string
+        required: false
+        description: "Path to Grype config file (defaults to .grype.yaml in repo root if not provided)"
+
+      trivy_config:
+        type: string
+        required: false
+        description: "Path to Trivy config file (defaults to .trivy.yaml in repo root if not provided)"
+
+      # Publishing
+      registry_domain:
+        type: string
+        description: "Container registry domain to push to"
+
+      registry_namespace:
+        type: string
+        description: "Namespace/organization in the registry URL"
+
+      registry_repository:
+        type: string
+        required: false
+        description: "Repository name in the registry (defaults to $FLAVOR if not specified)"
+
+      # Output and reporting
+      summary_artifacts:
+        type: boolean
+        default: false
+
+      auroraboot_version:
+        type: string
+        default: "latest"
+
+      # Custom tag format
+      custom_tag_format:
+        type: string
+        required: false
+        description: "Custom tag format using variables like $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $UKI, $COMMIT_SHA. If not provided, uses default format."
+
+      custom_artifact_format:
+        type: string
+        required: false
+        description: "Custom artifact filename format using variables like $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $UKI, $COMMIT_SHA. If not provided, uses auroraboot's default naming."
+
+      custom_job_name_format:
+        type: string
+        required: false
+        description: "Custom job name format using variables like $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $UKI, $COMMIT_SHA. If not provided, uses default format."
+
+      image_labels:
+        type: string
+        required: false
+        description: "Image labels to add to the image"
+
+      # Trusted boot inputs
+      keys_dir:
+        type: string
+        required: false
+        description: "Path to directory containing trusted boot keys (required when trusted_boot is true)"
+
+      sysext_dir:
+        type: string
+        required: false
+        description: "Path to directory containing system extensions overlay (optional, only used when trusted_boot is true)"
+
+      single_efi_cmdline:
+        type: string
+        required: false
+        description: "Single EFI command line to use for trusted boot (optional, only used when trusted_boot is true)"
+
+      # Cloud config (file path or URL)
+      cloud_config:
+        type: string
+        required: false
+        description: "Cloud-config file path or URL passed to auroraboot via --cloud-config. If empty, not passed."
+
+      release:
+        type: boolean
+        default: false
+        description: "Whether to create a GitHub release for the built artifacts"
+
+      list_release_artifacts:
+        type: boolean
+        default: false
+        description: "List all the artifacts that would be included in the release in the GitHub summary"
+
+      release_extraction_notes:
+        type: boolean
+        default: true
+        description: "For raw builds (which can't be attached as release assets), append instructions to the GitHub release for extracting the raw image from the published -img OCI artifact. Set to false to disable."
+
+      cleanup:
+        type: boolean
+        default: false
+        description: "Remove preinstalled packages to free disk space on the runner"
+
+jobs:
+  build:
+    permissions:
+      id-token: write  # OIDC support
+      contents: write
+      actions: read
+      security-events: write
+      models: none
+      # packages: write is required for the "Push Kairos image" step
+      # to push the built OS image to ghcr or quay when the caller
+      # opts into push_images. Job-level permissions here override
+      # workflow-level and any permissions the caller declares, so
+      # omitting this caps GITHUB_TOKEN to packages:none regardless
+      # of what next-*.yaml / _next-build-iso.yaml grant, and ghcr
+      # returns "installation not allowed to Write organization package".
+      packages: write
+    name: ${{ inputs.custom_job_name_format != '' && inputs.custom_job_name_format || format('{0}-{1}-{2}-{3}{4}{5}', inputs.base_image, (inputs.kubernetes_distro != '' && 'standard' || 'core'), inputs.arch, inputs.model, (inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || ''), (inputs.trusted_boot && '-uki' || '')) }}
+    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    steps:
+      - name: Release space from worker
+        if: inputs.cleanup
+        run: |
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          df -h
+          echo
+          sudo apt-get remove -y '^llvm-.*|^libllvm.*' || true
+          sudo apt-get remove --auto-remove android-sdk-platform-tools || true
+          sudo apt-get purge --auto-remove android-sdk-platform-tools || true
+          sudo rm -rf /usr/local/lib/android
+          sudo apt-get remove -y '^dotnet-.*|^aspnetcore-.*' || true
+          sudo rm -rf /usr/share/dotnet
+          sudo apt-get remove -y '^mono-.*' || true
+          sudo apt-get remove -y '^ghc-.*' || true
+          sudo apt-get remove -y '.*jdk.*|.*jre.*' || true
+          sudo apt-get remove -y 'php.*' || true
+          sudo apt-get remove -y hhvm || true
+          sudo apt-get remove -y powershell || true
+          sudo apt-get remove -y firefox || true
+          sudo apt-get remove -y monodoc-manual || true
+          sudo apt-get remove -y msbuild || true
+          sudo apt-get remove -y microsoft-edge-stable || true
+          sudo apt-get remove -y '^google-.*' || true
+          sudo apt-get remove -y azure-cli || true
+          sudo apt-get remove -y '^mongo.*-.*|^postgresql-.*|^mysql-.*|^mssql-.*' || true
+          sudo apt-get remove -y '^gfortran-.*' || true
+          sudo apt-get remove -y '^gcc-*' || true
+          sudo apt-get remove -y '^g++-*' || true
+          sudo apt-get remove -y '^cpp-*' || true
+          sudo apt-get autoremove -y
+          sudo apt-get clean
+          echo
+          echo "Listing top largest packages"
+          pkgs=$(dpkg-query -Wf '${Installed-Size}\t${Package}\t${Status}\n' | awk '$NF == "installed"{print $1 "\t" $2}' | sort -nr)
+          head -n 30 <<< "${pkgs}"
+          echo
+          sudo rm -rfv build || true
+          df -h
+      - name: Checkout source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: '0'
+          # Empty is actions/checkout's own default, so unset behaves exactly as
+          # before for every existing caller.
+          ref: ${{ inputs.ref }}
+          # actions/checkout refuses to fetch a non-default ref inside a
+          # pull_request_target workflow otherwise -- the exact "pwn request"
+          # guard https://gh.io/securely-using-pull_request_target describes.
+          # The `caller-vetted-ref` input is the explicit way to opt in;
+          # `inputs.ref != ''` is retained as a legacy fallback so existing
+          # callers that predate the input keep working. New callers should
+          # set caller-vetted-ref; the fallback will be dropped in the next
+          # major version.
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref || inputs.ref != '' }}
+
+      - name: Validate inputs and setup Dockerfile
+        shell: bash
+        run: |
+          # Create a temporary directory for downloaded files (needed for fallback cases)
+          TEMP_DIR=$(mktemp -d)
+          echo "📁 Created temporary directory: $TEMP_DIR"
+
+          # Check if user provided a dockerfile_path
+          if [[ -n "${{ inputs.dockerfile_path }}" ]]; then
+            # User provided a path - validate it exists
+            if [ ! -f "${{ inputs.dockerfile_path }}" ]; then
+              echo "❌ Error: Dockerfile not found at ${{ inputs.dockerfile_path }}"
+              echo "   Current directory: $(pwd)"
+              echo "   Directory contents: $(ls -la)"
+              echo "   Please ensure the Dockerfile exists at the specified path"
+              exit 1
+            fi
+            echo "✅ Found Dockerfile at ${{ inputs.dockerfile_path }}"
+            echo "DOCKERFILE_PATH=${{ inputs.dockerfile_path }}" >> $GITHUB_ENV
+          else
+            # User didn't provide a path - download fallback
+            echo "📥 No Dockerfile path provided, downloading fallback from Kairos ${{ inputs.kairos_version }}"
+
+            # Download the default Kairos Dockerfile to temp directory
+            echo "📥 Downloading default Kairos Dockerfile from https://github.com/kairos-io/kairos/blob/${{ inputs.kairos_version }}/images/Dockerfile"
+            curl -L "https://raw.githubusercontent.com/kairos-io/kairos/${{ inputs.kairos_version }}/images/Dockerfile" -o "$TEMP_DIR/Dockerfile"
+
+            if [ -f "$TEMP_DIR/Dockerfile" ]; then
+              echo "✅ Successfully downloaded default Dockerfile to $TEMP_DIR/Dockerfile"
+              # Update the dockerfile_path to use the downloaded file
+              echo "DOCKERFILE_PATH=$TEMP_DIR/Dockerfile" >> $GITHUB_ENV
+            else
+              echo "❌ Error: Failed to download default Dockerfile"
+              exit 1
+            fi
+          fi
+
+          # Download Dockerfile.img only if RAW builds are requested
+          if [[ "${{ inputs.raw }}" == "true" ]]; then
+            echo "📥 Downloading Kairos Dockerfile.img for RAW builds from https://github.com/kairos-io/kairos/blob/${{ inputs.kairos_version }}/images/Dockerfile.img"
+            curl -L "https://raw.githubusercontent.com/kairos-io/kairos/${{ inputs.kairos_version }}/images/Dockerfile.img" -o "$TEMP_DIR/Dockerfile.img"
+
+            if [ -f "$TEMP_DIR/Dockerfile.img" ]; then
+              echo "✅ Successfully downloaded Dockerfile.img to $TEMP_DIR/Dockerfile.img"
+              # Update the dockerfile_img_path to use the downloaded file
+              echo "DOCKERFILE_IMG_PATH=$TEMP_DIR/Dockerfile.img" >> $GITHUB_ENV
+            else
+              echo "❌ Error: Failed to download Dockerfile.img"
+              exit 1
+            fi
+          fi
+
+          # Validate required inputs
+          if [[ -z "${{ inputs.version }}" ]]; then
+            echo "❌ Error: version is required"
+            exit 1
+          fi
+
+          # Validate kubernetes_distro values
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            case "${{ inputs.kubernetes_distro }}" in
+              k3s|k0s)
+                ;;
+              *)
+                echo "❌ Error: kubernetes_distro must be 'k3s' or 'k0s'"
+                exit 1
+                ;;
+            esac
+          fi
+
+          # Validate arch values
+          case "${{ inputs.arch }}" in
+            amd64|arm64)
+              ;;
+            *)
+              echo "❌ Error: arch must be 'amd64' or 'arm64'"
+              exit 1
+              ;;
+          esac
+
+          # Validate security scan mode
+          case "${{ inputs.security_scan_mode }}" in
+            legacy|enforce|report-only)
+              ;;
+            *)
+              echo "❌ Error: security_scan_mode must be one of 'legacy', 'enforce', or 'report-only'"
+              exit 1
+              ;;
+          esac
+
+          echo "✅ Input validation passed"
+
+
+
+      - name: Setup environment
+        id: setup
+        shell: bash
+        run: |
+          # Determine variant based on kubernetes_distro
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            VARIANT="standard"
+          else
+            VARIANT="core"
+          fi
+
+          # Handle version resolution
+          if [[ "${{ inputs.version }}" == "auto" ]]; then
+            VERSION=$(git describe --tags --dirty --always)
+            # Handle three cases:
+            # 1. No tags: 39d55d3 → v0.0.0-39d55d3
+            # 2. Dirty tag: v3.5.0-23-g94fe1d98 → keep as is
+            # 3. Clean tag: v3.5.0 → keep as is
+            if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
+              # Just a commit SHA (no tags), prefix with v0.0.0-
+              VERSION="v0.0.0-$VERSION"
+            fi
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+          if [[ "${{ inputs.kairos_version }}" == "auto" ]]; then
+            KAIROS_VERSION=$VERSION
+          elif [[ "${{ inputs.kairos_version }}" != "" ]]; then
+            KAIROS_VERSION="${{ inputs.kairos_version }}"
+          fi
+          echo "KAIROS_VERSION=$KAIROS_VERSION" >> $GITHUB_ENV
+
+          # Handle kubernetes version resolution
+          if [[ "${{ inputs.kubernetes_version }}" == "auto" ]]; then
+            KUBERNETES_VERSION=""
+          else
+            KUBERNETES_VERSION="${{ inputs.kubernetes_version }}"
+          fi
+
+          # Split base image for tag generation
+          BASE_IMAGE=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 1)
+          BASE_TAG=$(echo "${{ inputs.base_image }}" | cut -d ':' -f 2 || echo 'latest')
+
+          # Handle base images with slashes (registry paths)
+          # Examples:
+          # - ubuntu:24.04 -> FLAVOR=ubuntu, FLAVOR_RELEASE=24.04
+          # - opensuse/leap:15.6 -> FLAVOR=opensuse, FLAVOR_RELEASE=leap-15.6
+          # - ghcr.io/kairos-io/hadron:main -> FLAVOR=hadron, FLAVOR_RELEASE=main
+          if [[ "$BASE_IMAGE" == *"/"* ]]; then
+            # Count number of slashes to determine if it's a registry path
+            SLASH_COUNT=$(echo "$BASE_IMAGE" | tr -cd '/' | wc -c)
+            if [[ $SLASH_COUNT -eq 1 ]]; then
+              # Simple case: distro/subdistro (preserve existing behavior)
+              DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 1)
+              SUB_DISTRO=$(echo "$BASE_IMAGE" | cut -d '/' -f 2)
+              FLAVOR="$DISTRO"
+              FLAVOR_RELEASE="$SUB_DISTRO-$BASE_TAG"
+            else
+              # Registry path with multiple slashes: extract last component as FLAVOR
+              # e.g., ghcr.io/kairos-io/hadron -> FLAVOR=hadron
+              FLAVOR=$(echo "$BASE_IMAGE" | awk -F'/' '{print $NF}')
+              FLAVOR_RELEASE="$BASE_TAG"
+            fi
+          else
+            # No slashes: simple image name
+            FLAVOR="$BASE_IMAGE"
+            FLAVOR_RELEASE="$BASE_TAG"
+          fi
+
+          # Special case for nvidia
+          if [[ "${{ inputs.model }}" == "nvidia-jetson-agx-orin" ]]; then
+            FLAVOR="ubuntu"
+            FLAVOR_RELEASE="22.04"
+          fi
+
+          # Generate image tag
+          # Replace + with - in kubernetes version for tag compatibility
+          SANITIZED_KUBERNETES_VERSION=$(echo "$KUBERNETES_VERSION" | sed 's/+/-/g')
+
+          # Set UKI suffix if trusted boot is enabled
+          UKI_SUFFIX=""
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            UKI_SUFFIX="-uki"
+          fi
+
+          # Define variables for tag generation
+          ARCH="${{ inputs.arch }}"
+          MODEL="${{ inputs.model }}"
+          KUBERNETES_DISTRO="${{ inputs.kubernetes_distro }}"
+          UKI="$UKI_SUFFIX"
+          COMMIT_SHA="${{ github.sha }}"
+
+          # Generate default tag
+          if [[ -n "$KUBERNETES_VERSION" ]]; then
+            DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION$UKI"
+          else
+            DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$UKI"
+          fi
+
+          # Use custom tag format if provided, otherwise use default
+          if [[ -n "${{ inputs.custom_tag_format }}" ]]; then
+            # Shell will automatically expand variables in the format
+            TAG="${{ inputs.custom_tag_format }}"
+          else
+            TAG="$DEFAULT_TAG"
+          fi
+
+          # Determine registry, namespace, and repository
+          REGISTRY="${{ inputs.registry_domain }}"
+          NAMESPACE="${{ inputs.registry_namespace }}"
+
+          # Use registry_repository if specified, otherwise use FLAVOR
+          if [[ -n "${{ inputs.registry_repository }}" ]]; then
+            REPOSITORY="${{ inputs.registry_repository }}"
+          else
+            REPOSITORY="$FLAVOR"
+          fi
+
+          IMAGE_TAG=""
+          # Build image tag
+          if [[ -n "$REGISTRY" ]]; then
+            IMAGE_TAG="$REGISTRY/"
+          fi
+          if [[ -n "$NAMESPACE" ]]; then
+            IMAGE_TAG="$IMAGE_TAG$NAMESPACE/"
+          fi
+          if [[ -n "$REPOSITORY" ]]; then
+            IMAGE_TAG="$IMAGE_TAG$REPOSITORY:"
+          fi
+          IMAGE_TAG="$IMAGE_TAG$TAG"
+
+          echo "IMAGE_NAME=$IMAGE_TAG" >> $GITHUB_ENV
+
+          # Generate artifact name
+          if [[ -n "${{ inputs.custom_artifact_format }}" ]]; then
+            # Shell will automatically expand variables in the format
+            ARTIFACT_NAME="${{ inputs.custom_artifact_format }}"
+          else
+            # Generate default artifact name format
+            DEFAULT_ARTIFACT_NAME="kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION"
+
+            # Append kubernetes distro and version if defined
+            if [[ -n "$KUBERNETES_DISTRO" ]]; then
+              DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION"
+            fi
+
+            # Append UKI suffix if trusted boot is enabled
+            DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME$UKI"
+
+            ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME"
+          fi
+
+          # Use keys_dir if specified
+          if [[ -n "${{ inputs.keys_dir }}" ]]; then
+            KEYS_DIR="${{ inputs.keys_dir }}"
+          else
+            KEYS_DIR=""
+          fi
+
+          # Use sysext_dir if specified
+          if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+            SYSEXT_DIR="${{ inputs.sysext_dir }}"
+          else
+            SYSEXT_DIR=""
+          fi
+
+          # Use single_efi_cmdline if specified
+          if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
+            SINGLE_EFI_CMDLINE="${{ inputs.single_efi_cmdline }}"
+          else
+            SINGLE_EFI_CMDLINE=""
+          fi
+
+          # Export variables
+          echo "variant=$VARIANT" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "kubernetes_version=$KUBERNETES_VERSION" >> $GITHUB_OUTPUT
+          echo "kubernetes_distro=$KUBERNETES_DISTRO" >> $GITHUB_OUTPUT
+          echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
+          echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "artifact_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+          echo "keys_dir=$KEYS_DIR" >> $GITHUB_OUTPUT
+          echo "sysext_dir=$SYSEXT_DIR" >> $GITHUB_OUTPUT
+          echo "single_efi_cmdline=$SINGLE_EFI_CMDLINE" >> $GITHUB_OUTPUT
+
+          echo "🔧 Environment setup complete"
+          echo "   Variant: $VARIANT"
+          echo "   Version: $VERSION"
+          echo "   Registry: $REGISTRY"
+          echo "   Namespace: $NAMESPACE"
+          echo "   Repository: $REPOSITORY"
+          echo "   Default Tag: $DEFAULT_TAG"
+          if [[ -n "${{ inputs.custom_tag_format }}" ]]; then
+            echo "   Custom Tag Format: ${{ inputs.custom_tag_format }}"
+          fi
+          if [[ -n "${{ inputs.custom_artifact_format }}" ]]; then
+            echo "   Custom Artifact Format: ${{ inputs.custom_artifact_format }}"
+            echo "   Artifact Name: $ARTIFACT_NAME"
+          fi
+          if [[ -n "${{ inputs.keys_dir }}" ]]; then
+            echo "   Keys Dir: ${{ inputs.keys_dir }}"
+          fi
+          if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+            echo "   Sysext Dir: ${{ inputs.sysext_dir }}"
+          fi
+          if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
+            echo "   Single EFI Cmdline: ${{ inputs.single_efi_cmdline }}"
+          fi
+          echo "   Final Tag: $TAG"
+          echo "   Image Tag: $IMAGE_TAG"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@master
+        with:
+          platforms: linux/${{ inputs.arch }}
+
+      - name: Login to registry
+        if: inputs.registry_domain != ''
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ inputs.registry_domain }}
+          username: ${{ secrets.registry_username }}
+          password: ${{ secrets.registry_password }}
+
+      - name: Build Kairos image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          platforms: linux/${{ inputs.arch }}
+          no-cache: ${{ inputs.no_cache }}
+          push: false
+          load: true
+          tags: ${{ steps.setup.outputs.image_tag }}
+          labels: ${{ inputs.image_labels }}
+          build-args: |
+            BASE_IMAGE=${{ inputs.base_image }}
+            MODEL=${{ inputs.model }}
+            KUBERNETES_VERSION=${{ steps.setup.outputs.kubernetes_version }}
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
+            TRUSTED_BOOT=${{ inputs.trusted_boot }}
+            VERSION=${{ steps.setup.outputs.version }}
+            ${{ inputs.build_args }}
+
+      - name: Check for Grype config
+        if: inputs.grype || inputs.grype_sarif
+        id: grype-config
+        run: |
+          if [[ -n "${{ inputs.grype_config }}" && -f "${{ inputs.grype_config }}" ]]; then
+            echo "📄 Using Grype config: ${{ inputs.grype_config }}"
+            echo "path=${{ inputs.grype_config }}" >> $GITHUB_OUTPUT
+          elif [[ -f ".grype.yaml" ]]; then
+            echo "📄 Using Grype config: .grype.yaml"
+            echo "path=.grype.yaml" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️ No Grype config file found, using defaults"
+            echo "path=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Grype security scan
+        if: inputs.grype
+        id: grype
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: ${{ steps.setup.outputs.image_tag }}
+          output-format: json
+          severity-cutoff: critical
+          add-cpes-if-none: true
+          only-fixed: true
+          fail-build: false
+          config: ${{ steps.grype-config.outputs.path }}
+      - name: Parse Grype scan results
+        if: inputs.grype
+        id: grype-results
+        run: |
+          # Check if the JSON file exists and is not empty
+          if [[ ! -f "${{ steps.grype.outputs.json }}" ]] || [[ ! -s "${{ steps.grype.outputs.json }}" ]]; then
+            echo "❌ Error: Grype JSON output file is missing or empty"
+            echo "   Expected file: ${{ steps.grype.outputs.json }}"
+            echo "   This indicates the Grype scan failed or didn't produce output"
+            echo "critical_count=0" >> $GITHUB_OUTPUT
+            echo "status=error" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          CRITICAL_COUNT=$(jq '[.matches[]? | select((.vulnerability.severity // "") == "Critical")] | length' "${{ steps.grype.outputs.json }}")
+          echo "critical_count=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
+
+          jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+
+          if [[ "$CRITICAL_COUNT" -gt 0 ]]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ Grype found $CRITICAL_COUNT critical vulnerabilities."
+            echo "   Critical findings:"
+            cat grype-critical.txt
+          else
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "✅ Grype found no critical vulnerabilities."
+          fi
+
+      - name: Run Trivy security scan
+        if: inputs.trivy
+        id: trivy-scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.setup.outputs.image_tag }}
+          format: json
+          output: trivy.json
+          severity: CRITICAL
+          trivy-config: ${{ inputs.trivy_config || '.trivy.yaml' }}
+
+      - name: Parse Trivy scan results
+        if: inputs.trivy
+        id: trivy-results
+        shell: bash
+        run: |
+          if [[ ! -f "trivy.json" ]] || [[ ! -s "trivy.json" ]]; then
+            echo "❌ Error: Trivy JSON output file is missing or empty"
+            echo "critical_count=0" >> $GITHUB_OUTPUT
+            echo "status=error" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          CRITICAL_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select((.Severity // "") == "CRITICAL")] | length' trivy.json)
+          echo "critical_count=$CRITICAL_COUNT" >> $GITHUB_OUTPUT
+
+          jq -r '.Results[]? as $r | $r.Vulnerabilities[]? | select((.Severity // "") == "CRITICAL") | "\(.VulnerabilityID)\t\(.PkgName) \(.InstalledVersion // "unknown") -> \($r.Target // "unknown-target")"' trivy.json > trivy-critical.txt
+
+          if [[ "$CRITICAL_COUNT" -gt 0 ]]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "❌ Trivy found $CRITICAL_COUNT critical vulnerabilities."
+            echo "   Critical findings:"
+            cat trivy-critical.txt
+          else
+            echo "status=passed" >> $GITHUB_OUTPUT
+            echo "✅ Trivy found no critical vulnerabilities."
+          fi
+
+      - name: Enforce security scan policy (legacy)
+        if: inputs.security_scan_mode == 'legacy' && inputs.grype
+        shell: bash
+        run: |
+          GRYPE_CRITICAL="${{ steps.grype-results.outputs.critical_count }}"
+          [[ -z "$GRYPE_CRITICAL" ]] && GRYPE_CRITICAL=0
+
+          if [[ "$GRYPE_CRITICAL" -gt 0 ]]; then
+            echo "❌ Security gate blocked build (legacy mode): Grype found $GRYPE_CRITICAL critical vulnerabilities."
+            if [[ ! -s grype-critical.txt ]]; then
+              jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+            fi
+            if [[ -s grype-critical.txt ]]; then
+              echo "   Grype critical findings:"
+              cat grype-critical.txt
+            else
+              echo "   Grype critical findings unavailable (could not parse details)."
+            fi
+            exit 1
+          fi
+
+          echo "✅ Security gate passed (legacy mode)."
+
+      - name: Enforce security scan policy (enforce)
+        if: inputs.security_scan_mode == 'enforce'
+        shell: bash
+        run: |
+          FAIL=0
+
+          if [[ "${{ inputs.grype }}" == "true" ]]; then
+            GRYPE_CRITICAL="${{ steps.grype-results.outputs.critical_count }}"
+            [[ -z "$GRYPE_CRITICAL" ]] && GRYPE_CRITICAL=0
+            if [[ "$GRYPE_CRITICAL" -gt 0 ]]; then
+              echo "❌ Grype found $GRYPE_CRITICAL critical vulnerabilities."
+              if [[ ! -s grype-critical.txt ]]; then
+                jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+              fi
+              if [[ -s grype-critical.txt ]]; then
+                echo "   Grype critical findings:"
+                cat grype-critical.txt
+              else
+                echo "   Grype critical findings unavailable (could not parse details)."
+              fi
+              FAIL=1
+            fi
+          fi
+
+          if [[ "${{ inputs.trivy }}" == "true" ]]; then
+            TRIVY_CRITICAL="${{ steps.trivy-results.outputs.critical_count }}"
+            [[ -z "$TRIVY_CRITICAL" ]] && TRIVY_CRITICAL=0
+            if [[ "$TRIVY_CRITICAL" -gt 0 ]]; then
+              echo "❌ Trivy found $TRIVY_CRITICAL critical vulnerabilities."
+              if [[ ! -s trivy-critical.txt ]]; then
+                jq -r '.Results[]? as $r | $r.Vulnerabilities[]? | select((.Severity // "") == "CRITICAL") | "\(.VulnerabilityID)\t\(.PkgName) \(.InstalledVersion // "unknown") -> \($r.Target // "unknown-target")"' trivy.json > trivy-critical.txt
+              fi
+              if [[ -s trivy-critical.txt ]]; then
+                echo "   Trivy critical findings:"
+                cat trivy-critical.txt
+              else
+                echo "   Trivy critical findings unavailable (could not parse details)."
+              fi
+              FAIL=1
+            fi
+          fi
+
+          if [[ "$FAIL" -eq 1 ]]; then
+            echo "❌ Security gate blocked build (enforce mode)."
+            exit 1
+          fi
+
+          echo "✅ Security gate passed (enforce mode)."
+
+      - name: Run Trivy SARIF scan
+        if: inputs.trivy_sarif
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.setup.outputs.image_tag }}
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL
+          limit-severities-for-sarif: true
+          trivy-config: ${{ inputs.trivy_config || '.trivy.yaml' }}
+
+      - name: Generate Grype SARIF
+        if: inputs.grype_sarif
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: ${{ steps.setup.outputs.image_tag }}
+          output-format: sarif
+          output-file: grype.sarif
+          severity-cutoff: critical
+          add-cpes-if-none: true
+          only-fixed: true
+          fail-build: ${{ inputs.grype_sarif_fail_build }}
+          config: ${{ steps.grype-config.outputs.path }}
+
+      - name: Filter Grype SARIF to critical
+        if: inputs.grype_sarif
+        uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
+        with:
+          input: grype.sarif
+          output: grype.sarif
+          severity: critical
+
+      - name: Filter Trivy SARIF to critical
+        if: inputs.trivy_sarif
+        uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
+        with:
+          input: trivy.sarif
+          output: trivy.sarif
+          severity: critical
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        if: inputs.trivy_sarif
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        with:
+          sarif_file: 'trivy.sarif'
+          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
+
+      - name: Upload Grype scan results to GitHub Security tab
+        if: inputs.grype_sarif
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        with:
+          sarif_file: 'grype.sarif'
+          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
+
+      # The step name no longer promises an SBOM, because `sbom` is now an
+      # input. A step called "with SBOM" that pushed without one would be the
+      # kind of small lie that costs someone an afternoon.
+      - name: Push Kairos image
+        if: inputs.registry_domain != ''
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_PATH }}
+          platforms: linux/${{ inputs.arch }}
+          push: true
+          sbom: ${{ inputs.sbom }}
+          tags: ${{ steps.setup.outputs.image_tag }}
+          labels: ${{ inputs.image_labels }}
+          build-args: |
+            BASE_IMAGE=${{ inputs.base_image }}
+            MODEL=${{ inputs.model }}
+            KUBERNETES_VERSION=${{ steps.setup.outputs.kubernetes_version }}
+            KUBERNETES_DISTRO=${{ inputs.kubernetes_distro }}
+            TRUSTED_BOOT=${{ inputs.trusted_boot }}
+            VERSION=${{ steps.setup.outputs.version }}
+            ${{ inputs.build_args }}
+
+      - name: Generate ISO artifact
+        if: inputs.iso && inputs.model == 'generic'
+        id: generate-iso
+        shell: bash
+        run: |
+          echo "🔍 Debug: Starting ISO generation step"
+          echo "   Inputs: iso=${{ inputs.iso }}, model=${{ inputs.model }}"
+          echo "   Image tag: ${{ steps.setup.outputs.image_tag }}"
+
+          mkdir -p artifacts
+          echo "   Using image: ${{ steps.setup.outputs.image_tag }}"
+
+          echo "📦 Building ISO ..."
+            DOCKER_CMD="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock"
+            DOCKER_CMD="$DOCKER_CMD -v $PWD/artifacts:/output"
+
+            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+              KEYS_DIR_INPUT="${{ inputs.keys_dir }}"
+              if [[ "$KEYS_DIR_INPUT" != /* ]]; then
+                KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
+              fi
+              DOCKER_CMD="$DOCKER_CMD -v \"$KEYS_DIR_INPUT\":/keys"
+
+              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+                SYSEXT_DIR_INPUT="${{ inputs.sysext_dir }}"
+                if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
+                  SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
+                fi
+                DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
+              fi
+            fi
+
+            # Optional cloud-config (file path or URL)
+            CLOUD_CONFIG_ARG=""
+            CLOUD_CONFIG_INPUT="${{ inputs.cloud_config }}"
+            if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
+              if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
+                CLOUD_CONFIG_ARG="--cloud-config \"$CLOUD_CONFIG_INPUT\""
+              else
+                # Mount local file into container and refer to stable path
+                if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
+                  ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
+                else
+                  ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
+                fi
+                DOCKER_CMD="$DOCKER_CMD -v \"$ABS_CC_PATH\":/cloud-config:ro"
+                CLOUD_CONFIG_ARG="--cloud-config /cloud-config"
+              fi
+            fi
+            DOCKER_CMD="$DOCKER_CMD quay.io/kairos/auroraboot:${{ inputs.auroraboot_version }} --debug"
+            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+              DOCKER_CMD="$DOCKER_CMD build-uki"
+            else
+              DOCKER_CMD="$DOCKER_CMD build-iso"
+            fi
+            ## auroraboot flags
+            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+              DOCKER_CMD="$DOCKER_CMD --output-dir /output/"
+            else
+              DOCKER_CMD="$DOCKER_CMD --output /output/"
+            fi
+
+            if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
+              DOCKER_CMD="$DOCKER_CMD --allow-insecure-registries"
+            fi
+
+            if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+              DOCKER_CMD="$DOCKER_CMD --output-type=iso"
+              DOCKER_CMD="$DOCKER_CMD --public-keys /keys"
+              DOCKER_CMD="$DOCKER_CMD --tpm-pcr-private-key /keys/tpm2-pcr-private.pem"
+              DOCKER_CMD="$DOCKER_CMD --sb-key /keys/db.key --sb-cert /keys/db.pem"
+
+              if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
+                DOCKER_CMD="$DOCKER_CMD --single-efi-cmdline=\"${{ inputs.single_efi_cmdline }}\""
+              fi
+
+              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+                DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
+              fi
+            fi
+
+            # Append cloud-config flag if provided
+            if [[ -n "$CLOUD_CONFIG_ARG" ]]; then
+              DOCKER_CMD="$DOCKER_CMD $CLOUD_CONFIG_ARG"
+            fi
+
+            DOCKER_CMD="$DOCKER_CMD docker:${{ steps.setup.outputs.image_tag }}"
+
+            echo "🔧 Executing: $DOCKER_CMD"
+            eval $DOCKER_CMD
+
+
+          ISO_FILE=$(ls artifacts/*.iso | head -1)
+          if [[ -n "$ISO_FILE" ]]; then
+            echo "✅ ISO generated: $ISO_FILE"
+          else
+            echo "❌ Error: No ISO file found in artifacts directory"
+            echo "   Artifacts directory contents:"
+            ls -la artifacts/ || echo "   Artifacts directory is empty or doesn't exist"
+            exit 1
+          fi
+
+      - name: Generate RAW artifact
+        if: inputs.raw
+        id: generate-raw
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          echo "📦 Building RAW artifact..."
+          DOCKER_CMD="docker run --rm --privileged -v /var/run/docker.sock:/var/run/docker.sock"
+          DOCKER_CMD="$DOCKER_CMD -v $PWD/artifacts:/output"
+
+          # Optional cloud-config (file path or URL)
+          CLOUD_CONFIG_ARG=""
+          CLOUD_CONFIG_INPUT="${{ inputs.cloud_config }}"
+          if [[ -n "$CLOUD_CONFIG_INPUT" ]]; then
+            if [[ "$CLOUD_CONFIG_INPUT" =~ ^https?:// ]]; then
+              CLOUD_CONFIG_ARG="--cloud-config \"$CLOUD_CONFIG_INPUT\""
+            else
+              if [[ "$CLOUD_CONFIG_INPUT" != /* ]]; then
+                ABS_CC_PATH="$PWD/$CLOUD_CONFIG_INPUT"
+              else
+                ABS_CC_PATH="$CLOUD_CONFIG_INPUT"
+              fi
+              DOCKER_CMD="$DOCKER_CMD -v \"$ABS_CC_PATH\":/cloud-config:ro"
+              CLOUD_CONFIG_ARG="--cloud-config /cloud-config"
+            fi
+          fi
+
+          DOCKER_CMD="$DOCKER_CMD quay.io/kairos/auroraboot:${{ inputs.auroraboot_version }} --debug"
+          if [[ -n "$CLOUD_CONFIG_ARG" ]]; then
+            DOCKER_CMD="$DOCKER_CMD $CLOUD_CONFIG_ARG"
+          fi
+          DOCKER_CMD="$DOCKER_CMD --set \"disable_http_server=true\""
+          DOCKER_CMD="$DOCKER_CMD --set \"disable_netboot=true\""
+          DOCKER_CMD="$DOCKER_CMD --set \"container_image=docker:${{ steps.setup.outputs.image_tag }}\""
+          DOCKER_CMD="$DOCKER_CMD --set \"state_dir=/output\""
+          DOCKER_CMD="$DOCKER_CMD --set \"disk.raw=true\""
+          if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
+            DOCKER_CMD="$DOCKER_CMD --set \"allow-insecure-registries=true\""
+          fi
+
+          echo "🔧 Executing: $DOCKER_CMD"
+          eval $DOCKER_CMD
+
+          RAW_FILE=$(ls artifacts/*.raw | head -1)
+          if [[ -n "$RAW_FILE" ]]; then
+            echo "✅ RAW generated: $RAW_FILE"
+            echo "RAW_ARTIFACT=$RAW_FILE" >> $GITHUB_ENV
+          else
+            echo "❌ Error: No RAW file found in artifacts directory"
+            echo "   Artifacts directory contents:"
+            ls -la artifacts/ || echo "   Artifacts directory is empty or doesn't exist"
+            exit 1
+          fi
+
+      - name: Create OCI artifact from RAW image
+        if: inputs.raw && inputs.registry_domain != ''
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE_IMG_PATH }}
+          platforms: linux/${{ inputs.arch }}
+          push: true
+          tags: ${{ steps.setup.outputs.image_tag }}-img
+          build-args: |
+            ARTIFACT=${{ env.RAW_ARTIFACT }}
+
+      - name: Compute checksums for generated artifacts
+        if: (inputs.iso || inputs.raw || inputs.vhd || inputs.tar) && inputs.compute_checksums
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          # Enable nullglob so patterns that match nothing (e.g. *.raw
+          # when only an ISO was produced) expand to empty rather than
+          # staying literal. Without this, `ls artifacts/*.{iso,raw,vhd,tar}`
+          # was passing the literal string `artifacts/*.raw` to ls,
+          # ls returned non-zero, and the whole step reported
+          # "No artifact files found to checksum" even when a valid
+          # ISO was sitting right there.
+          shopt -s nullglob
+          files=(artifacts/*.iso artifacts/*.raw artifacts/*.vhd artifacts/*.tar)
+          if [ "${#files[@]}" -gt 0 ]; then
+            echo "🔍 Computing SHA256 checksums"
+            # artifacts/ and its contents are written by auroraboot
+            # running in a docker container as root, so the runner
+            # user cannot create the `.sha256` sibling that `tee`
+            # tries to write. Reclaim ownership before the loop.
+            sudo chown -R "$(id -u):$(id -g)" artifacts
+            for f in "${files[@]}"; do
+              sha256sum "$f" | tee "${f}.sha256"
+            done
+          else
+            echo "ℹ️  No artifact files found to checksum"
+          fi
+
+      - name: Generate VHD artifact
+        if: inputs.vhd
+        shell: bash
+        run: |
+          echo "📦 Building VHD artifact..."
+          echo "⚠️  VHD generation not yet implemented"
+
+      - name: Generate GCE artifact
+        if: inputs.gce
+        shell: bash
+        run: |
+          echo "📦 Building GCE artifact..."
+          echo "⚠️  GCE generation not yet implemented"
+
+      - name: Generate TAR artifact
+        if: inputs.tar
+        shell: bash
+        run: |
+          echo "📦 Building TAR artifact..."
+          echo "⚠️  TAR generation not yet implemented"
+
+      - name: Install Cosign
+        if: inputs.cosign
+        uses: sigstore/cosign-installer@main
+        with:
+          cosign-release: "v3.1.3"
+
+      - name: Sign image and artifact checksums with cosign
+        if: inputs.cosign && inputs.registry_domain != ''
+        env:
+          COSIGN_YES: true
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "🔏 Signing image in registry: ${{ steps.setup.outputs.image_tag }}"
+          cosign sign ${{ steps.setup.outputs.image_tag }}
+
+          echo "🔏 Signing artifact checksums"
+          for checksum in artifacts/*.sha256; do
+            if [[ -f "$checksum" ]]; then
+              cosign sign-blob --yes --bundle="${checksum}.bundle" --output-certificate="${checksum}.pem" --output-signature="${checksum}.sig" "$checksum"
+              echo "✅ Signed checksum: $checksum"
+            fi
+          done
+
+          if [[ -n "${{ env.RAW_ARTIFACT }}" ]]; then
+            echo "🔏 Signing RAW OCI image tag in registry: ${{ steps.setup.outputs.image_tag }}-img"
+            cosign sign ${{ steps.setup.outputs.image_tag }}-img
+          fi
+      - name: GitHub Release
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMG_REF: ${{ steps.setup.outputs.image_tag }}-img
+          REGISTRY_DOMAIN: ${{ inputs.registry_domain }}
+          RELEASE_EXTRACTION_NOTES: ${{ inputs.release_extraction_notes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="${GITHUB_REF_NAME}"
+
+          if [[ -z "$TAG" ]]; then
+            echo "❌ Could not determine tag from GITHUB_REF_NAME"
+            exit 1
+          fi
+
+          shopt -s nullglob
+          RELEASE_FILES=(
+            artifacts/*.iso
+            artifacts/*.iso.sha256
+            artifacts/*.iso.sha256.sig
+            artifacts/*.iso.sha256.bundle
+            artifacts/*.iso.sha256.pem
+          )
+          RAW_FILES=( artifacts/*.raw )
+          shopt -u nullglob
+
+          if [[ ${#RELEASE_FILES[@]} -eq 0 && ${#RAW_FILES[@]} -eq 0 ]]; then
+            echo "ℹ️ No release artifacts found; skipping release."
+            echo "   Looked for artifacts/*.iso* and artifacts/*.raw"
+            echo "   Current artifacts directory contents:"
+            ls -la artifacts || echo "   (artifacts directory not found)"
+            exit 0
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "ℹ️ Release $TAG already exists"
+          else
+            echo "📦 Creating release $TAG (must already exist as a tag)"
+            gh release create "$TAG" --verify-tag --title "$TAG" --notes "Release $TAG"
+          fi
+
+          # Upload ISO-style assets. Raw images are handled separately below
+          # because a raw disk image typically exceeds GitHub's 2 GiB per-file
+          # release-asset limit.
+          if [[ ${#RELEASE_FILES[@]} -gt 0 ]]; then
+            echo "⬆️ Uploading release artifacts"
+            MAX_ATTEMPTS=3
+            ATTEMPT=1
+            until gh release upload "$TAG" "${RELEASE_FILES[@]}" --clobber; do
+              if [[ "$ATTEMPT" -ge "$MAX_ATTEMPTS" ]]; then
+                echo "❌ Failed to upload release artifacts after $MAX_ATTEMPTS attempts"
+                exit 1
+              fi
+
+              BACKOFF=$((ATTEMPT * 5))
+              echo "⚠️ Upload failed (attempt $ATTEMPT/$MAX_ATTEMPTS). Retrying in ${BACKOFF}s..."
+              sleep "$BACKOFF"
+              ATTEMPT=$((ATTEMPT + 1))
+            done
+          fi
+
+          # Raw builds: the raw image is published as an <image>-img OCI artifact
+          # (see "Create OCI artifact from RAW image"), so append instructions for
+          # extracting it from that image instead of attaching the oversized raw.
+          if [[ ${#RAW_FILES[@]} -gt 0 && "${RELEASE_EXTRACTION_NOTES}" == "true" && -n "${REGISTRY_DOMAIN}" ]]; then
+            MARKER="<!-- kairos-factory:raw-image-extraction -->"
+            CURRENT_BODY="$(gh release view "$TAG" --json body -q .body)"
+            if [[ "$CURRENT_BODY" == *"$MARKER"* ]]; then
+              echo "ℹ️ Raw-image extraction instructions already present on release $TAG"
+            else
+              echo "📝 Appending raw-image extraction instructions to release $TAG"
+              {
+                printf '%s\n\n' "$CURRENT_BODY"
+                printf '%s\n\n' "$MARKER"
+                printf '## Raw disk image\n\n'
+                printf 'This release includes a raw disk image. Raw images exceed GitHub'"'"'s 2 GiB per-file release-asset limit, so instead of being attached here the image is published as an OCI artifact:\n\n'
+                printf '`%s`\n\n' "$IMG_REF"
+                printf 'Extract the raw image with Docker:\n\n'
+                printf '```bash\n'
+                printf 'export IMAGE=%s\n' "$IMG_REF"
+                printf 'container=$(docker create "$IMAGE" noop)   # scratch image: throwaway command, never executed\n'
+                printf 'docker cp "$container:/artifacts/." .\n'
+                printf 'docker rm "$container"\n'
+                printf '```\n\n'
+                printf 'The `.raw` image is now in the current directory, ready to flash.\n'
+              } | gh release edit "$TAG" --notes-file -
+            fi
+          fi
+      - name: List Release Artifacts
+        if: inputs.list_release_artifacts
+        shell: bash
+        run: |
+          echo "## 🏭 Kairos Factory Release Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Artifacts:**" >> $GITHUB_STEP_SUMMARY
+          for artifact in artifacts/*.iso artifacts/*.raw artifacts/*.vhd artifacts/*.tar; do
+            if [[ -f "$artifact" ]]; then
+              echo "- \`$(basename "$artifact")\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+      - name: Generate GitHub summary
+        if: always() && inputs.summary_artifacts
+        shell: bash
+        run: |
+          echo "## 🏭 Kairos Factory Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ steps.setup.outputs.image_tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Configuration:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Base Image: \`${{ inputs.base_image }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Model: \`${{ inputs.model }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Architecture: \`${{ inputs.arch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Variant: \`${{ steps.setup.outputs.variant }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`${{ steps.setup.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+
+          if [[ -n "${{ inputs.kubernetes_distro }}" ]]; then
+            echo "- Kubernetes: \`${{ inputs.kubernetes_distro }}\` \`${{ steps.setup.outputs.kubernetes_version }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
+            echo "- Trusted Boot: ✅ Enabled" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Generated Artifacts:**" >> $GITHUB_STEP_SUMMARY
+
+          ARTIFACT_COUNT=0
+          for artifact in artifacts/*.iso artifacts/*.raw artifacts/*.vhd artifacts/*.tar; do
+            if [[ -f "$artifact" ]]; then
+              echo "- \`$(basename "$artifact")\`" >> $GITHUB_STEP_SUMMARY
+              ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
+            fi
+          done
+
+          if [[ $ARTIFACT_COUNT -eq 0 ]]; then
+            echo "- No artifacts generated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ "${{ inputs.cosign }}" == "true" && "${{ inputs.registry_domain }}" != "" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Security:**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Image signed with cosign" >> $GITHUB_STEP_SUMMARY
+            # Check if any artifacts exist for signing
+            if ls artifacts/*.iso artifacts/*.raw artifacts/*.vhd artifacts/*.tar 2>/dev/null | grep -q .; then
+              echo "- ✅ Artifacts signed with cosign" >> $GITHUB_STEP_SUMMARY
+            fi
+          elif [[ "${{ inputs.cosign }}" == "true" && "${{ inputs.registry_domain }}" == "" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Security:**" >> $GITHUB_STEP_SUMMARY
+            echo "- ⚠️  Cosign signing skipped (requires registry_domain)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Check which security scans were run
+          if [[ "${{ inputs.grype }}" == "true" || "${{ inputs.trivy }}" == "true" ]]; then
+            MAX_FINDINGS=50
+            GRYPE_CRITICAL="${{ steps.grype-results.outputs.critical_count }}"
+            TRIVY_CRITICAL="${{ steps.trivy-results.outputs.critical_count }}"
+            GRYPE_STATUS="${{ steps.grype-results.outputs.status }}"
+            TRIVY_STATUS="${{ steps.trivy-results.outputs.status }}"
+            [[ -z "$GRYPE_CRITICAL" ]] && GRYPE_CRITICAL=0
+            [[ -z "$TRIVY_CRITICAL" ]] && TRIVY_CRITICAL=0
+
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Security Scans:**" >> $GITHUB_STEP_SUMMARY
+
+            if [[ "${{ inputs.grype }}" == "true" ]]; then
+              if [[ "$GRYPE_STATUS" == "passed" ]]; then
+                echo "- Grype: ✅ passed ($GRYPE_CRITICAL critical)" >> $GITHUB_STEP_SUMMARY
+              elif [[ "$GRYPE_STATUS" == "failed" ]]; then
+                echo "- Grype: ❌ failed ($GRYPE_CRITICAL critical)" >> $GITHUB_STEP_SUMMARY
+                if [[ "$GRYPE_CRITICAL" -gt 0 && ! -s grype-critical.txt ]]; then
+                  jq -r '.matches[]? | select((.vulnerability.severity // "") == "Critical") | "\(.vulnerability.id)\t\(.artifact.name) \(.artifact.version) -> \(.artifact.locations[0].path // "no-path")"' "${{ steps.grype.outputs.json }}" > grype-critical.txt
+                fi
+                if [[ -s grype-critical.txt ]]; then
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "<details><summary>Grype critical findings (up to $MAX_FINDINGS)</summary>" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+                  awk -v max="$MAX_FINDINGS" 'NR <= max { print } NR == max + 1 { print "... truncated ..." }' grype-critical.txt >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "</details>" >> $GITHUB_STEP_SUMMARY
+                fi
+              else
+                echo "- Grype: ⚠️ status unknown" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+
+            if [[ "${{ inputs.trivy }}" == "true" ]]; then
+              if [[ "$TRIVY_STATUS" == "passed" ]]; then
+                echo "- Trivy: ✅ passed ($TRIVY_CRITICAL critical)" >> $GITHUB_STEP_SUMMARY
+              elif [[ "$TRIVY_STATUS" == "failed" ]]; then
+                echo "- Trivy: ❌ failed ($TRIVY_CRITICAL critical)" >> $GITHUB_STEP_SUMMARY
+                if [[ "$TRIVY_CRITICAL" -gt 0 && ! -s trivy-critical.txt ]]; then
+                  jq -r '.Results[]? as $r | $r.Vulnerabilities[]? | select((.Severity // "") == "CRITICAL") | "\(.VulnerabilityID)\t\(.PkgName) \(.InstalledVersion // "unknown") -> \($r.Target // "unknown-target")"' trivy.json > trivy-critical.txt
+                fi
+                if [[ -s trivy-critical.txt ]]; then
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "<details><summary>Trivy critical findings (up to $MAX_FINDINGS)</summary>" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+                  awk -v max="$MAX_FINDINGS" 'NR <= max { print } NR == max + 1 { print "... truncated ..." }' trivy-critical.txt >> $GITHUB_STEP_SUMMARY
+                  echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "</details>" >> $GITHUB_STEP_SUMMARY
+                fi
+              else
+                echo "- Trivy: ⚠️ status unknown" >> $GITHUB_STEP_SUMMARY
+              fi
+            fi
+
+            echo "- Policy: \`${{ inputs.security_scan_mode }}\`" >> $GITHUB_STEP_SUMMARY
+
+            BLOCKED=false
+            if [[ "${{ inputs.security_scan_mode }}" == "legacy" ]]; then
+              if [[ "${{ inputs.grype }}" == "true" && "$GRYPE_CRITICAL" -gt 0 ]]; then
+                BLOCKED=true
+              fi
+            elif [[ "${{ inputs.security_scan_mode }}" == "enforce" ]]; then
+              if [[ "${{ inputs.grype }}" == "true" && "$GRYPE_CRITICAL" -gt 0 ]]; then
+                BLOCKED=true
+              fi
+              if [[ "${{ inputs.trivy }}" == "true" && "$TRIVY_CRITICAL" -gt 0 ]]; then
+                BLOCKED=true
+              fi
+            fi
+
+            if [[ "$BLOCKED" == "true" ]]; then
+              echo "- Gate: ❌ blocked by policy" >> $GITHUB_STEP_SUMMARY
+            elif [[ "${{ inputs.security_scan_mode }}" == "report-only" ]]; then
+              echo "- Gate: ✅ report-only (non-blocking)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- Gate: ✅ passed" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      - name: Upload ISO artifacts
+        if: inputs.iso
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.setup.outputs.artifact_name }}.iso.zip
+          path: |
+            artifacts/*.iso
+            artifacts/*.sha256
+          if-no-files-found: error
+
+      - name: Upload RAW artifacts
+        if: inputs.raw
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.setup.outputs.artifact_name }}.raw.zip
+          path: |
+            artifacts/*.raw
+            artifacts/*.sha256
+          if-no-files-found: error
