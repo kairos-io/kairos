@@ -61,6 +61,17 @@ stages:
             Type=oneshot
             RemainAfterExit=yes
             ExecStart=/usr/bin/kairos-agent run-stage fs
+            # Belt-and-suspenders for the sysinit.target ordering: this
+            # service is Before=sysinit.target, so if it hangs, every
+            # later target (basic, multi-user) hangs with it and sshd
+            # never comes up. run-stage fs pulls in config_url fetches
+            # against a network that is not yet up at this ordering
+            # point, and any silent stall inside kairos-agent (an
+            # unbounded http.Get in old sdk/collector builds, a wedged
+            # DNS resolver, a slow yip stage) becomes an invisible boot
+            # hang. Cap the whole stage so a stall fails cleanly and
+            # boot proceeds instead of dying at the login prompt.
+            TimeoutStartSec=90
 
             [Install]
             WantedBy=sysinit.target
