@@ -46,7 +46,7 @@ jobs:
     uses: ./.github/workflows/_lint.yaml
     secrets: inherit
 
-  # kairos-init pipe: gates build-iso + qemu-tests.
+  # kairos-init pipe: gates build-iso + tests.
   #
   # matrix_scope: full -- the same value release.yaml passes. Names
   # the architecture set this builds (amd64+arm64, default+FIPS, plus
@@ -94,7 +94,7 @@ jobs:
     secrets: inherit
 
   # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
-  # cells of qemu-tests-standard-encryption below consume its image; the
+  # cells of test-standard-encryption below consume its image; the
   # rest of the qemu path does not. Also gates promote-images.
   build-kcrypt-challenger:
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
@@ -112,7 +112,7 @@ jobs:
       registry_login: ghcr
     secrets: inherit
 
-  # ISO matrix split so qemu-tests-* unblock as soon as the amd64
+  # ISO matrix split so test-* unblock as soon as the amd64
   # cells they consume are ready. See pr.yaml for the rationale.
   # promote-images below waits on build-iso-arm too so a broken
   # arm build still keeps :master-scratch from advancing to :master.
@@ -126,9 +126,11 @@ jobs:
           - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell (see pr.yaml for rationale).
           - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
-          # UKI cells feed qemu-tests-uki (see pr.yaml for the shape).
+          # UKI cells feed test-uki (see pr.yaml for the shape).
           - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
           - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
+          # Ubuntu 20.04 smoke cell (see pr.yaml for rationale).
+          - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
@@ -198,7 +200,7 @@ jobs:
       release: false
     secrets: inherit
 
-  qemu-tests-core:
+  test-core:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -229,7 +231,7 @@ jobs:
     secrets: inherit
 
   # FIPS smoke coverage (see pr.yaml for rationale).
-  qemu-tests-core-fips:
+  test-core-fips:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -249,7 +251,28 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
 
-  qemu-tests-standard:
+  # Ubuntu 20.04 smoke coverage (see pr.yaml for rationale).
+  test-core-ubuntu-20:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'install'}
+          - {test: 'acceptance'}
+    name: test-core-ubuntu-20 / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ubuntu:20.04'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  test-standard:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -274,7 +297,7 @@ jobs:
     secrets: inherit
 
   # See pr.yaml for the rationale on splitting encryption cells out.
-  qemu-tests-standard-encryption:
+  test-standard-encryption:
     needs: [build-iso, build-image-kcrypt-challenger]
     strategy:
       fail-fast: false
@@ -304,7 +327,7 @@ jobs:
       kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:master-scratch
     secrets: inherit
 
-  qemu-tests-uki:
+  test-uki:
     needs: build-iso
     strategy:
       fail-fast: false
@@ -333,7 +356,7 @@ jobs:
     # qemu suites + arm build gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :master-scratch before this job can promote it.
-    needs: [qemu-tests-core, qemu-tests-standard, qemu-tests-standard-encryption, qemu-tests-uki, build-iso-arm, build-image-kcrypt-challenger]
+    needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
     steps:
       - name: Login to ghcr.io

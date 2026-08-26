@@ -10,6 +10,8 @@
 /trivy-cache
 coverage.out
 tests/logs/
+tests/assets/encryption/challenger-patch.yaml
+tests/assets/encryption/challenger-server-ingress.yaml
 .DS_Store
 internal/webui/public/cypress/videos/
 pr-message

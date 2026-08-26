@@ -5,7 +5,7 @@ name: Build kcrypt-challenger
 # workflow artifacts.
 #
 # Runs in parallel to _build-kairos.yaml. Nothing on the kairos-init /
-# build-iso / qemu-tests path depends on this; only the
+# build-iso / tests path depends on this; only the
 # _build-image-kcrypt-challenger.yaml step downstream (and via that
 # the release / promote workflows) consumes the artifact.
 

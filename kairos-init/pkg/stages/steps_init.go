@@ -1115,6 +1115,35 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 				},
 			},
 			{
+				// 09_systemd_services.yaml enables iscsid on every systemd
+				// distro. On Ubuntu 20 that closes a dependency loop through
+				// dracut-pre-mount / sysroot.mount / local-fs.target /
+				// sysinit.target / iscsid, and systemd breaks the cycle by
+				// deleting one of its jobs at random. When the loser is
+				// dracut-initqueue, /run/overlayfs never gets set up, sysroot
+				// mount fails, and boot dies in the initramfs. It shows up as
+				// a flaky boot: sometimes systemd deletes a benign job and
+				// boot proceeds, sometimes it deletes dracut-initqueue and the
+				// VM never comes up. Omitting the iscsi dracut module cuts
+				// the cycle at its root: livecd boot never needs iSCSI (root
+				// is squashfs from CD-ROM), and the post-boot iscsid service
+				// stays enabled for anyone actually using iSCSI storage.
+				// Ubuntu 22+ resolves the same-shaped dependency graph
+				// without the flake, so we scope this narrowly.
+				Name:            "Omit iscsi from initramfs on Ubuntu 20",
+				OnlyIfOs:        "Ubuntu.*",
+				OnlyIfOsVersion: `20\..*`,
+				Files: []schema.File{
+					{
+						Path:        bundled.DracutSkipScsiPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.DracutSkipIscsi,
+					},
+				},
+			},
+			{
 				Name: "Omit nvidia drivers loading in the initramfs",
 				If:   fmt.Sprintf(`[ "%s" = "nvidia-jetson-thor" ]`, config.DefaultConfig.Model),
 				Files: []schema.File{

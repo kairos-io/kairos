@@ -485,9 +485,19 @@ func fetchRemoteConfig(url string) (*Config, error) {
 	var body []byte
 	result := &Config{}
 
+	// Per-attempt HTTP timeout. http.DefaultClient's zero-value Timeout
+	// means a stalled TCP connect (no route to the target during the fs
+	// cloud-init stage, which runs before network-online.target) can
+	// hang for the kernel's SYN-retry window -- ~2 minutes per attempt,
+	// multiplied by the retry count below -- and drag cos-setup-fs.service
+	// with it. cos-setup-fs is ordered Before=sysinit.target, so hanging
+	// it blocks every later target including multi-user.target, and sshd
+	// never comes up. A bounded per-request timeout keeps the whole
+	// retry loop below a minute of wall-clock even in the worst case.
+	client := &http.Client{Timeout: 15 * time.Second}
 	err := retry.Do(
 		func() error {
-			resp, err := http.Get(url)
+			resp, err := client.Get(url)
 			if err != nil {
 				return err
 			}
