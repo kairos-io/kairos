@@ -80,19 +80,25 @@ binary can pin one of those.
 
 The historical repos (`kairos-agent`, `immucore`,
 `kcrypt-discovery-challenger`, `kcrypt-challenger`, `kairos-sdk`,
-`kairos-init`, `kairos-installer`, `kairos-factory-action`) are
-archived. Their tagged releases remain resolvable so pre-migration
-pins keep working; post-migration fixes land here and ship on the
-monorepo release tag.
+`kairos-init`, `kairos-installer`, `kairos-factory-action`,
+`linting-composite-action`) are archived. Their tagged releases
+remain resolvable so pre-migration pins keep working; post-migration
+fixes land here and ship on the monorepo release tag.
 
-The absorbed `kairos-factory-action` reusable workflow lives at
-`.github/workflows/reusable-factory.yaml` (reusable workflows have to
-live at `.github/workflows/` of the repo root -- GitHub does not
-accept them in subdirectories), so it does not follow the subdir
-pattern the other absorbed components did. External consumers rewrite
-`uses: kairos-io/kairos-factory-action/.github/workflows/reusable-factory.yaml@<ref>`
-to `uses: kairos-io/kairos/.github/workflows/reusable-factory.yaml@<ref>`
-and repin at a monorepo ref (SHA, `master`, or a Kairos release tag).
+Absorbed reusable workflows live at `.github/workflows/` of the repo
+root (GitHub does not accept reusable workflows in subdirectories),
+so they do not follow the subdir pattern the runtime components did:
+
+- `kairos-factory-action` -> `.github/workflows/reusable-factory.yaml`
+- `linting-composite-action` -> `.github/workflows/reusable-linting.yaml`
+  and, for the composite-action shape,
+  `linting-composite-action/action.yml`
+
+External consumers rewrite their `uses:` lines from the archived-repo
+path to the monorepo path (`kairos-io/kairos-factory-action/...` ->
+`kairos-io/kairos/.github/workflows/reusable-factory.yaml`, same for
+linting) and repin at a monorepo ref (SHA, `master`, or a Kairos
+release tag).
 
 ## Project status
 

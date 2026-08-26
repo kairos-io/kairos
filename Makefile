@@ -49,8 +49,9 @@ tidy:
 # ============================================================================
 # Local workflow lint. Mirrors the two checks CI runs on every push:
 #
-#   * lint.yaml calls the kairos-io/linting-composite-action, which under
-#     the hood runs cytopia/yamllint against .github/workflows/. Rule set
+#   * _lint.yaml calls the in-tree reusable-linting.yaml (absorbed from
+#     the archived kairos-io/linting-composite-action), which under the
+#     hood runs cytopia/yamllint against .github/workflows/. Rule set
 #     comes from the repo-level .yamllint file. `make lint-workflows-yaml`
 #     produces the same output; xargs's exit-code-123 is what CI trips on.
 #
