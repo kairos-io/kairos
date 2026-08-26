@@ -36,6 +36,7 @@ cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
 cp "$BIN_SOURCE/kairos-installer" "$DEST_ROOT/kairos-installer"
 if [[ "$ARCH" != "riscv64" ]]; then
     cp "$BIN_SOURCE_FIPS/kairos" "$DEST_FIPS/kairos"
+    cp "$BIN_SOURCE_FIPS/kairos-installer" "$DEST_FIPS/kairos-installer"
 fi
 
 # --- Fetch defaults from external repos (provider-kairos, kairos-installer, edgevpn) ---

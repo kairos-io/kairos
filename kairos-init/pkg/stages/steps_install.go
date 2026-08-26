@@ -507,7 +507,11 @@ func installKairosInstaller(l logger.KairosLogger) error {
 		l.Logger.Error().Err(err).Str("dir", filepath.Dir(dest)).Msg("Failed to create directory")
 		return err
 	}
-	return os.WriteFile(dest, bundled.EmbeddedKairosInstaller, 0755)
+	blob := bundled.EmbeddedKairosInstaller
+	if config.DefaultConfig.Fips {
+		blob = bundled.EmbeddedKairosInstallerFips
+	}
+	return os.WriteFile(dest, blob, 0755)
 }
 
 // GetInstallKairosBinaries directly installs the kairos binaries from bundled binaries

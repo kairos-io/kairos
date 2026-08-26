@@ -87,6 +87,14 @@ jobs:
       - name: Build kairos
         run: make kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
 
+      # kairos-installer ships in the same (arch, variant) archive as
+      # the multi-call kairos. build-kairos-init downloads that
+      # archive and expects `dist/linux-<arch>[-fips]/kairos-installer`
+      # to be present for the embed step; building it here is what
+      # puts it there.
+      - name: Build kairos-installer
+        run: make kairos-installer ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+
       - name: Package archives
         run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
 

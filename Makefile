@@ -38,7 +38,7 @@ kairos-init-embed-stubs:
 	@for f in kairos provider-kairos kairos-installer edgevpn version-info.yaml; do \
 	    [ -e kairos-init/pkg/bundled/binaries/$$f ] || : > kairos-init/pkg/bundled/binaries/$$f; \
 	done
-	@for f in kairos provider-kairos; do \
+	@for f in kairos provider-kairos kairos-installer; do \
 	    [ -e kairos-init/pkg/bundled/binaries/fips/$$f ] || : > kairos-init/pkg/bundled/binaries/fips/$$f; \
 	done
 
@@ -208,7 +208,7 @@ kairos-init: kairos-init-embed
 binaries:
 	$(MAKE) kairos kcrypt-challenger kairos-installer ARCH=$(ARCH) VARIANT=default
 ifneq ($(ARCH),riscv64)
-	$(MAKE) kairos kcrypt-challenger ARCH=$(ARCH) VARIANT=fips
+	$(MAKE) kairos kcrypt-challenger kairos-installer ARCH=$(ARCH) VARIANT=fips
 endif
 	$(MAKE) kairos-init ARCH=$(ARCH) VARIANT=default
 
