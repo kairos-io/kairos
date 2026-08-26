@@ -135,7 +135,12 @@ bundles:
 					"/usr/bin/immucore",
 					"/system/discovery/kcrypt-discovery-challenger",
 				} {
-					out, err := vm.Sudo(fmt.Sprintf("readlink -f %s", link))
+					// 2>/dev/null so the readlink output is not contaminated
+					// by unrelated sudo diagnostics (e.g. Ubuntu's default
+					// "unable to resolve host <hostname>" warning), which
+					// would break the exact-match assertion below without
+					// telling us anything about the symlinks.
+					out, err := vm.Sudo(fmt.Sprintf("readlink -f %s 2>/dev/null", link))
 					Expect(err).ToNot(HaveOccurred(), out)
 					Expect(strings.TrimSpace(out)).To(Equal("/usr/bin/kairos"),
 						"expected %s to resolve to /usr/bin/kairos, got %q", link, out)
