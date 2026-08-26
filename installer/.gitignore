@@ -1,0 +1,4 @@
+/kairos-installer
+*.iso
+coverage.out
+.DS_Store
