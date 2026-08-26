@@ -1,7 +1,7 @@
 package prereqs_test
 
 import (
-	"github.com/kairos-io/kairos-installer/prereqs"
+	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

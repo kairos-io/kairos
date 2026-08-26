@@ -67,6 +67,9 @@ image initializer all live in one source tree, share a single
 - `kairos-init/` -- image initializer that installs the multi-call
   binary plus symlinks into a base image
   (was `kairos-io/kairos-init`).
+- `installer/` -- interactive terminal-UI installer embedded by
+  kairos-init at `/system/installer/kairos-installer` and invoked by
+  `kairos-agent interactive-install` (was `kairos-io/kairos-installer`).
 - `tests/` -- monorepo end-to-end test suite.
 
 Each absorbed subdirectory keeps a thin `main.go` at its root, so
@@ -77,9 +80,9 @@ binary can pin one of those.
 
 The historical repos (`kairos-agent`, `immucore`,
 `kcrypt-discovery-challenger`, `kcrypt-challenger`, `kairos-sdk`,
-`kairos-init`) are archived. Their tagged releases remain resolvable
-so pre-migration pins keep working; post-migration fixes land here
-and ship on the monorepo release tag.
+`kairos-init`, `kairos-installer`) are archived. Their tagged releases
+remain resolvable so pre-migration pins keep working; post-migration
+fixes land here and ship on the monorepo release tag.
 
 ## Project status
 

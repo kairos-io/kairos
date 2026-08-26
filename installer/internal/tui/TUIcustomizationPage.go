@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	sdk "github.com/kairos-io/kairos-sdk/bus"
+	sdk "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/mudler/go-pluggable"
 )
 

@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/kairos-io/kairos-installer/prereqs"
+	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/mudler/go-pluggable"
 )
 

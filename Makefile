@@ -158,6 +158,14 @@ kairos: | $(DIST_ARCH_DIR)
 kcrypt-challenger: | $(DIST_ARCH_DIR)
 	$(GO_BUILD) -o $(DIST_ARCH_DIR)/kcrypt-challenger ./cmd/kcrypt-challenger
 
+# Interactive installer (bubbletea TUI). Embedded by kairos-init into
+# /system/installer/kairos-installer inside the OS image, invoked by
+# `kairos-agent interactive-install`. Not shipped as its own container
+# image; only the binary matters.
+.PHONY: kairos-installer
+kairos-installer: | $(DIST_ARCH_DIR)
+	$(GO_BUILD) -o $(DIST_ARCH_DIR)/kairos-installer ./installer
+
 # Layout a real deployment ships: one kairos binary + argv[0] symlinks.
 .PHONY: symlinks
 symlinks: kairos
@@ -198,7 +206,7 @@ kairos-init: kairos-init-embed
 # if you want them.
 .PHONY: binaries
 binaries:
-	$(MAKE) kairos kcrypt-challenger ARCH=$(ARCH) VARIANT=default
+	$(MAKE) kairos kcrypt-challenger kairos-installer ARCH=$(ARCH) VARIANT=default
 ifneq ($(ARCH),riscv64)
 	$(MAKE) kairos kcrypt-challenger ARCH=$(ARCH) VARIANT=fips
 endif

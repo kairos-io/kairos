@@ -26,14 +26,14 @@ fi
 
 # --- External binary versions ---
 # Bump these when the corresponding repo cuts a release you want to consume.
-# Absorbing provider-kairos and kairos-installer into the monorepo would
-# replace these fetches by in-tree cp; only edgevpn (github.com/mudler) is
+# Absorbing provider-kairos into the monorepo would replace the last of
+# these fetches by an in-tree cp; only edgevpn (github.com/mudler) is
 # genuinely external.
 : "${PROVIDER_KAIROS_VERSION:=v2.16.4}"
-: "${INSTALLER_VERSION:=v0.1.5}"
 : "${EDGEVPN_VERSION:=v0.35.4}"
 
 cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
+cp "$BIN_SOURCE/kairos-installer" "$DEST_ROOT/kairos-installer"
 if [[ "$ARCH" != "riscv64" ]]; then
     cp "$BIN_SOURCE_FIPS/kairos" "$DEST_FIPS/kairos"
 fi
@@ -65,11 +65,11 @@ case "$ARCH" in
   *)     edgevpn_arch=$ARCH ;;
 esac
 
-# Defaults (external repos only; the in-tree kairos multi-call and its
-# FIPS twin were cp'd from BIN_SOURCE / BIN_SOURCE_FIPS above).
-fetch provider-kairos  "$PROVIDER_KAIROS_VERSION" default ""  ""             ""
-fetch kairos-installer "$INSTALLER_VERSION"       default ""  ""             ""
-fetch edgevpn          "$EDGEVPN_VERSION"         default ""  "$edgevpn_arch" mudler
+# Defaults (external repos only; the in-tree kairos multi-call, its
+# FIPS twin, and kairos-installer were cp'd from BIN_SOURCE /
+# BIN_SOURCE_FIPS above).
+fetch provider-kairos "$PROVIDER_KAIROS_VERSION" default ""  ""             ""
+fetch edgevpn         "$EDGEVPN_VERSION"         default ""  "$edgevpn_arch" mudler
 
 # FIPS provider-kairos stays external (mudler/kairos-io repo). No FIPS
 # variant of edgevpn or kairos-installer.
@@ -95,8 +95,8 @@ cat > "$DEST_ROOT/version-info.yaml" <<YAML
 kairos-agent: ${AGENT_VERSION:-in-tree}
 immucore: ${IMMUCORE_VERSION:-in-tree}
 kcrypt-discovery-challenger: ${KCRYPT_DISCOVERY_VERSION:-in-tree}
+kairos-installer: ${INSTALLER_VERSION:-in-tree}
 provider-kairos: ${PROVIDER_KAIROS_VERSION}
-kairos-installer: ${INSTALLER_VERSION}
 edgevpn: ${EDGEVPN_VERSION}
 YAML
 

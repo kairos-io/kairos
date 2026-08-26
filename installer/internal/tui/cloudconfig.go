@@ -3,8 +3,8 @@ package tui
 import (
 	"fmt"
 
-	sdkConfig "github.com/kairos-io/kairos-sdk/types/config"
-	sdkInstall "github.com/kairos-io/kairos-sdk/types/install"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
 	"github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v3"
 )

@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/kairos-io/kairos-installer/prereqs"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/installer/prereqs"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/mudler/go-pluggable"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

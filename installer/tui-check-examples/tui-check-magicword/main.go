@@ -23,7 +23,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kairos-io/kairos-installer/prereqs"
+	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/mudler/go-pluggable"
 )
 

@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/kairos-io/kairos-installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
 )
 
 // fakeRunner returns canned output and errors keyed by command name.

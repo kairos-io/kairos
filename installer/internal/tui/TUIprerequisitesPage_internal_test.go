@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kairos-io/kairos-installer/prereqs"
+	"github.com/kairos-io/kairos/v4/installer/prereqs"
 )
 
 // makePrereqMultiPage builds a loaded prerequisites page holding a single

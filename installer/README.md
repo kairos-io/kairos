@@ -1,16 +1,18 @@
-# kairos-installer
+# installer
+
+> The interactive installer lives in the Kairos monorepo. See the
+> [root README](../README.md) for the full repository layout. Import
+> path: `github.com/kairos-io/kairos/v4/installer`.
 
 The default **interactive installer** for [Kairos](https://kairos.io).
 
 `kairos-installer` is a standalone terminal UI that collects installation
 settings (disk, user, SSH keys, post-install action, plus any provider-supplied
-fields) and then drives [`kairos-agent`](https://github.com/kairos-io/kairos-agent)
-to perform the install. It does **not** partition or install anything itself —
-that is `kairos-agent`'s job. The installer only owns the UX and hands a
-configuration to the agent.
+fields) and then drives [`kairos-agent`](../agent/) to perform the install.
+It does **not** partition or install anything itself — that is `kairos-agent`'s
+job. The installer only owns the UX and hands a configuration to the agent.
 
-It is shipped in Kairos images (by
-[`kairos-init`](https://github.com/kairos-io/kairos-init)) at
+It is shipped in Kairos images (by [`kairos-init`](../kairos-init/)) at
 `/system/installer/kairos-installer`, where `kairos-agent interactive-install`
 picks it up automatically.
 
@@ -108,7 +110,7 @@ You never reimplement partitioning or installation; you only produce a
 The reusable, TUI-free core lives in **kairos-sdk** so you can import it without
 forking this repo:
 
-- **[`github.com/kairos-io/kairos-sdk/agentrun`](https://pkg.go.dev/github.com/kairos-io/kairos-sdk/agentrun)**
+- **[`github.com/kairos-io/kairos/v4/sdk/agentrun`](https://pkg.go.dev/github.com/kairos-io/kairos/v4/sdk/agentrun)**
   — the reference implementation of the install contract: resolve the agent
   (`ResolveAgentBin`), build the `manual-install` command (`Command`), parse a
   JSON-Lines progress line (`ParseLine`), and run + stream events (`Run`). Import
@@ -116,7 +118,7 @@ forking this repo:
   what this installer uses.
 
 The provider bus used to gather `YAMLPrompt`s (level 1) is also in the SDK —
-`github.com/kairos-io/kairos-sdk/bus` (`bus.NewBus()`), so you don't need to
+`github.com/kairos-io/kairos/v4/sdk/bus` (`bus.NewBus()`), so you don't need to
 copy it either.
 
 To customize the UX itself, fork or vendor this repo:
@@ -147,11 +149,17 @@ coupling is the documented CLI contract.
 
 ## Development
 
+Standalone build from the repo root:
+
 ```sh
-go build ./...
-go run github.com/onsi/ginkgo/v2/ginkgo run -p --race -r ./...   # tests
+go build ./installer
 ```
 
-Releases are cut by GoReleaser on a `v*` tag (multi-arch `linux/{amd64,arm64,riscv64}`,
-CGO off, no FIPS). `kairos-init` embeds the released binary into images at
-`/system/installer/kairos-installer`.
+Or as part of the whole monorepo build pipeline:
+
+```sh
+make kairos-installer   # produces dist/linux-<arch>/kairos-installer
+make binaries           # builds everything: kairos, kcrypt-challenger, kairos-installer, kairos-init
+```
+
+`kairos-init` embeds the built binary into images at `/system/installer/kairos-installer` at build time.

@@ -33,8 +33,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kairos-io/kairos-installer/prereqs"
-	"github.com/kairos-io/kairos-sdk/ghw"
+	"github.com/kairos-io/kairos/v4/installer/prereqs"
+	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	"github.com/mudler/go-pluggable"
 )
 

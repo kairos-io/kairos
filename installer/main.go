@@ -7,11 +7,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/kairos-io/kairos-sdk/agentrun"
-	sdkLogger "github.com/kairos-io/kairos-sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/agentrun"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
-	"github.com/kairos-io/kairos-installer/internal/debugbundle"
-	"github.com/kairos-io/kairos-installer/internal/tui"
+	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/tui"
 )
 
 func main() {
