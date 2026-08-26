@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
@@ -70,6 +71,39 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 		It("returns the name as string", func() {
 			ext := &action.Extension{Name: "valid.raw", Location: "/var/lib/kairos/extensions/valid.raw"}
 			Expect(ext.String()).To(Equal("valid.raw"))
+		})
+	})
+
+	Describe("Installing catalog extensions", func() {
+		const (
+			amd64Digest = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+			arm64Digest = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+		)
+
+		catalog := func() string {
+			return fmt.Sprintf(`{"repo":"kairos-io/extensions","layers":[{"name":"git","latest":"2.0.0","tags":[{"tag":"1.0.0","sysext":{"amd64":{"oci":"ghcr.io/kairos-io/git@sha256:%s"}}},{"tag":"2.0.0","sysext":{"amd64":{"oci":"ghcr.io/kairos-io/git@sha256:%s"},"arm64":{"oci":"ghcr.io/kairos-io/git@sha256:%s"}}}]}]}`, amd64Digest, amd64Digest, arm64Digest)
+		}
+
+		It("installs an exact version for the configured platform", func() {
+			resolved, err := action.InstallCatalogExtension(config, strings.NewReader(catalog()), "git", "1.0.0", config.Platform.GolangArch)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resolved.Version).To(Equal("1.0.0"))
+			Expect(resolved.Architecture).To(Equal("amd64"))
+			Expect(extractor.WasCalledWithImageRef("ghcr.io/kairos-io/git@sha256:" + amd64Digest)).To(BeTrue())
+		})
+
+		It("installs the latest version for the requested platform", func() {
+			resolved, err := action.InstallCatalogExtension(config, strings.NewReader(catalog()), "git", "", "arm64")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resolved.Version).To(Equal("2.0.0"))
+			Expect(resolved.Architecture).To(Equal("arm64"))
+			Expect(extractor.WasCalledWithImageRef("ghcr.io/kairos-io/git@sha256:" + arm64Digest)).To(BeTrue())
+		})
+
+		It("does not extract when catalog resolution fails", func() {
+			_, err := action.InstallCatalogExtension(config, strings.NewReader(catalog()), "missing", "", "amd64")
+			Expect(err).To(MatchError(`layer "missing" is not available`))
+			Expect(extractor.ClientCalls).To(BeEmpty())
 		})
 	})
 

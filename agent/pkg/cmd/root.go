@@ -17,25 +17,28 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/internal/bus"
 	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	"github.com/kairos-io/kairos/v4/agent/internal/webui"
-	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/bundles"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/extensions"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/kairos-io/kairos/v4/sdk/state"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkUtils "github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
 	"github.com/mudler/go-pluggable"
 	"github.com/sanity-io/litter"
 	"github.com/spf13/viper"
+	"github.com/twpayne/go-vfs/v5"
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )
@@ -64,6 +67,8 @@ var allowInsecureRegistriesFlag = cli.BoolFlag{
 	Name:  "allow-insecure-registries",
 	Usage: "Pull the image from a registry served over plain HTTP or presenting an untrusted/self-signed TLS certificate. Can also be set in the cloud config via `install.allow-insecure-registries` or `upgrade.allow-insecure-registries`.",
 }
+
+const defaultExtensionCatalogURL = "https://kairos-io.github.io/hadron-layers/releases.json"
 
 var kcryptNVIndexFlag = cli.StringFlag{
 	Name:  "nv-index",
@@ -1442,26 +1447,34 @@ func sysextConfextCommands() []*cli.Command {
 		{
 			Name:        "install",
 			Usage:       "Install a system extension",
-			UsageText:   "install URI",
-			Description: "Install a system extension from a given URI",
+			UsageText:   "install [--catalog URL] [--version VERSION] URI|NAME",
+			Description: "Install a system extension from a URI or catalog",
+			Flags: []cli.Flag{
+				&cli.StringFlag{Name: "catalog", Usage: "Extension catalog URL"},
+				&cli.StringFlag{Name: "version", Usage: "Extension version from the catalog"},
+			},
 			Action: func(c *cli.Context) error {
 				if c.Args().Len() != 1 {
-					return fmt.Errorf("extension URI required")
+					return fmt.Errorf("extension URI or name required")
 				}
-				uri := c.Args().First()
-				if err := validateSourceSysext(uri); err != nil {
-					return err
+				extType := c.Context.Value("extType").(string)
+				catalogURL := extensionCatalogURL(c, extType)
+				if c.String("catalog") != "" && extType == "confext" {
+					return fmt.Errorf("--catalog is only supported for sysext")
 				}
+				if c.String("version") != "" && extType != "sysext" {
+					return fmt.Errorf("--version requires --catalog")
+				}
+				requested := c.Args().First()
 				cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
 				if err != nil {
 					return err
 				}
-				extType := c.Context.Value("extType").(string)
-				if err := action.InstallExtension(cfg, uri, extType); err != nil {
+				if err := installCatalogOrURIExtension(cfg, catalogURL, requested, c.String("version"), extType); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed installing system extension")
 					return err
 				}
-				cfg.Logger.Logger.Info().Msgf("System extension %s installed", uri)
+				cfg.Logger.Logger.Info().Msgf("System extension %s installed", requested)
 				return nil
 			},
 		},
@@ -1495,6 +1508,54 @@ func sysextConfextCommands() []*cli.Command {
 			},
 		},
 	}
+}
+
+func extensionCatalogURL(c *cli.Context, extType string) string {
+	if catalogURL := c.String("catalog"); catalogURL != "" {
+		return catalogURL
+	}
+	if extType == "sysext" {
+		return defaultExtensionCatalogURL
+	}
+	return ""
+}
+
+func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURL, requested, version, extType string) error {
+	var catalogErr error
+	if catalogURL != "" {
+		if _, err := installCatalogExtension(cfg, catalogURL, requested, version); err == nil {
+			return nil
+		} else if version != "" {
+			return err
+		} else {
+			catalogErr = err
+		}
+	}
+	if err := validateSourceSysext(requested); err != nil {
+		if catalogErr != nil {
+			return catalogErr
+		}
+		return err
+	}
+	return action.InstallExtension(cfg, requested, extType)
+}
+
+func installCatalogExtension(cfg *sdkConfig.Config, catalogURL, name, version string) (extensions.Resolved, error) {
+	tempDir := os.TempDir()
+	if err := vfs.MkdirAll(cfg.Fs, tempDir, 0755); err != nil {
+		return extensions.Resolved{}, err
+	}
+	tempPath := filepath.Join(tempDir, fmt.Sprintf("kairos-extension-catalog-%d.json", time.Now().UnixNano()))
+	defer cfg.Fs.Remove(tempPath)
+	if err := cfg.Client.GetURL(cfg.Logger, catalogURL, tempPath); err != nil {
+		return extensions.Resolved{}, err
+	}
+	reader, err := cfg.Fs.Open(tempPath)
+	if err != nil {
+		return extensions.Resolved{}, err
+	}
+	defer reader.Close()
+	return action.InstallCatalogExtension(cfg, reader, name, version, cfg.Platform.GolangArch)
 }
 
 func beforeSysextConfext(c *cli.Context) error {
