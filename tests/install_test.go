@@ -135,14 +135,22 @@ bundles:
 					"/usr/bin/immucore",
 					"/system/discovery/kcrypt-discovery-challenger",
 				} {
-					// 2>/dev/null so the readlink output is not contaminated
-					// by unrelated sudo diagnostics (e.g. Ubuntu's default
-					// "unable to resolve host <hostname>" warning), which
-					// would break the exact-match assertion below without
-					// telling us anything about the symlinks.
-					out, err := vm.Sudo(fmt.Sprintf("readlink -f %s 2>/dev/null", link))
+					// peg's Sudo merges the session's stdout and stderr into
+					// a single buffer (stdout copied first, then stderr), and
+					// the stderr side picks up unrelated diagnostics from
+					// `sudo /bin/sh` itself -- notably Ubuntu's default
+					// "unable to resolve host <hostname>" warning when the
+					// installed hostname isn't in /etc/hosts. That warning
+					// is emitted by sudo before /bin/sh ever runs, so
+					// redirecting readlink's own stderr does not silence it.
+					// Match against the first line of the buffer instead of
+					// the whole thing: readlink prints exactly one line
+					// (the resolved path) to stdout, and stdout is copied
+					// before stderr, so line 1 is always the answer.
+					out, err := vm.Sudo(fmt.Sprintf("readlink -f %s", link))
 					Expect(err).ToNot(HaveOccurred(), out)
-					Expect(strings.TrimSpace(out)).To(Equal("/usr/bin/kairos"),
+					first := strings.SplitN(strings.TrimSpace(out), "\n", 2)[0]
+					Expect(strings.TrimSpace(first)).To(Equal("/usr/bin/kairos"),
 						"expected %s to resolve to /usr/bin/kairos, got %q", link, out)
 					// And confirm it is a symlink, not a real duplicate.
 					out, err = vm.Sudo(fmt.Sprintf("test -L %s && echo symlink", link))
