@@ -486,8 +486,6 @@ jobs:
 
           echo "✅ Input validation passed"
 
-
-
       - name: Setup environment
         id: setup
         shell: bash
