@@ -2,9 +2,11 @@ package mos_test
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -60,6 +62,13 @@ func startInsecureRegistry() {
 		"-p", fmt.Sprintf("%d:5000", port), "registry:2")
 	Expect(err).ToNot(HaveOccurred(), out)
 
+	// Wait for the registry HTTP listener to accept requests before pushing.
+	// Without this, a `docker push` fired immediately after `docker run -d`
+	// intermittently races the container's HTTP startup and returns
+	// "connection reset by peer", failing every spec that depends on this
+	// registry.
+	waitForRegistryReady(port)
+
 	repo := "kairos/source:test"
 	localRef := fmt.Sprintf("localhost:%d/%s", port, repo)
 	out, err = dockerCmd("tag", baseImage, localRef)
@@ -76,6 +85,28 @@ func startInsecureRegistry() {
 // swallowed at teardown.
 func stopInsecureRegistry() {
 	_, _ = dockerCmd("rm", "-f", insecureRegistryContainer)
+}
+
+// waitForRegistryReady polls the registry's /v2/ endpoint until it responds
+// with a 2xx status. registry:2 backs /v2/ once its HTTP server is fully
+// serving, so a successful GET is a reliable readiness marker. Fails the
+// current spec if the endpoint does not come up within 60s.
+func waitForRegistryReady(port int) {
+	GinkgoHelper()
+	url := fmt.Sprintf("http://localhost:%d/v2/", port)
+	client := &http.Client{Timeout: 2 * time.Second}
+	Eventually(func() error {
+		resp, err := client.Get(url)
+		if err != nil {
+			return err
+		}
+		resp.Body.Close()
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return nil
+		}
+		return fmt.Errorf("unexpected status %d", resp.StatusCode)
+	}, 60*time.Second, 500*time.Millisecond).Should(Succeed(),
+		"registry:2 at %s did not become ready", url)
 }
 
 // insecureSourceURI is the oci: source the guest uses to reach the host
