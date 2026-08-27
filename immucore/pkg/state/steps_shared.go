@@ -195,6 +195,15 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 				// Remove any duplicates
 				s.BindMounts = internalUtils.UniqueSlice(internalUtils.CleanupSlice(s.BindMounts))
 
+				// A hardware-locked deployment cannot use normal bind mounts because
+				// their backing filesystem is intentionally mounted read-only. A later
+				// initramfs cloud-config stage supplies tmpfs-backed overlays.
+				cmdline, _ := os.ReadFile(internalUtils.GetHostProcCmdline())
+				hardwareRO := strings.Contains(string(cmdline), cnst.CmdlineHardwareRO)
+				if hardwareRO {
+					s.BindMounts = nil
+				}
+
 				// Load Overlay config
 				overlayConfig := env["OVERLAY"]
 				if overlayConfig != "" {
@@ -211,6 +220,11 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					if len(dat) == 2 {
 						disk := dat[0]
 						path := dat[1]
+						// Keep the frozen persistent filesystem available as a lower
+						// layer instead of mounting it directly on /usr/local.
+						if hardwareRO && strings.Contains(strings.ToLower(disk), "persistent") {
+							path = "/mnt"
+						}
 						s.CustomMounts[disk] = path
 					}
 				}
@@ -241,12 +255,17 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 					return nil
 				}
 				operation := func(_ context.Context) error {
+					mountMode := "rw"
+					cmdline, _ := os.ReadFile(internalUtils.GetHostProcCmdline())
+					if strings.Contains(string(cmdline), cnst.CmdlineHardwareRO) {
+						mountMode = "ro"
+					}
 					fstab, err := op.MountOPWithFstab(
 						fmt.Sprintf("/dev/disk/by-label/%s", internalUtils.GetOemLabel()),
 						s.path("/oem"),
 						internalUtils.DiskFSType(fmt.Sprintf("/dev/disk/by-label/%s", internalUtils.GetOemLabel())),
 						[]string{
-							"rw",
+							mountMode,
 							"suid",
 							"dev",
 							"exec",
@@ -342,10 +361,17 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				// TODO: scan for the custom mount disk to know the underlying fs and set it proper
 				fstype := "ext4"
 				mountOptions := []string{"ro"}
+				cmdline, _ := os.ReadFile(internalUtils.GetHostProcCmdline())
+				hardwareRO := strings.Contains(string(cmdline), cnst.CmdlineHardwareRO)
 				// TODO: Are custom mounts always rw?ro?depends? Clarify.
 				// Persistent needs to be RW
-				if strings.Contains(what, "COS_PERSISTENT") {
+				if strings.Contains(what, "COS_PERSISTENT") && !hardwareRO {
 					mountOptions = []string{"rw"}
+				}
+				// The frozen persistent filesystem is a lower layer only. Never
+				// replay its ext4 journal against hardware-read-only storage.
+				if hardwareRO && strings.Contains(strings.ToLower(what), "persistent") {
+					mountOptions = []string{"ro", "noload"}
 				}
 				// 30s covers the window between cryptsetup finishing a LUKS
 				// unlock and udev populating /dev/disk/by-label/<label> for
