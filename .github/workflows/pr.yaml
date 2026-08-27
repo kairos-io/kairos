@@ -27,25 +27,6 @@ name: PR
 # the codeql-flagged "pwn request" attack surface real.
 
 on:
-  # TRANSITIONAL: also fires on pull_request while this branch is
-  # under review. Same pattern as the pr.yaml trigger flip on
-  # 2026-08-21 (and again on #4389): workflow-file changes on a PR
-  # are only observed by CI when the trigger is pull_request (which
-  # reads the file from the PR's ref); pull_request_target always
-  # reads master's file, so the new "Build kairos-installer" step
-  # this branch adds to _build-kairos.yaml would only start firing
-  # after merge. Carry both until CI is green, then drop this
-  # pull_request block before merge so master stays on
-  # pull_request_target only. #4383, #4387 and #4389 all lost the
-  # drop commit during merge in the past; make sure this one lands
-  # before merging this branch.
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '**/*.md'
-      - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/CODEOWNERS'
   pull_request_target:
     paths-ignore:
       - 'docs/**'
