@@ -180,6 +180,7 @@ DefaultDependencies=no
 After=systemd-udev-settle.service
 Requires=systemd-udev-settle.service
 Before=initrd-fs.target
+Before=initrd-switch-root.target
 Conflicts=initrd-switch-root.target
 
 [Service]
