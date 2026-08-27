@@ -481,6 +481,8 @@ github.com/kairos-io/kairos/v4 v4.2.1-0.20260825132624-2ea88af10d3f h1:PUw/t0htG
 github.com/kairos-io/kairos/v4 v4.2.1-0.20260825132624-2ea88af10d3f/go.mod h1:N5mjp1KKLrwrps0bwfOEGrOkuJ5+yAK5KgkmW2NUOKY=
 github.com/kairos-io/kairos/v4 v4.2.1-0.20260826140743-cb61a33404dc h1:cYEr9fpX/+RUShEN2/a8wCoV1Fgc1MUYKR0QbzP32M8=
 github.com/kairos-io/kairos/v4 v4.2.1-0.20260826140743-cb61a33404dc/go.mod h1:AfkACG/aRgDEmWnftOpwjXlpowLI7DkDb0sukJuwKdA=
+github.com/kairos-io/kairos/v4 v4.2.1-0.20260827091931-775040008703 h1:Up1hniGrnVoBGjqLfCWjB9s+zwG5YpHBYEufPVv6dIo=
+github.com/kairos-io/kairos/v4 v4.2.1-0.20260827091931-775040008703/go.mod h1:AfkACG/aRgDEmWnftOpwjXlpowLI7DkDb0sukJuwKdA=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 h1:YOp8St+CM/AQ9Vp4XYm4272E77MptJDHkwypQHIRl9Q=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237/go.mod h1:e7qQlOY68wOz4b82D7n+DdaptZAi+SHW0+yKiWZzEYE=
 github.com/kendru/darwin/go/depgraph v0.0.0-20230809052043-4d1c7e9d1767 h1:Ds6xHRvL0yjG4kZD05leRKt70mM18Fjt0+B5gIqqe1g=
