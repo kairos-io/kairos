@@ -34,17 +34,6 @@ func encryptedPartitionLabel(partition *partitions.Partition) string {
 	}
 }
 
-func legacyPartitionName(filesystemLabel string) string {
-	switch filesystemLabel {
-	case constants.OEMLabel:
-		return constants.OEMPartName
-	case constants.PersistentLabel:
-		return constants.PersistentPartName
-	default:
-		return ""
-	}
-}
-
 func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger) error {
 	// Check if device exists and is accessible
 	if _, err := os.Stat(device); err != nil {

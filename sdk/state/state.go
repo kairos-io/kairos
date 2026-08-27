@@ -11,6 +11,7 @@ import (
 	"github.com/itchyny/gojq"
 	"github.com/jaypipes/ghw"
 	"github.com/jaypipes/ghw/pkg/block"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/signatures"
 	"github.com/kairos-io/kairos/v4/sdk/types/certs"
 	"github.com/kairos-io/kairos/v4/sdk/types/fs"
@@ -343,26 +344,30 @@ func detectRuntimeState(r *Runtime) error {
 	}
 	for _, d := range blockDevices.Disks {
 		for _, part := range d.Partitions {
+			// Match the plaintext label AND (for PERSISTENT / OEM) the LUKS
+			// container label, so encrypted installs surface the same
+			// PartitionState the caller sees for unencrypted ones. See
+			// kairos-io/kairos#4403 and the constants beside PersistentLabel.
 			switch part.FilesystemLabel {
-			case "COS_PERSISTENT":
+			case constants.PersistentLabel, constants.PersistentLUKSLabel:
 				r.Persistent = detectPartitionByFindmnt(part)
-			case "COS_RECOVERY":
+			case constants.RecoveryLabel:
 				r.Recovery = detectPartitionByFindmnt(part)
-			case "COS_OEM":
+			case constants.OEMLabel, constants.OEMLUKSLabel:
 				r.OEM = detectPartitionByFindmnt(part)
-			case "COS_STATE":
+			case constants.StateLabel:
 				r.State = detectPartitionByFindmnt(part)
 			}
 		}
 	}
 	if !r.Persistent.Found {
-		r.Persistent = detectPartitionByLabelLsblk("COS_PERSISTENT")
+		r.Persistent = detectPartitionByLabelLsblk(constants.PersistentLabel)
 	}
 	if !r.OEM.Found {
-		r.OEM = detectPartitionByLabelLsblk("COS_OEM")
+		r.OEM = detectPartitionByLabelLsblk(constants.OEMLabel)
 	}
 	if !r.Recovery.Found {
-		r.Recovery = detectPartitionByLabelLsblk("COS_RECOVERY")
+		r.Recovery = detectPartitionByLabelLsblk(constants.RecoveryLabel)
 	}
 	return nil
 }

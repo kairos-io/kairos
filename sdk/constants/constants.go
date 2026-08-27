@@ -9,10 +9,26 @@ const (
 	RecoveryPartName   = "recovery"       // Name of the RECOVERY partition
 	StateLabel         = "COS_STATE"      // Label for the STATE filesystem
 	StatePartName      = "state"          // Name of the STATE partition
-	PersistentLabel    = "COS_PERSISTENT" // Label for the PERSISTENT filesystem
-	PersistentPartName = "persistent"     // Name of the PERSISTENT partition
-	OEMLabel           = "COS_OEM"        // Label for the OEM filesystem
-	OEMPartName        = "oem"            // Name of the OEM partition
+	// PersistentLabel identifies the plaintext filesystem: either the raw ext4
+	// on an unencrypted partition, or the ext4 inside an unlocked LUKS mapper.
+	// Use this label at consumer sites (mount targets, cloud-init lookups,
+	// bind-mount sources).
+	PersistentLabel = "COS_PERSISTENT"
+	// PersistentLUKSLabel identifies the LUKS container that wraps the
+	// PersistentLabel filesystem on encrypted installs. Splitting outer from
+	// inner keeps /dev/disk/by-label/<inner> unambiguous once the mapper is
+	// unlocked; udev would otherwise race between the container and the
+	// inner ext4 on installs that shared a single label. See
+	// kairos-io/kairos#4403. Use this label when locating the LUKS device
+	// itself (unlock, cryptsetup config, blkid FS-type crypto_LUKS).
+	PersistentLUKSLabel = "COS_PERSISTENT_LUKS"
+	PersistentPartName  = "persistent" // Name of the PERSISTENT partition
+	// OEMLabel identifies the plaintext OEM filesystem. See PersistentLabel.
+	OEMLabel = "COS_OEM"
+	// OEMLUKSLabel identifies the LUKS container that wraps the OEM
+	// filesystem on encrypted installs. See PersistentLUKSLabel.
+	OEMLUKSLabel = "COS_OEM_LUKS"
+	OEMPartName  = "oem" // Name of the OEM partition
 	PassiveLabel       = "COS_PASSIVE"    // Label for the PASSIVE filesystem
 	SystemLabel        = "COS_SYSTEM"     // Label for the SYSTEM filesystem
 	ActiveLabel        = "COS_ACTIVE"     // Label for the ACTIVE filesystem
