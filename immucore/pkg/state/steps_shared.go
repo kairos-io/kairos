@@ -347,12 +347,19 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				if strings.Contains(what, "COS_PERSISTENT") {
 					mountOptions = []string{"rw"}
 				}
+				// 30s covers the window between cryptsetup finishing a LUKS
+				// unlock and udev populating /dev/disk/by-label/<label> for
+				// the unlocked mapper. Under IO or CPU pressure that window
+				// can exceed a few seconds, and if the mount gives up first
+				// it fails with "no such device" and boot continues without
+				// /usr/local mounted - so every persistent bind (/home, ...)
+				// silently disappears from the running system.
 				fstab, err2 := op.MountOPWithFstab(
 					what,
 					s.path(where),
 					fstype,
 					mountOptions,
-					3*time.Second,
+					30*time.Second,
 				)
 				for _, f := range fstab {
 					s.fstabs = append(s.fstabs, f)
