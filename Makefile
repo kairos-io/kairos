@@ -275,6 +275,19 @@ image-kairos-init: kairos-init
 .PHONY: images
 images: image-kcrypt-challenger image-kairos-init
 
+# --- bootable artifacts ---
+#
+# Everything above stops at container images. `make iso` carries on to a
+# bootable ISO by running the two remaining steps CI does in
+# .github/workflows/reusable-factory.yaml: bake the OS image with
+# images/Dockerfile, then hand it to auroraboot. Defaults reproduce the
+# amd64-standard cell, which is what the provider and standard qemu suites
+# test against. Needs docker with a usable socket; see the script header for
+# the environment variables it honours.
+.PHONY: iso
+iso:
+	scripts/build-iso.sh
+
 .PHONY: clean
 clean:
 	rm -rf $(DIST_DIR)
