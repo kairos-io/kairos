@@ -51,7 +51,29 @@ fi
 : "${IMAGE_TAG:=dev}"
 KAIROS_INIT_IMAGE="$IMAGE_REGISTRY/kairos-init:$IMAGE_TAG"
 : "${OS_IMAGE:=$IMAGE_REGISTRY/kairos-os:$IMAGE_TAG}"
-: "${AURORABOOT_IMAGE:=quay.io/kairos/auroraboot:latest}"
+# The auroraboot version is pinned in .github/workflows/_build-iso.yaml, which
+# passes auroraboot_version to the factory workflow rather than taking the
+# factory's own "latest" default. Read it from there instead of repeating it,
+# so a local ISO stays comparable to a CI one and there is only one place to
+# bump. scripts/kairos-diff.sh parses pinned versions out of tracked files the
+# same way. Failing loudly beats silently falling back to a different version
+# than CI uses, which is the whole point of tracking the pin.
+if [[ -z "${AURORABOOT_IMAGE:-}" ]]; then
+    iso_workflow=".github/workflows/_build-iso.yaml"
+    # No `| head -1`: under pipefail, head closing the pipe early can fail the
+    # script on sed's SIGPIPE. Take the first match by expansion instead.
+    aurora_matches="$(sed -n \
+        "s/^[[:space:]]*auroraboot_version:[[:space:]]*['\"]\{0,1\}\([^'\"[:space:]]*\)['\"]\{0,1\}[[:space:]]*$/\1/p" \
+        "$iso_workflow")"
+    aurora_version="${aurora_matches%%$'\n'*}"
+    if [[ -z "$aurora_version" ]]; then
+        echo "error: no auroraboot_version found in $iso_workflow" >&2
+        echo "       The pin moved or changed shape. Fix the parse above, or set" >&2
+        echo "       AURORABOOT_IMAGE to pick the image explicitly." >&2
+        exit 1
+    fi
+    AURORABOOT_IMAGE="quay.io/kairos/auroraboot:$aurora_version"
+fi
 : "${OUTPUT_DIR:=$REPO_ROOT/build/iso}"
 
 for cmd in docker go; do
