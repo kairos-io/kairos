@@ -77,24 +77,6 @@ func verifyEncryptedPartition(vm VM) {
 	Expect(err).ToNot(HaveOccurred(), out)
 	Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 	Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"COS_PERSISTENT\""), out)
-	verifyPersistentFstabUsesMapper(vm)
-}
-
-// verifyPersistentFstabUsesMapper asserts the persistent mount in /etc/fstab
-// resolves to a concrete /dev/mapper path rather than the by-label symlink
-// that races with udev on pre-fix installs (kairos-io/kairos#4403). The LUKS
-// container and its inner ext4 both carry LABEL=COS_PERSISTENT there, so a
-// fstab entry using /dev/disk/by-label/COS_PERSISTENT (or LABEL=COS_PERSISTENT)
-// leaves systemd racing at mount-unit activation and boot loses /usr/local
-// with "Can't open blockdev". Immucore now writes /dev/mapper/<name>; catching
-// a regression back to the by-label form here is one grep in the guest.
-func verifyPersistentFstabUsesMapper(vm VM) {
-	GinkgoHelper()
-	By("Verifying /etc/fstab uses the mapper path for /usr/local")
-	fstab, err := vm.Sudo("cat /etc/fstab")
-	Expect(err).ToNot(HaveOccurred(), fstab)
-	Expect(fstab).To(MatchRegexp(`/dev/mapper/\S+\s+/usr/local\s+`), fstab)
-	Expect(fstab).ToNot(MatchRegexp(`(?m)^\S*(LABEL=COS_PERSISTENT|/dev/disk/by-label/COS_PERSISTENT)\s+/usr/local`), fstab)
 }
 
 // checkPassphraseRetrieval invokes the discovery CLI in-guest against the
@@ -155,8 +137,8 @@ metadata:
 spec:
   TPMHash: "%s"
   partitions:
-    - label: %s
-  quarantined: false`, sealedVolumeName, tpmHash, "COS_PERSISTENT")
+    - label: COS_PERSISTENT
+  quarantined: false`, sealedVolumeName, tpmHash)
 
 	if attestationConfig != nil {
 		sealedVolumeYaml += "\n  attestation:"
@@ -519,12 +501,12 @@ metadata:
 spec:
   TPMHash: "%s"
   partitions:
-    - label: %s
+    - label: COS_PERSISTENT
       secret:
         name: %s-cos-persistent
         path: passphrase
   attestation: {}
-`, sealedVolumeName, tpmHash, "COS_PERSISTENT", sealedVolumeName))
+`, sealedVolumeName, tpmHash, sealedVolumeName))
 
 			By("Installing Kairos with encryption")
 			config := fmt.Sprintf(`#cloud-config
@@ -620,7 +602,7 @@ metadata:
 spec:
   TPMHash: "%s"
   partitions:
-    - label: %s
+    - label: COS_PERSISTENT
       secret:
         name: %s-cos-persistent
         path: passphrase
@@ -630,7 +612,7 @@ spec:
       pcrs:
         "0": ""
         "7": ""
-`, sealedVolumeName, tpmHash, "COS_PERSISTENT", sealedVolumeName))
+`, sealedVolumeName, tpmHash, sealedVolumeName))
 
 			By("Installing Kairos with encryption")
 			config := fmt.Sprintf(`#cloud-config

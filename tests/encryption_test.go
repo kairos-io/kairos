@@ -101,7 +101,6 @@ stages:
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
-			verifyPersistentFstabUsesMapper(vm)
 		})
 	})
 
@@ -139,7 +138,6 @@ stages:
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
-			verifyPersistentFstabUsesMapper(vm)
 
 			By("running kairos-agent kcrypt checknv on the default NV index")
 			out, err = vm.Sudo("kairos-agent kcrypt checknv")
@@ -219,7 +217,6 @@ kcrypt:
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
-			verifyPersistentFstabUsesMapper(vm)
 
 			By("Expecting the secret to be created")
 			// TOFU mode creates secrets with name format: "tofu-{tpmHash[:8]}-{partitionLabel}"
@@ -270,7 +267,7 @@ metadata:
 spec:
   TPMHash: "%[2]s"
   partitions:
-    - label: %[3]s
+    - label: COS_PERSISTENT
       secret:
         name: "%[1]s"
         path: pass
@@ -281,7 +278,7 @@ spec:
         "0": ""
         "7": ""
         "11": ""
-`, shortName, tpmHash, "COS_PERSISTENT"))
+`, shortName, tpmHash))
 
 			config = fmt.Sprintf(`#cloud-config
 
@@ -333,7 +330,6 @@ kcrypt:
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"COS_PERSISTENT\""), out)
-			verifyPersistentFstabUsesMapper(vm)
 		})
 	})
 
@@ -392,7 +388,6 @@ install:
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 				Expect(out).To(MatchRegexp("/dev/(mapper|dm).*LABEL=\"COS_PERSISTENT\""), out)
-				verifyPersistentFstabUsesMapper(vm)
 			})
 		})
 

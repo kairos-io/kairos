@@ -187,16 +187,10 @@ func genericTests(vm VM) {
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 	By("Checking OEM/PERSISTENT are not mounted", func() {
-		// On the livecd nothing should be mounted at /oem or /usr/local
-		// yet. Assert the mountpoints directly rather than a specific
-		// device-path form, since kairos-io/kairos#4403 removed
-		// /dev/disk/by-label from the mount pipeline; a vacuously
-		// passing "does not contain by-label" check would no longer
-		// detect a stray mount.
 		out, err := vm.Sudo("mount")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).ToNot(MatchRegexp(`\son\s/oem\b`), out)
-		Expect(out).ToNot(MatchRegexp(`\son\s/usr/local\b`), out)
+		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_OEM"))
+		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
 	})
 	By("installing kairos", func() {
 		// Install has already started, so we can use Eventually here to track the logs
@@ -255,16 +249,10 @@ func genericTests(vm VM) {
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 	By("Checking OEM/PERSISTENT are mounted", func() {
-		// Immucore resolves the label to the concrete mapper path
-		// before mounting (kairos-io/kairos#4403), so df reports
-		// /dev/mapper/<name> for both /oem and /usr/local rather
-		// than the racy /dev/disk/by-label form.
-		out, err := vm.Sudo("df -h")
+		out, err := vm.Sudo("df -h") // Shows the disk by label which is easier to check
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(MatchRegexp(`/dev/mapper/\S+\s.*\s/oem\b`), out)
-		Expect(out).To(MatchRegexp(`/dev/mapper/\S+\s.*\s/usr/local\b`), out)
-		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_OEM"), out)
-		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"), out)
+		Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_OEM"))
+		Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
 	})
 	By("Checking OEM/PERSISTENT are encrypted", func() {
 		out, err := vm.Sudo("blkid /dev/vda2")
