@@ -277,8 +277,28 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 				Name: "force",
 			},
 			&cli.StringFlag{
-				Name:  "api",
-				Value: "http://127.0.0.1:8080",
+				Name: "api",
+				Usage: "Address of the edgevpn API the p2p provider co-ordinates over. " +
+					"Leave unset to let the provider choose, which is what keeps the edgevpn " +
+					"daemon's listen address and the provider CLI's client address in agreement. " +
+					"Setting it moves the daemon only, so the provider CLI needs the same " +
+					"address in EDGEVPN_API to keep working.",
+				// Deliberately no default. The address is the p2p provider's to
+				// decide: it both writes APILISTEN for the edgevpn daemon and
+				// defaults its own CLI client to the same place. A default here
+				// would win over the provider's and desynchronise the two ends.
+				//
+				// Note that an explicitly set value desynchronises them just the
+				// same. Whatever arrives here reaches the daemon's APILISTEN and
+				// the provider's in-process coordination client, but not the
+				// provider's command line client, which has no way to learn it
+				// and keeps its own default. Operators who set this must also
+				// export EDGEVPN_API for `get-kubeconfig` and `role list`. The
+				// real fix is for the provider CLI to derive its default from
+				// the APILISTEN the provider already writes to
+				// /etc/systemd/system.conf.d/edgevpn-kairos.env, which belongs
+				// in kairos-io/provider-kairos.
+				Value: "",
 			},
 		},
 		Action: func(c *cli.Context) error {

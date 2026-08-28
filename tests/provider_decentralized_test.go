@@ -15,6 +15,13 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
+// The p2p provider serves the edgevpn API on a unix socket, not on a TCP port.
+// This is provider-kairos' DefaultEdgeVPNAPIAddress with the "unix://" scheme
+// stripped, which is the form curl's --unix-socket wants. The URLs below still
+// need a host to be well formed, so they use "localhost" as a placeholder that
+// --unix-socket overrides.
+const edgevpnAPISocket = "/run/edgevpn-kairos.sock"
+
 var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-decentralized-k8s"), func() {
 	var vms []VM
 	var configPath string
@@ -182,7 +189,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		vmForEach("checking if it has machines with different IPs", vms, func(vm VM) {
 			var out string
 			Eventually(func() string {
-				out, _ = vm.Sudo(`curl http://localhost:8080/api/machines`)
+				out, _ = vm.Sudo(`curl --unix-socket ` + edgevpnAPISocket + ` http://localhost/api/machines`)
 				return out
 			}, 900*time.Second, 10*time.Second).Should(And(
 				ContainSubstring("10.1.0.1"),
@@ -207,7 +214,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			var err error
 			Eventually(func() string {
 				// Set up the DNS record via the API (use simple regex, not escaped)
-				_, _ = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+				_, _ = vm.Sudo(`curl --unix-socket ` + edgevpnAPISocket + ` -X POST http://localhost/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
 
 				// Check if DNS resolution works using resolvectl (more reliable than curl)
 				out, err = vm.Sudo("resolvectl query foo.bar 2>&1")
@@ -220,7 +227,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				return strings.TrimSpace(out)
 			}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
 				// On failure, print diagnostics
-				dnsRecords, _ := vm.Sudo("curl -s http://localhost:8080/api/dns")
+				dnsRecords, _ := vm.Sudo("curl -s --unix-socket " + edgevpnAPISocket + " http://localhost/api/dns")
 				resolv, _ := vm.Sudo("cat /etc/resolv.conf")
 				svcStatus, _ := vm.Sudo("systemctl status edgevpn@kairos --no-pager 2>&1 | head -20")
 				resolvectl, _ := vm.Sudo("resolvectl status 2>&1 | head -30")

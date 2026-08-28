@@ -108,3 +108,39 @@ func TestCatalogDownloadFailureDoesNotLeaveTemporaryFile(t *testing.T) {
 		t.Fatalf("temporary catalog was not removed: %v", statErr)
 	}
 }
+
+// The edgevpn API address is chosen by the p2p provider, not by the agent.
+// The agent only forwards whatever the operator passed on the command line,
+// so an unset --api must reach the provider as an empty string. If the agent
+// substitutes a default of its own, that default silently overrides the
+// provider's and the two ends of the API disagree: the provider writes the
+// agent's address into the edgevpn daemon's APILISTEN while its own CLI keeps
+// defaulting to the provider's socket, so `get-kubeconfig` and `role list`
+// talk to an address nothing is listening on and print empty output.
+func TestStartAPIFlagHasNoDefault(t *testing.T) {
+	var start *cli.Command
+	for _, c := range cmds {
+		if c.Name == "start" {
+			start = c
+			break
+		}
+	}
+	if start == nil {
+		t.Fatal("no start command registered")
+	}
+
+	var api *cli.StringFlag
+	for _, f := range start.Flags {
+		if sf, ok := f.(*cli.StringFlag); ok && sf.Name == "api" {
+			api = sf
+			break
+		}
+	}
+	if api == nil {
+		t.Fatal("start command has no --api flag")
+	}
+
+	if api.Value != "" {
+		t.Fatalf("start --api default = %q, want %q so the provider picks the address", api.Value, "")
+	}
+}
