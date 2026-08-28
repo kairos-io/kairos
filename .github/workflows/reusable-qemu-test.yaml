@@ -315,9 +315,10 @@ jobs:
           fi
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | head -1 )
           echo "ISO is: $ISO"
-          cp tests/go.* .
+          pushd tests
           go mod download
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./tests/
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./...
+          popd
       - name: Run encryption tests
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         env:
