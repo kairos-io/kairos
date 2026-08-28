@@ -189,7 +189,17 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		vmForEach("checking if it has machines with different IPs", vms, func(vm VM) {
 			var out string
 			Eventually(func() string {
-				out, _ = vm.Sudo(`curl --unix-socket ` + edgevpnAPISocket + ` http://localhost/api/machines`)
+				var err error
+				out, err = vm.Sudo(`curl -sSf --unix-socket ` + edgevpnAPISocket + ` http://localhost/api/machines`)
+				if err != nil {
+					// Without this, an unreachable socket or an API error is
+					// indistinguishable from a reachable API that has not
+					// listed both nodes yet, and the spec burns the full 900s
+					// with an empty string to show for it. vm.Sudo returns
+					// stdout and stderr together, so curl's -sS message is
+					// already in out; err adds the exit status.
+					return fmt.Sprintf("querying the machines API failed: %v: %s", err, out)
+				}
 				return out
 			}, 900*time.Second, 10*time.Second).Should(And(
 				ContainSubstring("10.1.0.1"),
@@ -214,7 +224,14 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			var err error
 			Eventually(func() string {
 				// Set up the DNS record via the API (use simple regex, not escaped)
-				_, _ = vm.Sudo(`curl --unix-socket ` + edgevpnAPISocket + ` -X POST http://localhost/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+				postOut, postErr := vm.Sudo(`curl -sSf --unix-socket ` + edgevpnAPISocket + ` -X POST http://localhost/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+				if postErr != nil {
+					// Announcing the record is what makes the lookups below
+					// resolve. If the POST failed there is nothing to resolve,
+					// so report that rather than letting the spec fail 240s
+					// later on a lookup that was never going to succeed.
+					return fmt.Sprintf("announcing the DNS record failed: %v: %s", postErr, postOut)
+				}
 
 				// Check if DNS resolution works using resolvectl (more reliable than curl)
 				out, err = vm.Sudo("resolvectl query foo.bar 2>&1")
