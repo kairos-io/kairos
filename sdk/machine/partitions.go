@@ -3,8 +3,8 @@ package machine
 import (
 	"fmt"
 	"os"
-	"strings"
 
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
@@ -24,25 +24,31 @@ func Remount(opt, path string) error {
 	return nil
 }
 
+// Mount resolves the given filesystem label to a concrete device path and
+// mounts it at mountpoint. Post-install callers (agent hooks copying logs,
+// installing bundles, hardening SSH, wiring grub options) previously reached
+// for `blkid -L <label>` directly, which on pre-fix encrypted installs races
+// with udev between the LUKS container and its unlocked mapper
+// (kairos-io/kairos#4403). lookup.MountSourceForLabel bypasses the by-label
+// symlink entirely, returning the mapper path for LUKS-wrapped partitions
+// and the plain partition path otherwise.
 func Mount(label, mountpoint string) error {
-	part, _ := utils.SH(fmt.Sprintf("blkid -L %s", label))
+	part, err := lookup.MountSourceForLabel(label)
+	if err != nil {
+		return fmt.Errorf("resolving mount source for label %q: %w", label, err)
+	}
 	if part == "" {
-		fmt.Printf("%s partition not found\n", label)
-		return fmt.Errorf("partition not found")
+		return fmt.Errorf("resolving mount source for label %q: empty result", label)
 	}
 
-	part = strings.TrimSuffix(part, "\n")
-
 	if !utils.Exists(mountpoint) {
-		err := os.MkdirAll(mountpoint, 0755)
-		if err != nil {
+		if err := os.MkdirAll(mountpoint, 0755); err != nil {
 			return err
 		}
 	}
-	mount, err := utils.SH(fmt.Sprintf("mount %s %s", part, mountpoint))
+	out, err := utils.SH(fmt.Sprintf("mount %s %s", part, mountpoint))
 	if err != nil {
-		fmt.Printf("could not mount: %s\n", mount+err.Error())
-		return err
+		return fmt.Errorf("mounting %s at %s: %w (output: %s)", part, mountpoint, err, out)
 	}
 	return nil
 }
