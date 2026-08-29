@@ -1,9 +1,9 @@
 package op
 
 import (
-	"github.com/containerd/containerd/mount"
 	"github.com/deniswernert/go-fstab"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/moby/sys/mountinfo"
 )
@@ -42,5 +42,5 @@ func (m MountOperation) Run() error {
 		return constants.ErrAlreadyMounted
 	}
 	l.Debug().Msg("mount ready")
-	return mount.All([]mount.Mount{m.MountOption}, m.Target)
+	return m.MountOption.Mount(m.Target)
 }
