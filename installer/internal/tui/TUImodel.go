@@ -41,7 +41,7 @@ type Model struct {
 	disk            string // Selected disk
 	username        string
 	sshKeys         []string // Store SSH keys
-	password        string
+	passwordHash    string
 	finishAction    string         // Action after installation: reboot, poweroff, none
 	extraFields     map[string]any // Dynamic fields for customization
 	log             *sdkLogger.KairosLogger
