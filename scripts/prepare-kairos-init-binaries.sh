@@ -26,20 +26,20 @@ fi
 
 # --- External binary versions ---
 # Bump these when the corresponding repo cuts a release you want to consume.
-# Absorbing provider-kairos into the monorepo would replace the last of
-# these fetches by an in-tree cp; only edgevpn (github.com/mudler) is
-# genuinely external.
-: "${PROVIDER_KAIROS_VERSION:=v2.16.4}"
+# edgevpn (github.com/mudler) is the only genuinely external binary left:
+# provider-kairos used to be fetched here too and is now built in-tree.
 : "${EDGEVPN_VERSION:=v0.35.4}"
 
 cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
 cp "$BIN_SOURCE/kairos-installer" "$DEST_ROOT/kairos-installer"
+cp "$BIN_SOURCE/provider-kairos" "$DEST_ROOT/provider-kairos"
 if [[ "$ARCH" != "riscv64" ]]; then
     cp "$BIN_SOURCE_FIPS/kairos" "$DEST_FIPS/kairos"
     cp "$BIN_SOURCE_FIPS/kairos-installer" "$DEST_FIPS/kairos-installer"
+    cp "$BIN_SOURCE_FIPS/provider-kairos" "$DEST_FIPS/provider-kairos"
 fi
 
-# --- Fetch defaults from external repos (provider-kairos, kairos-installer, edgevpn) ---
+# --- Fetch defaults from external repos (edgevpn only) ---
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -66,17 +66,12 @@ case "$ARCH" in
   *)     edgevpn_arch=$ARCH ;;
 esac
 
-# Defaults (external repos only; the in-tree kairos multi-call, its
-# FIPS twin, and kairos-installer were cp'd from BIN_SOURCE /
+# Defaults (external repos only; the in-tree kairos multi-call, its FIPS
+# twin, kairos-installer and provider-kairos were cp'd from BIN_SOURCE /
 # BIN_SOURCE_FIPS above).
-fetch provider-kairos "$PROVIDER_KAIROS_VERSION" default ""  ""             ""
-fetch edgevpn         "$EDGEVPN_VERSION"         default ""  "$edgevpn_arch" mudler
+fetch edgevpn "$EDGEVPN_VERSION" default "" "$edgevpn_arch" mudler
 
-# FIPS provider-kairos stays external (mudler/kairos-io repo). No FIPS
-# variant of edgevpn or kairos-installer.
-if [[ "$ARCH" != "riscv64" ]]; then
-    fetch provider-kairos "$PROVIDER_KAIROS_VERSION" fips "-fips" "" ""
-fi
+# No FIPS variant of edgevpn.
 
 # Move each fetched executable into the right destination dir.
 for src in "$tmpdir/default" "$tmpdir/fips"; do
@@ -97,7 +92,7 @@ kairos-agent: ${AGENT_VERSION:-in-tree}
 immucore: ${IMMUCORE_VERSION:-in-tree}
 kcrypt-discovery-challenger: ${KCRYPT_DISCOVERY_VERSION:-in-tree}
 kairos-installer: ${INSTALLER_VERSION:-in-tree}
-provider-kairos: ${PROVIDER_KAIROS_VERSION}
+provider-kairos: ${PROVIDER_KAIROS_VERSION:-in-tree}
 edgevpn: ${EDGEVPN_VERSION}
 YAML
 

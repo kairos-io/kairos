@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	. "github.com/kairos-io/provider-kairos/v2/internal/cli/token"
+	. "github.com/kairos-io/kairos/v4/provider/internal/cli/token"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gopkg.in/yaml.v3"

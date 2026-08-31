@@ -167,6 +167,16 @@ kcrypt-challenger: | $(DIST_ARCH_DIR)
 kairos-installer: | $(DIST_ARCH_DIR)
 	$(GO_BUILD) -o $(DIST_ARCH_DIR)/kairos-installer ./installer
 
+# The p2p/mesh provider. Two jobs in one binary: an agent bus plugin that
+# answers events over go-pluggable, and the CLI behind `kairos provider <cmd>`
+# (get-kubeconfig, role, bridge, register, ...). Embedded by kairos-init into
+# /system/providers/agent-provider-kairos, standard images only. Not linked
+# into the multi-call kairos: its edgevpn/libp2p/kube-vip tree adds ~46 MiB,
+# which core images would carry for nothing.
+.PHONY: provider-kairos
+provider-kairos: | $(DIST_ARCH_DIR)
+	$(GO_BUILD) -o $(DIST_ARCH_DIR)/provider-kairos ./provider
+
 # Layout a real deployment ships: one kairos binary + argv[0] symlinks.
 .PHONY: symlinks
 symlinks: kairos
@@ -207,9 +217,9 @@ kairos-init: kairos-init-embed
 # if you want them.
 .PHONY: binaries
 binaries:
-	$(MAKE) kairos kcrypt-challenger kairos-installer ARCH=$(ARCH) VARIANT=default
+	$(MAKE) kairos kcrypt-challenger kairos-installer provider-kairos ARCH=$(ARCH) VARIANT=default
 ifneq ($(ARCH),riscv64)
-	$(MAKE) kairos kcrypt-challenger kairos-installer ARCH=$(ARCH) VARIANT=fips
+	$(MAKE) kairos kcrypt-challenger kairos-installer provider-kairos ARCH=$(ARCH) VARIANT=fips
 endif
 	$(MAKE) kairos-init ARCH=$(ARCH) VARIANT=default
 

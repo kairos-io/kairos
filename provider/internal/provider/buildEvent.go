@@ -12,7 +12,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/bus"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
-	"github.com/kairos-io/provider-kairos/v2/internal/services"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/mudler/go-pluggable"
 )
 

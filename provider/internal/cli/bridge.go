@@ -50,11 +50,6 @@ func BridgeCMD(toolName string) *cli.Command {
 
 		`
 
-	if toolName != "kairosctl" {
-		usage += " (WARNING: this command will be deprecated in the next release, use the kairosctl binary instead)"
-		description = "\t\tWARNING: This command will be deprecated in the next release. Please use the new kairosctl binary instead.\n" + description
-	}
-
 	flags := []cli.Flag{
 		&cli.BoolFlag{
 			Name:     "qr-code-snapshot",

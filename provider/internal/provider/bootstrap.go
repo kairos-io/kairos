@@ -13,13 +13,13 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
-	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
-	"github.com/kairos-io/provider-kairos/v2/internal/role"
-	p2p "github.com/kairos-io/provider-kairos/v2/internal/role/p2p"
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/role"
+	p2p "github.com/kairos-io/kairos/v4/provider/internal/role/p2p"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
 	"gopkg.in/yaml.v3"
 
-	"github.com/kairos-io/provider-kairos/v2/internal/services"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/mudler/edgevpn/api/client/service"

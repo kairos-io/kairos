@@ -9,8 +9,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/kairos-io/provider-kairos/v2/internal/assets"
-	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/assets"
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	"github.com/kube-vip/kube-vip/pkg/kubevip"
 )
 

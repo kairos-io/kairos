@@ -61,6 +61,11 @@ id = "GO-2026-5932"
 ignoreUntil = 2026-11-10
 reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."
 
+[[IgnoredVulns]]
+id = "GO-2026-4479"
+ignoreUntil = 2026-11-29
+reason = "no-fix-available: github.com/pion/dtls/v2, unmaintained with no fixed version published. Reached only through libp2p's optional WebRTC transport, which the provider does not enable. New to the root module graph with the provider-kairos absorption; carried over from that repo's own osv-scanner.toml."
+
 
 # ---------------------------------------------------------------------------
 # prerelease-only-fix -- the only published fix is Go 1.27.0-rc.2. Bumping the

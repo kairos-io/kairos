@@ -11,7 +11,9 @@ import (
 	qr "github.com/kairos-io/go-nodepair/qrcode"
 )
 
-// RegisterCMD is only used temporarily to avoid duplication while the kairosctl sub-command is deprecated.
+// RegisterCMD builds the register command under the given tool name, which is
+// only used to render usage text so the examples name whatever entrypoint the
+// reader actually reached this command through.
 func RegisterCMD(toolName string) *cli.Command {
 	subCommandName := "register"
 	fullName := fmt.Sprintf("%s %s", toolName, subCommandName)
@@ -28,10 +30,6 @@ func RegisterCMD(toolName string) *cli.Command {
 
 		See also https://kairos.io/docs/getting-started/ for documentation.
 		`, fullName)
-	if toolName != "kairosctl" {
-		usage += " (WARNING: this command will be deprecated in the next release, use the kairosctl binary instead)"
-		description = "\t\tWARNING: This command will be deprecated in the next release. Please use the new kairosctl binary to register your nodes.\n" + description
-	}
 
 	return &cli.Command{
 		Name:        subCommandName,

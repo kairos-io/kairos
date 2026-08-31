@@ -18,8 +18,8 @@ import (
 
 const defaultCloudInitPath = "/oem/90_custom.yaml"
 
-const validationMessageStart = "# kairosctl edit-config: validation failed"
-const validationMessageEnd = "# kairosctl: end validation errors"
+const validationMessageStart = "# kairos provider edit-config: validation failed"
+const validationMessageEnd = "# kairos provider: end validation errors"
 
 var EditConfigCMD = cli.Command{
 	Name:      "edit-config",
@@ -61,7 +61,7 @@ func editCloudInit(path, editor string, output io.Writer) error {
 		return fmt.Errorf("stat cloud-init file: %w", err)
 	}
 
-	temp, err := os.CreateTemp(filepath.Dir(path), ".kairosctl-edit-*.yaml")
+	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-provider-edit-*.yaml")
 	if err != nil {
 		return fmt.Errorf("create temporary cloud-init file: %w", err)
 	}
@@ -171,7 +171,7 @@ func runEditor(editor, path string) error {
 }
 
 func replaceFile(path string, content []byte, info os.FileInfo) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), ".kairosctl-save-*.yaml")
+	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-provider-save-*.yaml")
 	if err != nil {
 		return err
 	}

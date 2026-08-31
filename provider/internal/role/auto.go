@@ -3,7 +3,7 @@ package role
 import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 
-	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	utils "github.com/mudler/edgevpn/pkg/utils"
 
 	service "github.com/mudler/edgevpn/api/client/service"

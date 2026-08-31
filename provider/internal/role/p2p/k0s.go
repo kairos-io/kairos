@@ -8,7 +8,7 @@ import (
 
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
-	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	service "github.com/mudler/edgevpn/api/client/service"
 	"gopkg.in/yaml.v3"
 )

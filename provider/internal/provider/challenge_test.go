@@ -7,9 +7,9 @@ import (
 
 	"github.com/kairos-io/kairos/v4/sdk/bus"
 
-	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 
-	. "github.com/kairos-io/provider-kairos/v2/internal/provider"
+	. "github.com/kairos-io/kairos/v4/provider/internal/provider"
 	"github.com/mudler/go-pluggable"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"

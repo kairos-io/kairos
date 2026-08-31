@@ -147,13 +147,14 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			}
 		})
 
-		// The provider-kairos binary lives at /system/providers/agent-provider-kairos
-		// on the installed system. Pre-monorepo it was also symlinked at /usr/bin/kairos,
-		// which is now the multi-call dispatcher for immucore/agent/kcrypt. Whether
-		// `kairos <cmd>` should still route to a provider is an open question tracked
-		// in kairos-io/kairos#3926 (multi-provider composability); the absolute path
-		// here keeps the test neutral while that lands.
-		const providerKairos = "/system/providers/agent-provider-kairos"
+		// The provider binary lives at /system/providers/agent-provider-kairos on
+		// the installed system, which is not on PATH. `kairos provider <cmd>` finds
+		// it there and execs it, which is how these commands are reached now that
+		// /usr/bin/kairos is the multi-call dispatcher rather than the provider CLI
+		// it used to be (kairos-io/kairos#4393). Going through the dispatcher here
+		// is deliberate: this is the only place in the suite that proves the
+		// delegation resolves a real installed provider on a real image.
+		const providerKairos = "kairos provider"
 
 		vmForEach("checking if it has a working kubeconfig", vms, func(vm VM) {
 			var out string

@@ -6,8 +6,9 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/kairos-io/provider-kairos/v2/internal/provider"
-	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/internal/version"
+	"github.com/kairos-io/kairos/v4/provider/internal/provider"
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/mudler/edgevpn/pkg/node"
@@ -15,10 +16,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// do not edit version here, it is set by LDFLAGS
-// -X 'github.com/kairos-io/provider-kairos/v2/internal/cli.VERSION=$VERSION'
-// see Earthlfile.
-var VERSION = "0.0.0"
 var Author = "Ettore Di Giacinto"
 
 // apiFlagName is the name of the --api flag. It is looked up by name in
@@ -152,11 +149,17 @@ var VersionCMD = cli.Command{
 }
 
 func printVersion() {
-	fmt.Printf("version: %s, compiled with: %s\n", VERSION, runtime.Version())
+	fmt.Printf("version: %s, compiled with: %s\n", version.Version, runtime.Version())
 }
 
-func Start() error {
-	toolName := "kairos"
+// NewApp builds the provider's CLI. Start runs it; tests inspect it.
+func NewApp() *cli.App {
+	// How a user reaches these commands, and so how usage text has to name
+	// them. The binary itself lives at /system/providers/agent-provider-kairos,
+	// which is not on PATH; `kairos provider <cmd>` execs it from there.
+	// Calling itself plain "kairos" would print examples like `kairos role
+	// list`, which the multi-call dispatcher rejects as an unknown sub-tool.
+	toolName := "kairos provider"
 
 	// Do this before the app parses anything, so --help shows the address the
 	// commands will really use rather than a default they may not use.
@@ -168,7 +171,7 @@ func Start() error {
 
 	app := &cli.App{
 		Name:    toolName,
-		Version: VERSION,
+		Version: version.Version,
 		Authors: []*cli.Author{
 			{
 				Name: Author,
@@ -177,7 +180,7 @@ func Start() error {
 		Usage: "kairos CLI to bootstrap, upgrade, connect and manage a kairos network",
 		Description: `
 The kairos CLI can be used to manage a kairos box and perform all day-two tasks, like:
-- register a node (WARNING: this command will be deprecated in the next release, use the kairosctl binary instead)
+- register a node
 - connect to a node in recovery mode
 - to establish a VPN connection
 - set, list roles
@@ -228,9 +231,14 @@ For all the example cases, see: https://kairos.io/docs/
 			&CreateConfigCMD,
 			&GenerateTokenCMD,
 			&ValidateSchemaCMD,
+			&EditConfigCMD,
 			&VersionCMD,
 		},
 	}
 
-	return app.Run(os.Args)
+	return app
+}
+
+func Start() error {
+	return NewApp().Run(os.Args)
 }

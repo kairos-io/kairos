@@ -52,6 +52,18 @@
       "matchStrings": [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+[A-Z_][A-Z0-9_]*\\s*=\\s*\"[^:\"]+:(?<currentValue>[^\"\\s]+)\""
       ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^provider/internal/role/p2p/kubevip\\.go$/"
+      ],
+      "matchStrings": [
+        "DefaultKubeVIPVersion\\s*=\\s*\"(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "kube-vip/kube-vip",
+      "versioningTemplate": "semver"
     }
   ]
 }

@@ -9,9 +9,9 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/unstructured"
-	"github.com/kairos-io/provider-kairos/v2/internal/provider"
-	providerConfig "github.com/kairos-io/provider-kairos/v2/internal/provider/config"
-	"github.com/kairos-io/provider-kairos/v2/internal/services"
+	"github.com/kairos-io/kairos/v4/provider/internal/provider"
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"gopkg.in/yaml.v3"
 )
 
