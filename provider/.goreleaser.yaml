@@ -1,0 +1,96 @@
+# Make sure to check the documentation at http://goreleaser.com
+version: 2
+builds:
+  - env:
+      - CGO_ENABLED=0
+      - CGO_LDFLAGS="-ldl"
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - riscv64
+    binary: "provider-kairos"
+    id: provider-kairos
+    main: ./main.go
+    ldflags:
+      - -w -s -X "github.com/kairos-io/provider-kairos/v2/internal/cli.VERSION={{.Tag}}"
+  - env:
+      - CGO_ENABLED=0
+      - GOEXPERIMENT=boringcrypto
+      - CGO_LDFLAGS="-ldl"
+    goos:
+      - linux
+    goarch:
+      - amd64
+    binary: "provider-kairos"
+    id: provider-kairos-fips-amd64
+    main: ./main.go
+    ldflags:
+      - -w -s -X "github.com/kairos-io/provider-kairos/v2/internal/cli.VERSION={{.Tag}}"
+    hooks:
+      post:
+        - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+  - env:
+      - CGO_ENABLED=0
+      - GOEXPERIMENT=boringcrypto
+      - CC=aarch64-linux-gnu-gcc
+      - CGO_LDFLAGS="-ldl"
+    goos:
+      - linux
+    goarch:
+      - arm64
+    binary: "provider-kairos"
+    id: provider-kairos-fips-arm64
+    main: ./main.go
+    ldflags:
+      - -w -s -X "github.com/kairos-io/provider-kairos/v2/internal/cli.VERSION={{.Tag}}"
+    hooks:
+      post:
+        - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+  - env:
+      - CGO_ENABLED=0
+      - CGO_LDFLAGS="-ldl"
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    binary: "kairosctl"
+    id: default-ctl
+    main: ./cli/kairosctl
+    ldflags:
+      - -w -s -X "github.com/kairos-io/provider-kairos/v2/internal/cli.VERSION={{.Tag}}"
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}-{{ .Tag }}-source'
+archives:
+  - id: default-archive-cli
+    ids:
+      - provider-kairos
+    name_template: 'provider-kairos-{{ .Tag }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
+  - id: fips-archive
+    ids:
+      - provider-kairos-fips-arm64
+      - provider-kairos-fips-amd64
+    name_template: 'provider-kairos-{{ .Tag }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}-fips'
+  - id: default-archive-ctl
+    ids:
+      - default-ctl
+    name_template: 'kairosctl-{{ .Tag }}-{{ .Os }}-{{ .Arch }}{{ with .Arm }}v{{ . }}{{ end }}{{ with .Mips }}-{{ . }}{{ end }}{{ if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{ end }}'
+checksum:
+  name_template: '{{ .ProjectName }}-{{ .Tag }}-checksums.txt'
+snapshot:
+  version_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^Merge pull request'
+env:
+  - GOSUMDB=sum.golang.org
+before:
+  hooks:
+    - go mod tidy

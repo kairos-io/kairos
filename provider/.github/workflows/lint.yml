@@ -1,0 +1,16 @@
+name: Lint
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  call-workflow:
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@main
+    with:
+      yamldirs: "."
