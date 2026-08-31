@@ -1,3 +1,50 @@
+> ## This repository has been archived pending migration into kairos-io/kairos
+>
+> provider-kairos is being absorbed into the
+> [kairos-io/kairos](https://github.com/kairos-io/kairos) monorepo as
+> part of the plan tracked in
+> [kairos-io/kairos#4301](https://github.com/kairos-io/kairos/issues/4301).
+>
+> Every existing release stays published and downloadable from this
+> repository's releases page, so anything that pins a specific
+> provider-kairos version, including the binary that kairos-init
+> fetches when building an image, keeps working. Existing Go module
+> tags also stay resolvable via the Go module proxy.
+>
+> New development happens at
+> [github.com/kairos-io/kairos/provider](https://github.com/kairos-io/kairos/tree/master/provider).
+> If that link returns 404, the subtree import is not yet complete;
+> see the tracking issue above for the current state and timeline.
+>
+> **If you only run Kairos "standard" images, nothing changes.** The
+> provider binary is still installed at
+> `/system/providers/agent-provider-kairos` and still offers the same
+> commands. It is simply built out of the monorepo from now on.
+>
+> **There are no imports to update.** Unlike the other repositories
+> absorbed into the monorepo, this one never exposed an importable
+> package: every package here is either a `main` package or lives
+> under `internal/`. If you depend on provider-kairos, you depend on
+> the binary and not on the code, so no import rewrite is needed. To
+> build the binary from source after the move, clone the monorepo and
+> run `go build ./provider`.
+>
+> **Open PRs on this repository will not be merged here.** The
+> branches remain reachable via `git fetch` from the archived repo, so
+> nothing is lost. To carry unfinished work forward, fetch the branch,
+> `git format-patch`, and `git am --directory=provider` against the
+> monorepo.
+>
+> **On backports to older lines.** The default answer is: consume the
+> latest release. We will only unarchive this repository for fixes we
+> judge important enough (typically security fixes or breakage with no
+> reasonable workaround). Convenience backports and feature backports
+> do not qualify. To request one, open an issue on
+> [kairos-io/kairos](https://github.com/kairos-io/kairos/issues)
+> describing the provider-kairos version, the fix, and why moving to
+> the latest release is not viable. If we agree the fix meets the bar,
+> we will unarchive temporarily to land it and cut a new patch tag.
+
 <h1 align="center">
   <br>
      <img width="184" alt="kairos-white-column 5bc2fe34" src="https://user-images.githubusercontent.com/2420543/193010398-72d4ba6e-7efe-4c2e-b7ba-d3a826a55b7d.png"><br>
