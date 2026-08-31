@@ -25,12 +25,26 @@ var GetKubeConfigCMD = cli.Command{
 		`,
 	Flags: networkAPI,
 	Action: func(c *cli.Context) error {
+		address := c.String("api")
 		cc := service.NewClient(
 			c.String("network-id"),
-			edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
-		str, _ := cc.Get("kubeconfig", "master")
-		b, _ := base64.RawURLEncoding.DecodeString(str)
-		masterIP, _ := cc.Get("master", "ip")
+			edgeVPNClient.NewClient(edgeVPNClient.WithHost(address)))
+
+		str, err := cc.Get("kubeconfig", "master")
+		if err != nil {
+			return apiError("kubeconfig", address, err)
+		}
+
+		b, err := base64.RawURLEncoding.DecodeString(str)
+		if err != nil {
+			return fmt.Errorf("the kubeconfig stored in the network is not valid base64: %w", err)
+		}
+
+		masterIP, err := cc.Get("master", "ip")
+		if err != nil {
+			return apiError("master IP", address, err)
+		}
+
 		fmt.Println(strings.ReplaceAll(string(b), "127.0.0.1", masterIP))
 		return nil
 	},

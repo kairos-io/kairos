@@ -39,16 +39,27 @@ var RoleCMD = cli.Command{
 			Name:        "list",
 			Description: "List node roles",
 			Action: func(c *cli.Context) error {
+				address := c.String("api")
 				cc := service.NewClient(
 					c.String("network-id"),
-					edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
-				advertizing, _ := cc.AdvertizingNodes()
+					edgeVPNClient.NewClient(edgeVPNClient.WithHost(address)))
+
+				advertizing, err := cc.AdvertizingNodes()
+				if err != nil {
+					return apiError("node list", address, err)
+				}
+
 				fmt.Printf("%-47s  %-30s  %-15s\n", "Node", "Role", "IP")
 				fmt.Printf("%s  %s  %s\n",
 					"-----------------------------------------------",
 					"------------------------------",
 					"---------------")
 				for _, a := range advertizing {
+					// Deliberately tolerant, unlike the call above. A node that
+					// is advertizing itself before a role or an IP has been
+					// assigned to it is an ordinary state during bootstrap, and
+					// an empty cell is the honest way to show it. The listing
+					// itself already succeeded, so the API is reachable.
 					role, _ := cc.Get("role", a)
 					ip, _ := cc.Get("ip", a)
 					fmt.Printf("%-47s  %-30s  %-15s\n", a, role, ip)
