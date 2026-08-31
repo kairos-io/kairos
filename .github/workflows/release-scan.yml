@@ -1,35 +1,39 @@
 ---
 name: 'Release vulnerability scan'
 
-# Scans the binaries Kairos actually ships, for the kairos-init version this
-# repo pins. Refs https://github.com/kairos-io/kairos/issues/3985.
+# Scans the binaries Kairos actually ships, built from this tree.
+# Refs https://github.com/kairos-io/kairos/issues/3985.
 #
-# Why this exists as a separate job rather than relying on the scanning already
-# in release.yaml: kairos-init UPX-compresses the bundled binaries, and a
-# UPX-packed Go binary no longer exposes its module metadata, so the
-# dependencies we ship are invisible to a scanner. This job rebuilds the bundle
-# with SKIP_UPX=true purely so it can be read.
+# `make binaries` produces the multi-call kairos, kairos-installer and
+# provider-kairos for both variants and populates
+# kairos-init/pkg/bundled/binaries/ with them plus edgevpn, which is the exact
+# set kairos-init embeds into an image. Nothing here is UPX-compressed, so the
+# module metadata a scanner needs is readable as built.
 #
-# The scanned artifact is therefore NOT byte-identical to the shipped one. It is
-# composed from the same sources at the same pins, which is the property that
-# matters for dependency scanning.
-#
+# This used to clone the archived kairos-io/kairos-init at the tag pinned in
+# images/Dockerfile and scan the binaries THAT release had downloaded from the
+# archived per-component repos. Once every component moved into this repo, that
+# scanned a bundle we no longer ship: it reported advisories against published
+# binaries that had been replaced, and would have missed advisories in the ones
+# we now build. The findings have to come from this tree or the gate is
+# measuring the wrong artifact.
 
-# Triggers are deliberately narrow. This is a release gate: release.yaml and
-# release-arm.yaml call it via workflow_call, and every publishing job depends
-# on it, so a release with unignored advisories never publishes. It does NOT run on every pull request: the
-# findings belong to the pinned dependency set, not to the change under review,
-# so an unrelated PR -- including an external contributor's -- would get a red
-# check for CVEs it did not introduce and cannot fix.
+# This is a release gate: release.yaml and release-arm.yaml call it via
+# workflow_call, and every publishing job depends on it, so a release with
+# unignored advisories never publishes.
 #
-# The pull_request trigger is scoped to the files that actually determine the
-# result: the kairos-init pin, the ignore list, and this workflow itself.
+# The pull_request trigger is scoped to the files that determine the result.
+# Now that the bundle is built here, that is the dependency set itself, the
+# edgevpn pin in the embed script, the ignore list, and this workflow. A PR
+# that changes none of them cannot change the findings.
 on:
   workflow_call:
   workflow_dispatch:
   pull_request:
     paths:
-      - 'images/Dockerfile'
+      - 'go.mod'
+      - 'go.sum'
+      - 'scripts/prepare-kairos-init-binaries.sh'
       - 'osv-scanner.toml'
       - '.github/workflows/release-scan.yml'
 
@@ -44,29 +48,17 @@ jobs:
       - name: Checkout kairos
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Resolve the pinned kairos-init version
-        id: pin
-        run: |
-          set -euo pipefail
-          VERSION="$(grep -m1 '^ARG KAIROS_INIT=' images/Dockerfile | cut -d= -f2)"
-          if [ -z "${VERSION}" ]; then
-            echo "::error::could not read ARG KAIROS_INIT from images/Dockerfile"
-            exit 1
-          fi
-          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
-          echo "Scanning the bundle composed by kairos-init ${VERSION}"
-
-      - name: Checkout kairos-init at that version
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          repository: kairos-io/kairos-init
-          ref: ${{ steps.pin.outputs.version }}
-          path: kairos-init
+          go-version-file: go.mod
 
-      # SKIP_UPX is the whole point of this job -- see the header comment.
-      - name: Download the shipped binaries, uncompressed
-        working-directory: kairos-init
-        run: SKIP_UPX=true make download
+      # Populates kairos-init/pkg/bundled/binaries/{,fips/} with exactly what
+      # kairos-init embeds. amd64 only: the dependency set does not vary by
+      # architecture, and building every arch would triple the runtime of a
+      # gate that exists to read module metadata.
+      - name: Build the shipped bundle
+        run: make binaries ARCH=amd64
 
       - name: Install osv-scanner
         env:
@@ -128,20 +120,26 @@ jobs:
           fi
 
       # osv-scanner compares the stdlib version string verbatim. A binary built
-      # with the boringcrypto toolchain reports its version as, for example,
-      # "1.26.6-X:boringcrypto", and semver orders that BELOW plain "1.26.6"
-      # because the suffix reads as a prerelease. So every stdlib advisory
-      # fixed in 1.26.6 still matches the FIPS binaries, even though they were
-      # built from that toolchain and carry the fix -- the very same advisories
-      # report clean against the non-FIPS binaries at plain "1.26.6".
+      # with a GOEXPERIMENT reports its version with an "-X:<experiment>"
+      # suffix, for example "1.27.0-X:boringcrypto" on the FIPS binaries or
+      # "1.27.0-X:nodwarf5" on the default ones, and semver orders anything
+      # after a hyphen BELOW the plain version because the suffix reads as a
+      # prerelease. So every stdlib advisory fixed in 1.27.0 still matches,
+      # even though the binary was built from a toolchain that carries the fix.
       #
-      # This drops exactly that case: a stdlib finding on a -X:boringcrypto
-      # build whose base version is at or past a published fix on the SAME
-      # major.minor track. A genuinely old boringcrypto build, or one whose
-      # only published fix sits on another track, is left in place -- the
-      # filter fails closed. Whatever it removes is listed in the job summary,
-      # so this suppresses nothing silently.
-      - name: Normalize boringcrypto stdlib versions
+      # The suffix is matched generically rather than as the literal
+      # "boringcrypto" it once was. When this only handled boringcrypto, the
+      # default-variant binaries slipped through the moment their toolchain
+      # started reporting -X:nodwarf5, and stdlib advisories already fixed in
+      # the toolchain we build with failed the gate.
+      #
+      # This drops exactly that case: a stdlib finding on an -X:-suffixed build
+      # whose base version is at or past a published fix on the SAME
+      # major.minor track. A genuinely old build, or one whose only published
+      # fix sits on another track, is left in place -- the filter fails closed.
+      # Whatever it removes is listed in the job summary, so this suppresses
+      # nothing silently.
+      - name: Normalize GOEXPERIMENT stdlib versions
         run: |
           set -euo pipefail
           cp osv.json osv.raw.json
@@ -155,7 +153,7 @@ jobs:
             .results |= map(
               .packages |= map(
                 if (.package.name == "stdlib"
-                    and (.package.version | test("-X:boringcrypto$")))
+                    and (.package.version | test("-X:")))
                 then
                   (.package.version | arr) as $base
                   | .vulnerabilities = [ .vulnerabilities[]? | select(covered($base) | not) ]
@@ -178,7 +176,7 @@ jobs:
           SUPPRESSED="$(comm -23 all.before all.after || true)"
           if [ -n "${SUPPRESSED}" ]; then
             {
-              echo "## Boringcrypto stdlib findings normalized"
+              echo "## GOEXPERIMENT stdlib findings normalized"
               echo
               echo "Fixed on the same major.minor track as the build's base version:"
               echo
@@ -186,9 +184,9 @@ jobs:
               echo "${SUPPRESSED}"
               echo '```'
             } >> "${GITHUB_STEP_SUMMARY}"
-            echo "normalized $(echo "${SUPPRESSED}" | wc -l) boringcrypto stdlib findings"
+            echo "normalized $(echo "${SUPPRESSED}" | wc -l) GOEXPERIMENT stdlib findings"
           else
-            echo "no boringcrypto stdlib findings to normalize"
+            echo "no GOEXPERIMENT stdlib findings to normalize"
           fi
 
       - name: Report and enforce
@@ -209,7 +207,7 @@ jobs:
           {
             echo "## Vulnerability scan of the shipped bundle"
             echo
-            echo "kairos-init \`${{ steps.pin.outputs.version }}\`, scanned uncompressed."
+            echo "Bundle built from \`${GITHUB_SHA}\`."
             echo
             if [ "${FINDINGS}" -eq 0 ]; then
               echo "No unignored advisories."
