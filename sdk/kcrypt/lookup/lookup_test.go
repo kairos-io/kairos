@@ -1,8 +1,10 @@
 package lookup
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kairos-io/kairos/v4/sdk/constants"
@@ -113,6 +115,64 @@ func TestFindBySuffixedLabel(t *testing.T) {
 	}
 	if partition.Path != "/dev/disk1" {
 		t.Fatalf("FindByLabel() path = %q, want /dev/disk1", partition.Path)
+	}
+}
+
+// TestFindByLabelPassesLabelsAsArguments pins the blkid fallback against
+// shell re-parsing. Encrypted-partition labels can come from user config
+// (install.encrypted_partitions, cmdline overrides), so a label carrying
+// whitespace or shell metacharacters has to reach blkid as a single argument.
+// Building a command string and handing it to /bin/sh would both break the
+// lookup for legitimate labels with spaces and let a crafted label run
+// arbitrary commands as root at install time.
+func TestFindByLabelPassesLabelsAsArguments(t *testing.T) {
+	var ghwMock mocks.GhwMock
+	ghwMock.AddDisk(partitions.Disk{
+		Name: "disk",
+		Partitions: partitions.PartitionList{
+			{
+				Name:            "disk1",
+				FilesystemLabel: "SOMETHING_ELSE",
+				FS:              "ext4",
+			},
+		},
+	})
+	ghwMock.CreateDevices()
+	t.Cleanup(ghwMock.Clean)
+
+	workDir := t.TempDir()
+	marker := filepath.Join(workDir, "injected")
+	argsFile := filepath.Join(workDir, "args")
+
+	binDir := t.TempDir()
+	blkidPath := filepath.Join(binDir, "blkid")
+	blkid := fmt.Sprintf("#!/bin/sh\nfor a in \"$@\"; do printf '%%s\\n' \"$a\" >> %s; done\nexit 2\n", argsFile)
+	if err := os.WriteFile(blkidPath, []byte(blkid), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	label := "EVIL LABEL; touch " + marker
+	if _, err := FindByLabel(label); err == nil {
+		t.Fatal("FindByLabel() error = nil, want an error for an unknown label")
+	}
+
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatalf("the label was interpreted by a shell: %s was created", marker)
+	}
+
+	recorded, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("reading recorded blkid arguments: %v", err)
+	}
+	var sawWholeLabel bool
+	for _, arg := range strings.Split(string(recorded), "\n") {
+		if arg == label {
+			sawWholeLabel = true
+		}
+	}
+	if !sawWholeLabel {
+		t.Fatalf("blkid never received %q as a single argument, got:\n%s", label, recorded)
 	}
 }
 

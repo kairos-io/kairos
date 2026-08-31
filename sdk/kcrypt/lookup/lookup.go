@@ -12,6 +12,7 @@ package lookup
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
-	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // OuterLUKSLabel returns the label to place on the LUKS container for a given
@@ -104,7 +104,7 @@ func FindByLabel(partitionLabel string) (*partitions.Partition, error) {
 // (pre-fix installs, kairos-io/kairos#4403).
 func FindLUKSContainerByLabel(partitionLabel string) (*partitions.Partition, error) {
 	return findByLabelFiltered(partitionLabel, func(p *partitions.Partition) bool {
-		return p.FS == "crypto_LUKS"
+		return p.FS == constants.LUKSFs
 	})
 }
 
@@ -118,7 +118,7 @@ func FindLUKSContainerByLabel(partitionLabel string) (*partitions.Partition, err
 // the mapper path from FindLUKSContainerByLabel's Name via MountSourceForLabel.
 func FindMapperByLabel(partitionLabel string) (*partitions.Partition, error) {
 	return findByLabelFiltered(partitionLabel, func(p *partitions.Partition) bool {
-		return p.FS != "crypto_LUKS"
+		return p.FS != constants.LUKSFs
 	})
 }
 
@@ -195,17 +195,14 @@ func findByLabelFiltered(partitionLabel string, filter func(*partitions.Partitio
 }
 
 func findByBlkid(partitionLabel, outerLabel, legacyName string) (*partitions.Partition, error) {
-	devicePath, err := utils.SH(fmt.Sprintf("blkid -L %s", partitionLabel))
-	devicePath = strings.TrimSpace(devicePath)
+	devicePath, err := blkid("-L", partitionLabel)
 
 	if (err != nil || devicePath == "") && outerLabel != "" && outerLabel != partitionLabel {
-		devicePath, err = utils.SH(fmt.Sprintf("blkid -L %s", outerLabel))
-		devicePath = strings.TrimSpace(devicePath)
+		devicePath, err = blkid("-L", outerLabel)
 	}
 
 	if (err != nil || devicePath == "") && legacyName != "" {
-		devicePath, err = utils.SH(fmt.Sprintf("blkid -t PARTLABEL=%s -o device", legacyName))
-		devicePath = strings.TrimSpace(devicePath)
+		devicePath, err = blkid("-t", "PARTLABEL="+legacyName, "-o", "device")
 	}
 
 	if err != nil || devicePath == "" {
@@ -216,4 +213,14 @@ func findByBlkid(partitionLabel, outerLabel, legacyName string) (*partitions.Par
 		Path: devicePath,
 		Name: filepath.Base(devicePath),
 	}, nil
+}
+
+// blkid runs blkid with the given arguments and returns its trimmed stdout.
+// It execs the binary directly instead of going through a shell: labels reach
+// this package from user config (install.encrypted_partitions, cmdline
+// overrides), so one carrying whitespace would break the lookup and one
+// carrying shell metacharacters would run as root at install time.
+func blkid(args ...string) (string, error) {
+	out, err := exec.Command("blkid", args...).Output()
+	return strings.TrimSpace(string(out)), err
 }
