@@ -8,6 +8,7 @@ import (
 	"github.com/jaypipes/ghw/pkg/block"
 	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/tests/mocks"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/twpayne/go-vfs/v4"
@@ -375,8 +376,8 @@ var _ = Describe("mount utils", func() {
 				Partitions: []*block.Partition{
 					{
 						Name:            "device2",
-						FilesystemLabel: "COS_OEM",
-						Label:           "COS_OEM",
+						FilesystemLabel: sdkConstants.OEMLabel,
+						Label:           sdkConstants.OEMLabel,
 						Type:            "ext4",
 						MountPoint:      "/oem",
 					},
@@ -389,10 +390,10 @@ var _ = Describe("mount utils", func() {
 
 			err := fs.WriteFile("/proc/cmdline", []byte("rd.cos.oemlabel=\n"), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(utils.GetOemLabel()).To(Equal("COS_OEM"))
+			Expect(utils.GetOemLabel()).To(Equal(sdkConstants.OEMLabel))
 			err = fs.WriteFile("/proc/cmdline", []byte("rd.immucore.oemlabel=\n"), os.ModePerm)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(utils.GetOemLabel()).To(Equal("COS_OEM"))
+			Expect(utils.GetOemLabel()).To(Equal(sdkConstants.OEMLabel))
 		})
 	})
 })

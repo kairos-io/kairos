@@ -279,32 +279,45 @@ func GetOverlayBase() string {
 
 }
 
-// GetOemLabel will ge the oem label to mount, first from the cmdline and if that fails, from the runtime
-// This way users can override the oem label.
+// GetOemLabel returns the plaintext OEM filesystem label (constants.OEMLabel)
+// when an OEM partition is present, or an empty string when it isn't. A
+// non-empty result is what MountOemDagStep hands to the mount-source
+// resolver; resolveMountSource in turn handles both the unencrypted case
+// (plain ext4 with the label) and the encrypted case (LUKS container with
+// constants.OEMLUKSLabel, unlocked into a mapper whose ext4 carries the
+// plain label) via sdk/kcrypt/lookup.
+//
+// The cmdline overrides (rd.cos.oemlabel=, rd.immucore.oemlabel=) let users
+// point Kairos at a differently-labelled OEM partition; those take
+// precedence over ghw's auto-detection.
 func GetOemLabel() string {
+	// Pick both stanzas until we deprecate the cos ones. When both are set,
+	// the immucore stanza wins so users can override an older cos.oemlabel=
+	// that survives on an old cmdline.
 	var oemLabel string
-	// Pick both stanzas until we deprecate the cos ones
-	oemLabelCos := CleanupSlice(ReadCMDLineArg("rd.cos.oemlabel="))
-	oemLabelImmucore := CleanupSlice(ReadCMDLineArg("rd.immucore.oemlabel="))
-	if len(oemLabelCos) != 0 {
+	if oemLabelCos := CleanupSlice(ReadCMDLineArg("rd.cos.oemlabel=")); len(oemLabelCos) != 0 {
 		oemLabel = oemLabelCos[0]
 	}
-	if len(oemLabelImmucore) != 0 {
+	if oemLabelImmucore := CleanupSlice(ReadCMDLineArg("rd.immucore.oemlabel=")); len(oemLabelImmucore) != 0 {
 		oemLabel = oemLabelImmucore[0]
 	}
-
 	if oemLabel != "" {
 		return oemLabel
 	}
 	// We could not get it from the cmdline so detect it from the block devices.
-	// We use the kairos-sdk lightweight ghw here (instead of state.NewRuntimeWithLogger)
-	// because it honors the GHW_CHROOT env var, which is required for it to be mockable
-	// in tests and which the jaypipes ghw used by the state package no longer respects.
+	// We use the kairos-sdk lightweight ghw here (instead of
+	// state.NewRuntimeWithLogger) because it honors the GHW_CHROOT env var,
+	// which is required for it to be mockable in tests and which the jaypipes
+	// ghw used by the state package no longer respects.
 	disks := ghw.GetDisks(ghw.NewPaths(""), &KLog)
 	for _, disk := range disks {
 		for _, p := range disk.Partitions {
-			if p.FilesystemLabel == constants.OEMLabel {
-				return p.FilesystemLabel
+			switch p.FilesystemLabel {
+			case constants.OEMLabel, constants.OEMLUKSLabel:
+				return constants.OEMLabel
+			}
+			if p.PartitionLabel == constants.OEMPartName {
+				return constants.OEMLabel
 			}
 		}
 	}

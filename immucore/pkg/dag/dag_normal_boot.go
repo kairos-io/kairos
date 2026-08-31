@@ -1,75 +1,33 @@
 package dag
 
 import (
-	"fmt"
-	"strings"
-
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
-	"github.com/kairos-io/kairos/v4/sdk/ghw"
-	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
-	"github.com/kairos-io/kairos/v4/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/spectrocloud-labs/herd"
 )
 
-// oemEncrypted checks if the OEM partition is encrypted (LUKS).
-// It uses kairos-sdk's lightweight ghw to find the partition and blkid to check if it's LUKS encrypted.
+// oemEncrypted reports whether the OEM partition on disk is a LUKS container.
+// lookup.FindLUKSContainerByLabel handles both the pre-#4403 case (LUKS
+// header carries constants.OEMLabel) and the post-#4403 case (LUKS header
+// carries constants.OEMLUKSLabel, mapper's ext4 carries constants.OEMLabel),
+// so callers see a single answer regardless of which install shape they are
+// booting on.
 func oemEncrypted() bool {
 	oemLabel := internalUtils.GetOemLabel()
 	if oemLabel == "" {
-		// No OEM label found, assume not encrypted
 		return false
 	}
-
-	// Use kairos-sdk's lightweight ghw to get disks
-	disks := ghw.GetDisks(ghw.NewPaths(""), new(internalUtils.KLog))
-	if disks == nil {
-		// If we can't read block devices, assume not encrypted to be safe
-		internalUtils.KLog.Logger.Warn().Msg("Error reading partitions, assuming OEM is not encrypted")
+	_, err := lookup.FindLUKSContainerByLabel(oemLabel)
+	if err != nil {
+		internalUtils.KLog.Logger.Debug().Str("label", oemLabel).Err(err).
+			Msg("No LUKS container for OEM label; treating as unencrypted")
 		return false
 	}
-
-	// Find the partition with the OEM label
-	var oemPartition *partitions.Partition
-	for _, disk := range disks {
-		for _, p := range disk.Partitions {
-			if p.FilesystemLabel == oemLabel {
-				oemPartition = p
-				break
-			}
-		}
-		if oemPartition != nil {
-			break
-		}
-	}
-
-	if oemPartition == nil {
-		// Partition not found, assume not encrypted
-		return false
-	}
-
-	devicePath := oemPartition.Path
-	if devicePath == "" {
-		// No device path found, assume not encrypted
-		internalUtils.KLog.Logger.Debug().Str("label", oemLabel).Msg("OEM partition found but no device path, assuming not encrypted")
-		return false
-	}
-
-	// Use blkid to check if this specific device is LUKS encrypted
-	// blkid -p <device> -s TYPE -o value returns "crypto_LUKS" if encrypted, or filesystem type if not
-	deviceType, err := utils.SH(fmt.Sprintf("blkid -p %s -s TYPE -o value", devicePath))
-	deviceType = strings.TrimSpace(deviceType)
-
-	if err != nil || deviceType == "" {
-		// Error checking or no type found, assume not encrypted to be safe
-		internalUtils.KLog.Logger.Debug().Str("label", oemLabel).Str("device", devicePath).Msg("Could not determine device type, assuming OEM is not encrypted")
-		return false
-	}
-
-	isEncrypted := deviceType == "crypto_LUKS"
-	internalUtils.KLog.Logger.Debug().Str("label", oemLabel).Str("device", devicePath).Str("type", deviceType).Bool("encrypted", isEncrypted).Msg("Checked OEM partition encryption status")
-	return isEncrypted
+	internalUtils.KLog.Logger.Debug().Str("label", oemLabel).
+		Msg("OEM partition is a LUKS container")
+	return true
 }
 
 // RegisterNormalBoot registers a dag for a normal boot, where we want to mount all the pieces that make up the

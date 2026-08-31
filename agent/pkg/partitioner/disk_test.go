@@ -108,9 +108,9 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			parts := partitions.PartitionList{
-				{Name: sdkConstants.EfiPartName, FilesystemLabel: "COS_GRUB", Size: 20, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 20, FS: sdkConstants.EfiFs},
 				{Name: sdkConstants.BiosPartName, FilesystemLabel: "bios", Size: 2, FS: ""},
-				{Name: "state", FilesystemLabel: "COS_STATE", Size: 0, FS: "ext4"},
+				{Name: "state", FilesystemLabel: sdkConstants.StateLabel, Size: 0, FS: "ext4"},
 			}
 			Expect(d.NewPartitionTable(sdkConstants.GPT, parts)).To(Succeed())
 
@@ -130,7 +130,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(tableParts[0].Attributes).To(Equal(uint64(0x1)))
 			Expect(tableParts[0].Start).To(Equal(uint64(mib / sectorSize)))
 			Expect(tableParts[0].End).To(Equal(uint64(20*mib/sectorSize + mib/sectorSize - 1)))
-			Expect(strings.ToLower(tableParts[0].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, "COS_GRUB").String()))
+			Expect(strings.ToLower(tableParts[0].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, sdkConstants.EfiLabel).String()))
 
 			// BIOS partition, starts right after EFI, legacy bios bootable attribute
 			Expect(tableParts[1].Name).To(Equal(sdkConstants.BiosPartName))
@@ -145,7 +145,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(tableParts[2].Start).To(Equal(tableParts[1].End + 1))
 			expectedStateSize := uint64(100*mib) - uint64(23*mib) - gptBackupTailSectors(sectorSize)*uint64(sectorSize)
 			Expect(tableParts[2].End).To(Equal(tableParts[2].Start + expectedStateSize/sectorSize - 1))
-			Expect(strings.ToLower(tableParts[2].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, "COS_STATE").String()))
+			Expect(strings.ToLower(tableParts[2].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, sdkConstants.StateLabel).String()))
 		})
 
 		ginkgo.It("fails to write the partition table on a read-only device", func() {
@@ -155,7 +155,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			d := &Disk{roDisk, log}
 
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			err = d.NewPartitionTable(sdkConstants.GPT, parts)
 			Expect(err).To(HaveOccurred())
@@ -178,7 +178,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 
 		ginkgo.It("reserves the backup GPT tail when the last partition has an explicit size", func() {
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts).To(HaveLen(1))
@@ -193,8 +193,8 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 
 		ginkgo.It("expands a zero-sized partition to fill the remaining disk", func() {
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 30, FS: "ext4"},
-				{Name: "persistent", FilesystemLabel: "COS_PERSISTENT", Size: 0, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 30, FS: "ext4"},
+				{Name: "persistent", FilesystemLabel: sdkConstants.PersistentLabel, Size: 0, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts).To(HaveLen(2))
@@ -207,7 +207,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 
 		ginkgo.It("sets EFI specific type and attributes only for vfat efi partitions", func() {
 			parts := partitions.PartitionList{
-				{Name: sdkConstants.EfiPartName, FilesystemLabel: "COS_GRUB", Size: 20, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 20, FS: sdkConstants.EfiFs},
 				{Name: sdkConstants.EfiPartName, FilesystemLabel: "COS_GRUB2", Size: 20, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
@@ -222,7 +222,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 		ginkgo.It("sets BIOS specific type and attributes for the bios partition", func() {
 			parts := partitions.PartitionList{
 				{Name: sdkConstants.BiosPartName, FilesystemLabel: "bios", Size: 1},
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts).To(HaveLen(2))
@@ -233,10 +233,10 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 
 		ginkgo.It("assigns predictable UUIDs based on the filesystem label", func() {
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
-			Expect(gptParts[0].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, "COS_OEM").String()))
+			Expect(gptParts[0].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, sdkConstants.OEMLabel).String()))
 		})
 	})
 })
