@@ -599,8 +599,8 @@ github.com/kube-vip/kube-vip v1.2.3 h1:Amup5H1Nfvrdn4Xz6N3wVtXmQNogwbhHa3fjirpr/
 github.com/kube-vip/kube-vip v1.2.3/go.mod h1:68qebI6KDaYhFDF5u6atuY8aDIaRX86Ub0wj6+J/eME=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
-github.com/labstack/echo/v4 v4.15.2 h1:nnh2sCzGCVYnU+wCisMPiYapEg/QVo/gcI9ePKg5/T4=
-github.com/labstack/echo/v4 v4.15.2/go.mod h1:Xzp1Ns1RA2c9fY7nSgUJkpkUZGNbEIVHZbtbOMPktBI=
+github.com/labstack/echo/v4 v4.15.3 h1:lIdG4kK5RdMyhwCwSc4AmSQsLBb3AVwok6S8PX/9kwQ=
+github.com/labstack/echo/v4 v4.15.3/go.mod h1:Xzp1Ns1RA2c9fY7nSgUJkpkUZGNbEIVHZbtbOMPktBI=
 github.com/labstack/echo/v5 v5.3.1 h1:75maCxkQVGualckLc/5s/ihgpH1a1Dc6AuGWNVNs6bw=
 github.com/labstack/echo/v5 v5.3.1/go.mod h1:4iEGNQiPPZnkfYpNR/L6fINd3NLiGWUD5+eBotFALas=
 github.com/labstack/gommon v0.5.0 h1:6VSQ2NOzsnEJ5W6+84E0RbcaDDmgB6NIAzWCczTEe6c=
