@@ -69,7 +69,7 @@ func BridgeCMD(toolName string) *cli.Command {
 			EnvVars:  []string{"QR_CODE_IMAGE"},
 		},
 		&cli.StringFlag{
-			Name:  "api",
+			Name:  apiFlagName,
 			Value: "127.0.0.1:8080",
 			Usage: "Listening API url",
 		},
@@ -207,7 +207,7 @@ func bridge(c *cli.Context) error {
 		return err
 	}
 
-	go api.API(ctx, c.String("api"), 5*time.Second, 20*time.Second, e, nil, false) //nolint:errcheck
+	go api.API(ctx, c.String(apiFlagName), 5*time.Second, 20*time.Second, e, nil, false) //nolint:errcheck
 
 	return e.Start(ctx)
 }

@@ -21,9 +21,14 @@ import (
 var VERSION = "0.0.0"
 var Author = "Ettore Di Giacinto"
 
+// apiFlagName is the name of the --api flag. It is looked up by name in
+// setAPIFlagDefault, so it needs to be one value rather than a literal
+// repeated at each place that declares or reads the flag.
+const apiFlagName = "api"
+
 var networkAPI = []cli.Flag{
 	&cli.StringFlag{
-		Name: "api",
+		Name: apiFlagName,
 		Usage: "Edgevpn API endpoint. Accepts a TCP URL (e.g. http://127.0.0.1:8080) " +
 			"or a unix socket path with the 'unix://' prefix (e.g. unix:///run/edgevpn.sock). " +
 			"Defaults to whatever the local edgevpn daemon was configured to listen on, " +
@@ -47,7 +52,7 @@ var networkAPI = []cli.Flag{
 // here covers all of them.
 func setAPIFlagDefault(address string) {
 	for _, f := range networkAPI {
-		if sf, ok := f.(*cli.StringFlag); ok && sf.Name == "api" {
+		if sf, ok := f.(*cli.StringFlag); ok && sf.Name == apiFlagName {
 			sf.Value = address
 		}
 	}

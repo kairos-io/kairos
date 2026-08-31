@@ -30,7 +30,7 @@ var RoleCMD = cli.Command{
 			Action: func(c *cli.Context) error {
 				cc := service.NewClient(
 					c.String("network-id"),
-					edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String("api"))))
+					edgeVPNClient.NewClient(edgeVPNClient.WithHost(c.String(apiFlagName))))
 				return cc.Set("role", c.Args().Get(0), c.Args().Get(1))
 			},
 		},
@@ -39,7 +39,7 @@ var RoleCMD = cli.Command{
 			Name:        "list",
 			Description: "List node roles",
 			Action: func(c *cli.Context) error {
-				address := c.String("api")
+				address := c.String(apiFlagName)
 				cc := service.NewClient(
 					c.String("network-id"),
 					edgeVPNClient.NewClient(edgeVPNClient.WithHost(address)))

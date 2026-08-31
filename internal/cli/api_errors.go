@@ -6,9 +6,9 @@ import (
 	"net/url"
 )
 
-// unreachableAPIError separates the two failures that look identical to a
-// caller of the API client but need completely different things from whoever
-// is reading the message.
+// apiError separates the two failures that look identical to a caller of the
+// API client but need completely different things from whoever reads the
+// message.
 //
 // A transport failure means the edgevpn daemon is not listening where we
 // looked, which is a configuration or service problem. Anything else means we
