@@ -24,6 +24,13 @@ var Author = "Ettore Di Giacinto"
 // apiFlagName is the name of the --api flag. It is looked up by name in
 // setAPIFlagDefault, so it needs to be one value rather than a literal
 // repeated at each place that declares or reads the flag.
+//
+// The name is shared, the meaning is not. In networkAPI below, and so in every
+// command that includes it, --api is the address of an API to dial. The bridge
+// command declares a flag of its own under the same name which is the address
+// its own API server listens on, and that one is deliberately left out of
+// setAPIFlagDefault: bridge runs on an operator's machine, where there is no
+// local daemon whose address it could follow.
 const apiFlagName = "api"
 
 var networkAPI = []cli.Flag{

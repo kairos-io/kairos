@@ -68,6 +68,8 @@ func BridgeCMD(toolName string) *cli.Command {
 			Required: false,
 			EnvVars:  []string{"QR_CODE_IMAGE"},
 		},
+		// Bridge serves its own API rather than talking to one, so this is an
+		// address to listen on and it keeps its own default. See apiFlagName.
 		&cli.StringFlag{
 			Name:  apiFlagName,
 			Value: "127.0.0.1:8080",
