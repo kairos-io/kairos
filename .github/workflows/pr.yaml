@@ -445,3 +445,55 @@ jobs:
       ref: refs/pull/${{ github.event.pull_request.number }}/head
       caller-vetted-ref: true
     secrets: inherit
+
+  # Per-PR ISO size signal. Downloads the amd64/generic ISOs this PR
+  # just built, grabs the same set from the last green master run as a
+  # baseline, and writes a size delta table to the job summary. It is an
+  # informational report, so it never gates the PR: a missing or expired
+  # baseline just degrades to a PR-only listing.
+  #
+  # This only lives in pr.yaml. The durable "sizes over time" history
+  # (the hadron size-history.sh pattern ported to ISOs) is tracked
+  # separately in #3816 and will land as its own follow-up.
+  size-diff:
+    name: iso-size-diff
+    needs: build-iso
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      # pull_request_target checks out the base branch by default, which
+      # would not have this PR's script yet. build-iso already sits
+      # behind the authorize gate, so pulling the PR ref here is the same
+      # vetted-ref deal the rest of the workflow makes.
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/head
+      - name: Download PR ISOs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "kairos-hadron-*-amd64-generic.iso.zip"
+          path: candidate
+      - name: Download last master ISOs
+        # A hiccup finding or fetching the baseline should never fail the
+        # PR; the script falls back to a PR-only report when baseline is
+        # empty.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          run_id="$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow master.yaml --branch master --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+          if [[ -z "$run_id" ]]; then
+            echo "No successful master build found; reporting PR sizes only."
+            exit 0
+          fi
+          echo "Using master build $run_id as the size baseline."
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --pattern "kairos-hadron-*-amd64-generic.iso.zip" \
+            --dir baseline || echo "Baseline artifacts unavailable (expired?)."
+      - name: Compare ISO sizes
+        run: scripts/iso-size-diff.sh baseline candidate | tee -a "$GITHUB_STEP_SUMMARY"
