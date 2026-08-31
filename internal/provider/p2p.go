@@ -71,6 +71,31 @@ func clientAddressForListener(listen string) string {
 	}
 }
 
+// edgeVPNEnvDirMode is the mode for the drop-in directory holding the daemon's
+// env file. It is a shared system directory, so it takes the usual 0755 rather
+// than anything tighter; the secrets live in the file, not in the listing.
+const edgeVPNEnvDirMode = 0755
+
+// writeEdgeVPNEnv records the edgevpn daemon's settings where its systemd unit
+// will read them, creating the drop-in directory if it is not there yet.
+//
+// Both the directory and the file hang off rootDir, so a build writing into a
+// staging root does not reach into the host's /etc.
+func writeEdgeVPNEnv(rootDir string, opts map[string]string) error {
+	envFile := filepath.Join(rootDir, EdgeVPNEnvFile)
+	envDir := filepath.Dir(envFile)
+
+	if err := os.MkdirAll(envDir, edgeVPNEnvDirMode); err != nil {
+		return fmt.Errorf("could not create %s: %w", envDir, err)
+	}
+
+	if err := utils.WriteEnv(envFile, opts); err != nil {
+		return fmt.Errorf("could not write %s: %w", envFile, err)
+	}
+
+	return nil
+}
+
 func normalizeAPIAddress(apiAddress string) string {
 	if apiAddress == "" {
 		apiAddress = DefaultEdgeVPNAPIAddress
@@ -114,11 +139,9 @@ func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) 
 		vpnOpts["EDGEVPNDHT"] = "false"
 	}
 
-	os.MkdirAll("/etc/systemd/system.conf.d/", 0600) //nolint:errcheck
 	// Setup edgevpn instance
-	err = utils.WriteEnv(filepath.Join(rootDir, EdgeVPNEnvFile), vpnOpts)
-	if err != nil {
-		return fmt.Errorf("could not create write env file: %w", err)
+	if err := writeEdgeVPNEnv(rootDir, vpnOpts); err != nil {
+		return err
 	}
 
 	err = svc.WriteUnit()
@@ -183,11 +206,9 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 		}
 	}
 
-	os.MkdirAll("/etc/systemd/system.conf.d/", 0600) //nolint:errcheck
 	// Setup edgevpn instance
-	err = utils.WriteEnv(filepath.Join(rootDir, EdgeVPNEnvFile), vpnOpts)
-	if err != nil {
-		return fmt.Errorf("could not create write env file: %w", err)
+	if err := writeEdgeVPNEnv(rootDir, vpnOpts); err != nil {
+		return err
 	}
 
 	err = svc.WriteUnit()

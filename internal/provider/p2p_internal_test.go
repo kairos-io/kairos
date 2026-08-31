@@ -81,3 +81,46 @@ var _ = Describe("Resolving the API address the daemon actually listens on", fun
 		Expect(ResolveAPIAddress(envFile)).To(Equal(DefaultEdgeVPNAPIAddress))
 	})
 })
+
+var _ = Describe("Writing the daemon's env file", func() {
+	var rootDir string
+
+	BeforeEach(func() {
+		rootDir = GinkgoT().TempDir()
+	})
+
+	// The directory is created relative to rootDir, like the file in it, so an
+	// image build writing into a staging root does not touch the host's /etc.
+	It("creates the file under rootDir", func() {
+		Expect(writeEdgeVPNEnv(rootDir, map[string]string{"APILISTEN": "127.0.0.1:8080"})).To(Succeed())
+		Expect(filepath.Join(rootDir, EdgeVPNEnvFile)).To(BeAnExistingFile())
+	})
+
+	// A directory needs its execute bit to be entered at all. Created without
+	// one, nothing can open the file inside it, including the edgevpn unit
+	// that the file exists for.
+	It("creates a directory it is possible to enter", func() {
+		Expect(writeEdgeVPNEnv(rootDir, map[string]string{"APILISTEN": "127.0.0.1:8080"})).To(Succeed())
+
+		info, err := os.Stat(filepath.Dir(filepath.Join(rootDir, EdgeVPNEnvFile)))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.IsDir()).To(BeTrue())
+		Expect(info.Mode().Perm()&0100).NotTo(BeZero(),
+			"directory mode %v has no owner execute bit, so it cannot be traversed", info.Mode().Perm())
+	})
+
+	// Writing the daemon's configuration is not optional. If it fails the node
+	// will not come up, so say so rather than carrying on.
+	It("reports a failure instead of ignoring it", func() {
+		blocked := filepath.Join(GinkgoT().TempDir(), "not-a-dir")
+		Expect(os.WriteFile(blocked, []byte("i am a file"), 0600)).To(Succeed())
+
+		Expect(writeEdgeVPNEnv(blocked, map[string]string{"APILISTEN": "127.0.0.1:8080"})).NotTo(Succeed())
+	})
+
+	// The reader and the writer agree, which is the point of sharing the path.
+	It("writes something ResolveAPIAddress can read back", func() {
+		Expect(writeEdgeVPNEnv(rootDir, map[string]string{"APILISTEN": "127.0.0.1:8080"})).To(Succeed())
+		Expect(ResolveAPIAddress(filepath.Join(rootDir, EdgeVPNEnvFile))).To(Equal("http://127.0.0.1:8080"))
+	})
+})
