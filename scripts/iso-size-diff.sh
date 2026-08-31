@@ -29,7 +29,12 @@ iso_in() {
 }
 
 file_size() {
-  wc -c <"$1" | tr -d '[:space:]'
+  # Read the size straight from the filesystem metadata so we don't stream
+  # multi-GiB ISOs just to count bytes. GNU stat wants -c, BSD/macOS wants -f,
+  # and wc is the last resort if neither is around.
+  stat -c%s "$1" 2>/dev/null \
+    || stat -f%z "$1" 2>/dev/null \
+    || wc -c <"$1" | tr -d '[:space:]'
 }
 
 human() {
@@ -75,8 +80,20 @@ done
 [[ -z "$BASELINE_ROOT" || -z "$CANDIDATE_ROOT" ]] && { usage; exit 1; }
 [[ -d "$CANDIDATE_ROOT" ]] || die "Candidate root not found: $CANDIDATE_ROOT"
 
+# A baseline is only useful if we actually downloaded at least one master ISO.
+# When it's missing (no baseline run, or the artifacts expired) we still want a
+# report, just one that's honest about being PR-only.
+baseline_available=false
+if [[ -d "$BASELINE_ROOT" && -n "$(iso_in "$BASELINE_ROOT")" ]]; then
+  baseline_available=true
+fi
+
 printf '## ISO size diff\n\n'
-printf 'PR ISOs compared against the last successful master build.\n\n'
+if [[ "$baseline_available" == true ]]; then
+  printf 'PR ISOs compared against the last successful master build.\n\n'
+else
+  printf 'No master baseline was available, so this lists the PR ISO sizes only.\n\n'
+fi
 printf '| Artifact | master | PR | Δ |\n'
 printf '| --- | --- | --- | --- |\n'
 
@@ -98,8 +115,12 @@ for cand_dir in "$CANDIDATE_ROOT"/*/; do
     printf '| %s | %s | %s | %s |\n' \
       "$name" "$(human "$base_size")" "$(human "$cand_size")" \
       "$(delta "$base_size" "$cand_size")"
-  else
+  elif [[ "$baseline_available" == true ]]; then
+    # We have a baseline overall, this artifact just isn't in it, so it's new.
     printf '| %s | _n/a_ | %s | _new_ |\n' "$name" "$(human "$cand_size")"
+  else
+    # No baseline at all, so there's nothing to call this ISO new against.
+    printf '| %s | _n/a_ | %s | _n/a_ |\n' "$name" "$(human "$cand_size")"
   fi
   rows=$((rows + 1))
 done

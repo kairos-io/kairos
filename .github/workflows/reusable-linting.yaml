@@ -1,0 +1,111 @@
+on:
+  workflow_call:
+    inputs:
+      # Set to a space separated list of directories where yamls should searched
+      yamldirs:
+        required: false
+        type: string
+        default: "."
+
+      # Set to "false" for repositories that are not golang applications
+      is-go:
+        required: false
+        type: boolean
+        default: true
+      timeout:
+        required: false
+        type: string
+        default: "10m"
+
+      # Git ref every lint job should check out. Leave empty for the
+      # ref that triggered the calling workflow (right for every
+      # ordinary caller). Set it when the caller runs under
+      # `pull_request_target` and needs the PR HEAD's code linted
+      # rather than the base branch's -- pass
+      # `refs/pull/<n>/head`. Same knob and same reasoning as
+      # kairos-io/kairos-factory-action's `ref` input.
+      ref:
+        required: false
+        type: string
+        default: ""
+
+      # Caller assertion required to unlock actions/checkout's
+      # `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if
+      # the caller has its own authorization gate in front of this
+      # workflow -- e.g. a `pull_request_target` pipeline whose
+      # `authorize` job pins the run to a GitHub Environment that
+      # requires maintainer review before the fork's `ref` is
+      # fetched. Without such a gate, leaving this false keeps the
+      # `pull_request_target` + fork-ref combination blocked at
+      # checkout time (the guard described at
+      # https://gh.io/securely-using-pull_request_target).
+      caller-vetted-ref:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  golangci_lint:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.is-go }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+      - name: golangci-lint
+        env:
+          GOLANGCILINT_VERSION: latest-alpine
+        shell: bash
+        run: docker run -v $PWD:/work -w /work golangci/golangci-lint:${GOLANGCILINT_VERSION} golangci-lint -v --timeout=${{ inputs.timeout }} run
+
+  hadolint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+      - name: hadolint
+        env:
+          HADOLINT_VERSION: 2.12.0-alpine
+        shell: bash
+        run: find . -path "./examples" -prune -o -name "Dockerfile.*" -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "hadolint/hadolint:${HADOLINT_VERSION}" hadolint
+
+  renovate-validator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+      - name: renovate-validate
+        env:
+          RENOVATE_VERSION: "35"
+        shell: bash
+        run: docker run -v "$PWD":/work -w /work renovate/renovate renovate-config-validator
+
+  shellcheck-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+      - name: shellcheck-lint
+        env:
+          SHELLCHECK_VERSION: v0.9.0
+        shell: bash
+        run: find . -path "./examples" -prune -o -name "*.sh" -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "koalaman/shellcheck-alpine:${SHELLCHECK_VERSION}" shellcheck
+
+  yamllint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+      - name: yamllint
+        shell: bash
+        run: find ${{ inputs.yamldirs }} -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint

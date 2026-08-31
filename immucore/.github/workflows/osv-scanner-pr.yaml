@@ -1,0 +1,19 @@
+name: OSV-Scanner PR Scan
+
+# Change "main" to your default branch if you use a different name, i.e. "master"
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  # Require writing security events to upload SARIF file to security tab
+  security-events: write
+  # Only need to read contents and actions
+  contents: read
+  actions: read
+
+jobs:
+  scan-pr:
+    uses: "google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.5.0"

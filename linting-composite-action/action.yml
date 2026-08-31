@@ -1,0 +1,35 @@
+name: 'Linting composite action'
+description: 'Lint everything'
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version: ^1.21
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6.1.1
+      with:
+        version: latest
+
+    - name: hadolint
+      env:
+        HADOLINT_VERSION: 2.12.0-alpine
+      shell: bash
+      run: find . -path "./examples" -prune -o -name "Dockerfile.*" -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "hadolint/hadolint:${HADOLINT_VERSION}" hadolint
+
+    - name: renovate-validate
+      env:
+        RENOVATE_VERSION: "35"
+      shell: bash
+      run: docker run -v "$PWD":/work -w /work renovate/renovate renovate-config-validator 
+
+    - name: shellcheck-lint
+      env:
+        SHELLCHECK_VERSION: v0.9.0
+      shell: bash
+      run: find . -path "./examples" -prune -o -name "*.sh" -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "koalaman/shellcheck-alpine:${SHELLCHECK_VERSION}" shellcheck
+
+    - name: yamllint
+      shell: bash
+      run: find . -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint

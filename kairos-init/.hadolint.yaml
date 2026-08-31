@@ -1,0 +1,13 @@
+# We use "override" instead of "ignore" to still see these issues.
+# With the "failure-threshold" set to "warning" below, these should not make
+# the test fail.
+override:
+  info:
+    # warning: Specify version with `dnf install -y <package>-<version>`.
+    - DL3041
+    # warning: Pin versions in apt get install. Instead of `apt-get install <package>` use `apt-get install <package>=<version>`
+    - DL3008
+    # warning: Always tag the version of an image explicitly
+    # Reason: We build "latest" images using "latest" base images.
+    - DL3006
+failure-threshold: warning

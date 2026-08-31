@@ -1,0 +1,45 @@
+ARG BASE_IMAGE=ubuntu:24.04
+ARG VALIDATE_IMAGE=ubuntu:24.04
+ARG VALIDATE=true
+
+# Build stage runs on host's native platform to avoid QEMU emulation overhead.
+# BUILDPLATFORM = machine running docker buildx, TARGETARCH = arch we're producing for.
+FROM --platform=$BUILDPLATFORM golang AS build
+ARG TARGETARCH
+# BUILDARCH unused here (no UPX in test builds) but kept for clarity
+ARG BUILDARCH
+ENV SKIP_UPX=true
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+WORKDIR /app
+COPY Makefile .
+# Pass TARGETARCH explicitly — uname -m would return BUILDARCH, not TARGETARCH
+RUN ARCH=${TARGETARCH} make all
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ENV CGO_ENABLED=0
+# Cross-compile for TARGETARCH — runs natively on BUILDARCH, no emulation needed
+RUN GOOS=linux GOARCH=${TARGETARCH} go build -o /app/kairos-init .
+
+
+FROM scratch AS kairos-init
+COPY --from=build /app/kairos-init /kairos-init
+
+# Target to use the validator directly inside a generated image with kairos-init
+FROM ${VALIDATE_IMAGE} AS validate
+COPY --from=build /app/kairos-init /kairos-init
+RUN /kairos-init validate
+
+FROM ${BASE_IMAGE} AS default
+ARG MODEL=generic
+ARG TRUSTED_BOOT=false
+ARG PROVIDER_NAME
+ARG PROVIDER_VERSION
+ARG VERSION=v0.0.1
+ARG FIPS=false
+ARG VALIDATE
+
+COPY --from=kairos-init /kairos-init /kairos-init
+RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --provider "${PROVIDER_NAME}" --provider-"${PROVIDER_NAME}"-version "${PROVIDER_VERSION}" --version "${VERSION}" "$(if [ "${FIPS}" = "true" ]; then echo "--fips"; fi)"
+RUN if [ "${VALIDATE}" = 'true' ];then /kairos-init validate -t "${TRUSTED_BOOT}"; fi
+RUN rm /kairos-init

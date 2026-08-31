@@ -8,7 +8,7 @@
 <h3 align="center">Kairos - Kubernetes-focused, Cloud Native Linux meta-distribution</h3>
 <p align="center">
   <a href="https://github.com/kairos-io/kairos/issues"><img src="https://img.shields.io/github/issues/kairos-io/kairos"></a>
-  <a href="https://github.com/kairos-io/kairos/actions/workflows/image-master.yaml"> <img src="https://github.com/kairos-io/kairos/actions/workflows/image-master.yaml/badge.svg"></a>
+  <a href="https://github.com/kairos-io/kairos/actions/workflows/master.yaml"> <img src="https://github.com/kairos-io/kairos/actions/workflows/master.yaml/badge.svg"></a>
   <a href="https://www.bestpractices.dev/projects/9100"><img src="https://www.bestpractices.dev/projects/9100/badge"></a>
   <a href="https://clomonitor.io/projects/cncf/kairos"><img src="https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/kairos/badge"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/kairos-io/kairos"><img src="https://api.scorecard.dev/projects/github.com/kairos-io/kairos/badge"></a>
@@ -42,6 +42,63 @@ Kairos can be used to:
 - Create a multiple—node, a single cluster that spans up across regions :earth_africa:
 
 For comprehensive docs, tutorials, and examples see our [documentation](https://kairos.io/getting-started/).
+
+## Repository layout
+
+Kairos is a monorepo. The device-runtime binaries, the SDK, and the
+image initializer all live in one source tree, share a single
+`go.mod` at the root, and ship on one release tag.
+
+- `cmd/kairos/` -- the multi-call `kairos` binary. Dispatches on
+  `argv[0]` to immucore, kairos-agent, or kcrypt-discovery-challenger,
+  so one binary is deployed and the historical names point at it via
+  symlinks.
+- `cmd/kcrypt-challenger/` -- the in-cluster kcrypt-challenger
+  server. Not linked into the multi-call binary (different deps and
+  lifecycle); ships as its own container image.
+- `agent/` -- kairos-agent source (was `kairos-io/kairos-agent`).
+- `immucore/` -- immucore source (was `kairos-io/immucore`).
+- `kcrypt/discovery/` -- device-side kcrypt discovery
+  (was `kairos-io/kcrypt-discovery-challenger`).
+- `kcrypt/challenger/` -- in-cluster kcrypt-challenger package
+  (was `kairos-io/kcrypt-challenger`).
+- `sdk/` -- Kairos SDK, importable externally at
+  `github.com/kairos-io/kairos/v4/sdk` (was `kairos-io/kairos-sdk`).
+- `kairos-init/` -- image initializer that installs the multi-call
+  binary plus symlinks into a base image
+  (was `kairos-io/kairos-init`).
+- `installer/` -- interactive terminal-UI installer embedded by
+  kairos-init at `/system/installer/kairos-installer` and invoked by
+  `kairos-agent interactive-install` (was `kairos-io/kairos-installer`).
+- `tests/` -- monorepo end-to-end test suite.
+
+Each absorbed subdirectory keeps a thin `main.go` at its root, so
+`go build ./agent`, `go build ./immucore`, and
+`go build ./kcrypt/cmd/discovery` still produce standalone binaries
+from any commit; consumers that are not ready for the multi-call
+binary can pin one of those.
+
+The historical repos (`kairos-agent`, `immucore`,
+`kcrypt-discovery-challenger`, `kcrypt-challenger`, `kairos-sdk`,
+`kairos-init`, `kairos-installer`, `kairos-factory-action`,
+`linting-composite-action`) are archived. Their tagged releases
+remain resolvable so pre-migration pins keep working; post-migration
+fixes land here and ship on the monorepo release tag.
+
+Absorbed reusable workflows live at `.github/workflows/` of the repo
+root (GitHub does not accept reusable workflows in subdirectories),
+so they do not follow the subdir pattern the runtime components did:
+
+- `kairos-factory-action` -> `.github/workflows/reusable-factory.yaml`
+- `linting-composite-action` -> `.github/workflows/reusable-linting.yaml`
+  and, for the composite-action shape,
+  `linting-composite-action/action.yml`
+
+External consumers rewrite their `uses:` lines from the archived-repo
+path to the monorepo path (`kairos-io/kairos-factory-action/...` ->
+`kairos-io/kairos/.github/workflows/reusable-factory.yaml`, same for
+linting) and repin at a monorepo ref (SHA, `master`, or a Kairos
+release tag).
 
 ## Project status
 

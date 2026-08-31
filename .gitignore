@@ -5,10 +5,13 @@
 /kairos
 /dist
 /build
+/bin
 /keys
 /trivy-cache
 coverage.out
 tests/logs/
+tests/assets/encryption/challenger-patch.yaml
+tests/assets/encryption/challenger-server-ingress.yaml
 .DS_Store
 internal/webui/public/cypress/videos/
 pr-message
@@ -19,3 +22,4 @@ node_modules/
 .idea
 .envrc
 .go-version
+*.iso.zip

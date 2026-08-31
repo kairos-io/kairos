@@ -1,0 +1,22 @@
+# echo '{ "data": "{ \\"label\\": \\"COS_PERSISTENT\\" }"}' | sudo -E WSS_SERVER="http://localhost:8082/challenge" ./challenger "discovery.password"
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysecret
+  namespace: default
+type: Opaque
+stringData:
+  pass: "awesome-passphrase"
+---
+apiVersion: keyserver.kairos.io/v1alpha1
+kind: SealedVolume
+metadata:
+    name: test
+    namespace: default
+spec:
+  TPMHash: "something"
+  partitionSecrets:
+    LABEL:
+      name: mysecret
+      path: pass
+  quarantined: false

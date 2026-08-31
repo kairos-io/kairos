@@ -1,0 +1,42 @@
+name: "Start reset on tty1"
+stages:
+  initramfs:
+    - name: "Starts kairos-reset for systemd based systems"
+      if: |
+        (grep -q "kairos.reset" /proc/cmdline || [ -f /run/cos/autoreset_mode ])
+      only_service_manager: "systemd"
+      files:
+        - path: /etc/systemd/system/kairos-reset.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=kairos reset
+            After=sysinit.target
+            [Service]
+            Type=oneshot
+            StandardInput=tty
+            StandardOutput=tty
+            LimitNOFILE=49152
+            TTYPath=/dev/tty1
+            RemainAfterExit=yes
+            # Stop systemd messages on tty
+            ExecStartPre=-/usr/bin/kill -SIGRTMIN+21 1
+            ExecStart=/usr/bin/kairos-agent reset --unattended --reboot
+            # Start systemd messages on tty
+            ExecStartPost=-/usr/bin/kill -SIGRTMIN+20 1
+            TimeoutStopSec=10s
+            [Install]
+            WantedBy=multi-user.target
+      commands:
+        - systemctl disable getty@tty1
+        - systemctl stop getty@tty1
+        - systemctl mask getty@tty1
+        - systemctl enable kairos-reset
+    - name: "Starts kairos-reset for openRC-based systems"
+      if: grep -q "kairos.reset" /proc/cmdline
+      only_service_manager: "openrc"
+      commands:
+        - sed -i -e 's/tty1.*//g' /etc/inittab
+        - echo "tty1::respawn:/usr/bin/kairos-agent reset --unattended --reboot tty1" >> /etc/inittab

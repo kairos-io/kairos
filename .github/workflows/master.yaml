@@ -1,0 +1,376 @@
+name: master
+
+# The master pipeline. Retires binaries.yaml / image-master*.yaml /
+# uki.yaml / lint.yaml / unit-tests.yaml (deleted together with
+# this rename).
+#
+# Trigger: push to master. Shape mirrors pr.yaml with two
+# differences:
+#   - No fork-PR guard (master is trusted).
+#   - Test-before-push semantics for the "master" tag itself:
+#     images and OS builds first land on :master-scratch, qemu
+#     tests run against the scratch tag, and only on green does a
+#     final promote step copy the scratch manifest under :master.
+#     A red run leaves the scratch tag alone (it will be
+#     overwritten by the next push) and never advances :master.
+
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+
+permissions:
+  # See _build-iso.yaml for the reusable-workflow permission
+  # rationale (callers must cover callee).
+  contents: write
+  packages: write
+  id-token: write
+  security-events: write
+  actions: read
+
+concurrency:
+  group: ci-master-${{ github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    uses: ./.github/workflows/_unit-tests.yaml
+    secrets: inherit
+
+  lint:
+    uses: ./.github/workflows/_lint.yaml
+    secrets: inherit
+
+  # kairos-init pipe: gates build-iso + tests.
+  #
+  # matrix_scope: full -- the same value release.yaml passes. Names
+  # the architecture set this builds (amd64+arm64, default+FIPS, plus
+  # riscv64 default), not what kind of run this is. See
+  # _build-kairos.yaml/_build-kairos-init.yaml for the actual matrix.
+  #
+  # Since the monorepo CI reshape (ae314796, ea046bc3), riscv64 only
+  # built on a v* release tag, so a riscv64-breaking change to
+  # images/Dockerfile or kairos-init reached a release before anything
+  # caught it -- the exact code path hadron's build depends on directly
+  # (curl's images/Dockerfile and docker build --platform=linux/riscv64
+  # against it; see kairos-io/hadron's Makefile KAIROS_DOCKERFILE_REF).
+  # This restores that regression check on every master push, the
+  # earliest point it can be caught, without touching pr.yaml -- every
+  # contributor's PR stays exactly as fast as it is today.
+  #
+  # Known cost, not hidden: riscv64 under QEMU is slow (observed ~2h+
+  # for a from-scratch riscv64 build elsewhere in the org). This adds
+  # that to every master push, not just releases. Left as a draft for
+  # a maintainer to weigh against the regression-safety gap above --
+  # not something to wave through unreviewed.
+  build-kairos:
+    uses: ./.github/workflows/_build-kairos.yaml
+    with:
+      matrix_scope: full
+    secrets: inherit
+
+  build-kairos-init:
+    needs: build-kairos
+    uses: ./.github/workflows/_build-kairos-init.yaml
+    with:
+      matrix_scope: full
+    secrets: inherit
+
+  build-image-kairos-init:
+    needs: [build-kairos-init, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kairos-init.yaml
+    with:
+      image_registry: ghcr.io/kairos-io/kairos
+      # Scratch tag: qemu tests consume this, promote-images copies
+      # the manifest to :master on green.
+      image_tag: master-scratch
+      push: true
+      registry_login: ghcr
+    secrets: inherit
+
+  # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
+  # cells of test-standard-encryption below consume its image; the
+  # rest of the qemu path does not. Also gates promote-images.
+  build-kcrypt-challenger:
+    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
+    with:
+      matrix_scope: ci
+    secrets: inherit
+
+  build-image-kcrypt-challenger:
+    needs: [build-kcrypt-challenger, unit-tests, lint]
+    uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    with:
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: master-scratch
+      push: true
+      registry_login: ghcr
+    secrets: inherit
+
+  # ISO matrix split so test-* unblock as soon as the amd64
+  # cells they consume are ready. See pr.yaml for the rationale.
+  # promote-images below waits on build-iso-arm too so a broken
+  # arm build still keeps :master-scratch from advancing to :master.
+  build-iso:
+    needs: build-image-kairos-init
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          # FIPS core cell (see pr.yaml for rationale).
+          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
+          # UKI cells feed test-uki (see pr.yaml for the shape).
+          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
+          # Ubuntu 20.04 smoke cell (see pr.yaml for rationale).
+          - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+    name: build-iso / ${{ matrix.name }}
+    uses: ./.github/workflows/_build-iso.yaml
+    with:
+      name: ${{ matrix.name }}
+      # Consume the scratch kairos-init that build-image-kairos-init just published.
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      fips: ${{ matrix.fips }}
+      registry_domain: 'ghcr.io'
+      registry_namespace: 'kairos-io/kairos'
+      single_efi_cmdline: 'testentry: nothing'
+      release: false
+    secrets: inherit
+
+  build-iso-arm:
+    needs: build-image-kairos-init
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - name: 'arm64-nvidia-agx-orin'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-agx-orin'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
+          - name: 'arm64-nvidia-orin-nx'
+            arch: 'arm64'
+            base_image: 'ubuntu:22.04'
+            model: 'nvidia-jetson-orin-nx'
+            iso: false
+            trusted_boot: false
+            kubernetes_distro: ''
+            registry_domain: 'quay.io'
+            registry_namespace: 'kairos'
+            registry_repository: 'ci-temp-images'
+    name: build-iso-arm / ${{ matrix.name }}
+    uses: ./.github/workflows/_build-iso.yaml
+    with:
+      name: ${{ matrix.name }}
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
+      arch: ${{ matrix.arch }}
+      base_image: ${{ matrix.base_image }}
+      model: ${{ matrix.model }}
+      iso: ${{ matrix.iso }}
+      trusted_boot: ${{ matrix.trusted_boot }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
+      registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
+      registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
+      registry_repository: ${{ matrix.registry_repository || '' }}
+      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
+      grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
+      cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
+      release: false
+    secrets: inherit
+
+  test-core:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'custom-partitioning'}
+          - {test: 'acceptance'}
+          - {test: 'install'}
+          - {test: 'install-target'}
+          - {test: 'insecure-registry'}
+          - {test: 'partition-validation'}
+          - {test: 'reset'}
+          - {test: 'upgrade-with-cli'}
+          - {test: 'bundles'}
+          - {test: 'ssh-hardening'}
+          - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
+    name: test-core / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      release-matcher: ${{ matrix.release-matcher || '' }}
+    secrets: inherit
+
+  # FIPS smoke coverage (see pr.yaml for rationale).
+  test-core-fips:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'install'}
+          - {test: 'acceptance'}
+    name: test-core-fips / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  # Ubuntu 20.04 smoke coverage (see pr.yaml for rationale).
+  test-core-ubuntu-20:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'install'}
+          - {test: 'acceptance'}
+    name: test-core-ubuntu-20 / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ubuntu:20.04'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  test-standard:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'provider-qrcode-install'}
+          - {test: 'provider-upgrade-k8s'}
+          - {test: 'provider-decentralized-k8s'}
+          - {test: 'provider-k3s-disabled'}
+          - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
+    name: test-standard / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      release-matcher: ${{ matrix.release-matcher || '' }}
+    secrets: inherit
+
+  # See pr.yaml for the rationale on splitting encryption cells out.
+  test-standard-encryption:
+    needs: [build-iso, build-image-kcrypt-challenger]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'encryption-local'}
+          - {test: 'encryption-remote-auto'}
+          - {test: 'encryption-remote-static'}
+          - {test: 'encryption-remote-https-pinned'}
+          - {test: 'encryption-remote-https-bad-cert'}
+          - {test: 'encryption-remote-complete-workflow'}
+          - {test: 'encryption-remote-ek-only'}
+          - {test: 'encryption-remote-selective-pcr'}
+          - {test: 'encryption-remote-ek-reenroll'}
+          - {test: 'encryption-remote-mixed-modes'}
+          - {test: 'encryption-kcrypt-cli'}
+    name: test-standard-encryption / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      variant: 'standard'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:master-scratch
+    secrets: inherit
+
+  test-uki:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'install-upgrade', variant: 'standard'}
+          - {test: 'boot-assessment', variant: 'core'}
+    name: test-uki / ${{ matrix.test }}
+    uses: ./.github/workflows/_uki-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      variant: ${{ matrix.variant }}
+      base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
+      arch: 'amd64'
+      model: 'generic'
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  # Copy the scratch manifests under :master only if the qemu suites
+  # both pass. Uses `docker buildx imagetools create` because it
+  # promotes the multi-arch manifest by reference without pulling
+  # the image bytes and without changing the digest -- if consumers
+  # pinned :master-scratch@sha256:xxx before promotion, the same
+  # sha256 is what :master now points at.
+  promote-images:
+    # qemu suites + arm build gate the kairos-init side; the
+    # kcrypt-challenger image is on a parallel pipe and must also be
+    # pushed to :master-scratch before this job can promote it.
+    needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Promote kairos-init and kcrypt-challenger scratch -> :master
+        run: |
+          set -euo pipefail
+          for img in kairos-init kcrypt-challenger; do
+            src="ghcr.io/kairos-io/kairos/${img}:master-scratch"
+            dst="ghcr.io/kairos-io/kairos/${img}:master"
+            echo "Promoting $src -> $dst"
+            docker buildx imagetools create -t "$dst" "$src"
+          done

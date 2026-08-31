@@ -1,0 +1,255 @@
+name: Build ISO
+
+# Reusable step: build a single Kairos OS ISO/UKI via the in-tree
+# reusable-factory.yaml (absorbed from the archived
+# kairos-io/kairos-factory-action repo), using the caller-supplied
+# kairos-init container image. This is the "connect the fresh
+# kairos-init to the ISO build" step -- the caller passes the exact
+# image reference the build-image-kairos-init step just published,
+# and this step overrides images/Dockerfile's KAIROS_INIT_IMAGE ARG
+# so the ISO embeds it.
+#
+# Single-cell by design: the caller expands the matrix over base_image
+# / kubernetes_distro / trusted_boot / iso-vs-uki with a strategy.matrix
+# on its own job that `uses:` this reusable, which is the shape GitHub
+# Actions supports cleanly.
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        description: 'Display name for this cell in the workflow run UI'
+        type: string
+        required: true
+
+      kairos_init_image:
+        description: 'Full image reference for kairos-init, e.g. quay.io/kairos/kairos-init:v4.4.0 or ghcr.io/kairos-io/kairos/kairos-init:pr-42'
+        type: string
+        required: true
+
+      arch:
+        description: 'linux/<arch>: amd64, arm64, or riscv64'
+        type: string
+        required: true
+
+      base_image:
+        description: 'Base OCI image the Kairos flavor is built on top of'
+        type: string
+        required: true
+
+      model:
+        description: 'Kairos model: generic, rpi4, etc.'
+        type: string
+        default: 'generic'
+
+      iso:
+        description: 'Produce an ISO artifact'
+        type: boolean
+        default: false
+
+      trusted_boot:
+        description: 'Build a trusted-boot UKI instead of the standard ISO layout'
+        type: boolean
+        default: false
+
+      kubernetes_distro:
+        description: 'k3s | k0s | empty'
+        type: string
+        default: ''
+
+      kubernetes_version:
+        description: 'Specific k8s version or "auto"'
+        type: string
+        default: 'auto'
+
+      registry_domain:
+        type: string
+        default: 'quay.io'
+
+      registry_namespace:
+        type: string
+        default: 'kairos'
+
+      registry_repository:
+        description: |
+          Optional override for the repository segment of the push
+          target. Factory-action defaults it to the base_image FLAVOR
+          (e.g. "hadron" -> ghcr.io/kairos-io/kairos/hadron), which
+          creates a per-flavor org package. For flavors whose
+          per-flavor package does not exist yet (e.g. ubuntu-based
+          NVIDIA cells), the caller can point this at an existing
+          catch-all repo like "ci-temp-images" on quay.
+        type: string
+        default: ''
+
+      release:
+        description: 'Whether factory-action should attach ISO artifacts to the GH Release'
+        type: boolean
+        default: false
+
+      # Model-specific factory-action knobs. Defaults match what
+      # the generic amd64/arm64 cells want; the rpi and nvidia
+      # cells override.
+      raw:
+        description: 'Produce a raw disk image (rpi3/rpi4 need this)'
+        type: boolean
+        default: false
+      grype:
+        description: 'Run grype security scan (nvidia bases have too many L4T vulns to enforce)'
+        type: boolean
+        default: true
+      sbom:
+        description: 'Attach an SBOM to the image (nvidia jetson bases contain non-cataloguable binaries)'
+        type: boolean
+        default: true
+      cleanup:
+        description: 'Have factory-action free space on the runner before building (nvidia builds need this because L4T rootfs is huge)'
+        type: boolean
+        default: false
+
+      fips:
+        description: |
+          Build the FIPS-flavored image. Passes FIPS=fips to
+          images/Dockerfile so kairos-init installs the FIPS variant of
+          the multi-call kairos binary. Caller must also point base_image
+          at a FIPS-hardened base (e.g. ghcr.io/kairos-io/hadron-fips)
+          for the resulting image to be end-to-end FIPS-capable; passing
+          this flag alone against a non-FIPS base produces a partial-FIPS
+          image and defeats the point.
+        type: boolean
+        default: false
+
+      single_efi_cmdline:
+        description: |
+          Bake an extra single-EFI boot entry into the UKI, in
+          `name: kernel-cmdline` form. The install-upgrade qemu test
+          upgrades this entry to verify UKI upgrade semantics; pass
+          `testentry: nothing` on PR/master so the test finds the
+          entry. Release builds leave it empty so no test-only boot
+          entry ships in a released ISO. Factory-action ignores
+          this input when trusted_boot is false.
+        type: string
+        default: ''
+
+      ref:
+        description: 'git ref to check out (passthrough to factory-action)'
+        type: string
+        required: false
+        default: ''
+      caller-vetted-ref:
+        description: |
+          Caller assertion required to unlock actions/checkout's
+          `allow-unsafe-pr-checkout` opt-in inside factory-action.
+          Set to `true` ONLY if the caller has its own authorization
+          gate in front of this workflow -- e.g. a `pull_request_target`
+          pipeline whose `authorize` job pins the run to a GitHub
+          Environment that requires maintainer review before the fork's
+          `ref` is fetched. Without such a gate, leaving this false keeps
+          the `pull_request_target` + fork-ref combination blocked at
+          checkout time (the guard described at
+          https://gh.io/securely-using-pull_request_target).
+        type: boolean
+        required: false
+        default: false
+
+# No `secrets:` block on workflow_call: registry credentials are
+# derived from inputs.registry_domain inside the job (ghcr.io ->
+# github.actor + GITHUB_TOKEN, quay.io -> QUAY_USERNAME + QUAY_PASSWORD),
+# which only works when the caller uses `secrets: inherit` so this
+# reusable can see the org-level QUAY_* secrets.
+
+permissions:
+  # packages: write is required for factory-action's push to ghcr:
+  # the GITHUB_TOKEN a reusable workflow receives is capped at the
+  # permissions THIS workflow declares, not what the caller has, so
+  # omitting it here scopes the token to packages:none and ghcr
+  # answers "installation not allowed to Write organization package"
+  # even when the linked package's Manage Actions access already
+  # grants the repo write.
+  contents: write
+  packages: write
+  id-token: write
+  security-events: write
+  actions: read
+
+jobs:
+  iso:
+    name: ${{ inputs.name }}
+    uses: ./.github/workflows/reusable-factory.yaml
+    secrets:
+      # ghcr.io accepts github.actor + GITHUB_TOKEN; the token is
+      # write-scoped only for same-repo events (push, same-repo PR).
+      # Fork PR jobs are gated off at the caller with an if: check.
+      # quay.io uses the repo-level QUAY_USERNAME/QUAY_PASSWORD, which
+      # reach this reusable only because callers pass `secrets: inherit`.
+      registry_username: ${{ inputs.registry_domain == 'ghcr.io' && github.actor || secrets.QUAY_USERNAME }}
+      registry_password: ${{ inputs.registry_domain == 'ghcr.io' && secrets.GITHUB_TOKEN || secrets.QUAY_PASSWORD }}
+    with:
+      ref: ${{ inputs.ref }}
+      caller-vetted-ref: ${{ inputs.caller-vetted-ref }}
+      auroraboot_version: 'v0.26.2'
+      dockerfile_path: 'images/Dockerfile'
+      # Point images/Dockerfile at the caller-supplied kairos-init.
+      # This is what makes PRs / releases exercise the freshly-built
+      # kairos-init rather than the ARG default in images/Dockerfile.
+      # When `fips` is true the FIPS=fips build_arg switches
+      # kairos-init to embed the FIPS variant of the multi-call binary.
+      build_args: |
+        KAIROS_INIT_IMAGE=${{ inputs.kairos_init_image }}
+        ${{ inputs.fips && 'FIPS=fips' || '' }}
+      base_image: ${{ inputs.base_image }}
+      arch: ${{ inputs.arch }}
+      model: ${{ inputs.model }}
+      version: 'auto'
+      no_cache: true
+      registry_domain: ${{ inputs.registry_domain }}
+      registry_namespace: ${{ inputs.registry_namespace }}
+      registry_repository: ${{ inputs.registry_repository }}
+      # Force factory-action to name the image tag and ISO artifact
+      # the same way reusable-qemu-test.yaml expects to find them.
+      # Factory-action's default artifact format is
+      # `kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION` (no
+      # $FLAVOR, plus a trailing version), but reusable-qemu-test.yaml
+      # downloads `kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip`
+      # and expects the container image tag to end in $COMMIT_SHA.
+      # These two overrides are the same ones image-pr.yaml uses today.
+      # $UKI is `-uki` for trusted-boot builds, empty otherwise. UKI
+      # tests download by name with -uki suffix and pull the image
+      # from a tag ending in -uki (see _uki-test.yaml). Without
+      # $UKI here, trusted-boot cells would collide with non-UKI
+      # ones and neither the ISO artifact nor the container image
+      # would resolve.
+      custom_tag_format: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA$UKI'
+      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
+      trusted_boot: ${{ inputs.trusted_boot }}
+      # Factory-action's keys_dir is "required when trusted_boot is
+      # true" but has no sensible default -- if we leave it empty
+      # the build-uki step mounts the repo root as /keys and
+      # auroraboot exits with "keys directory does not contain
+      # required file: db.auth" because db.auth lives at
+      # tests/assets/keys/db.auth, not at /db.auth. Pass the path
+      # unconditionally; factory-action ignores it on non-UKI cells.
+      keys_dir: 'tests/assets/keys'
+      # sysext_dir bakes work.sysext.raw + hello-broke.sysext.raw into
+      # the UKI ISO. Without it the boot-assessment test's sysext
+      # assertions ("/run/extensions should contain work.sysext.raw",
+      # uki_test.go:296-303) fail because there is no sysext to load.
+      # Same shape as keys_dir; ignored on non-UKI cells.
+      sysext_dir: '$PWD/tests/assets/sysext'
+      single_efi_cmdline: ${{ inputs.single_efi_cmdline }}
+      iso: ${{ inputs.iso }}
+      kubernetes_distro: ${{ inputs.kubernetes_distro }}
+      kubernetes_version: ${{ inputs.kubernetes_version }}
+      raw: ${{ inputs.raw }}
+      grype: ${{ inputs.grype }}
+      grype_sarif: ${{ inputs.grype }}
+      trivy: true
+      trivy_sarif: true
+      sbom: ${{ inputs.sbom }}
+      security_scan_mode: 'report-only'
+      grype_sarif_fail_build: false
+      cleanup: ${{ inputs.cleanup }}
+      custom_job_name_format: ${{ inputs.name }}
+      list_release_artifacts: ${{ inputs.release && inputs.iso }}
+      cosign: ${{ inputs.release }}
+      release: ${{ inputs.release && inputs.iso }}

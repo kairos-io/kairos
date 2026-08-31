@@ -43,6 +43,15 @@
       ],
       "depNameTemplate": "quay.io/kairos/auroraboot",
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/.*\\.sh$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?\\s+[A-Z_][A-Z0-9_]*\\s*=\\s*\"[^:\"]+:(?<currentValue>[^\"\\s]+)\""
+      ]
     }
   ]
 }

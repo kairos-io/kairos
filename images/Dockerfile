@@ -1,7 +1,14 @@
 ARG BASE_IMAGE=ubuntu:20.04
-ARG KAIROS_INIT=v0.17.2
+# KAIROS_INIT is the legacy input: a tag on quay.io/kairos/kairos-init.
+# KAIROS_INIT_IMAGE is the newer input: the full image reference. Callers
+# who need a non-quay source (e.g. PR builds pulling their own
+# ghcr.io/kairos-io/kairos/kairos-init:pr-<N>) pass KAIROS_INIT_IMAGE
+# directly; everyone else keeps passing KAIROS_INIT (or lets its default
+# take effect) and the default of KAIROS_INIT_IMAGE composes the two.
+ARG KAIROS_INIT=v0.17.3
+ARG KAIROS_INIT_IMAGE=quay.io/kairos/kairos-init:${KAIROS_INIT}
 
-FROM quay.io/kairos/kairos-init:${KAIROS_INIT} AS kairos-init
+FROM ${KAIROS_INIT_IMAGE} AS kairos-init
 
 FROM ${BASE_IMAGE} AS base-kairos
 ARG MODEL=generic

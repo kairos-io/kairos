@@ -1,0 +1,31 @@
+name: Lint
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: ci-lint-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+permissions:
+  # Required: allow read access to the content for analysis.
+  contents: read
+  # Optional: allow read access to pull request. Use with `only-new-issues` option.
+  pull-requests: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Golangci-lint
+        uses: golangci/golangci-lint-action@v9.3.0
+        with:
+          version: latest
+          only-new-issues: true

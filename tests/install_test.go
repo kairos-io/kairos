@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/spectrocloud/peg/matcher"
@@ -123,6 +124,42 @@ bundles:
 			}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("peerguard"))
 
 			stateAssertVM(vm, "persistent.found", "true")
+
+			By("Checking the multi-call binary layout", func() {
+				out, err := vm.Sudo("test -f /usr/bin/kairos && ! test -L /usr/bin/kairos && echo ok")
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(out).To(ContainSubstring("ok"), "/usr/bin/kairos should be a real file, not a symlink")
+
+				for _, link := range []string{
+					"/usr/bin/kairos-agent",
+					"/usr/bin/immucore",
+					"/system/discovery/kcrypt-discovery-challenger",
+				} {
+					// peg's Sudo merges the session's stdout and stderr into
+					// a single buffer (stdout copied first, then stderr), and
+					// the stderr side picks up unrelated diagnostics from
+					// `sudo /bin/sh` itself -- notably Ubuntu's default
+					// "unable to resolve host <hostname>" warning when the
+					// installed hostname isn't in /etc/hosts. That warning
+					// is emitted by sudo before /bin/sh ever runs, so
+					// redirecting readlink's own stderr does not silence it.
+					// Match against the first line of the buffer instead of
+					// the whole thing: readlink prints exactly one line
+					// (the resolved path) to stdout, and stdout is copied
+					// before stderr, so line 1 is always the answer.
+					out, err := vm.Sudo(fmt.Sprintf("readlink -f %s", link))
+					Expect(err).ToNot(HaveOccurred(), out)
+					first := strings.SplitN(strings.TrimSpace(out), "\n", 2)[0]
+					Expect(strings.TrimSpace(first)).To(Equal("/usr/bin/kairos"),
+						"expected %s to resolve to /usr/bin/kairos, got %q", link, out)
+					// And confirm it is a symlink, not a real duplicate.
+					out, err = vm.Sudo(fmt.Sprintf("test -L %s && echo symlink", link))
+					Expect(err).ToNot(HaveOccurred(), out)
+					Expect(out).To(ContainSubstring("symlink"),
+						"%s should be a symlink to /usr/bin/kairos", link)
+				}
+			})
+
 			By("Checking install/recovery services are disabled", func() {
 				if !isFlavor(vm, "alpine") {
 					for _, service := range []string{"kairos-interactive", "kairos-recovery"} {

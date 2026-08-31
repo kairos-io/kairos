@@ -1,0 +1,57 @@
+name: "Start recovery on tty1"
+stages:
+  initramfs:
+    - name: "Starts kairos-recovery and generate a temporary pass"
+      if: |
+        grep -q "kairos.remote_recovery_mode" /proc/cmdline
+      only_service_manager: "systemd"
+      files:
+        - path: /etc/systemd/system/kairos-recovery.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=kairos recovery
+            After=multi-user.target
+            [Service]
+            Type=simple
+            StandardInput=tty
+            StandardOutput=tty
+            LimitNOFILE=49152
+            ExecStartPre=-/bin/sh -c "dmesg -D"
+            # This source explains why we are using this number
+            # https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes/a3327deff89d2428d48596ce0e643531f9944f99
+            ExecStartPre=-/bin/sh -c "sysctl -w net.core.rmem_max=7500000"
+            # Stop systemd messages on tty
+            ExecStartPre=-/usr/bin/kill -SIGRTMIN+21 1
+            TTYPath=/dev/tty1
+            RemainAfterExit=yes
+            ExecStart=/usr/bin/kairos-agent recovery
+            # Start systemd messages on tty
+            ExecStartPost=-/usr/bin/kill -SIGRTMIN+20 1
+            [Install]
+            WantedBy=multi-user.target
+      commands:
+        - systemctl disable getty@tty1
+        - systemctl stop getty@tty1
+        - systemctl mask getty@tty1
+        - systemctl enable kairos-recovery
+    - name: "Starts kairos-recovery for openRC based systems"
+      if: grep -q "kairos.remote_recovery_mode" /proc/cmdline
+      only_service_manager: "openrc"
+      commands:
+        - sed -i -e 's/tty1.*//g' /etc/inittab
+        - echo "tty1::respawn:/usr/bin/kairos-agent recovery tty1" >> /etc/inittab
+  boot:
+    - name: "Recovery"
+      if: '[ -f "/run/cos/recovery_mode" ]'
+      hostname: "cos-recovery"
+      commands:
+        - |
+          . /etc/os-release
+          [ -f "/etc/kairos-release" ] && . /etc/kairos-release
+          echo >> /etc/issue
+          echo "You are booting from recovery mode. Run 'kairos-agent reset' to reset the system to $VERSION" >> /etc/issue
+          echo " or 'kairos-agent upgrade' to upgrade the active partition" >> /etc/issue
+          echo >> /etc/issue

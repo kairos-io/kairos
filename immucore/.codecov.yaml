@@ -1,0 +1,17 @@
+github_checks:
+  annotations: false
+coverage:
+  status:
+    project:
+      default: false
+      internal:
+        paths:
+         - "internal/"
+        target: 75%
+        informational: true
+      pkg:
+        paths:
+          - "pkg/"
+        target: 70%
+        informational: true
+    patch: false

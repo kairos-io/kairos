@@ -1,0 +1,2 @@
+cloud-init-paths:
+- "some/other/path"

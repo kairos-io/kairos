@@ -1,0 +1,51 @@
+iso:
+  rootfs:
+    - channel:system/cos
+  uefi:
+    - channel:live/grub2-efi-image
+  image:
+    - channel:recovery/cos-img
+  label: "LIVE_LABEL"
+
+# Raw disk creation values start
+
+
+raw_disk:
+  x86_64:
+    repositories:
+     - uri: quay.io/some/repo
+    # which packages to install and the target to install them at
+    packages:
+      - name: system/myos
+        target: efi
+  aarch64:
+    repositories:
+     - uri: quay.io/costoolkit/releases-green-arm64
+    packages:
+      - name: system/grub2-efi-image
+        target: efi
+      - name: system/grub2-elementalConfig
+        target: root
+      - name: system/grub2-artifacts
+        target: root/grub2
+      - name: recovery/cos-img
+        target: root/cOS
+  odroid_c2:
+    repositories:
+     - uri: quay.io/costoolkit/releases-green-arm64
+    packages:
+      - name: system/grub2-efi-image
+        target: efi
+      - name: system/grub2-elementalConfig
+        target: root
+      - name: system/grub2-artifacts
+        target: root/grub2
+
+
+# Raw disk creation values end
+
+repositories:
+- uri: registry.org/my/repo
+
+name: "cOS-0"
+date: true

@@ -1,0 +1,37 @@
+name: "Nvidia Jetson QSPI firmware check"
+# The same self-gating check runs on both install and upgrade. The script reads
+# the board's current firmware from the ESRT, compares it to the capsule version
+# baked into this image, then: no-ops when they already match, stages a UEFI
+# capsule update when the image is newer, or aborts when the board is newer (a
+# downgrade guard). Because it self-gates on the version comparison, running it
+# on every upgrade is safe - and it is what keeps QSPI firmware in step with OCI
+# image upgrades. Without the after-upgrade-chroot stage a newer image would ship
+# a newer bootloader capsule that nothing ever stages, and the board would keep
+# booting old firmware into a version mismatch.
+stages:
+  after-install-chroot:
+    - name: "Check and stage QSPI firmware update"
+      # Only check that the script is present. Board detection (Thor vs. not)
+      # deliberately lives solely inside the script itself, which fails closed
+      # (aborts) when it cannot read the SoC compatible string, rather than
+      # skipping silently. Duplicating that check here would let an unreadable
+      # compatible file silently skip this stage before the script's own
+      # fail-closed logic ever runs - the exact bug this feature was fixed to
+      # no longer have.
+      if: |
+        [ -x "/usr/sbin/kairos-jetson-qspi-update" ]
+      commands:
+        - /usr/sbin/kairos-jetson-qspi-update
+  # Also run after an OCI upgrade: a newer image can carry a newer bootloader
+  # capsule, and the after-install hook never fires on upgrades. Same script,
+  # same fail-closed/self-gating behaviour - the step is kept literally identical
+  # (not a YAML anchor) so every consumer and the substring tests see the real
+  # command under both stages. Note: kairos-agent runs this hook in strict mode,
+  # so a genuine staging failure - or a board newer than the image - aborts the
+  # upgrade, matching the install path.
+  after-upgrade-chroot:
+    - name: "Check and stage QSPI firmware update"
+      if: |
+        [ -x "/usr/sbin/kairos-jetson-qspi-update" ]
+      commands:
+        - /usr/sbin/kairos-jetson-qspi-update

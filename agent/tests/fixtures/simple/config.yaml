@@ -1,0 +1,19 @@
+cosign: true
+verify: true
+
+install:
+  grub-entry-name: "mockme"
+  system:
+    size: 2000
+  recovery-system:
+    size: 2000
+upgrade:
+  grub-entry-name: "so"
+  recovery-system:
+    size: 2000
+  system:
+    size: 2000
+reset:
+  grub-entry-name: "awesome"
+  system:
+    size: 2000

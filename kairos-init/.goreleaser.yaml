@@ -1,0 +1,31 @@
+version: 2
+
+project_name: kairos-init
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - env:
+      - CGO_ENABLED=0
+      - ARCH={{ .Arch }}
+      # UPX does not reliably support riscv64 ELFs; match release Docker build (SKIP_UPX=1).
+      - >-
+        {{- if eq .Arch "riscv64" }}SKIP_UPX=1{{- end }}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - riscv64
+    hooks:
+      pre:
+        - make
+    ldflags:
+      - -w -s -X "github.com/kairos-io/kairos-init/pkg/values.version={{.Tag}}" -X "github.com/kairos-io/kairos-init/pkg/values.gitCommit={{.ShortCommit}}"
+    binary: '{{ .ProjectName }}'
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"

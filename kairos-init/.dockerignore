@@ -1,0 +1,2 @@
+# Bundled binaries are downloaded during docker build (make all); never copy host copies.
+pkg/bundled/binaries/

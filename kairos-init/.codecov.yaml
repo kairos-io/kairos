@@ -1,0 +1,12 @@
+github_checks:
+  annotations: false
+coverage:
+  status:
+    project:
+      default: false
+      pkg:
+        paths:
+          - "pkg/"
+        target: 60%
+        informational: true
+    patch: false
