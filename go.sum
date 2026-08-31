@@ -475,14 +475,6 @@ github.com/jtolds/gls v4.20.0+incompatible h1:xdiiI2gbIgH/gLH7ADydsJ1uDOEzR8yvV7
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/kairos-io/go-nodepair v0.3.0 h1:JIMBAtbNhIAsx89aP61mQDGMuGFoIQH/woK2tMDYD6k=
 github.com/kairos-io/go-nodepair v0.3.0/go.mod h1:7i905W/KmR9DAcMSVJr/Wdb84E5Yyu9YLgj7chwX1xs=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260825070803-b5e8809b4aee h1:GpnFNe13rdQtqYM4zY3BrnKSdFeby/CgBjRlPs9tBkc=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260825070803-b5e8809b4aee/go.mod h1:N5mjp1KKLrwrps0bwfOEGrOkuJ5+yAK5KgkmW2NUOKY=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260825132624-2ea88af10d3f h1:PUw/t0htGLdSj0A7ehOHUBgDgCrvcMiy73jcf3KDSnM=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260825132624-2ea88af10d3f/go.mod h1:N5mjp1KKLrwrps0bwfOEGrOkuJ5+yAK5KgkmW2NUOKY=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260826140743-cb61a33404dc h1:cYEr9fpX/+RUShEN2/a8wCoV1Fgc1MUYKR0QbzP32M8=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260826140743-cb61a33404dc/go.mod h1:AfkACG/aRgDEmWnftOpwjXlpowLI7DkDb0sukJuwKdA=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260827091931-775040008703 h1:Up1hniGrnVoBGjqLfCWjB9s+zwG5YpHBYEufPVv6dIo=
-github.com/kairos-io/kairos/v4 v4.2.1-0.20260827091931-775040008703/go.mod h1:AfkACG/aRgDEmWnftOpwjXlpowLI7DkDb0sukJuwKdA=
 github.com/kairos-io/kairos/v4 v4.2.1-0.20260828082842-a3619b06ea86 h1:qTiIcHT5O5CSE/O4VyeQ+MJctXQP9sEXunHBOyD3tiA=
 github.com/kairos-io/kairos/v4 v4.2.1-0.20260828082842-a3619b06ea86/go.mod h1:AfkACG/aRgDEmWnftOpwjXlpowLI7DkDb0sukJuwKdA=
 github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 h1:YOp8St+CM/AQ9Vp4XYm4272E77MptJDHkwypQHIRl9Q=
@@ -682,8 +674,6 @@ github.com/onsi/ginkgo/v2 v2.32.1/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/onsi/gomega v1.10.3/go.mod h1:V9xEwhxec5O8UDM77eCW8vLymOMltsqPVYWrpDsH8xc=
-github.com/onsi/gomega v1.42.1 h1:iN1rCUX+44NZ1Dc97MPoeFYbFR0vh8zxoxMFwKdyZ6I=
-github.com/onsi/gomega v1.42.1/go.mod h1:REff/hsDsodHoKlWsP2mAPhu1+5/6hVYNf9rIEBpeSg=
 github.com/onsi/gomega v1.43.0 h1:VlG/1FxqNxhSO+lq/OHBNaaqwiBK/mO8JbVkX9Y+FeU=
 github.com/onsi/gomega v1.43.0/go.mod h1:REff/hsDsodHoKlWsP2mAPhu1+5/6hVYNf9rIEBpeSg=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=

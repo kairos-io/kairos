@@ -26,7 +26,11 @@ var networkAPI = []cli.Flag{
 		Name: "api",
 		Usage: "Edgevpn API endpoint. Accepts a TCP URL (e.g. http://127.0.0.1:8080) " +
 			"or a unix socket path with the 'unix://' prefix (e.g. unix:///run/edgevpn.sock). " +
-			"Match this to whatever the local edgevpn daemon's APILISTEN is set to.",
+			"Defaults to whatever the local edgevpn daemon was configured to listen on, " +
+			"so it normally needs no setting.",
+		// Placeholder only. applyAPIDefault replaces this at startup with the
+		// address the local daemon was actually given, so the two ends cannot
+		// drift apart. It stands alone when there is no daemon configured yet.
 		Value:   provider.DefaultEdgeVPNAPIAddress,
 		EnvVars: []string{"EDGEVPN_API"},
 	},
@@ -36,6 +40,33 @@ var networkAPI = []cli.Flag{
 		Usage:   "Kubernetes Network Deployment ID",
 		EnvVars: []string{"EDGEVPN_NETWORK_ID"},
 	},
+}
+
+// setAPIFlagDefault points the shared --api flag at address. That flag is a
+// single instance reused by every command which talks to the API, so setting it
+// here covers all of them.
+func setAPIFlagDefault(address string) {
+	for _, f := range networkAPI {
+		if sf, ok := f.(*cli.StringFlag); ok && sf.Name == "api" {
+			sf.Value = address
+		}
+	}
+}
+
+// applyAPIDefault makes the --api default follow the address the local edgevpn
+// daemon was actually configured to listen on, read out of the env file the
+// provider writes for the daemon's systemd unit.
+//
+// Without this, the daemon's address and the client's default are two separate
+// decisions that work only while they happen to coincide. They stop coinciding
+// as soon as anything passes an explicit address to the agent at bootstrap, and
+// the failure is silent: the client queries an address nothing is listening on
+// and prints an empty answer.
+//
+// This moves the default only. An explicit --api, or EDGEVPN_API in the
+// environment, still wins, because urfave/cli prefers both over a flag's value.
+func applyAPIDefault(envFile string) {
+	setAPIFlagDefault(provider.ResolveAPIAddress(envFile))
 }
 
 const recoveryAddr = "127.0.0.1:2222"
@@ -114,6 +145,10 @@ func printVersion() {
 
 func Start() error {
 	toolName := "kairos"
+
+	// Do this before the app parses anything, so --help shows the address the
+	// commands will really use rather than a default they may not use.
+	applyAPIDefault(provider.EdgeVPNEnvFile)
 
 	cli.VersionPrinter = func(_ *cli.Context) {
 		printVersion()

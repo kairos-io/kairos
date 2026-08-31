@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/joho/godotenv"
+
 	"github.com/kairos-io/provider-kairos/v2/internal/provider/assets"
 
 	"github.com/kairos-io/kairos/v4/sdk/machine"
@@ -19,7 +21,55 @@ const (
 	enabledValue                = "true"
 	DefaultEdgeVPNAPIAddress    = "unix:///run/edgevpn-kairos.sock"
 	DefaultEdgeVPNAPISocketMode = "0600"
+
+	// EdgeVPNEnvFile is where SetupAPI and SetupVPN record the edgevpn
+	// daemon's settings for its systemd unit. It is the only place that
+	// knows which address the daemon was actually told to listen on.
+	EdgeVPNEnvFile = "/etc/systemd/system.conf.d/edgevpn-kairos.env"
 )
+
+// ResolveAPIAddress returns the address a client should use to reach the local
+// edgevpn API, taken from the APILISTEN the daemon was configured with.
+//
+// The daemon's address is decided at bootstrap time from whatever the agent
+// passes, so it can differ from this package's default. A client that assumes
+// the default then talks to an address nothing is listening on, and because the
+// API client's errors are easy to drop, that looks like an empty answer rather
+// than a failure. Reading back what the daemon was given keeps both ends on one
+// address instead of two that have to agree by coincidence.
+//
+// Falls back to DefaultEdgeVPNAPIAddress when the file is missing or carries no
+// APILISTEN, which is the state of a node that has not bootstrapped yet.
+func ResolveAPIAddress(envFile string) string {
+	env, err := godotenv.Read(envFile)
+	if err != nil {
+		return DefaultEdgeVPNAPIAddress
+	}
+
+	listen := strings.TrimSpace(env["APILISTEN"])
+	if listen == "" {
+		return DefaultEdgeVPNAPIAddress
+	}
+
+	return clientAddressForListener(listen)
+}
+
+// clientAddressForListener turns an APILISTEN value into something the API
+// client can dial. normalizeAPIAddress strips the scheme before the value is
+// written, but the client builds request URLs by concatenating host and path,
+// so a bare host:port has to get its scheme back or the URL will not parse.
+// Unix socket addresses keep their unix:// prefix, which the client looks for
+// to swap in a socket transport.
+func clientAddressForListener(listen string) string {
+	switch {
+	case strings.HasPrefix(listen, "unix://"),
+		strings.HasPrefix(listen, "http://"),
+		strings.HasPrefix(listen, "https://"):
+		return listen
+	default:
+		return "http://" + listen
+	}
+}
 
 func normalizeAPIAddress(apiAddress string) string {
 	if apiAddress == "" {
@@ -66,7 +116,7 @@ func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) 
 
 	os.MkdirAll("/etc/systemd/system.conf.d/", 0600) //nolint:errcheck
 	// Setup edgevpn instance
-	err = utils.WriteEnv(filepath.Join(rootDir, "/etc/systemd/system.conf.d/edgevpn-kairos.env"), vpnOpts)
+	err = utils.WriteEnv(filepath.Join(rootDir, EdgeVPNEnvFile), vpnOpts)
 	if err != nil {
 		return fmt.Errorf("could not create write env file: %w", err)
 	}
@@ -135,7 +185,7 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 
 	os.MkdirAll("/etc/systemd/system.conf.d/", 0600) //nolint:errcheck
 	// Setup edgevpn instance
-	err = utils.WriteEnv(filepath.Join(rootDir, "/etc/systemd/system.conf.d/edgevpn-kairos.env"), vpnOpts)
+	err = utils.WriteEnv(filepath.Join(rootDir, EdgeVPNEnvFile), vpnOpts)
 	if err != nil {
 		return fmt.Errorf("could not create write env file: %w", err)
 	}
