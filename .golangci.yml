@@ -47,6 +47,7 @@ linters:
       - path: kairos-init/pkg/values/packagemaps\.go
         linters:
           - goconst
+          - dupl
 formatters:
   enable:
     - gofmt
