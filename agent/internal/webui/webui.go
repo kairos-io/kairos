@@ -195,11 +195,6 @@ func formatLogLine(line string) string {
 	return ansiToHTML(line)
 }
 
-// stripANSI removes ANSI escape codes (used for parsing only)
-func stripANSI(s string) string {
-	return ansiRegex.ReplaceAllString(s, "")
-}
-
 func streamProcess(s *state) func(c *echo.Context) error {
 	return func(c *echo.Context) error {
 		consumeError := func(err error) {
