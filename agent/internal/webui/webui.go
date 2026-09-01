@@ -131,7 +131,10 @@ func ansiToHTML(s string) string {
 				code = "0"
 			}
 			var codeNum int
-			fmt.Sscanf(code, "%d", &codeNum)
+			// Best-effort: on a parse failure codeNum stays at 0 which
+			// hits the "Reset" case below, matching how a malformed
+			// ANSI escape is treated.
+			_, _ = fmt.Sscanf(code, "%d", &codeNum)
 
 			switch {
 			case codeNum == 0:

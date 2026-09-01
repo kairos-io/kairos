@@ -472,7 +472,7 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 					e.config.Logger.Errorf("Failed to create temporary directory: %v", err)
 					return nil, fmt.Errorf("failed to create temporary directory: %w", err)
 				}
-				defer e.config.Fs.RemoveAll(tmpDir)
+				defer func() { _ = e.config.Fs.RemoveAll(tmpDir) }()
 
 				// Extract the tar file to the temporary directory
 				e.config.Logger.Infof("Extracting tar file to temporary directory: %s", tmpDir)
