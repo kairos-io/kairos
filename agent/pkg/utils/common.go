@@ -631,7 +631,7 @@ func CheckFailedInstallation(stateFile string) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		return true, fmt.Errorf("Installation failed: %s", string(content))
+		return true, fmt.Errorf("installation failed: %s", string(content))
 	}
 	return false, nil
 }
