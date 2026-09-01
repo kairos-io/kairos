@@ -33,7 +33,7 @@ jobs:
       id-token: write
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
           # workflow_run's default checkout context is this repo's default
@@ -46,13 +46,13 @@ jobs:
       # https://github.com/google-github-actions/auth/blob/main/docs/EXAMPLES.md#service-account-key-json
       - id: "auth"
         name: "Authenticate to GCP"
-        uses: 'google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093' # v3
+        uses: 'google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093'  # v3
         with:
           create_credentials_file: true
           workload_identity_provider: 'projects/908384205599/locations/global/workloadIdentityPools/github/providers/kairos'
           service_account: 'github-service-account@palette-kairos.iam.gserviceaccount.com'
       - name: 'Set up Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db' # v3
+        uses: 'google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db'  # v3
       - name: Install deps
         run: |
           sudo apt update && sudo apt install -y qemu-utils gdisk
@@ -130,7 +130,7 @@ jobs:
       id-token: write
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
@@ -138,7 +138,7 @@ jobs:
           git fetch --prune --unshallow
       # https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#assumerole-with-static-iam-credentials-in-repository-secrets
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c  # v6
         with:
           audience: sts.amazonaws.com
           aws-region: eu-central-1
@@ -202,7 +202,7 @@ jobs:
       shouldBuild: ${{ steps.checkPushed.outputs.shouldBuild }}
     steps:
       - name: "Checkout code"
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
@@ -267,7 +267,7 @@ jobs:
               --set "state_dir=/aurora"
 
       - name: Azure CLI script
-        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3
+        uses: azure/cli@9eb25b8360668fb0ecbafa808d40e2197b2f5f52  # v3
         if: ${{ steps.checkPushed.outputs.shouldBuild == 'true' }}
         env:
           GCP_PROJECT: palette-kairos
