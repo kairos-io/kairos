@@ -537,10 +537,7 @@ func FindCommand(fs sdkFs.KairosFS, defaultPath string, options []string) string
 // IsUki returns true if the system is running in UKI mode. Checks the cmdline as UKI artifacts have the rd.immucore.uki flag
 func IsUki() bool {
 	cmdline, _ := os.ReadFile("/proc/cmdline")
-	if strings.Contains(string(cmdline), "rd.immucore.uki") {
-		return true
-	}
-	return false
+	return strings.Contains(string(cmdline), "rd.immucore.uki")
 }
 
 // IsUkiWithFs checks if the system is running in UKI mode
@@ -548,10 +545,7 @@ func IsUki() bool {
 // Uses a sdkFs.KairosFS interface to allow for testing
 func IsUkiWithFs(fs sdkFs.KairosFS) bool {
 	cmdline, _ := fs.ReadFile("/proc/cmdline")
-	if strings.Contains(string(cmdline), "rd.immucore.uki") {
-		return true
-	}
-	return false
+	return strings.Contains(string(cmdline), "rd.immucore.uki")
 }
 
 const (
