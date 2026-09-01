@@ -76,7 +76,7 @@ func (c *Chroot) Prepare() error {
 	mountOptions := []string{"bind"}
 
 	if len(c.activeMounts) > 0 {
-		return errors.New("There are already active mountpoints for this instance")
+		return errors.New("there are already active mountpoints for this instance")
 	}
 
 	defer func() {
