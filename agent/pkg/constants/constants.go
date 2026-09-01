@@ -115,7 +115,16 @@ const (
 	RecoveryBootSuffix   = " recovery"
 	StateResetBootSuffix = " state reset (auto)"
 
-	// Error
+	// Boot state slugs used by the sysext/confext CLI to identify which
+	// boot entry to touch, and by boot-entry parsing for grub / systemd-boot
+	// entry file prefixes. Keep the strings stable; grub, systemd-boot and
+	// existing installations all key on these names.
+	BootActive   = "active"
+	BootPassive  = "passive"
+	BootRecovery = "recovery"
+	BootCommon   = "common"
+
+	// Error.
 	UpgradeNoSourceError           = "could not find a proper source for the upgrade.\nThis can be configured in the cloud config files under the 'upgrade.system.uri' key or via cmdline using the '--source' flag"
 	UpgradeRecoveryNoSourceError   = "could not find a proper source for the recovery upgrade.\nThis can be configured in the cloud config files under the 'upgrade.recovery-system.uri' key or via cmdline using the '--source' flag"
 	MultipleEntriesAssessmentError = "multiple boot entries found for %s"
@@ -136,7 +145,7 @@ func GetCloudInitPaths() []string {
 	return []string{"/system/oem", "/oem/", "/usr/local/cloud-config/"}
 }
 
-// GetDefaultSquashfsOptions returns the default options to use when creating a squashfs
+// GetDefaultSquashfsOptions returns the default options to use when creating a squashfs.
 func GetDefaultSquashfsOptions() []string {
 	return []string{"-b", "1024k"}
 }
@@ -156,7 +165,7 @@ func GetFallBackEfi(arch string) string {
 	}
 }
 
-// GetGrubFonts returns the default font files for grub
+// GetGrubFonts returns the default font files for grub.
 func GetGrubFonts() []string {
 	return []string{"ascii.pf2", "euro.pf2", "unicode.pf2"}
 }

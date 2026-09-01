@@ -109,7 +109,7 @@ var cmds = []*cli.Command{
 			},
 			&sourceFlag,
 			&cli.StringFlag{Name: "boot-entry", Usage: "Specify a systemd-boot entry to upgrade (other than active/passive/recovery). The value should match the name of the '.efi' file."},
-			&cli.BoolFlag{Name: "recovery", Usage: "Upgrade recovery"},
+			&cli.BoolFlag{Name: constants.BootRecovery, Usage: "Upgrade recovery"},
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
 		},
@@ -239,12 +239,12 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				source = fmt.Sprintf("oci:%s", v)
 			}
 
-			if c.Bool("recovery") && c.String("boot-entry") != "" {
+			if c.Bool(constants.BootRecovery) && c.String("boot-entry") != "" {
 				return fmt.Errorf("only one of '--recovery' and '--boot-entry' can be set")
 			}
 
 			upgradeEntry := ""
-			if c.Bool("recovery") {
+			if c.Bool(constants.BootRecovery) {
 				upgradeEntry = constants.BootEntryRecovery
 			} else if c.String("boot-entry") != "" {
 				upgradeEntry = c.String("boot-entry")
@@ -624,7 +624,7 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		},
 	},
 	{
-		Name:    "recovery",
+		Name:    constants.BootRecovery,
 		Aliases: []string{"r"},
 		Action: func(c *cli.Context) error {
 			return agent.Recovery()
@@ -1276,24 +1276,24 @@ func sysextConfextCommands() []*cli.Command {
 			Description: "List all the installed extensions",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
-					Name:  "active",
+					Name:  constants.BootActive,
 					Usage: "List the extensions for the active boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "passive",
+					Name:  constants.BootPassive,
 					Usage: "List the extensions for the passive boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "recovery",
+					Name:  constants.BootRecovery,
 					Usage: "List the extensions for the recovery boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "common",
+					Name:  constants.BootCommon,
 					Usage: "List the extensions for the common boot entry (applies to all boot states)",
 				},
 			},
 			Before: func(c *cli.Context) error {
-				if moreThanOneEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
 				}
 
@@ -1310,10 +1310,10 @@ func sysextConfextCommands() []*cli.Command {
 				var bootState string
 
 				for k, v := range map[string]bool{
-					"active":   c.Bool("active"),
-					"passive":  c.Bool("passive"),
-					"recovery": c.Bool("recovery"),
-					"common":   c.Bool("common"),
+					constants.BootActive:   c.Bool(constants.BootActive),
+					constants.BootPassive:  c.Bool(constants.BootPassive),
+					constants.BootRecovery: c.Bool(constants.BootRecovery),
+					constants.BootCommon:   c.Bool(constants.BootCommon),
 				} {
 					if v {
 						bootState = k
@@ -1343,19 +1343,19 @@ func sysextConfextCommands() []*cli.Command {
 			Description: "Enable a system extension for a given boot entry (active or passive)",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
-					Name:  "active",
+					Name:  constants.BootActive,
 					Usage: "Enable the system extension for the active boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "passive",
+					Name:  constants.BootPassive,
 					Usage: "Enable the system extension for the passive boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "recovery",
+					Name:  constants.BootRecovery,
 					Usage: "List the system extensions for the recovery boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "common",
+					Name:  constants.BootCommon,
 					Usage: "List the system extensions for the common boot entry (applies to all boot states)",
 				},
 				&cli.BoolFlag{
@@ -1368,11 +1368,11 @@ func sysextConfextCommands() []*cli.Command {
 					return fmt.Errorf("extension name required")
 				}
 
-				if moreThanOneEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
 				}
 
-				if noneOfEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if noneOfEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
 				}
 
@@ -1388,10 +1388,10 @@ func sysextConfextCommands() []*cli.Command {
 				}
 				var bootState string
 				for k, v := range map[string]bool{
-					"active":   c.Bool("active"),
-					"passive":  c.Bool("passive"),
-					"recovery": c.Bool("recovery"),
-					"common":   c.Bool("common"),
+					constants.BootActive:   c.Bool(constants.BootActive),
+					constants.BootPassive:  c.Bool(constants.BootPassive),
+					constants.BootRecovery: c.Bool(constants.BootRecovery),
+					constants.BootCommon:   c.Bool(constants.BootCommon),
 				} {
 					if v {
 						bootState = k
@@ -1416,19 +1416,19 @@ func sysextConfextCommands() []*cli.Command {
 			Description: "Disable a system extension for a given boot entry (active or passive)",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
-					Name:  "active",
+					Name:  constants.BootActive,
 					Usage: "Disable the system extension for the active boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "passive",
+					Name:  constants.BootPassive,
 					Usage: "Disable the system extension for the passive boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "recovery",
+					Name:  constants.BootRecovery,
 					Usage: "List the system extensions for the recovery boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "common",
+					Name:  constants.BootCommon,
 					Usage: "List the system extensions for the common boot entry (applies to all boot states)",
 				},
 				&cli.BoolFlag{
@@ -1441,11 +1441,11 @@ func sysextConfextCommands() []*cli.Command {
 					return fmt.Errorf("extension name required")
 				}
 
-				if moreThanOneEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
 				}
 
-				if noneOfEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if noneOfEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
 				}
 				if err := checkRoot(); err != nil {
@@ -1460,10 +1460,10 @@ func sysextConfextCommands() []*cli.Command {
 				}
 				var bootState string
 				for k, v := range map[string]bool{
-					"active":   c.Bool("active"),
-					"passive":  c.Bool("passive"),
-					"recovery": c.Bool("recovery"),
-					"common":   c.Bool("common"),
+					constants.BootActive:   c.Bool(constants.BootActive),
+					constants.BootPassive:  c.Bool(constants.BootPassive),
+					constants.BootRecovery: c.Bool(constants.BootRecovery),
+					constants.BootCommon:   c.Bool(constants.BootCommon),
 				} {
 					if v {
 						bootState = k
