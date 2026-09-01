@@ -54,6 +54,19 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.ref }}
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+      - name: embed stubs
+        # kairos-init/pkg/bundled/bundled.go uses //go:embed
+        # binaries/*, and bundled_fips.go uses //go:embed
+        # binaries/fips/*. Typechecking the package -- which
+        # golangci-lint does when loading /work -- requires those
+        # files to exist. The repo does not ship the real binaries
+        # (make binaries downloads them at build time), so create
+        # empty placeholders so the embed directives resolve. The
+        # Makefile guards this with `test -e || touch` so it is a
+        # no-op when a preceding real `make binaries` populated
+        # the tree.
+        shell: bash
+        run: make kairos-init-embed-stubs
       - name: golangci-lint
         env:
           GOLANGCILINT_VERSION: latest-alpine
