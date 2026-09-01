@@ -207,8 +207,8 @@ func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 
 	// Check that entry exists in the entries list
 	err = entryInList(cfg, entry, entries)
-	// we also accept "active" as a selection so we can migrate eventually from cos
-	if err != nil && !strings.HasPrefix(entry, "active") {
+	// we also accept cnst.BootActive as a selection so we can migrate eventually from cos
+	if err != nil && !strings.HasPrefix(entry, cnst.BootActive) {
 		return err
 	}
 
@@ -232,7 +232,7 @@ func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 	originalEntry := entry
 	if !reflect.DeepEqual(originalEntries, entries) {
 		// since we temporarily allow also active, here we need to first set entry to "cos" so it will match with the originalEntries
-		if strings.HasPrefix(entry, "active") {
+		if strings.HasPrefix(entry, cnst.BootActive) {
 			entry = "cos"
 		}
 		for _, e := range originalEntries {
@@ -427,9 +427,9 @@ func systemdConfToBootName(conf string) (string, error) {
 	re := regexp.MustCompile(`\+\d+(-\d+)?$`)
 	fileName = re.ReplaceAllString(fileName, "")
 
-	if strings.HasPrefix(fileName, "active") {
+	if strings.HasPrefix(fileName, cnst.BootActive) {
 		bootName := "cos"
-		confName := strings.TrimPrefix(fileName, "active")
+		confName := strings.TrimPrefix(fileName, cnst.BootActive)
 
 		if confName != "" {
 			bootName = bootName + " " + strings.Trim(confName, "_")
@@ -438,9 +438,9 @@ func systemdConfToBootName(conf string) (string, error) {
 		return bootName, nil
 	}
 
-	if strings.HasPrefix(fileName, "passive") {
+	if strings.HasPrefix(fileName, cnst.BootPassive) {
 		bootName := "fallback"
-		confName := strings.TrimPrefix(fileName, "passive")
+		confName := strings.TrimPrefix(fileName, cnst.BootPassive)
 
 		if confName != "" {
 			bootName = bootName + " " + strings.Trim(confName, "_")
@@ -449,9 +449,9 @@ func systemdConfToBootName(conf string) (string, error) {
 		return bootName, nil
 	}
 
-	if strings.HasPrefix(conf, "recovery") {
-		bootName := "recovery"
-		confName := strings.TrimPrefix(fileName, "recovery")
+	if strings.HasPrefix(conf, cnst.BootRecovery) {
+		bootName := cnst.BootRecovery
+		confName := strings.TrimPrefix(fileName, cnst.BootRecovery)
 
 		if confName != "" {
 			bootName = bootName + " " + strings.Trim(confName, "_")
@@ -483,28 +483,28 @@ func bootNameToSystemdConf(name string) (string, error) {
 		if name != "cos" {
 			differenciator = "_" + strings.TrimPrefix(name, "cos ")
 		}
-		return "active" + differenciator, nil
+		return cnst.BootActive + differenciator, nil
 	}
 
-	if strings.HasPrefix(name, "active") {
-		if name != "active" {
+	if strings.HasPrefix(name, cnst.BootActive) {
+		if name != cnst.BootActive {
 			differenciator = "_" + strings.TrimPrefix(name, "active ")
 		}
-		return "active" + differenciator, nil
+		return cnst.BootActive + differenciator, nil
 	}
 
 	if strings.HasPrefix(name, "fallback") {
 		if name != "fallback" {
 			differenciator = "_" + strings.TrimPrefix(name, "fallback ")
 		}
-		return "passive" + differenciator, nil
+		return cnst.BootPassive + differenciator, nil
 	}
 
-	if strings.HasPrefix(name, "recovery") {
-		if name != "recovery" {
+	if strings.HasPrefix(name, cnst.BootRecovery) {
+		if name != cnst.BootRecovery {
 			differenciator = "_" + strings.TrimPrefix(name, "recovery ")
 		}
-		return "recovery" + differenciator, nil
+		return cnst.BootRecovery + differenciator, nil
 	}
 
 	if strings.HasPrefix(name, "statereset") {

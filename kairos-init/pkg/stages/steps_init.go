@@ -26,6 +26,14 @@ import (
 // stage on systemd being the active init system.
 const serviceManagerSystemd = "systemd"
 
+// Dracut network module names picked up by the pmem/network initramfs
+// branch when installing on RedHat/Fedora-family systems.
+const (
+	dracutModSystemdNetworkd = "systemd-networkd"
+	dracutModSystemdResolved = "systemd-resolved"
+	serviceSSHD              = "sshd"
+)
+
 // GetInitrdStage Returns the initrd stage
 // This stage cleans up any existing initrd files and creates a new one
 // In the case of Trusted boot systems, we dont do anything but remove the initrd files as the initrd is created and
@@ -484,7 +492,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 			Systemctl: schema.Systemctl{
 				Enable: []string{
 					"ssh",
-					"systemd-networkd",
+					dracutModSystemdNetworkd,
 				},
 			},
 		},
@@ -507,9 +515,9 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Enable: []string{
-					"sshd",
-					"systemd-networkd",
-					"systemd-resolved",
+					serviceSSHD,
+					dracutModSystemdNetworkd,
+					dracutModSystemdResolved,
 				},
 			},
 		},
@@ -529,9 +537,9 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Enable: []string{
-					"sshd",
-					"systemd-networkd",
-					"systemd-resolved",
+					serviceSSHD,
+					dracutModSystemdNetworkd,
+					dracutModSystemdResolved,
 				},
 			},
 		},
@@ -546,8 +554,8 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 			},
 			Systemctl: schema.Systemctl{
 				Enable: []string{
-					"sshd",
-					"systemd-resolved",
+					serviceSSHD,
+					dracutModSystemdResolved,
 				},
 				Disable: []string{
 					"dnf-makecache",
@@ -570,8 +578,8 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 			},
 			Systemctl: schema.Systemctl{
 				Enable: []string{
-					"sshd",
-					"systemd-resolved",
+					serviceSSHD,
+					dracutModSystemdResolved,
 					"getty@tty1",
 					"getty@tty2",
 					"getty@tty3",
@@ -592,7 +600,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 			If:                   "test -f /usr/lib/systemd/systemd-networkd",
 			Systemctl: schema.Systemctl{
 				Enable: []string{
-					"systemd-networkd",
+					dracutModSystemdNetworkd,
 				},
 			},
 		},
@@ -631,9 +639,9 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Enable: []string{
-					"sshd",
-					"systemd-networkd",
-					"systemd-resolved",
+					serviceSSHD,
+					dracutModSystemdNetworkd,
+					dracutModSystemdResolved,
 				},
 			},
 		},
@@ -936,7 +944,7 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 				if sis.Distro == values.Fedora {
 					// Do we have systemd-networkd?
 					if _, err := os.Stat("/usr/lib/systemd/systemd-networkd"); err == nil {
-						networkModule = "systemd-networkd"
+						networkModule = dracutModSystemdNetworkd
 						// Systemd resolved modules only make sense if networkd is used alongside
 						// Otherwise other modules provide their own resolvers
 						// Do we have systemd-resolved?

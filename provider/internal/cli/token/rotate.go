@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
-	"github.com/kairos-io/kairos/v4/sdk/collector"
-	"github.com/kairos-io/kairos/v4/sdk/unstructured"
 	"github.com/kairos-io/kairos/v4/provider/internal/provider"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	"github.com/kairos-io/kairos/v4/provider/internal/services"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/unstructured"
 	"gopkg.in/yaml.v3"
 )
 
