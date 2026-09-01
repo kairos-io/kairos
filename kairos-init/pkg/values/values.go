@@ -145,7 +145,7 @@ const (
 	BuildProviderStep    = "buildProvider"    // Builds the provider binaries
 	InitramfsConfigsStep = "initramfsConfigs" // Configures the initramfs for the system
 	MiscellaneousStep    = "miscellaneous"    // Applies miscellaneous configurations
-	SshHardeningStep     = "sshHardening"     // Installs the sshd hardening drop-in and filters weak Diffie-Hellman moduli
+	SSHHardeningStep     = "sshHardening"     // Installs the sshd hardening drop-in and filters weak Diffie-Hellman moduli
 )
 
 // StepsInfo returns a slice of StepInfo containing the steps and their descriptions
@@ -170,7 +170,7 @@ func StepsInfo() []StepInfo {
 		BuildProviderStep:    "builds the provider binaries",
 		InitramfsConfigsStep: "configures the initramfs for the system",
 		MiscellaneousStep:    "applies miscellaneous configurations",
-		SshHardeningStep:     "installs the sshd hardening drop-in",
+		SSHHardeningStep:     "installs the sshd hardening drop-in",
 	}
 	keys := make([]string, 0, len(steps))
 	for k := range steps {
