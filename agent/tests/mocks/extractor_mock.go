@@ -44,10 +44,6 @@ func (f *FakeImageExtractor) GetOCIImageSize(imageRef, platformRef string) (int6
 var _ sdkImages.ImageExtractor = &FakeImageExtractor{}
 
 func NewFakeImageExtractor(logger sdkLogger.KairosLogger) *FakeImageExtractor {
-	l := logger
-	if &l == nil {
-		logger = sdkLogger.NewNullLogger()
-	}
 	return &FakeImageExtractor{
 		Logger: logger,
 	}
