@@ -3,9 +3,9 @@ package role
 import (
 	"errors"
 
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
-	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	service "github.com/mudler/edgevpn/api/client/service"
 )
 

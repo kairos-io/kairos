@@ -110,7 +110,7 @@ const (
 	UkiEfiDir     = "/efi"
 	UkiMaxEntries = 3
 
-	// Boot labeling
+	// Boot labeling.
 	PassiveBootSuffix    = " (fallback)"
 	RecoveryBootSuffix   = " recovery"
 	StateResetBootSuffix = " state reset (auto)"

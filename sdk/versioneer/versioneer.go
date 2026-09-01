@@ -127,7 +127,7 @@ func (a *Artifact) BootableName() (string, error) {
 	}
 
 	if a.Flavor == "" {
-		return "", errors.New("Flavor is empty")
+		return "", errors.New("flavor is empty")
 	}
 
 	return fmt.Sprintf("kairos-%s-%s", a.Flavor, commonName), nil
@@ -139,7 +139,7 @@ func (a *Artifact) Repository(registryAndOrg string) string {
 
 func (a *Artifact) ContainerName(registryAndOrg string) (string, error) {
 	if a.Flavor == "" {
-		return "", errors.New("Flavor is empty")
+		return "", errors.New("flavor is empty")
 	}
 
 	tag, err := a.Tag()
@@ -152,7 +152,7 @@ func (a *Artifact) ContainerName(registryAndOrg string) (string, error) {
 
 func (a *Artifact) BaseContainerName(registryAndOrg, id string) (string, error) {
 	if a.Flavor == "" {
-		return "", errors.New("Flavor is empty")
+		return "", errors.New("flavor is empty")
 	}
 
 	if id == "" {
