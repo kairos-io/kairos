@@ -11,13 +11,12 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 	"github.com/mudler/yip/pkg/schema"
-	yip "github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v3"
 )
 
 type CustomMounts struct{}
 
-func saveCloudConfig(name config.Stage, yc yip.YipConfig) error {
+func saveCloudConfig(name config.Stage, yc schema.YipConfig) error {
 	yipYAML, err := yaml.Marshal(yc)
 	if err != nil {
 		return err
@@ -47,7 +46,7 @@ func (cm CustomMounts) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	mountsList["CUSTOM_BIND_MOUNTS"] = strings.Join(c.Install.BindMounts, " ")
 	mountsList["CUSTOM_EPHEMERAL_MOUNTS"] = strings.Join(c.Install.EphemeralMounts, " ")
 
-	cfg := yip.YipConfig{
+	cfg := schema.YipConfig{
 		Stages: map[string][]schema.Stage{
 			"rootfs": {
 				{

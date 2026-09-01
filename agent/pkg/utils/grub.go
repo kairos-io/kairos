@@ -25,7 +25,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/state"
@@ -187,10 +186,10 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 
 	ttyExists, _ := fsutils.Exists(g.config.Fs, fmt.Sprintf("/dev/%s", tty))
 
-	if ttyExists && tty != "" && tty != "console" && tty != constants.DefaultTty {
+	if ttyExists && tty != "" && tty != "console" && tty != cnst.DefaultTty {
 		// We need to add a tty to the grub file
 		g.config.Logger.Infof("Adding extra tty (%s) to grub.cfg", tty)
-		defConsole := fmt.Sprintf("console=%s", constants.DefaultTty)
+		defConsole := fmt.Sprintf("console=%s", cnst.DefaultTty)
 		finalContent = strings.Replace(string(grubCfg), defConsole, fmt.Sprintf("%s console=%s", defConsole, tty), -1)
 	} else {
 		// We don't add anything, just read the file
@@ -210,7 +209,7 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 		// as they were before. We now use the bundled grub.efi provided by the shim package
 		g.config.Logger.Infof("Generating grub files for efi on %s", target)
 		var foundModules bool
-		for _, m := range constants.GetGrubModules() {
+		for _, m := range cnst.GetGrubModules() {
 			err = fsutils.WalkDirFs(g.config.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
 					return err
@@ -383,7 +382,7 @@ func SetPersistentVariables(grubEnvFile string, vars map[string]string, c *sdkCo
 // rootdir is the dir where to search for the fonts
 // bootdir is the base dir where they will be copied
 func copyGrubFonts(cfg *sdkConfig.Config, rootDir, bootDir, systemgrub string) {
-	for _, m := range constants.GetGrubFonts() {
+	for _, m := range cnst.GetGrubFonts() {
 		var foundFont bool
 		_ = fsutils.WalkDirFs(cfg.Fs, rootDir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -462,9 +461,9 @@ func (g Grub) copyGrub() error {
 
 	grubDone := false
 	for _, f := range grubFiles {
-		_, err := g.config.Fs.Stat(filepath.Join(constants.ActiveDir, f))
+		_, err := g.config.Fs.Stat(filepath.Join(cnst.ActiveDir, f))
 		if err != nil {
-			g.config.Logger.Debugf("skip copying %s: not found", filepath.Join(constants.ActiveDir, f))
+			g.config.Logger.Debugf("skip copying %s: not found", filepath.Join(cnst.ActiveDir, f))
 			continue
 		}
 
@@ -518,12 +517,12 @@ func (g Grub) writeEfiGrubCfg(stateLabel, systemgrub, flavor string) error {
 	// read the kairos-release from the rootfs to know if we are creating a ubuntu based iso
 	if strings.Contains(strings.ToLower(flavor), "ubuntu") {
 		g.config.Logger.Infof("Ubuntu based ISO detected, copying grub.cfg to /EFI/ubuntu/grub.cfg")
-		err = fsutils.MkdirAll(g.config.Fs, filepath.Join(cnst.EfiDir, "EFI/ubuntu/"), constants.DirPerm)
+		err = fsutils.MkdirAll(g.config.Fs, filepath.Join(cnst.EfiDir, "EFI/ubuntu/"), cnst.DirPerm)
 		if err != nil {
 			g.config.Logger.Errorf("Failed writing grub.cfg: %v", err)
 			return err
 		}
-		err = g.config.Fs.WriteFile(filepath.Join(cnst.EfiDir, "EFI/ubuntu/grub.cfg"), grubCfgContent, constants.FilePerm)
+		err = g.config.Fs.WriteFile(filepath.Join(cnst.EfiDir, "EFI/ubuntu/grub.cfg"), grubCfgContent, cnst.FilePerm)
 		if err != nil {
 			g.config.Logger.Errorf("Failed writing grub.cfg: %v", err)
 			return err
