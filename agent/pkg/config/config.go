@@ -133,10 +133,10 @@ func CheckConfigForUsers(c *sdkConfig.Config) (err error) {
 
 		}
 		if !anyAdmin {
-			return fmt.Errorf("No users found in any stage that are part of the 'admin' group.\n" +
-				"In Kairos 3.3.x we no longer ship a default hardcoded user with the system configs and require users to provide their own user." +
-				"Please provide at least 1 user that is part of the 'admin' group(for sudo) with your cloud configs." +
-				"If you still want to continue without creating any users in the system, set 'install.nousers: true' to be in the config in order to allow a system with no users.")
+			return fmt.Errorf("no users found in any stage that are part of the 'admin' group.\n" +
+				"In Kairos 3.3.x we no longer ship a default hardcoded user with the system configs and require users to provide their own user. " +
+				"Please provide at least 1 user that is part of the 'admin' group (for sudo) with your cloud configs. " +
+				"If you still want to continue without creating any users in the system, set 'install.nousers: true' to be in the config in order to allow a system with no users")
 		}
 	}
 	return err

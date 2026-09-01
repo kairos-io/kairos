@@ -89,7 +89,7 @@ func CopyFile(fs sdkFs.KairosFS, source string, target string) (err error) {
 // TODO: Log errors, return errors, whatever but dont ignore them
 func ConcatFiles(fs sdkFs.KairosFS, sources []string, target string) (err error) {
 	if len(sources) == 0 {
-		return fmt.Errorf("Empty sources list")
+		return fmt.Errorf("empty sources list")
 	}
 	if dir, _ := fsutils.IsDir(fs, target); dir {
 		target = filepath.Join(target, filepath.Base(sources[0]))
@@ -485,7 +485,7 @@ func FindFileWithPrefix(fs sdkFs.KairosFS, path string, prefixes ...string) (str
 			}
 		}
 	}
-	return "", fmt.Errorf("No file found with prefixes: %v", prefixes)
+	return "", fmt.Errorf("no file found with prefixes: %v", prefixes)
 }
 
 // CalcFileChecksum opens the given file and returns the sha256 checksum of it.
