@@ -1081,7 +1081,9 @@ func unmarshallFullSpec(r *sdkConfig.Config, subkey string, sp sdkSpec.Spec) err
 		return fmt.Errorf("failed initializing spec: %w", err)
 	}
 	viper.SetConfigType("yaml")
-	viper.ReadConfig(strings.NewReader(ccString))
+	if err := viper.ReadConfig(strings.NewReader(ccString)); err != nil {
+		return fmt.Errorf("parsing cloud-config yaml for %s spec: %w", subkey, err)
+	}
 	vp := viper.Sub(subkey)
 	if vp == nil {
 		vp = viper.New()
