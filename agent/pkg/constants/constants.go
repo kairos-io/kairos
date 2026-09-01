@@ -85,19 +85,19 @@ const (
 	BootEntryRecovery            = "recovery"
 	BootEntryActive              = "cos"
 
-	// SELinux targeted policy paths
+	// SELinux targeted policy paths.
 	SELinuxTargetedPath        = "/etc/selinux/targeted"
 	SELinuxTargetedContextFile = SELinuxTargetedPath + "/contexts/files/file_contexts"
 	SELinuxTargetedPolicyPath  = SELinuxTargetedPath + "/policy"
 
-	// Default directory and file fileModes
+	// Default directory and file fileModes.
 	DirPerm        = os.ModeDir | os.ModePerm
 	FilePerm       = 0666
 	ConfigPerm     = 0640 // Used for config files that contain secrets or other sensitive data
 	NoWriteDirPerm = 0555 | os.ModeDir
 	TempDirPerm    = os.ModePerm | os.ModeSticky | os.ModeDir
 
-	// Eject script
+	// Eject script.
 	EjectScript = "#!/bin/sh\n/usr/bin/eject -rmF"
 
 	ArchAmd64   = "amd64"
