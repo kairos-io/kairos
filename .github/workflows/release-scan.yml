@@ -10,22 +10,18 @@ name: 'Release vulnerability scan'
 # set kairos-init embeds into an image. Nothing here is UPX-compressed, so the
 # module metadata a scanner needs is readable as built.
 #
-# This used to clone the archived kairos-io/kairos-init at the tag pinned in
-# images/Dockerfile and scan the binaries THAT release had downloaded from the
-# archived per-component repos. Once every component moved into this repo, that
-# scanned a bundle we no longer ship: it reported advisories against published
-# binaries that had been replaced, and would have missed advisories in the ones
-# we now build. The findings have to come from this tree or the gate is
-# measuring the wrong artifact.
+# The bundle has to be built from the commit under test. Scanning a published
+# bundle instead reports advisories against binaries other than the ones being
+# shipped, and misses advisories in the ones that are.
 
 # This is a release gate: release.yaml and release-arm.yaml call it via
 # workflow_call, and every publishing job depends on it, so a release with
 # unignored advisories never publishes.
 #
-# The pull_request trigger is scoped to the files that determine the result.
-# Now that the bundle is built here, that is the dependency set itself, the
-# edgevpn pin in the embed script, the ignore list, and this workflow. A PR
-# that changes none of them cannot change the findings.
+# The pull_request trigger is scoped to the files that determine the result:
+# the dependency set, the Makefile targets that build the bundle, the edgevpn
+# pin in the embed script, the ignore list, and this workflow. A PR that
+# changes none of them cannot change the findings.
 on:
   workflow_call:
   workflow_dispatch:
@@ -33,6 +29,7 @@ on:
     paths:
       - 'go.mod'
       - 'go.sum'
+      - 'Makefile'
       - 'scripts/prepare-kairos-init-binaries.sh'
       - 'osv-scanner.toml'
       - '.github/workflows/release-scan.yml'
@@ -121,17 +118,11 @@ jobs:
 
       # osv-scanner compares the stdlib version string verbatim. A binary built
       # with a GOEXPERIMENT reports its version with an "-X:<experiment>"
-      # suffix, for example "1.27.0-X:boringcrypto" on the FIPS binaries or
-      # "1.27.0-X:nodwarf5" on the default ones, and semver orders anything
-      # after a hyphen BELOW the plain version because the suffix reads as a
-      # prerelease. So every stdlib advisory fixed in 1.27.0 still matches,
-      # even though the binary was built from a toolchain that carries the fix.
-      #
-      # The suffix is matched generically rather than as the literal
-      # "boringcrypto" it once was. When this only handled boringcrypto, the
-      # default-variant binaries slipped through the moment their toolchain
-      # started reporting -X:nodwarf5, and stdlib advisories already fixed in
-      # the toolchain we build with failed the gate.
+      # suffix, "1.27.0-X:boringcrypto" on the FIPS binaries or
+      # "1.27.0-X:nodwarf5" on the default ones, and semver reads anything
+      # after the hyphen as a prerelease, sorting it below the plain version.
+      # So every stdlib advisory fixed in that version still matches, even
+      # though the toolchain that built the binary carries the fix.
       #
       # This drops exactly that case: a stdlib finding on an -X:-suffixed build
       # whose base version is at or past a published fix on the SAME
