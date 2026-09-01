@@ -49,7 +49,7 @@ func NewGrub(config *sdkConfig.Config) *Grub {
 
 // Install installs grub into the device, copy the config file and add any extra TTY to grub
 // TODO: Make it more generic to be able to call it from other places
-// i.e.: filepath.Join(cnst.ActiveDir, "etc/kairos-release") seraches for the file in the active dir, we should be looking into the rootdir?
+// i.e.: filepath.Join(cnst.ActiveDir, "etc/kairos-release") searches for the file in the active dir, we should be looking into the rootdir?
 // filepath.Join(cnst.EfiDir, "EFI/boot/grub.cfg") we also write into the efi dir directly, this should be the a var maybe?
 func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, stateLabel string) (err error) { // nolint:gocyclo
 	var grubargs []string

@@ -62,7 +62,7 @@ func ChrootedCallback(cfg *sdkConfig.Config, path string, bindMounts map[string]
 	return chroot.RunCallback(callback)
 }
 
-// Sets additional bind mounts for the chroot enviornment. They are represented
+// Sets additional bind mounts for the chroot environment. They are represented
 // in a map where the key is the path outside the chroot and the value is the
 // path inside the chroot.
 func (c *Chroot) SetExtraMounts(extraMounts map[string]string) {

@@ -86,7 +86,7 @@ var versionCmd = &cobra.Command{
 		logger.Infof("kairos-init version %s", values.GetVersion())
 		logger.Debug(litter.Sdump(values.GetFullVersion()))
 
-		// parse embeded version info for binaries
+		// parse embedded version info for binaries
 		versionInfo := map[string]string{}
 		err := yaml.Unmarshal(bundled.EmbeddedVersionInfo, &versionInfo)
 		if err != nil {

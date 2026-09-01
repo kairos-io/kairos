@@ -268,7 +268,7 @@ func GetWorkaroundsStage(_ values.System, l logger.KairosLogger) []schema.Stage 
 			},
 		},
 		{
-			Name:     "Create snap dir in rootfs", // Very special as its on teh rootfs so we need to create it now just in case
+			Name:     "Create snap dir in rootfs", // Very special as its on the rootfs so we need to create it now just in case
 			OnlyIfOs: "Ubuntu.*|Debian.*",
 			Directories: []schema.Directory{
 				{
