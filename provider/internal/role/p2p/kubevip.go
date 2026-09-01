@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/provider/internal/assets"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
@@ -153,12 +154,20 @@ func downloadFromURL(url, where string) error {
 	}
 	defer output.Close()
 
-	response, err := http.Get(url)
+	// http.DefaultClient has no timeout: a server that accepts the TCP
+	// connection and then stalls would keep this call blocked and
+	// prevent the node from finishing its bootstrap. Same shape as the
+	// fix in sdk/collector's MergeConfigURL (see #4389).
+	client := &http.Client{Timeout: 15 * time.Second}
+	response, err := client.Get(url)
 	if err != nil {
 		return err
-
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
+	}
 
 	_, err = io.Copy(output, response.Body)
 	return err
