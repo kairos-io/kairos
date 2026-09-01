@@ -84,7 +84,7 @@ var _ = Describe("downloadFromURL", func() {
 		Expect(string(got)).To(Equal(body))
 	})
 
-	It("returns an error on non-2xx responses instead of writing the error page", func() {
+	It("returns an error on non-2xx responses without creating the destination file", func() {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "not found", http.StatusNotFound)
 		}))
@@ -93,9 +93,11 @@ var _ = Describe("downloadFromURL", func() {
 		dst := filepath.Join(dir, "out.yaml")
 		Expect(downloadFromURL(srv.URL, dst)).To(MatchError(ContainSubstring("404")))
 
-		got, err := os.ReadFile(dst)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(got).To(BeEmpty(), "the HTTP error page must not be persisted to the manifest path")
+		// The kubelet watches this directory; even an empty file at the
+		// final path could be picked up. Assert nothing was created.
+		_, err := os.Stat(dst)
+		Expect(err).To(HaveOccurred())
+		Expect(os.IsNotExist(err)).To(BeTrue(), "the HTTP error page must not leave a file at the manifest path")
 	})
 
 	It("times out instead of hanging forever when the server stalls", func() {

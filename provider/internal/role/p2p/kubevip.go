@@ -148,12 +148,6 @@ func applyKConfigToInitConfig(kConfig providerConfig.KubeVIP, initConfig *kubevi
 }
 
 func downloadFromURL(url, where string) error {
-	output, err := os.Create(where)
-	if err != nil {
-		return err
-	}
-	defer output.Close()
-
 	// http.DefaultClient has no timeout: a server that accepts the TCP
 	// connection and then stalls would keep this call blocked and
 	// prevent the node from finishing its bootstrap. Same shape as the
@@ -169,8 +163,21 @@ func downloadFromURL(url, where string) error {
 		return fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
 	}
 
-	_, err = io.Copy(output, response.Body)
-	return err
+	// The destination lives in the k3s manifest directory, which the
+	// kubelet watches. Only create the file once we know the response
+	// is usable, and remove any partial write if the copy fails, so a
+	// half-written or empty manifest never lands at the final path.
+	output, err := os.Create(where)
+	if err != nil {
+		return err
+	}
+	defer output.Close()
+
+	if _, err := io.Copy(output, response.Body); err != nil {
+		_ = os.Remove(where)
+		return err
+	}
+	return nil
 }
 
 func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
