@@ -211,9 +211,22 @@ func akPublicFromParams(params *attest.AttestationParameters) (crypto.PublicKey,
 		default:
 			return nil, fmt.Errorf("unsupported curve: %v", eccParms.CurveID)
 		}
+		// Rebuild the public key via the uncompressed SEC1 encoding
+		// (0x04 || X || Y, each coordinate padded to the curve's byte
+		// size). The direct &ecdsa.PublicKey{Curve, X, Y} constructor
+		// is deprecated in Go 1.26 in favor of this path.
+		byteSize := (curve.Params().BitSize + 7) / 8
+		uncompressed := make([]byte, 1+2*byteSize)
+		uncompressed[0] = 0x04
 		x := new(big.Int).SetBytes(eccUnique.X.Buffer)
 		y := new(big.Int).SetBytes(eccUnique.Y.Buffer)
-		return &ecdsa.PublicKey{Curve: curve, X: x, Y: y}, nil
+		x.FillBytes(uncompressed[1 : 1+byteSize])
+		y.FillBytes(uncompressed[1+byteSize:])
+		pub, err := ecdsa.ParseUncompressedPublicKey(curve, uncompressed)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TPM ECC public key: %w", err)
+		}
+		return pub, nil
 	default:
 		return nil, fmt.Errorf("unsupported key type: %v", pub.Type)
 	}
