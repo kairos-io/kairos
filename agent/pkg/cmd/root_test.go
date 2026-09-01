@@ -73,7 +73,7 @@ func commandContext(t *testing.T, command *cli.Command, extType string, args ...
 		t.Fatal(err)
 	}
 	ctx := cli.NewContext(nil, set, nil)
-	ctx.Context = context.WithValue(context.Background(), "extType", extType)
+	ctx.Context = context.WithValue(context.Background(), extTypeCtxKey, extType)
 	return ctx
 }
 

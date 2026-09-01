@@ -43,6 +43,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ctxKey is the private type used for context.WithValue keys inside this
+// package; using a package-private type prevents a collision with any other
+// package that might store the same string on the same Context.
+type ctxKey string
+
+const (
+	// extTypeCtxKey stores whether the current sysext/confext CLI action
+	// is being invoked for "sysext" or "confext", so the shared handlers
+	// can dispatch without duplicating the command definitions.
+	extTypeCtxKey ctxKey = "extType"
+)
+
 // ReleasesToOutput gets a semver.Collection and outputs it in the given format
 // Only used here.
 func ReleasesToOutput(rels []string, output string) []string {
@@ -1307,7 +1319,7 @@ func sysextConfextCommands() []*cli.Command {
 						break
 					}
 				}
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				out, err := action.ListExtensions(cfg, bootState, extType)
 				if err != nil {
 					return err
@@ -1386,7 +1398,7 @@ func sysextConfextCommands() []*cli.Command {
 				}
 
 				ext := c.Args().First()
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				if err := action.EnableExtension(cfg, ext, bootState, extType, c.Bool("now")); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed enabling system extension")
 					return err
@@ -1456,7 +1468,7 @@ func sysextConfextCommands() []*cli.Command {
 					}
 				}
 				ext := c.Args().First()
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				if err := action.DisableExtension(cfg, ext, bootState, extType, c.Bool("now")); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed disabling system extension")
 					return err
@@ -1477,7 +1489,7 @@ func sysextConfextCommands() []*cli.Command {
 				if c.Args().Len() != 1 {
 					return fmt.Errorf("extension URI or name required")
 				}
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				catalogURL := extensionCatalogURL(c, extType)
 				if c.String("catalog") != "" && extType == "confext" {
 					return fmt.Errorf("--catalog is only supported for sysext")
@@ -1518,7 +1530,7 @@ func sysextConfextCommands() []*cli.Command {
 				if err != nil {
 					return err
 				}
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				if err := action.RemoveExtension(cfg, extension, extType, c.Bool("now")); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed removing system extension")
 					return err
@@ -1586,7 +1598,7 @@ func beforeSysextConfext(c *cli.Context) error {
 	}
 	// Set the extType in the context to differentiate between sysext and confext in the common code
 	// so its easier for the shared code to know which one is being called without needing to duplicate the code for both commands
-	c.Context = context.WithValue(c.Context, "extType", c.Command.Name)
+	c.Context = context.WithValue(c.Context, extTypeCtxKey, c.Command.Name)
 	return nil
 }
 
