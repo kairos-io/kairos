@@ -28,7 +28,7 @@ func scheduleRoles(nodes []string, c *service.RoleConfig, cc *sdkConfig.Config, 
 		advertizing, _ := c.Client.AdvertizingNodes()
 		for u, r := range currentRoles {
 			if !lo.Contains(advertizing, u) {
-				c.Logger.Infof("Role '%s' assigned to unreachable node '%s'. Unassigning.", u, r)
+				c.Logger.Infof("Role '%s' assigned to unreachable node '%s'. Unassigning.", r, u)
 				if err := c.Client.Delete("role", u); err != nil {
 					c.Logger.Warnf("Error announcing deletion %+v", err)
 				}
