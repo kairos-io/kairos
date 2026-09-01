@@ -1566,7 +1566,7 @@ func installCatalogExtension(cfg *sdkConfig.Config, catalogURL, name, version st
 		return extensions.Resolved{}, err
 	}
 	tempPath := filepath.Join(tempDir, fmt.Sprintf("kairos-extension-catalog-%d.json", time.Now().UnixNano()))
-	defer cfg.Fs.Remove(tempPath)
+	defer func() { _ = cfg.Fs.Remove(tempPath) }()
 	if err := cfg.Client.GetURL(cfg.Logger, catalogURL, tempPath); err != nil {
 		return extensions.Resolved{}, err
 	}
