@@ -36,6 +36,17 @@ linters:
       - builtin$
       - examples$
       - tests$
+    rules:
+      # kairos-init/pkg/values/packagemaps.go is a data table: distro
+      # -> arch -> version -> []packageName. Package names legitimately
+      # repeat across distros (`iptables`, `dosfstools`, ...) because
+      # every distro ships them under the same name. Turning each into
+      # a named constant would just spread a data-only file across
+      # dozens of one-liners without preventing any real bug, so
+      # goconst is silenced for this file only.
+      - path: kairos-init/pkg/values/packagemaps\.go
+        linters:
+          - goconst
 formatters:
   enable:
     - gofmt
