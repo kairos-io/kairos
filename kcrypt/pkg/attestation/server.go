@@ -23,7 +23,7 @@ import (
 // exponent is 0). This is the most commonly used RSA public exponent in practice.
 const DefaultRSAPublicExponent = 65537
 
-type AttestationRequest struct {
+type Request struct {
 	TPMHash            string
 	PCRs               map[int][]byte
 	EKPEM              []byte
@@ -31,7 +31,7 @@ type AttestationRequest struct {
 }
 
 type Attestator interface {
-	IssuePassphrase(ctx context.Context, req AttestationRequest) ([]byte, error)
+	IssuePassphrase(ctx context.Context, req Request) ([]byte, error)
 }
 
 type VerificationResult struct {
@@ -47,7 +47,7 @@ func NewRemoteAttestationServer(attestator Attestator) *RemoteAttestationServer 
 	return &RemoteAttestationServer{attestator: attestator}
 }
 
-func (s *RemoteAttestationServer) ParseInit(init *AttestationInit) (*attest.EK, *attest.AttestationParameters, error) {
+func (s *RemoteAttestationServer) ParseInit(init *Init) (*attest.EK, *attest.AttestationParameters, error) {
 	// Decode EK public from SPKI DER
 	ekPub, err := x509.ParsePKIXPublicKey(init.EKPublic)
 	if err != nil {
@@ -62,7 +62,7 @@ func (s *RemoteAttestationServer) ParseInit(init *AttestationInit) (*attest.EK, 
 	return ek, &params, nil
 }
 
-func (s *RemoteAttestationServer) GenerateChallenge(init *AttestationInit) (*AttestationChallenge, []byte, error) {
+func (s *RemoteAttestationServer) GenerateChallenge(init *Init) (*Challenge, []byte, error) {
 	ek, akParams, err := s.ParseInit(init)
 	if err != nil {
 		return nil, nil, err
@@ -76,10 +76,10 @@ func (s *RemoteAttestationServer) GenerateChallenge(init *AttestationInit) (*Att
 	if err != nil {
 		return nil, nil, err
 	}
-	return &AttestationChallenge{EncryptedCredential: chBytes}, secret, nil
+	return &Challenge{EncryptedCredential: chBytes}, secret, nil
 }
 
-func (s *RemoteAttestationServer) VerifyProof(init *AttestationInit, proof *AttestationProof, expectedSecret []byte) (VerificationResult, error) {
+func (s *RemoteAttestationServer) VerifyProof(init *Init, proof *Proof, expectedSecret []byte) (VerificationResult, error) {
 	if !equalBytes(expectedSecret, proof.Secret) {
 		return VerificationResult{}, fmt.Errorf("invalid secret")
 	}
@@ -117,7 +117,7 @@ func (s *RemoteAttestationServer) VerifyProof(init *AttestationInit, proof *Atte
 	return VerificationResult{AKPublic: akPub, PCRs: verifiedPCRs}, nil
 }
 
-func (s *RemoteAttestationServer) IssuePassphrase(ctx context.Context, init *AttestationInit, proof *AttestationProof, expectedSecret []byte) ([]byte, error) {
+func (s *RemoteAttestationServer) IssuePassphrase(ctx context.Context, init *Init, proof *Proof, expectedSecret []byte) ([]byte, error) {
 	vr, err := s.VerifyProof(init, proof, expectedSecret)
 	if err != nil {
 		return nil, err
@@ -138,7 +138,7 @@ func (s *RemoteAttestationServer) IssuePassphrase(ctx context.Context, init *Att
 	}
 
 	// Build request for Attestator
-	req := AttestationRequest{
+	req := Request{
 		TPMHash:            tpmHash,
 		PCRs:               vr.PCRs,
 		EKPEM:              ekPEM,
