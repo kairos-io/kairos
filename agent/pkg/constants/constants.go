@@ -170,7 +170,7 @@ func GetGrubFonts() []string {
 	return []string{"ascii.pf2", "euro.pf2", "unicode.pf2"}
 }
 
-// GetGrubModules returns the default module files for grub
+// GetGrubModules returns the default module files for grub.
 func GetGrubModules() []string {
 	return []string{"loopback.mod", "squash4.mod", "xzio.mod", "gzio.mod", "regexp.mod"}
 }
@@ -222,5 +222,5 @@ func BootTitleForRole(role, title string) (string, error) {
 	}
 }
 
-// DiskUUID is the static UUID for main disk identification
+// DiskUUID is the static UUID for main disk identification.
 var DiskUUID = uuid.NewV5(uuid.NamespaceURL, "KAIROS_DISK").String()
