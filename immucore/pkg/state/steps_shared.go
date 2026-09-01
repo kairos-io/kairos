@@ -84,11 +84,11 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// removable/network media but must behave like an installed
 			// Active system, so they get uki_boot_mode, never
 			// uki_install_mode (which would fire the installer stages).
-cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
-if err != nil {
-	return fmt.Errorf("reading kernel cmdline: %w", err)
-}
-if strings.Contains(string(cmdline), "rd.immucore.uki") {
+			cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
+			if err != nil {
+				return fmt.Errorf("reading kernel cmdline: %w", err)
+			}
+			if strings.Contains(string(cmdline), "rd.immucore.uki") {
 				ukiSentinel := internalUtils.UkiSentinel(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM)
 				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
 				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {

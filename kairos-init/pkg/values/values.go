@@ -66,9 +66,9 @@ type Model string              // Model is the type of the system
 func (m Model) String() string { return string(m) }
 
 const (
-	Generic Model = "generic"
-	Rpi3    Model = "rpi3"
-	Rpi4    Model = "rpi4"
+	Generic  Model = "generic"
+	Rpi3     Model = "rpi3"
+	Rpi4     Model = "rpi4"
 	AgxOrin  Model = "nvidia-jetson-agx-orin"
 	OrinNX   Model = "nvidia-jetson-orin-nx"
 	Thor     Model = "nvidia-jetson-thor"
