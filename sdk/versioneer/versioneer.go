@@ -295,7 +295,7 @@ func (a *Artifact) commonName() (string, error) {
 
 func (a *Artifact) commonVersionedName() (string, error) {
 	if a.Version == "" {
-		return "", errors.New("Version is empty")
+		return "", errors.New("version is empty")
 	}
 
 	result, err := a.commonName()
