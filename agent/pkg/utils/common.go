@@ -612,9 +612,9 @@ func SystemdBootConfWriter(fs sdkFs.KairosFS, filePath string, conf map[string]s
 	writer := bufio.NewWriter(file)
 	for k, v := range conf {
 		if v == "" {
-			_, err = writer.WriteString(fmt.Sprintf("%s \n", k))
+			_, err = fmt.Fprintf(writer, "%s \n", k)
 		} else {
-			_, err = writer.WriteString(fmt.Sprintf("%s %s\n", k, v))
+			_, err = fmt.Fprintf(writer, "%s %s\n", k, v)
 		}
 		if err != nil {
 			return err

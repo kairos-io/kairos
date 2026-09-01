@@ -365,7 +365,7 @@ func SetPersistentVariables(grubEnvFile string, vars map[string]string, c *sdkCo
 
 	for _, k := range keys {
 		if len(finalVars[k]) > 0 {
-			b.WriteString(fmt.Sprintf("%s=%s\n", k, finalVars[k]))
+			fmt.Fprintf(&b, "%s=%s\n", k, finalVars[k])
 		}
 	}
 
