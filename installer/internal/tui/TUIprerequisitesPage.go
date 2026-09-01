@@ -244,11 +244,12 @@ func (p *prerequisitesPage) control(cur *prereqField, dir int) {
 		// ← deselects, space toggles — independently per option, so any
 		// number of options can be selected at once.
 		id := c.Options[cur.optIdx].ID
-		if dir == 1 {
+		switch dir {
+		case 1:
 			a.Selected = addUnique(a.Selected, id)
-		} else if dir == -1 {
+		case -1:
 			a.Selected = remove(a.Selected, id)
-		} else { // toggle
+		default: // toggle
 			if contains(a.Selected, id) {
 				a.Selected = remove(a.Selected, id)
 			} else {
