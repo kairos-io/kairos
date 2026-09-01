@@ -32,17 +32,17 @@ var _ = Describe("Validate", func() {
 
 	It("returns an error when Variant is empty", func() {
 		artifact.Variant = ""
-		Expect(artifact.Validate()).To(MatchError("Variant is empty"))
+		Expect(artifact.Validate()).To(MatchError("variant is empty"))
 	})
 
 	It("returns an error when Model is empty", func() {
 		artifact.Model = ""
-		Expect(artifact.Validate()).To(MatchError("Model is empty"))
+		Expect(artifact.Validate()).To(MatchError("model is empty"))
 	})
 
 	It("returns an error when Arch is empty", func() {
 		artifact.Arch = ""
-		Expect(artifact.Validate()).To(MatchError("Arch is empty"))
+		Expect(artifact.Validate()).To(MatchError("arch is empty"))
 	})
 
 	It("returns an error when SoftwareVersion is not empty but SoftwareVersionPrefix is empty", func() {
