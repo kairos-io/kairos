@@ -140,7 +140,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 						_ = c.Set("registry", registryAndOrg)
 
 					}
-					fmt.Println(fmt.Sprintf("Using registry: %s", c.String("registry")))
+					fmt.Printf("Using registry: %s\n", c.String("registry"))
 					return nil
 				},
 				Action: func(c *cli.Context) error {

@@ -40,9 +40,8 @@ func RunStage(cfg *sdkConfig.Config, stage string) error {
 
 func runstage(cfg *sdkConfig.Config, stage string, analyze bool) error {
 	var allErrors error
-	var cloudInitPaths []string
 
-	cloudInitPaths = append(constants.GetCloudInitPaths(), cfg.CloudInitPaths...)
+	cloudInitPaths := append(constants.GetCloudInitPaths(), cfg.CloudInitPaths...)
 	cfg.Logger.Debugf("Cloud-init paths set to %v", cloudInitPaths)
 	if analyze {
 		cfg.Logger.Info("Analyze mode, showing DAG")

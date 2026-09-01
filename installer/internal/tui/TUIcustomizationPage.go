@@ -95,7 +95,7 @@ func (p *customizationPage) Init() tea.Cmd {
 				continue
 			}
 			optIdx := startIdx + i
-			if prompt.Bool == false {
+			if !prompt.Bool {
 				mainModel.log.Debugf("Adding customization option for %s", prompt.YAMLSection)
 				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
 				pageID := idFromSection(prompt)
