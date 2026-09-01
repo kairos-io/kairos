@@ -108,4 +108,4 @@ jobs:
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
       - name: yamllint
         shell: bash
-        run: find ${{ inputs.yamldirs }} -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint
+        run: find ${{ inputs.yamldirs }} -path "./examples" -prune -o -name "*.yml" -or -name "*.yaml" -print  | xargs -r -n1 docker run -v "$PWD":/work -w /work cytopia/yamllint --strict
