@@ -130,7 +130,7 @@ func (m *KairosLogger) Close() {
 func (m *KairosLogger) SetLevel(level string) {
 	l, _ := zerolog.ParseLevel(level)
 	// I think this returns a full child logger so we need to overwrite the logger
-	m.Logger = m.Logger.Level(l)
+	m.Logger = m.Level(l)
 }
 
 func (m KairosLogger) GetLevel() zerolog.Level {
