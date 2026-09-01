@@ -10,10 +10,7 @@ import (
 )
 
 // Summary Page
-type summaryPage struct {
-	cursor  int
-	options []string
-}
+type summaryPage struct{}
 
 func newSummaryPage() *summaryPage {
 	return &summaryPage{}
