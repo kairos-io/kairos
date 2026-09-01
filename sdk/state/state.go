@@ -91,7 +91,7 @@ type FndMnt struct {
 	} `json:"filesystems,omitempty"`
 }
 
-// Lsblk is the struct to marshal the output of lsblk
+// Lsblk is the struct to marshal the output of lsblk.
 type Lsblk struct {
 	BlockDevices []struct {
 		Path       string `json:"path,omitempty"`
@@ -235,7 +235,7 @@ func getNonUKIBootState(cmdline string) Boot {
 	}
 }
 
-// Detects if we are on uki mode
+// Detects if we are on uki mode.
 func DetectUKIboot(cmdline string) bool {
 	Log.Info().Msg("checking cmdline for uki:" + cmdline)
 	return strings.Contains(cmdline, "rd.immucore.uki")
@@ -305,7 +305,7 @@ func EfiBootFromInstall(logger zerolog.Logger) bool {
 	return true
 }
 
-// DetectBootWithVFS will detect the boot state using a vfs so it can be used for tests as well
+// DetectBootWithVFS will detect the boot state using a vfs so it can be used for tests as well.
 func DetectBootWithVFS(fs fs.KairosFS) (Boot, error) {
 	cmdline, err := fs.ReadFile("/proc/cmdline")
 	if err != nil {
