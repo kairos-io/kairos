@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/kairos-io/kairos/v4/provider/internal/assets"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
@@ -147,21 +148,36 @@ func applyKConfigToInitConfig(kConfig providerConfig.KubeVIP, initConfig *kubevi
 }
 
 func downloadFromURL(url, where string) error {
+	// http.DefaultClient has no timeout: a server that accepts the TCP
+	// connection and then stalls would keep this call blocked and
+	// prevent the node from finishing its bootstrap. Same shape as the
+	// fix in sdk/collector's MergeConfigURL (see #4389).
+	client := &http.Client{Timeout: 15 * time.Second}
+	response, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("unexpected status %d fetching %s", response.StatusCode, url)
+	}
+
+	// The destination lives in the k3s manifest directory, which the
+	// kubelet watches. Only create the file once we know the response
+	// is usable, and remove any partial write if the copy fails, so a
+	// half-written or empty manifest never lands at the final path.
 	output, err := os.Create(where)
 	if err != nil {
 		return err
 	}
 	defer output.Close()
 
-	response, err := http.Get(url)
-	if err != nil {
+	if _, err := io.Copy(output, response.Body); err != nil {
+		_ = os.Remove(where)
 		return err
-
 	}
-	defer response.Body.Close()
-
-	_, err = io.Copy(output, response.Body)
-	return err
+	return nil
 }
 
 func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
@@ -169,8 +185,8 @@ func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
 	if pconfig.K3sAgent.IsEnabled() {
 		manifestDirectory = "/var/lib/rancher/k3s/agent/pod-manifests/"
 	}
-	if err := os.MkdirAll(manifestDirectory, 0650); err != nil {
-		return fmt.Errorf("could not create manifest dir")
+	if err := os.MkdirAll(manifestDirectory, 0750); err != nil {
+		return fmt.Errorf("could not create manifest dir %s: %w", manifestDirectory, err)
 	}
 
 	targetFile := manifestDirectory + "kubevip.yaml"
@@ -211,11 +227,11 @@ func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
 
 	f, err := os.Create(targetFile)
 	if err != nil {
-		return fmt.Errorf("could not open %s: %w", f.Name(), err)
+		return fmt.Errorf("could not open %s: %w", targetFile, err)
 	}
 	defer f.Close()
 	if _, err := f.WriteString(content); err != nil {
-		return fmt.Errorf("could not write to %s: %w", f.Name(), err)
+		return fmt.Errorf("could not write to %s: %w", targetFile, err)
 	}
 
 	return nil
