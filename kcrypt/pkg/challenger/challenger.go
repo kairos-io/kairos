@@ -815,14 +815,6 @@ func updateEnrollmentData(ctx *EnrollmentContext, attestation *ClientAttestation
 	return nil
 }
 
-// updateLastVerificationTimestamp updates the last verification time for an existing SealedVolume
-func updateLastVerificationTimestamp(reconciler *controllers.SealedVolumeReconciler, namespace, tpmHash string) error {
-	// This would need to be implemented in the reconciler to update the LastVerifiedAt field
-	// For now, we'll log that it should be updated
-	// NOTE: Reconciler method to update verification timestamps needs implementation
-	return nil
-}
-
 // verifyEKMatchSelective compares the current EK public key with the enrolled one using selective enrollment logic (transient AK approach)
 func verifyEKMatchSelective(sealedVolume *keyserverv1alpha1.SealedVolume, currentEK *attest.EK, logger logr.Logger) error {
 	// Get the stored EK from the SealedVolume's attestation spec
