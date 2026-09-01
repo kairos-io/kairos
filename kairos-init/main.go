@@ -70,7 +70,7 @@ var stepsInfo = &cobra.Command{
 		stepsInfo := values.StepsInfo()
 		logger.Infof("Step name & Description")
 		logger.Infof("--------------------------------------------------------")
-		for step, _ := range stepsInfo {
+		for step := range stepsInfo {
 			logger.Infof("\"%s\": %s", stepsInfo[step].Key, stepsInfo[step].Value)
 		}
 		logger.Infof("--------------------------------------------------------")

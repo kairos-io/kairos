@@ -1543,13 +1543,14 @@ func extensionCatalogURL(c *cli.Context, extType string) string {
 func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURL, requested, version, extType string) error {
 	var catalogErr error
 	if catalogURL != "" {
-		if _, err := installCatalogExtension(cfg, catalogURL, requested, version); err == nil {
+		_, err := installCatalogExtension(cfg, catalogURL, requested, version)
+		if err == nil {
 			return nil
-		} else if version != "" {
-			return err
-		} else {
-			catalogErr = err
 		}
+		if version != "" {
+			return err
+		}
+		catalogErr = err
 	}
 	if err := validateSourceSysext(requested); err != nil {
 		if catalogErr != nil {

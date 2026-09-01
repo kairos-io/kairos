@@ -14,7 +14,6 @@ func DefaultTitleInteractiveInstaller() string {
 	branding, err := os.ReadFile(BrandingFile("interactive_install_text"))
 	if err == nil {
 		return string(branding)
-	} else {
-		return "Kairos Interactive Installer"
 	}
+	return "Kairos Interactive Installer"
 }

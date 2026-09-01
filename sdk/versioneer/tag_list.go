@@ -162,9 +162,8 @@ func (tl TagList) OtherAnyVersion() TagList {
 func (tl TagList) NewerAnyVersion() TagList {
 	if tl.Artifact.SoftwareVersion != "" {
 		return tl.Images().newerSomeVersions()
-	} else {
-		return tl.Images().newerVersions()
 	}
+	return tl.Images().newerVersions()
 }
 
 func (tl TagList) Print() {
