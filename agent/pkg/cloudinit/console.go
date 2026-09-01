@@ -38,11 +38,6 @@ func newCloudInitConsole(l sdkLogger.KairosLogger, r sdkRunner.Runner) *cloudIni
 	return &cloudInitConsole{logger: l, runner: r}
 }
 
-// getRunner returns the internal runner used within this Console.
-func (c cloudInitConsole) getRunner() sdkRunner.Runner {
-	return c.runner
-}
-
 // Run runs a command using the v1.Runner internal instance.
 func (c cloudInitConsole) Run(command string, opts ...func(cmd *exec.Cmd)) (string, error) {
 	c.logger.Debugf("running command `%s`", command)
