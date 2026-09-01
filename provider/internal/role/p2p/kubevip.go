@@ -186,7 +186,7 @@ func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
 		manifestDirectory = "/var/lib/rancher/k3s/agent/pod-manifests/"
 	}
 	if err := os.MkdirAll(manifestDirectory, 0750); err != nil {
-		return fmt.Errorf("could not create manifest dir")
+		return fmt.Errorf("could not create manifest dir %s: %w", manifestDirectory, err)
 	}
 
 	targetFile := manifestDirectory + "kubevip.yaml"
