@@ -21,7 +21,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
-	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"

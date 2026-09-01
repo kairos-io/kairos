@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"runtime"
+
 	"github.com/kairos-io/kairos/v4/agent/pkg/cloudinit"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/http"
@@ -23,7 +25,6 @@ import (
 	"github.com/twpayne/go-vfs/v5"
 	"gopkg.in/yaml.v3"
 	"k8s.io/mount-utils"
-	"runtime"
 )
 
 func NewConfig(opts ...GenericOptions) *sdkConfig.Config {

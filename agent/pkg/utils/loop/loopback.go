@@ -11,8 +11,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// syscalls will return an errno type (which implements error) for all calls,
-// including success (errno 0) so we need to check its value to know if its an actual error or not
+// errnoIsErr filters out the syscall.Errno "success" (0) reply.
+// syscalls return an errno type (which implements error) for all calls,
+// including success (errno 0), so we need to check its value to know if
+// its an actual error or not.
 func errnoIsErr(err error) error {
 	if err != nil && err.(syscall.Errno) != 0 {
 		return err
@@ -21,7 +23,7 @@ func errnoIsErr(err error) error {
 	return nil
 }
 
-// Loop will setup a /dev/loopX device linked to the image file by using syscalls directly to set it
+// Loop will setup a /dev/loopX device linked to the image file by using syscalls directly to set it.
 func Loop(img *images.Image, cfg *sdkConfig.Config) (loopDevice string, err error) {
 	log := cfg.Logger
 	log.Debugf("Opening loop control device")
@@ -90,7 +92,7 @@ func Loop(img *images.Image, cfg *sdkConfig.Config) (loopDevice string, err erro
 	return loopDevice, nil
 }
 
-// Unloop will clear a loop device and free the underlying image linked to it
+// Unloop will clear a loop device and free the underlying image linked to it.
 func Unloop(loopDevice string, cfg *sdkConfig.Config) error {
 	log := cfg.Logger
 	log.Logger.Debug().Str("device", loopDevice).Msg("Opening loop device")
