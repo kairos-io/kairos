@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
-	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
