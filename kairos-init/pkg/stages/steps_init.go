@@ -22,6 +22,10 @@ import (
 
 // This file contains the stages that are run during the init process
 
+// serviceManagerSystemd is the yip OnlyIfServiceManager value that gates a
+// stage on systemd being the active init system.
+const serviceManagerSystemd = "systemd"
+
 // GetInitrdStage Returns the initrd stage
 // This stage cleans up any existing initrd files and creates a new one
 // In the case of Trusted boot systems, we dont do anything but remove the initrd files as the initrd is created and
@@ -419,7 +423,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 	return []schema.Stage{
 		{
 			Name:                 "Configure default systemd services",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Mask: []string{
 					"systemd-firstboot.service",
@@ -434,7 +438,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		},
 		{
 			Name:                 "Enable fail2ban service for RHEL family",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			If:                   "test -f /usr/bin/fail2ban-server",
 			OnlyIfOs:             "CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*",
 			Systemctl: schema.Systemctl{
@@ -445,7 +449,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		},
 		{
 			Name:                 "Enable fail2ban service",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			OnlyIfOs:             "Ubuntu.*|Debian.*|SLES.*|[Oo]penSUSE.*|Fedora.*", // RHEL family has it optionally installed
 			Systemctl: schema.Systemctl{
 				Enable: []string{
@@ -455,7 +459,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		},
 		{
 			Name:                 "Enable timesyncd service",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			OnlyIfOs:             "Ubuntu.*|Debian.*|SLES.*|[Oo]penSUSE.*|Hadron.*", // RHEL family and Fedora use chronyd instead
 			Systemctl: schema.Systemctl{
 				Enable: []string{
@@ -465,7 +469,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		},
 		{
 			Name:                 "Enable chronyd service for RHEL family and Fedora",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			OnlyIfOs:             "Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*",
 			Systemctl: schema.Systemctl{
 				Enable: []string{
@@ -476,7 +480,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable services for Debian family",
 			OnlyIfOs:             "Ubuntu.*|Debian.*",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Enable: []string{
 					"ssh",
@@ -487,7 +491,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Disable Wicked for SUSE family (excluding SLE Micro Rancher/Tumbleweed)", // Collides with systemd-networkd
 			OnlyIfOs:             values.AllSuseButMicroAndTumbleweed,
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Disable: []string{
 					"wicked",
@@ -500,7 +504,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable services for SUSE family (excluding SLE Micro Rancher)",
 			OnlyIfOs:             values.AllSuseButMicroRegex,
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Enable: []string{
 					"sshd",
@@ -512,7 +516,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Disable services for SLE Micro Rancher",
 			OnlyIfOs:             values.OnlyMicroRegex,
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Disable: []string{
 					"NetworkManager",
@@ -522,7 +526,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable services for SLE Micro Rancher",
 			OnlyIfOs:             values.OnlyMicroRegex,
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Enable: []string{
 					"sshd",
@@ -534,7 +538,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable services for RHEL family",
 			OnlyIfOs:             "Fedora.*|CentOS.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Commands: []string{
 				"systemctl unmask getty.target",   // Unmask getty.target to allow login on ttys as it comes masked by default
 				"systemctl unmask systemd-udevd",  // Unmask systemd-udevd as it comes masked by default
@@ -554,7 +558,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable services for RHEL",
 			OnlyIfOs:             "Red\\sHat.*",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Commands: []string{
 				"systemctl unmask getty.target",         // Unmask getty.target to allow login on ttys as it comes masked by default
 				"systemctl unmask console-getty",        // Unmask console-getty to allow console login on ttys as it comes masked by default
@@ -584,7 +588,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable networkd for RHEL family if binary is available",
 			OnlyIfOs:             values.RHELFamilyRegex,
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			If:                   "test -f /usr/lib/systemd/systemd-networkd",
 			Systemctl: schema.Systemctl{
 				Enable: []string{
@@ -595,7 +599,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable NetworkManager for RHEL if binary is available",
 			OnlyIfOs:             values.RHELFamilyRegex,
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			If:                   "test -f /usr/sbin/NetworkManager",
 			Systemctl: schema.Systemctl{
 				Enable: []string{
@@ -624,7 +628,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable services for Hadron",
 			OnlyIfOs:             "Hadron.*",
-			OnlyIfServiceManager: "systemd",
+			OnlyIfServiceManager: serviceManagerSystemd,
 			Systemctl: schema.Systemctl{
 				Enable: []string{
 					"sshd",
