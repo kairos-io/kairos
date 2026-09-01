@@ -166,7 +166,7 @@ func (p *customizationPage) View() string {
 
 // Helper methods to check configuration
 func (p *customizationPage) isUserConfigured() bool {
-	return mainModel.username != "" && mainModel.password != ""
+	return mainModel.username != "" && mainModel.passwordHash != ""
 }
 
 func (p *customizationPage) isSSHConfigured() bool {
