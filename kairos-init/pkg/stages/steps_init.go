@@ -922,8 +922,8 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			// we default to NetworkManager
 			// if systemd-network is available we use it instead
 			// depending on the version we might add network-legacy
-			// Start from scratch
-			networkModule = ""
+			// Every branch below reassigns networkModule unconditionally,
+			// so we do not need to clear it first.
 			// Do we have NetworkManager? Then add it and skip the rest of checks
 			if _, err := os.Stat("/usr/sbin/NetworkManager"); err == nil {
 				networkModule = "network-manager"

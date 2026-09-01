@@ -268,7 +268,6 @@ func streamProcess(s *state) func(c *echo.Context) error {
 						// Process finished, send completion message
 						err = websocket.Message.Send(ws, "[COMPLETE] Installation finished\n")
 						consumeError(err)
-						completionSent = true
 						// Continue reading remaining logs for a bit, then exit
 						time.Sleep(2 * time.Second)
 						return
