@@ -24,6 +24,12 @@ linters:
       rules:
         - name: unused-parameter
           disabled: true
+    goconst:
+      # Default is 3; that fires on every 3rd repetition of a two-
+      # word tag or a page ID and drowns the real "extract this
+      # magic string" cases in noise. 5 is the threshold below
+      # which we treat repetition as coincidental.
+      min-occurrences: 5
   exclusions:
     generated: lax
     presets:
@@ -48,6 +54,17 @@ linters:
         linters:
           - goconst
           - dupl
+      # installer/internal/tui pages share bubbletea key names
+      # ("enter", "esc", "up", "down", "j", "k") and page-id
+      # slugs ("customization", "summary", "disk_selection", ...)
+      # by design: every page has to match on the same keys and
+      # route to the same next pages. Extracting each string into
+      # a package-level constant hides that pattern behind an
+      # alias without protecting against any bug, so goconst is
+      # silenced across the tui subtree.
+      - path: installer/internal/tui/
+        linters:
+          - goconst
 formatters:
   enable:
     - gofmt
