@@ -1,10 +1,13 @@
 package cli_test
 
 import (
-	. "github.com/kairos-io/kairos/v4/provider/internal/cli"
+	"strings"
+
 	"github.com/kairos-io/kairos/v4/internal/version"
+	. "github.com/kairos-io/kairos/v4/provider/internal/cli"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/urfave/cli/v2"
 )
 
 // The provider ships in the same image as the multi-call kairos binary and is
@@ -33,5 +36,45 @@ var _ = Describe("Usage text", func() {
 
 	It("uses that name in the examples of subcommands that build their own", func() {
 		Expect(RegisterCMD("kairos provider").UsageText).To(HavePrefix("kairos provider register"))
+	})
+})
+
+// Help text that names a command the user cannot run is worse than no example.
+// These commands were reachable as `kairos <cmd>` when /usr/bin/kairos was this
+// binary; after the multi-call rollout that shape is rejected by the dispatcher
+// as an unknown sub-tool, and the way in is `kairos provider <cmd>`. Node UUIDs
+// likewise moved to the agent.
+//
+// RegisterCMD and BridgeCMD interpolate the tool name and cannot drift. These
+// two build their examples from literals, which is how they went stale, so
+// pin them.
+var _ = Describe("Command examples", func() {
+	collect := func() string {
+		var sb strings.Builder
+		var walk func(cmds []*cli.Command)
+		walk = func(cmds []*cli.Command) {
+			for _, c := range cmds {
+				sb.WriteString(c.UsageText + "\n" + c.Description + "\n")
+				walk(c.Subcommands)
+			}
+		}
+		walk(NewApp().Commands)
+		return sb.String()
+	}
+
+	DescribeTable("does not tell users to run a command that no longer exists",
+		func(stale string) {
+			Expect(collect()).NotTo(ContainSubstring(stale))
+		},
+		Entry("get-kubeconfig without the provider token", "$ kairos get-kubeconfig"),
+		Entry("role set without the provider token", "kairos role set"),
+		Entry("uuid, which belongs to the agent now", "$ (node A) kairos uuid"),
+	)
+
+	It("shows the shape that works", func() {
+		text := collect()
+		Expect(text).To(ContainSubstring("kairos provider get-kubeconfig"))
+		Expect(text).To(ContainSubstring("kairos provider role set"))
+		Expect(text).To(ContainSubstring("kairos agent uuid"))
 	})
 })

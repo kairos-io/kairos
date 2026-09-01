@@ -21,7 +21,7 @@ var GetKubeConfigCMD = cli.Command{
 		
 		For example:
 		
-		$ kairos get-kubeconfig --network-id kairos
+		$ kairos provider get-kubeconfig --network-id kairos
 		`,
 	Flags: networkAPI,
 	Action: func(c *cli.Context) error {

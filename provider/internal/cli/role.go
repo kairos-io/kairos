@@ -16,16 +16,16 @@ var RoleCMD = cli.Command{
 			Flags:     networkAPI,
 			Name:      "set",
 			Usage:     "Set a node role",
-			UsageText: "kairos role set <UUID> master",
+			UsageText: "kairos provider role set <UUID> master",
 			Description: `
 		Sets a node role propagating the setting to the network.
 
-		A role must be set prior to the node joining a network. You can retrieve a node UUID by running "kairos uuid".
+		A role must be set prior to the node joining a network. You can retrieve a node UUID by running "kairos agent uuid".
 
 		Example:
 
-		$ (node A) kairos uuid
-		$ (node B) kairos role set <UUID of node A> master
+		$ (node A) kairos agent uuid
+		$ (node B) kairos provider role set <UUID of node A> master
 		`,
 			Action: func(c *cli.Context) error {
 				cc := service.NewClient(
