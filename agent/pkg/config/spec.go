@@ -56,9 +56,9 @@ const (
 	TiB
 )
 
-// resolveTarget will try to resovle a /dev/disk/by-X disk into the final real disk under /dev/X
+// resolveTarget will try to resolve a /dev/disk/by-X disk into the final real disk under /dev/X
 // We use it to calculate the device on the fly for the Config and the InstallSpec but we leave
-// the original value in teh config.Collector so its written down in the final cloud config in the
+// the original value in the config.Collector so its written down in the final cloud config in the
 // installed system, so users can know what parameters it was installed with in case they need to refer
 // to it down the line to know what was the original parametes
 // If the target is a normal /dev/X we dont do anything and return the original value so normal installs

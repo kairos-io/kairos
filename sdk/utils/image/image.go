@@ -26,7 +26,7 @@ import (
 	registrytypes "github.com/moby/moby/api/types/registry"
 )
 
-// referrence: https://github.com/mudler/luet/blob/master/pkg/helpers/docker/docker.go#L117
+// reference: https://github.com/mudler/luet/blob/master/pkg/helpers/docker/docker.go#L117
 type staticAuth struct {
 	auth *registrytypes.AuthConfig
 }

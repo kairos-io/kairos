@@ -121,7 +121,7 @@ func (r ResetAction) Run() (err error) {
 		}
 	}
 
-	// Before reset hook happens once partitions are aready and before deploying the OS image
+	// Before reset hook happens once partitions are already and before deploying the OS image
 	err = r.resetHook(cnst.BeforeResetHook, false)
 	if err != nil {
 		return err
