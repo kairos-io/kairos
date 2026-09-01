@@ -159,7 +159,7 @@ func (p *prerequisitesPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	// In a failure state, 'r' retries the apply (re-runs every decision) —
 	// but not while a text field is focused, where 'r' is a literal character.
 	if p.failure != failNone && (km.String() == "r" || km.String() == "R") &&
-		!(cur != nil && cur.kind == "text") {
+		(cur == nil || cur.kind != "text") {
 		return p.proceed()
 	}
 
