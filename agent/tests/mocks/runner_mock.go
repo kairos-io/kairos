@@ -109,9 +109,8 @@ func (r FakeRunner) MatchMilestones(cmdList [][]string) error {
 		match = strings.Join(cmdList[0][:], " ")
 		if !strings.HasPrefix(got, match) {
 			continue
-		} else {
-			cmdList = cmdList[1:]
 		}
+		cmdList = cmdList[1:]
 	}
 
 	if len(cmdList) > 0 {
