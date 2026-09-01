@@ -70,7 +70,7 @@ func (g genericQuestionPage) ID() string {
 func idFromSection(section sdk.YAMLPrompt) string {
 	// Generate a unique ID based on the section's YAMLSection.
 	// This could be a simple hash or just the section name.
-	return strings.Replace(section.YAMLSection, ".", "_", -1)
+	return strings.ReplaceAll(section.YAMLSection, ".", "_")
 }
 
 func (g genericQuestionPage) Configured() bool {
