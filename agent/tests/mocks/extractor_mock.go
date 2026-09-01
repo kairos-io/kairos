@@ -60,7 +60,7 @@ func (f *FakeImageExtractor) ExtractImage(imageRef, destination, platformRef str
 	return nil
 }
 
-// WasCalledWithImageRef is a helper method to confirm that the client was called with the given image ref
+// WasCalledWithImageRef is a helper method to confirm that the client was called with the given image ref.
 func (f *FakeImageExtractor) WasCalledWithImageRef(imageRef string) bool {
 	for _, c := range f.ClientCalls {
 		if c.ImageRef == imageRef {
@@ -71,7 +71,7 @@ func (f *FakeImageExtractor) WasCalledWithImageRef(imageRef string) bool {
 }
 
 // WasCalledWithExtractCall is a helper method to confirm that the client was called with the given extract call
-// This matches exactly the calls made to the client in all fields
+// This matches exactly the calls made to the client in all fields.
 func (f *FakeImageExtractor) WasCalledWithExtractCall(call ExtractCall) bool {
 	for _, c := range f.ClientCalls {
 		if c == call {
