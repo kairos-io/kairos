@@ -1003,7 +1003,7 @@ func UnmarshalerHook() mapstructure.DecodeHookFunc {
 			return from.Interface(), nil
 		}
 		// If it is nil and a pointer, create and assign the target value first
-		if to.IsNil() && to.Type().Kind() == reflect.Ptr {
+		if to.IsNil() && to.Type().Kind() == reflect.Pointer {
 			to.Set(reflect.New(to.Type().Elem()))
 			u = to.Interface().(Unmarshaler)
 		}
