@@ -211,11 +211,11 @@ func deployKubeVIP(iface, ip string, pconfig *providerConfig.Config) error {
 
 	f, err := os.Create(targetFile)
 	if err != nil {
-		return fmt.Errorf("could not open %s: %w", f.Name(), err)
+		return fmt.Errorf("could not open %s: %w", targetFile, err)
 	}
 	defer f.Close()
 	if _, err := f.WriteString(content); err != nil {
-		return fmt.Errorf("could not write to %s: %w", f.Name(), err)
+		return fmt.Errorf("could not write to %s: %w", targetFile, err)
 	}
 
 	return nil
