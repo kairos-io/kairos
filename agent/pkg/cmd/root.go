@@ -1334,6 +1334,7 @@ func sysextConfextCommands() []*cli.Command {
 				return nil
 			},
 		},
+		//nolint:dupl // enable and disable are intentionally parallel cli.Commands so they can be read side-by-side; refactoring them behind a shared builder makes the CLI definition harder to grep and see all flags at a glance.
 		{
 			Name:        "enable",
 			Usage:       "Enable a installed system extension for a give entry",
@@ -1406,6 +1407,7 @@ func sysextConfextCommands() []*cli.Command {
 				return nil
 			},
 		},
+		//nolint:dupl // parallel to the enable command above; see the note there.
 		{
 			Name:        "disable",
 			Usage:       "Disable a installed system extension for a give entry",
