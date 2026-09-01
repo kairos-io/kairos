@@ -381,8 +381,8 @@ func prepareConfiguration(source string) (io.Reader, error) {
 		}
 	}
 
-	cfgUrl := fmt.Sprintf(`config_url: %s`, source)
-	cfg = strings.NewReader(cfgUrl)
+	cfgURL := fmt.Sprintf(`config_url: %s`, source)
+	cfg = strings.NewReader(cfgURL)
 
 	return cfg, nil
 }

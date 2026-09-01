@@ -255,11 +255,11 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 			// If os-release is gone with our vars, we dont know what flavor are we in, we should know if we are on ubuntu as we need
 			// a workaround for the grub efi install
 			// So lets try to get the info from the normal keys shipped with the os
-			flavorFromId, err := utils.OSRelease("ID", filepath.Join(cnst.ActiveDir, "etc/os-release"))
+			flavorFromID, err := utils.OSRelease("ID", filepath.Join(cnst.ActiveDir, "etc/os-release"))
 			if err != nil {
 				g.config.Logger.Logger.Err(err).Msg("Getting flavor")
 			}
-			if strings.Contains(strings.ToLower(flavorFromId), "ubuntu") {
+			if strings.Contains(strings.ToLower(flavorFromID), "ubuntu") {
 				flavor = "ubuntu"
 			}
 		}
