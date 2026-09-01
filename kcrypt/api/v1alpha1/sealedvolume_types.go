@@ -101,6 +101,3 @@ type SealedVolumeList struct {
 	Items           []SealedVolume `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&SealedVolume{}, &SealedVolumeList{})
-}
