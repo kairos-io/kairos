@@ -431,39 +431,6 @@ func Start(ctx context.Context, logger logr.Logger, kclient *kubernetes.Clientse
 	}()
 }
 
-func findVolumeFor(requestData PassphraseRequestData, volumeList *keyserverv1alpha1.SealedVolumeList) (*SealedVolumeData, *keyserverv1alpha1.SealedVolume) {
-	for _, v := range volumeList.Items {
-		if requestData.TPMHash == v.Spec.TPMHash {
-			for _, p := range v.Spec.Partitions {
-				deviceNameMatches := requestData.DeviceName != "" && p.DeviceName == requestData.DeviceName
-				uuidMatches := requestData.UUID != "" && p.UUID == requestData.UUID
-				labelMatches := requestData.Label != "" && p.Label == requestData.Label
-
-				secretName := ""
-				if p.Secret != nil && p.Secret.Name != "" {
-					secretName = p.Secret.Name
-				}
-				secretPath := ""
-				if p.Secret != nil && p.Secret.Path != "" {
-					secretPath = p.Secret.Path
-				}
-				if labelMatches || uuidMatches || deviceNameMatches {
-					volumeData := &SealedVolumeData{
-						Quarantined:    v.Spec.Quarantined,
-						SecretName:     secretName,
-						SecretPath:     secretPath,
-						VolumeName:     v.Name,
-						PartitionLabel: p.Label,
-					}
-					return volumeData, &v
-				}
-			}
-		}
-	}
-
-	return nil, nil
-}
-
 // errorMessage should be used when an error should be both, printed to the stdout
 // and sent over the wire to the websocket client.
 func errorMessage(conn *websocket.Conn, logger logr.Logger, theErr error, description string) {
