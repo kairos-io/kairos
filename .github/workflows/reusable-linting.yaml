@@ -58,7 +58,14 @@ jobs:
         env:
           GOLANGCILINT_VERSION: latest-alpine
         shell: bash
-        run: docker run -v $PWD:/work -w /work golangci/golangci-lint:${GOLANGCILINT_VERSION} golangci-lint -v --timeout=${{ inputs.timeout }} run
+        # CGO_ENABLED=0 keeps typecheck off the cgo path in
+        # github.com/google/go-tpm-tools/simulator (pulled transitively
+        # by kcrypt via kairos-io/tpm-helpers), which needs openssl-dev
+        # headers the golangci-lint alpine image does not ship. The
+        # simulator has a `//go:build !cgo` fallback that typechecks
+        # cleanly, so this only affects what golangci-lint parses,
+        # not what any build job compiles.
+        run: docker run -e CGO_ENABLED=0 -v $PWD:/work -w /work golangci/golangci-lint:${GOLANGCILINT_VERSION} golangci-lint -v --timeout=${{ inputs.timeout }} run
 
   hadolint:
     runs-on: ubuntu-latest
