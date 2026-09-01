@@ -336,7 +336,8 @@ func IsMounted(config *sdkConfig.Config, part *sdkPartitions.Partition) (bool, e
 func GetTempDir(config *sdkConfig.Config, suffix string) string {
 	// if we got a TMPDIR var, respect and use that
 	if suffix == "" {
-		random.Seed(time.Now().UnixNano())
+		// math/rand's global source has been auto-seeded since Go 1.20,
+		// so a plain Uint32() is enough for a unique-per-call suffix.
 		suffix = strconv.Itoa(int(random.Uint32()))
 	}
 	elementalTmpDir := fmt.Sprintf("elemental-%s", suffix)
