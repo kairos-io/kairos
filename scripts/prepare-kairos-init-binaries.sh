@@ -26,8 +26,7 @@ fi
 
 # --- External binary versions ---
 # Bump these when the corresponding repo cuts a release you want to consume.
-# edgevpn (github.com/mudler) is the only genuinely external binary left:
-# provider-kairos used to be fetched here too and is now built in-tree.
+# edgevpn (github.com/mudler) is the only external binary
 : "${EDGEVPN_VERSION:=v0.35.4}"
 
 cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
