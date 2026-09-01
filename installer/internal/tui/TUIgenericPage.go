@@ -176,11 +176,12 @@ func setValueForSectionInMainModel(value string, section string) {
 	currentMap := mainModel.extraFields
 	for i, key := range sections {
 		if i == len(sections)-1 {
-			if value == "Yes" || value == "yes" || value == "true" || value == "True" {
+			switch value {
+			case "Yes", "yes", "true", "True":
 				currentMap[key] = true
-			} else if value == "No" || value == "no" || value == "false" || value == "False" {
+			case "No", "no", "false", "False":
 				currentMap[key] = false
-			} else {
+			default:
 				currentMap[key] = value
 			}
 		} else {
