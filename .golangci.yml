@@ -13,6 +13,17 @@ linters:
     - misspell
     - revive
     - zerologlint
+  settings:
+    revive:
+      # Named parameters read as documentation on the many interface
+      # implementations (cli.Context handlers, mock methods, k8s
+      # Reconcile signatures) that ignore some of them; renaming
+      # every ignored parameter to `_` costs more than it buys, so
+      # we drop this specific rule from revive's default set. Every
+      # other revive check stays on.
+      rules:
+        - name: unused-parameter
+          disabled: true
   exclusions:
     generated: lax
     presets:
