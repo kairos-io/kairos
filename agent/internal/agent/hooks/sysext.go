@@ -40,8 +40,13 @@ func (b SysExtPostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 			_ = c.Mounter.Unmount(constants.EfiDir)
 		}()
 	} else {
-		// If its mounted, try to remount it RW
-		err = c.Mounter.Mount(efiPart.Path, constants.EfiDir, efiPart.FS, []string{"remount,rw"})
+		// If its mounted, try to remount it RW. Best-effort: if it was
+		// already RW the remount is a no-op; if it stays RO the
+		// MkdirAll on activeDir/passiveDir below fails with EROFS and
+		// is handled by FailOnBundleErrors.
+		if err := c.Mounter.Mount(efiPart.Path, constants.EfiDir, efiPart.FS, []string{"remount,rw"}); err != nil {
+			c.Logger.Debugf("remount,rw of EFI partition failed (best-effort, may already be RW): %s", err)
+		}
 		defer func() {
 			_ = c.Mounter.Unmount(constants.EfiDir)
 		}()
