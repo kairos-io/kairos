@@ -49,7 +49,7 @@ func newCustomizationPage() *customizationPage {
 		},
 
 		cursor: 0,
-		cursorWithIds: map[int]string{
+		cursorWithIDs: map[int]string{
 			0: "user_password",
 			1: "ssh_keys",
 		},
@@ -68,7 +68,7 @@ func checkPageExists(pageID string, options map[int]string) bool {
 type customizationPage struct {
 	cursor        int
 	options       []string
-	cursorWithIds map[int]string
+	cursorWithIDs map[int]string
 }
 
 func (p *customizationPage) Title() string {
@@ -90,7 +90,7 @@ func (p *customizationPage) Init() tea.Cmd {
 		startIdx := len(p.options)
 		for i, prompt := range yaML {
 			// Check if its already added to the options!
-			if checkPageExists(idFromSection(prompt), p.cursorWithIds) {
+			if checkPageExists(idFromSection(prompt), p.cursorWithIDs) {
 				mainModel.log.Debugf("Customization page for %s already exists, skipping", prompt.YAMLSection)
 				continue
 			}
@@ -99,14 +99,14 @@ func (p *customizationPage) Init() tea.Cmd {
 				mainModel.log.Debugf("Adding customization option for %s", prompt.YAMLSection)
 				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
 				pageID := idFromSection(prompt)
-				p.cursorWithIds[optIdx] = pageID
+				p.cursorWithIDs[optIdx] = pageID
 				newPage := newGenericQuestionPage(prompt)
 				mainModel.pages = append(mainModel.pages, newPage)
 			} else {
 				mainModel.log.Debugf("Adding customization option(bool) for %s", prompt.YAMLSection)
 				p.options = append(p.options, fmt.Sprintf("Configure %s", prompt.YAMLSection))
 				pageID := idFromSection(prompt)
-				p.cursorWithIds[optIdx] = pageID
+				p.cursorWithIDs[optIdx] = pageID
 				newPage := newGenericBoolPage(prompt)
 				mainModel.pages = append(mainModel.pages, newPage)
 			}
@@ -114,12 +114,12 @@ func (p *customizationPage) Init() tea.Cmd {
 	}
 
 	// Now add the finish and install options to the bottom of the list
-	if !checkPageExists("summary", p.cursorWithIds) {
+	if !checkPageExists("summary", p.cursorWithIDs) {
 		p.options = append(p.options, "Finish Customization and start Installation")
-		p.cursorWithIds[len(p.cursorWithIds)] = "summary"
+		p.cursorWithIDs[len(p.cursorWithIDs)] = "summary"
 	}
 
-	mainModel.log.Debugf("Customization options loaded: %v", p.cursorWithIds)
+	mainModel.log.Debugf("Customization options loaded: %v", p.cursorWithIDs)
 	return nil
 }
 
@@ -136,7 +136,7 @@ func (p *customizationPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				p.cursor++
 			}
 		case "enter":
-			if pageID, ok := p.cursorWithIds[p.cursor]; ok {
+			if pageID, ok := p.cursorWithIDs[p.cursor]; ok {
 				return p, func() tea.Msg { return GoToPageMsg{PageID: pageID} }
 			}
 		}
@@ -154,7 +154,7 @@ func (p *customizationPage) View() string {
 			cursor = lipgloss.NewStyle().Foreground(kairosAccent).Render(">")
 		}
 		tick := ""
-		pageID, ok := p.cursorWithIds[i]
+		pageID, ok := p.cursorWithIDs[i]
 		if ok && p.isConfigured(pageID) {
 			tick = lipgloss.NewStyle().Foreground(kairosAccent).Render(checkMark)
 		}
