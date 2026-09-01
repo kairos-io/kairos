@@ -49,9 +49,9 @@ func (b *Bus) Initialize(paths ...string) {
 	}
 
 	b.LoadProviders(paths...)
-	for i := range b.Manager.Events {
-		e := b.Manager.Events[i]
-		b.Manager.Response(e, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
+	for i := range b.Events {
+		e := b.Events[i]
+		b.Response(e, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
 			if os.Getenv("BUS_DEBUG") == "true" {
 				fmt.Println(
 					fmt.Sprintf("[provider event: %s]", e),
