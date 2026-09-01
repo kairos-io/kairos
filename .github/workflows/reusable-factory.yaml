@@ -123,7 +123,11 @@ on:
       allow_insecure_registries:
         type: boolean
         default: false
-        description: "Allow auroraboot to pull container images from registries over plain HTTP or with untrusted/self-signed TLS certificates when generating artifacts (ISO/UKI/RAW). Useful on self-hosted runners that pull from a local or in-cluster registry (e.g. localhost:5000/...). Passed to auroraboot as --allow-insecure-registries, and as --set allow-insecure-registries=true for the RAW flow."
+        description: "Allow auroraboot to pull container images from registries over plain HTTP or
+          with untrusted/self-signed TLS certificates when generating artifacts (ISO/UKI/RAW).
+          Useful on self-hosted runners that pull from a local or in-cluster registry (e.g.
+          localhost:5000/...). Passed to auroraboot as --allow-insecure-registries, and as --set
+          allow-insecure-registries=true for the RAW flow."
 
       # Individual artifact types
       iso:
@@ -333,7 +337,9 @@ jobs:
       # of what next-*.yaml / _next-build-iso.yaml grant, and ghcr
       # returns "installation not allowed to Write organization package".
       packages: write
-    name: ${{ inputs.custom_job_name_format != '' && inputs.custom_job_name_format || format('{0}-{1}-{2}-{3}{4}{5}', inputs.base_image, (inputs.kubernetes_distro != '' && 'standard' || 'core'), inputs.arch, inputs.model, (inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || ''), (inputs.trusted_boot && '-uki' || '')) }}
+    name: "${{ inputs.custom_job_name_format != '' && inputs.custom_job_name_format || format('{0}-{1}-{2}-{3}{4}{5}',
+      inputs.base_image, (inputs.kubernetes_distro != '' && 'standard' || 'core'), inputs.arch, inputs.model,
+      (inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || ''), (inputs.trusted_boot && '-uki' || '')) }}"
     runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     steps:
       - name: Release space from worker
@@ -378,7 +384,7 @@ jobs:
           sudo rm -rfv build || true
           df -h
       - name: Checkout source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
           fetch-depth: '0'
           # Empty is actions/checkout's own default, so unset behaves exactly as
@@ -752,7 +758,7 @@ jobs:
       - name: Run Grype security scan
         if: inputs.grype
         id: grype
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
         with:
           image: ${{ steps.setup.outputs.image_tag }}
           output-format: json
@@ -793,7 +799,7 @@ jobs:
       - name: Run Trivy security scan
         if: inputs.trivy
         id: trivy-scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ steps.setup.outputs.image_tag }}
           format: json
@@ -902,7 +908,7 @@ jobs:
 
       - name: Run Trivy SARIF scan
         if: inputs.trivy_sarif
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           image-ref: ${{ steps.setup.outputs.image_tag }}
           format: sarif
@@ -913,7 +919,7 @@ jobs:
 
       - name: Generate Grype SARIF
         if: inputs.grype_sarif
-        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2  # v7.4.0
         with:
           image: ${{ steps.setup.outputs.image_tag }}
           output-format: sarif
@@ -926,7 +932,7 @@ jobs:
 
       - name: Filter Grype SARIF to critical
         if: inputs.grype_sarif
-        uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
+        uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433  # v1
         with:
           input: grype.sarif
           output: grype.sarif
@@ -934,7 +940,7 @@ jobs:
 
       - name: Filter Trivy SARIF to critical
         if: inputs.trivy_sarif
-        uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433 # v1
+        uses: itxaka/sarif-filter@e5315c19bd49c5a4ad76310a2640b2586247d433  # v1
         with:
           input: trivy.sarif
           output: trivy.sarif
@@ -942,14 +948,14 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         if: inputs.trivy_sarif
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28  # v4
         with:
           sarif_file: 'trivy.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
 
       - name: Upload Grype scan results to GitHub Security tab
         if: inputs.grype_sarif
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28  # v4
         with:
           sarif_file: 'grype.sarif'
           category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
