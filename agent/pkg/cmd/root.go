@@ -1266,6 +1266,7 @@ The command automatically:
 	},
 }
 
+// nolint:gocyclo // urfave/cli command builder: the subcommand definitions (list, list-installed, enable, disable, install, remove) live in-line so the whole sysext/confext CLI shape is grep-friendly; splitting them into per-subcommand functions would only move the complexity, not reduce it.
 func sysextConfextCommands() []*cli.Command {
 	return []*cli.Command{
 		{
