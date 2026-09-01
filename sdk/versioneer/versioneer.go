@@ -97,7 +97,7 @@ func NewArtifactFromOSRelease(file ...string) (*Artifact, error) {
 
 func (a *Artifact) Validate() error {
 	if a.Variant == "" {
-		return errors.New("Variant is empty")
+		return errors.New("variant is empty")
 	}
 
 	return a.ValidateBase()
@@ -108,10 +108,10 @@ func (a *Artifact) ValidateBase() error {
 		return errors.New("FlavorRelease is empty")
 	}
 	if a.Model == "" {
-		return errors.New("Model is empty")
+		return errors.New("model is empty")
 	}
 	if a.Arch == "" {
-		return errors.New("Arch is empty")
+		return errors.New("arch is empty")
 	}
 
 	if a.SoftwareVersion != "" && a.SoftwareVersionPrefix == "" {

@@ -893,7 +893,7 @@ The validate command expects a configuration file as its only argument. Local fi
 				}
 				var b strings.Builder
 				for k, v := range vars {
-					b.WriteString(fmt.Sprintf("%-*s = %s\n", maxKeyLen, k, v))
+					fmt.Fprintf(&b, "%-*s = %s\n", maxKeyLen, k, v)
 				}
 				config.Logger.Logger.Info().Msgf("Grub variables found in %s:\n%s", grubEnv, b.String())
 			}
