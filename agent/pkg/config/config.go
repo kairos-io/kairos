@@ -63,8 +63,7 @@ func NewConfig(opts ...GenericOptions) *sdkConfig.Config {
 
 	// Now check if the runner has a logger inside, otherwise point our logger into it
 	// This can happen if we set the WithRunner option as that doesn't set a logger
-	l := c.Runner.GetLogger()
-	if &l == nil {
+	if c.Runner.GetLogger() == nil {
 		c.Runner.SetLogger(&c.Logger)
 	}
 
