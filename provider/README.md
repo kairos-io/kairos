@@ -25,9 +25,8 @@ where it answers to two different callers:
   provider contract, and it is what makes other providers (`provider-rke2`,
   `provider-k3s`, ...) interchangeable with this one.
 - **A CLI**, when `argv[1]` is anything else. `get-kubeconfig`, `role`,
-  `bridge`, `register`, `generate-token`, `edit-config` and friends. Nothing
-  in the provider contract requires this half; it is specific to this
-  provider.
+  `bridge`, `register`, `generate-token` and friends. Nothing in the provider
+  contract requires this half; it is specific to this provider.
 
 ## Reaching the CLI
 
