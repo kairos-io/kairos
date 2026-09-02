@@ -63,6 +63,64 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		Expect(lerr).ToNot(HaveOccurred())
 	})
 
+	It("keeps a mask written relative to the unit directory", func() {
+		// systemctl mask writes an absolute /dev/null, but a relative mask
+		// reaches the same device node. <root>/dev/null does not exist while
+		// immucore runs, so a relative mask looks exactly like a dangling
+		// link and would otherwise be silently unmasked.
+		Expect(os.WriteFile(filepath.Join(packagedDir(), "wicked.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
+		mask := filepath.Join(unitDir(), "wicked.service")
+		Expect(os.Symlink("../../../dev/null", mask)).To(Succeed())
+
+		removed, err := CleanStaleUnitSymlinks(root)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(removed).To(BeEmpty())
+		_, lerr := os.Lstat(mask)
+		Expect(lerr).ToNot(HaveOccurred())
+	})
+
+	It("keeps a symlink whose target cannot be stat'ed for a reason other than absence", func() {
+		// An unreadable directory on the target path yields EACCES, which
+		// says nothing about whether the target is there. Deleting on that
+		// guess would drop a live symlink.
+		Expect(os.WriteFile(filepath.Join(packagedDir(), "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
+		blocked := filepath.Join(root, "opt", "units")
+		Expect(os.MkdirAll(blocked, 0o755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(blocked, "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
+		Expect(os.Chmod(filepath.Dir(blocked), 0o000)).To(Succeed())
+		DeferCleanup(func() { _ = os.Chmod(filepath.Dir(blocked), 0o755) })
+
+		link := filepath.Join(unitDir(), "sshd.service")
+		Expect(os.Symlink("/opt/units/sshd.service", link)).To(Succeed())
+
+		removed, err := CleanStaleUnitSymlinks(root)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(removed).To(BeEmpty())
+		_, lerr := os.Lstat(link)
+		Expect(lerr).ToNot(HaveOccurred())
+	})
+
+	It("keeps sweeping after a symlink it cannot remove", func() {
+		// A read-only unit directory makes every removal fail. The sweep
+		// must report the failures rather than stop at the first one.
+		for _, name := range []string{"a.service", "z.service"} {
+			Expect(os.WriteFile(filepath.Join(packagedDir(), name), []byte("[Unit]\n"), 0o644)).To(Succeed())
+			Expect(os.Symlink("/usr/lib/systemd/system/gone-"+name, filepath.Join(unitDir(), name))).To(Succeed())
+		}
+		Expect(os.Chmod(unitDir(), 0o555)).To(Succeed())
+		DeferCleanup(func() { _ = os.Chmod(unitDir(), 0o755) })
+
+		removed, err := CleanStaleUnitSymlinks(root)
+
+		Expect(err).To(HaveOccurred())
+		Expect(removed).To(BeEmpty())
+		// Both entries were attempted, not just the first.
+		Expect(err.Error()).To(ContainSubstring("a.service"))
+		Expect(err.Error()).To(ContainSubstring("z.service"))
+	})
+
 	It("keeps a dangling symlink when no packaged unit of that name exists", func() {
 		// A unit shipped only by a sysext is not merged yet while immucore
 		// runs, so removing its symlink would disable it for good.

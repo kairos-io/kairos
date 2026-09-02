@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/hashicorp/go-multierror"
 )
 
 // systemdUnitDir is the drop-in directory that survives an image change,
@@ -54,6 +56,7 @@ func CleanStaleUnitSymlinks(root string) ([]string, error) {
 	}
 
 	var removed []string
+	var errs *multierror.Error
 	for _, entry := range entries {
 		name := entry.Name()
 		if entry.Type()&os.ModeSymlink == 0 {
@@ -64,29 +67,43 @@ func CleanStaleUnitSymlinks(root string) ([]string, error) {
 		if err != nil {
 			continue
 		}
-		if isMask(target) {
+		if isMask(root, unitDir, target) {
 			continue
 		}
-		if _, err := os.Stat(resolveUnitTarget(root, unitDir, target)); err == nil {
+		// Only a genuine ENOENT means the target is gone. Any other stat
+		// error (EACCES on a path component, ELOOP, ENOTDIR) tells us
+		// nothing about the target, and deleting on a guess would be worse
+		// than leaving the symlink alone.
+		if _, err := os.Stat(resolveUnitTarget(root, unitDir, target)); !os.IsNotExist(err) {
 			continue
 		}
 		if !packagedUnitExists(root, name) {
 			continue
 		}
 		if err := os.Remove(path); err != nil {
-			return removed, fmt.Errorf("removing stale unit symlink %s: %w", path, err)
+			// Keep sweeping: one symlink we cannot remove must not hide
+			// every stale symlink after it.
+			errs = multierror.Append(errs, fmt.Errorf("removing stale unit symlink %s: %w", path, err))
+			continue
 		}
 		removed = append(removed, name)
 	}
 	// os.ReadDir sorts by name, so removed comes out deterministic.
-	return removed, nil
+	return removed, errs.ErrorOrNil()
 }
 
 // isMask reports whether the symlink target is a systemd mask. A mask points
 // at /dev/null, which the sysroot has no device node for while immucore runs,
 // so it would otherwise look like any other broken link.
-func isMask(target string) bool {
-	return filepath.Clean(target) == "/dev/null"
+//
+// The target is checked both literally and after resolution, because a mask
+// written relative to the unit directory (../../../dev/null) reaches the same
+// device node and must not be mistaken for a dangling link and unmasked.
+func isMask(root, unitDir, target string) bool {
+	if filepath.Clean(target) == "/dev/null" {
+		return true
+	}
+	return resolveUnitTarget(root, unitDir, target) == filepath.Join(root, "dev", "null")
 }
 
 // resolveUnitTarget maps a symlink target to a path in the running initramfs.
