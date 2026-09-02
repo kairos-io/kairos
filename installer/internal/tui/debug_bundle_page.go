@@ -56,7 +56,7 @@ func (p *debugBundlePage) Init() tea.Cmd {
 		// (which the Update goroutine mutates on WindowSizeMsg / navigation).
 		agentBin := agentrun.ResolveAgentBin()
 		redacted, _ := RenderRedactedCloudConfig(&mainModel)
-		cmd := agentrun.Command(agentBin, "<config>", mainModel.source, mainModel.finishAction)
+		cmd := agentrun.Command(agentBin, "<config>", mainModel.source, mainModel.finishActionOrNothing())
 		ctx := debugbundle.Context{
 			AgentBin:            agentBin,
 			AgentArgs:           cmd.Args[1:],

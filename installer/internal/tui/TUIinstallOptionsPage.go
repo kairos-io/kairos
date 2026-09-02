@@ -29,7 +29,7 @@ func newInstallOptionsPage() *installOptionsPage {
 	return &installOptionsPage{
 		options:          baseOptions,
 		cursor:           0,
-		afterInstallOpts: []string{"nothing", "reboot", "poweroff"},
+		afterInstallOpts: []string{finishNothing, finishReboot, finishPoweroff},
 		afterInstallIdx:  0,
 	}
 }
@@ -59,16 +59,15 @@ func (p *installOptionsPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				p.afterInstallIdx++
 			}
 		case "enter":
-			if p.cursor == 0 {
-				// Start Install - store after install action in Model.extraFields
-				return p, func() tea.Msg {
-					// Set the finish action in the main model
-					mainModel.finishAction = p.afterInstallOpts[p.afterInstallIdx]
-					return GoToPageMsg{PageID: "summary"}
-				}
-			} else {
-				// Customize Further - go to customization page
-				return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
+			// Record the selection on both branches. Customize Further used
+			// to skip it, and the install then finished with no action set.
+			target := "summary"
+			if p.cursor != 0 {
+				target = "customization"
+			}
+			return p, func() tea.Msg {
+				mainModel.finishAction = p.afterInstallOpts[p.afterInstallIdx]
+				return GoToPageMsg{PageID: target}
 			}
 		}
 	}

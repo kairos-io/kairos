@@ -42,7 +42,7 @@ type Model struct {
 	username        string
 	sshKeys         []string // Store SSH keys
 	passwordHash    string
-	finishAction    string         // Action after installation: reboot, poweroff, none
+	finishAction    string         // Action after installation, one of the finish* constants
 	extraFields     map[string]any // Dynamic fields for customization
 	log             *sdkLogger.KairosLogger
 	source          string // cli flags to interactive installer? what??
@@ -53,6 +53,31 @@ type Model struct {
 
 var mainModel Model
 
+// The actions the installer can take once an install finishes. These are the
+// only values finishAction is ever set to, and the only ones kairos-agent
+// manual-install is given a flag for.
+const (
+	finishNothing  = "nothing"
+	finishReboot   = "reboot"
+	finishPoweroff = "poweroff"
+)
+
+// finishActionOrNothing is the action to take once the install completes,
+// with an unset or unrecognized value read as finishNothing.
+//
+// Every read of finishAction goes through here. A value that reached the
+// completion screen without matching one of the three was neither announced
+// as a lifecycle action nor treated as a manual finish: the screen offered
+// "System will  shortly" and no key would leave it.
+func (m *Model) finishActionOrNothing() string {
+	switch m.finishAction {
+	case finishReboot, finishPoweroff:
+		return m.finishAction
+	default:
+		return finishNothing
+	}
+}
+
 // InitialModel Initialize the application
 func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 	// First create the model with the logger in case any page needs to log something
@@ -60,6 +85,7 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		navigationStack: []string{},
 		title:           DefaultTitleInteractiveInstaller(),
 		source:          source,
+		finishAction:    finishNothing,
 		log:             l,
 	}
 	mainModel.pages = []Page{
@@ -121,14 +147,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Hijack all keys if on install process page
 	if installPage, ok := mainModel.pages[currentIdx].(*installProcessPage); ok {
 		// If install failed or finished, any key exits, no abort modal
-		if installPage.errorMsg != "" || installPage.progress >= len(installPage.steps)-1 && mainModel.finishAction == "nothing" {
+		if installPage.errorMsg != "" || installPage.progress >= len(installPage.steps)-1 && mainModel.finishActionOrNothing() == finishNothing {
 			mainModel.showAbortConfirm = false // Ensure abort modal is closed
 			if _, isKey := msg.(tea.KeyMsg); isKey {
 				return mainModel, tea.Quit
 			}
 		}
 		// If install finished with no errors and reboot/poweroff selected, block all keys so we dont block the action
-		if installPage.errorMsg == "" && installPage.progress >= len(installPage.steps)-1 && (mainModel.finishAction == "reboot" || mainModel.finishAction == "poweroff") {
+		if installPage.errorMsg == "" && installPage.progress >= len(installPage.steps)-1 && mainModel.finishActionOrNothing() != finishNothing {
 			return mainModel, nil
 		}
 		if mainModel.showAbortConfirm {

@@ -38,7 +38,7 @@ func (p *summaryPage) View() string {
 
 	s := "Installation Summary\n\n"
 	s += "Selected Disk: " + mainModel.disk + "\n\n"
-	s += "Action to take when installation is complete: " + mainModel.finishAction + "\n\n"
+	s += "Action to take when installation is complete: " + mainModel.finishActionOrNothing() + "\n\n"
 	if _, ok := os.Stat(BrandingFile("interactive_install_advanced_disabled")); ok != nil {
 		s += "Configuration Summary:\n"
 		if mainModel.username != "" {

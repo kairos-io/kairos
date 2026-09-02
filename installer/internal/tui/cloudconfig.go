@@ -35,10 +35,10 @@ func RenderCloudConfig(m *Model) (string, error) {
 	if m.source != "" {
 		cc.Install.Source = m.source
 	}
-	switch m.finishAction {
-	case "reboot":
+	switch m.finishActionOrNothing() {
+	case finishReboot:
 		cc.Install.Reboot = true
-	case "poweroff":
+	case finishPoweroff:
 		cc.Install.Poweroff = true
 	}
 
