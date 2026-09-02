@@ -85,9 +85,16 @@ jobs:
             [ -e "kairos-init/pkg/bundled/binaries/fips/$f" ] || : > "kairos-init/pkg/bundled/binaries/fips/$f"
           done
       - name: golangci-lint
-        env:
-          GOLANGCILINT_VERSION: latest-alpine
         shell: bash
+        env:
+          TIMEOUT: ${{ inputs.timeout }}
+        # Version pin lives in .golangci-version at the repo root so
+        # the `make lint-go` local target and this CI step always run
+        # the same golangci-lint. `latest-alpine` moves without a
+        # commit in this repo and drops surprise findings into
+        # unrelated PRs; a pinned tag rolls forward only when the
+        # file changes.
+        #
         # CGO_ENABLED=0 keeps typecheck off the cgo path in
         # github.com/google/go-tpm-tools/simulator (pulled transitively
         # by kcrypt via kairos-io/tpm-helpers), which needs openssl-dev
@@ -95,7 +102,11 @@ jobs:
         # simulator has a `//go:build !cgo` fallback that typechecks
         # cleanly, so this only affects what golangci-lint parses,
         # not what any build job compiles.
-        run: docker run -e CGO_ENABLED=0 -v $PWD:/work -w /work golangci/golangci-lint:${GOLANGCILINT_VERSION} golangci-lint -v --timeout=${{ inputs.timeout }} run
+        run: |
+          VERSION=$(cat .golangci-version)
+          docker run -e CGO_ENABLED=0 -v "$PWD":/work -w /work \
+            "golangci/golangci-lint:${VERSION}" \
+            golangci-lint -v --timeout="${TIMEOUT}" run
 
   hadolint:
     runs-on: ubuntu-latest

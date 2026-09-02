@@ -97,6 +97,24 @@ lint-workflows-actions:
 	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
 
 # ============================================================================
+# Local Go lint. Mirrors the golangci-lint step in
+# .github/workflows/reusable-linting.yaml -- same image tag (pinned in
+# .golangci-version), same flags, same CGO_ENABLED, same embed-stub
+# preflight. A green `make lint-go` here means the CI golangci_lint job
+# will pass with the same output. Requires Docker.
+#
+# Pin lives in .golangci-version at the repo root. Bumping it there
+# rolls both this target and CI forward in the same commit; nothing
+# else needs to change.
+# ============================================================================
+
+.PHONY: lint-go
+lint-go: kairos-init-embed-stubs
+	@docker run --rm -e CGO_ENABLED=0 -v "$$PWD":/work -w /work \
+	    "golangci/golangci-lint:$$(cat .golangci-version)" \
+	    golangci-lint -v --timeout=10m run
+
+# ============================================================================
 # Release targets. Nothing here publishes; publishing is the workflow's job.
 #
 # Pipeline:
