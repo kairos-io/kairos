@@ -16,6 +16,9 @@ stages:
         VOLUMES: "LABEL=COS_PERSISTENT:/usr/local"
         OVERLAY: "tmpfs:25%"
         RW_PATHS: "/var /etc /srv"
+        # Only machine-owned state belongs here. A path under /usr is owned by
+        # the image, so persisting it merges one slot's binaries into the other
+        # and breaks rollback. See https://github.com/kairos-io/kairos/issues/4304
         PERSISTENT_STATE_PATHS: >-
           /etc/cni
           /etc/init.d
@@ -34,7 +37,6 @@ stages:
           /home
           /opt
           /root
-          /usr/libexec
           /var/cores
           /var/lib/ca-certificates
           /var/lib/cni
