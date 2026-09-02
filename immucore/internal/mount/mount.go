@@ -3,8 +3,21 @@
 // It replaces github.com/containerd/containerd/mount, of which immucore used
 // one function and one struct. Only the parts immucore reaches are here:
 // fstab-style option parsing, and the two-step remount a read-only bind mount
-// needs. Loop devices, FUSE helper binaries, overlay lowerdir compaction and
-// unmounting are all left out, since nothing in immucore asks for them.
+// needs. FUSE helper binaries, overlay lowerdir compaction and unmounting are
+// all left out, since nothing in immucore asks for them.
+//
+// Two behaviors changed rather than merely going missing:
+//
+//   - containerd read a bare "loop" option as a losetup request and consumed it,
+//     so it never reached the data argument. It is absent from mountFlags here,
+//     which means it falls through as filesystem-specific data and is handed to
+//     the kernel. Nothing in immucore passes it: the two places that need a loop
+//     device shell out to losetup(8) themselves (pkg/state/steps.go,
+//     pkg/state/steps_uki.go).
+//   - containerd preserved the target's CL_UNPRIVILEGED locked flags, via
+//     statfs, before the read-only bind remount when it was running inside a
+//     user namespace. That is gone. immucore is PID 1 in the initramfs host
+//     namespace, so the kernel restriction it worked around does not apply.
 package mount
 
 import (
