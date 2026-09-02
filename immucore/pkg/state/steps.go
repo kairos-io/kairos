@@ -11,6 +11,7 @@ import (
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
+	"github.com/kairos-io/kairos/v4/sdk/loop"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/spectrocloud-labs/herd"
 )
@@ -67,10 +68,13 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 					internalUtils.KLog.Logger.Debug().Str("targetImage", s.TargetImage).Str("path", s.Rootdir).Str("TargetDevice", s.TargetDevice).Msg("Not mounting loop, already mounted")
 					return nil
 				}
-				_ = internalUtils.Fsck(s.path("/run/initramfs/cos-state", s.TargetImage))
-				cmd := fmt.Sprintf("losetup -f %s", s.path("/run/initramfs/cos-state", s.TargetImage))
-				_, err := utils.SH(cmd)
-				s.LogIfError(err, "losetup")
+				image := s.path("/run/initramfs/cos-state", s.TargetImage)
+				_ = internalUtils.Fsck(image)
+				// PartScan is left off to match "losetup -f": the state
+				// image holds a bare filesystem, not a partition table.
+				device, err := loop.Loop{Logger: internalUtils.KLog}.Attach(image)
+				s.LogIfError(err, "attaching the state image to a loop device")
+				internalUtils.KLog.Logger.Debug().Str("device", device).Str("image", image).Msg("loop attached")
 				// Trigger udevadm
 				// On some systems the COS_ACTIVE/PASSIVE label is automatically shown as soon as we mount the device
 				// But on other it seems like it won't trigger which causes the sysroot to not be mounted as we cant find
