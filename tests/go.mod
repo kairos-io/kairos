@@ -62,7 +62,7 @@ require (
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jbenet/go-temp-err-catcher v0.1.0 // indirect
 	github.com/jezek/xgb v1.1.0 // indirect
-	github.com/kairos-io/kairos/v4 v4.0.0-00010101000000-000000000000
+	github.com/kairos-io/kairos/v4 v4.2.0
 	github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
