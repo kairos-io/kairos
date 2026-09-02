@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/containerd/containerd/mount"
@@ -61,18 +62,45 @@ func IsMounted(dev string) bool {
 	return err == nil
 }
 
+// blkid runs blkid with the given arguments. It is a var so that a test can
+// answer for it without a blkid binary on the machine running the test.
+var blkid = func(args string) (string, error) {
+	return CommandWithPath("blkid " + args)
+}
+
+// blkidIsBusyBox reports whether blkid here comes from BusyBox, which prints
+// the whole tag list where util-linux prints only the value that was asked
+// for.
+//
+// The answer cannot change while immucore runs, and it is asked once. It used
+// to be asked from DiskFSType, which runs once per mount attempt inside a
+// retry loop, so every attempt forked a second blkid to learn something the
+// first attempt already knew.
+//
+// It is a var, and not a bare call to sync.OnceValue, so that a test can
+// answer for it.
+var blkidIsBusyBox = sync.OnceValue(func() bool {
+	out, err := blkid("--help")
+	if err != nil {
+		// blkid --help exits non-zero on some builds, and the output is
+		// what matters, not the status.
+		KLog.Logger.Debug().Err(err).Str("out", out).Msg("blkid --help")
+	}
+
+	return strings.Contains(out, "BusyBox")
+})
+
 // DiskFSType will return the FS type for a given disk
 // Does NOT need to be mounted
 // Needs full path so either /dev/sda1 or /dev/disk/by-{label,uuid}/{label,uuid} .
 func DiskFSType(s string) string {
 	KLog.Logger.Debug().Str("device", s).Msg("Getting disk type for device")
-	out, e := CommandWithPath(fmt.Sprintf("blkid %s -s TYPE -o value", s))
+	out, e := blkid(fmt.Sprintf("%s -s TYPE -o value", s))
 	if e != nil {
 		KLog.Logger.Debug().Err(e).Msg("blkid")
 	}
 	out = strings.Trim(strings.Trim(out, " "), "\n")
-	blkidVersion, _ := CommandWithPath("blkid --help")
-	if strings.Contains(blkidVersion, "BusyBox") {
+	if blkidIsBusyBox() {
 		// BusyBox blkid returns the whole thing ¬_¬
 		splitted := strings.Fields(out)
 		if len(splitted) == 0 {
