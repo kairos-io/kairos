@@ -53,6 +53,52 @@ type Model struct {
 
 var mainModel Model
 
+// goBack pops the navigation stack by one page, except on the summary page,
+// where it unwinds the whole customization detour in a single press.
+//
+// kairos-io/kairos#3822: "To get back to the previous section I need to press
+// Esc many times becuse it goes through every configuration screen I went."
+// Both complaints in that report are made from the summary page. Reaching it
+// through Customize Further stacks up customization, user/password and ssh
+// keys, so returning to the point where that choice was made costs four
+// presses. Reaching it through Start Install stacks up only the options page,
+// and there one press already worked.
+//
+// Summary is a review screen rather than a step, so the page a user wants
+// behind it is the one where the branch was taken. Everywhere else Esc keeps
+// its one-page-at-a-time meaning, because stepping back to fix a single
+// answer is worth one press too.
+func (m *Model) goBack() {
+	if len(m.navigationStack) == 0 {
+		return
+	}
+	if m.currentPageID == summaryPageID {
+		for len(m.navigationStack) > 1 {
+			top := m.navigationStack[len(m.navigationStack)-1]
+			if top == installOptionsPageID {
+				break
+			}
+			m.navigationStack = m.navigationStack[:len(m.navigationStack)-1]
+		}
+	}
+	m.currentPageID = m.navigationStack[len(m.navigationStack)-1]
+	m.navigationStack = m.navigationStack[:len(m.navigationStack)-1]
+}
+
+// initCurrentPage initialises the page currentPageID now points at.
+//
+// The Esc handler used to call Init() on the page the user was leaving,
+// because it reused the index computed before the page changed. The
+// destination page was therefore never initialised on the way back.
+func (m *Model) initCurrentPage() tea.Cmd {
+	for _, p := range m.pages {
+		if p.ID() == m.currentPageID {
+			return p.Init()
+		}
+	}
+	return nil
+}
+
 // InitialModel Initialize the application
 func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 	// First create the model with the logger in case any page needs to log something
@@ -186,10 +232,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			// Go back to previous page if we have navigation history
 			if len(mainModel.navigationStack) > 0 {
-				// Pop the last page from the stack
-				mainModel.currentPageID = mainModel.navigationStack[len(mainModel.navigationStack)-1]
-				mainModel.navigationStack = mainModel.navigationStack[:len(mainModel.navigationStack)-1]
-				return mainModel, mainModel.pages[currentIdx].Init()
+				mainModel.goBack()
+				return mainModel, mainModel.initCurrentPage()
 			}
 		}
 	}

@@ -76,4 +76,4 @@ func (p *summaryPage) Help() string {
 	return "Press enter to start the installation process.\nPress v to view the generated userdata."
 }
 
-func (p *summaryPage) ID() string { return "summary" }
+func (p *summaryPage) ID() string { return summaryPageID }

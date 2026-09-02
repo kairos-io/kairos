@@ -73,6 +73,14 @@ const (
 	ErrorPrefix           = "ERROR:"
 )
 
+// Navigation IDs for the pages the model itself has to reason about.
+// The others still return their literal from ID(); these two are named
+// because goBack() compares against them (kairos-io/kairos#3822).
+const (
+	installOptionsPageID = "install_options"
+	summaryPageID        = "summary"
+)
+
 // DebugBundlePageID is the navigation ID of the debug bundle page.
 const DebugBundlePageID = "debug_bundle"
 
