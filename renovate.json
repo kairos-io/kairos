@@ -29,6 +29,23 @@
         "action"
       ],
       "pinDigests": true
+    },
+    {
+      "description": "kubo v0.41.0's transitive dep github.com/cockroachdb/swiss only supports Go < 1.27; do not auto-bump the bundle's golang base image until that dependency adds support.",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchFileNames": [
+        "examples/bundle/Dockerfile"
+      ],
+      "matchDepNames": [
+        "golang"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "enabled": false
     }
   ],
   "customManagers": [

@@ -1,3 +1,8 @@
+# kubo v0.41.0's transitive dependency github.com/cockroachdb/swiss only
+# supports Go versions in the [1.20, 1.27) range (see runtime_go1.20.go's
+# `//go:build (go1.20 && !go1.27) || untested_go_version` constraint), so
+# building with Go 1.27+ leaves its runtime hooks undefined and fails.
+# Do not bump past golang:1.26.x until that dependency adds Go 1.27+ support.
 FROM golang:1.26 AS build
 
 # Install a binary
