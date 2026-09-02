@@ -46,7 +46,7 @@ func RenderCloudConfig(m *Model) (string, error) {
 	if m.username != "" {
 		user := schema.User{
 			Name:              m.username,
-			PasswordHash:      m.password,
+			PasswordHash:      m.passwordHash,
 			Groups:            []string{"admin"},
 			SSHAuthorizedKeys: m.sshKeys,
 		}
@@ -75,8 +75,8 @@ func RenderCloudConfig(m *Model) (string, error) {
 // replaced, for safe inclusion in debug bundles. The input model is not mutated.
 func RenderRedactedCloudConfig(m *Model) (string, error) {
 	clone := *m
-	if clone.password != "" {
-		clone.password = "***REDACTED***"
+	if clone.passwordHash != "" {
+		clone.passwordHash = "***REDACTED***"
 	}
 	return RenderCloudConfig(&clone)
 }

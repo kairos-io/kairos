@@ -5,7 +5,6 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 	"github.com/mudler/yip/pkg/schema"
-	yip "github.com/mudler/yip/pkg/schema"
 )
 
 // SshdHardeningAuthnDropIn is the content of the auth-mode drop-in the
@@ -49,7 +48,7 @@ func (SSHHardening) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		_ = machine.Umount("/oem")
 	}()
 
-	cfg := yip.YipConfig{
+	cfg := schema.YipConfig{
 		Stages: map[string][]schema.Stage{
 			"boot": {
 				{

@@ -43,6 +43,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ctxKey is the private type used for context.WithValue keys inside this
+// package; using a package-private type prevents a collision with any other
+// package that might store the same string on the same Context.
+type ctxKey string
+
+const (
+	// extTypeCtxKey stores whether the current sysext/confext CLI action
+	// is being invoked for "sysext" or "confext", so the shared handlers
+	// can dispatch without duplicating the command definitions.
+	extTypeCtxKey ctxKey = "extType"
+)
+
 // ReleasesToOutput gets a semver.Collection and outputs it in the given format
 // Only used here.
 func ReleasesToOutput(rels []string, output string) []string {
@@ -97,7 +109,7 @@ var cmds = []*cli.Command{
 			},
 			&sourceFlag,
 			&cli.StringFlag{Name: "boot-entry", Usage: "Specify a systemd-boot entry to upgrade (other than active/passive/recovery). The value should match the name of the '.efi' file."},
-			&cli.BoolFlag{Name: "recovery", Usage: "Upgrade recovery"},
+			&cli.BoolFlag{Name: constants.BootRecovery, Usage: "Upgrade recovery"},
 			&cli.StringSliceFlag{Name: "exclude-path", Usage: "Paths to exclude from the upgrade process. Can be specified multiple times."},
 			&allowInsecureRegistriesFlag,
 		},
@@ -140,7 +152,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 						_ = c.Set("registry", registryAndOrg)
 
 					}
-					fmt.Println(fmt.Sprintf("Using registry: %s", c.String("registry")))
+					fmt.Printf("Using registry: %s\n", c.String("registry"))
 					return nil
 				},
 				Action: func(c *cli.Context) error {
@@ -227,12 +239,12 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 				source = fmt.Sprintf("oci:%s", v)
 			}
 
-			if c.Bool("recovery") && c.String("boot-entry") != "" {
+			if c.Bool(constants.BootRecovery) && c.String("boot-entry") != "" {
 				return fmt.Errorf("only one of '--recovery' and '--boot-entry' can be set")
 			}
 
 			upgradeEntry := ""
-			if c.Bool("recovery") {
+			if c.Bool(constants.BootRecovery) {
 				upgradeEntry = constants.BootEntryRecovery
 			} else if c.String("boot-entry") != "" {
 				upgradeEntry = c.String("boot-entry")
@@ -277,8 +289,28 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 				Name: "force",
 			},
 			&cli.StringFlag{
-				Name:  "api",
-				Value: "http://127.0.0.1:8080",
+				Name: "api",
+				Usage: "Address of the edgevpn API the p2p provider co-ordinates over. " +
+					"Leave unset to let the provider choose, which is what keeps the edgevpn " +
+					"daemon's listen address and the provider CLI's client address in agreement. " +
+					"Setting it moves the daemon only, so the provider CLI needs the same " +
+					"address in EDGEVPN_API to keep working.",
+				// Deliberately no default. The address is the p2p provider's to
+				// decide: it both writes APILISTEN for the edgevpn daemon and
+				// defaults its own CLI client to the same place. A default here
+				// would win over the provider's and desynchronise the two ends.
+				//
+				// Note that an explicitly set value desynchronises them just the
+				// same. Whatever arrives here reaches the daemon's APILISTEN and
+				// the provider's in-process coordination client, but not the
+				// provider's command line client, which has no way to learn it
+				// and keeps its own default. Operators who set this must also
+				// export EDGEVPN_API for `get-kubeconfig` and `role list`. The
+				// real fix is for the provider CLI to derive its default from
+				// the APILISTEN the provider already writes to
+				// /etc/systemd/system.conf.d/edgevpn-kairos.env, which belongs
+				// in kairos-io/provider-kairos.
+				Value: "",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -592,7 +624,7 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		},
 	},
 	{
-		Name:    "recovery",
+		Name:    constants.BootRecovery,
 		Aliases: []string{"r"},
 		Action: func(c *cli.Context) error {
 			return agent.Recovery()
@@ -873,7 +905,7 @@ The validate command expects a configuration file as its only argument. Local fi
 				}
 				var b strings.Builder
 				for k, v := range vars {
-					b.WriteString(fmt.Sprintf("%-*s = %s\n", maxKeyLen, k, v))
+					fmt.Fprintf(&b, "%-*s = %s\n", maxKeyLen, k, v)
 				}
 				config.Logger.Logger.Info().Msgf("Grub variables found in %s:\n%s", grubEnv, b.String())
 			}
@@ -1234,6 +1266,7 @@ The command automatically:
 	},
 }
 
+// nolint:gocyclo // urfave/cli command builder: the subcommand definitions (list, list-installed, enable, disable, install, remove) live in-line so the whole sysext/confext CLI shape is grep-friendly; splitting them into per-subcommand functions would only move the complexity, not reduce it.
 func sysextConfextCommands() []*cli.Command {
 	return []*cli.Command{
 		{
@@ -1243,24 +1276,24 @@ func sysextConfextCommands() []*cli.Command {
 			Description: "List all the installed extensions",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
-					Name:  "active",
+					Name:  constants.BootActive,
 					Usage: "List the extensions for the active boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "passive",
+					Name:  constants.BootPassive,
 					Usage: "List the extensions for the passive boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "recovery",
+					Name:  constants.BootRecovery,
 					Usage: "List the extensions for the recovery boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "common",
+					Name:  constants.BootCommon,
 					Usage: "List the extensions for the common boot entry (applies to all boot states)",
 				},
 			},
 			Before: func(c *cli.Context) error {
-				if moreThanOneEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
 				}
 
@@ -1277,17 +1310,17 @@ func sysextConfextCommands() []*cli.Command {
 				var bootState string
 
 				for k, v := range map[string]bool{
-					"active":   c.Bool("active"),
-					"passive":  c.Bool("passive"),
-					"recovery": c.Bool("recovery"),
-					"common":   c.Bool("common"),
+					constants.BootActive:   c.Bool(constants.BootActive),
+					constants.BootPassive:  c.Bool(constants.BootPassive),
+					constants.BootRecovery: c.Bool(constants.BootRecovery),
+					constants.BootCommon:   c.Bool(constants.BootCommon),
 				} {
 					if v {
 						bootState = k
 						break
 					}
 				}
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				out, err := action.ListExtensions(cfg, bootState, extType)
 				if err != nil {
 					return err
@@ -1302,6 +1335,7 @@ func sysextConfextCommands() []*cli.Command {
 				return nil
 			},
 		},
+		//nolint:dupl // enable and disable are intentionally parallel cli.Commands so they can be read side-by-side; refactoring them behind a shared builder makes the CLI definition harder to grep and see all flags at a glance.
 		{
 			Name:        "enable",
 			Usage:       "Enable a installed system extension for a give entry",
@@ -1309,19 +1343,19 @@ func sysextConfextCommands() []*cli.Command {
 			Description: "Enable a system extension for a given boot entry (active or passive)",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
-					Name:  "active",
+					Name:  constants.BootActive,
 					Usage: "Enable the system extension for the active boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "passive",
+					Name:  constants.BootPassive,
 					Usage: "Enable the system extension for the passive boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "recovery",
+					Name:  constants.BootRecovery,
 					Usage: "List the system extensions for the recovery boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "common",
+					Name:  constants.BootCommon,
 					Usage: "List the system extensions for the common boot entry (applies to all boot states)",
 				},
 				&cli.BoolFlag{
@@ -1334,11 +1368,11 @@ func sysextConfextCommands() []*cli.Command {
 					return fmt.Errorf("extension name required")
 				}
 
-				if moreThanOneEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
 				}
 
-				if noneOfEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if noneOfEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
 				}
 
@@ -1354,10 +1388,10 @@ func sysextConfextCommands() []*cli.Command {
 				}
 				var bootState string
 				for k, v := range map[string]bool{
-					"active":   c.Bool("active"),
-					"passive":  c.Bool("passive"),
-					"recovery": c.Bool("recovery"),
-					"common":   c.Bool("common"),
+					constants.BootActive:   c.Bool(constants.BootActive),
+					constants.BootPassive:  c.Bool(constants.BootPassive),
+					constants.BootRecovery: c.Bool(constants.BootRecovery),
+					constants.BootCommon:   c.Bool(constants.BootCommon),
 				} {
 					if v {
 						bootState = k
@@ -1366,7 +1400,7 @@ func sysextConfextCommands() []*cli.Command {
 				}
 
 				ext := c.Args().First()
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				if err := action.EnableExtension(cfg, ext, bootState, extType, c.Bool("now")); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed enabling system extension")
 					return err
@@ -1374,6 +1408,7 @@ func sysextConfextCommands() []*cli.Command {
 				return nil
 			},
 		},
+		//nolint:dupl // parallel to the enable command above; see the note there.
 		{
 			Name:        "disable",
 			Usage:       "Disable a installed system extension for a give entry",
@@ -1381,19 +1416,19 @@ func sysextConfextCommands() []*cli.Command {
 			Description: "Disable a system extension for a given boot entry (active or passive)",
 			Flags: []cli.Flag{
 				&cli.BoolFlag{
-					Name:  "active",
+					Name:  constants.BootActive,
 					Usage: "Disable the system extension for the active boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "passive",
+					Name:  constants.BootPassive,
 					Usage: "Disable the system extension for the passive boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "recovery",
+					Name:  constants.BootRecovery,
 					Usage: "List the system extensions for the recovery boot entry",
 				},
 				&cli.BoolFlag{
-					Name:  "common",
+					Name:  constants.BootCommon,
 					Usage: "List the system extensions for the common boot entry (applies to all boot states)",
 				},
 				&cli.BoolFlag{
@@ -1406,11 +1441,11 @@ func sysextConfextCommands() []*cli.Command {
 					return fmt.Errorf("extension name required")
 				}
 
-				if moreThanOneEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if moreThanOneEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("only one of --active, --passive, --recovery or --common can be set")
 				}
 
-				if noneOfEnabled(c.Bool("active"), c.Bool("passive"), c.Bool("recovery"), c.Bool("common")) {
+				if noneOfEnabled(c.Bool(constants.BootActive), c.Bool(constants.BootPassive), c.Bool(constants.BootRecovery), c.Bool(constants.BootCommon)) {
 					return fmt.Errorf("either --active, --passive, --recovery or --common must be set")
 				}
 				if err := checkRoot(); err != nil {
@@ -1425,10 +1460,10 @@ func sysextConfextCommands() []*cli.Command {
 				}
 				var bootState string
 				for k, v := range map[string]bool{
-					"active":   c.Bool("active"),
-					"passive":  c.Bool("passive"),
-					"recovery": c.Bool("recovery"),
-					"common":   c.Bool("common"),
+					constants.BootActive:   c.Bool(constants.BootActive),
+					constants.BootPassive:  c.Bool(constants.BootPassive),
+					constants.BootRecovery: c.Bool(constants.BootRecovery),
+					constants.BootCommon:   c.Bool(constants.BootCommon),
 				} {
 					if v {
 						bootState = k
@@ -1436,7 +1471,7 @@ func sysextConfextCommands() []*cli.Command {
 					}
 				}
 				ext := c.Args().First()
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				if err := action.DisableExtension(cfg, ext, bootState, extType, c.Bool("now")); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed disabling system extension")
 					return err
@@ -1457,7 +1492,7 @@ func sysextConfextCommands() []*cli.Command {
 				if c.Args().Len() != 1 {
 					return fmt.Errorf("extension URI or name required")
 				}
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				catalogURL := extensionCatalogURL(c, extType)
 				if c.String("catalog") != "" && extType == "confext" {
 					return fmt.Errorf("--catalog is only supported for sysext")
@@ -1498,7 +1533,7 @@ func sysextConfextCommands() []*cli.Command {
 				if err != nil {
 					return err
 				}
-				extType := c.Context.Value("extType").(string)
+				extType := c.Context.Value(extTypeCtxKey).(string)
 				if err := action.RemoveExtension(cfg, extension, extType, c.Bool("now")); err != nil {
 					cfg.Logger.Logger.Error().Err(err).Msg("failed removing system extension")
 					return err
@@ -1523,13 +1558,14 @@ func extensionCatalogURL(c *cli.Context, extType string) string {
 func installCatalogOrURIExtension(cfg *sdkConfig.Config, catalogURL, requested, version, extType string) error {
 	var catalogErr error
 	if catalogURL != "" {
-		if _, err := installCatalogExtension(cfg, catalogURL, requested, version); err == nil {
+		_, err := installCatalogExtension(cfg, catalogURL, requested, version)
+		if err == nil {
 			return nil
-		} else if version != "" {
-			return err
-		} else {
-			catalogErr = err
 		}
+		if version != "" {
+			return err
+		}
+		catalogErr = err
 	}
 	if err := validateSourceSysext(requested); err != nil {
 		if catalogErr != nil {
@@ -1546,7 +1582,7 @@ func installCatalogExtension(cfg *sdkConfig.Config, catalogURL, name, version st
 		return extensions.Resolved{}, err
 	}
 	tempPath := filepath.Join(tempDir, fmt.Sprintf("kairos-extension-catalog-%d.json", time.Now().UnixNano()))
-	defer cfg.Fs.Remove(tempPath)
+	defer func() { _ = cfg.Fs.Remove(tempPath) }()
 	if err := cfg.Client.GetURL(cfg.Logger, catalogURL, tempPath); err != nil {
 		return extensions.Resolved{}, err
 	}
@@ -1565,7 +1601,7 @@ func beforeSysextConfext(c *cli.Context) error {
 	}
 	// Set the extType in the context to differentiate between sysext and confext in the common code
 	// so its easier for the shared code to know which one is being called without needing to duplicate the code for both commands
-	c.Context = context.WithValue(c.Context, "extType", c.Command.Name)
+	c.Context = context.WithValue(c.Context, extTypeCtxKey, c.Command.Name)
 	return nil
 }
 

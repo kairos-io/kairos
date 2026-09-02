@@ -41,7 +41,7 @@ type Model struct {
 	disk            string // Selected disk
 	username        string
 	sshKeys         []string // Store SSH keys
-	password        string
+	passwordHash    string
 	finishAction    string         // Action after installation: reboot, poweroff, none
 	extraFields     map[string]any // Dynamic fields for customization
 	log             *sdkLogger.KairosLogger
@@ -93,6 +93,7 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
+// nolint:gocyclo // bubbletea's Update is a message dispatch switch; every case is one message type and keeping them inline is how tea models are meant to be read.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mainModel.log.Tracef("Received message: %T", msg)
 	// Deal with window size changes first

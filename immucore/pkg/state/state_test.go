@@ -7,6 +7,7 @@ import (
 
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/dag"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spectrocloud-labs/herd"
@@ -63,7 +64,7 @@ var _ = Describe("mounting immutable setup", func() {
 			s := &state.State{Rootdir: "/",
 				OverlayDirs:  []string{"/etc"},
 				BindMounts:   []string{"/etc/kubernetes"},
-				CustomMounts: map[string]string{"COS_PERSISTENT": "/usr/local"}}
+				CustomMounts: map[string]string{sdkConstants.PersistentLabel: "/usr/local"}}
 
 			err := dag.RegisterNormalBoot(s, g)
 			Expect(err).ToNot(HaveOccurred())

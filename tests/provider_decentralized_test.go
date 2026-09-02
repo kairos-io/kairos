@@ -15,6 +15,13 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
+// The p2p provider serves the edgevpn API on a unix socket, not on a TCP port.
+// This is provider-kairos' DefaultEdgeVPNAPIAddress with the "unix://" scheme
+// stripped, which is the form curl's --unix-socket wants. The URLs below still
+// need a host to be well formed, so they use "localhost" as a placeholder that
+// --unix-socket overrides.
+const edgevpnAPISocket = "/run/edgevpn-kairos.sock"
+
 var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-decentralized-k8s"), func() {
 	var vms []VM
 	var configPath string
@@ -140,13 +147,14 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			}
 		})
 
-		// The provider-kairos binary lives at /system/providers/agent-provider-kairos
-		// on the installed system. Pre-monorepo it was also symlinked at /usr/bin/kairos,
-		// which is now the multi-call dispatcher for immucore/agent/kcrypt. Whether
-		// `kairos <cmd>` should still route to a provider is an open question tracked
-		// in kairos-io/kairos#3926 (multi-provider composability); the absolute path
-		// here keeps the test neutral while that lands.
-		const providerKairos = "/system/providers/agent-provider-kairos"
+		// The provider binary lives at /system/providers/agent-provider-kairos on
+		// the installed system, which is not on PATH. `kairos provider <cmd>` finds
+		// it there and execs it, which is how these commands are reached now that
+		// /usr/bin/kairos is the multi-call dispatcher rather than the provider CLI
+		// it used to be (kairos-io/kairos#4393). Going through the dispatcher here
+		// is deliberate: this is the only place in the suite that proves the
+		// delegation resolves a real installed provider on a real image.
+		const providerKairos = "kairos provider"
 
 		vmForEach("checking if it has a working kubeconfig", vms, func(vm VM) {
 			var out string
@@ -182,7 +190,17 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		vmForEach("checking if it has machines with different IPs", vms, func(vm VM) {
 			var out string
 			Eventually(func() string {
-				out, _ = vm.Sudo(`curl http://localhost:8080/api/machines`)
+				var err error
+				out, err = vm.Sudo(`curl -sSf --unix-socket ` + edgevpnAPISocket + ` http://localhost/api/machines`)
+				if err != nil {
+					// Without this, an unreachable socket or an API error is
+					// indistinguishable from a reachable API that has not
+					// listed both nodes yet, and the spec burns the full 900s
+					// with an empty string to show for it. vm.Sudo returns
+					// stdout and stderr together, so curl's -sS message is
+					// already in out; err adds the exit status.
+					return fmt.Sprintf("querying the machines API failed: %v: %s", err, out)
+				}
 				return out
 			}, 900*time.Second, 10*time.Second).Should(And(
 				ContainSubstring("10.1.0.1"),
@@ -207,7 +225,14 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			var err error
 			Eventually(func() string {
 				// Set up the DNS record via the API (use simple regex, not escaped)
-				_, _ = vm.Sudo(`curl -X POST http://localhost:8080/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+				postOut, postErr := vm.Sudo(`curl -sSf --unix-socket ` + edgevpnAPISocket + ` -X POST http://localhost/api/dns --header "Content-Type: application/json" -d '{ "Regex": "foo.bar", "Records": { "A": "2.2.2.2" } }'`)
+				if postErr != nil {
+					// Announcing the record is what makes the lookups below
+					// resolve. If the POST failed there is nothing to resolve,
+					// so report that rather than letting the spec fail 240s
+					// later on a lookup that was never going to succeed.
+					return fmt.Sprintf("announcing the DNS record failed: %v: %s", postErr, postOut)
+				}
 
 				// Check if DNS resolution works using resolvectl (more reliable than curl)
 				out, err = vm.Sudo("resolvectl query foo.bar 2>&1")
@@ -220,7 +245,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 				return strings.TrimSpace(out)
 			}, 240*time.Second, 10*time.Second).Should(MatchRegexp("2\\.2\\.2\\.2"), func() string {
 				// On failure, print diagnostics
-				dnsRecords, _ := vm.Sudo("curl -s http://localhost:8080/api/dns")
+				dnsRecords, _ := vm.Sudo("curl -s --unix-socket " + edgevpnAPISocket + " http://localhost/api/dns")
 				resolv, _ := vm.Sudo("cat /etc/resolv.conf")
 				svcStatus, _ := vm.Sudo("systemctl status edgevpn@kairos --no-pager 2>&1 | head -20")
 				resolvectl, _ := vm.Sudo("resolvectl status 2>&1 | head -30")

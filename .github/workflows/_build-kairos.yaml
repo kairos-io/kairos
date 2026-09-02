@@ -1,10 +1,11 @@
 name: Build kairos
 
-# Reusable step: cross-compile the multi-call kairos binary for the
-# requested ARCH/VARIANT matrix and upload per-cell workflow artifacts.
+# Reusable step: cross-compile the binaries that kairos-init embeds --
+# the multi-call kairos, kairos-installer and provider-kairos -- for the
+# requested ARCH/VARIANT matrix, and upload per-cell workflow artifacts.
 #
 # This is the input to _build-kairos-init.yaml (which embeds both
-# variants' kairos into the kairos-init binary + container image).
+# variants of all three into the kairos-init binary + container image).
 # kcrypt-challenger builds on its own parallel pipe -- nothing here
 # needs it.
 
@@ -94,6 +95,15 @@ jobs:
       # puts it there.
       - name: Build kairos-installer
         run: make kairos-installer ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+
+      # Same deal as kairos-installer: provider-kairos rides in the
+      # (arch, variant) archive that build-kairos-init unpacks, and the
+      # embed step expects `dist/linux-<arch>[-fips]/provider-kairos` to be
+      # there. Until the subtree absorption this binary was curl'd from the
+      # provider-kairos repo's releases by
+      # scripts/prepare-kairos-init-binaries.sh; it is built here now.
+      - name: Build provider-kairos
+        run: make provider-kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
 
       - name: Package archives
         run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}

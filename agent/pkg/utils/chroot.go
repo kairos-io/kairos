@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
-	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
@@ -62,7 +62,7 @@ func ChrootedCallback(cfg *sdkConfig.Config, path string, bindMounts map[string]
 	return chroot.RunCallback(callback)
 }
 
-// Sets additional bind mounts for the chroot enviornment. They are represented
+// Sets additional bind mounts for the chroot environment. They are represented
 // in a map where the key is the path outside the chroot and the value is the
 // path inside the chroot.
 func (c *Chroot) SetExtraMounts(extraMounts map[string]string) {
@@ -76,7 +76,7 @@ func (c *Chroot) Prepare() error {
 	mountOptions := []string{"bind"}
 
 	if len(c.activeMounts) > 0 {
-		return errors.New("There are already active mountpoints for this instance")
+		return errors.New("there are already active mountpoints for this instance")
 	}
 
 	defer func() {

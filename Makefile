@@ -97,6 +97,24 @@ lint-workflows-actions:
 	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
 
 # ============================================================================
+# Local Go lint. Mirrors the golangci-lint step in
+# .github/workflows/reusable-linting.yaml -- same image tag (pinned in
+# .golangci-version), same flags, same CGO_ENABLED, same embed-stub
+# preflight. A green `make lint-go` here means the CI golangci_lint job
+# will pass with the same output. Requires Docker.
+#
+# Pin lives in .golangci-version at the repo root. Bumping it there
+# rolls both this target and CI forward in the same commit; nothing
+# else needs to change.
+# ============================================================================
+
+.PHONY: lint-go
+lint-go: kairos-init-embed-stubs
+	@docker run --rm -e CGO_ENABLED=0 -v "$$PWD":/work -w /work \
+	    "golangci/golangci-lint:$$(cat .golangci-version)" \
+	    golangci-lint -v --timeout=10m run
+
+# ============================================================================
 # Release targets. Nothing here publishes; publishing is the workflow's job.
 #
 # Pipeline:
@@ -167,6 +185,16 @@ kcrypt-challenger: | $(DIST_ARCH_DIR)
 kairos-installer: | $(DIST_ARCH_DIR)
 	$(GO_BUILD) -o $(DIST_ARCH_DIR)/kairos-installer ./installer
 
+# The p2p/mesh provider. Two jobs in one binary: an agent bus plugin that
+# answers events over go-pluggable, and the CLI behind `kairos provider <cmd>`
+# (get-kubeconfig, role, bridge, register, ...). Embedded by kairos-init into
+# /system/providers/agent-provider-kairos, standard images only. Not linked
+# into the multi-call kairos: its edgevpn/libp2p/kube-vip tree adds ~46 MiB,
+# which core images would carry for nothing.
+.PHONY: provider-kairos
+provider-kairos: | $(DIST_ARCH_DIR)
+	$(GO_BUILD) -o $(DIST_ARCH_DIR)/provider-kairos ./provider
+
 # Layout a real deployment ships: one kairos binary + argv[0] symlinks.
 .PHONY: symlinks
 symlinks: kairos
@@ -207,9 +235,9 @@ kairos-init: kairos-init-embed
 # if you want them.
 .PHONY: binaries
 binaries:
-	$(MAKE) kairos kcrypt-challenger kairos-installer ARCH=$(ARCH) VARIANT=default
+	$(MAKE) kairos kcrypt-challenger kairos-installer provider-kairos ARCH=$(ARCH) VARIANT=default
 ifneq ($(ARCH),riscv64)
-	$(MAKE) kairos kcrypt-challenger kairos-installer ARCH=$(ARCH) VARIANT=fips
+	$(MAKE) kairos kcrypt-challenger kairos-installer provider-kairos ARCH=$(ARCH) VARIANT=fips
 endif
 	$(MAKE) kairos-init ARCH=$(ARCH) VARIANT=default
 
@@ -274,6 +302,19 @@ image-kairos-init: kairos-init
 
 .PHONY: images
 images: image-kcrypt-challenger image-kairos-init
+
+# --- bootable artifacts ---
+#
+# Everything above stops at container images. `make iso` carries on to a
+# bootable ISO by running the two remaining steps CI does in
+# .github/workflows/reusable-factory.yaml: bake the OS image with
+# images/Dockerfile, then hand it to auroraboot. Defaults reproduce the
+# amd64-standard cell, which is what the provider and standard qemu suites
+# test against. Needs docker with a usable socket; see the script header for
+# the environment variables it honours.
+.PHONY: iso
+iso:
+	scripts/build-iso.sh
 
 .PHONY: clean
 clean:

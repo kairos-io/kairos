@@ -160,6 +160,39 @@ bundles:
 				}
 			})
 
+			By("Checking every component reports one version", func() {
+				// Same stdout/stderr merging as the readlink note above.
+				firstLine := func(s string) string {
+					return strings.TrimSpace(strings.SplitN(strings.TrimSpace(s), "\n", 2)[0])
+				}
+
+				out, err := vm.Sudo("/usr/bin/kairos --version")
+				Expect(err).ToNot(HaveOccurred(), out)
+				reported := firstLine(out)
+				Expect(reported).To(HavePrefix("kairos "), out)
+
+				version := strings.TrimSpace(strings.TrimPrefix(reported, "kairos"))
+				Expect(version).ToNot(BeEmpty())
+				Expect(version).ToNot(Equal("dev"), "the build did not stamp a version")
+
+				for _, link := range []string{
+					"/usr/bin/kairos-agent",
+					"/usr/bin/immucore",
+					"/system/discovery/kcrypt-discovery-challenger",
+				} {
+					out, err := vm.Sudo(fmt.Sprintf("%s --version", link))
+					Expect(err).ToNot(HaveOccurred(), out)
+					Expect(firstLine(out)).To(Equal(reported), link)
+				}
+
+				// kairos-init is not installed here; the version it reported at
+				// build time survives only in what it wrote to kairos-release.
+				out, err = vm.Sudo(". /etc/kairos-release; echo $KAIROS_INIT_VERSION")
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(firstLine(out)).To(Equal(version),
+					"KAIROS_INIT_VERSION disagrees with the kairos binary")
+			})
+
 			By("Checking install/recovery services are disabled", func() {
 				if !isFlavor(vm, "alpine") {
 					for _, service := range []string{"kairos-interactive", "kairos-recovery"} {

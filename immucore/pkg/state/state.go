@@ -68,7 +68,7 @@ func (s *State) WriteFstab() func(context.Context) error {
 				if err != nil {
 					return err
 				}
-				if _, err := f.WriteString(fmt.Sprintf("%s\n", fst.String())); err != nil {
+				if _, err := fmt.Fprintf(f, "%s\n", fst.String()); err != nil {
 					_ = f.Close()
 					return err
 				}

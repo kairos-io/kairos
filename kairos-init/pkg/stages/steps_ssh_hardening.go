@@ -21,12 +21,12 @@ import (
 // works uniformly. sort -V handles the version comparison portably.
 const hasSntrup761Kex = `[ "$(printf '8.5\n%s\n' "$(sshd -h 2>&1 | grep -oE 'OpenSSH_[0-9]+\.[0-9]+' | head -1 | cut -d_ -f2)" | sort -V | head -1)" = "8.5" ]`
 
-// GetSshHardeningStage installs the sshd hardening drop-in and filters the
+// GetSSHHardeningStage installs the sshd hardening drop-in and filters the
 // moduli file so it stops offering DH groups below 2048 bits. See
 // bundled.SshdHardeningConfig for the ruleset; the spec we track is the
 // DevSec ssh-baseline.
-func GetSshHardeningStage(_ values.System, l logger.KairosLogger) []schema.Stage {
-	if config.ContainsSkipStep(values.SshHardeningStep) {
+func GetSSHHardeningStage(_ values.System, l logger.KairosLogger) []schema.Stage {
+	if config.ContainsSkipStep(values.SSHHardeningStep) {
 		l.Logger.Warn().Msg("Skipping ssh hardening stage")
 		return []schema.Stage{}
 	}

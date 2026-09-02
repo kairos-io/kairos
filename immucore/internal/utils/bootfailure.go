@@ -107,3 +107,43 @@ func RenderFailureScreen(subtitle, intro string, sections ...FailureSection) str
 func Emphasize(s string) string {
 	return ansiHeading + s + ansiReset
 }
+
+// RenderTerminatedMessage returns the operator-facing screen shown when
+// immucore was terminated by a signal before its mount DAG completed.
+//
+// The failure is silent by nature: the process is gone, systemd records the
+// oneshot as stopped, and the boot carries on into a root whose persistent
+// binds, /etc overlay and /usr/local were never established. The host then
+// looks healthy while every write to /etc is discarded. This screen exists so
+// that state is visible on the console instead of being discovered days later
+// from an unrelated symptom.
+func RenderTerminatedMessage(signalName, logDir string) string {
+	var wrong strings.Builder
+	fmt.Fprintf(&wrong, "immucore received %s while it was still mounting the root\n", signalName)
+	wrong.WriteString("filesystem. The mount graph did not complete, so none of the\n")
+	wrong.WriteString("persistent binds, the /etc overlay or /usr/local are in place.\n")
+	wrong.WriteString("\n")
+	wrong.WriteString("Continuing the boot would produce a system that answers on the\n")
+	wrong.WriteString("network and looks healthy while discarding every write. The boot\n")
+	wrong.WriteString("is stopped here instead.\n")
+
+	var fix strings.Builder
+	fix.WriteString("  - Reboot. The termination is timing-dependent and a second\n")
+	fix.WriteString("    attempt on the same image normally completes.\n")
+	fix.WriteString("  - If it repeats, the initrd unit ordering is the first thing to\n")
+	fix.WriteString("    check: immucore.service must declare\n")
+	fix.WriteString("    Before=initrd-switch-root.target next to its Conflicts=.\n")
+	fix.WriteString("  - Add rd.immucore.debug to the cmdline for a verbose run.\n")
+
+	var logs strings.Builder
+	fmt.Fprintf(&logs, "  %s\n", logDir)
+	logs.WriteString("  journalctl -b -u immucore\n")
+
+	return RenderFailureScreen(
+		"root filesystem was never mounted",
+		"",
+		FailureSection{Title: SectionWhatWentWrong, Body: wrong.String()},
+		FailureSection{Title: SectionHowToFix, Body: fix.String()},
+		FailureSection{Title: "Where to look", Body: logs.String()},
+	)
+}

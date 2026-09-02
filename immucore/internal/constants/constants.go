@@ -174,6 +174,6 @@ const (
 	DestSysExtDir                   = "/run/extensions"
 	DestConfExtDir                  = "/run/confexts"
 	VerityCertDir                   = "/run/verity.d/"
-	SysextDefaultPolicy             = "--image-policy=\"root=verity+signed+absent:usr=verity+signed+absent\""
+	SysextDefaultPolicy             = "--image-policy=\"root=signed+absent:usr=signed+absent\""
 	EfiDir                          = "/efi"
 )

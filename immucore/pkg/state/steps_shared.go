@@ -15,6 +15,7 @@ import (
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"github.com/spectrocloud-labs/herd"
 )
@@ -83,11 +84,11 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// removable/network media but must behave like an installed
 			// Active system, so they get uki_boot_mode, never
 			// uki_install_mode (which would fire the installer stages).
-cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
-if err != nil {
-	return fmt.Errorf("reading kernel cmdline: %w", err)
-}
-if strings.Contains(string(cmdline), "rd.immucore.uki") {
+			cmdline, err := os.ReadFile(internalUtils.GetHostProcCmdline())
+			if err != nil {
+				return fmt.Errorf("reading kernel cmdline: %w", err)
+			}
+			if strings.Contains(string(cmdline), "rd.immucore.uki") {
 				ukiSentinel := internalUtils.UkiSentinel(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM)
 				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
 				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {
@@ -250,9 +251,18 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 					internalUtils.KLog.Logger.Debug().Msg("Livecd mode detected, won't mount OEM")
 					return nil
 				}
-				if internalUtils.GetOemLabel() == "" {
+				oemLabel := internalUtils.GetOemLabel()
+				if oemLabel == "" {
 					internalUtils.KLog.Logger.Debug().Msg("OEM label from cmdline empty, won't mount OEM")
 					return nil
+				}
+				// Resolve to a concrete device path so mount(2) and fstab
+				// bypass /dev/disk/by-label. See kairos-io/kairos#4403.
+				source, err := resolveMountSource(oemLabel)
+				if err != nil {
+					internalUtils.KLog.Logger.Err(err).Str("label", oemLabel).
+						Msg("Could not resolve OEM label to a device")
+					return err
 				}
 				operation := func(_ context.Context) error {
 					mountMode := "rw"
@@ -261,9 +271,9 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 						mountMode = "ro"
 					}
 					fstab, err := op.MountOPWithFstab(
-						fmt.Sprintf("/dev/disk/by-label/%s", internalUtils.GetOemLabel()),
+						source,
 						s.path("/oem"),
-						internalUtils.DiskFSType(fmt.Sprintf("/dev/disk/by-label/%s", internalUtils.GetOemLabel())),
+						internalUtils.DiskFSType(source),
 						[]string{
 							mountMode,
 							"suid",
@@ -278,6 +288,38 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 				}
 				return operation(ctx)
 			}))...)
+}
+
+// resolveMountSource maps a filesystem label to the concrete device path we
+// want mount(2) and fstab to reference. On pre-fix installs the outer LUKS
+// container shares the label with its inner ext4, so /dev/disk/by-label/<X>
+// resolves ambiguously under udev. See kairos-io/kairos#4403. Using the
+// mapper path (for encrypted setups) or the plain partition path (for
+// unencrypted ones) sidesteps the race entirely. Failures are returned to
+// the caller: falling back to the by-label form would silently reintroduce
+// the race for the same partition that ghw just failed to enumerate.
+func resolveMountSource(label string) (string, error) {
+	dev, err := lookup.MountSourceForLabel(label)
+	if err != nil {
+		return "", fmt.Errorf("resolving mount source for label %q: %w", label, err)
+	}
+	if dev == "" {
+		return "", fmt.Errorf("resolving mount source for label %q: empty result", label)
+	}
+	internalUtils.KLog.Logger.Debug().Str("label", label).Str("resolved", dev).
+		Msg("Resolved label to concrete device path")
+	return dev, nil
+}
+
+// labelFromByLabelPath returns the label component of a /dev/disk/by-label/<X>
+// path, or the empty string if the input is any other shape. Used to unwrap
+// the label form ParseMount produced in cos-layout.env parsing.
+func labelFromByLabelPath(p string) string {
+	const prefix = "/dev/disk/by-label/"
+	if strings.HasPrefix(p, prefix) {
+		return strings.TrimPrefix(p, prefix)
+	}
+	return ""
 }
 
 // MountBaseOverlayDagStep will add mounting /run/overlay as an overlay dir
@@ -372,16 +414,38 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				// replay its ext4 journal against hardware-read-only storage.
 				if hardwareRO && strings.Contains(strings.ToLower(what), "persistent") {
 					mountOptions = []string{"ro", "noload"}
+        }
+				// If `what` is a /dev/disk/by-label/<X> path (the common
+				// case from cos-layout.env's VOLUMES entries), resolve to
+				// the concrete device path first, since the by-label symlink
+				// races with udev on pre-fix installs whose LUKS outer and
+				// inner ext4 share the label (kairos-io/kairos#4403).
+				source := what
+				if label := labelFromByLabelPath(what); label != "" {
+					resolved, resolveErr := resolveMountSource(label)
+					if resolveErr != nil {
+						internalUtils.KLog.Logger.Err(resolveErr).Str("label", label).
+							Msg("Could not resolve custom-mount label to a device")
+						if !strings.Contains(what, "COS_OEM") {
+							err = multierror.Append(err, resolveErr)
+						}
+						continue
+					}
+					source = resolved
 				}
-				// 30s covers the window between cryptsetup finishing a LUKS
-				// unlock and udev populating /dev/disk/by-label/<label> for
-				// the unlocked mapper. Under IO or CPU pressure that window
-				// can exceed a few seconds, and if the mount gives up first
-				// it fails with "no such device" and boot continues without
-				// /usr/local mounted - so every persistent bind (/home, ...)
-				// silently disappears from the running system.
+				// The 30s timeout covers the window between cryptsetup
+				// creating the mapper (kernel side) and udev finishing the
+				// /dev/mapper/<name> node MountOPWithFstab tries to open.
+				// Even with a concrete device path, mount(2) still sees
+				// ENOENT until udev has finished processing the new dm
+				// event; under IO or CPU pressure that can take several
+				// seconds. MountOPWithFstab retries during this window,
+				// and 30s gives boot enough room to succeed before we give
+				// up and log a warning. If resolveMountSource failed above,
+				// we already `continue`d, so this path is only reached with
+				// a resolved concrete source.
 				fstab, err2 := op.MountOPWithFstab(
-					what,
+					source,
 					s.path(where),
 					fstype,
 					mountOptions,

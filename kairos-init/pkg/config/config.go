@@ -90,7 +90,7 @@ func init() {
 // ContainsSkipStep checks if a step is in the skip steps list
 func ContainsSkipStep(step string) bool {
 	for _, s := range DefaultConfig.SkipSteps {
-		if strings.ToLower(s) == strings.ToLower(step) {
+		if strings.EqualFold(s, step) {
 			return true
 		}
 	}

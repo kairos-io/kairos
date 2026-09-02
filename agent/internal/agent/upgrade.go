@@ -13,12 +13,10 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/uki"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	k8sutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/k8s"
-	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
-	"github.com/mudler/go-pluggable"
 )
 
 func CurrentImage(registry string) (string, error) {
@@ -211,26 +209,6 @@ func generateUpgradeConfForCLIArgs(source, upgradeEntry string, allowInsecureReg
 
 	d, err := json.Marshal(upgradeConfig)
 	return string(d), err
-}
-
-func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
-	var result []string
-	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
-		if r.Data == "" {
-			return
-		}
-		if err := json.Unmarshal([]byte(r.Data), &result); err != nil {
-			fmt.Printf("warn: failed unmarshalling data: '%s'\n", err.Error())
-		}
-	})
-
-	configYAML := "IncludePreReleases: true"
-	_, err := bus.Manager.Publish(events.EventAvailableReleases, events.EventPayload{Config: configYAML})
-	if err != nil {
-		return result, fmt.Errorf("failed publishing event: %w", err)
-	}
-
-	return result, nil
 }
 
 // ExtraConfigUpgrade is the struct that holds the upgrade options that come from flags and events

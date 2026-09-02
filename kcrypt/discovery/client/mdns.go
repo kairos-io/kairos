@@ -75,7 +75,12 @@ func discoverMDNSServer(hostname string, logger loggerpkg.KairosLogger) (string,
 
 	logger.Debugf("Will now wait for some mdns server to respond")
 	// Start the lookup. It will block until we read from the chan.
-	mdns.Lookup(MDNSServiceType, entriesCh)
+	// A Lookup error means no query could be sent, so no entry will
+	// ever arrive on entriesCh and the loop below will drop out on
+	// timeout. Log the reason so the timeout is not the only signal.
+	if err := mdns.Lookup(MDNSServiceType, entriesCh); err != nil {
+		logger.Warnf("mdns.Lookup failed, discovery will time out: %v", err)
+	}
 
 	expectedHost := hostname + "." // FQDN
 	// Wait until a matching server is found or we reach a timeout

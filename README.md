@@ -70,6 +70,11 @@ image initializer all live in one source tree, share a single
 - `installer/` -- interactive terminal-UI installer embedded by
   kairos-init at `/system/installer/kairos-installer` and invoked by
   `kairos-agent interactive-install` (was `kairos-io/kairos-installer`).
+- `provider/` -- the p2p/mesh provider, embedded by kairos-init at
+  `/system/providers/agent-provider-kairos` in standard images. Both an
+  agent bus plugin and the CLI behind `kairos provider <cmd>`
+  (was `kairos-io/provider-kairos`, which shipped the same commands a
+  second time as a standalone `kairosctl` binary).
 - `tests/` -- monorepo end-to-end test suite.
 
 Each absorbed subdirectory keeps a thin `main.go` at its root, so
@@ -80,8 +85,8 @@ binary can pin one of those.
 
 The historical repos (`kairos-agent`, `immucore`,
 `kcrypt-discovery-challenger`, `kcrypt-challenger`, `kairos-sdk`,
-`kairos-init`, `kairos-installer`, `kairos-factory-action`,
-`linting-composite-action`) are archived. Their tagged releases
+`kairos-init`, `kairos-installer`, `provider-kairos`,
+`kairos-factory-action`, `linting-composite-action`) are archived. Their tagged releases
 remain resolvable so pre-migration pins keep working; post-migration
 fixes land here and ship on the monorepo release tag.
 

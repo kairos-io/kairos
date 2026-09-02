@@ -61,37 +61,10 @@ id = "GO-2026-5932"
 ignoreUntil = 2026-11-10
 reason = "no-fix-available: golang.org/x/crypto. No fixed version published at any of the versions in the bundle."
 
-
-# ---------------------------------------------------------------------------
-# prerelease-only-fix -- the only published fix is Go 1.27.0-rc.2. Bumping the
-# toolchain to a release candidate to clear CVEs is not a sane release action;
-# these are taken with the stable 1.27.
-# ---------------------------------------------------------------------------
-
 [[IgnoredVulns]]
-id = "GO-2026-4970"
-ignoreUntil = 2026-08-26
-reason = "prerelease-only-fix: CVE-2026-39822, Go stdlib. Fixed only in 1.27.0-rc.2; take with the stable 1.27 toolchain bump."
-
-[[IgnoredVulns]]
-id = "GO-2026-5037"
-ignoreUntil = 2026-08-26
-reason = "prerelease-only-fix: CVE-2026-27145, Go stdlib. Fixed only in 1.27.0-rc.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5038"
-ignoreUntil = 2026-08-26
-reason = "prerelease-only-fix: CVE-2026-42504, Go stdlib. Fixed only in 1.27.0-rc.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5039"
-ignoreUntil = 2026-08-26
-reason = "prerelease-only-fix: CVE-2026-42507, Go stdlib. Fixed only in 1.27.0-rc.2."
-
-[[IgnoredVulns]]
-id = "GO-2026-5856"
-ignoreUntil = 2026-08-26
-reason = "prerelease-only-fix: CVE-2026-42505, Go stdlib. Fixed only in 1.27.0-rc.2."
+id = "GO-2026-4479"
+ignoreUntil = 2026-11-29
+reason = "no-fix-available: github.com/pion/dtls/v2, unmaintained with no fixed version published. Reached only through libp2p's optional WebRTC transport, which the provider does not enable. New to the root module graph with the provider-kairos absorption; carried over from that repo's own osv-scanner.toml."
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +143,11 @@ id = "GO-2026-5970"
 ignoreUntil = 2026-10-11
 reason = "upstream-regression: CVE-2026-56852, golang.org/x/text in edgevpn. Fix v0.39.0 breaks libp2p peer connectivity in combination with the pion bumps. See mudler/edgevpn#1075."
 
+
+[[IgnoredVulns]]
+id = "GO-2026-6303"
+ignoreUntil = 2026-09-30
+reason = "upstream-fix-pending: CVE pending, golang.org/x/crypto/ssh in the edgevpn binary. Source-address critical option not enforced for non-public-key auth callbacks. Fixed in x/crypto 0.55.0, which this repo already builds against; the finding is in the prebuilt edgevpn tarball kairos-init consumes, so it clears when mudler cuts a release built against the fix. Kairos does not use edgevpn's ssh server with a source-address critical option."
 
 # ---------------------------------------------------------------------------
 # upstream-fix-pending -- Go stdlib advisories carried by the `edgevpn` binary,

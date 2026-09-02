@@ -37,7 +37,7 @@ import (
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
-// DirSize returns the accumulated size of all files in folder
+// DirSize returns the accumulated size of all files in folder.
 func DirSize(fs sdkFS.KairosFS, path string) (int64, error) {
 	var size int64
 	err := vfs.Walk(fs, path, func(_ string, info os.FileInfo, err error) error {
@@ -64,7 +64,7 @@ func Exists(fs sdkFS.KairosFS, path string) (bool, error) {
 	return false, err
 }
 
-// IsDir check if the path is a dir
+// IsDir check if the path is a dir.
 func IsDir(fs sdkFS.KairosFS, path string) (bool, error) {
 	fi, err := fs.Stat(path)
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
@@ -54,11 +55,14 @@ func luksifyWithPassphrase(label string, passphrase string, logger sdkLogger.Kai
 		return "", err
 	}
 
-	mapper := partitionMapperPath(info)
+	mapper := lookup.MapperPath(info)
 	device := info.Path
 
+	// The LUKS container carries the inner label plus a _LUKS suffix so udev
+	// can distinguish it from the inner ext4 that will share the plain label
+	// once formatted. See kairos-io/kairos#4403.
 	extraArgs := []string{"--uuid", uuid.NewV5(uuid.NamespaceURL, label).String()}
-	extraArgs = append(extraArgs, "--label", label)
+	extraArgs = append(extraArgs, "--label", lookup.OuterLUKSLabel(label))
 	extraArgs = append(extraArgs, argsCreate...)
 
 	logger.Logger.Info().Str("device", device).Msg("Checking if device is mounted")
@@ -180,11 +184,12 @@ func luksifyMeasurements(label string, publicKeyPcrs []string, pcrs []string, lo
 	// On TPM locking we generate a random password that will only be used here then discarded.
 	// only unlocking method will be PCR values
 	pass := getRandomString(32)
-	mapper := partitionMapperPath(info)
+	mapper := lookup.MapperPath(info)
 	device := info.Path
 
+	// Outer/inner label split. See luksifyWithPassphrase.
 	extraArgs := []string{"--uuid", uuid.NewV5(uuid.NamespaceURL, label).String()}
-	extraArgs = append(extraArgs, "--label", label)
+	extraArgs = append(extraArgs, "--label", lookup.OuterLUKSLabel(label))
 	extraArgs = append(extraArgs, argsCreate...)
 
 	// Unmount the device if it's mounted before attempting to encrypt it

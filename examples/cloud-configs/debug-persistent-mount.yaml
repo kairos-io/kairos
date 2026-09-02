@@ -1,0 +1,178 @@
+#cloud-config
+#
+# Debugging aid: record, on every boot, whether COS_PERSISTENT actually mounted.
+#
+# THE PROBLEM THIS SOLVES
+#
+# A node can boot into a state where /usr/local (COS_PERSISTENT) is not mounted.
+# Every persistent bind layers on top of it, /var/log included, so such a boot
+# writes its journal to the ephemeral overlay and loses it at the next reboot.
+# The node often still looks healthy - it answers SSH and services start - so
+# the fault surfaces later as unrelated-looking application symptoms, by which
+# time the only boot that could explain it has been rebooted away.
+#
+# `journalctl --list-boots` will not help: there is no journal for those boots.
+# This config writes the evidence somewhere that survives instead.
+#
+# WHY /oem
+#
+# COS_OEM is a separate partition, mounted independently of COS_PERSISTENT, so
+# it stays writable in exactly the failure being diagnosed. It also survives OCI
+# upgrades and /system/oem resets.
+#
+# WHAT YOU GET
+#
+#   /oem/boot-audit.log                       one line per healthy boot
+#   /oem/boot-audit-immucore-<boot_id>.log    immucore's own log, captured only
+#                                             on a bad boot (it lives on tmpfs
+#                                             and is otherwise lost on reboot)
+#
+# TELLING THE TWO KNOWN CAUSES APART
+#
+# Both end with /usr/local missing, but they need different fixes, so the record
+# captures the fields that separate them:
+#
+#   A. immucore killed mid-DAG (kairos-io/kairos#4399). immucore carries
+#      Conflicts=initrd-switch-root.target, and `systemctl isolate` sends it
+#      SIGTERM. NOTHING mounts: no /oem, no overlays, hostname stays "localhost",
+#      /etc is a read-only tmpfs. Look for immucore=signal.
+#
+#   B. custom-mount timeout. immucore completes, but gives up waiting for
+#      /dev/disk/by-label/COS_PERSISTENT, warns, and continues. Only /usr/local
+#      and its binds are missing - /oem, /etc and the hostname are all fine.
+#      The window it waits on is udev creating the by-label symlink after the
+#      device appears (or after a LUKS unlock), which stretches under IO load.
+#
+# USAGE
+#
+#   Ship it in the image, or drop it straight onto a running node:
+#     scp debug-persistent-mount.yaml node:/tmp/
+#     ssh node 'sudo install -o root -g admin -m 0640 \
+#                 /tmp/debug-persistent-mount.yaml /oem/96_boot_audit.yaml'
+#   It activates on the next boot. Then read /oem/boot-audit.log.
+#
+name: "Boot audit - did COS_PERSISTENT mount?"
+
+stages:
+  boot:
+    - name: "Install the boot audit unit"
+      files:
+        # NOTE: deliberately /etc, NOT /usr/local/sbin. /usr/local IS
+        # COS_PERSISTENT, so a script placed there would be missing in exactly
+        # the failure this unit exists to catch. /etc is an ephemeral overlay
+        # repopulated by this cloud-config on every boot.
+        - path: /etc/kairos-boot-audit.sh
+          permissions: 0755
+          owner: 0
+          group: 0
+          content: |
+            #!/bin/sh
+            # Append one record per boot to COS_OEM describing the mount layout.
+            set -u
+
+            OEM="${OEM_DIR:-/oem}"
+            LOG="$OEM/boot-audit.log"
+            BAD_KEEP=3
+            LOG_MAX=2097152   # 2 MiB; COS_OEM is small (~56M)
+
+            # If COS_OEM itself is not mounted there is nowhere to write, and
+            # that absence is itself the signal for failure mode A.
+            mountpoint -q "$OEM" 2>/dev/null || exit 0
+            [ -w "$OEM" ] || exit 0
+
+            # Boards without a battery-backed RTC read 1970 (or a stale value)
+            # until a time sync lands, so these timestamps can be wrong. Records
+            # are APPENDED IN ORDER, so sequence stays trustworthy regardless;
+            # boot_id correlates a record with dmesg.
+            BOOT_ID="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+            UPTIME="$(cut -d' ' -f1 /proc/uptime 2>/dev/null)"
+            NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null)"
+
+            if mountpoint -q /usr/local 2>/dev/null; then
+                PERSIST=ok
+            else
+                PERSIST=MISSING
+            fi
+
+            HOSTNAME="$(cat /proc/sys/kernel/hostname 2>/dev/null)"
+            ETC_FS="$(findmnt -n -o FSTYPE --target /etc 2>/dev/null | head -1)"
+            ETC_RO="$(findmnt -n -o OPTIONS --target /etc 2>/dev/null | head -1 | cut -c1-2)"
+            IMMU="$(systemctl show -p Result --value immucore.service 2>/dev/null)"
+            # Count real persistent-state binds only, not container mounts that
+            # also live under /var/lib.
+            NBINDS="$(findmnt -rn -o TARGET,SOURCE 2>/dev/null \
+                | grep -c 'COS_PERSISTENT\[/.state/')"
+
+            if [ "$PERSIST" = ok ]; then
+                printf '%s persist=ok boot_id=%s up=%ss host=%s binds=%s immucore=%s\n' \
+                    "$NOW" "$BOOT_ID" "$UPTIME" "$HOSTNAME" "$NBINDS" "$IMMU" >> "$LOG"
+                SZ="$(wc -c < "$LOG" 2>/dev/null || echo 0)"
+                if [ "$SZ" -gt "$LOG_MAX" ]; then
+                    tail -n 500 "$LOG" > "$LOG.new" 2>/dev/null && mv "$LOG.new" "$LOG"
+                fi
+                exit 0
+            fi
+
+            # ---- failure path -------------------------------------------------
+            {
+                echo "================================================================"
+                echo "$NOW persist=MISSING boot_id=$BOOT_ID up=${UPTIME}s"
+                echo "  hostname      : $HOSTNAME        (localhost => mode A)"
+                echo "  /etc fstype   : $ETC_FS opts=$ETC_RO  (ro tmpfs => mode A)"
+                echo "  immucore      : $IMMU             (signal => SIGTERMed, mode A)"
+                echo "  persistent binds present: $NBINDS"
+                echo "  -- mount table (container noise filtered out) --"
+                findmnt -rn -o TARGET,SOURCE,FSTYPE 2>/dev/null \
+                    | grep -vE '/(containerd|kubelet|docker|rancher/k3s/agent)/' \
+                    | grep -vE 'nsfs|squashfs|overlay .*overlay$' \
+                    | head -40
+                echo "  -- by-label symlinks (mode B: COS_PERSISTENT arrives late) --"
+                ls -la /dev/disk/by-label/ 2>/dev/null
+                echo "  -- kernel: partition + ext4 events --"
+                dmesg 2>/dev/null | grep -iE 'nvme|EXT4-fs|mmcblk|sd[a-z]' | tail -25
+            } >> "$LOG" 2>&1
+
+            # immucore's log lives on tmpfs and dies at the next reboot. It is the
+            # most useful artifact here, and its absence is why this class of bug
+            # is so hard to diagnose after the fact.
+            if [ -f /run/immucore/immucore.log ]; then
+                N="$(ls "$OEM"/boot-audit-immucore-*.log 2>/dev/null | wc -l)"
+                if [ "$N" -ge "$BAD_KEEP" ]; then
+                    ls -1t "$OEM"/boot-audit-immucore-*.log 2>/dev/null | tail -n +"$BAD_KEEP" \
+                        | while read -r old; do rm -f "$old"; done
+                fi
+                cp /run/immucore/immucore.log "$OEM/boot-audit-immucore-${BOOT_ID}.log" 2>/dev/null
+                echo "  -- captured /run/immucore/immucore.log to boot-audit-immucore-${BOOT_ID}.log" >> "$LOG"
+            fi
+
+            logger -t kairos-boot-audit "COS_PERSISTENT NOT MOUNTED - details in $LOG"
+            exit 0
+        - path: /etc/systemd/system/kairos-boot-audit.service
+          permissions: 0644
+          owner: 0
+          group: 0
+          content: |
+            [Unit]
+            Description=Record whether COS_PERSISTENT mounted this boot
+            # local-fs.target is late enough that immucore's layout is final, and
+            # early enough that nothing has papered over it. Deliberately NOT
+            # ordered after network-online: a bad boot must still leave a record
+            # even if the network never comes up.
+            After=local-fs.target
+            ConditionPathIsMountPoint=/oem
+
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            ExecStart=/etc/kairos-boot-audit.sh
+            # Never let the audit itself wedge or fail a boot.
+            TimeoutStartSec=60
+            SuccessExitStatus=0 1
+
+            [Install]
+            WantedBy=multi-user.target
+      commands:
+        - systemctl daemon-reload
+      systemctl:
+        enable:
+          - kairos-boot-audit.service

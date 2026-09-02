@@ -71,7 +71,7 @@ func (r FakeRunner) CmdsMatch(cmdList [][]string) error {
 		expect := strings.Join(cmd[:], " ")
 		got := strings.Join(r.cmds[i][:], " ")
 		if !strings.HasPrefix(got, expect) {
-			return fmt.Errorf("Expected command: '%s.*' got: '%s'", expect, got)
+			return fmt.Errorf("expected command: '%s.*' got: '%s'", expect, got)
 		}
 	}
 	return nil
@@ -109,9 +109,8 @@ func (r FakeRunner) MatchMilestones(cmdList [][]string) error {
 		match = strings.Join(cmdList[0][:], " ")
 		if !strings.HasPrefix(got, match) {
 			continue
-		} else {
-			cmdList = cmdList[1:]
 		}
+		cmdList = cmdList[1:]
 	}
 
 	if len(cmdList) > 0 {

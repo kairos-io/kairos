@@ -90,7 +90,7 @@ var _ = Describe("Releases with a mocked API", func() {
 	It("fails on invalid slug without separator", func() {
 		_, err := github.FindReleases(ctx, "fake-token", "invalidslug", false)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Invalid slug format"))
+		Expect(err.Error()).To(ContainSubstring("invalid slug format"))
 	})
 
 	It("fails on slug with empty owner or name", func() {
@@ -107,7 +107,7 @@ var _ = Describe("Releases with a mocked API", func() {
 		// the invalid slug aborts before any request is made.
 		_, err := github.FindReleases(context.Background(), "", "invalidslug", false)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Invalid slug format"))
+		Expect(err.Error()).To(ContainSubstring("invalid slug format"))
 	})
 })
 

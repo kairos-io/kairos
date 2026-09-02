@@ -53,7 +53,7 @@ This will create your own copy of our repository.
 
 ## Step 3: Add the upstream source
 
-The upstream source is the project under the Box organization on GitHub.
+The upstream source is the project under the kairos-io organization on GitHub.
 To add an upstream source for this project, type:
 
 ```

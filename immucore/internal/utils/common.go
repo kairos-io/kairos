@@ -15,6 +15,7 @@ import (
 	"github.com/avast/retry-go"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
+	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/sdk/state"
@@ -690,9 +691,14 @@ func DropToEmergencyShell() {
 
 // PCRExtend extends the given pcr with the give data.
 func PCRExtend(pcr int, data []byte) error {
-	t, err := transport.OpenTPM()
+	// Mirror the legacy transport.OpenTPM() default path search:
+	// resource-managed device first, then the raw TPM device.
+	t, err := linuxtpm.Open("/dev/tpmrm0")
 	if err != nil {
-		return err
+		t, err = linuxtpm.Open("/dev/tpm0")
+		if err != nil {
+			return err
+		}
 	}
 	defer func(t transport.TPMCloser) {
 		_ = t.Close()
