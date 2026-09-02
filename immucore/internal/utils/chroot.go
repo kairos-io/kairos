@@ -68,8 +68,8 @@ func (c *Chroot) Prepare() error {
 		// Don't mount /sys, /dev or /run as MS_REC as this brings a lot of submounts for cgroups and such and those are not needed
 		// and prevents up from cleaning up the chroot afterwards
 		// For example you can also have a cdrom device mounted under /dev/sr0 or /dev/cdrom and we dont know how to find it and mark it private
-		switch {
-		case mnt == "/sys", mnt == "/dev", mnt == "/run":
+		switch mnt {
+		case "/sys", "/dev", "/run":
 			err = Mount(mnt, mountPoint, "", syscall.MS_BIND, "")
 		default:
 			err = Mount(mnt, mountPoint, "", syscall.MS_BIND|syscall.MS_REC, "")

@@ -70,7 +70,7 @@ var stepsInfo = &cobra.Command{
 		stepsInfo := values.StepsInfo()
 		logger.Infof("Step name & Description")
 		logger.Infof("--------------------------------------------------------")
-		for step, _ := range stepsInfo {
+		for step := range stepsInfo {
 			logger.Infof("\"%s\": %s", stepsInfo[step].Key, stepsInfo[step].Value)
 		}
 		logger.Infof("--------------------------------------------------------")
@@ -86,7 +86,7 @@ var versionCmd = &cobra.Command{
 		logger.Infof("kairos-init version %s", values.GetVersion())
 		logger.Debug(litter.Sdump(values.GetFullVersion()))
 
-		// parse embeded version info for binaries
+		// parse embedded version info for binaries
 		versionInfo := map[string]string{}
 		err := yaml.Unmarshal(bundled.EmbeddedVersionInfo, &versionInfo)
 		if err != nil {
@@ -220,7 +220,7 @@ func init() {
 	rootCmd.Flags().VarP(loglevelFlag, "level", "l", fmt.Sprintf("set the log level (%s)", strings.Join(loglevelFlag.Allowed, ", ")))
 	// rest of the flags
 	rootCmd.Flags().VarP(modelFlag, "model", "m", fmt.Sprintf("model to build for (%s)", strings.Join(modelFlag.Allowed, ", ")))
-	rootCmd.Flags().StringSliceVarP(&providers, "provider", "p", []string{}, fmt.Sprintf("Provider plugin (repeatable)"))
+	rootCmd.Flags().StringSliceVarP(&providers, "provider", "p", []string{}, "Provider plugin (repeatable)")
 	rootCmd.Flags().BoolVar(&config.DefaultConfig.Fips, "fips", false, "use fips kairos binary versions. For FIPS 140-2 compliance images")
 	rootCmd.Flags().StringVarP(&version, "version", "v", "", "set a version number to use for the generated system. Its used to identify this system for upgrades and such. Required.")
 	rootCmd.Flags().BoolVarP(&config.DefaultConfig.Extensions, "stage-extensions", "x", false, "enable stage extensions mode")

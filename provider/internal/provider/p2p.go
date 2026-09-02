@@ -10,11 +10,11 @@ import (
 
 	"github.com/kairos-io/kairos/v4/provider/internal/provider/assets"
 
+	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
-	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
-	"github.com/kairos-io/kairos/v4/provider/internal/services"
 )
 
 const (

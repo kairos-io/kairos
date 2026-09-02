@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
-	"github.com/kairos-io/kairos/v4/sdk/utils"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	"github.com/kairos-io/kairos/v4/provider/internal/role"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 
 	service "github.com/mudler/edgevpn/api/client/service"
 )

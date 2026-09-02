@@ -85,19 +85,19 @@ const (
 	BootEntryRecovery            = "recovery"
 	BootEntryActive              = "cos"
 
-	// SELinux targeted policy paths
+	// SELinux targeted policy paths.
 	SELinuxTargetedPath        = "/etc/selinux/targeted"
 	SELinuxTargetedContextFile = SELinuxTargetedPath + "/contexts/files/file_contexts"
 	SELinuxTargetedPolicyPath  = SELinuxTargetedPath + "/policy"
 
-	// Default directory and file fileModes
+	// Default directory and file fileModes.
 	DirPerm        = os.ModeDir | os.ModePerm
 	FilePerm       = 0666
 	ConfigPerm     = 0640 // Used for config files that contain secrets or other sensitive data
 	NoWriteDirPerm = 0555 | os.ModeDir
 	TempDirPerm    = os.ModePerm | os.ModeSticky | os.ModeDir
 
-	// Eject script
+	// Eject script.
 	EjectScript = "#!/bin/sh\n/usr/bin/eject -rmF"
 
 	ArchAmd64   = "amd64"
@@ -110,12 +110,21 @@ const (
 	UkiEfiDir     = "/efi"
 	UkiMaxEntries = 3
 
-	// Boot labeling
+	// Boot labeling.
 	PassiveBootSuffix    = " (fallback)"
 	RecoveryBootSuffix   = " recovery"
 	StateResetBootSuffix = " state reset (auto)"
 
-	// Error
+	// Boot state slugs used by the sysext/confext CLI to identify which
+	// boot entry to touch, and by boot-entry parsing for grub / systemd-boot
+	// entry file prefixes. Keep the strings stable; grub, systemd-boot and
+	// existing installations all key on these names.
+	BootActive   = "active"
+	BootPassive  = "passive"
+	BootRecovery = "recovery"
+	BootCommon   = "common"
+
+	// Error.
 	UpgradeNoSourceError           = "could not find a proper source for the upgrade.\nThis can be configured in the cloud config files under the 'upgrade.system.uri' key or via cmdline using the '--source' flag"
 	UpgradeRecoveryNoSourceError   = "could not find a proper source for the recovery upgrade.\nThis can be configured in the cloud config files under the 'upgrade.recovery-system.uri' key or via cmdline using the '--source' flag"
 	MultipleEntriesAssessmentError = "multiple boot entries found for %s"
@@ -136,7 +145,7 @@ func GetCloudInitPaths() []string {
 	return []string{"/system/oem", "/oem/", "/usr/local/cloud-config/"}
 }
 
-// GetDefaultSquashfsOptions returns the default options to use when creating a squashfs
+// GetDefaultSquashfsOptions returns the default options to use when creating a squashfs.
 func GetDefaultSquashfsOptions() []string {
 	return []string{"-b", "1024k"}
 }
@@ -156,12 +165,12 @@ func GetFallBackEfi(arch string) string {
 	}
 }
 
-// GetGrubFonts returns the default font files for grub
+// GetGrubFonts returns the default font files for grub.
 func GetGrubFonts() []string {
 	return []string{"ascii.pf2", "euro.pf2", "unicode.pf2"}
 }
 
-// GetGrubModules returns the default module files for grub
+// GetGrubModules returns the default module files for grub.
 func GetGrubModules() []string {
 	return []string{"loopback.mod", "squash4.mod", "xzio.mod", "gzio.mod", "regexp.mod"}
 }
@@ -213,5 +222,5 @@ func BootTitleForRole(role, title string) (string, error) {
 	}
 }
 
-// DiskUUID is the static UUID for main disk identification
+// DiskUUID is the static UUID for main disk identification.
 var DiskUUID = uuid.NewV5(uuid.NamespaceURL, "KAIROS_DISK").String()

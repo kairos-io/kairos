@@ -187,7 +187,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       caller-vetted-ref: ${{ inputs.caller-vetted-ref }}
-      auroraboot_version: 'v0.26.2'
+      auroraboot_version: 'v0.27.0'
       dockerfile_path: 'images/Dockerfile'
       # Point images/Dockerfile at the caller-supplied kairos-init.
       # This is what makes PRs / releases exercise the freshly-built

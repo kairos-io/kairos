@@ -472,7 +472,7 @@ func (e *Elemental) DumpSource(target string, imgSrc *sdkImages.ImageSource, exc
 					e.config.Logger.Errorf("Failed to create temporary directory: %v", err)
 					return nil, fmt.Errorf("failed to create temporary directory: %w", err)
 				}
-				defer e.config.Fs.RemoveAll(tmpDir)
+				defer func() { _ = e.config.Fs.RemoveAll(tmpDir) }()
 
 				// Extract the tar file to the temporary directory
 				e.config.Logger.Infof("Extracting tar file to temporary directory: %s", tmpDir)
@@ -689,13 +689,14 @@ func (e Elemental) UpdateSourcesFormDownloadedISO(workDir string, activeImg *sdk
 // As the grub config already has a sane default
 func (e Elemental) SetDefaultGrubEntry(partMountPoint string, imgMountPoint string, defaultEntry string) error {
 	if defaultEntry == "" {
-		var osRelease map[string]string
 		osRelease, err := utils.LoadEnvFile(e.config.Fs, filepath.Join(imgMountPoint, "etc", "kairos-release"))
 		if err != nil {
-			// Fallback to os-release
+			// Fallback to os-release for images predating kairos-release.
 			osRelease, err = utils.LoadEnvFile(e.config.Fs, filepath.Join(imgMountPoint, "etc", "os-release"))
-			e.config.Logger.Warnf("Could not load os-release file: %v", err)
-			return nil
+			if err != nil {
+				e.config.Logger.Warnf("Could not load kairos-release or os-release: %v", err)
+				return nil
+			}
 		}
 		defaultEntry = osRelease["GRUB_ENTRY_NAME"]
 		// If its still empty then do nothing

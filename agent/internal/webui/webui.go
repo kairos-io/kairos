@@ -131,7 +131,10 @@ func ansiToHTML(s string) string {
 				code = "0"
 			}
 			var codeNum int
-			fmt.Sscanf(code, "%d", &codeNum)
+			// Best-effort: on a parse failure codeNum stays at 0 which
+			// hits the "Reset" case below, matching how a malformed
+			// ANSI escape is treated.
+			_, _ = fmt.Sscanf(code, "%d", &codeNum)
 
 			switch {
 			case codeNum == 0:
@@ -190,11 +193,6 @@ func formatLogLine(line string) string {
 
 	// Convert ANSI codes to HTML - this preserves colors and formatting
 	return ansiToHTML(line)
-}
-
-// stripANSI removes ANSI escape codes (used for parsing only)
-func stripANSI(s string) string {
-	return ansiRegex.ReplaceAllString(s, "")
 }
 
 func streamProcess(s *state) func(c *echo.Context) error {
@@ -268,7 +266,6 @@ func streamProcess(s *state) func(c *echo.Context) error {
 						// Process finished, send completion message
 						err = websocket.Message.Send(ws, "[COMPLETE] Installation finished\n")
 						consumeError(err)
-						completionSent = true
 						// Continue reading remaining logs for a bit, then exit
 						time.Sleep(2 * time.Second)
 						return
@@ -322,18 +319,8 @@ func (t *TemplateRenderer) Render(c *echo.Context, w io.Writer, name string, dat
 }
 
 func Start(ctx context.Context) error {
-
-	s := state{}
 	listen := constants.DefaultWebUIListenAddress
 
-	ec := echo.New()
-	assetHandler := http.FileServer(getFileSystem())
-
-	renderer := &TemplateRenderer{
-		templates: template.Must(template.ParseFS(getFS(), "*.html")),
-	}
-
-	ec.Renderer = renderer
 	agentConfig, err := agent.LoadConfig()
 	if err != nil {
 		return err
@@ -347,6 +334,28 @@ func Start(ctx context.Context) error {
 		log.Println("WebUI installer disabled by branding")
 		return nil
 	}
+
+	return StartOn(ctx, listen)
+}
+
+// StartOn runs the web UI server on the given listen address and
+// blocks until ctx is cancelled or the underlying listener errors.
+// Start (the normal entry point) resolves the listen address from the
+// agent config and delegates here; tests bind on ":0" so the OS picks
+// an ephemeral port and the run cannot collide with anything else
+// listening on the developer's box.
+func StartOn(ctx context.Context, listen string) error {
+
+	s := state{}
+
+	ec := echo.New()
+	assetHandler := http.FileServer(getFileSystem())
+
+	renderer := &TemplateRenderer{
+		templates: template.Must(template.ParseFS(getFS(), "*.html")),
+	}
+
+	ec.Renderer = renderer
 
 	ec.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
 

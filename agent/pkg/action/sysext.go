@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	"github.com/distribution/reference"
+	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/sdk/extensions"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -39,14 +40,14 @@ const (
 	confext            = "confext"
 	sysextDir          = "/var/lib/kairos/extensions/"
 	confExtDir         = "/var/lib/kairos/confexts/"
-	sysextDirActive    = sysextDir + "active"
-	sysextDirPassive   = sysextDir + "passive"
-	sysextDirRecovery  = sysextDir + "recovery"
-	sysextDirCommon    = sysextDir + "common"
-	confExtDirActive   = confExtDir + "active"
-	confExtDirPassive  = confExtDir + "passive"
-	confExtDirRecovery = confExtDir + "recovery"
-	confExtDirCommon   = confExtDir + "common"
+	sysextDirActive    = sysextDir + cnst.BootActive
+	sysextDirPassive   = sysextDir + cnst.BootPassive
+	sysextDirRecovery  = sysextDir + cnst.BootRecovery
+	sysextDirCommon    = sysextDir + cnst.BootCommon
+	confExtDirActive   = confExtDir + cnst.BootActive
+	confExtDirPassive  = confExtDir + cnst.BootPassive
+	confExtDirRecovery = confExtDir + cnst.BootRecovery
+	confExtDirCommon   = confExtDir + cnst.BootCommon
 	sysextRunDir       = "/run/extensions/"
 	confExtRunDir      = "/run/confexts/"
 	sysextCommand      = "systemd-sysext"
@@ -67,26 +68,26 @@ func dirFromBootState(bootState, extType string) string {
 	switch extType {
 	case sysext:
 		switch bootState {
-		case "active":
+		case cnst.BootActive:
 			return sysextDirActive
-		case "passive":
+		case cnst.BootPassive:
 			return sysextDirPassive
-		case "recovery":
+		case cnst.BootRecovery:
 			return sysextDirRecovery
-		case "common":
+		case cnst.BootCommon:
 			return sysextDirCommon
 		default:
 			return sysextDir
 		}
 	case confext:
 		switch bootState {
-		case "active":
+		case cnst.BootActive:
 			return confExtDirActive
-		case "passive":
+		case cnst.BootPassive:
 			return confExtDirPassive
-		case "recovery":
+		case cnst.BootRecovery:
 			return confExtDirRecovery
-		case "common":
+		case cnst.BootCommon:
 			return confExtDirCommon
 		default:
 			return confExtDir
@@ -191,7 +192,7 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 		_, stateMatches := cfg.Fs.Stat(fmt.Sprintf("/run/cos/%s_mode", bootState))
 		// TODO: Check in UKI?
 		cfg.Logger.Logger.Debug().Str("boot_state", bootState).Str("filecheck", fmt.Sprintf("/run/cos/%s_state", bootState)).Msg("Checking boot state")
-		if stateMatches == nil || bootState == "common" {
+		if stateMatches == nil || bootState == cnst.BootCommon {
 			linkTarget := sysextRunDir
 			reloadTarget := sysextCommand
 			if extType == confext {
@@ -245,7 +246,7 @@ func DisableExtension(cfg *sdkConfig.Config, ext string, bootState, extType stri
 		// This is to avoid disabling the extension in the wrong boot state
 		_, stateMatches := cfg.Fs.Stat(fmt.Sprintf("/run/cos/%s_mode", bootState))
 		cfg.Logger.Logger.Debug().Str("boot_state", bootState).Str("filecheck", fmt.Sprintf("/run/cos/%s_mode", bootState)).Msg("Checking boot state")
-		if stateMatches == nil || bootState == "common" {
+		if stateMatches == nil || bootState == cnst.BootCommon {
 			linkTarget := sysextRunDir
 			reloadTarget := sysextCommand
 			if extType == confext {
@@ -337,7 +338,7 @@ func RemoveExtension(cfg *sdkConfig.Config, extension, extType string, now bool)
 		return nil
 	}
 	// Check if the extension is enabled in active or passive
-	for _, state := range []string{"active", "passive", "recovery", "common"} {
+	for _, state := range []string{cnst.BootActive, cnst.BootPassive, cnst.BootRecovery, cnst.BootCommon} {
 		enabled, err := GetExtension(cfg, extension, state, extType)
 		if err == nil {
 			// Remove the symlink

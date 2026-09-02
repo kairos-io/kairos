@@ -36,6 +36,7 @@ func NewValidator(logger logger.KairosLogger) *Validator {
 
 // TODO: Validate fips, if enabled, check go binaries for boringcrypto
 
+// nolint:gocyclo // Validate walks every distro/arch/model/version constraint and reports each independently; the shape is intentionally one branch per rule so failures point at the exact clause that tripped.
 func (v *Validator) Validate() error {
 	var multi *multierror.Error
 

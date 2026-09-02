@@ -87,7 +87,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 		It("fails with an empty sources list", func() {
 			err := utils.ConcatFiles(fs, []string{}, "/target.txt")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("Empty sources list"))
+			Expect(err.Error()).To(ContainSubstring("empty sources list"))
 		})
 		It("copies into a directory target using the source basename", func() {
 			Expect(fs.WriteFile("/src.txt", []byte("content"), constants.FilePerm)).To(Succeed())
@@ -367,7 +367,7 @@ var _ = Describe("Utils extra coverage", Label("utils"), func() {
 			failed, err := utils.CheckFailedInstallation(dir)
 			Expect(failed).To(BeTrue())
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).ToNot(ContainSubstring("Installation failed"))
+			Expect(err.Error()).ToNot(ContainSubstring("installation failed"))
 		})
 	})
 

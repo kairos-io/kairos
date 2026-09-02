@@ -410,106 +410,110 @@ func (s *State) UKISetupNetwork(g *herd.Graph) error {
 		herd.WithDeps(cnst.OpUkiBaseMounts, cnst.OpUkiPivotToSysroot, cnst.OpUkiKernelModules, cnst.OpUkiUdev),
 		TimedCallback(cnst.OpUkiNetwork, func(_ context.Context) error {
 
-			// TODO: Make this function actually work.
+			// TODO: Make this function actually work. The sketch of the
+			// intended implementation is preserved in the block comment
+			// below as a reference for whoever picks this up.
 			internalUtils.KLog.Logger.Warn().Msg("UKISetupNetwork: Not implemented yet!")
 			return nil
 
-			// Skip network setup if booting in livecd mode because
-			// network is handled by the normal boot process
-			if !state.EfiBootFromInstall(internalUtils.KLog.Logger) {
-				internalUtils.KLog.Logger.Info().Msg("UKISetupNetwork: Skipping network setup in install/livecd mode")
-				return nil
-			}
+			/*
+				// Skip network setup if booting in livecd mode because
+				// network is handled by the normal boot process
+				if !state.EfiBootFromInstall(internalUtils.KLog.Logger) {
+					internalUtils.KLog.Logger.Info().Msg("UKISetupNetwork: Skipping network setup in install/livecd mode")
+					return nil
+				}
 
-			// Check if remote KMS is configured by looking for challenger_server in cmdline
-			cmdline, err := os.ReadFile("/proc/cmdline")
-			if err != nil {
-				internalUtils.KLog.Logger.Err(err).Msg("UKISetupNetwork: Failed to read /proc/cmdline")
-				return err
-			}
+				// Check if remote KMS is configured by looking for challenger_server in cmdline
+				cmdline, err := os.ReadFile("/proc/cmdline")
+				if err != nil {
+					internalUtils.KLog.Logger.Err(err).Msg("UKISetupNetwork: Failed to read /proc/cmdline")
+					return err
+				}
 
-			cmdlineStr := string(cmdline)
-			internalUtils.KLog.Logger.Info().Str("cmdline", cmdlineStr).Msg("UKISetupNetwork: Read cmdline")
+				cmdlineStr := string(cmdline)
+				internalUtils.KLog.Logger.Info().Str("cmdline", cmdlineStr).Msg("UKISetupNetwork: Read cmdline")
 
-			// Check for remote KMS configuration in various formats:
-			// - kairos.kcrypt.challenger.challenger_server= (dot notation from config)
-			// - kairos.kcrypt.challenger_server= (underscore notation)
-			// - challenger_server= (legacy format)
-			// - mdns=true (mDNS discovery)
-			hasRemoteKMS := strings.Contains(cmdlineStr, "challenger_server=") ||
-				strings.Contains(cmdlineStr, "mdns=true")
+				// Check for remote KMS configuration in various formats:
+				// - kairos.kcrypt.challenger.challenger_server= (dot notation from config)
+				// - kairos.kcrypt.challenger_server= (underscore notation)
+				// - challenger_server= (legacy format)
+				// - mdns=true (mDNS discovery)
+				hasRemoteKMS := strings.Contains(cmdlineStr, "challenger_server=") ||
+					strings.Contains(cmdlineStr, "mdns=true")
 
-			if !hasRemoteKMS {
-				internalUtils.KLog.Logger.Info().Msg("UKISetupNetwork: No remote KMS configured, skipping network setup")
-				return nil
-			}
+				if !hasRemoteKMS {
+					internalUtils.KLog.Logger.Info().Msg("UKISetupNetwork: No remote KMS configured, skipping network setup")
+					return nil
+				}
 
-			internalUtils.KLog.Logger.Info().Msg("UKISetupNetwork: Remote KMS detected, setting up network")
+				internalUtils.KLog.Logger.Info().Msg("UKISetupNetwork: Remote KMS detected, setting up network")
 
-			// Try to bring up all network interfaces with DHCP
-			out, err := internalUtils.CommandWithPath("ip link show")
-			if err != nil {
-				internalUtils.KLog.Logger.Err(err).Str("out", out).Msg("Failed to list network interfaces")
-				return err
-			}
+				// Try to bring up all network interfaces with DHCP
+				out, err := internalUtils.CommandWithPath("ip link show")
+				if err != nil {
+					internalUtils.KLog.Logger.Err(err).Str("out", out).Msg("Failed to list network interfaces")
+					return err
+				}
 
-			// Parse interfaces and bring them up
-			lines := strings.Split(out, "\n")
-			for _, line := range lines {
-				// Look for interface lines like "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP>"
-				if strings.Contains(line, ": <") && !strings.Contains(line, "lo:") {
-					parts := strings.Split(line, ":")
-					if len(parts) >= 2 {
-						iface := strings.TrimSpace(parts[1])
-						internalUtils.KLog.Logger.Debug().Str("interface", iface).Msg("Bringing up network interface")
+				// Parse interfaces and bring them up
+				lines := strings.Split(out, "\n")
+				for _, line := range lines {
+					// Look for interface lines like "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP>"
+					if strings.Contains(line, ": <") && !strings.Contains(line, "lo:") {
+						parts := strings.Split(line, ":")
+						if len(parts) >= 2 {
+							iface := strings.TrimSpace(parts[1])
+							internalUtils.KLog.Logger.Debug().Str("interface", iface).Msg("Bringing up network interface")
 
-						// Bring interface up
-						_, err := internalUtils.CommandWithPath(fmt.Sprintf("ip link set %s up", iface))
-						if err != nil {
-							internalUtils.KLog.Logger.Warn().Err(err).Str("interface", iface).Msg("Failed to bring up interface")
-							continue
-						}
-
-						// Request DHCP lease using dhclient
-						internalUtils.KLog.Logger.Debug().Str("interface", iface).Msg("Requesting DHCP lease")
-						_, err = internalUtils.CommandWithPath(fmt.Sprintf("dhclient -1 -v %s", iface))
-						if err != nil {
-							internalUtils.KLog.Logger.Warn().Err(err).Str("interface", iface).Msg("DHCP failed, trying next interface")
-							continue
-						}
-
-						// Check if we got an IP address
-						out, err := internalUtils.CommandWithPath(fmt.Sprintf("ip addr show %s", iface))
-						if err == nil && strings.Contains(out, "inet ") {
-							internalUtils.KLog.Logger.Info().Str("interface", iface).Msg("Network interface configured successfully")
-
-							// dhclient should have set up /etc/resolv.conf, but in initramfs it might not work
-							// Check if resolv.conf exists and has nameservers
-							resolvConf, err := os.ReadFile("/etc/resolv.conf")
-							if err != nil || !strings.Contains(string(resolvConf), "nameserver") {
-								internalUtils.KLog.Logger.Warn().Msg("No DNS configuration found, setting up default DNS")
-								// Use common public DNS servers as fallback
-								dnsConfig := "nameserver 8.8.8.8\nnameserver 8.8.4.4\n"
-								if err := os.WriteFile("/etc/resolv.conf", []byte(dnsConfig), 0644); err != nil {
-									internalUtils.KLog.Logger.Err(err).Msg("Failed to write /etc/resolv.conf")
-								} else {
-									internalUtils.KLog.Logger.Info().Msg("Configured fallback DNS servers")
-								}
-							} else {
-								internalUtils.KLog.Logger.Debug().Str("resolv.conf", string(resolvConf)).Msg("DNS configuration found")
+							// Bring interface up
+							_, err := internalUtils.CommandWithPath(fmt.Sprintf("ip link set %s up", iface))
+							if err != nil {
+								internalUtils.KLog.Logger.Warn().Err(err).Str("interface", iface).Msg("Failed to bring up interface")
+								continue
 							}
 
-							// Wait a moment for DNS to be ready
-							time.Sleep(2 * time.Second)
+							// Request DHCP lease using dhclient
+							internalUtils.KLog.Logger.Debug().Str("interface", iface).Msg("Requesting DHCP lease")
+							_, err = internalUtils.CommandWithPath(fmt.Sprintf("dhclient -1 -v %s", iface))
+							if err != nil {
+								internalUtils.KLog.Logger.Warn().Err(err).Str("interface", iface).Msg("DHCP failed, trying next interface")
+								continue
+							}
 
-							return nil
+							// Check if we got an IP address
+							out, err := internalUtils.CommandWithPath(fmt.Sprintf("ip addr show %s", iface))
+							if err == nil && strings.Contains(out, "inet ") {
+								internalUtils.KLog.Logger.Info().Str("interface", iface).Msg("Network interface configured successfully")
+
+								// dhclient should have set up /etc/resolv.conf, but in initramfs it might not work
+								// Check if resolv.conf exists and has nameservers
+								resolvConf, err := os.ReadFile("/etc/resolv.conf")
+								if err != nil || !strings.Contains(string(resolvConf), "nameserver") {
+									internalUtils.KLog.Logger.Warn().Msg("No DNS configuration found, setting up default DNS")
+									// Use common public DNS servers as fallback
+									dnsConfig := "nameserver 8.8.8.8\nnameserver 8.8.4.4\n"
+									if err := os.WriteFile("/etc/resolv.conf", []byte(dnsConfig), 0644); err != nil {
+										internalUtils.KLog.Logger.Err(err).Msg("Failed to write /etc/resolv.conf")
+									} else {
+										internalUtils.KLog.Logger.Info().Msg("Configured fallback DNS servers")
+									}
+								} else {
+									internalUtils.KLog.Logger.Debug().Str("resolv.conf", string(resolvConf)).Msg("DNS configuration found")
+								}
+
+								// Wait a moment for DNS to be ready
+								time.Sleep(2 * time.Second)
+
+								return nil
+							}
 						}
 					}
 				}
-			}
 
-			internalUtils.KLog.Logger.Warn().Msg("No network interfaces could be configured")
-			return fmt.Errorf("failed to configure any network interface")
+				internalUtils.KLog.Logger.Warn().Msg("No network interfaces could be configured")
+				return fmt.Errorf("failed to configure any network interface")
+			*/
 		}),
 	)
 }

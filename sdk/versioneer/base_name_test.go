@@ -65,7 +65,7 @@ var _ = Describe("BaseContainerName", func() {
 		})
 		It("returns an error", func() {
 			_, err := artifact.ContainerName(registryAndOrg)
-			Expect(err).To(MatchError("Flavor is empty"))
+			Expect(err).To(MatchError("flavor is empty"))
 		})
 	})
 })

@@ -29,6 +29,7 @@ func NewInstallAction(cfg *sdkConfig.Config, spec *v1.InstallUkiSpec) *InstallAc
 	return &InstallAction{cfg: cfg, spec: spec}
 }
 
+// nolint:gocyclo // UKI install mirrors the same partition/mount/cloud-init/image/bootloader/cleanup pipeline as the non-UKI installer; splitting it would divorce the two paths that still need to stay side-by-side.
 func (i *InstallAction) Run() (err error) {
 	e := elemental.NewElemental(i.cfg)
 	cleanup := utils.NewCleanStack()

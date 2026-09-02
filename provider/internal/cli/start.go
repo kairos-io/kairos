@@ -231,7 +231,6 @@ For all the example cases, see: https://kairos.io/docs/
 			&CreateConfigCMD,
 			&GenerateTokenCMD,
 			&ValidateSchemaCMD,
-			&EditConfigCMD,
 			&VersionCMD,
 		},
 	}

@@ -1,4 +1,12 @@
-package cli
+// Package cmd implements the `kairos edit-config` CLI: open the persistent
+// cloud-init configuration in $EDITOR, validate before saving, and reopen the
+// editor with the errors inlined when validation fails.
+//
+// It is registered as a top-level sub-tool of the multi-call kairos binary
+// (see cmd/kairos/register_editconfig.go) rather than under any specific
+// sub-tool, because touching cloud-init has nothing to do with any particular
+// provider or with the agent's install / upgrade lifecycle.
+package cmd
 
 import (
 	"bytes"
@@ -18,36 +26,46 @@ import (
 
 const defaultCloudInitPath = "/oem/90_custom.yaml"
 
-const validationMessageStart = "# kairos provider edit-config: validation failed"
-const validationMessageEnd = "# kairos provider: end validation errors"
+const validationMessageStart = "# kairos edit-config: validation failed"
+const validationMessageEnd = "# kairos edit-config: end validation errors"
 
-var EditConfigCMD = cli.Command{
-	Name:      "edit-config",
-	Usage:     "Edit and validate the persistent cloud-init configuration",
-	UsageText: "edit-config [--file PATH]",
-	Description: `
+// Run executes the edit-config CLI and returns a process exit code. The
+// multi-call kairos binary invokes this when argv[1] is "edit-config".
+func Run() int {
+	app := &cli.App{
+		Name:      "kairos edit-config",
+		Usage:     "Edit and validate the persistent cloud-init configuration",
+		UsageText: "kairos edit-config [--file PATH]",
+		Description: `
 Opens the persistent cloud-init configuration in $EDITOR. Changes are validated
 before the configuration is replaced, so invalid edits are never saved.
 `,
-	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:  "file",
-			Usage: "Cloud-init file to edit",
-			Value: defaultCloudInitPath,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "file",
+				Usage: "Cloud-init file to edit",
+				Value: defaultCloudInitPath,
+			},
 		},
-	},
-	Before: func(c *cli.Context) error {
-		if c.Args().Len() != 0 {
-			return fmt.Errorf("edit-config does not accept positional arguments")
-		}
-		if os.Geteuid() != 0 {
-			return errors.New("this command requires root privileges")
-		}
-		return nil
-	},
-	Action: func(c *cli.Context) error {
-		return editCloudInit(c.String("file"), os.Getenv("EDITOR"), c.App.Writer)
-	},
+		Before: func(c *cli.Context) error {
+			if c.Args().Len() != 0 {
+				return fmt.Errorf("edit-config does not accept positional arguments")
+			}
+			if os.Geteuid() != 0 {
+				return errors.New("this command requires root privileges")
+			}
+			return nil
+		},
+		Action: func(c *cli.Context) error {
+			return editCloudInit(c.String("file"), os.Getenv("EDITOR"), c.App.Writer)
+		},
+	}
+
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
 }
 
 func editCloudInit(path, editor string, output io.Writer) error {
@@ -61,7 +79,7 @@ func editCloudInit(path, editor string, output io.Writer) error {
 		return fmt.Errorf("stat cloud-init file: %w", err)
 	}
 
-	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-provider-edit-*.yaml")
+	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-edit-config-*.yaml")
 	if err != nil {
 		return fmt.Errorf("create temporary cloud-init file: %w", err)
 	}
@@ -171,7 +189,7 @@ func runEditor(editor, path string) error {
 }
 
 func replaceFile(path string, content []byte, info os.FileInfo) error {
-	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-provider-save-*.yaml")
+	temp, err := os.CreateTemp(filepath.Dir(path), ".kairos-edit-config-save-*.yaml")
 	if err != nil {
 		return err
 	}

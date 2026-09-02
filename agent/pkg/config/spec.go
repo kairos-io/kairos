@@ -56,9 +56,9 @@ const (
 	TiB
 )
 
-// resolveTarget will try to resovle a /dev/disk/by-X disk into the final real disk under /dev/X
+// resolveTarget will try to resolve a /dev/disk/by-X disk into the final real disk under /dev/X
 // We use it to calculate the device on the fly for the Config and the InstallSpec but we leave
-// the original value in teh config.Collector so its written down in the final cloud config in the
+// the original value in the config.Collector so its written down in the final cloud config in the
 // installed system, so users can know what parameters it was installed with in case they need to refer
 // to it down the line to know what was the original parametes
 // If the target is a normal /dev/X we dont do anything and return the original value so normal installs
@@ -1003,7 +1003,7 @@ func UnmarshalerHook() mapstructure.DecodeHookFunc {
 			return from.Interface(), nil
 		}
 		// If it is nil and a pointer, create and assign the target value first
-		if to.IsNil() && to.Type().Kind() == reflect.Ptr {
+		if to.IsNil() && to.Type().Kind() == reflect.Pointer {
 			to.Set(reflect.New(to.Type().Elem()))
 			u = to.Interface().(Unmarshaler)
 		}
@@ -1081,7 +1081,9 @@ func unmarshallFullSpec(r *sdkConfig.Config, subkey string, sp sdkSpec.Spec) err
 		return fmt.Errorf("failed initializing spec: %w", err)
 	}
 	viper.SetConfigType("yaml")
-	viper.ReadConfig(strings.NewReader(ccString))
+	if err := viper.ReadConfig(strings.NewReader(ccString)); err != nil {
+		return fmt.Errorf("parsing cloud-config yaml for %s spec: %w", subkey, err)
+	}
 	vp := viper.Sub(subkey)
 	if vp == nil {
 		vp = viper.New()
