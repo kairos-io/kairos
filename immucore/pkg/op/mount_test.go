@@ -18,15 +18,16 @@ var _ = Describe("MountOPWithFstab", func() {
 		target := filepath.Join(GinkgoT().TempDir(), "target")
 
 		start := time.Now()
-		fstab, err := op.MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, 300*time.Millisecond)
+		fstab, err := op.MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, 50*time.Millisecond)
 		elapsed := time.Since(start)
 
 		Expect(err).To(MatchError(ContainSubstring("timeout exhausted")))
 		Expect(fstab).To(BeEmpty())
-		// The retry wait has to be interruptible by the timeout. Waiting a full
-		// second inside an attempt makes every timeout shorter than that
-		// meaningless, and steals a retry from the longer ones.
-		Expect(elapsed).To(BeNumerically("<", 900*time.Millisecond))
+		// The retry wait has to be interruptible by the timeout, so the call
+		// returns at its 50ms deadline and not one retry interval later. The
+		// timeout is deliberately shorter than the interval: an uninterruptible
+		// wait cannot return before 250ms, which is what this bound catches.
+		Expect(elapsed).To(BeNumerically("<", 200*time.Millisecond))
 	})
 
 	It("attempts the mount before waiting, so a timeout under the retry interval still tries once", func() {
