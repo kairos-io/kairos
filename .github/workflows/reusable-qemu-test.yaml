@@ -95,16 +95,19 @@ on:
         type: string
         default: ''
 
-    secrets:
-      QUAY_USERNAME:
+      bundle_image_tag:
         description: |
-          Registry user for quay.io/kairos/ci-temp-images. Needs WRITE, not just
-          read: this workflow pulls the image under test and also pushes a
-          bundles-test image back to the same repository.
-        required: true
-      QUAY_PASSWORD:
-        description: "Registry token matching QUAY_USERNAME. Same write scope."
-        required: true
+          Tag for the bundles test image. Callers should follow the same
+          convention as the other GHCR images: pr-<number> for pull requests,
+          the branch name for branch builds, and the ref name for releases.
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  actions: read
+  contents: read
+  packages: write
 
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
@@ -186,22 +189,22 @@ jobs:
             [registry."registry.docker-mirror.svc.cluster.local:5000"]
               insecure = true
               http = true
-      - name: Login to Quay Registry
-        # Only the bundles test actually pushes to quay -- it builds
-        # a per-run bundles-test image and pushes it to
-        # quay.io/kairos/ci-temp-images:bundles-test (see "Prepare
-        # test bundle" step below). Every other cell either pulls
-        # nothing at CI level or reaches public quay repos
-        # (luet's quay.io/kairos/packages) which need no login. The
-        # OS image lives at ghcr.io/kairos-io/kairos/${flavor} now,
-        # not at ci-temp-images, so IMAGE_NAME pulls from ghcr
-        # inside the VM and needs no CI-level quay creds either.
+      - name: Login to GitHub Container Registry
         if: inputs.test == 'bundles'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate test bundle image tag
+        if: inputs.test == 'bundles'
+        env:
+          BUNDLE_IMAGE_TAG: ${{ inputs.bundle_image_tag }}
+        run: |
+          if [[ ! "$BUNDLE_IMAGE_TAG" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+            echo "::error::bundle_image_tag must be a valid, non-empty container tag"
+            exit 1
+          fi
       - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
         if: runner.environment == 'self-hosted'
         run: |
@@ -292,16 +295,25 @@ jobs:
           out-file-path: ""
       - name: Prepare test bundle
         if: ${{ inputs.test == 'bundles' }}
+        id: bundle
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
         with:
           context: .
           file: examples/bundle/Dockerfile
           platforms: linux/${{ inputs.arch }}
           push: true
-          tags: quay.io/kairos/ci-temp-images:bundles-test
-          # https://docs.redhat.com/en/documentation/red_hat_quay/3.4/html/use_red_hat_quay/working_with_tags#tag-expiration
-          labels: |
-            quay.expires-after=6h
+          tags: ghcr.io/kairos-io/kairos/bundles-test:${{ inputs.bundle_image_tag }}
+      - name: Export test bundle digest
+        if: ${{ inputs.test == 'bundles' }}
+        env:
+          BUNDLE_DIGEST: ${{ steps.bundle.outputs.digest }}
+        run: |
+          if [[ ! "$BUNDLE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::Build did not return a valid bundle digest"
+            exit 1
+          fi
+          printf 'BUNDLE_IMAGE=ghcr.io/kairos-io/kairos/bundles-test@%s\n' \
+            "$BUNDLE_DIGEST" >> "$GITHUB_ENV"
       - name: Run tests
         if: ${{ !startsWith(inputs.test, 'encryption-') }}
         env:
