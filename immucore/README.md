@@ -351,6 +351,7 @@ There is also the `weak` value which indicates that this step has weak dependenc
  - `overlay-mount`: This mounts the paths set in the config (`RW_PATHS`) under the `/run/overlay` dir, so they are RW
  - `custom-mount`: This mounts the paths set in the config (`VOLUMES`) or in cmdline `rd.cos.mount=` in the given path (`LABEL=COS_PERSISTENT:/usr/local`)
  - `mount-bind`: This mounts the paths set in the config (`PERSISTENT_STATE_PATHS` and `CUSTOM_BIND_MOUNTS`) as bind mounts under the `PERSISTENT_STATE_TARGET` which defaults to `/usr/local/.state`
+ - `clean-stale-units`: Removes unit symlinks in the persistent `/etc/systemd/system` that point at a target the current image does not ship, when the image does ship a real unit of the same name. Because `/etc/systemd` is a persistent state bind and the state sync never deletes, a symlink an earlier image enabled outlives it and shadows the packaged unit. Masks (targets pointing at `/dev/null`) and the enablement symlinks under `.wants/` and `.requires/` are left alone
  - `write-fstab`: Writes the final fstab with all the mounts into `/sysroot/fstab`
  - `initramfs-hook`: Runs the cloud config stage `initramfs`. Note that this is run under a chroot into what will be the final system (/sysroot).
  - `wait-for-sysroot`: Waits for the /sysroot and /sysroot/system dirs to be available, which means that they are mounted. Useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready.

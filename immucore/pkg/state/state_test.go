@@ -116,6 +116,24 @@ var _ = Describe("mounting immutable setup", func() {
 			checkInRAMDag(g.Analyze(), s.WriteDAG(g))
 		})
 
+		It("cleans stale units after the persistent binds and before the initramfs hook", func() {
+			// Running after mount-bind is what makes the step see the
+			// persistent copy of /etc/systemd instead of the image copy, and
+			// running before the initramfs hook is what keeps a stale symlink
+			// from reaching the booted system. checkDag, the normal-boot shape
+			// test, is skipped, so assert the ordering on the UKI dag, which
+			// registers the same step and does run.
+			s := &state.State{Rootdir: "/"}
+			err := dag.RegisterUKI(s, g)
+			Expect(err).ToNot(HaveOccurred())
+			layers := g.Analyze()
+			actualDag := s.WriteDAG(g)
+
+			clean := layerOf(layers, cnst.OpCleanStaleUnits)
+			Expect(clean).To(BeNumerically(">", layerOf(layers, cnst.OpMountBind)), actualDag)
+			Expect(clean).To(BeNumerically("<", layerOf(layers, cnst.OpInitramfsHook)), actualDag)
+		})
+
 		It("generates UKI dag without ensure-partitions", func() {
 			s := &state.State{Rootdir: "/"}
 			err := dag.RegisterUKI(s, g)
@@ -254,7 +272,7 @@ func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
 		{cnst.OpMountBaseOverlay, cnst.OpCustomMounts},
 		{cnst.OpOverlayMount},
 		{cnst.OpMountBind},
-		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions},
+		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions, cnst.OpCleanStaleUnits},
 		{cnst.OpInitramfsHook},
 	}
 	Expect(len(dag)).To(Equal(len(expected)), actualDag)
