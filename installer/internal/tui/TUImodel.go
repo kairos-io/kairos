@@ -53,6 +53,19 @@ type Model struct {
 
 var mainModel Model
 
+// normalizedFinishAction returns mainModel.finishAction if it is one of the
+// known post-install actions, and "nothing" otherwise. This keeps the
+// completed install page from rendering a blank action if an unexpected
+// value ever reaches it.
+func normalizedFinishAction() string {
+	switch mainModel.finishAction {
+	case "reboot", "poweroff":
+		return mainModel.finishAction
+	default:
+		return "nothing"
+	}
+}
+
 // InitialModel Initialize the application
 func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 	// First create the model with the logger in case any page needs to log something
@@ -61,6 +74,7 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		title:           DefaultTitleInteractiveInstaller(),
 		source:          source,
 		log:             l,
+		finishAction:    "nothing",
 	}
 	mainModel.pages = []Page{
 		newPrerequisitesPage(),
@@ -120,14 +134,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Hijack all keys if on install process page
 	if installPage, ok := mainModel.pages[currentIdx].(*installProcessPage); ok {
 		// If install failed or finished, any key exits, no abort modal
-		if installPage.errorMsg != "" || installPage.progress >= len(installPage.steps)-1 && mainModel.finishAction == "nothing" {
+		if installPage.errorMsg != "" || installPage.progress >= len(installPage.steps)-1 && normalizedFinishAction() == "nothing" {
 			mainModel.showAbortConfirm = false // Ensure abort modal is closed
 			if _, isKey := msg.(tea.KeyMsg); isKey {
 				return mainModel, tea.Quit
 			}
 		}
 		// If install finished with no errors and reboot/poweroff selected, block all keys so we dont block the action
-		if installPage.errorMsg == "" && installPage.progress >= len(installPage.steps)-1 && (mainModel.finishAction == "reboot" || mainModel.finishAction == "poweroff") {
+		if installPage.errorMsg == "" && installPage.progress >= len(installPage.steps)-1 && normalizedFinishAction() != "nothing" {
 			return mainModel, nil
 		}
 		if mainModel.showAbortConfirm {
