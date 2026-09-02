@@ -126,6 +126,10 @@ const (
 	OpUkiExtractCerts      = "extract-certs"
 	OpUkiTransitionSysext  = "uki-transition-sysext"
 	OpUkiCopySysExtensions = "enable-sysext-confext"
+	// OpCleanStaleUnits drops unit symlinks that an earlier image left in the
+	// persistent /etc/systemd bind and that now shadow a packaged unit. See
+	// internalUtils.CleanStaleUnitSymlinks.
+	OpCleanStaleUnits = "clean-stale-units"
 	// InRAMSentinelName is the extra sentinel file written under /run/cos/ when
 	// the kairos.ram workflow is active. It is additive: WriteSentinelDagStep
 	// still writes the BootState-driven sentinel (which is active_mode for

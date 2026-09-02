@@ -88,8 +88,12 @@ func RegisterUKI(s *state.State, g *herd.Graph) error {
 	// Note that the loading of the extensions is done by systemd with the systemd-sysext service
 	s.LogIfError(s.EnableSysAndConfExtensions(g, herd.WithWeakDeps(cnst.OpMountBind, cnst.OpUkiTransitionSysext)), "enable sysext and confexts")
 
+	// Drop unit symlinks an earlier image left in the persistent /etc/systemd
+	// bind, before the initramfs stage and the handover to /sbin/init.
+	s.LogIfError(s.CleanStaleUnitsDagStep(g, herd.WithWeakDeps(cnst.OpMountBind)), "clean stale systemd units")
+
 	// run initramfs stage
-	s.LogIfError(s.InitramfsStageDagStep(g, herd.WeakDeps, herd.WithDeps(cnst.OpMountBind, cnst.OpUkiCopySysExtensions)), "uki initramfs")
+	s.LogIfError(s.InitramfsStageDagStep(g, herd.WeakDeps, herd.WithDeps(cnst.OpMountBind, cnst.OpUkiCopySysExtensions), herd.WithWeakDeps(cnst.OpCleanStaleUnits)), "uki initramfs")
 
 	s.LogIfError(s.WriteFstabDagStep(g,
 		herd.WithDeps(cnst.OpLoadConfig, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount),

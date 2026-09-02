@@ -474,6 +474,32 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 		)...)
 }
 
+// CleanStaleUnitsDagStep drops unit symlinks that an earlier OS image left
+// behind in the persistent /etc/systemd bind and that now shadow a unit the
+// current image ships. It has to run after OpMountBind, so that it sees the
+// persistent copy of /etc/systemd rather than the one in the image, and
+// before switch_root, so that systemd never loads the stale symlink.
+//
+// A failure here does not fail the boot: a node that boots with one stale
+// symlink left in place is the state we are already in, while taking the
+// boot down over it would be a regression.
+func (s *State) CleanStaleUnitsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
+	return g.Add(cnst.OpCleanStaleUnits, append(opts,
+		TimedCallback(cnst.OpCleanStaleUnits, func(_ context.Context) error {
+			removed, err := internalUtils.CleanStaleUnitSymlinks(s.Rootdir)
+			if len(removed) > 0 {
+				internalUtils.KLog.Logger.Info().Strs("units", removed).
+					Msg("Removed stale systemd unit symlinks that shadowed a packaged unit")
+			}
+			if err != nil {
+				internalUtils.KLog.Logger.Warn().Err(err).
+					Msg("Could not clean stale systemd unit symlinks")
+			}
+			return nil
+		}),
+	)...)
+}
+
 // EnableSysAndConfExtensions softlinks extensions for the running state from /var/lib/kairos/extensions/$STATE to /run/extensions.
 // So when initramfs stage runs and enables systemd-sysext it can load the extensions for a given bootentry.
 // Works for both sysext and confext.
