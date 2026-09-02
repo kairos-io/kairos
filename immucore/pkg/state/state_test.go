@@ -1,13 +1,19 @@
 package state_test
 
 import (
-	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
-	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
+	"context"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
+
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/dag"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spectrocloud-labs/herd"
@@ -39,6 +45,27 @@ var _ = Describe("mounting immutable setup", func() {
 				"/etc/nginx/config.d/",
 				"/etc/kubernetes/child/grand-child",
 			}))
+		})
+	})
+
+	Context("CleanStaleUnitsDagStep", func() {
+		It("removes a stale unit symlink under the rootdir when the step runs", func() {
+			internalUtils.KLog = logger.NewNullLogger()
+			root := GinkgoT().TempDir()
+			unitDir := filepath.Join(root, "etc", "systemd", "system")
+			packagedDir := filepath.Join(root, "usr", "lib", "systemd", "system")
+			Expect(os.MkdirAll(unitDir, 0o755)).To(Succeed())
+			Expect(os.MkdirAll(packagedDir, 0o755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(packagedDir, "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
+			stale := filepath.Join(unitDir, "sshd.service")
+			Expect(os.Symlink("/usr/lib/systemd/system/ssh.service", stale)).To(Succeed())
+
+			s := &state.State{Rootdir: root}
+			Expect(s.CleanStaleUnitsDagStep(g)).To(Succeed())
+			Expect(g.Run(context.Background())).To(Succeed())
+
+			_, err := os.Lstat(stale)
+			Expect(os.IsNotExist(err)).To(BeTrue())
 		})
 	})
 
