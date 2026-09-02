@@ -112,11 +112,17 @@ stages:
     # Similarly, we could trigger boot assessment in other cases
     after-upgrade:
     - <<: *statemount
+    # The tentative sentinel is cleared here as well. A failed upgrade leaves it
+    # set, and the "Remove GRUB sentinels" step above only runs from the active
+    # image, so a recovery upgrade started from the passive image never clears
+    # it. GRUB would then see both sentinels on the next boot and select the
+    # fallback entry without ever trying the image we just wrote.
     - name: "Set upgrade sentinel"
       if: grep -vq "rd.immucore.uki" /proc/cmdline
       commands:
       - |
           grub2-editenv /tmp/mnt/STATE/boot_assessment set enable_boot_assessment=yes
+          grub2-editenv /tmp/mnt/STATE/boot_assessment set boot_assessment_tentative=
     # We do re-install hooks here if needed to track upgrades of boot assessment
     - <<: *customhook
     - <<: *grubinstall
