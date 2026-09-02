@@ -31,67 +31,6 @@ var EmbeddedConfigs embed.FS
 //go:embed alpineInit/*
 var EmbeddedAlpineInit embed.FS
 
-// SucUpgrade /usr/sbin/suc-upgrade is a script that is used to upgrade the system via k8s
-// This has to be in the rootfs, cant be generated dynamically as upgrades use this
-const SucUpgrade = `#!/bin/bash
-set -x -e
-HOST_DIR="${HOST_DIR:-/host}"
-SUC_VERSION="0.0.0"
-
-echo "SUC_VERSION: $SUC_VERSION"
-
-get_version() {
-    local file_path="$1"
-    # shellcheck disable=SC1090
-    source "$file_path"
-
-    echo "${KAIROS_VERSION}-${KAIROS_SOFTWARE_VERSION_PREFIX}${KAIROS_SOFTWARE_VERSION}"
-}
-
-if [ "$FORCE" != "true" ]; then
-    if [ -f "/etc/kairos-release" ]; then
-      UPDATE_VERSION=$(get_version "/etc/kairos-release")
-    else
-      # shellcheck disable=SC1091
-      UPDATE_VERSION=$(get_version "/etc/os-release" )
-    fi
-
-    if [ -f "${HOST_DIR}/etc/kairos-release" ]; then
-      # shellcheck disable=SC1091
-      CURRENT_VERSION=$(get_version "${HOST_DIR}/etc/kairos-release" )
-    else
-      # shellcheck disable=SC1091
-      CURRENT_VERSION=$(get_version "${HOST_DIR}/etc/os-release" )
-    fi
-
-    if [ "$CURRENT_VERSION" == "$UPDATE_VERSION" ]; then
-      echo Up to date
-      echo "Current version: ${CURRENT_VERSION}"
-      echo "Update version: ${UPDATE_VERSION}"
-      exit 0
-    fi
-fi
-
-mount --rbind "$HOST_DIR"/dev /dev
-mount --rbind "$HOST_DIR"/run /run
-
-recovery_mode=false
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --recovery) recovery_mode=true;;
-    esac
-    shift
-done
-if [ "$recovery_mode" = true ]; then
-    kairos-agent upgrade --recovery --source dir:/
-    exit 0 # no need to reboot when upgrading recovery
-else
-    kairos-agent upgrade --source dir:/
-    nsenter -i -m -t 1 -- reboot
-    exit 1
-fi
-`
-
 // ReconcileScript /usr/bin/cos-setup-reconcile is a script that is used to run the kairos-agent in a loop for the reconcile service
 // Mainly for alpine, for systemd distros we user a simple timer unit
 // TODO: Check if we can move this into a supervisord script that runs every 300 seconds???
