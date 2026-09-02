@@ -115,4 +115,4 @@ func (p *installOptionsPage) Help() string {
 	return "↑/k: up • ↓/j: down • enter: select • To select action after install (←/h: left • →/l: right)"
 }
 
-func (p *installOptionsPage) ID() string { return "install_options" }
+func (p *installOptionsPage) ID() string { return installOptionsPageID }
