@@ -81,7 +81,10 @@ func DiskFSType(s string) string {
 		}
 		typeFs := splitted[len(splitted)-1]
 		typeFsSplitted := strings.Split(typeFs, "=")
-		if len(typeFsSplitted) < 1 {
+		// strings.Split never answers with fewer than one element, so the
+		// guard here has to be two: a last field with no "=" in it reaches
+		// index 1 and panics.
+		if len(typeFsSplitted) < 2 {
 			KLog.Logger.Debug().Str("what", typeFs).Msg("typeFs split")
 			return "ext4"
 		}
