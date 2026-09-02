@@ -61,12 +61,29 @@ jobs:
         # golangci-lint does when loading /work -- requires those
         # files to exist. The repo does not ship the real binaries
         # (make binaries downloads them at build time), so create
-        # empty placeholders so the embed directives resolve. The
-        # Makefile guards this with `test -e || touch` so it is a
-        # no-op when a preceding real `make binaries` populated
-        # the tree.
+        # empty placeholders so the embed directives resolve.
+        #
+        # Inlined rather than delegated to `make
+        # kairos-init-embed-stubs` on purpose: this workflow can be
+        # entered under pull_request_target with the PR HEAD checked
+        # out and `secrets: inherit` set upstream (see pr.yaml's
+        # `authorize` gate + `caller-vetted-ref: true`), and running
+        # the PR's Makefile in that context executes untrusted code
+        # from the fork inside a privileged run -- the pattern
+        # CodeQL's Untrusted Checkout TOCTOU query flags. Keep this
+        # step to shell defined in the workflow (which reviewers
+        # gate) rather than shell defined in the PR being linted.
+        # The bodies mirror kairos-init-embed-stubs 1:1 -- if that
+        # target changes, update here too.
         shell: bash
-        run: make kairos-init-embed-stubs
+        run: |
+          mkdir -p kairos-init/pkg/bundled/binaries/fips
+          for f in kairos provider-kairos kairos-installer edgevpn version-info.yaml; do
+            [ -e "kairos-init/pkg/bundled/binaries/$f" ] || : > "kairos-init/pkg/bundled/binaries/$f"
+          done
+          for f in kairos provider-kairos kairos-installer; do
+            [ -e "kairos-init/pkg/bundled/binaries/fips/$f" ] || : > "kairos-init/pkg/bundled/binaries/fips/$f"
+          done
       - name: golangci-lint
         env:
           GOLANGCILINT_VERSION: latest-alpine
