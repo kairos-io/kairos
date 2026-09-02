@@ -14,7 +14,7 @@ import (
 
 // mountRetryInterval is how long MountOPWithFstab waits between two mount
 // attempts. Nothing waits before the first one.
-const mountRetryInterval = 1 * time.Second
+const mountRetryInterval = 250 * time.Millisecond
 
 // MountOPWithFstab creates and executes a mount operation.
 // returns the fstab entries created and an error if any.
