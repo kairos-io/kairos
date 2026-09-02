@@ -103,6 +103,15 @@ func TestMountRemountsAReadOnlyBind(t *testing.T) {
 	if len(*calls) != 2 {
 		t.Fatalf("a read-only bind needs two syscalls, got %d: %+v", len(*calls), *calls)
 	}
+	// The initial call has to carry what ParseOptions computed. Nothing else in
+	// the suite covers that: the remount below builds on the same local, so
+	// passing 0 for flags on the first syscall would leave every other test
+	// green while mounting /sysroot writable and dropping suid/dev/exec/async
+	// from /oem.
+	const readOnlyBind = unix.MS_BIND | unix.MS_RDONLY
+	if initial := (*calls)[0]; initial.flags&readOnlyBind != readOnlyBind {
+		t.Errorf("the first call dropped the parsed flags: %#x", initial.flags)
+	}
 	remount := (*calls)[1]
 	if remount.flags&unix.MS_REMOUNT == 0 {
 		t.Error("the second call is not a remount")
@@ -147,7 +156,11 @@ func TestMountWrapsTheSyscallError(t *testing.T) {
 }
 
 func TestMountRejectsDataLongerThanAPage(t *testing.T) {
-	long := make([]byte, 5000)
+	// Derived, not hardcoded: Mount compares against os.Getpagesize(), which
+	// the runtime reads from auxv AT_PAGESZ rather than fixing per GOARCH. A
+	// literal "longer than 4K" payload silently stops being oversized on a
+	// 64K-page arm64 kernel, and the test would fail there instead of passing.
+	long := make([]byte, unix.Getpagesize())
 	for i := range long {
 		long[i] = 'a'
 	}
