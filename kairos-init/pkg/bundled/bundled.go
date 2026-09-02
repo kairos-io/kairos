@@ -173,13 +173,20 @@ if ! [ -L "$GENERATOR_DIR"/initrd-root-fs.target.wants/sysroot.mount ]; then
   ln -s ../sysroot.mount "$GENERATOR_DIR"/initrd-root-fs.target.wants/sysroot.mount
 fi`
 
-// ImmucoreServiceDracut is the dracut service file that is used to run immucore in the initramfs
+// ImmucoreServiceDracut is the dracut service file that is used to run immucore in the initramfs.
+//
+// Conflicts= carries no ordering of its own, so it alone lets systemd start
+// initrd-switch-root.target while immucore is still building the mount DAG
+// and stop it at an arbitrary point. The switch then continues into a
+// userland whose binds and overlays were never established. Before= pins the
+// order: immucore finishes, then the switch runs.
 const ImmucoreServiceDracut = `[Unit]
 Description=immucore
 DefaultDependencies=no
 After=systemd-udev-settle.service
 Requires=systemd-udev-settle.service
 Before=initrd-fs.target
+Before=initrd-switch-root.target
 Conflicts=initrd-switch-root.target
 
 [Service]
