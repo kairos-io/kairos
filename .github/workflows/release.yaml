@@ -2,7 +2,10 @@ name: release
 
 # The release pipeline. Shape mirrors master.yaml with three
 # differences:
-#   - The registry is quay.io/kairos, not ghcr.io/kairos-io/kairos.
+#   - Staging registry is ghcr.io/kairos-io/kairos (same as master).
+#     Only after the full test suite passes does promote-images copy
+#     manifests from ghcr to the user-facing quay.io/kairos, so a
+#     failed release never leaves a broken tag on the public registry.
 #   - The ISO matrix carries a UKI/trusted-boot cell (from what
 #     was uki.yaml before retirement) and an arm64 cell (built
 #     for release artifacts; qemu is not viable on arm64 in CI).
@@ -15,9 +18,12 @@ name: release
 #     unit-tests all passing so a red run cannot ship broken
 #     binaries.
 #
-# Test-before-push: images and OS builds first land on
-# :<tag>-scratch. On green, promote-images copies the manifest to
-# :<tag> and :latest via docker buildx imagetools create.
+# Test-before-publish: every image the release builds is pushed to
+# ghcr.io/kairos-io/kairos with the release tag (v4.3.0-rcN, not
+# -scratch). Downstream steps pull from ghcr. On green, promote-images
+# copies each manifest to quay.io/kairos with the tag layout v4.2.0
+# used (docker buildx imagetools create -- digest preserved, no image
+# bytes pulled). Public quay only ever sees post-test images.
 
 on:
   push:
@@ -133,12 +139,12 @@ jobs:
     needs: [build-kairos-init, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kairos-init.yaml
     with:
-      image_registry: quay.io/kairos
-      # Scratch tag: qemu tests consume this, promote-images copies
-      # to the final tag + :latest on green.
-      image_tag: ${{ github.ref_name }}-scratch
+      # Stage on ghcr with the final tag; promote-images copies to
+      # quay.io/kairos/kairos-init:<tag> + :latest on green.
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: ${{ github.ref_name }}
       push: true
-      registry_login: quay
+      registry_login: ghcr
     secrets: inherit
 
   # kcrypt-challenger pipe: parallel to the kairos pipe. The encryption
@@ -155,10 +161,10 @@ jobs:
     needs: [build-kcrypt-challenger, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
     with:
-      image_registry: quay.io/kairos
-      image_tag: ${{ github.ref_name }}-scratch
+      image_registry: ghcr.io/kairos-io/kairos
+      image_tag: ${{ github.ref_name }}
       push: true
-      registry_login: quay
+      registry_login: ghcr
     secrets: inherit
 
   # ISO matrix split so test-* unblock as soon as the amd64
@@ -174,18 +180,21 @@ jobs:
         include:
           # Two per-cell knobs control what leaves the release cell:
           #   registry_domain  '' skips the container image push
-          #                    (factory-action's Push step is gated on
-          #                    registry_domain != '').
+          #                    entirely (factory-action's Push step is
+          #                    gated on registry_domain != ''). Cells
+          #                    that do push all go to ghcr.io/kairos-io/
+          #                    kairos; promote-images fans them out to
+          #                    quay on green.
           #   release          false skips attaching the ISO to the
           #                    GitHub Release (factory-action's list-
           #                    release-artifacts + release steps gate on
           #                    this && inputs.iso).
           #
-          # Cannot fall back to 'quay.io' at the with: site via `||`
-          # because GHA `||` treats '' as falsy and would collapse the
-          # skip signal back to quay.io -- so set it explicitly per cell.
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false, registry_domain: 'quay.io', release: true}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false, registry_domain: 'quay.io', release: true}
+          # Cannot fall back at the with: site via `||` because GHA `||`
+          # treats '' as falsy and would collapse the skip signal back
+          # to ghcr.io -- so set it explicitly per cell.
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false, registry_domain: 'ghcr.io', release: true}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false, registry_domain: 'ghcr.io', release: true}
           # FIPS core cell (see pr.yaml for rationale).
           - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true, registry_domain: '', release: true}
           # UKI cells feed test-uki (see pr.yaml for the shape).
@@ -202,8 +211,8 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      # Consume the scratch kairos-init that build-image-kairos-init just published.
-      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      # Consume the kairos-init that build-image-kairos-init just staged on ghcr.
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:${{ github.ref_name }}
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
@@ -212,7 +221,7 @@ jobs:
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
       fips: ${{ matrix.fips }}
       registry_domain: ${{ matrix.registry_domain }}
-      registry_namespace: 'kairos'
+      registry_namespace: 'kairos-io/kairos'
       release: ${{ matrix.release }}
     secrets: inherit
 
@@ -252,15 +261,15 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: ${{ matrix.name }}
-      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:${{ github.ref_name }}
       arch: ${{ matrix.arch }}
       base_image: ${{ matrix.base_image }}
       model: ${{ matrix.model }}
       iso: ${{ matrix.iso }}
       trusted_boot: ${{ matrix.trusted_boot }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
-      registry_domain: ${{ matrix.registry_domain || 'quay.io' }}
-      registry_namespace: ${{ matrix.registry_namespace || 'kairos' }}
+      registry_domain: ${{ matrix.registry_domain || 'ghcr.io' }}
+      registry_namespace: ${{ matrix.registry_namespace || 'kairos-io/kairos' }}
       registry_repository: ${{ matrix.registry_repository || '' }}
       raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
@@ -285,7 +294,7 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: 'amd64-standard-k3s-${{ matrix.kubernetes_version }}'
-      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:${{ github.ref_name }}
       arch: 'amd64'
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
       model: 'generic'
@@ -293,8 +302,8 @@ jobs:
       trusted_boot: false
       kubernetes_distro: 'k3s'
       kubernetes_version: ${{ matrix.kubernetes_version }}
-      registry_domain: 'quay.io'
-      registry_namespace: 'kairos'
+      registry_domain: 'ghcr.io'
+      registry_namespace: 'kairos-io/kairos'
       release: true
     secrets: inherit
 
@@ -307,7 +316,7 @@ jobs:
     uses: ./.github/workflows/_build-iso.yaml
     with:
       name: 'amd64-standard-k0s-${{ matrix.kubernetes_version }}'
-      kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}-scratch
+      kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:${{ github.ref_name }}
       arch: 'amd64'
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
       model: 'generic'
@@ -315,8 +324,8 @@ jobs:
       trusted_boot: false
       kubernetes_distro: 'k0s'
       kubernetes_version: ${{ matrix.kubernetes_version }}
-      registry_domain: 'quay.io'
-      registry_namespace: 'kairos'
+      registry_domain: 'ghcr.io'
+      registry_namespace: 'kairos-io/kairos'
       release: true
     secrets: inherit
 
@@ -447,7 +456,7 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
-      kcrypt_challenger_image: quay.io/kairos/kcrypt-challenger:${{ github.ref_name }}-scratch
+      kcrypt_challenger_image: ghcr.io/kairos-io/kairos/kcrypt-challenger:${{ github.ref_name }}
     secrets: inherit
 
   test-uki:
@@ -469,30 +478,53 @@ jobs:
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
     secrets: inherit
 
-  # Copy the scratch manifests to their final tags only if both
-  # qemu suites pass. `docker buildx imagetools create` promotes
-  # by reference (digest preserved, no image bytes pulled). Also
-  # tag :latest on the final promotion.
+  # Copy the ghcr-staged manifests to their final quay tags only if
+  # both qemu suites pass. `docker buildx imagetools create` promotes
+  # by reference (digest preserved, no image bytes pulled). Also tag
+  # :latest on the final promotion.
+  #
+  # Scope note: this only promotes kairos-init and kcrypt-challenger
+  # today. The hadron/ubuntu build-iso cells also push to ghcr with
+  # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA tags, but
+  # (a) that layout has no $VERSION so a promoted quay tag can't be
+  # discovered by users looking at the release page, and (b) the k3s
+  # and k0s per-k8s-version cells collide on the same tag as the
+  # amd64-standard cell (last-write-wins), so promoting the raced
+  # result would ship a mystery digest. Both need $KUBERNETES_VERSION
+  # in the tag layout and a $VERSION-based promote target -- tracked
+  # as a follow-up; the hadron/ubuntu images live on ghcr with their
+  # SHA tags for this release, users pull from ghcr until then.
   promote-images:
     # qemu suites + iso matrices gate the kairos-init side; the
     # kcrypt-challenger image is on a parallel pipe and must also be
-    # pushed to :<tag>-scratch before this job can promote it.
+    # pushed to ghcr before this job can promote it.
     needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-iso-k3s, build-iso-k0s, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
+    permissions:
+      # imagetools create reads the source manifest from ghcr with the
+      # GITHUB_TOKEN; packages:read is enough for that.
+      contents: read
+      packages: read
     steps:
-      - name: Login to quay.io
+      - name: Login to ghcr.io (source)
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to quay.io (destination)
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Promote kairos-init and kcrypt-challenger scratch -> :<tag> + :latest
+      - name: Promote kairos-init and kcrypt-challenger ghcr -> quay :<tag> + :latest
         env:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           for img in kairos-init kcrypt-challenger; do
-            src="quay.io/kairos/${img}:${TAG}-scratch"
+            src="ghcr.io/kairos-io/kairos/${img}:${TAG}"
             dst_tag="quay.io/kairos/${img}:${TAG}"
             dst_latest="quay.io/kairos/${img}:latest"
             echo "Promoting $src -> $dst_tag and $dst_latest"
