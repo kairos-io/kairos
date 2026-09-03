@@ -226,6 +226,28 @@ users:
 					Expect(err).ToNot(HaveOccurred())
 					return out
 				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("boot: active_boot"))
+
+				// The state check above says the machine booted, not that the
+				// remote config was ever merged, so assert on something only
+				// the gist can put on disk.
+				//
+				// The gist declares two things: a stages.initramfs users
+				// entry, which is indistinguishable from the inline users
+				// block above, and a bundles entry pulling edgevpn-utils.
+				// The bundle is the only observable artifact, so it is what
+				// proves the fetch and the merge both happened.
+				//
+				// A bundle extracts the container rootfs under rootfs_path,
+				// so the binary lands at /usr/local/bin/usr/bin/edgevpn, not
+				// /usr/local/bin/edgevpn. Same path the mixed-syntax spec
+				// above asserts on, same image.
+				By("Checking the gist's bundle was installed", func() {
+					Eventually(func() string {
+						out, _ := vm.Sudo("/usr/local/bin/usr/bin/edgevpn --help | grep peer")
+						return out
+					}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("peerguard"),
+						"the config_url payload was not applied: the gist's bundle is missing")
+				})
 			})
 
 			It("succeeds when config_url is not accessible (and prints a warning)", func() {
