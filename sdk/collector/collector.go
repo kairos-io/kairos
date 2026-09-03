@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,6 +23,35 @@ import (
 )
 
 const DefaultHeader = "#cloud-config"
+
+// configURLAttempts is how many times a config_url fetch is tried before the
+// node gives up and boots without the remote config.
+const configURLAttempts = 3
+
+// warnOut is where the collector writes its non-fatal warnings. It is stderr
+// rather than stdout because the kcrypt discovery plugin speaks JSON over
+// stdout, and it is a package var so tests can capture what was written.
+var warnOut io.Writer = os.Stderr
+
+func warnf(format string, args ...interface{}) {
+	fmt.Fprintf(warnOut, format, args...)
+}
+
+// redactURL strips the query string from a URL so a config_url carrying a
+// token or a machine identifier can be named in a warning without printing
+// the secret to the console and the journal.
+func redactURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "<unparseable url>"
+	}
+	if u.RawQuery == "" {
+		return u.String()
+	}
+	u.RawQuery = "<redacted>"
+
+	return u.String()
+}
 
 var ValidFileHeaders = []string{
 	"#cloud-config",
@@ -512,16 +542,20 @@ func fetchRemoteConfig(url string) (*Config, error) {
 			}
 
 			return nil
-		}, retry.Delay(time.Second), retry.Attempts(3),
+		}, retry.Delay(time.Second), retry.Attempts(configURLAttempts),
 	)
 
 	if err != nil {
 		// TODO: This keeps the old behaviour but IMHO we should return an error here
+		warnf("warning: could not fetch config_url %s after %d attempts: %s. Booting without it\n",
+			redactURL(url), configURLAttempts, err.Error())
 		return result, nil
 	}
 
 	if !HasValidHeader(string(body)) {
 		// TODO: This keeps the old behaviour but IMHO we should return an error here
+		warnf("warning: ignoring config_url %s because it has no valid header. Booting without it\n",
+			redactURL(url))
 		return result, nil
 	}
 
