@@ -149,6 +149,16 @@ id = "GO-2026-6303"
 ignoreUntil = 2026-09-30
 reason = "upstream-fix-pending: CVE pending, golang.org/x/crypto/ssh in the edgevpn binary. Source-address critical option not enforced for non-public-key auth callbacks. Fixed in x/crypto 0.55.0, which this repo already builds against; the finding is in the prebuilt edgevpn tarball kairos-init consumes, so it clears when mudler cuts a release built against the fix. Kairos does not use edgevpn's ssh server with a source-address critical option."
 
+[[IgnoredVulns]]
+id = "GO-2026-6354"
+ignoreUntil = 2026-09-30
+reason = "upstream-fix-pending: CVE-2026-78662, golang.org/x/crypto/ssh in the edgevpn binary. DoS on a deadlocked undecided channel. Fixed in x/crypto 0.56.0, which this repo already builds against; the finding is in the prebuilt edgevpn tarball kairos-init consumes, so it clears when mudler cuts a release built against the fix."
+
+[[IgnoredVulns]]
+id = "GO-2026-6355"
+ignoreUntil = 2026-09-30
+reason = "upstream-fix-pending: CVE-2026-56855, golang.org/x/crypto/ssh in the edgevpn binary. DoS on a deadlocked established channel. Fixed in x/crypto 0.56.0, which this repo already builds against; the finding is in the prebuilt edgevpn tarball kairos-init consumes, so it clears when mudler cuts a release built against the fix."
+
 # ---------------------------------------------------------------------------
 # upstream-fix-pending -- Go stdlib advisories carried by the `edgevpn` binary,
 # which kairos-init consumes as a prebuilt tarball from mudler/edgevpn. Found
