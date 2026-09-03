@@ -29,6 +29,11 @@ on:
   push:
     tags:
       - 'v*'
+  # TEMPORARY: exercise the release pipeline on this PR before merging.
+  # Revert this whole `pull_request` block before merge -- every push to
+  # any PR branch otherwise runs the full release pipeline (build every
+  # cell, promote to quay if green), which is not what PRs want.
+  pull_request:
 
 permissions:
   # See _build-iso.yaml for the reusable-workflow permission
