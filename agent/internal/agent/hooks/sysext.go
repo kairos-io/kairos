@@ -65,6 +65,15 @@ func (b SysExtPostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		}
 	}
 
+	// Extensions declared in the cloud config, which have to be downloaded.
+	if err := installDeclaredExtensionsToEFI(c, activeDir, passiveDir); err != nil {
+		c.Logger.Errorf("failed to install the declared extensions: %s", err)
+		if c.FailOnBundleErrors {
+			return err
+		}
+	}
+
+	// Extensions shipped on the live media, which are already local.
 	err = fsutils.WalkDirFs(c.Fs, constants.LiveDir, func(path string, info fs.DirEntry, err error) error {
 		if err != nil {
 			return err

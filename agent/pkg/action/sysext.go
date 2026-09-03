@@ -3,16 +3,14 @@ package action
 import (
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 
-	"github.com/distribution/reference"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
 	"github.com/kairos-io/kairos/v4/sdk/extensions"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
-	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/twpayne/go-vfs/v5"
 )
 
@@ -284,27 +282,11 @@ func DisableExtension(cfg *sdkConfig.Config, ext string, bootState, extType stri
 // It will download the extension and extract it to the target dir
 // It will check if the extension is already installed before doing anything
 func InstallExtension(cfg *sdkConfig.Config, uri, extType string) error {
-	linkTarget := sysextDir
+	target := sysextDir
 	if extType == confext {
-		linkTarget = confExtDir
+		target = confExtDir
 	}
-	// Parse the URI
-	download, err := parseURI(cfg, uri)
-	if err != nil {
-		return fmt.Errorf("failed to parse URI %s: %w", uri, err)
-	}
-	// Check if directory exists or create it
-	if _, err := cfg.Fs.Stat(linkTarget); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, linkTarget, 0755); err != nil {
-			return fmt.Errorf("failed to create target dir %s: %w", linkTarget, err)
-		}
-	}
-	// Download the extension
-	if err := download.Download(linkTarget); err != nil {
-		return err
-	}
-
-	return nil
+	return installer.Install(cfg, uri, target)
 }
 
 // InstallCatalogExtension resolves and installs a system extension from a catalog.
@@ -382,115 +364,5 @@ func RemoveExtension(cfg *sdkConfig.Config, extension, extType string, now bool)
 	}
 
 	cfg.Logger.Infof("Extension %s removed", installed.Name)
-	return nil
-}
-
-// ParseURI parses a URI and returns a SourceDownload
-// implementation based on the scheme of the URI
-func parseURI(cfg *sdkConfig.Config, uri string) (SourceDownload, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, err
-	}
-	scheme := u.Scheme
-	value := u.Opaque
-	if value == "" {
-		value = filepath.Join(u.Host, u.Path)
-	}
-	switch scheme {
-	case "oci", "docker", "container":
-		n, err := reference.ParseNormalizedNamed(value)
-		if err != nil {
-			return nil, fmt.Errorf("invalid image reference %s", value)
-		} else if reference.IsNameOnly(n) {
-			value += ":latest"
-		}
-		return &dockerSource{value, cfg}, nil
-	case "file":
-		return &fileSource{value, cfg}, nil
-	case "http", "https":
-		// Pass the full uri including the protocol
-		return &httpSource{uri, cfg}, nil
-	default:
-		return nil, fmt.Errorf("invalid URI reference %s", uri)
-	}
-}
-
-// SourceDownload is an interface for downloading system extensions
-// from different sources. It allows for different implementations
-// for different sources of system extensions, such as files, directories,
-// or docker images. The interface defines a single method, Download,
-// which takes a destination path as an argument and returns an error
-type SourceDownload interface {
-	Download(string) error
-}
-
-// fileSource is a struct that implements the SourceDownload interface
-// for downloading system extensions from a file. It has two fields,
-// uri, which is the URI of the file to be downloaded and cfg which points to the Config
-// The Download method takes a destination path as an argument and returns an error if the
-// download fails.
-type fileSource struct {
-	uri string
-	cfg *sdkConfig.Config
-}
-
-// Download streams the file to the destination with bounded memory usage
-// Uses io.Copy instead of buffering the entire file to avoid OOM on pods with limited memory
-func (f *fileSource) Download(dst string) error {
-	// Open source file for reading
-	srcFile, err := f.cfg.Fs.Open(f.uri)
-	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", f.uri, err)
-	}
-	defer srcFile.Close()
-
-	// Get file info for permissions
-	stat, err := f.cfg.Fs.Stat(f.uri)
-	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", f.uri, err)
-	}
-
-	// Create destination file with same permissions
-	dstFile := filepath.Join(dst, filepath.Base(f.uri))
-	dstFileHandle, err := f.cfg.Fs.OpenFile(dstFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, stat.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", dstFile, err)
-	}
-	defer dstFileHandle.Close()
-
-	// Stream copy (bounded memory usage)
-	f.cfg.Logger.Logger.Debug().Str("uri", f.uri).Str("target", dstFile).Msg("Copying system extension")
-	if _, err := io.Copy(dstFileHandle, srcFile); err != nil {
-		return fmt.Errorf("failed to copy file %s to %s: %w", f.uri, dstFile, err)
-	}
-
-	return nil
-}
-
-type httpSource struct {
-	uri string
-	cfg *sdkConfig.Config
-}
-
-func (h httpSource) Download(s string) error {
-	// Download the file from the URI
-	// and save it to the destination path
-	h.cfg.Logger.Logger.Debug().Str("uri", h.uri).Str("target", filepath.Join(s, filepath.Base(h.uri))).Msg("Downloading system extension")
-	return h.cfg.Client.GetURL(sdkLogger.NewNullLogger(), h.uri, filepath.Join(s, filepath.Base(h.uri)))
-}
-
-type dockerSource struct {
-	uri string
-	cfg *sdkConfig.Config
-}
-
-func (d dockerSource) Download(s string) error {
-	// Download the file from the URI
-	// and save it to the destination path
-	err := d.cfg.ImageExtractor.ExtractImage(d.uri, s, "")
-	if err != nil {
-		return err
-	}
 	return nil
 }
