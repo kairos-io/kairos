@@ -1,6 +1,6 @@
 module github.com/kairos-io/kairos/v4
 
-go 1.26.5
+go 1.26.8
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
