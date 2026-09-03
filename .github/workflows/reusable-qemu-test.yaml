@@ -262,13 +262,29 @@ jobs:
           VARIANT: ${{ inputs.variant }}
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
-          SHA: ${{ github.sha }}
+          KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
         run: |
+          # Match _build-iso.yaml's custom_tag_format:
+          # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
+          # Reusable-qemu-test only tests non-UKI, non-per-k8s-version cells
+          # today, so $K8S is derived from what factory-action would produce
+          # for the same kubernetes_distro/version inputs and $UKI stays empty.
+          # $VERSION uses the same `git describe --tags --dirty --always`
+          # rule factory-action's setup step uses so both sides land on the
+          # same tag.
+          VERSION=$(git describe --tags --dirty --always)
+          if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
+            VERSION="v0.0.0-$VERSION"
+          fi
+          # Currently no caller passes kubernetes_version to this reusable,
+          # so K8S stays empty; keep the placeholder wired so future callers
+          # can flip it on without a second edit here.
+          K8S=""
           # Expand the literal `${flavor}` token in the caller-provided
           # prefix. Callers that don't use the token (or take the
           # default) pass through unchanged.
           PREFIX="${PREFIX_TEMPLATE//\$\{flavor\}/$FLAVOR}"
-          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${SHA}" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}${K8S}-${VERSION}" >> "$GITHUB_ENV"
       - name: Download artifacts
         if: ${{ inputs.test != 'upgrade-latest-with-cli' && inputs.test != 'provider-upgrade-latest-k8s-with-kubernetes' }}
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
