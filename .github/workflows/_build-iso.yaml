@@ -131,6 +131,19 @@ on:
         type: string
         default: ''
 
+      custom_tag_format:
+        description: |
+          Factory-action custom_tag_format for the pushed OS image.
+          The default matches what reusable-qemu-test.yaml and
+          _uki-test.yaml resolve to (`$FLAVOR-` prefix so tests find
+          the fresh image); release.yaml overrides this to drop the
+          prefix and match the tag shape v4.2.0 shipped.
+          $K8S expands to `-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION`
+          when a k8s pair is set and empty otherwise; $VERSION is
+          factory-action's `git describe --tags --dirty --always`.
+        type: string
+        default: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
+
       ref:
         description: 'git ref to check out (passthrough to factory-action)'
         type: string
@@ -205,35 +218,12 @@ jobs:
       registry_domain: ${{ inputs.registry_domain }}
       registry_namespace: ${{ inputs.registry_namespace }}
       registry_repository: ${{ inputs.registry_repository }}
-      # Force factory-action to name the image tag and ISO artifact
-      # the same way reusable-qemu-test.yaml expects to find them.
-      # Factory-action's default artifact format is
-      # `kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION` (no
-      # $FLAVOR), but reusable-qemu-test.yaml downloads
-      # `kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip`.
-      #
-      # Tag layout:
-      #   $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
-      #
-      #   $K8S       leading-dash `-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION`
-      #              when a k8s pair was passed (build-iso-k3s / build-iso-k0s cells),
-      #              empty otherwise (default cell). Prevents the k3s/k0s
-      #              per-k8s-version cells from colliding on the same tag as
-      #              the plain amd64-standard cell -- before this variable
-      #              existed every cell wrote to `...-standard-amd64-generic-<sha>`
-      #              and last-write-won.
-      #   $VERSION   from factory-action's git-describe-based resolution;
-      #              on a release tag it is the tag itself (v4.3.0-rc3). Was
-      #              $COMMIT_SHA before; the swap lets promote-images copy
-      #              ghcr manifests to quay with a tag consumers can actually
-      #              guess from the release page.
-      #   $UKI       `-uki` for trusted-boot builds, empty otherwise. UKI
-      #              tests download by name with the -uki suffix and pull the
-      #              image from a tag ending in -uki (see _uki-test.yaml).
-      #              Without it, trusted-boot cells would collide with
-      #              non-UKI ones and neither the ISO artifact nor the
-      #              container image would resolve.
-      custom_tag_format: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
+      # ISO artifact format matches what reusable-qemu-test.yaml expects
+      # to download: kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip
+      # Container tag format is caller-supplied via inputs.custom_tag_format
+      # (default keeps the $FLAVOR- prefix so tests resolve; release.yaml
+      # drops the prefix to match v4.2.0's user-facing tag shape).
+      custom_tag_format: ${{ inputs.custom_tag_format }}
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
       trusted_boot: ${{ inputs.trusted_boot }}
       # Factory-action's keys_dir is "required when trusted_boot is
