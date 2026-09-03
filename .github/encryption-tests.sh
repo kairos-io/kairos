@@ -6,6 +6,11 @@ set -ex
 # This is where sealed volumes are created.
 
 GINKGO_NODES="${GINKGO_NODES:-1}"
+# ginkgo's suite timeout, as a Go duration. Explicit for the same reason as in
+# reusable-qemu-test.yaml: ginkgo's own default of 1h is invisible in the log,
+# so a suite that runs out of clock gives no sign that 1h was the budget
+# (kairos-io/kairos#4489). The default matches that workflow's.
+GINKGO_SUITE_TIMEOUT="${GINKGO_SUITE_TIMEOUT:-60m}"
 # renovate: datasource=docker depName=rancher/k3s versioning=loose
 K3S_IMAGE="rancher/k3s:v1.33.4-k3s1"
 CERT_MANAGER_VERSION="v1.16.5"
@@ -79,5 +84,5 @@ export KMS_ADDRESS="10.0.2.2.challenger.sslip.io"
 
 
 pushd "$SCRIPT_DIR/../tests/"
-go run github.com/onsi/ginkgo/v2/ginkgo -v --nodes "$GINKGO_NODES" --label-filter "$LABEL" --fail-fast -r ./...
+go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "$GINKGO_SUITE_TIMEOUT" --nodes "$GINKGO_NODES" --label-filter "$LABEL" --fail-fast -r ./...
 popd
