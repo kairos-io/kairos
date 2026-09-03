@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
 	"runtime"
 	"strings"
@@ -184,6 +183,58 @@ func findEntryWithAssessment(cfg *sdkConfig.Config, efiMountPoint, confBaseName 
 	return confBaseName, nil
 }
 
+// aliasSystemdEntry translates the names we still accept from users onto the
+// names listSystemdEntries produces. "active" is accepted alongside "cos" so we
+// can eventually drop the "cos" wording, and any extra-cmdline suffix on it is
+// carried over.
+func aliasSystemdEntry(name string) string {
+	if name == cnst.BootActive {
+		return "cos"
+	}
+	if suffix, found := strings.CutPrefix(name, cnst.BootActive+" "); found {
+		return "cos " + suffix
+	}
+
+	return name
+}
+
+// resolveSystemdEntry maps a requested boot entry name onto one of the entries
+// that exist on the ESP.
+//
+// An exact match always wins. Failing that, the name is treated as a bare role
+// and matched against the role of each entry, so that "recovery" still selects
+// "recovery install-mode_stylus.registration" on a system whose entries carry
+// an extra-cmdline suffix. That is what the install, reset and upgrade paths
+// pass, and what a user reading the docs types.
+//
+// A bare role that matches more than one entry is an error rather than an
+// arbitrary pick, and so is a name that matches nothing.
+func resolveSystemdEntry(entry string, entries []string) (string, error) {
+	name := aliasSystemdEntry(entry)
+
+	for _, e := range entries {
+		if e == name {
+			return e, nil
+		}
+	}
+
+	var matches []string
+	for _, e := range entries {
+		if strings.HasPrefix(e, name+" ") {
+			matches = append(matches, e)
+		}
+	}
+
+	switch len(matches) {
+	case 1:
+		return matches[0], nil
+	case 0:
+		return "", fmt.Errorf("entry %s does not exist", entry)
+	default:
+		return "", fmt.Errorf("entry %s is ambiguous, it matches %s", entry, strings.Join(matches, ", "))
+	}
+}
+
 // selectBootEntrySystemd sets the one shot boot entry to the selected entry by setting it in the LoaderEntryOneShot efivar
 func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 	cfg.Logger.Infof("Setting default boot entry to %s", entry)
@@ -199,16 +250,12 @@ func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 		return err
 
 	}
-	originalEntries := entries
-	// when there are only 4 entries, we can assume they are either cos (which will be replaced eventually), fallback, recovery or statereset
-	if len(entries) == len(cnst.UkiDefaultMenuEntries()) {
-		entries = cnst.UkiDefaultMenuEntries()
-	}
-
-	// Check that entry exists in the entries list
-	err = entryInList(cfg, entry, entries)
-	// we also accept cnst.BootActive as a selection so we can migrate eventually from cos
-	if err != nil && !strings.HasPrefix(entry, cnst.BootActive) {
+	// Resolve the requested name against the entries that are really on the ESP.
+	originalEntry := entry
+	entry, err = resolveSystemdEntry(entry, entries)
+	if err != nil {
+		cfg.Logger.Errorf("%s", err)
+		cfg.Logger.Debugf("entries: %v", entries)
 		return err
 	}
 
@@ -229,18 +276,6 @@ func selectBootEntrySystemd(cfg *sdkConfig.Config, entry string) error {
 		}("", efiPartition.MountPoint, "", syscall.MS_REMOUNT|syscall.MS_RDONLY, "")
 	}
 
-	originalEntry := entry
-	if !reflect.DeepEqual(originalEntries, entries) {
-		// since we temporarily allow also active, here we need to first set entry to "cos" so it will match with the originalEntries
-		if strings.HasPrefix(entry, cnst.BootActive) {
-			entry = "cos"
-		}
-		for _, e := range originalEntries {
-			if strings.HasPrefix(e, entry) {
-				entry = e
-			}
-		}
-	}
 	bootConfigName, err := bootNameToSystemdConf(entry)
 	if err != nil {
 		return err
