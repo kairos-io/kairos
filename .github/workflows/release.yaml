@@ -336,6 +336,7 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      bundle_image_tag: ${{ github.ref_name }}-scratch
     secrets: inherit
 
   # FIPS smoke coverage (see pr.yaml for rationale).

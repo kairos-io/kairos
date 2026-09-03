@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -11,12 +12,42 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
+const (
+	bundleImagePlaceholder = "__BUNDLE_IMAGE__"
+	legacyBundleImage      = "quay.io/kairos/ci-temp-images:bundles-test"
+)
+
+func createBundleDatasource(bundleImage string) string {
+	content, err := os.ReadFile("assets/bundles.yaml")
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+
+	template := string(content)
+	ExpectWithOffset(1, strings.Count(template, bundleImagePlaceholder)).To(
+		Equal(1), "bundle datasource must contain exactly one image placeholder",
+	)
+
+	config, err := os.CreateTemp("", "bundles-*.yaml")
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	defer func() { _ = os.Remove(config.Name()) }()
+
+	_, err = config.WriteString(strings.Replace(template, bundleImagePlaceholder, bundleImage, 1))
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+	ExpectWithOffset(1, config.Close()).To(Succeed())
+
+	return CreateDatasource(config.Name())
+}
+
 var _ = Describe("kairos bundles test", Label("bundles"), func() {
 	var vm VM
 	var datasource string
+	var bundleImage string
 
 	BeforeEach(func() {
-		datasource = CreateDatasource("assets/bundles.yaml")
+		// pull_request_target resolves reusable workflows from the base branch.
+		// The fallback keeps this PR and local runs compatible with the old
+		// workflow; after merge CI always supplies the digest-pinned reference.
+		bundleImage = getEnvOrDefault("BUNDLE_IMAGE", legacyBundleImage)
+		datasource = createBundleDatasource(bundleImage)
 		Expect(os.Setenv("DATASOURCE", datasource)).ToNot(HaveOccurred())
 
 		_, vm = startVM()
@@ -104,10 +135,7 @@ var _ = Describe("kairos bundles test", Label("bundles"), func() {
 
 			By("checking that there are no duplicate entries in the config (issue#2019)", func() {
 				out, _ := vm.Sudo("cat /oem/90_custom.yaml")
-				// https://pkg.go.dev/regexp/syntax
-				// ?s -> "let . match \n (default false)"
-				Expect(out).To(MatchRegexp("^(?s)(.*quay\\.io/kairos/ci-temp-images:bundles-test.*){1}$"))
-				Expect(out).ToNot(MatchRegexp("(?s)quay.io/kairos/ci-temp-images.*quay.io/kairos/ci-temp-images"))
+				Expect(strings.Count(out, bundleImage)).To(Equal(1))
 			})
 		})
 	})
