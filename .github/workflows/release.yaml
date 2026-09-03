@@ -181,30 +181,6 @@ jobs:
           #                    release-artifacts + release steps gate on
           #                    this && inputs.iso).
           #
-          # UKI/trusted-boot: both knobs off. v4.2.0's -uki push was
-          # signed with tests/assets/keys -- self-signed CI test keys
-          # (CN=KAIROS_CI-PK / CN=KAIROS_CI-db), expired 2025-06-10,
-          # private keys committed to the public repo. Anyone could
-          # produce a UKI that verified against them, so the images and
-          # the ISOs shipped alongside were never a real trust chain --
-          # just enough to satisfy auroraboot build-uki's key
-          # requirement. Users who want a real trusted-boot artifact
-          # build their own with keys they control.
-          #
-          # FIPS: registry_domain off, ISO stays on the release. v4.2.0
-          # released neither, but the FIPS ISO is not itself an insecure
-          # artifact (it is a FIPS-hardened OS image, not a keyed thing);
-          # dropping only the container image restores the historical
-          # not-published container while leaving the newly-produced ISO
-          # available for consumers who want it.
-          #
-          # Ubuntu 20.04: both knobs off. v4.2.0 released Hadron only;
-          # the ubuntu cell exists in PR/master to smoke-test the ubuntu
-          # base flavor but was never intended to appear as a release
-          # artifact. quay.io/kairos/ubuntu already exists and the push
-          # silently succeeded in v4.3.0-rc3 -- dropping both the push
-          # and the ISO release keeps the release Hadron-only.
-          #
           # Cannot fall back to 'quay.io' at the with: site via `||`
           # because GHA `||` treats '' as falsy and would collapse the
           # skip signal back to quay.io -- so set it explicitly per cell.
