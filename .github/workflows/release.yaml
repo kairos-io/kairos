@@ -172,18 +172,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          # Container image push targets: default cells publish to
+          # quay.io/kairos/hadron. FIPS and UKI cells set registry_domain
+          # to '' so factory-action's "Push Kairos image" step (gated on
+          # registry_domain != '') stays off. FIPS was never published
+          # (v4.2.0 did not release it at all). The v4.2.0 UKI push was
+          # signed with tests/assets/keys (self-signed CI test keys,
+          # expired 2025-06-10, private keys committed to the public repo);
+          # that was never a real trust chain, so downstream users who
+          # want a real trusted-boot image build their own with keys
+          # they control. The ISO artifacts still land on the GH release
+          # for every cell; only the container image push is skipped.
+          # Cannot use `matrix.registry_domain || 'quay.io'` at the with:
+          # site because GHA `||` treats '' as falsy, which would collapse
+          # the skip signal back to quay.io -- so set it explicitly per cell.
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false, registry_domain: 'quay.io'}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false, registry_domain: 'quay.io'}
           # FIPS core cell (see pr.yaml for rationale).
-          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
+          - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true, registry_domain: ''}
           # UKI cells feed test-uki (see pr.yaml for the shape).
           # hadron-trusted is a distinct base image from hadron; both UKI
           # cells set iso:true because factory-action still produces the
           # bootable UKI-iso even with trusted_boot=true.
-          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false}
-          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false, registry_domain: ''}
+          - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false, registry_domain: ''}
           # Ubuntu 20.04 smoke cell (see pr.yaml for rationale).
-          - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false, registry_domain: 'quay.io'}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
@@ -197,7 +211,7 @@ jobs:
       trusted_boot: ${{ matrix.trusted_boot }}
       kubernetes_distro: ${{ matrix.kubernetes_distro }}
       fips: ${{ matrix.fips }}
-      registry_domain: 'quay.io'
+      registry_domain: ${{ matrix.registry_domain }}
       registry_namespace: 'kairos'
       release: true
     secrets: inherit
