@@ -21,9 +21,6 @@ limitations under the License.
 //
 // What losetup(8) does that this package leaves out:
 //
-//   - It retries LOOP_SET_FD when a racing process claims the free device
-//     first (EBUSY). Both callers attach one image at a time from a single
-//     process, so the race has no source here.
 //   - It reads /sys and /proc to list, filter and match devices that are
 //     already attached (-a, -j, -l). Attach and Detach are the only
 //     operations either caller needs.
@@ -35,6 +32,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"syscall"
 	"unsafe"
 
@@ -50,7 +48,14 @@ const loopControl = "/dev/loop-control"
 
 // nameSize is the kernel's LO_NAME_SIZE, the width of lo_file_name in
 // struct loop_info64. The last byte is kept for the NUL terminator.
-const nameSize = 64
+const nameSize = unix.LO_NAME_SIZE
+
+// bindAttempts bounds the LOOP_SET_FD retry below. LOOP_CTL_GET_FREE reports a
+// device that was free a moment ago, and on a booted system another process
+// can claim it before LOOP_SET_FD lands. losetup(8) asks for another device
+// rather than failing the caller, and so does this, with a ceiling so a box
+// that genuinely has nothing free fails instead of spinning.
+const bindAttempts = 16
 
 // ioctler is the single method this package needs out of a syscall
 // implementation. sdk/types/syscall.Interface satisfies it, so a caller that
@@ -91,51 +96,37 @@ type Loop struct {
 // that is not. That is not a flag this code sets: the kernel derives it from
 // the mode the backing file was opened with, and Attach falls back to opening
 // read-only, the same as losetup(8). An image on a read-only mount therefore
-// attaches read-only instead of failing to attach, which the UKI live media
-// path relies on.
+// attaches read-only instead of failing to attach. Both callers rely on that:
+// the UKI live media keeps its EFI boot image on read-only media, and on an
+// ordinary immutable boot immucore mounts cos-state ro, so the state image
+// takes the same fallback every time.
 //
 // The device path is returned even alongside an error once it is known, so a
 // caller can name the device it failed on.
 func (l Loop) Attach(imagePath string) (string, error) {
-	l.Logger.Debugf("Opening loop control device")
-	control, err := l.fs().OpenFile(loopControl, os.O_RDONLY, 0o644)
-	if err != nil {
-		l.Logger.Error("failed to open /dev/loop-control")
-		return "", err
-	}
-	defer control.Close()
-
-	l.Logger.Debugf("Getting free loop device")
-	free, _, errno := l.syscall().Syscall(syscall.SYS_IOCTL, control.Fd(), unix.LOOP_CTL_GET_FREE, 0)
-	if errno != 0 {
-		l.Logger.Error("failed to get loop device")
-		return "", errno
-	}
-
-	device := fmt.Sprintf("/dev/loop%d", free)
-	l.Logger.Logger.Debug().Str("device", device).Msg("Opening loop device")
-	loopFile, err := l.fs().OpenFile(device, os.O_RDWR, 0)
-	if err != nil {
-		l.Logger.Error("failed to open loop device")
-		return device, err
-	}
-	defer loopFile.Close()
-
 	l.Logger.Logger.Debug().Str("image", imagePath).Msg("Opening img file")
 	imageFile, readOnly, err := l.openImage(imagePath)
 	if err != nil {
 		l.Logger.Error("failed to open image file")
-		return device, err
+		return "", err
 	}
 	defer imageFile.Close()
 
-	l.Logger.Debugf("Setting loop device")
-	if _, _, errno := l.syscall().Syscall(syscall.SYS_IOCTL, loopFile.Fd(), unix.LOOP_SET_FD, imageFile.Fd()); errno != 0 {
-		l.Logger.Error("failed to set loop device")
-		return device, errno
+	device, loopFile, err := l.bind(imageFile)
+	if err != nil {
+		return device, err
 	}
+	defer loopFile.Close()
 
 	info := newLoopInfo(imagePath, l.PartScan)
+	// The uintptr below is an argument to an interface method, not to
+	// syscall.Syscall itself, so rule 4 in the unsafe docs does not cover it
+	// and the compiler is free to leave info on the stack. Handing &info to
+	// Pin moves it to the heap, which the collector does not move, so the
+	// address stays valid across the frames between here and the syscall.
+	var pinner runtime.Pinner
+	pinner.Pin(&info)
+	defer pinner.Unpin()
 
 	l.Logger.Debugf("Setting loop flags")
 	if _, _, errno := l.syscall().Syscall(
@@ -145,11 +136,68 @@ func (l Loop) Attach(imagePath string) (string, error) {
 		uintptr(unsafe.Pointer(&info)),
 	); errno != 0 {
 		l.Logger.Error("failed to set loop device status")
+		// losetup(8) releases the device on this path. Left bound, it holds
+		// the image open for the life of the process, and the caller's next
+		// attempt at the same image finds it busy. The clear failing is
+		// logged and not returned, so the caller sees the status errno.
+		if _, _, clrErrno := l.syscall().Syscall(syscall.SYS_IOCTL, loopFile.Fd(), unix.LOOP_CLR_FD, 0); clrErrno != 0 {
+			l.Logger.Logger.Debug().Str("device", device).Err(clrErrno).Msg("Could not release the device after the status ioctl failed")
+		}
+
 		return device, errno
 	}
 
 	l.Logger.Logger.Debug().Str("device", device).Str("image", imagePath).Bool("readOnly", readOnly).Msg("Attached loop device")
 	return device, nil
+}
+
+// bind claims a free loop device and binds imageFile to it, returning the
+// device path and the open device. A device claimed by another process between
+// LOOP_CTL_GET_FREE and LOOP_SET_FD answers EBUSY, and the whole cycle is
+// retried on that, up to bindAttempts.
+//
+// The device path comes back alongside an error once it is known, so a caller
+// can name the device it failed on.
+func (l Loop) bind(imageFile *os.File) (string, *os.File, error) {
+	l.Logger.Debugf("Opening loop control device")
+	control, err := l.fs().OpenFile(loopControl, os.O_RDONLY, 0o644)
+	if err != nil {
+		l.Logger.Error("failed to open /dev/loop-control")
+		return "", nil, err
+	}
+	defer control.Close()
+
+	var device string
+	for attempt := 1; ; attempt++ {
+		l.Logger.Debugf("Getting free loop device")
+		free, _, errno := l.syscall().Syscall(syscall.SYS_IOCTL, control.Fd(), unix.LOOP_CTL_GET_FREE, 0)
+		if errno != 0 {
+			l.Logger.Error("failed to get loop device")
+			return device, nil, errno
+		}
+
+		device = fmt.Sprintf("/dev/loop%d", free)
+		l.Logger.Logger.Debug().Str("device", device).Msg("Opening loop device")
+		loopFile, err := l.fs().OpenFile(device, os.O_RDWR, 0)
+		if err != nil {
+			l.Logger.Error("failed to open loop device")
+			return device, nil, err
+		}
+
+		l.Logger.Debugf("Setting loop device")
+		_, _, errno = l.syscall().Syscall(syscall.SYS_IOCTL, loopFile.Fd(), unix.LOOP_SET_FD, imageFile.Fd())
+		if errno == 0 {
+			return device, loopFile, nil
+		}
+		loopFile.Close()
+
+		if !errors.Is(errno, unix.EBUSY) || attempt == bindAttempts {
+			l.Logger.Error("failed to set loop device")
+			return device, nil, errno
+		}
+
+		l.Logger.Logger.Debug().Str("device", device).Int("attempt", attempt).Msg("Loop device was claimed first, asking for another")
+	}
 }
 
 // Detach clears the loop device and releases the image behind it.
@@ -198,8 +246,9 @@ func newLoopInfo(imagePath string, partScan bool) unix.LoopInfo64 {
 // openImage opens the backing file read-write, and settles for read-only when
 // the file or the mount under it will not allow writing. losetup(8) makes the
 // same fallback. Without it an image on a read-only mount could not be
-// attached at all, and that is where the UKI live media keeps its EFI boot
-// image.
+// attached at all: that is where the UKI live media keeps its EFI boot image,
+// and it is also every ordinary immucore boot, which mounts cos-state ro and
+// so reaches the state image through this same fallback.
 //
 // LO_FLAGS_READ_ONLY is deliberately not set on the way out: the kernel
 // ignores it in LOOP_SET_STATUS64 (only autoclear and partscan are settable
@@ -213,7 +262,10 @@ func (l Loop) openImage(path string) (*os.File, bool, error) {
 		return nil, false, err
 	}
 
-	l.Logger.Logger.Debug().Str("image", path).AnErr("writable", err).Msg("Image is not writable, attaching read-only")
+	// Warn, not Debug: immucore runs at info unless asked otherwise, and
+	// this fires on every immutable boot. A device that turns out read-only
+	// downstream should have a reason in the boot log.
+	l.Logger.Logger.Warn().Str("image", path).AnErr("writable", err).Msg("Image is not writable, attaching read-only")
 	imageFile, err = l.fs().OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, false, err

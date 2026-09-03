@@ -74,7 +74,9 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 				// image holds a bare filesystem, not a partition table.
 				device, err := loop.Loop{Logger: internalUtils.KLog}.Attach(image)
 				s.LogIfError(err, "attaching the state image to a loop device")
-				internalUtils.KLog.Logger.Debug().Str("device", device).Str("image", image).Msg("loop attached")
+				if err == nil {
+					internalUtils.KLog.Logger.Debug().Str("device", device).Str("image", image).Msg("loop attached")
+				}
 				// Trigger udevadm
 				// On some systems the COS_ACTIVE/PASSIVE label is automatically shown as soon as we mount the device
 				// But on other it seems like it won't trigger which causes the sysroot to not be mounted as we cant find

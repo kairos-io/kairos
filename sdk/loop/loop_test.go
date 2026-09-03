@@ -40,6 +40,9 @@ const imagePath = "/image.img"
 type ioctlCall struct {
 	request uintptr
 	arg     uintptr
+	// info is the status struct copied out while arg was still live. Reading
+	// it after Attach has returned would be reading a dead frame.
+	info unix.LoopInfo64
 }
 
 // fakeSyscall records every ioctl and answers with whatever the test asked
@@ -47,7 +50,10 @@ type ioctlCall struct {
 type fakeSyscall struct {
 	freeDevice uintptr
 	errnos     map[uintptr]syscall.Errno
-	calls      []ioctlCall
+	// busyFor answers EBUSY for the first N calls of a request, which is how
+	// another process claiming the free device first looks from here.
+	busyFor map[uintptr]int
+	calls   []ioctlCall
 }
 
 func (f *fakeSyscall) Syscall(trap, _, request, arg uintptr) (uintptr, uintptr, syscall.Errno) {
@@ -55,7 +61,16 @@ func (f *fakeSyscall) Syscall(trap, _, request, arg uintptr) (uintptr, uintptr, 
 		return 0, 0, syscall.ENOSYS
 	}
 
-	f.calls = append(f.calls, ioctlCall{request: request, arg: arg})
+	call := ioctlCall{request: request, arg: arg}
+	if request == unix.LOOP_SET_STATUS64 && arg != 0 {
+		call.info = *(*unix.LoopInfo64)(unsafe.Pointer(arg)) //nolint:govet // the struct is still live here, which is the point
+	}
+	f.calls = append(f.calls, call)
+
+	if remaining := f.busyFor[request]; remaining > 0 {
+		f.busyFor[request] = remaining - 1
+		return 0, 0, syscall.EBUSY
+	}
 	if errno, ok := f.errnos[request]; ok && errno != 0 {
 		return 0, 0, errno
 	}
@@ -147,7 +162,11 @@ func newLoop(t *testing.T) (Loop, *recordingFS, *fakeSyscall, *bytes.Buffer) {
 	log.SetLevel("debug")
 
 	recording := &recordingFS{KairosFS: testFS}
-	syscalls := &fakeSyscall{freeDevice: 7, errnos: map[uintptr]syscall.Errno{}}
+	syscalls := &fakeSyscall{
+		freeDevice: 7,
+		errnos:     map[uintptr]syscall.Errno{},
+		busyFor:    map[uintptr]int{},
+	}
 
 	return Loop{FS: recording, Syscall: syscalls, Logger: log}, recording, syscalls, memLog
 }
@@ -193,8 +212,7 @@ func TestAttachSetsStatusOnTheBoundDevice(t *testing.T) {
 		t.Fatal("LOOP_SET_STATUS64 was handed a nil status struct")
 	}
 
-	info := *(*unix.LoopInfo64)(unsafe.Pointer(status.arg)) //nolint:govet // reading back the struct the ioctl was handed
-	name := string(bytes.TrimRight(info.File_name[:], "\x00"))
+	name := string(bytes.TrimRight(status.info.File_name[:], "\x00"))
 	if name != imagePath {
 		t.Errorf("lo_file_name = %q, want %q", name, imagePath)
 	}
@@ -341,18 +359,19 @@ func TestAttachErrors(t *testing.T) {
 			wantLog:    "failed to open loop device",
 		},
 		{
+			// The image is opened first, so a missing image claims no
+			// device and there is none to name.
 			name: "the image does not exist",
 			setup: func(_ Loop, testFS *recordingFS, _ *fakeSyscall) {
 				testFS.readOnlyPath = imagePath
 				testFS.readOnlyErr = unix.ENOENT
 			},
-			wantDevice: "/dev/loop7",
-			wantLog:    "failed to open image file",
+			wantLog: "failed to open image file",
 		},
 		{
 			name: "binding the image fails",
 			setup: func(_ Loop, _ *recordingFS, syscalls *fakeSyscall) {
-				syscalls.errnos[unix.LOOP_SET_FD] = syscall.EBUSY
+				syscalls.errnos[unix.LOOP_SET_FD] = syscall.ENXIO
 			},
 			wantDevice: "/dev/loop7",
 			wantLog:    "failed to set loop device",
@@ -385,6 +404,115 @@ func TestAttachErrors(t *testing.T) {
 				t.Errorf("log does not mention %q:\n%s", test.wantLog, memLog.String())
 			}
 		})
+	}
+}
+
+// LOOP_CTL_GET_FREE reports a device that was free a moment ago. On a booted
+// system, which is where the agent runs, another process can bind it before
+// LOOP_SET_FD lands. losetup(8) asks for another device instead of failing the
+// caller.
+func TestAttachRetriesADeviceClaimedFirst(t *testing.T) {
+	l, testFS, syscalls, _ := newLoop(t)
+	syscalls.busyFor[unix.LOOP_SET_FD] = 1
+
+	device, err := l.Attach(imagePath)
+	if err != nil {
+		t.Fatalf("Attach: %v", err)
+	}
+	if device != "/dev/loop7" {
+		t.Errorf("device = %q, want /dev/loop7", device)
+	}
+
+	want := []uintptr{
+		unix.LOOP_CTL_GET_FREE, unix.LOOP_SET_FD,
+		unix.LOOP_CTL_GET_FREE, unix.LOOP_SET_FD,
+		unix.LOOP_SET_STATUS64,
+	}
+	got := syscalls.requests()
+	if len(got) != len(want) {
+		t.Fatalf("ioctls = %#x, want %#x", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ioctls = %#x, want %#x", got, want)
+		}
+	}
+
+	// The retry re-runs the device half only. Reopening the image would
+	// repeat the writable-then-read-only dance and could answer differently
+	// the second time around.
+	if flags := testFS.flagsFor(imagePath); len(flags) != 1 {
+		t.Errorf("the image was opened %d times, want 1", len(flags))
+	}
+	if flags := testFS.flagsFor("/dev/loop7"); len(flags) != 2 {
+		t.Errorf("the device was opened %d times, want 2 (one per attempt)", len(flags))
+	}
+}
+
+// The retry is bounded, so a box with nothing free fails instead of spinning.
+func TestAttachGivesUpAfterBindAttempts(t *testing.T) {
+	l, _, syscalls, memLog := newLoop(t)
+	syscalls.busyFor[unix.LOOP_SET_FD] = bindAttempts + 1
+
+	device, err := l.Attach(imagePath)
+	if !errors.Is(err, unix.EBUSY) {
+		t.Fatalf("Attach error = %v, want EBUSY", err)
+	}
+	if device != "/dev/loop7" {
+		t.Errorf("device = %q, want /dev/loop7", device)
+	}
+
+	var binds int
+	for _, call := range syscalls.calls {
+		if call.request == unix.LOOP_SET_FD {
+			binds++
+		}
+	}
+	if binds != bindAttempts {
+		t.Errorf("LOOP_SET_FD was issued %d times, want %d", binds, bindAttempts)
+	}
+	if !strings.Contains(memLog.String(), "failed to set loop device") {
+		t.Error("giving up was not logged")
+	}
+}
+
+// Leaving the image bound after the status ioctl fails holds it open for the
+// life of the process, and the caller's next attempt finds it busy.
+func TestAttachReleasesTheDeviceWhenTheStatusFails(t *testing.T) {
+	l, _, syscalls, _ := newLoop(t)
+	syscalls.errnos[unix.LOOP_SET_STATUS64] = syscall.EINVAL
+
+	if _, err := l.Attach(imagePath); !errors.Is(err, syscall.EINVAL) {
+		t.Fatalf("Attach error = %v, want EINVAL", err)
+	}
+
+	want := []uintptr{
+		unix.LOOP_CTL_GET_FREE, unix.LOOP_SET_FD,
+		unix.LOOP_SET_STATUS64, unix.LOOP_CLR_FD,
+	}
+	got := syscalls.requests()
+	if len(got) != len(want) {
+		t.Fatalf("ioctls = %#x, want %#x", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ioctls = %#x, want %#x", got, want)
+		}
+	}
+}
+
+// The status errno is what the caller acted on. A failing release is a second
+// problem and must not replace it.
+func TestAttachKeepsTheStatusErrorWhenTheReleaseFails(t *testing.T) {
+	l, _, syscalls, memLog := newLoop(t)
+	syscalls.errnos[unix.LOOP_SET_STATUS64] = syscall.EINVAL
+	syscalls.errnos[unix.LOOP_CLR_FD] = syscall.EBUSY
+
+	if _, err := l.Attach(imagePath); !errors.Is(err, syscall.EINVAL) {
+		t.Fatalf("Attach error = %v, want EINVAL", err)
+	}
+	if !strings.Contains(memLog.String(), "Could not release the device") {
+		t.Error("the failing release was not logged")
 	}
 }
 
