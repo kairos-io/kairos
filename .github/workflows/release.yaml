@@ -198,6 +198,13 @@ jobs:
           # not-published container while leaving the newly-produced ISO
           # available for consumers who want it.
           #
+          # Ubuntu 20.04: both knobs off. v4.2.0 released Hadron only;
+          # the ubuntu cell exists in PR/master to smoke-test the ubuntu
+          # base flavor but was never intended to appear as a release
+          # artifact. quay.io/kairos/ubuntu already exists and the push
+          # silently succeeded in v4.3.0-rc3 -- dropping both the push
+          # and the ISO release keeps the release Hadron-only.
+          #
           # Cannot fall back to 'quay.io' at the with: site via `||`
           # because GHA `||` treats '' as falsy and would collapse the
           # skip signal back to quay.io -- so set it explicitly per cell.
@@ -212,7 +219,9 @@ jobs:
           - {name: 'amd64-standard-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: 'k3s', fips: false, registry_domain: '', release: false}
           - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false, registry_domain: '', release: false}
           # Ubuntu 20.04 smoke cell (see pr.yaml for rationale).
-          - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false, registry_domain: 'quay.io', release: true}
+          # Not part of the released artifact set -- see the header
+          # comment above.
+          - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false, registry_domain: '', release: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
