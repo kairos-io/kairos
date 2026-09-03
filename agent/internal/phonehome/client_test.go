@@ -3,6 +3,7 @@ package phonehome_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -273,6 +274,81 @@ var _ = Describe("PhoneHome Client", func() {
 			ms.mu.Lock()
 			defer ms.mu.Unlock()
 			Expect(len(ms.heartbeats)).To(BeNumerically(">=", 2))
+		})
+
+		// kairos-io/kairos#4196: registration can beat cloud-init to the hostname,
+		// so the heartbeat has to report the current one on every tick rather than
+		// one captured at startup. Two ticks, two different names, both reported.
+		It("should report the current hostname on every heartbeat", func() {
+			hostname := "kairos"
+			var hostMu sync.Mutex
+			restore := phonehome.SetHostnameFunc(func() (string, error) {
+				hostMu.Lock()
+				defer hostMu.Unlock()
+				return hostname, nil
+			})
+			defer restore()
+
+			client := newTestClient("test-token")
+			Expect(client.Register(context.Background())).To(Succeed())
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			go func() {
+				defer GinkgoRecover()
+				<-ms.wsConnected
+				// One heartbeat at the registration-time name, then cloud-init
+				// lands and the next tick must carry the new one.
+				time.Sleep(150 * time.Millisecond)
+				hostMu.Lock()
+				hostname = "kairos-a1b2"
+				hostMu.Unlock()
+				time.Sleep(300 * time.Millisecond)
+				cancel()
+			}()
+
+			client.Connect(ctx)
+
+			ms.mu.Lock()
+			defer ms.mu.Unlock()
+			reported := make([]string, 0, len(ms.heartbeats))
+			for _, hb := range ms.heartbeats {
+				reported = append(reported, hb.Hostname)
+			}
+			// Caching the hostname would report "kairos" forever, which is the
+			// bug; re-reading per tick puts both names in the sequence.
+			Expect(reported).To(ContainElement("kairos"))
+			Expect(reported).To(ContainElement("kairos-a1b2"))
+		})
+
+		It("should report an empty hostname rather than a bogus one when it cannot be read", func() {
+			restore := phonehome.SetHostnameFunc(func() (string, error) {
+				return "", errors.New("hostname unavailable")
+			})
+			defer restore()
+
+			client := newTestClient("test-token")
+			Expect(client.Register(context.Background())).To(Succeed())
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			go func() {
+				defer GinkgoRecover()
+				<-ms.wsConnected
+				time.Sleep(300 * time.Millisecond)
+				cancel()
+			}()
+
+			client.Connect(ctx)
+
+			ms.mu.Lock()
+			defer ms.mu.Unlock()
+			Expect(len(ms.heartbeats)).To(BeNumerically(">=", 1))
+			// Empty is what makes the server preserve the hostname it already
+			// has, so a read failure must not be reported as a rename.
+			for _, hb := range ms.heartbeats {
+				Expect(hb.Hostname).To(BeEmpty())
+			}
 		})
 
 		It("should fail when the stored API key is rejected by the server", func() {
