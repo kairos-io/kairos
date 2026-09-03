@@ -13,8 +13,9 @@ import (
 )
 
 // mountRetryInterval is how long MountOPWithFstab waits between two mount
-// attempts. Nothing waits before the first one.
-const mountRetryInterval = 250 * time.Millisecond
+// attempts. Nothing waits before the first one. A var, not a const, so the
+// tests can shorten or lengthen it instead of measuring the real one.
+var mountRetryInterval = 250 * time.Millisecond
 
 // MountOPWithFstab creates and executes a mount operation.
 // returns the fstab entries created and an error if any.

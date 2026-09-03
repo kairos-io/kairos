@@ -1,57 +1,72 @@
-package op_test
+package op
 
 import (
 	"path/filepath"
 	"time"
 
-	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("MountOPWithFstab", func() {
-	// A device that cannot exist, so every mount attempt fails and the call
-	// runs until the timeout instead of succeeding on some attempt.
-	const missingDevice = "/dev/immucore-does-not-exist"
+// A device that cannot exist, so every mount attempt fails and the call runs
+// until the timeout instead of succeeding on some attempt.
+const missingDevice = "/dev/immucore-does-not-exist"
 
-	It("gives up at the timeout instead of overrunning it by the retry wait", func() {
-		target := filepath.Join(GinkgoT().TempDir(), "target")
+// One attempt against missingDevice is not cheap: DiskFSType forks blkid,
+// which takes seconds on some machines. So no spec here bounds the elapsed
+// time against the timeout. Instead they stretch mountRetryInterval far past
+// any plausible attempt cost, which makes "did it wait an interval?" readable
+// from the clock with a wide margin.
+const stretchedInterval = 60 * time.Second
+
+// stretchRetryInterval sets mountRetryInterval for the current spec only.
+func stretchRetryInterval() {
+	previous := mountRetryInterval
+	mountRetryInterval = stretchedInterval
+	DeferCleanup(func() { mountRetryInterval = previous })
+}
+
+var _ = Describe("MountOPWithFstab", func() {
+	var target string
+
+	BeforeEach(func() {
+		target = filepath.Join(GinkgoT().TempDir(), "target")
+	})
+
+	It("attempts the mount before waiting, so a timeout under the retry interval still tries once", func(_ SpecContext) {
+		stretchRetryInterval()
+
+		_, err := MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, 50*time.Millisecond)
+
+		Expect(err).To(MatchError(ContainSubstring("timeout exhausted")))
+		// The first attempt has to have run: it is what creates the target
+		// dir. Waiting first would have burned the whole timeout instead.
+		Expect(target).To(BeADirectory())
+	}, NodeTimeout(stretchedInterval/2))
+
+	It("lets the timeout cut the retry wait short", func(_ SpecContext) {
+		stretchRetryInterval()
 
 		start := time.Now()
-		fstab, err := op.MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, 50*time.Millisecond)
+		fstab, err := MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, 50*time.Millisecond)
 		elapsed := time.Since(start)
 
 		Expect(err).To(MatchError(ContainSubstring("timeout exhausted")))
 		Expect(fstab).To(BeEmpty())
-		// The retry wait has to be interruptible by the timeout, so the call
-		// returns at its 50ms deadline and not one retry interval later. The
-		// timeout is deliberately shorter than the interval: an uninterruptible
-		// wait cannot return before 250ms, which is what this bound catches.
-		Expect(elapsed).To(BeNumerically("<", 200*time.Millisecond))
-	})
+		// The wait has to be a select case the timeout can interrupt. An
+		// uninterruptible one cannot return before a full interval, so any
+		// bound comfortably under it catches that.
+		Expect(elapsed).To(BeNumerically("<", stretchedInterval/3))
+	}, NodeTimeout(stretchedInterval/2))
 
-	It("attempts the mount before waiting, so a timeout under the retry interval still tries once", func() {
-		target := filepath.Join(GinkgoT().TempDir(), "target")
-
-		_, err := op.MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, 50*time.Millisecond)
-
-		Expect(err).To(HaveOccurred())
-		// The first attempt has to have run: it is what creates the target dir.
-		Expect(target).To(BeADirectory())
-	})
-
-	It("paces retries rather than spinning on them", func() {
-		target := filepath.Join(GinkgoT().TempDir(), "target")
+	It("keeps retrying for the whole timeout instead of giving up on the first failure", func(_ SpecContext) {
+		const timeout = 300 * time.Millisecond
 
 		start := time.Now()
-		_, err := op.MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, 1500*time.Millisecond)
+		_, err := MountOPWithFstab(missingDevice, target, "ext4", []string{"ro"}, timeout)
 		elapsed := time.Since(start)
 
 		Expect(err).To(MatchError(ContainSubstring("timeout exhausted")))
-		// Failing attempts are cheap, so without a wait between them this would
-		// return as soon as the timeout fires having burned the CPU throughout.
-		// With the wait it also returns at the timeout, but the guard here is
-		// that the loop cannot finish early by racing through attempts.
-		Expect(elapsed).To(BeNumerically(">=", 1400*time.Millisecond))
-	})
+		Expect(elapsed).To(BeNumerically(">=", timeout))
+	}, NodeTimeout(time.Minute))
 })
