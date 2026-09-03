@@ -209,17 +209,31 @@ jobs:
       # the same way reusable-qemu-test.yaml expects to find them.
       # Factory-action's default artifact format is
       # `kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION` (no
-      # $FLAVOR, plus a trailing version), but reusable-qemu-test.yaml
-      # downloads `kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip`
-      # and expects the container image tag to end in $COMMIT_SHA.
-      # These two overrides are the same ones image-pr.yaml uses today.
-      # $UKI is `-uki` for trusted-boot builds, empty otherwise. UKI
-      # tests download by name with -uki suffix and pull the image
-      # from a tag ending in -uki (see _uki-test.yaml). Without
-      # $UKI here, trusted-boot cells would collide with non-UKI
-      # ones and neither the ISO artifact nor the container image
-      # would resolve.
-      custom_tag_format: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA$UKI'
+      # $FLAVOR), but reusable-qemu-test.yaml downloads
+      # `kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip`.
+      #
+      # Tag layout:
+      #   $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
+      #
+      #   $K8S       leading-dash `-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION`
+      #              when a k8s pair was passed (build-iso-k3s / build-iso-k0s cells),
+      #              empty otherwise (default cell). Prevents the k3s/k0s
+      #              per-k8s-version cells from colliding on the same tag as
+      #              the plain amd64-standard cell -- before this variable
+      #              existed every cell wrote to `...-standard-amd64-generic-<sha>`
+      #              and last-write-won.
+      #   $VERSION   from factory-action's git-describe-based resolution;
+      #              on a release tag it is the tag itself (v4.3.0-rc3). Was
+      #              $COMMIT_SHA before; the swap lets promote-images copy
+      #              ghcr manifests to quay with a tag consumers can actually
+      #              guess from the release page.
+      #   $UKI       `-uki` for trusted-boot builds, empty otherwise. UKI
+      #              tests download by name with the -uki suffix and pull the
+      #              image from a tag ending in -uki (see _uki-test.yaml).
+      #              Without it, trusted-boot cells would collide with
+      #              non-UKI ones and neither the ISO artifact nor the
+      #              container image would resolve.
+      custom_tag_format: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
       trusted_boot: ${{ inputs.trusted_boot }}
       # Factory-action's keys_dir is "required when trusted_boot is

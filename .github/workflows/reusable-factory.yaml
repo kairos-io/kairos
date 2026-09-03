@@ -579,10 +579,22 @@ jobs:
             UKI_SUFFIX="-uki"
           fi
 
+          # Set kubernetes suffix (leading dash) if a k8s distro+version
+          # pair was passed; empty otherwise. Consumers use this in
+          # custom_tag_format so cells without k8s don't get a stray dash
+          # (e.g. `...-generic--v4.3.0`) and cells with k8s get the
+          # distro+version pair disambiguating them from each other and
+          # from the no-k8s cell.
+          K8S_SUFFIX=""
+          if [[ -n "$KUBERNETES_VERSION" ]]; then
+            K8S_SUFFIX="-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION"
+          fi
+
           # Define variables for tag generation
           ARCH="${{ inputs.arch }}"
           MODEL="${{ inputs.model }}"
           KUBERNETES_DISTRO="${{ inputs.kubernetes_distro }}"
+          K8S="$K8S_SUFFIX"
           UKI="$UKI_SUFFIX"
           COMMIT_SHA="${{ github.sha }}"
 
