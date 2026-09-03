@@ -56,6 +56,15 @@ type Config struct {
 // run-stage invocation re-scans and re-fetches, and the "network" stage runs
 // After=network-online.target. So do not read a successful boot as proof that
 // the fs stage got the remote config; only that some stage did.
+//
+// NOTE: the remote body must carry one of ValidFileHeaders on one of its
+// first ten lines, exactly like a config file on disk. fetchRemoteConfig
+// runs HasValidHeader over the response and, when it does not match, drops
+// the body and returns an empty config with a nil error. A header-less
+// remote config is therefore a silent no-op: nothing is merged, nothing is
+// reported, and the boot looks entirely healthy. Same for a fetch that
+// fails after its retries. Both cases are marked TODO in fetchRemoteConfig
+// as candidates for returning a real error.
 func (c *Config) MergeConfigURL() error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
