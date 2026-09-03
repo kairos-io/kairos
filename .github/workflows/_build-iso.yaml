@@ -144,6 +144,20 @@ on:
         type: string
         default: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
 
+      custom_artifact_format:
+        description: |
+          Factory-action custom_artifact_format for the ISO/RAW files
+          produced by the build. The default matches what
+          reusable-qemu-test.yaml downloads
+          (kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI).
+          release.yaml overrides this to add $K8S and $VERSION so
+          per-k8s-version cells no longer collide on the same filename
+          (v4.3.0-rc3 had every k3s/k0s cell writing to
+          `kairos-hadron-v0.5.1-standard-amd64-generic.iso.zip`), and
+          the release page names match v4.2.0's shape.
+        type: string
+        default: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
+
       ref:
         description: 'git ref to check out (passthrough to factory-action)'
         type: string
@@ -218,13 +232,13 @@ jobs:
       registry_domain: ${{ inputs.registry_domain }}
       registry_namespace: ${{ inputs.registry_namespace }}
       registry_repository: ${{ inputs.registry_repository }}
-      # ISO artifact format matches what reusable-qemu-test.yaml expects
-      # to download: kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip
-      # Container tag format is caller-supplied via inputs.custom_tag_format
-      # (default keeps the $FLAVOR- prefix so tests resolve; release.yaml
-      # drops the prefix to match v4.2.0's user-facing tag shape).
+      # Both formats are caller-supplied. Defaults keep the shape
+      # reusable-qemu-test.yaml and _uki-test.yaml expect (tests
+      # resolve by `$FLAVOR-`-prefixed tag and by kairos-$FLAVOR-...
+      # filename). release.yaml overrides both to drop the prefix and
+      # add $K8S/$VERSION so per-k8s-version cells no longer collide.
       custom_tag_format: ${{ inputs.custom_tag_format }}
-      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
+      custom_artifact_format: ${{ inputs.custom_artifact_format }}
       trusted_boot: ${{ inputs.trusted_boot }}
       # Factory-action's keys_dir is "required when trusted_boot is
       # true" but has no sensible default -- if we leave it empty

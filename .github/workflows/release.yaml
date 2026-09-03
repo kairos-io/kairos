@@ -202,6 +202,7 @@ jobs:
       # Drop the $FLAVOR- prefix so the pushed tag matches v4.2.0's
       # user-facing shape: quay.io/kairos/hadron:v0.5.1-core-amd64-generic-v4.3.0.
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
+      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
       release: true
     secrets: inherit
 
@@ -251,6 +252,7 @@ jobs:
       registry_namespace: 'kairos'
       # Drop the $FLAVOR- prefix so the pushed tag matches v4.2.0's shape.
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
+      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
       # rpi3/rpi4 + Nvidia Jetson all ship as -img OCI artifacts (raw disk
       # image wrapped in a scratch container so downstream flashers can
       # docker pull + extract). v4.2.0 shipped -img for the Jetson cells;
@@ -287,6 +289,7 @@ jobs:
       registry_domain: 'quay.io'
       registry_namespace: 'kairos'
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
+      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
       release: true
     secrets: inherit
 
@@ -310,6 +313,7 @@ jobs:
       registry_domain: 'quay.io'
       registry_namespace: 'kairos'
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
+      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
       release: true
     secrets: inherit
 
