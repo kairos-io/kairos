@@ -3,7 +3,12 @@ IMMUCORE_VERSION := v0.20.4
 AGENT_VERSION := v2.31.4
 KCRYPT_DISCOVERY_CHALLENGER_VERSION := v0.13.4
 PROVIDER_KAIROS_VERSION := v2.16.4
-EDGEVPN_VERSION := v0.35.4
+# Single source of truth for the edgevpn pin. scripts/prepare-kairos-init-binaries.sh
+# reads it from the same place. Bumping edgevpn = editing that one line.
+EDGEVPN_VERSION := $(shell cat EDGEVPN_VERSION)
+ifeq ($(EDGEVPN_VERSION),)
+$(error edgevpn version missing from kairos-init/EDGEVPN_VERSION)
+endif
 INSTALLER_VERSION := v0.1.5
 ARCH ?= $(shell uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')
 BINARY_NAMES := kairos-agent immucore kcrypt-discovery-challenger provider-kairos

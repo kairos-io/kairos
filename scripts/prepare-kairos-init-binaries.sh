@@ -25,9 +25,16 @@ if [[ "$ARCH" != "riscv64" ]]; then
 fi
 
 # --- External binary versions ---
-# Bump these when the corresponding repo cuts a release you want to consume.
-# edgevpn (github.com/mudler) is the only external binary
-: "${EDGEVPN_VERSION:=v0.35.4}"
+# Single source of truth for the edgevpn pin: kairos-init/EDGEVPN_VERSION.
+# kairos-init/Makefile reads it from the same place. Bumping edgevpn =
+# editing that one line. An EDGEVPN_VERSION env var still overrides it for
+# one-off local runs.
+EDGEVPN_VERSION_FILE="$REPO_ROOT/kairos-init/EDGEVPN_VERSION"
+: "${EDGEVPN_VERSION:=$(cat "$EDGEVPN_VERSION_FILE" 2>/dev/null)}"
+if [ -z "$EDGEVPN_VERSION" ]; then
+    echo "edgevpn version missing from $EDGEVPN_VERSION_FILE and not passed via EDGEVPN_VERSION" >&2
+    exit 1
+fi
 
 cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
 cp "$BIN_SOURCE/kairos-installer" "$DEST_ROOT/kairos-installer"
