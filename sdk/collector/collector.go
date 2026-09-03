@@ -46,6 +46,16 @@ type Config struct {
 // recursively until a remote config no longer defines a config_url.
 // NOTE: The "config_url" value of the final result is the value of the last
 // config file in the chain because we replace values when we merge.
+//
+// NOTE: On an installed system the first caller is the "fs" stage
+// (cos-setup-fs.service), which is ordered After=local-fs.target and
+// Before=sysinit.target and declares no network dependency at all. The fetch
+// can therefore fail there on any flavor whose initramfs does not carry
+// network state through switch_root, and it fails quietly: the stage logs the
+// error and boot continues. Content still lands, because every later
+// run-stage invocation re-scans and re-fetches, and the "network" stage runs
+// After=network-online.target. So do not read a successful boot as proof that
+// the fs stage got the remote config; only that some stage did.
 func (c *Config) MergeConfigURL() error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
