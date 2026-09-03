@@ -51,16 +51,11 @@ func dockerCmd(args ...string) (string, error) {
 // into it under kairos/source:test. Sets insecureRegistryPort and
 // insecureRegistryRepo. Fails the current spec on any error.
 func startInsecureRegistry() {
-	port, err := getFreePort()
-	Expect(err).ToNot(HaveOccurred())
-
 	baseImage := insecureRegistryBaseImage()
 	out, err := dockerCmd("pull", baseImage)
 	Expect(err).ToNot(HaveOccurred(), out)
 
-	out, err = dockerCmd("run", "-d", "--name", insecureRegistryContainer,
-		"-p", fmt.Sprintf("%d:5000", port), "registry:2")
-	Expect(err).ToNot(HaveOccurred(), out)
+	port := runRegistryContainer()
 
 	// Wait for the registry HTTP listener to accept requests before pushing.
 	// Without this, a `docker push` fired immediately after `docker run -d`
@@ -79,6 +74,62 @@ func startInsecureRegistry() {
 
 	insecureRegistryPort = port
 	insecureRegistryRepo = repo
+}
+
+// registryRunAttempts is how many times startInsecureRegistry tries to create
+// the registry container before giving up.
+const registryRunAttempts = 5
+
+// runRegistryContainer creates the registry:2 container on a free host port and
+// returns the port it was given.
+//
+// The run is retried because the daemon gives a new container's veth 200ms to
+// reach the bridge's forwarding state, and a loaded runner does not always make
+// it, failing with "check bridge port state: bridge port not forwarding after
+// 200ms". That takes down the partition-validation cell as well, which shares
+// this BeforeAll for its oci: source and does not otherwise care about
+// registries.
+//
+// Both the container name and the port are reset between attempts:
+//
+//   - a run that fails during network setup has already created the container,
+//     so the name stays taken and a plain retry fails on "container name is
+//     already in use" instead;
+//   - getFreePort closes its listener before returning, so a port is only free
+//     at the instant it is picked. Reusing one across attempts re-runs that
+//     race for nothing.
+func runRegistryContainer() int {
+	GinkgoHelper()
+
+	var (
+		port int
+		out  string
+		err  error
+	)
+	for attempt := 1; attempt <= registryRunAttempts; attempt++ {
+		// Also clears a container left behind by an earlier run on this runner.
+		_, _ = dockerCmd("rm", "-f", insecureRegistryContainer)
+
+		port, err = getFreePort()
+		if err != nil {
+			out = err.Error()
+			continue
+		}
+
+		out, err = dockerCmd("run", "-d", "--name", insecureRegistryContainer,
+			"-p", fmt.Sprintf("%d:5000", port), "registry:2")
+		if err == nil {
+			return port
+		}
+		GinkgoWriter.Printf("registry container did not come up (attempt %d/%d): %s\n",
+			attempt, registryRunAttempts, out)
+		if attempt < registryRunAttempts {
+			time.Sleep(2 * time.Second)
+		}
+	}
+	Expect(err).ToNot(HaveOccurred(), "registry container did not come up in %d attempts: %s",
+		registryRunAttempts, out)
+	return port
 }
 
 // stopInsecureRegistry force-removes the registry container. Errors are
