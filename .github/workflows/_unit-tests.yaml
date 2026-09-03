@@ -52,4 +52,10 @@ jobs:
           go-version-file: go.mod
 
       - name: Unit tests
+        env:
+          # agent/pkg/github/releases_test.go probes the live GitHub API.
+          # Unauthenticated is 60/hr per runner IP and shared IPs regularly
+          # exhaust that on their own; passing the workflow token lifts the
+          # cap to 5000/hr.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make test
