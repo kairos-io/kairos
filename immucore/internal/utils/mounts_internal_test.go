@@ -3,7 +3,6 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -37,10 +36,7 @@ func installFakeBlkid(fake *fakeBlkid) {
 	previousDetect := blkidIsBusyBox
 
 	blkid = fake.run
-	blkidIsBusyBox = sync.OnceValue(func() bool {
-		out, _ := blkid("--help")
-		return strings.Contains(out, "BusyBox")
-	})
+	blkidIsBusyBox = sync.OnceValue(detectBlkidIsBusyBox)
 
 	DeferCleanup(func() {
 		blkid = previousBlkid
@@ -96,7 +92,7 @@ var _ = Describe("DiskFSType", func() {
 				Expect(DiskFSType(device)).To(Equal("ext4"))
 			},
 			Entry("a device blkid found no tags for", "/dev/sda2:"),
-			Entry("a trailing field carrying no separator", `/dev/sda2: LABEL="COS_STATE" ext4`),
+			Entry("a trailing field carrying no separator", `/dev/sda2: LABEL="COS_STATE" xfs`),
 			Entry("a bare error line", "blkid: unknown device"),
 		)
 

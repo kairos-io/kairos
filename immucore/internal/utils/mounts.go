@@ -79,7 +79,12 @@ var blkid = func(args string) (string, error) {
 //
 // It is a var, and not a bare call to sync.OnceValue, so that a test can
 // answer for it.
-var blkidIsBusyBox = sync.OnceValue(func() bool {
+var blkidIsBusyBox = sync.OnceValue(detectBlkidIsBusyBox)
+
+// detectBlkidIsBusyBox asks blkid which blkid it is. It is named, rather than
+// inlined into the sync.OnceValue above, so a test resetting the cached answer
+// re-arms this same body instead of a copy of it.
+func detectBlkidIsBusyBox() bool {
 	out, err := blkid("--help")
 	if err != nil {
 		// blkid --help exits non-zero on some builds, and the output is
@@ -88,7 +93,7 @@ var blkidIsBusyBox = sync.OnceValue(func() bool {
 	}
 
 	return strings.Contains(out, "BusyBox")
-})
+}
 
 // DiskFSType will return the FS type for a given disk
 // Does NOT need to be mounted
