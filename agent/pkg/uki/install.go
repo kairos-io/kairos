@@ -228,25 +228,41 @@ func (i *InstallAction) Run() (err error) {
 }
 
 func (i *InstallAction) SkipEntry(path string, conf map[string]string) (err error) {
-	// If match, get the efi file and remove it
-	if conf["efi"] != "" {
-		i.cfg.Logger.Debugf("Removing efi file %s", conf["efi"])
-		// First remove the efi file
-		err = i.cfg.Fs.Remove(filepath.Join(i.spec.Partitions.EFI.MountPoint, conf["efi"]))
-		if err != nil {
-			i.cfg.Logger.Errorf("Error removing efi file %s: %s", conf["efi"], err)
-			return err
-		}
-		// Then remove the conf file
-		i.cfg.Logger.Debugf("Removing conf file %s", path)
-		err = i.cfg.Fs.Remove(path)
-		if err != nil {
-			i.cfg.Logger.Errorf("Error removing conf file %s: %s", path, err)
-			return err
-		}
-		// Do not continue checking the conf file, we already done all we needed
+	// The artifact lives under the "efi" key on systemd-boot older than 259 and
+	// under the type 2 "uki" key on newer ones, which is what AuroraBoot writes
+	// today. Read both, or the entry is never really skipped.
+	artifact := artifactFromConf(conf)
+	if artifact == "" {
+		i.cfg.Logger.Warnf("Entry %s matched the skip list but has no efi or uki key, leaving it in place", path)
+		return nil
 	}
-	return err
+
+	i.cfg.Logger.Debugf("Removing efi file %s", artifact)
+	// First remove the efi file
+	err = i.cfg.Fs.Remove(filepath.Join(i.spec.Partitions.EFI.MountPoint, artifact))
+	if err != nil {
+		i.cfg.Logger.Errorf("Error removing efi file %s: %s", artifact, err)
+		return err
+	}
+	// Then remove the conf file
+	i.cfg.Logger.Debugf("Removing conf file %s", path)
+	err = i.cfg.Fs.Remove(path)
+	if err != nil {
+		i.cfg.Logger.Errorf("Error removing conf file %s: %s", path, err)
+		return err
+	}
+
+	return nil
+}
+
+// artifactFromConf returns the artifact path a loader entry points at. The
+// "efi" key is the type 1 form and "uki" the type 2 one; a conf carries one or
+// the other, and systemd-boot reads "uki" only from version 259 on.
+func artifactFromConf(conf map[string]string) string {
+	if conf["efi"] != "" {
+		return conf["efi"]
+	}
+	return conf["uki"]
 }
 
 // Hook is RunStage wrapper that only adds logic to ignore errors
