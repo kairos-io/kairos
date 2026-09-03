@@ -63,7 +63,18 @@ var defaultRetryPredicate = func(err error) bool {
 	return false
 }
 
+// ExtractOCIImage unpacks img into targetDestination.
+//
+// A Kairos raw extension artifact (see ExtractRawExtension) is written out as
+// the single file it carries: its one layer is an extension image, not a tar
+// stream, so untarring it fails on the missing tar header. excludes do not
+// apply to that case, there being one blob whose name the artifact fixes.
+// Every other image is applied layer by layer as a tar stream.
 func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string) error {
+	if _, err := ExtractRawExtension(img, targetDestination); !errors.Is(err, ErrNotRawExtension) {
+		return err
+	}
+
 	reader := mutate.Extract(img)
 	defer reader.Close()
 
