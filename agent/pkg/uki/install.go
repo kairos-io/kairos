@@ -171,7 +171,7 @@ func (i *InstallAction) Run() (err error) {
 
 	// Refuse to start copying unless every role fits, so a partition that is
 	// too small fails here with a size rather than part way through with ENOSPC.
-	if err = checkSpaceForInstall(i.cfg.Fs, i.spec.Partitions.EFI.MountPoint, roles, i.cfg.Logger); err != nil {
+	if err = checkSpaceForInstall(i.cfg.Fs, i.spec.Partitions.EFI.MountPoint, len(roles), i.cfg.Logger); err != nil {
 		i.cfg.Logger.Errorf("checking space on the EFI partition: %s", err.Error())
 		return err
 	}

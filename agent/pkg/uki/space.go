@@ -58,38 +58,14 @@ func freeSpaceOn(fs sdkFs.KairosFS, path string) (int64, error) {
 	return int64(stat.Bavail) * int64(stat.Bsize), nil
 }
 
-// spaceNeededForInstall returns the bytes an install still has to write after
-// the source is on disk.
-//
-// The install dumps the source once as the UnassignedArtifactRole set, then
-// copies that set once per role, so the copies are all that is left to pay for.
-func spaceNeededForInstall(unassignedSize int64, roles int) int64 {
-	return unassignedSize * int64(roles)
-}
-
-// spaceNeededForUpgradeRotation returns the bytes an upgrade needs free on the
-// EFI partition to rotate, with the new set already dumped as
-// UnassignedArtifactRole.
-//
-// The rotation runs in four steps: drop passive, copy active over it, drop
-// active, copy the new set over that. Dropping passive is what pays for both
-// copies, so the partition has to hold whichever of the two copied sets is
-// larger, less what passive gives back. A set that already fits needs nothing,
-// hence the floor at zero.
-func spaceNeededForUpgradeRotation(newSize, activeSize, passiveSize int64) int64 {
-	needed := max(activeSize, newSize) - passiveSize
-	if needed < 0 {
-		return 0
-	}
-
-	return needed
-}
-
 // checkSpaceForInstall fails before the artifact set is copied into its roles,
 // rather than letting a copy run out of room part way and leave the EFI
 // partition holding an unbootable half of an install.
-func checkSpaceForInstall(fs sdkFs.KairosFS, efiDir string, roles []string, logger sdkLogger.KairosLogger) error {
-	unassignedSize, err := artifactSetSize(fs, efiDir, UnassignedArtifactRole)
+//
+// The source is already on disk as the UnassignedArtifactRole set, so all that
+// is left to pay for is one copy of it per role.
+func checkSpaceForInstall(fs sdkFs.KairosFS, efiDir string, copies int, logger sdkLogger.KairosLogger) error {
+	setSize, err := artifactSetSize(fs, efiDir, UnassignedArtifactRole)
 	if err != nil {
 		return fmt.Errorf("measuring the %s artifact set: %w", UnassignedArtifactRole, err)
 	}
@@ -99,14 +75,13 @@ func checkSpaceForInstall(fs sdkFs.KairosFS, efiDir string, roles []string, logg
 		return err
 	}
 
-	needed := spaceNeededForInstall(unassignedSize, len(roles))
+	needed := setSize * int64(copies)
 	logger.Debugf("EFI partition %s: %d bytes free, %d needed for %d copies of a %d byte artifact set",
-		efiDir, free, needed, len(roles), unassignedSize)
+		efiDir, free, needed, copies, setSize)
 
 	if needed > free {
-		return fmt.Errorf(
-			"not enough space on the EFI partition %s: installing %d artifact sets of %d bytes each needs %d bytes, %d free. Install with a larger EFI partition or a smaller source",
-			efiDir, len(roles), unassignedSize, needed, free)
+		return fmt.Errorf("not enough space on the EFI partition %s: %d copies of a %d byte artifact set need %d bytes, %d free. Install with a larger EFI partition or a smaller source",
+			efiDir, copies, setSize, needed, free)
 	}
 
 	return nil
@@ -115,6 +90,11 @@ func checkSpaceForInstall(fs sdkFs.KairosFS, efiDir string, roles []string, logg
 // checkSpaceForUpgradeRotation fails before the rotation starts. Once it has
 // started, the passive set and then the active set are already gone, so a copy
 // that runs out of room leaves the machine with no entry to boot.
+//
+// The rotation drops passive, copies active over it, drops active, then copies
+// the new set over that. It never holds more than one extra copy at a time, so
+// the larger of the two copies has to fit in the free space plus what dropping
+// passive gives back.
 func checkSpaceForUpgradeRotation(fs sdkFs.KairosFS, efiDir string, logger sdkLogger.KairosLogger) error {
 	newSize, err := artifactSetSize(fs, efiDir, UnassignedArtifactRole)
 	if err != nil {
@@ -136,14 +116,14 @@ func checkSpaceForUpgradeRotation(fs sdkFs.KairosFS, efiDir string, logger sdkLo
 		return err
 	}
 
-	needed := spaceNeededForUpgradeRotation(newSize, activeSize, passiveSize)
-	logger.Debugf("EFI partition %s: %d bytes free, %d needed to rotate (new %d, active %d, passive %d)",
-		efiDir, free, needed, newSize, activeSize, passiveSize)
+	biggestCopy := max(activeSize, newSize)
+	room := free + passiveSize
+	logger.Debugf("EFI partition %s: %d bytes free plus %d from passive, biggest copy to make is %d (new %d, active %d)",
+		efiDir, free, passiveSize, biggestCopy, newSize, activeSize)
 
-	if needed > free {
-		return fmt.Errorf(
-			"not enough space on the EFI partition %s: rotating a %d byte upgrade over a %d byte active set needs %d bytes free, %d available. Free space on the EFI partition or upgrade to a smaller source",
-			efiDir, newSize, activeSize, needed, free)
+	if biggestCopy > room {
+		return fmt.Errorf("not enough space on the EFI partition %s: rotating a %d byte upgrade over a %d byte active set needs %d bytes, %d free plus %d from the passive set it replaces. Free space on the EFI partition or upgrade to a smaller source",
+			efiDir, newSize, activeSize, biggestCopy, free, passiveSize)
 	}
 
 	return nil

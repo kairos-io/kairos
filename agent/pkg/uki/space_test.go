@@ -64,40 +64,9 @@ var _ = Describe("EFI partition space checks", func() {
 		})
 	})
 
-	Describe("spaceNeededForInstall", func() {
-		It("asks for one copy of the set per role", func() {
-			Expect(spaceNeededForInstall(1000, 4)).To(Equal(int64(4000)))
-		})
-
-		It("asks for nothing when there are no roles", func() {
-			Expect(spaceNeededForInstall(1000, 0)).To(Equal(int64(0)))
-		})
-	})
-
-	Describe("spaceNeededForUpgradeRotation", func() {
-		// The rotation drops passive, copies active over it, drops active, then
-		// copies the new set over that. Dropping passive funds both copies.
-		It("charges for the larger of the two copies, less what passive returns", func() {
-			// new 500, active 800, passive 200 -> 800 - 200
-			Expect(spaceNeededForUpgradeRotation(500, 800, 200)).To(Equal(int64(600)))
-		})
-
-		It("charges for the new set when it is the larger of the two", func() {
-			// new 900, active 300, passive 100 -> 900 - 100
-			Expect(spaceNeededForUpgradeRotation(900, 300, 100)).To(Equal(int64(800)))
-		})
-
-		It("asks for nothing when passive alone covers both copies", func() {
-			Expect(spaceNeededForUpgradeRotation(500, 500, 900)).To(Equal(int64(0)))
-		})
-
-		It("asks for the full set on a machine with no passive yet", func() {
-			Expect(spaceNeededForUpgradeRotation(700, 700, 0)).To(Equal(int64(700)))
-		})
-	})
-
 	Describe("checkSpaceForInstall", func() {
-		roles := []string{"active", "passive", "recovery", "statereset"}
+		// active, passive, recovery and statereset
+		const roles = 4
 
 		It("passes when the copies fit", func() {
 			write("EFI/kairos/norole.efi", 1024)
@@ -112,7 +81,18 @@ var _ = Describe("EFI partition space checks", func() {
 			err := checkSpaceForInstall(fs, "/efi", roles, logger)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("not enough space on the EFI partition"))
-			Expect(err.Error()).To(ContainSubstring("4 artifact sets"))
+			Expect(err.Error()).To(ContainSubstring("4 copies"))
+		})
+
+		It("charges for a copy per role, not for a single copy", func() {
+			free, err := freeSpaceOn(fs, "/efi")
+			Expect(err).ToNot(HaveOccurred())
+
+			// Half the free space: one copy fits, four cannot.
+			write("EFI/kairos/norole.efi", free/2)
+
+			Expect(checkSpaceForInstall(fs, "/efi", 1, logger)).ToNot(HaveOccurred())
+			Expect(checkSpaceForInstall(fs, "/efi", roles, logger)).To(HaveOccurred())
 		})
 	})
 
@@ -152,6 +132,13 @@ var _ = Describe("EFI partition space checks", func() {
 			write("EFI/kairos/passive.efi", hugeFile)
 
 			Expect(checkSpaceForUpgradeRotation(fs, "/efi", logger)).ToNot(HaveOccurred())
+		})
+
+		It("has nothing to free on a machine with no passive set yet", func() {
+			write("EFI/kairos/norole.efi", hugeFile)
+			write("EFI/kairos/active.efi", hugeFile)
+
+			Expect(checkSpaceForUpgradeRotation(fs, "/efi", logger)).To(HaveOccurred())
 		})
 	})
 })
