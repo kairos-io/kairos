@@ -249,6 +249,15 @@ jobs:
           - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
           - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          # Nvidia Jetson cells: ship as container images (iso: false)
+          # to the same target v4.2.0 used -- factory-action derives the
+          # repo segment from the base_image flavor (ubuntu:22.04 ->
+          # "ubuntu"), so no registry_repository override. Tag layout is
+          # $FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION, e.g.
+          # quay.io/kairos/ubuntu:22.04-core-arm64-nvidia-jetson-agx-orin-v4.3.0.
+          # ci-temp-images is deliberately not used here: that name is
+          # scoped to CI runs pushing artifacts too big for ghcr, not to
+          # release-tag artifacts.
           - name: 'arm64-nvidia-agx-orin'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
@@ -256,9 +265,6 @@ jobs:
             iso: false
             trusted_boot: false
             kubernetes_distro: ''
-            registry_domain: 'quay.io'
-            registry_namespace: 'kairos'
-            registry_repository: 'ci-temp-images'
           - name: 'arm64-nvidia-orin-nx'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
@@ -266,9 +272,6 @@ jobs:
             iso: false
             trusted_boot: false
             kubernetes_distro: ''
-            registry_domain: 'quay.io'
-            registry_namespace: 'kairos'
-            registry_repository: 'ci-temp-images'
     name: build-iso-arm / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
