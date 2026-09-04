@@ -253,11 +253,12 @@ jobs:
       # Drop the $FLAVOR- prefix so the pushed tag matches v4.2.0's shape.
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
-      # rpi3/rpi4 + Nvidia Jetson all ship as -img OCI artifacts (raw disk
-      # image wrapped in a scratch container so downstream flashers can
-      # docker pull + extract). v4.2.0 shipped -img for the Jetson cells;
-      # keep that here.
-      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' || startsWith(matrix.model, 'nvidia-jetson') }}
+      # rpi3/rpi4 ship as -img OCI artifacts (raw disk image wrapped in a
+      # scratch container so downstream flashers can docker pull + extract).
+      # Jetson deliverable is the base container only; the L4T rootfs is
+      # large enough that materializing raw OOM-kills the runner during
+      # auroraboot's copy-into-tempdir step.
+      raw: ${{ matrix.model == 'rpi3' || matrix.model == 'rpi4' }}
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
