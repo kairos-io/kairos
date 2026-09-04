@@ -91,6 +91,10 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 	// Depends on mount binds as that usually mounts COS_PERSISTENT
 	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")
 
+	// Drop unit symlinks an earlier image left in the persistent /etc/systemd
+	// bind, before the initramfs stage and switch_root.
+	s.LogIfError(s.CleanStaleUnitsDagStep(g, herd.WithWeakDeps(cnst.OpMountBind)), "clean stale systemd units")
+
 	//
 	s.LogIfError(s.EnableSysAndConfExtensions(g, herd.WithWeakDeps(cnst.OpMountBind)), "enable sysext and confexts")
 
@@ -102,7 +106,7 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 	// do it after fstab is created
 	s.LogIfError(s.InitramfsStageDagStep(g,
 		herd.WithDeps(cnst.OpMountRoot, cnst.OpDiscoverState, cnst.OpLoadConfig, cnst.OpWriteFstab),
-		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount),
+		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpCleanStaleUnits),
 	), "initramfs stage")
 	return err
 }
