@@ -65,7 +65,7 @@ type Config struct {
 // its own connection to the node. Having it on by default means operators can
 // cleanly decommission nodes without having to first push a cloud-config
 // update opting in to the teardown command.
-var DefaultAllowedCommands = []string{"upgrade", "upgrade-recovery", "reboot", "unregister"}
+var DefaultAllowedCommands = []string{"upgrade", commandUpgradeRecovery, "reboot", "unregister"}
 
 // IsAllowed reports whether the given command name is permitted by this config.
 // Matching is exact. A nil AllowedCommands falls back to DefaultAllowedCommands;

@@ -97,6 +97,15 @@ func dirFromBootState(bootState, extType string) string {
 	}
 }
 
+// ExtensionDirFromBootState returns the persistent directory that holds the
+// extensions of the given type for the given boot state. Callers outside this
+// package (the phonehome command handlers) need it so they do not have to
+// repeat the /var/lib/kairos paths. An unknown bootState yields the type's
+// base directory, and an unknown extType yields the empty string.
+func ExtensionDirFromBootState(bootState, extType string) string {
+	return dirFromBootState(bootState, extType)
+}
+
 // ListExtensions lists the system extensions in the given directory
 // If none is passed then it shows the generic ones
 func ListExtensions(cfg *sdkConfig.Config, bootState, extType string) ([]Extension, error) {
@@ -474,10 +483,22 @@ type httpSource struct {
 }
 
 func (h httpSource) Download(s string) error {
-	// Download the file from the URI
-	// and save it to the destination path
-	h.cfg.Logger.Logger.Debug().Str("uri", h.uri).Str("target", filepath.Join(s, filepath.Base(h.uri))).Msg("Downloading system extension")
-	return h.cfg.Client.GetURL(sdkLogger.NewNullLogger(), h.uri, filepath.Join(s, filepath.Base(h.uri)))
+	target := filepath.Join(s, extensionFileNameFromURI(h.uri))
+	h.cfg.Logger.Logger.Debug().Str("uri", h.uri).Str("target", target).Msg("Downloading system extension")
+	return h.cfg.Client.GetURL(sdkLogger.NewNullLogger(), h.uri, target)
+}
+
+// extensionFileNameFromURI derives the on-disk filename for a downloaded
+// extension from its source URI. It uses the basename of the URL path instead
+// of the basename of the raw URI, so a `?token=...` query is not baked into
+// the file name. A name with a query attached loses its `.raw` suffix, which
+// ListExtensions relies on to find the extension again. Falls back to the raw
+// basename when the URI does not parse or carries no path.
+func extensionFileNameFromURI(uri string) string {
+	if u, err := url.Parse(uri); err == nil && u.Path != "" {
+		return filepath.Base(u.Path)
+	}
+	return filepath.Base(uri)
 }
 
 type dockerSource struct {
