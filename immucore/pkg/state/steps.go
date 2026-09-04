@@ -120,49 +120,67 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 	return err
 }
 
+// sysrootPollInterval is how long waitForSysroot waits between two checks for
+// the sysroot. It is a var so the specs do not have to wait whole seconds.
+var sysrootPollInterval = 2 * time.Second
+
 // WaitForSysrootDagStep waits for the s.Rootdir and s.Rootdir/system paths to be there
 // Useful for livecd/netboot as we want to run steps after s.Rootdir is ready but we don't mount it ourselves.
 func (s *State) WaitForSysrootDagStep(g *herd.Graph) error {
 	return g.Add(cnst.OpWaitForSysroot,
-		TimedCallback(cnst.OpWaitForSysroot, func(ctx context.Context) error {
-			var timeout = 120 * time.Second
-			timeoutArg := internalUtils.CleanupSlice(internalUtils.ReadCMDLineArg("rd.immucore.sysrootwait="))
-			if len(timeoutArg) > 0 {
-				atoi, err := strconv.Atoi(timeoutArg[0])
-				if err == nil && atoi > 0 {
-					timeout = time.Duration(atoi) * time.Second
-				}
-			}
+		TimedCallback(cnst.OpWaitForSysroot, s.waitForSysroot))
+}
 
-			internalUtils.KLog.Logger.Debug().Str("timeout", timeout.String()).Msg("Waiting for sysroot")
+// waitForSysroot returns as soon as both paths are there, and keeps looking
+// every sysrootPollInterval until the deadline runs out. The deadline is 120
+// seconds, or whatever rd.immucore.sysrootwait= asks for.
+func (s *State) waitForSysroot(ctx context.Context) error {
+	var timeout = 120 * time.Second
+	timeoutArg := internalUtils.CleanupSlice(internalUtils.ReadCMDLineArg("rd.immucore.sysrootwait="))
+	if len(timeoutArg) > 0 {
+		atoi, err := strconv.Atoi(timeoutArg[0])
+		if err == nil && atoi > 0 {
+			timeout = time.Duration(atoi) * time.Second
+		}
+	}
 
-			cc := time.After(timeout)
-			for {
-				select {
-				default:
-					time.Sleep(2 * time.Second)
-					_, err := os.Stat(s.Rootdir)
-					if err != nil {
-						internalUtils.KLog.Logger.Debug().Str("what", s.Rootdir).Msg("Checking path existence")
-						continue
-					}
-					_, err = os.Stat(filepath.Join(s.Rootdir, "system"))
-					if err != nil {
-						internalUtils.KLog.Logger.Debug().Str("what", filepath.Join(s.Rootdir, "system")).Msg("Checking path existence")
-						continue
-					}
-					return nil
-				case <-ctx.Done():
-					e := fmt.Errorf("context canceled")
-					internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check canceled")
-					return e
-				case <-cc:
-					e := fmt.Errorf("timeout exhausted")
-					internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check timeout")
-					return e
-				}
-			}
-		}))
+	internalUtils.KLog.Logger.Debug().Str("timeout", timeout.String()).Msg("Waiting for sysroot")
+
+	cc := time.After(timeout)
+	for {
+		missing := s.missingSysrootPath()
+		if missing == "" {
+			return nil
+		}
+		internalUtils.KLog.Logger.Debug().Str("what", missing).Msg("Checking path existence")
+
+		// Wait before looking again. This has to be a select rather than a
+		// time.Sleep: a sleep holds this goroutine for the whole interval, so
+		// both the cancel and the deadline below are seen that late.
+		select {
+		case <-time.After(sysrootPollInterval):
+		case <-ctx.Done():
+			e := fmt.Errorf("context canceled")
+			internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check canceled")
+			return e
+		case <-cc:
+			e := fmt.Errorf("timeout exhausted")
+			internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check timeout")
+			return e
+		}
+	}
+}
+
+// missingSysrootPath returns the first of the paths the sysroot needs that is
+// not there yet, or the empty string once they all are.
+func (s *State) missingSysrootPath() string {
+	for _, path := range []string{s.Rootdir, filepath.Join(s.Rootdir, "system")} {
+		if _, err := os.Stat(path); err != nil {
+			return path
+		}
+	}
+
+	return ""
 }
 
 // LVMActivation will try to activate lvm volumes/groups on the system.
