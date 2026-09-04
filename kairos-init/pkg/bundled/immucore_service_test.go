@@ -45,6 +45,27 @@ var _ = Describe("ImmucoreServiceDracut", func() {
 		Expect(section).To(ContainSubstring("Conflicts=initrd-switch-root.target"))
 	})
 
+	// systemd-udev-settle.service is deprecated upstream and dracut installs it
+	// only optionally (inst_multiple -o), so an image can be built without it.
+	// Requires= on a unit that is not in the initramfs makes immucore.service
+	// fail to load, and nothing then builds the mount layout. The unit also has
+	// TimeoutSec=180, which Requires= would turn into immucore never running on
+	// a host whose udev does not settle. Both cases have to degrade to "immucore
+	// runs anyway". See kairos-io/kairos#1378.
+	It("only wants the deprecated udev settle unit", func() {
+		Expect(indexOf("Wants=systemd-udev-settle.service")).ToNot(Equal(-1))
+		Expect(bundled.ImmucoreServiceDracut).
+			ToNot(ContainSubstring("Requires=systemd-udev-settle.service"))
+	})
+
+	// Wants= alone carries no ordering, so dropping the After= would let
+	// immucore resolve partition labels while udev is still coldplugging.
+	It("still orders itself after the udev settle unit", func() {
+		settle := indexOf("After=systemd-udev-settle.service")
+		Expect(settle).ToNot(Equal(-1))
+		Expect(settle).To(BeNumerically("<", indexOf("[Service]")))
+	})
+
 	It("still runs as a oneshot that stays active after exiting", func() {
 		Expect(bundled.ImmucoreServiceDracut).To(ContainSubstring("Type=oneshot"))
 		Expect(bundled.ImmucoreServiceDracut).To(ContainSubstring("RemainAfterExit=yes"))

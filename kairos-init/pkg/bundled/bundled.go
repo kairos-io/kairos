@@ -119,11 +119,30 @@ fi`
 // and stop it at an arbitrary point. The switch then continues into a
 // userland whose binds and overlays were never established. Before= pins the
 // order: immucore finishes, then the switch runs.
+//
+// systemd-udev-settle.service is pulled in with Wants=, not Requires=, on
+// purpose. immucore does need device enumeration to have happened before it
+// resolves partition labels, which is what the After= gives us, but it must
+// not become unstartable when the settle unit misbehaves or is missing:
+//
+//   - dracut installs the unit optionally (inst_multiple -o in its
+//     systemd-udevd module), and nothing else in the initramfs pulls it in.
+//     With Requires=, an image built where systemd no longer ships the unit
+//     gets an immucore.service that fails to load, so the mount layout is
+//     never built and the machine does not boot. The unit is deprecated
+//     upstream (kairos-io/kairos#1378), so that day is a question of when.
+//   - the unit carries TimeoutSec=180. With Requires=, a host whose udev
+//     never settles turns three minutes of waiting into immucore not running
+//     at all, which is the failure bootfailure.go exists to report.
+//
+// Wants= behaves identically whenever the unit is present and succeeds.
+// Removing the ordering altogether needs immucore to wait for its own
+// labelled devices first; see kairos-io/kairos#1378.
 const ImmucoreServiceDracut = `[Unit]
 Description=immucore
 DefaultDependencies=no
 After=systemd-udev-settle.service
-Requires=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
 Before=initrd-fs.target
 Before=initrd-switch-root.target
 Conflicts=initrd-switch-root.target
