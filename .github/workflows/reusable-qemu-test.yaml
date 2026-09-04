@@ -94,6 +94,22 @@ on:
         required: false
         type: string
         default: ''
+      suite_timeout:
+        description: |
+          ginkgo's suite timeout, as a Go duration.
+
+          Passed to ginkgo as --timeout. Without it ginkgo applies its own
+          default of 1h, which is invisible in the log and in this file: a
+          suite that ran out of clock reports "A suite timeout occurred" with
+          no hint that 1h was ever the budget, and any per-step Eventually
+          ceiling near that size can never fail on its own assertion
+          (kairos-io/kairos#4489).
+
+          The default keeps today's effective budget, now stated. Raise it for
+          a caller only alongside per-step ceilings that still fit inside it.
+        required: false
+        type: string
+        default: '60m'
 
     secrets:
       QUAY_USERNAME:
@@ -110,6 +126,13 @@ jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
     runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
+    # Backstop only. ginkgo's own --timeout below should always fire first,
+    # because it stops the suite with a progress report naming the step,
+    # whereas this kills the runner and leaves nothing to read. This exists so
+    # that anything ginkgo cannot interrupt -- a wedged qemu, an ssh call
+    # hanging in AfterEach while it gathers logs -- is bounded by minutes
+    # rather than by GitHub's 6h default.
+    timeout-minutes: 120
     steps:
       - name: Split base image
         id: split
@@ -335,7 +358,7 @@ jobs:
           echo "ISO is: $ISO"
           pushd tests
           go mod download
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "${{ inputs.test }}" --fail-fast -r ./...
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "${{ inputs.suite_timeout }}" --label-filter "${{ inputs.test }}" --fail-fast -r ./...
           popd
       - name: Run encryption tests
         if: ${{ startsWith(inputs.test, 'encryption-') }}
@@ -346,6 +369,7 @@ jobs:
           DRIVE_SIZE: 50000
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           KCRYPT_CHALLENGER_IMAGE: ${{ inputs.kcrypt_challenger_image }}
+          GINKGO_SUITE_TIMEOUT: ${{ inputs.suite_timeout }}
         run: |
           # Pick a k3s image
           export ISO=$PWD/$(ls *.iso|grep -v ipxe | grep k3s | head -1 )

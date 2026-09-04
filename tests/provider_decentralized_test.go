@@ -22,6 +22,32 @@ import (
 // --unix-socket overrides.
 const edgevpnAPISocket = "/run/edgevpn-kairos.sock"
 
+// Every Eventually below is capped at 10 minutes or less, deliberately.
+//
+// ginkgo's suite timeout for this job is 60 minutes. A step whose own ceiling
+// is a large fraction of that can never fail on its own assertion: two slow
+// steps exhaust the suite budget first, and a suite timeout skips the failure
+// closures that several of these steps carry (the machines-API and DNS steps
+// print the edgevpn state on failure, which is the output you actually need).
+// That is kairos-io/kairos#4489: the spec used to allow 25m for a step, so a
+// wedged run burned the full hour and reported "suite timeout" instead of the
+// assertion.
+//
+// The ceilings are sized against a measured green run of this spec on the
+// ubuntu-24.04 runner this job uses (run 33755087874, 307s end to end):
+//
+//	waiting until ssh is possible       30.7s
+//	installing (to active_boot)        119.8s
+//	checking if k3s was configured      87.3s
+//	checking if it has a working kubeconfig (incl. Ready)  2.4s
+//	checking roles                       0.8s
+//	checking if it has machines with different IPs  0.3s
+//	rebooting the VMs                   61.1s (60s of which is peg's fixed sleep)
+//	checking if it can propagate dns     0.6s
+//
+// So the smallest ceiling here is still 5x its measured cost and most are far
+// more. Keep them under 10 minutes: if a step needs longer than that, the
+// cluster is not converging and waiting is not going to fix it.
 var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-decentralized-k8s"), func() {
 	var vms []VM
 	var configPath string
@@ -35,7 +61,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		token = generateToken()
 
 		vmForEach("waiting until ssh is possible", vms, func(vm VM) {
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 		})
 	})
 
@@ -69,7 +95,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				v, _ := vm.Sudo("kairos-agent state get boot")
 				return strings.TrimSpace(v)
-			}, 30*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
+			}, 10*time.Minute, 10*time.Second).Should(ContainSubstring("active_boot"))
 		})
 
 		vmForEach("checking default services are on after first boot", vms, func(vm VM) {
@@ -161,13 +187,13 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				out, _ = vm.Sudo(providerKairos + " get-kubeconfig")
 				return out
-			}, 1500*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
+			}, 600*time.Second, 10*time.Second).Should(ContainSubstring("https:"))
 
 			Eventually(func() string {
 				vm.Sudo(providerKairos + " get-kubeconfig > kubeconfig")
 				out, _ = vm.Sudo("KUBECONFIG=kubeconfig kubectl get nodes -o wide")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
+			}, 600*time.Second, 10*time.Second).Should(ContainSubstring("Ready"))
 		})
 
 		vmForEach("checking roles", vms, func(vm VM) {
@@ -178,7 +204,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 			Eventually(func() string {
 				out, _ = vm.Sudo(providerKairos + " role list")
 				return out
-			}, 900*time.Second, 10*time.Second).Should(And(
+			}, 600*time.Second, 10*time.Second).Should(And(
 				ContainSubstring(uuid),
 				ContainSubstring("worker"),
 				ContainSubstring("master"),
@@ -202,7 +228,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 					return fmt.Sprintf("querying the machines API failed: %v: %s", err, out)
 				}
 				return out
-			}, 900*time.Second, 10*time.Second).Should(And(
+			}, 600*time.Second, 10*time.Second).Should(And(
 				ContainSubstring("10.1.0.1"),
 				ContainSubstring("10.1.0.2"),
 			), out)
@@ -211,7 +237,7 @@ var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-de
 		// FIXUP: DNS needs reboot to take effect
 		vmForEach("rebooting the VMs", vms, func(vm VM) {
 			if !isFlavor(vm, "alpine") {
-				vm.Reboot(1200)
+				vm.Reboot(600)
 			}
 		})
 
