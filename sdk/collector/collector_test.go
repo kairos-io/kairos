@@ -298,6 +298,59 @@ info:
 			})
 		})
 
+		Context("when the config_url cannot be used", func() {
+			var warnings *bytes.Buffer
+
+			BeforeEach(func() {
+				warnings = &bytes.Buffer{}
+				DeferCleanup(SetWarnOutForTest(warnings))
+			})
+
+			It("warns and keeps booting when every fetch attempt fails", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml",
+					"name":       "Mario",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
+			})
+
+			It("warns when the remote config has no valid header", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte("just_a_key: not_a_cloud_config\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/config.yaml"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("has no valid header"))
+			})
+
+			It("keeps the query string out of the warning so tokens are not leaked", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml?token=supersecret",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).To(ContainSubstring("<redacted>"))
+			})
+		})
+
 		Context("when config_url contains template markers", func() {
 			It("renders {{ .Values.* }} before the HTTP fetch", func() {
 				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
