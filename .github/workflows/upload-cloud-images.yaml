@@ -1,11 +1,18 @@
 name: Upload cloud images
 
-# Sequenced after "Release AMD64 artifacts" actually publishes the hadron tag
+# Sequenced after the release workflow actually publishes the hadron tag
 # these jobs need, instead of racing the same tag push. See the commit
 # message for why (mauromorales/mission-control#174 has the evidence).
+#
+# The release workflow was named "Release AMD64 artifacts" and got
+# renamed to "release" in ae314796 (2026-08-21, the monorepo canonical
+# pipeline). This trigger was not updated then, so since that date it
+# has matched no workflow and never fired -- uploads have silently
+# fallen back to the daily schedule below instead of running right
+# after a release.
 on:
   workflow_run:
-    workflows: ["Release AMD64 artifacts"]
+    workflows: ["release"]
     types:
       - completed
   schedule:
