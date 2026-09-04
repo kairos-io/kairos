@@ -30,3 +30,12 @@ func SetUninstallRunners(
 		globFiles = prevGlob
 	}
 }
+
+// SetHostnameFunc pins what gatherHostname reports and returns a restorer that
+// puts os.Hostname back. Specs use it so a heartbeat's hostname is an assertion
+// about the agent rather than about the machine running the suite.
+func SetHostnameFunc(fn func() (string, error)) func() {
+	prev := hostnameFn
+	hostnameFn = fn
+	return func() { hostnameFn = prev }
+}
