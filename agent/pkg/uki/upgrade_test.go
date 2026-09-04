@@ -166,6 +166,23 @@ var _ = Describe("Uki upgrade action", func() {
 			Expect(exists).To(BeTrue())
 		})
 
+		It("refuses to rotate when the EFI partition can not hold both copies", func() {
+			// An active set larger than any filesystem this test can run on, so
+			// copying it over passive cannot fit. Sparse, so it costs nothing.
+			Expect(fs.WriteFile("/efi/EFI/Kairos/active.efi", []byte("old active"), os.ModePerm)).To(Succeed())
+			Expect(fs.Truncate("/efi/EFI/Kairos/active.efi", 512<<40)).To(Succeed())
+			Expect(fs.WriteFile("/efi/EFI/Kairos/passive.efi", []byte("old passive"), os.ModePerm)).To(Succeed())
+
+			err := upgrader.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not enough space on the EFI partition"))
+
+			// The entry the machine can still boot was left alone
+			content, err := fs.ReadFile("/efi/EFI/Kairos/passive.efi")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(content)).To(Equal("old passive"))
+		})
+
 		It("fails rotating the current active artifact to passive", func() {
 			// deleting the previous active artifact goes through the real OS
 			// paths and fails
