@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/twpayne/go-vfs/v5/vfst"
 	"github.com/urfave/cli/v2"
@@ -21,8 +22,33 @@ type failingCatalogClient struct {
 func TestSysextInstallUsesDefaultCatalog(t *testing.T) {
 	command := sysextInstallCommand(t)
 	ctx := commandContext(t, command, "sysext", "git")
-	if got := extensionCatalogURL(ctx, "sysext"); got != defaultExtensionCatalogURL {
-		t.Fatalf("catalog default = %q, want %q", got, defaultExtensionCatalogURL)
+	cfg := agentConfig.NewConfig()
+
+	got := extensionCatalogURLs(ctx, cfg, "sysext")
+	if len(got) != 1 || got[0] != extensiontypes.DefaultCatalogURL {
+		t.Fatalf("catalog default = %q, want [%q]", got, extensiontypes.DefaultCatalogURL)
+	}
+	if got := extensionCatalogURLs(ctx, cfg, "confext"); got != nil {
+		t.Fatalf("confext catalogs = %q, want none", got)
+	}
+}
+
+func TestSysextInstallCatalogsComeFromTheConfig(t *testing.T) {
+	command := sysextInstallCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.Extensions.Catalogs = []string{"https://example.test/one.json", "https://example.test/two.json"}
+
+	// With no flag, the cloud config decides, replacing the default.
+	got := extensionCatalogURLs(commandContext(t, command, "sysext", "git"), cfg, "sysext")
+	if len(got) != 2 || got[0] != "https://example.test/one.json" || got[1] != "https://example.test/two.json" {
+		t.Fatalf("catalogs = %q, want the two configured ones in order", got)
+	}
+
+	// Repeated flags override the config, in the order they were given.
+	ctx := commandContext(t, command, "sysext", "--catalog", "https://example.test/flag-a.json", "--catalog", "https://example.test/flag-b.json", "git")
+	got = extensionCatalogURLs(ctx, cfg, "sysext")
+	if len(got) != 2 || got[0] != "https://example.test/flag-a.json" || got[1] != "https://example.test/flag-b.json" {
+		t.Fatalf("catalogs = %q, want the two flagged ones in order", got)
 	}
 }
 
@@ -35,7 +61,7 @@ func TestCatalogMissPreservesErrorForNonURI(t *testing.T) {
 	client := &failingCatalogClient{}
 	cfg := agentConfig.NewConfig(agentConfig.WithFs(fs), agentConfig.WithClient(client))
 
-	err = installCatalogOrURIExtension(cfg, defaultExtensionCatalogURL, "not-a-source", "", "sysext")
+	err = installCatalogOrURIExtension(cfg, []string{extensiontypes.DefaultCatalogURL}, "not-a-source", "", "sysext")
 	if err == nil || !strings.Contains(err.Error(), "download failed") {
 		t.Fatalf("expected catalog error for a non-URI request, got %v", err)
 	}
@@ -97,8 +123,8 @@ func TestCatalogDownloadFailureDoesNotLeaveTemporaryFile(t *testing.T) {
 	client := &failingCatalogClient{}
 	cfg := agentConfig.NewConfig(agentConfig.WithFs(fs), agentConfig.WithClient(client))
 
-	_, err = installCatalogExtension(cfg, "https://example.test/catalog.json", "git", "")
-	if err == nil || err.Error() != "download failed" {
+	err = installCatalogExtension(cfg, []string{"https://example.test/catalog.json"}, "git", "")
+	if err == nil || !strings.Contains(err.Error(), "download failed") {
 		t.Fatalf("expected download failure, got %v", err)
 	}
 	if client.destination == "" {

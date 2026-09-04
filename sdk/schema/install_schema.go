@@ -6,15 +6,16 @@ import (
 
 // InstallSchema represents the install block in the Kairos configuration. It is used to drive automatic installations without user interaction.
 type InstallSchema struct {
-	_                   struct{}       `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
-	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
-	BindMounts          []string       `json:"bind_mounts,omitempty"`
-	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	NoFormat            bool           `json:"no_format,omitempty"`
-	Device              string         `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
-	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
-	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
-	Env                 []interface{}  `json:"env,omitempty"`
+	_                   struct{}          `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
+	Auto                bool              `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
+	BindMounts          []string          `json:"bind_mounts,omitempty"`
+	Bundles             []BundleSchema    `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	NoFormat            bool              `json:"no_format,omitempty"`
+	Device              string            `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
+	EphemeralMounts     []string          `json:"ephemeral_mounts,omitempty"`
+	EncryptedPartitions []string          `json:"encrypted_partitions,omitempty"`
+	Env                 []interface{}     `json:"env,omitempty"`
+	Extensions          []ExtensionSchema `json:"extensions,omitempty" description:"System extensions to install onto the node."`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
