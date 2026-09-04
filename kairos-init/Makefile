@@ -32,6 +32,34 @@ immucore-fips_URL := $(call URL_TEMPLATE,immucore,$(IMMUCORE_VERSION),-fips)
 kcrypt-discovery-challenger-fips_URL := $(call URL_TEMPLATE,kcrypt-discovery-challenger,$(KCRYPT_DISCOVERY_CHALLENGER_VERSION),-fips)
 provider-kairos-fips_URL := $(call URL_TEMPLATE,provider-kairos,$(PROVIDER_KAIROS_VERSION),-fips)
 
+# A GitHub release exists the moment its tag is pushed, but the assets
+# attached to it can take minutes to finish uploading. A version bump that
+# lands inside that window gets a 404 from a URL that is perfectly valid a
+# few minutes later, so the failure reads as "the bump is wrong" rather than
+# "the asset is not there yet" (kairos-io/kairos#4316). This budget used to
+# be --retry 5 --retry-delay 2, about 10 seconds, against an observed upload
+# window of 3m40s.
+CURL_RETRY := --retry 30 --retry-all-errors --retry-delay 10 --retry-max-time 300
+
+# fetch_tarball <url> <destination dir>
+#
+# Downloads to a temp file before extracting rather than piping into tar.
+# curl retries the whole request, so on a mid-transfer reset the retried
+# bytes are appended to whatever tar has already consumed and the stream is
+# corrupt. A 404 does not hit that, because -f writes no body, but a dropped
+# connection does.
+define fetch_tarball
+	tmp=$$(mktemp); \
+	if ! curl -fsSL $(CURL_RETRY) -o "$$tmp" "$(1)"; then \
+		rm -f "$$tmp"; \
+		echo "Failed to download $(1)"; \
+		echo "If that release was published in the last few minutes, its assets may still be uploading."; \
+		exit 1; \
+	fi; \
+	tar -xzf "$$tmp" -C $(2); \
+	rm -f "$$tmp"
+endef
+
 .PHONY: all prepare download compress cleanup version-info
 
 all: prepare download compress cleanup version-info
@@ -75,25 +103,25 @@ download-edgevpn:
 	@echo "Downloading and extracting edgevpn for architecture $(ARCH)..."
 	@mkdir -p $(OUTPUT_DIR)
 	@# Unfortunately edgevpn uses x86_64 instead of amd64 so we need to do some string manipulation here
-	@curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://github.com/mudler/edgevpn/releases/download/$(EDGEVPN_VERSION)/edgevpn-$(EDGEVPN_VERSION)-Linux-$(shell echo $(ARCH) | sed -e 's/amd64/x86_64/').tar.gz | tar -xz -C $(OUTPUT_DIR)
+	@$(call fetch_tarball,https://github.com/mudler/edgevpn/releases/download/$(EDGEVPN_VERSION)/edgevpn-$(EDGEVPN_VERSION)-Linux-$(shell echo $(ARCH) | sed -e 's/amd64/x86_64/').tar.gz,$(OUTPUT_DIR))
 
 # Download kairos-installer (no FIPS variant; same binary for all image flavors)
 download-kairos-installer:
 	@echo "Downloading and extracting kairos-installer for architecture $(ARCH)..."
 	@mkdir -p $(OUTPUT_DIR)
-	@curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://github.com/kairos-io/kairos-installer/releases/download/$(INSTALLER_VERSION)/kairos-installer-$(INSTALLER_VERSION)-Linux-$(ARCH).tar.gz | tar -xz -C $(OUTPUT_DIR)
+	@$(call fetch_tarball,https://github.com/kairos-io/kairos-installer/releases/download/$(INSTALLER_VERSION)/kairos-installer-$(INSTALLER_VERSION)-Linux-$(ARCH).tar.gz,$(OUTPUT_DIR))
 
 # Download each binary
 $(OUTPUT_DIR)/%:
 	@echo "Downloading and extracting $* for architecture $(ARCH)..."
 	@mkdir -p $(OUTPUT_DIR)
-	@curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 $($*_URL) | tar -xz -C $(OUTPUT_DIR)
+	@$(call fetch_tarball,$($*_URL),$(OUTPUT_DIR))
 
 # Download each FIPS binary
 $(OUTPUT_DIR_FIPS)/%-fips:
 	@echo "Downloading and extracting $*-fips for architecture $(ARCH)..."
 	@mkdir -p $(OUTPUT_DIR_FIPS)
-	@curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 $($*-fips_URL) | tar -xz -C $(OUTPUT_DIR_FIPS)
+	@$(call fetch_tarball,$($*-fips_URL),$(OUTPUT_DIR_FIPS))
 
 
 # Run upx to compress binaries unless SKIP_UPX is non-empty
