@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/containerd/containerd/mount"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 )

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/containerd/containerd/mount"
 	"github.com/deniswernert/go-fstab"
+	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
 )
