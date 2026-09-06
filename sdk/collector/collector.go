@@ -315,10 +315,12 @@ func parseFiles(dir []string, nologs bool) Configs {
 		// more than configs (kairos-io/kairos#2064: EFI binaries, grub
 		// modules, kernels), and reporting those as oversized configs buries
 		// the one report that matters below.
-		if filepath.Ext(f) != ".yml" && filepath.Ext(f) != ".yaml" {
-			if !nologs {
-				fmt.Printf("warning: skipping %s (extension).\n", f)
-			}
+		//
+		// Skip them silently. A non-yaml file in a scanned directory is never
+		// actionable for the user, so a warning per file is pure noise: an
+		// upgrade on live media printed hundreds of them, one for every grub
+		// module and EFI binary under /run/initramfs/live.
+		if ext := filepath.Ext(f); ext != ".yml" && ext != ".yaml" {
 			continue
 		}
 
