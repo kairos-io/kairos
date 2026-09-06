@@ -17,6 +17,7 @@ limitations under the License.
 package action
 
 import (
+	"fmt"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -190,6 +191,19 @@ func (u *UpgradeAction) Run() (err error) {
 			u.config.Logger.Warn("failure while rebranding GRUB default entry (ignoring), run with --debug to see more details")
 			u.config.Logger.Debug(rebrandingErr.Error())
 		}
+
+		// Refresh shim.efi, grub.efi and EFI/boot/grub.cfg on the ESP from
+		// the freshly deployed image, so a signed-shim rotation or a
+		// grub.cfg change reaches installed nodes on upgrade rather than
+		// only on install/reset. The image is still mounted at
+		// upgradeImg.MountPoint, so the shim/grub binaries are readable
+		// from here. Failure is fatal only if the ESP write itself fails;
+		// missing EFI partition, missing shim/grub in the source, or a
+		// space check that will not fit are all logged and skipped.
+		if err := u.refreshESP(upgradeImg.MountPoint); err != nil {
+			u.Error("Failed to refresh the ESP: %s", err)
+			return err
+		}
 	}
 
 	err = e.UnmountImage(&upgradeImg)
@@ -286,5 +300,53 @@ func (u *UpgradeAction) remove(path string) error {
 		u.Debug("[Cleanup] Removing %s", path)
 		return u.config.Fs.RemoveAll(path)
 	}
+	return nil
+}
+
+// refreshESP copies the shim, grub and stub grub.cfg from the newly deployed
+// image into the ESP, so the bootloader is refreshed on upgrade for the same
+// reasons install and reset already refresh it (signed-shim rotation, grub
+// CVEs, grub.cfg schema changes).
+//
+// This handles GRUB-mode systems only. UKI-mode upgrades refresh the ESP
+// through agent/pkg/uki/upgrade.go. Machines with no EFI partition (BIOS
+// GRUB) skip cleanly because Partitions.EFI is nil, and machines with too
+// little ESP room to fit the refresh skip with a warning so a tight
+// partition never turns a working upgrade into a boot failure.
+func (u *UpgradeAction) refreshESP(sourceDir string) error {
+	efiPart := u.spec.Partitions.EFI
+	if efiPart == nil {
+		u.Debug("No EFI partition on this machine, skipping ESP refresh")
+		return nil
+	}
+
+	e := elemental.NewElemental(u.config)
+	umount, err := e.MountRWPartition(efiPart)
+	if err != nil {
+		// The ESP refresh is a best-effort enhancement over the pre-existing
+		// upgrade contract (which never touched the ESP). A machine that
+		// cannot mount its EFI partition has a pre-existing problem the
+		// upgrade did not cause, so warn and continue rather than aborting a
+		// system upgrade that would otherwise have completed.
+		u.config.Logger.Warnf("Skipping ESP refresh, could not mount the EFI partition: %s", err)
+		return nil
+	}
+	defer func() {
+		if uerr := umount(); uerr != nil {
+			u.config.Logger.Warnf("failed to unmount the EFI partition after ESP refresh: %s", uerr)
+		}
+	}()
+
+	if err := utils.CheckESPRefreshSpace(u.config.Fs, u.config.Arch, sourceDir, efiPart.MountPoint); err != nil {
+		u.config.Logger.Warnf("Skipping ESP refresh: %s", err)
+		return nil
+	}
+
+	grub := utils.NewGrub(u.config)
+	if err := grub.RefreshESP(sourceDir, efiPart.MountPoint, u.spec.Partitions.State.FilesystemLabel, "grub2"); err != nil {
+		return fmt.Errorf("refreshing the ESP from %s: %w", sourceDir, err)
+	}
+
+	u.Info("Refreshed shim, grub and grub.cfg on the EFI partition from %s", sourceDir)
 	return nil
 }
