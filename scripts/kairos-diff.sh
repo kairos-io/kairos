@@ -5,7 +5,21 @@ set -euo pipefail
 KAIROS_SLUG="kairos-io/kairos"
 KAIROS_INIT_SLUG="kairos-io/kairos-init"
 
+# Components merged into the monorepo on 2026-08-19..21 (provider on 2026-08-31)
+# and their subpath in this repo. Ordering here is the order they were archived
+# externally and is followed by the render loop below.
+declare -A INTREE_SUBPATH=(
+  [kairos-init]="kairos-init"
+  [kairos-agent]="agent"
+  [immucore]="immucore"
+  [kairos-sdk]="sdk"
+  [kcrypt-discovery-challenger]="kcrypt"
+  [provider-kairos]="provider"
+)
+
 declare -A COMPONENT_SLUG_HINT=()
+
+KAIROS_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
   cat <<'EOF'
@@ -98,6 +112,34 @@ get_file_content() {
   get_file_content_gh "$slug" "$ref" "$path"
 }
 
+# git-based helpers, used when reading in-tree state from the local kairos
+# checkout. Fall back to the GitHub API if git is unusable (no repo, ref
+# unfetched, etc.).
+
+git_repo_ok() {
+  command -v git >/dev/null 2>&1 && \
+    git -C "$KAIROS_REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+intree_present_at() {
+  local ref="$1"
+  local subpath="$2"
+  if git_repo_ok && git -C "$KAIROS_REPO_ROOT" cat-file -e "${ref}:${subpath}" 2>/dev/null; then
+    return 0
+  fi
+  # Fall back to gh api. contents/ returns 200 on a directory too.
+  gh api "repos/${KAIROS_SLUG}/contents/${subpath}?ref=${ref}" >/dev/null 2>&1
+}
+
+get_intree_content() {
+  local ref="$1"
+  local path="$2"
+  if git_repo_ok; then
+    git -C "$KAIROS_REPO_ROOT" cat-file -p "${ref}:${path}" 2>/dev/null && return 0
+  fi
+  get_file_content_gh "$KAIROS_SLUG" "$ref" "$path"
+}
+
 normalize_ref_gh() {
   local slug="$1"
   local ref="$2"
@@ -131,12 +173,9 @@ extract_kairos_init_version() {
   return 1
 }
 
-load_makefile_versions() {
-  local init_ref="$1"
+load_makefile_versions_from_content() {
+  local content="$1"
   local map_name="$2"
-  local content
-  content="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ref" "Makefile")" || return 1
-
   local line value
   while IFS= read -r line; do
     case "$line" in
@@ -149,12 +188,9 @@ load_makefile_versions() {
   done <<<"$content"
 }
 
-load_gomod_versions() {
-  local init_ref="$1"
+load_gomod_versions_from_content() {
+  local content="$1"
   local map_name="$2"
-  local content
-  content="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ref" "go.mod")" || return 1
-
   local line module owner version rest component
   while IFS= read -r line; do
     if [[ "$line" =~ ^[[:space:]]*(github\.com/(kairos-io|mudler|mauromorales)/[^[:space:]]+)[[:space:]]+([^[:space:]]+) ]]; then
@@ -173,13 +209,54 @@ load_gomod_versions() {
   done <<<"$content"
 }
 
-collect_changes_gh() {
-  local slug="$1"
-  local from_ref="$2"
-  local to_ref="$3"
+# For a given kairos_ref, populate <map_name> with the versions of every
+# component this repo currently pins (via kairos-init's Makefile plus the
+# go.mod for github.com/{kairos-io,mudler,mauromorales}/*). When kairos-init
+# is in-tree at kairos_ref, both files are read from the monorepo at that
+# ref (kairos-init/Makefile and the top-level go.mod). When it is not,
+# they are read from the archived kairos-io/kairos-init at the version
+# pinned in images/Dockerfile's ARG KAIROS_INIT.
+populate_dep_versions() {
+  local kairos_ref="$1"
+  local map_name="$2"
 
-  local commit_lines
-  commit_lines="$(gh api "repos/${slug}/compare/${from_ref}...${to_ref}" --paginate --jq '.commits[]? | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
+  local makefile gomod intree=0
+  if intree_present_at "$kairos_ref" "kairos-init"; then
+    intree=1
+    makefile="$(get_intree_content "$kairos_ref" "kairos-init/Makefile")" || return 1
+    gomod="$(get_intree_content "$kairos_ref" "go.mod")" || return 1
+  else
+    local init_ver
+    init_ver="$(extract_kairos_init_version "$kairos_ref")" || return 1
+    [[ -n "$init_ver" ]] || return 1
+    ensure_ref_exists_gh "$KAIROS_INIT_SLUG" "$init_ver" || return 1
+    makefile="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ver" "Makefile")" || return 1
+    gomod="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ver" "go.mod")" || return 1
+  fi
+
+  load_makefile_versions_from_content "$makefile" "$map_name"
+  load_gomod_versions_from_content "$gomod" "$map_name"
+
+  # Post-migration Makefile writes EDGEVPN_VERSION := $(shell cat EDGEVPN_VERSION),
+  # which is only meaningful at make-time. The truth is in the sidecar file.
+  if [[ "$intree" == "1" ]]; then
+    local current="$(get_assoc_entry "$map_name" "edgevpn")"
+    if [[ -z "$current" || "$current" == *'$(shell'* ]]; then
+      local edgevpn_file
+      edgevpn_file="$(get_intree_content "$kairos_ref" "kairos-init/EDGEVPN_VERSION" 2>/dev/null | head -n 1 | tr -d '[:space:]')"
+      [[ -n "$edgevpn_file" ]] && set_assoc_entry "$map_name" "edgevpn" "$edgevpn_file"
+    fi
+  fi
+}
+
+# Render pipe-separated commit lines as bullet items. Each line is
+#   <sha>|<subject>|<author_name>|<author_login>|<author_email>
+# author_login may be empty (e.g. when the caller has no cheap way to get it,
+# such as git log against local history); the PR lookup fills it in when the
+# commit has a merged PR on the same slug.
+_format_commit_lines() {
+  local slug="$1"
+  local commit_lines="$2"
   [[ -z "$commit_lines" ]] && return 0
 
   declare -A seen_pr=()
@@ -222,6 +299,73 @@ collect_changes_gh() {
   done <<<"$commit_lines"
 }
 
+collect_changes_gh() {
+  local slug="$1"
+  local from_ref="$2"
+  local to_ref="$3"
+
+  local commit_lines
+  commit_lines="$(gh api "repos/${slug}/compare/${from_ref}...${to_ref}" --paginate --jq '.commits[]? | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
+  _format_commit_lines "$slug" "$commit_lines"
+}
+
+# Commits touching <subpath> in the from..to range on this repo. Uses git log
+# on the local checkout when available (fast, no rate limit) and falls back to
+# paging repos/kairos-io/kairos/commits?path=... otherwise.
+collect_intree_changes() {
+  local subpath="$1"
+  local from_ref="$2"
+  local to_ref="$3"
+
+  local commit_lines=""
+  if git_repo_ok && \
+     git -C "$KAIROS_REPO_ROOT" rev-parse --verify --quiet "$from_ref" >/dev/null && \
+     git -C "$KAIROS_REPO_ROOT" rev-parse --verify --quiet "$to_ref" >/dev/null; then
+    commit_lines="$(git -C "$KAIROS_REPO_ROOT" log --no-merges \
+      --format='%H|%s|%an||%ae' "${from_ref}..${to_ref}" -- "$subpath" 2>/dev/null || true)"
+  else
+    # Paged fallback: list commits touching the path on to_ref, bounded to
+    # those newer than from_ref's committer timestamp. from_ref itself may not
+    # touch the path, so a SHA sentinel is not reliable.
+    local from_date
+    from_date="$(gh api "repos/${KAIROS_SLUG}/commits/${from_ref}" --jq '.commit.committer.date' 2>/dev/null || true)"
+    local page=1 raw
+    local since_arg=""
+    [[ -n "$from_date" ]] && since_arg="&since=${from_date}"
+    while [[ "$page" -le 20 ]]; do
+      raw="$(gh api "repos/${KAIROS_SLUG}/commits?sha=${to_ref}&path=${subpath}${since_arg}&per_page=100&page=${page}" --jq '.[] | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
+      [[ -z "$raw" ]] && break
+      commit_lines+="${raw}"$'\n'
+      page=$((page + 1))
+    done
+  fi
+
+  _format_commit_lines "$KAIROS_SLUG" "$commit_lines"
+}
+
+# Regime of a component across an OLD_REF -> NEW_REF compare:
+#   intree      subpath present at both refs
+#   bridging    subpath present at NEW_REF only (imported between old and new)
+#   external    subpath present at neither
+#   removed     subpath present at OLD_REF only (unlikely; treated as external)
+component_regime() {
+  local subpath="$1"
+  local old_ref="$2"
+  local new_ref="$3"
+  local at_old="no" at_new="no"
+  intree_present_at "$old_ref" "$subpath" && at_old="yes"
+  intree_present_at "$new_ref" "$subpath" && at_new="yes"
+  if [[ "$at_old" == "yes" && "$at_new" == "yes" ]]; then
+    printf 'intree\n'
+  elif [[ "$at_old" == "no" && "$at_new" == "yes" ]]; then
+    printf 'bridging\n'
+  elif [[ "$at_old" == "yes" && "$at_new" == "no" ]]; then
+    printf 'removed\n'
+  else
+    printf 'external\n'
+  fi
+}
+
 section_title_for_component() {
   local component="$1"
   case "$component" in
@@ -243,6 +387,78 @@ append_section_changes() {
     fi
     printf '\n'
   } >>"$out_file"
+}
+
+_archival_ref_for_slug() {
+  local slug="$1"
+  local branch head
+  branch="$(gh api "repos/${slug}" --jq '.default_branch' 2>/dev/null || true)"
+  [[ -z "$branch" ]] && return 1
+  head="$(gh api "repos/${slug}/branches/${branch}" --jq '.commit.sha' 2>/dev/null || true)"
+  [[ -z "$head" ]] && return 1
+  printf '%s\n' "$head"
+}
+
+append_intree_component_section() {
+  local out_file="$1"
+  local component="$2"
+  local old_ref="$3"
+  local new_ref="$4"
+  local old_ext_version="$5"
+
+  local subpath="${INTREE_SUBPATH[$component]}"
+  local heading
+  heading="$(section_title_for_component "$component") changes"
+
+  local regime
+  regime="$(component_regime "$subpath" "$old_ref" "$new_ref")"
+
+  local body="" changes external_slug archival_ref ext_changes
+  case "$regime" in
+    intree)
+      changes="$(collect_intree_changes "$subpath" "$old_ref" "$new_ref")"
+      if [[ -n "$changes" ]]; then
+        body="$changes"
+      else
+        body="- No changes"
+      fi
+      ;;
+    bridging)
+      # First half: everything the archived external repo received from the
+      # old pinned version up to its final commit. Second half: everything
+      # this repo has recorded on the subpath since it was imported.
+      external_slug="$(component_to_slug "$component" || true)"
+      if [[ -n "$old_ext_version" && -n "$external_slug" ]]; then
+        archival_ref="$(_archival_ref_for_slug "$external_slug" || true)"
+        if [[ -n "$archival_ref" ]] && ensure_ref_exists_gh "$external_slug" "$old_ext_version"; then
+          body="- Version: ${old_ext_version} -> merged in-tree at kairos ${new_ref}"
+          ext_changes="$(collect_changes_gh "$external_slug" "$old_ext_version" "$archival_ref")"
+          [[ -n "$ext_changes" ]] && { body+=$'\n'; body+="$ext_changes"; }
+        else
+          body="- Version: ${old_ext_version} -> merged in-tree at kairos ${new_ref}"
+          body+=$'\n- Unable to resolve archived repository history'
+        fi
+      else
+        body="- Merged in-tree at kairos ${new_ref}"
+      fi
+      changes="$(collect_intree_changes "$subpath" "$old_ref" "$new_ref")"
+      if [[ -n "$changes" ]]; then
+        [[ -n "$body" ]] && body+=$'\n'
+        body+="$changes"
+      fi
+      ;;
+    removed)
+      body="- Version: ${old_ext_version:-n/a} -> component no longer present"
+      ;;
+    external|*)
+      # Delegate to the external path below by returning non-zero, so the
+      # caller falls back to append_component_section for external components.
+      return 2
+      ;;
+  esac
+
+  append_section_changes "$out_file" "$heading" "$body"
+  return 0
 }
 
 append_component_section() {
@@ -336,25 +552,24 @@ gh_ready || die "gh CLI is required and must be authenticated"
 ensure_ref_exists_gh "$KAIROS_SLUG" "$OLD_REF" || die "Ref not found in ${KAIROS_SLUG}: $OLD_REF"
 ensure_ref_exists_gh "$KAIROS_SLUG" "$NEW_REF" || die "Ref not found in ${KAIROS_SLUG}: $NEW_REF"
 
-OLD_INIT="$(extract_kairos_init_version "$OLD_REF" || true)"
-NEW_INIT="$(extract_kairos_init_version "$NEW_REF" || true)"
-[[ -n "$OLD_INIT" ]] || die "Could not determine KAIROS_INIT for $OLD_REF"
-[[ -n "$NEW_INIT" ]] || die "Could not determine KAIROS_INIT for $NEW_REF"
-
-ensure_ref_exists_gh "$KAIROS_INIT_SLUG" "$OLD_INIT" || die "kairos-init ref not found on GitHub: $OLD_INIT"
-ensure_ref_exists_gh "$KAIROS_INIT_SLUG" "$NEW_INIT" || die "kairos-init ref not found on GitHub: $NEW_INIT"
-
 declare -A old_deps=()
 declare -A new_deps=()
 
-load_makefile_versions "$OLD_INIT" old_deps || die "Unable to read Makefile at kairos-init ref $OLD_INIT"
-load_makefile_versions "$NEW_INIT" new_deps || die "Unable to read Makefile at kairos-init ref $NEW_INIT"
-load_gomod_versions "$OLD_INIT" old_deps || die "Unable to read go.mod at kairos-init ref $OLD_INIT"
-load_gomod_versions "$NEW_INIT" new_deps || die "Unable to read go.mod at kairos-init ref $NEW_INIT"
+populate_dep_versions "$OLD_REF" old_deps || die "Unable to load dependency versions for $OLD_REF"
+populate_dep_versions "$NEW_REF" new_deps || die "Unable to load dependency versions for $NEW_REF"
+
+# kairos-init's version lives in images/Dockerfile (ARG KAIROS_INIT), not in
+# the Makefile/go.mod that populate_dep_versions reads. Record it in the same
+# maps so the external-regime fallback and the bridging label find it there.
+_old_init="$(extract_kairos_init_version "$OLD_REF" 2>/dev/null || true)"
+_new_init="$(extract_kairos_init_version "$NEW_REF" 2>/dev/null || true)"
+[[ -n "$_old_init" ]] && old_deps[kairos-init]="$_old_init"
+[[ -n "$_new_init" ]] && new_deps[kairos-init]="$_new_init"
 
 declare -a fixed_components=(
-  immucore
+  kairos-init
   kairos-agent
+  immucore
   kairos-sdk
   kcrypt-discovery-challenger
   provider-kairos
@@ -384,18 +599,14 @@ output_tmp="$(mktemp)"
 trap 'rm -f "$output_tmp"' EXIT
 
 append_section_changes "$output_tmp" "Kairos changes" "$(collect_changes_gh "$KAIROS_SLUG" "$OLD_REF" "$NEW_REF")"
-init_changes="$(collect_changes_gh "$KAIROS_INIT_SLUG" "$OLD_INIT" "$NEW_INIT")"
-
-init_body="- Version: ${OLD_INIT} -> ${NEW_INIT}"
-if [[ -n "$init_changes" ]]; then
-  init_body+=$'\n'
-  init_body+="$init_changes"
-else
-  init_body+=$'\n- No changes'
-fi
-append_section_changes "$output_tmp" "kairos-init changes" "$init_body"
 
 for component in "${all_components[@]}"; do
+  if [[ -n "${INTREE_SUBPATH[$component]:-}" ]]; then
+    if append_intree_component_section "$output_tmp" "$component" "$OLD_REF" "$NEW_REF" "${old_deps[$component]:-}"; then
+      continue
+    fi
+    # Regime came back "external" (both refs pre-migration): fall through.
+  fi
   append_component_section "$output_tmp" "$component" "${old_deps[$component]:-}" "${new_deps[$component]:-}"
 done
 
@@ -403,7 +614,6 @@ if [[ -n "$OUTPUT_FILE" ]]; then
   cp "$output_tmp" "$OUTPUT_FILE"
   printf 'Release notes written to %s\n' "$OUTPUT_FILE"
   printf 'Compared Kairos: %s -> %s\n' "$OLD_REF" "$NEW_REF"
-  printf 'Resolved kairos-init: %s -> %s\n' "$OLD_INIT" "$NEW_INIT"
 else
   cat "$output_tmp"
 fi
