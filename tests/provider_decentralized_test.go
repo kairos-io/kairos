@@ -22,32 +22,11 @@ import (
 // --unix-socket overrides.
 const edgevpnAPISocket = "/run/edgevpn-kairos.sock"
 
-// Every Eventually below is capped at 10 minutes or less, deliberately.
-//
-// ginkgo's suite timeout for this job is 60 minutes. A step whose own ceiling
-// is a large fraction of that can never fail on its own assertion: two slow
-// steps exhaust the suite budget first, and a suite timeout skips the failure
-// closures that several of these steps carry (the machines-API and DNS steps
-// print the edgevpn state on failure, which is the output you actually need).
-// That is kairos-io/kairos#4489: the spec used to allow 25m for a step, so a
-// wedged run burned the full hour and reported "suite timeout" instead of the
-// assertion.
-//
-// The ceilings are sized against a measured green run of this spec on the
-// ubuntu-24.04 runner this job uses (run 33755087874, 307s end to end):
-//
-//	waiting until ssh is possible       30.7s
-//	installing (to active_boot)        119.8s
-//	checking if k3s was configured      87.3s
-//	checking if it has a working kubeconfig (incl. Ready)  2.4s
-//	checking roles                       0.8s
-//	checking if it has machines with different IPs  0.3s
-//	rebooting the VMs                   61.1s (60s of which is peg's fixed sleep)
-//	checking if it can propagate dns     0.6s
-//
-// So the smallest ceiling here is still 5x its measured cost and most are far
-// more. Keep them under 10 minutes: if a step needs longer than that, the
-// cluster is not converging and waiting is not going to fix it.
+// Every Eventually below is capped at 10 minutes or less: the suite budget is
+// 60 minutes, so a step allowed a large fraction of that hits the suite timeout
+// before its own assertion and takes the failure diagnostics with it (#4489).
+// The measured green run of this spec is 307s end to end, so 10 minutes leaves
+// every step at least 5x its cost.
 var _ = Describe("kairos decentralized k8s test", Label("provider", "provider-decentralized-k8s"), func() {
 	var vms []VM
 	var configPath string
