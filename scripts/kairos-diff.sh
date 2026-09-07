@@ -240,7 +240,9 @@ populate_dep_versions() {
   # Post-migration Makefile writes EDGEVPN_VERSION := $(shell cat EDGEVPN_VERSION),
   # which is only meaningful at make-time. The truth is in the sidecar file.
   if [[ "$intree" == "1" ]]; then
-    local current="$(get_assoc_entry "$map_name" "edgevpn")"
+    local current
+    current="$(get_assoc_entry "$map_name" "edgevpn")"
+    # shellcheck disable=SC2016 # literal '$(shell' match, not command substitution
     if [[ -z "$current" || "$current" == *'$(shell'* ]]; then
       local edgevpn_file
       edgevpn_file="$(get_intree_content "$kairos_ref" "kairos-init/EDGEVPN_VERSION" 2>/dev/null | head -n 1 | tr -d '[:space:]')"
