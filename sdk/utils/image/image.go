@@ -63,6 +63,27 @@ var defaultRetryPredicate = func(err error) bool {
 	return false
 }
 
+// daemonImageOptions are the options GetImage passes to daemon.Image when it
+// reads an image out of the local Docker daemon.
+//
+// The daemon package buffers the whole `docker save` stream by default
+// (bufferMode is bufferMemory in pkg/v1/daemon/options.go), and its buffered
+// opener is an io.ReadAll into a byte slice the opener then holds for its own
+// lifetime. That asks for one allocation the size of the entire image before a
+// single layer is read: a 5.4 GB local image killed AuroraBoot with
+// "fatal error: runtime: out of memory" during the pull, which is
+// kairos-io/kairos#3037.
+//
+// WithFileBufferedOpener spools that stream to a temporary file instead, so the
+// cost lands on os.TempDir() rather than on the heap. It keeps the single save
+// that memory buffering existed to get; WithUnbufferedOpener would drop the
+// buffer entirely but re-run `docker save` on every access, and tarball.Image
+// opens the archive once per layer plus once for the manifest.
+//
+// It is a variable so tests can add a fake docker client. Production code does
+// not reassign it.
+var daemonImageOptions = []daemon.Option{daemon.WithFileBufferedOpener()}
+
 // ExtractOCIImage unpacks img into targetDestination.
 //
 // A Kairos raw extension artifact (see ExtractRawExtension) is written out as
@@ -197,7 +218,7 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 	)
 
 	// Try to get the image from the local Docker daemon
-	image, daemonErr := daemon.Image(ref)
+	image, daemonErr := daemon.Image(ref, daemonImageOptions...)
 	if daemonErr == nil {
 		imgConfig, cfgErr := image.ConfigFile()
 		if cfgErr != nil {
