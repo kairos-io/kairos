@@ -34,7 +34,7 @@ stages:
 
             [Service]
             Type=oneshot
-            ExecStart=/usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem
+            ExecStart=/usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem /root /opt /srv
             ExecStart=/usr/sbin/setenforce $MODE
             RemainAfterExit=yes
 
@@ -79,6 +79,6 @@ stages:
             fi
 
             # Relabel the writable/final filesystem view before switch-root.
-            /usr/sbin/restorecon -Riv /usr/local /etc /var /oem
+            /usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem /root /opt /srv
       commands:
         - /usr/local/bin/fix-selinux-file-contexts
