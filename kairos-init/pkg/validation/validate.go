@@ -34,7 +34,15 @@ func NewValidator(logger logger.KairosLogger) *Validator {
 	return &Validator{Log: logger, System: sis}
 }
 
-// TODO: Validate fips, if enabled, check go binaries for boringcrypto
+// TODO: Validate FIPS. The build-time metadata check lives in the verify-fips
+// make target; what remains here is the runtime check -- asking the installed
+// binary whether the FIPS module is actually active.
+//
+// Key it off KAIROS_FIPS in /etc/kairos-release, not config.DefaultConfig.Fips:
+// --fips is a local flag on the root command (main.go), so it is not inherited
+// by the validate subcommand, and no caller passes it to validate anyway
+// (see kairos-init/Dockerfile.test). Inside Validate() that field is always
+// false. The release file is the only source of truth available here.
 
 // nolint:gocyclo // Validate walks every distro/arch/model/version constraint and reports each independently; the shape is intentionally one branch per rule so failures point at the exact clause that tripped.
 func (v *Validator) Validate() error {
@@ -123,6 +131,7 @@ func (v *Validator) Validate() error {
 		"KAIROS_NAME",
 		"KAIROS_VERSION",
 		"KAIROS_ARCH",
+		"KAIROS_FIPS",
 		"KAIROS_TARGETARCH", // Not critical, same as ARCH above
 		"KAIROS_FLAVOR",
 		"KAIROS_FLAVOR_RELEASE",

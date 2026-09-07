@@ -16,8 +16,7 @@ builds:
     main: ./cmd/discovery/main.go
   - env:
       - CGO_ENABLED=0
-      - GOEXPERIMENT=boringcrypto
-      - CGO_LDFLAGS="-ldl"
+      - GOFIPS140=v1.0.0
     goos:
       - linux
     goarch:
@@ -27,12 +26,10 @@ builds:
     main: ./cmd/discovery/main.go
     hooks:
       post:
-        - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+        - bash -c 'set -e; go version -m {{.Path}} | grep -F "GOFIPS140=v1.0.0" || (echo "GOFIPS140=v1.0.0 not baked in" && exit 1)'
   - env:
       - CGO_ENABLED=0
-      - GOEXPERIMENT=boringcrypto
-      - CC=aarch64-linux-gnu-gcc
-      - CGO_LDFLAGS="-ldl"
+      - GOFIPS140=v1.0.0
     goos:
       - linux
     goarch:
@@ -42,7 +39,7 @@ builds:
     main: ./cmd/discovery/main.go
     hooks:
       post:
-      - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+      - bash -c 'set -e; go version -m {{.Path}} | grep -F "GOFIPS140=v1.0.0" || (echo "GOFIPS140=v1.0.0 not baked in" && exit 1)'
 source:
   enabled: true
   name_template: '{{ .ProjectName }}-{{ .Tag }}-source'
