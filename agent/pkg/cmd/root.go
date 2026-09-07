@@ -138,7 +138,7 @@ See https://kairos.io/docs/upgrade/manual/ for documentation.
 						Usage: "Output format (json|yaml|terminal)",
 					},
 					&cli.BoolFlag{Name: "pre", Usage: "Include pre-releases (rc, beta, alpha)"},
-					&cli.BoolFlag{Name: "all", Usage: "Include older releases"},
+					&cli.BoolFlag{Name: "all", Usage: "Include older releases, and releases that would downgrade Kubernetes"},
 					&cli.StringFlag{Name: "registry", Usage: "Registry to retrieve the releases from. Defaults to quay.io/kairos.", Value: "quay.io/kairos"},
 				},
 				Name:        "list-releases",
