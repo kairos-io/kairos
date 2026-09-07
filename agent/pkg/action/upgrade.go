@@ -161,7 +161,9 @@ func (u *UpgradeAction) Run() (err error) {
 		// Relabel SELinux
 		// TODO probably relabelling persistent volumes should be an opt in feature, it could
 		// have undesired effects in case of failures
-		binds := map[string]string{}
+		binds := map[string]string{
+			u.spec.Partitions.State.MountPoint: constants.RunningStateDir,
+		}
 		if mnt, _ := utils.IsMounted(u.config, u.spec.Partitions.Persistent); mnt {
 			binds[u.spec.Partitions.Persistent.MountPoint] = constants.UsrLocalPath
 		}

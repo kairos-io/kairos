@@ -137,4 +137,56 @@ env:
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
+
+	Context("with selinux enabled and mode enforcing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true
+  mode: enforcing`
+		})
+
+		It("succeedes", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("with selinux enabled and mode permissive", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true
+  mode: permissive`
+		})
+
+		It("succeedes", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("with selinux enabled and no mode (permissive is the default)", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true`
+		})
+
+		It("succeedes", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("with an invalid selinux mode", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true
+  mode: paranoid`
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "enforcing", "permissive"`))
+		})
+	})
 })

@@ -172,7 +172,9 @@ func (r ResetAction) Run() (err error) {
 	// Relabel SELinux
 	// TODO probably relabelling persistent volumes should be an opt in feature, it could
 	// have undesired effects in case of failures
-	binds := map[string]string{}
+	binds := map[string]string{
+		r.spec.Partitions.State.MountPoint: cnst.RunningStateDir,
+	}
 	if mnt, _ := utils.IsMounted(r.cfg, r.spec.Partitions.Persistent); mnt {
 		binds[r.spec.Partitions.Persistent.MountPoint] = cnst.UsrLocalPath
 	}

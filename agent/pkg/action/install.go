@@ -186,7 +186,9 @@ func (i InstallAction) Run() (err error) {
 	}
 
 	// Relabel SELinux
-	binds := map[string]string{}
+	binds := map[string]string{
+		i.spec.Partitions.State.MountPoint: cnst.RunningStateDir,
+	}
 	if mnt, _ := utils.IsMounted(i.cfg, i.spec.Partitions.Persistent); mnt {
 		binds[i.spec.Partitions.Persistent.MountPoint] = cnst.UsrLocalPath
 	}

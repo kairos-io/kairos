@@ -300,6 +300,20 @@ func GetInstallStage(sis values.System, logger logger.KairosLogger) ([]schema.St
 				},
 			},
 		},
+		{
+			Name:     "Install SELinux packages for RHEL family",
+			OnlyIfOs: values.RHELFamilyRegex,
+			Commands: []string{
+				"dnf install -y selinux-policy-targeted policycoreutils setools-console",
+			},
+		},
+		{
+			Name:     "Install SELinux packages for SUSE family",
+			OnlyIfOs: values.AllSuseRegex,
+			Commands: []string{
+				"zypper -n install selinux-policy-targeted policycoreutils setools-console",
+			},
+		},
 	}
 	return stage, nil
 }

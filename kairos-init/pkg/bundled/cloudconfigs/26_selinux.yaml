@@ -1,14 +1,84 @@
 name: "SELinux"
 stages:
   initramfs:
-    - name: "Relabelling"
-      if: |
-          cat /proc/cmdline | grep "selinux=1"
-      # NOTE: restorecon below is labeling all the files recursively, which may
-      # delay booting significantly (we had users reporting 30-minute delays)
-      # When we support selinux, consider whether we need to run it on every boot
-      # or not.
+    - if: 'grep -q "selinux=1" /proc/cmdline'
+      name: "SELinux relabel unit"
+      only_service_manager: "systemd"
+      files:
+        - path: /usr/local/bin/setup-selinux-relabel-unit
+          permissions: 0755
+          owner: 0
+          group: 0
+          content: |
+            #!/bin/bash
+
+            set -eu
+
+            # Mode comes from the cmdline (rd.cos.selinux=<mode>, written
+            # by the agent hook from install.selinux.mode). enforcing
+            # promotes after relabel. Permissive (default) pins 0.
+            if grep -q "rd.cos.selinux=enforcing" /proc/cmdline; then
+                MODE=1
+            else
+                MODE=0
+            fi
+
+            UNIT=/etc/systemd/system/kairos-selinux-relabel.service
+            mkdir -p /etc/systemd/system
+            cat > "$UNIT" <<EOF
+            [Unit]
+            Description=Kairos final selinux relabel
+            ConditionSecurity=selinux
+            After=cos-setup-fs.service kairos-agent.service
+            Before=multi-user.target
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem
+            ExecStart=/usr/sbin/setenforce $MODE
+            RemainAfterExit=yes
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
       commands:
-        - |
-          load_policy -i
-          restorecon -R -i -v /etc /root /opt /srv /var /home /usr/local /oem
+        - /usr/local/bin/setup-selinux-relabel-unit
+        - systemctl enable kairos-selinux-relabel
+    - if: 'grep -q "selinux=1" /proc/cmdline'
+      name: "file_contexts.subs from state bind mounts"
+      files:
+        - path: /usr/local/bin/fix-selinux-file-contexts
+          permissions: 0755
+          owner: 0
+          group: 0
+          content: |
+            #!/bin/bash
+
+            set -eu
+
+            CONTEXT_DIR=/etc/selinux/targeted/contexts/files
+            SUBS="$CONTEXT_DIR/file_contexts.subs"
+            TMP="$(mktemp)"
+
+            [ -d "$CONTEXT_DIR" ] || exit 0
+            [ -f /etc/fstab ] || exit 0
+
+            trap 'rm -f "$TMP"' EXIT
+
+            awk '
+                $1 ~ /^\/usr\/local\/\.state\// &&
+                $4 ~ /(^|,)bind(,|$)/ {
+                    print $1, $2
+                }
+            ' /etc/fstab > "$TMP"
+
+            install -m 0644 -o root -g root --context=system_u:object_r:file_context_t:s0 "$TMP" "$SUBS"
+
+            if [ "$(getenforce 2>/dev/null || true)" = "Disabled" ]; then
+                /usr/sbin/load_policy -i
+            fi
+
+            # Relabel the writable/final filesystem view before switch-root.
+            /usr/sbin/restorecon -Riv /usr/local /etc /var /oem
+      commands:
+        - /usr/local/bin/fix-selinux-file-contexts

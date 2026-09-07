@@ -2,15 +2,15 @@ package hook
 
 import (
 	"fmt"
-	"strings"
-
 	"path/filepath"
+	"strings"
 
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	install "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 )
 
@@ -29,6 +29,12 @@ func (b GrubPostInstallOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	// Copy existing grub options
 	for k, v := range c.Install.GrubOptions {
 		grubOpts[k] = v
+	}
+
+	if c.Install != nil {
+		for k, v := range SelinuxGrubOpts(c.Install.Selinux) {
+			grubOpts[k] = v
+		}
 	}
 
 	// Check if COS_OEM is in the list of encrypted partitions
@@ -75,6 +81,24 @@ func (b GrubPostInstallOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}
 	c.Logger.Logger.Info().Msg("Finish GrubOptions hook")
 	return nil
+}
+
+// SelinuxGrubOpts builds the dedicated grubenv variable pair for
+// install.selinux: selinux_enabled gates the relabel unit and the
+// cmdline, selinux_mode (enforcing|permissive) carries the mode the
+// relabel units setenforce call uses. Permissive is the default.
+func SelinuxGrubOpts(selinux install.SelinuxOptions) map[string]string {
+	if !selinux.Enabled {
+		return nil
+	}
+	mode := "permissive"
+	if selinux.Mode == "enforcing" {
+		mode = "enforcing"
+	}
+	return map[string]string{
+		"selinux_enabled": "true",
+		"selinux_mode":    mode,
+	}
 }
 
 // GrubFirstBootOptions is a hook that runs on the first boot to add grub options.
