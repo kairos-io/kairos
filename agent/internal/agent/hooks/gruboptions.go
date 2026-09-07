@@ -23,6 +23,10 @@ func (b GrubPostInstallOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		return nil
 	}
 
+	if c.Install == nil {
+		return nil
+	}
+
 	// Combine regular grub options with extracted kcrypt options
 	grubOpts := make(map[string]string)
 
@@ -31,10 +35,8 @@ func (b GrubPostInstallOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		grubOpts[k] = v
 	}
 
-	if c.Install != nil {
-		for k, v := range SelinuxGrubOpts(c.Install.Selinux) {
-			grubOpts[k] = v
-		}
+	for k, v := range SelinuxGrubOpts(c.Install.Selinux) {
+		grubOpts[k] = v
 	}
 
 	// Check if COS_OEM is in the list of encrypted partitions

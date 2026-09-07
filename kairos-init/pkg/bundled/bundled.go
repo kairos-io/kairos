@@ -407,7 +407,7 @@ const BootArgsCfg = `function setSelinux {
         source (loop0)/etc/kairos-release
     fi
 
-    if test "${KAIROS_FAMILY}" == "redhat" -o "${KAIROS_FAMILY}" == "suse"; then
+    if test "${KAIROS_FAMILY}" == "redhat" -o test "${KAIROS_FAMILY}" == "suse"; then
         if test -z "${recoverylabel}" -a "${selinux_enabled}" == "true"; then
             set baseSelinuxCmd="security=selinux selinux=1 enforcing=0 rd.cos.selinux=${selinux_mode}"
         else

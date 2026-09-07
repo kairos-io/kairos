@@ -22,7 +22,7 @@ var _ = Describe("Install Schema", func() {
 device: auto`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -33,7 +33,7 @@ device: auto`
 device: "/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:0:0"`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
 		})
 	})
@@ -44,7 +44,7 @@ device: "/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:0:0"`
 device: /dev/sda`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -84,7 +84,7 @@ reboot: true
 poweroff: false`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -97,7 +97,7 @@ reboot: false
 poweroff: true`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -108,7 +108,7 @@ poweroff: true`
 device: /dev/sda`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -133,7 +133,7 @@ env:
   - foo=barevice: /dev/sda`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -146,7 +146,7 @@ selinux:
   mode: enforcing`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -159,7 +159,7 @@ selinux:
   mode: permissive`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -171,7 +171,7 @@ selinux:
   enabled: true`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
