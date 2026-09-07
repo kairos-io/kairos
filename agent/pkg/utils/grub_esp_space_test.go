@@ -27,10 +27,11 @@ import (
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
-// hugeFile is larger than any filesystem a test can run on, so a check that
-// asks for it is guaranteed to come back short. The files are sparse, so
-// writing one costs nothing on disk.
-const hugeFile int64 = 512 << 40 // 512 TiB
+// hugeFile is larger than any /tmp a test host is going to hand out, so a
+// check that asks for it is guaranteed to come back short. It has to stay
+// within ext4's 16 TiB max file size or the sparse truncate itself returns
+// EFBIG on the runner before the test can even call the function under test.
+const hugeFile int64 = 4 << 40 // 4 TiB
 
 var _ = Describe("CheckESPRefreshSpace", func() {
 	var fs vfs.FS
