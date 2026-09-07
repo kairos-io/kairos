@@ -230,14 +230,22 @@ func ResolveURI(cfg *sdkConfig.Config, catalogs extensions.Catalogs, requested e
 	return "oci:" + resolved.OCI, nil
 }
 
-// InstallDeclaredExtensions installs every extension in requested into target.
+// InstallDeclared installs every extension in requested into target and
+// returns the file names it installed there, in install order.
 //
 // The catalogs are fetched once, and only if some entry actually needs them,
 // so a config that names nothing but URIs installs without network access to
 // any index.
-func InstallDeclared(cfg *sdkConfig.Config, requested extensiontypes.Extensions, target string) error {
+//
+// Each entry downloads into its own staging directory inside target and is
+// then renamed in. Staging inside target keeps the move on one filesystem, so
+// no image is written twice, and it records which file came from which entry.
+// Without that, two entries resolving to the same file name overwrite each
+// other and the node keeps one of the two versions asked for with nothing in
+// the log to say which.
+func InstallDeclared(cfg *sdkConfig.Config, requested extensiontypes.Extensions, target string) ([]string, error) {
 	if len(requested) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	var catalogs extensions.Catalogs
@@ -245,21 +253,68 @@ func InstallDeclared(cfg *sdkConfig.Config, requested extensiontypes.Extensions,
 		var err error
 		catalogs, err = FetchCatalogs(cfg, cfg.Extensions.CatalogURLs())
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	for _, extension := range requested {
+	if err := vfs.MkdirAll(cfg.Fs, target, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create target dir %s: %w", target, err)
+	}
+
+	var installed []string
+	installedBy := map[string]string{}
+	for i, extension := range requested {
 		uri, err := ResolveURI(cfg, catalogs, extension)
 		if err != nil {
-			return fmt.Errorf("resolve extension %s: %w", extension, err)
+			return nil, fmt.Errorf("resolve extension %s: %w", extension, err)
 		}
-		if err := Install(cfg, uri, target); err != nil {
-			return fmt.Errorf("install extension %s: %w", extension, err)
+
+		staging := filepath.Join(target, fmt.Sprintf(".staging-%d", i))
+		names, err := installToStaging(cfg, uri, staging, target, extension, installedBy)
+		if removeErr := cfg.Fs.RemoveAll(staging); removeErr != nil {
+			cfg.Logger.Logger.Warn().Str("dir", staging).Err(removeErr).Msg("Could not remove the extension staging directory")
 		}
+		if err != nil {
+			return nil, err
+		}
+
+		installed = append(installed, names...)
 		cfg.Logger.Logger.Info().Str("extension", extension.String()).Str("target", target).Msg("Installed extension")
 	}
-	return nil
+	return installed, nil
+}
+
+// installToStaging downloads one extension into staging and moves what it
+// produced into target, recording each name in installedBy so that a later
+// entry producing the same name is reported instead of overwriting it.
+func installToStaging(cfg *sdkConfig.Config, uri, staging, target string, extension extensiontypes.Extension, installedBy map[string]string) ([]string, error) {
+	if err := Install(cfg, uri, staging); err != nil {
+		return nil, fmt.Errorf("install extension %s: %w", extension, err)
+	}
+
+	entries, err := cfg.Fs.ReadDir(staging)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading what extension %s installed: %w", extension, err)
+	}
+
+	var names []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if owner, clash := installedBy[name]; clash {
+			return nil, fmt.Errorf("extensions %s and %s both install %s: only one of the two would survive, so nothing was installed", owner, extension, name)
+		}
+		if err := cfg.Fs.Rename(filepath.Join(staging, name), filepath.Join(target, name)); err != nil {
+			return nil, fmt.Errorf("moving %s from extension %s into %s: %w", name, extension, target, err)
+		}
+		installedBy[name] = extension.String()
+		if !entry.IsDir() {
+			names = append(names, name)
+		}
+	}
+	return names, nil
 }
 
 // requestedNeedsCatalog reports whether any entry has to be looked up by name.

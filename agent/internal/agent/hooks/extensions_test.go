@@ -6,7 +6,11 @@ import (
 	"sort"
 	"strings"
 
+	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/twpayne/go-vfs/v5"
+	"github.com/twpayne/go-vfs/v5/vfst"
 
 	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
@@ -103,6 +107,75 @@ var _ = Describe("Extension hooks", func() {
 		// extensions staged at install time land somewhere nothing reads.
 		It("matches the bind source immucore mounts over /var/lib/kairos", func() {
 			Expect(hook.PersistentExtensionsDir).To(Equal("/usr/local/.state/var-lib-kairos.bind/extensions"))
+		})
+	})
+
+	Describe("EnableExtensionsForBoot", func() {
+		var fs vfs.FS
+		var cleanup func()
+		var cfg *sdkConfig.Config
+		var dir string
+
+		BeforeEach(func() {
+			var err error
+			fs, cleanup, err = vfst.NewTestFS(nil)
+			Expect(err).ToNot(HaveOccurred())
+			cfg = config.NewConfig(config.WithFs(fs), config.WithLogger(sdkLogger.NewNullLogger()))
+			dir = "/var/lib/kairos/extensions"
+			Expect(fsutils.MkdirAll(fs, dir, 0755)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(dir, "gpg.sysext.raw"), []byte("image"), 0644)).To(Succeed())
+		})
+		AfterEach(func() { cleanup() })
+
+		// Staging the image is not enough: immucore reads only the per boot
+		// state sub-directory when it populates /run/extensions, so without
+		// the link systemd-sysext.service never even starts.
+		It("links the extension into every boot state it installs for", func() {
+			Expect(hook.EnableExtensionsForBoot(*cfg, dir, []string{"gpg.sysext.raw"})).To(Succeed())
+
+			for _, bootState := range hook.BootStatesEnabledOnInstall {
+				link := filepath.Join(dir, bootState, "gpg.sysext.raw")
+				info, err := fs.Lstat(link)
+				Expect(err).ToNot(HaveOccurred(), link)
+				Expect(info.Mode()&os.ModeSymlink).ToNot(BeZero(), link)
+
+				// The link has to be relative: this directory is written
+				// through the persistent partition at /usr/local and read
+				// back at /var/lib/kairos/extensions.
+				target, err := fs.Readlink(link)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(Equal("../gpg.sysext.raw"))
+
+				content, err := fs.ReadFile(link)
+				Expect(err).ToNot(HaveOccurred(), "the link does not resolve to the image")
+				Expect(string(content)).To(Equal("image"))
+			}
+		})
+
+		// It matches the UKI layout, where SysExtPostInstall writes into
+		// active.efi.extra.d and passive.efi.extra.d and nowhere else.
+		It("enables for active and passive, not recovery", func() {
+			Expect(hook.BootStatesEnabledOnInstall).To(Equal([]string{"active", "passive"}))
+		})
+
+		// immucore only links .raw entries, so a link on anything else is one
+		// nothing would ever follow.
+		It("skips an entry that is not a raw image", func() {
+			Expect(hook.EnableExtensionsForBoot(*cfg, dir, []string{"notes.txt"})).To(Succeed())
+			_, err := fs.Lstat(filepath.Join(dir, "active", "notes.txt"))
+			Expect(os.IsNotExist(err)).To(BeTrue())
+		})
+
+		It("is a no-op when nothing was installed", func() {
+			Expect(hook.EnableExtensionsForBoot(*cfg, dir, nil)).To(Succeed())
+			_, err := fs.Stat(filepath.Join(dir, "active"))
+			Expect(os.IsNotExist(err)).To(BeTrue())
+		})
+
+		// Re-running the installer must not fail on the link it left behind.
+		It("replaces a link that is already there", func() {
+			Expect(hook.EnableExtensionsForBoot(*cfg, dir, []string{"gpg.sysext.raw"})).To(Succeed())
+			Expect(hook.EnableExtensionsForBoot(*cfg, dir, []string{"gpg.sysext.raw"})).To(Succeed())
 		})
 	})
 })

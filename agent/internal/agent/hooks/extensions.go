@@ -2,6 +2,7 @@ package hook
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
@@ -63,11 +64,70 @@ func (ExtensionsPostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	if err := fsutils.MkdirAll(c.Fs, PersistentExtensionsDir, 0755); err != nil {
 		return fmt.Errorf("creating %s: %w", PersistentExtensionsDir, err)
 	}
-	if err := installer.InstallDeclared(&c, c.Install.Extensions, PersistentExtensionsDir); err != nil {
+	installed, err := installer.InstallDeclared(&c, c.Install.Extensions, PersistentExtensionsDir)
+	if err != nil {
+		return err
+	}
+	if err := EnableExtensionsForBoot(c, PersistentExtensionsDir, installed); err != nil {
 		return err
 	}
 
 	c.Logger.Logger.Info().Msg("Finish ExtensionsPostInstall hook")
+	return nil
+}
+
+// BootStatesEnabledOnInstall are the boot states an extension declared under
+// install.extensions is enabled for. It is active and passive, and not
+// recovery, so that it matches the UKI layout, where SysExtPostInstall writes
+// into active.efi.extra.d and passive.efi.extra.d and nowhere else.
+var BootStatesEnabledOnInstall = []string{constants.BootActive, constants.BootPassive}
+
+// EnableExtensionsForBoot enables the named extensions of dir by linking each
+// one into the per boot state sub-directory that immucore reads.
+//
+// Staging the image is not enough on its own. immucore looks only at
+// <dir>/<boot state> when it populates /run/extensions, so an extension that
+// is only in dir is never merged, systemd-sysext.service does not even start
+// (all four of its ConditionDirectoryNotEmpty= fail) and the node boots
+// without it. This is the step `kairos-agent sysext enable` performs on a
+// running node, done here for what the install declared.
+//
+// The links are relative because the directory is written through the
+// persistent partition mounted at /usr/local and read back at
+// /var/lib/kairos/extensions. A relative link resolves under both.
+func EnableExtensionsForBoot(c sdkConfig.Config, dir string, names []string) error {
+	var images []string
+	for _, name := range names {
+		if filepath.Ext(name) != ".raw" {
+			// immucore links only .raw entries, so anything else would be
+			// a link nothing ever follows.
+			c.Logger.Logger.Warn().Str("extension", name).Msg("Not enabling an extension that is not a .raw image")
+			continue
+		}
+		images = append(images, name)
+	}
+	if len(images) == 0 {
+		return nil
+	}
+
+	for _, bootState := range BootStatesEnabledOnInstall {
+		stateDir := filepath.Join(dir, bootState)
+		if err := fsutils.MkdirAll(c.Fs, stateDir, 0755); err != nil {
+			return fmt.Errorf("creating %s: %w", stateDir, err)
+		}
+		for _, name := range images {
+			link := filepath.Join(stateDir, name)
+			// A re-run of the installer must not trip over the link it
+			// left behind, and the image it points at may have changed.
+			if err := c.Fs.Remove(link); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("replacing %s: %w", link, err)
+			}
+			if err := c.Fs.Symlink(filepath.Join("..", name), link); err != nil {
+				return fmt.Errorf("enabling %s for %s: %w", name, bootState, err)
+			}
+			c.Logger.Logger.Info().Str("extension", name).Str("boot_state", bootState).Msg("Enabled extension")
+		}
+	}
 	return nil
 }
 
@@ -90,23 +150,17 @@ func installDeclaredExtensionsToEFI(c sdkConfig.Config, targets ...string) error
 	}
 	defer func() { _ = c.Fs.RemoveAll(staging) }()
 
-	if err := installer.InstallDeclared(&c, c.Install.Extensions, staging); err != nil {
-		return err
-	}
-
-	staged, err := c.Fs.ReadDir(staging)
+	installed, err := installer.InstallDeclared(&c, c.Install.Extensions, staging)
 	if err != nil {
 		return err
 	}
-	for _, entry := range staged {
-		if entry.IsDir() {
-			continue
-		}
+
+	for _, name := range installed {
 		for _, target := range targets {
-			if err := fsutils.Copy(c.Fs, filepath.Join(staging, entry.Name()), filepath.Join(target, entry.Name())); err != nil {
-				return fmt.Errorf("copying extension %s to %s: %w", entry.Name(), target, err)
+			if err := fsutils.Copy(c.Fs, filepath.Join(staging, name), filepath.Join(target, name)); err != nil {
+				return fmt.Errorf("copying extension %s to %s: %w", name, target, err)
 			}
-			c.Logger.Debugf("copied %s to %s", entry.Name(), target)
+			c.Logger.Debugf("copied %s to %s", name, target)
 		}
 	}
 	return nil

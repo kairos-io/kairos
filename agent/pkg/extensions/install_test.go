@@ -207,16 +207,18 @@ func TestInstallDeclaredResolvesEveryEntry(t *testing.T) {
 		{Name: "oci://ghcr.io/example/tools.sysext.raw"},
 		{Name: "/live/local.sysext.raw"},
 	}
-	if err := installer.InstallDeclared(cfg, requested, target); err != nil {
+	installed, err := installer.InstallDeclared(cfg, requested, target)
+	if err != nil {
 		t.Fatal(err)
 	}
 
 	// The two catalog names and the OCI reference all go through the image
-	// extractor, into the directory that was asked for.
+	// extractor. Each entry lands in its own staging directory under the
+	// target, so that what it produced can be told from what came before.
 	var pulled []string
 	for _, call := range extractor.ClientCalls {
-		if call.Destination != target {
-			t.Errorf("extension pulled into %q, want %q", call.Destination, target)
+		if filepath.Dir(call.Destination) != target {
+			t.Errorf("extension pulled into %q, want a directory under %q", call.Destination, target)
 		}
 		pulled = append(pulled, call.ImageRef)
 	}
@@ -243,6 +245,11 @@ func TestInstallDeclaredResolvesEveryEntry(t *testing.T) {
 		t.Fatalf("local extension content = %q", copied)
 	}
 
+	// Only the entry that produced a file is reported as installed: the fake
+	// extractor pulls without writing anything.
+	if len(installed) != 1 || installed[0] != "local.sysext.raw" {
+		t.Fatalf("installed = %q, want the one entry that wrote a file", installed)
+	}
 	// Both catalogs were fetched once, not once per extension.
 	if len(client.requested) != 2 {
 		t.Fatalf("catalog requests = %q, want each catalog fetched once", client.requested)
@@ -255,7 +262,7 @@ func TestInstallDeclaredSkipsTheCatalogWhenNothingNeedsIt(t *testing.T) {
 	cfg, client, extractor := testConfig(t, nil)
 
 	requested := extensiontypes.Extensions{{Name: "oci://ghcr.io/example/tools.sysext.raw"}}
-	if err := installer.InstallDeclared(cfg, requested, "/target/extensions"); err != nil {
+	if _, err := installer.InstallDeclared(cfg, requested, "/target/extensions"); err != nil {
 		t.Fatal(err)
 	}
 	if len(client.requested) != 0 {
@@ -270,7 +277,7 @@ func TestInstallDeclaredNamesTheExtensionThatFailed(t *testing.T) {
 	cfg, _, _ := testConfig(t, map[string]string{"https://one.test/releases.json": hadronCatalog})
 	cfg.Extensions.Catalogs = []string{"https://one.test/releases.json"}
 
-	err := installer.InstallDeclared(cfg, extensiontypes.Extensions{{Name: "git"}, {Name: "nowhere", Version: "1.0.0"}}, "/target")
+	_, err := installer.InstallDeclared(cfg, extensiontypes.Extensions{{Name: "git"}, {Name: "nowhere", Version: "1.0.0"}}, "/target")
 	if err == nil {
 		t.Fatal("InstallDeclared succeeded with an unresolvable extension")
 	}
@@ -282,10 +289,80 @@ func TestInstallDeclaredNamesTheExtensionThatFailed(t *testing.T) {
 func TestInstallDeclaredWithNothingRequested(t *testing.T) {
 	cfg, client, extractor := testConfig(t, nil)
 
-	if err := installer.InstallDeclared(cfg, nil, "/target"); err != nil {
+	if _, err := installer.InstallDeclared(cfg, nil, "/target"); err != nil {
 		t.Fatal(err)
 	}
 	if len(client.requested) != 0 || len(extractor.ClientCalls) != 0 {
 		t.Fatal("InstallDeclared did work with nothing requested")
+	}
+}
+
+// Every entry has to be attributable to the file it wrote, because the boot
+// state links are made from that list. Only entries that produced a file are
+// reported, and the staging directories they went through are gone.
+func TestInstallDeclaredReportsWhatItInstalled(t *testing.T) {
+	cfg, _, extractor := testConfig(t, nil)
+	extractor.SideEffect = writeImage(cfg, map[string]string{
+		"ghcr.io/example/one.sysext.raw:latest": "one.sysext.raw",
+		"ghcr.io/example/two.sysext.raw:latest": "two.sysext.raw",
+	})
+
+	target := "/target/extensions"
+	requested := extensiontypes.Extensions{
+		{Name: "oci://ghcr.io/example/one.sysext.raw"},
+		{Name: "oci://ghcr.io/example/two.sysext.raw"},
+	}
+	installed, err := installer.InstallDeclared(cfg, requested, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installed) != 2 || installed[0] != "one.sysext.raw" || installed[1] != "two.sysext.raw" {
+		t.Fatalf("installed = %q, want both images in the order requested", installed)
+	}
+
+	var present []string
+	entries, err := cfg.Fs.ReadDir(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		present = append(present, entry.Name())
+	}
+	if len(present) != 2 {
+		t.Fatalf("%s holds %q, want only the two images with no staging left behind", target, present)
+	}
+}
+
+// Two entries that resolve to the same file name silently leave the node with
+// one of the two versions asked for, so refuse instead of picking one.
+func TestInstallDeclaredRefusesTwoEntriesWithOneFileName(t *testing.T) {
+	cfg, _, extractor := testConfig(t, map[string]string{"https://one.test/releases.json": hadronCatalog})
+	cfg.Extensions.Catalogs = []string{"https://one.test/releases.json"}
+	extractor.SideEffect = writeImage(cfg, map[string]string{
+		"ghcr.io/kairos-io/hadron-layers/sysext/git@sha256:" + gitDigest: "git.sysext.raw",
+	})
+
+	requested := extensiontypes.Extensions{{Name: "git", Version: "2.55.0"}, {Name: "git", Version: "2.50.0"}}
+	_, err := installer.InstallDeclared(cfg, requested, "/target/extensions")
+	if err == nil {
+		t.Fatal("InstallDeclared installed two versions of one extension over each other")
+	}
+	for _, want := range []string{"git@2.55.0", "git@2.50.0", "git.sysext.raw"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error = %q, want it to name %q", err, want)
+		}
+	}
+}
+
+// writeImage returns an extractor side effect that drops the named file into
+// the destination it was asked to extract into, which is what a real pull of
+// an extension image leaves behind.
+func writeImage(cfg *sdkConfig.Config, files map[string]string) func(string, string, string) error {
+	return func(imageRef, destination, _ string) error {
+		name, published := files[imageRef]
+		if !published {
+			return nil
+		}
+		return cfg.Fs.WriteFile(filepath.Join(destination, name), []byte(imageRef), 0644)
 	}
 }
