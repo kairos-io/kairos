@@ -74,8 +74,8 @@ type GrubOptionsSchema struct {
 // families). When enabled, the system boots with selinux=1
 // and the kairos-selinux-relabel unit runs on every non-recovery boot.
 type SelinuxOptions struct {
-	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed)"`
-	Mode    string `json:"mode,omitempty" enum:"[\"enforcing\",\"permissive\"]" description:"SELinux mode: enforcing or permissive (default permissive)"`
+	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). GRUB-only: not supported under UKI"`
+	Mode    string `json:"mode,omitempty" enum:"[\"enforcing\",\"permissive\"]" description:"SELinux mode: enforcing or permissive (default permissive). Enforcing is applied after the post-boot relabel, not from early boot"`
 }
 
 // PowerManagement is a meta structure to hold the different rules for managing power, which are not compatible between each other.

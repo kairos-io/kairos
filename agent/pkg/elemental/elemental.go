@@ -591,7 +591,7 @@ func (e *Elemental) SelinuxRelabel(rootDir string, raiseError bool) error {
 		// Label the state image files as boot_t so boot-time components (e.g.
 		// systemd-gpt-auto-generator) can access them under SELinux.
 		for _, img := range []string{cnst.ActiveImgFile, cnst.PassiveImgFile, cnst.TransitionImgFile} {
-			imgFile := filepath.Join(cnst.RunningStateDir, "cOS", img)
+			imgFile := filepath.Join(rootDir, cnst.RunningStateDir, "cOS", img)
 			exists, _ := fsutils.Exists(e.config.Fs, imgFile)
 			if !exists {
 				continue
