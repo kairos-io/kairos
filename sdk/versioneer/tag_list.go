@@ -166,6 +166,26 @@ func (tl TagList) NewerAnyVersion() TagList {
 	return tl.Images().newerVersions()
 }
 
+// NewerAllVersions returns tags with:
+//   - a kairos version newer than the given artifact's and a software version
+//     that is not older
+//   - a kairos version same as the given artifact's but a software version
+//     higher than the current artifact's
+//
+// It is NewerAnyVersion without the software version downgrades. Kubernetes
+// does not support downgrades, so a tag that raises the Kairos version while
+// lowering the k3s/k0s version is not something a user can upgrade to
+// (kairos-io/kairos#3382).
+//
+// Splitting the 2 versions is done using the artifact's SoftwareVersionPrefix
+// (first encountered, because our tags have a "k3s1" in the end too)
+func (tl TagList) NewerAllVersions() TagList {
+	if tl.Artifact.SoftwareVersion != "" {
+		return tl.Images().newerAllVersions()
+	}
+	return tl.Images().newerVersions()
+}
+
 func (tl TagList) Print() {
 	for _, t := range tl.Tags {
 		fmt.Println(t)
@@ -260,6 +280,33 @@ func (tl TagList) newerSomeVersions() TagList {
 
 		// if kairos version is the same, require the sversion to be higher
 		if versionResult == 0 && sVersionResult > 0 {
+			newTags = append(newTags, t)
+		}
+	}
+
+	return newTagListWithTags(tl, newTags)
+}
+
+func (tl TagList) newerAllVersions() TagList {
+	newTags := []string{}
+	for _, t := range tl.Tags {
+		versions := extractVersions(t, *tl.Artifact)
+		// skip badly named artifacts that may not have a software version
+		// https://github.com/kairos-io/kairos/issues/3167#issuecomment-2633282993
+		if len(versions) < 2 {
+			continue
+		}
+
+		versionResult := semver.Compare(versions[0], tl.Artifact.VersionForTag())
+		sVersionResult := semver.Compare(versions[1], tl.Artifact.SoftwareVersionForTag())
+
+		// never offer a software version downgrade, whatever the kairos version does
+		if sVersionResult < 0 {
+			continue
+		}
+
+		// at least one of the two has to move forward, or this is the current tag
+		if versionResult > 0 || sVersionResult > 0 {
 			newTags = append(newTags, t)
 		}
 	}
