@@ -971,6 +971,106 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(c.SelinuxRelabel("/root", true)).To(BeNil())
 			Expect(runner.CmdsMatch([][]string{relabelCmd})).To(BeNil())
 		})
+		It("labels the state images as boot_t", func() {
+			// Create the state image files on disk so the chcon loop finds them
+			err := fsutils.MkdirAll(fs, filepath.Join(cnst.RunningStateDir, "cOS"), cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+			for _, img := range []string{cnst.ActiveImgFile, cnst.PassiveImgFile, cnst.TransitionImgFile} {
+				_, err = fs.Create(filepath.Join(cnst.RunningStateDir, "cOS", img))
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			c := elemental.NewElemental(config)
+			Expect(c.SelinuxRelabel("/", true)).To(BeNil())
+			Expect(runner.CmdsMatch([][]string{
+				relabelCmd,
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(cnst.RunningStateDir, "cOS", cnst.ActiveImgFile)},
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(cnst.RunningStateDir, "cOS", cnst.PassiveImgFile)},
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(cnst.RunningStateDir, "cOS", cnst.TransitionImgFile)},
+			})).To(BeNil())
+		})
+		It("skips chcon for state images that do not exist", func() {
+			// Only the active image exists; passive and transition must be skipped
+			err := fsutils.MkdirAll(fs, filepath.Join(cnst.RunningStateDir, "cOS"), cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, err = fs.Create(filepath.Join(cnst.RunningStateDir, "cOS", cnst.ActiveImgFile))
+			Expect(err).ShouldNot(HaveOccurred())
+
+			c := elemental.NewElemental(config)
+			Expect(c.SelinuxRelabel("/", true)).To(BeNil())
+			Expect(runner.CmdsMatch([][]string{
+				relabelCmd,
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(cnst.RunningStateDir, "cOS", cnst.ActiveImgFile)},
+			})).To(BeNil())
+		})
+		It("labels the state images under a root-tree path", func() {
+			rootDir := "/root"
+			// Provide the policy and context files under the root-tree path
+			contextFile := filepath.Join(rootDir, cnst.SELinuxTargetedContextFile)
+			err := fsutils.MkdirAll(fs, filepath.Dir(contextFile), cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, err = fs.Create(contextFile)
+			Expect(err).ShouldNot(HaveOccurred())
+			policyFile = filepath.Join(rootDir, policyFile)
+			err = fsutils.MkdirAll(fs, filepath.Join(rootDir, cnst.SELinuxTargetedPolicyPath), cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, err = fs.Create(policyFile)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// Only the active image exists under the root-tree state dir
+			err = fsutils.MkdirAll(fs, filepath.Join(rootDir, cnst.RunningStateDir, "cOS"), cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, err = fs.Create(filepath.Join(rootDir, cnst.RunningStateDir, "cOS", cnst.ActiveImgFile))
+			Expect(err).ShouldNot(HaveOccurred())
+
+			relabelCmd = []string{
+				"setfiles", "-c", policyFile, "-F", "-r", rootDir, contextFile, rootDir,
+			}
+
+			c := elemental.NewElemental(config)
+			Expect(c.SelinuxRelabel(rootDir, true)).To(BeNil())
+			Expect(runner.CmdsMatch([][]string{
+				relabelCmd,
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(rootDir, cnst.RunningStateDir, "cOS", cnst.ActiveImgFile)},
+			})).To(BeNil())
+		})
+		It("does not raise on state image relabel failure", func() {
+			// Create the state image files so the chcon loop runs
+			err := fsutils.MkdirAll(fs, filepath.Join(cnst.RunningStateDir, "cOS"), cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+			for _, img := range []string{cnst.ActiveImgFile, cnst.PassiveImgFile, cnst.TransitionImgFile} {
+				_, err = fs.Create(filepath.Join(cnst.RunningStateDir, "cOS", img))
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			// Make every Runner.Run call fail; setfiles failure is raised
+			// (raiseError=true) so the function returns before the chcon loop
+			// in this case. Verify that the chcon loop itself does not
+			// propagate errors by calling with raiseError=false and a
+			// side effect that only fails on chcon invocations.
+			c := elemental.NewElemental(config)
+
+			// First verify setfiles failure with raiseError=true short-circuits
+			runner.ReturnError = errors.New("setfiles failure")
+			Expect(c.SelinuxRelabel("/", true)).NotTo(BeNil())
+			runner.ClearCmds()
+
+			// Now verify that a chcon failure does NOT propagate (raiseError=false)
+			runner.ReturnError = nil
+			runner.SideEffect = func(command string, args ...string) ([]byte, error) {
+				if command == "chcon" {
+					return nil, errors.New("chcon failure")
+				}
+				return []byte(""), nil
+			}
+			Expect(c.SelinuxRelabel("/", false)).To(BeNil())
+			Expect(runner.CmdsMatch([][]string{
+				relabelCmd,
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(cnst.RunningStateDir, "cOS", cnst.ActiveImgFile)},
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(cnst.RunningStateDir, "cOS", cnst.PassiveImgFile)},
+				{"chcon", "system_u:object_r:boot_t:s0", filepath.Join(cnst.RunningStateDir, "cOS", cnst.TransitionImgFile)},
+			})).To(BeNil())
+		})
 	})
 	Describe("GetIso", Label("GetIso", "iso"), func() {
 		var e *elemental.Elemental
