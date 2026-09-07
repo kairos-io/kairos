@@ -50,7 +50,7 @@ func parseURI(cfg *sdkConfig.Config, uri string) (SourceDownload, error) {
 		value = filepath.Join(u.Host, u.Path)
 	}
 	switch scheme {
-	case "oci", "docker", "container":
+	case extensiontypes.SchemeOCI, extensiontypes.SchemeDocker, extensiontypes.SchemeContainer:
 		n, err := reference.ParseNormalizedNamed(value)
 		if err != nil {
 			return nil, fmt.Errorf("invalid image reference %s", value)
@@ -58,9 +58,9 @@ func parseURI(cfg *sdkConfig.Config, uri string) (SourceDownload, error) {
 			value += ":latest"
 		}
 		return &dockerSource{value, cfg}, nil
-	case "file":
+	case extensiontypes.SchemeFile:
 		return &fileSource{value, cfg}, nil
-	case "http", "https":
+	case extensiontypes.SchemeHTTP, extensiontypes.SchemeHTTPS:
 		// Pass the full uri including the protocol
 		return &httpSource{uri, cfg}, nil
 	default:

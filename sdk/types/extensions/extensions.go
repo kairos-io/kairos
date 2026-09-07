@@ -14,6 +14,18 @@ import (
 // cloud config names no catalog of its own.
 const DefaultCatalogURL = "https://kairos-io.github.io/hadron-layers/releases.json"
 
+// URI schemes an extension reference can use. The three container spellings
+// are equivalent; all three exist because the rest of the configuration
+// already accepts them.
+const (
+	SchemeOCI       = "oci"
+	SchemeDocker    = "docker"
+	SchemeContainer = "container"
+	SchemeFile      = "file"
+	SchemeHTTP      = "http"
+	SchemeHTTPS     = "https"
+)
+
 // Config is the node-wide extension configuration, set under the top level
 // `extensions` key of a Kairos cloud config.
 type Config struct {
@@ -103,7 +115,7 @@ func (e Extension) IsReference() bool {
 		return false
 	}
 	switch scheme {
-	case "oci", "docker", "container", "file", "http", "https":
+	case SchemeOCI, SchemeDocker, SchemeContainer, SchemeFile, SchemeHTTP, SchemeHTTPS:
 		return true
 	default:
 		return false
