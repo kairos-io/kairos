@@ -300,12 +300,15 @@ func (tl TagList) newerAllVersions() TagList {
 		versionResult := semver.Compare(versions[0], tl.Artifact.VersionForTag())
 		sVersionResult := semver.Compare(versions[1], tl.Artifact.SoftwareVersionForTag())
 
-		// never offer a software version downgrade, whatever the kairos version does
+		// A lower software version is never an upgrade candidate, whatever the
+		// Kairos version does. Dropping those here is what makes the check
+		// below safe: past this point versions[1] is equal or newer.
 		if sVersionResult < 0 {
 			continue
 		}
 
-		// at least one of the two has to move forward, or this is the current tag
+		// At least one of the two has to move forward. Equal on both is the
+		// tag we are already running, which is not an upgrade.
 		if versionResult > 0 || sVersionResult > 0 {
 			newTags = append(newTags, t)
 		}
