@@ -25,7 +25,7 @@ type InstallSchema struct {
 	Force                  bool                `json:"force,omitempty" mapstructure:"force"`
 	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty" mapstructure:"extra-dirs-rootfs"`
 	SSHHardening           bool                `json:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
-	OEMFiles               []OEMFileSchema     `json:"oem_files,omitempty" mapstructure:"oem_files" description:"Cloud-config files to write into the cloud-config directory of the installed system (/oem, or /usr/local/cloud-config on devices without an OEM partition) so they are applied on its first boot."`
+	OEMFiles               []OEMFileSchema     `json:"oem_files,omitempty" mapstructure:"oem_files" description:"Cloud-config files to write into the OEM partition of the installed system, which it reads as /oem, so they are applied on its first boot. The install fails if the target has no mounted OEM partition."`
 	Active                 Image               `json:"system,omitempty" mapstructure:"system"`
 	Recovery               Image               `json:"recovery-system,omitempty" mapstructure:"recovery-system"`
 	Passive                Image               `json:"passive,omitempty" mapstructure:"recovery-system"`
