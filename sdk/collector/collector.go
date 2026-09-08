@@ -326,7 +326,7 @@ func parseFiles(dir []string, nologs bool) Configs {
 		// so `kairos-agent config` and `config get` stay pipeable.
 		if size, err := fileSize(f); err == nil && size >= maxConfigFileSize {
 			fmt.Fprintf(os.Stderr,
-				"warning: skipping %s: it is %d bytes, over the %d byte limit for a single config file, so none of its settings were applied. Split it up, or serve it with config_url.\n",
+				"warning: skipping %s: it is %d bytes and the limit for a single config file is %d bytes, so none of its settings were applied. Split it up, or serve it with config_url.\n",
 				f, size, maxConfigFileSize)
 			continue
 		}

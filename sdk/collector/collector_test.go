@@ -1331,6 +1331,7 @@ local_key_2: local_value_2
 			// alternative is a machine that installs with none of the
 			// settings the user wrote and no explanation on the console.
 			const overTheLimit = (2 * 1024 * 1024) + 1
+			const atTheLimit = 2 * 1024 * 1024
 			const underTheLimit = (2 * 1024 * 1024) - 1
 
 			// captureStderr swaps os.Stderr for the duration of f and returns
@@ -1391,7 +1392,7 @@ local_key_2: local_value_2
 				})
 
 				Expect(out).To(ContainSubstring(big))
-				Expect(out).To(ContainSubstring("over the"))
+				Expect(out).To(ContainSubstring("the limit for a single config file"))
 
 				// The rest of the directory is still collected.
 				Expect(c.Values["small_key"]).To(Equal("small_value"))
@@ -1409,6 +1410,27 @@ local_key_2: local_value_2
 				})
 
 				Expect(out).To(BeEmpty())
+			})
+
+			// 2MiB exactly is the only size where the >= comparison differs
+			// from >, and it is the boundary the old truncating arithmetic
+			// skipped from: 2097152 bytes gave 2048 kilobytes gave 2.0
+			// megabytes, which is > 1.0, while 2097151 gave 1.0, which is not.
+			It("reports a config of exactly the limit", func() {
+				atLimit := writeFile("at_limit.yaml", padTo("#cloud-config\nat_limit_key: ", atTheLimit))
+
+				var c *Config
+				out := captureStderr(func() {
+					o := &Options{}
+					Expect(o.Apply(Directories(tmpDir), NoLogs)).To(Succeed())
+
+					var err error
+					c, err = Scan(o, FilterKeysTest)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Expect(out).To(ContainSubstring(atLimit))
+				Expect(c.Values["at_limit_key"]).To(BeNil())
 			})
 
 			It("collects a config that is just under the limit", func() {
