@@ -29,6 +29,24 @@
         "action"
       ],
       "pinDigests": true
+    },
+    {
+      "description": "The v2 line of bubbles and bubbletea is published as charm.land/bubbles/v2 and charm.land/bubbletea/v2, so github.com/charmbracelet/<pkg>/v2 does not resolve. See #4472 and #4473.",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchDepNames": [
+        "github.com/charmbracelet/bubbles",
+        "github.com/charmbracelet/bubbletea"
+      ],
+      "allowedVersions": "<2.0.0"
+    },
+    {
+      "description": "kubo v0.41.0 pulls cockroachdb/swiss, which go:linknames into runtime internals that Go 1.27 removed. The pin and its reason live in the Dockerfile. See #4509.",
+      "matchFileNames": [
+        "examples/bundle/Dockerfile"
+      ],
+      "enabled": false
     }
   ],
   "customManagers": [
