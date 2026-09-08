@@ -19,6 +19,10 @@ stages:
         # Only machine-owned state belongs here. A path under /usr is owned by
         # the image, so persisting it merges one slot's binaries into the other
         # and breaks rollback. See https://github.com/kairos-io/kairos/issues/4304
+        #
+        # RW_PATHS above does not cover /usr, so dropping /usr/libexec from this
+        # list also makes it read-only after boot. That is intended: it is image
+        # content. Anything that has to write there belongs under /usr/local.
         PERSISTENT_STATE_PATHS: >-
           /etc/cni
           /etc/init.d

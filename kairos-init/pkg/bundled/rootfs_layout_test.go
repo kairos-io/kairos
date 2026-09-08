@@ -47,11 +47,18 @@ var _ = Describe("RootfsLayout", func() {
 	// image ran the newer image's /usr/libexec/sudo helpers against its own
 	// older glibc, and sudo stopped working.
 	//
-	// The prefix is /usr/lib and not /usr because /usr/local is the persistent
-	// partition itself, mounted as a volume rather than bind-mounted out of one.
+	// /usr/local is exempt because it is the persistent partition itself,
+	// mounted as a volume rather than bind-mounted out of one.
+	//
+	// Only 00_rootfs.yaml is read. The sibling 01_extra_binds.yaml persists
+	// /usr/share/pki/trust on the RHEL/SUSE branch, and whether that entry is
+	// also wrong is a separate question from this one.
 	It("persists no path owned by the image", func() {
 		for _, path := range persistentStatePaths() {
-			Expect(path).ToNot(HavePrefix("/usr/lib"), "%s is image content, persisting it breaks rollback", path)
+			if path == "/usr/local" || strings.HasPrefix(path, "/usr/local/") {
+				continue
+			}
+			Expect(path).ToNot(HavePrefix("/usr/"), "%s is image content, persisting it breaks rollback", path)
 		}
 	})
 
