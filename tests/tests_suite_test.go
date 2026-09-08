@@ -435,6 +435,12 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		types.WithSSHUser(user()),
 		types.WithSSHPass(pass()),
 		types.OnFailure(func(p *process.Process) {
+			// peg calls this from the goroutine it starts in
+			// machine.monitor, not from a Ginkgo node, so the Fail below
+			// needs a GinkgoRecover to be turned into a spec failure
+			// instead of an unrecovered panic.
+			defer GinkgoRecover()
+
 			var serial string
 
 			out, _ := os.ReadFile(p.StdoutPath())
