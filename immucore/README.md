@@ -98,7 +98,7 @@ The immutable rootfs can be configured with the following kernel parameters:
   console to an interactive shell, like dracut's `rd.break`. The boot resumes
   when that shell exits, so this is for looking around mid-boot, not for
   recovering from a failure (that shell still comes up on its own). Valid values
-  are the step names shown in the DAG diagrams below, e.g.
+  are the DAG step names (not the `<init>` node herd itself adds), e.g.
   `rd.immucore.break=mount-root` or `rd.immucore.break=uki-pivot-to-sysroot`.
   Several steps can be given comma-separated (`rd.immucore.break=load-config,mount-root`)
   or by repeating the stanza. A name that matches no step is ignored. To see all
