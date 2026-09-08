@@ -172,7 +172,12 @@ func copyFile(src, dst string) error {
 }
 
 func AddSystemdConfSortKey(fs sdkFs.KairosFS, artifactDir string, log sdkLogger.KairosLogger) error {
-	return fsutils.WalkDirFs(fs, artifactDir, func(path string, info os.DirEntry, err error) error {
+	// Entries we could not read. The walk carries on past them so that one
+	// damaged conf does not cost every later entry its sort key, and they are
+	// reported together once the walk is done.
+	var unreadable error
+
+	err := fsutils.WalkDirFs(fs, artifactDir, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -181,7 +186,14 @@ func AddSystemdConfSortKey(fs sdkFs.KairosFS, artifactDir string, log sdkLogger.
 			log.Logger.Debug().Str("path", path).Msg("Adding sort key to file")
 			conf, err := sdkutils.SystemdBootConfReader(path)
 			if err != nil {
-				log.Errorf("Error reading conf file to extract values %s: %s", conf, path)
+				// The reader hands back a nil map when it fails, and the
+				// write below rebuilds the whole entry from that map. Writing
+				// to the nil map panics; writing an empty one would truncate
+				// the entry to a bare sort-key and leave it unbootable. Leave
+				// the file alone.
+				log.Errorf("Error reading conf file %s to extract values: %s", path, err)
+				unreadable = errors.Join(unreadable, fmt.Errorf("reading %s: %w", path, err))
+				return nil
 			}
 			// Now check and put the proper sort key
 			var sortKey string
@@ -213,6 +225,11 @@ func AddSystemdConfSortKey(fs sdkFs.KairosFS, artifactDir string, log sdkLogger.
 
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	return unreadable
 }
 
 func removeDefaultKeysFromLoaderConf(fs sdkFs.KairosFS, efiDir string, logger sdkLogger.KairosLogger) error {

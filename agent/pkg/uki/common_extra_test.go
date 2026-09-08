@@ -336,9 +336,7 @@ var _ = Describe("Common helpers", func() {
 			Expect(AddSystemdConfSortKey(fs, filepath.Join(dir, "missing"), logger)).ToNot(Succeed())
 		})
 
-		It("panics on unreadable conf files", func() {
-			// when the conf reader fails the error is only logged and the
-			// returned nil map is written to, which panics
+		It("reports an unreadable conf instead of panicking, and leaves it alone", func() {
 			if os.Geteuid() == 0 {
 				Skip("file permissions are not enforced for root")
 			}
@@ -346,9 +344,56 @@ var _ = Describe("Common helpers", func() {
 			Expect(os.WriteFile(path, []byte("title Kairos\n"), 0644)).To(Succeed())
 			Expect(os.Chmod(path, 0000)).To(Succeed())
 
+			var err error
 			Expect(func() {
-				_ = AddSystemdConfSortKey(fs, dir, logger)
-			}).To(Panic())
+				err = AddSystemdConfSortKey(fs, dir, logger)
+			}).ToNot(Panic())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(path))
+			Expect(err.Error()).To(ContainSubstring("permission denied"))
+			Expect(memLog.String()).To(ContainSubstring(path))
+
+			// left as it was, not truncated to a bare sort-key
+			Expect(os.Chmod(path, 0644)).To(Succeed())
+			contents, readErr := os.ReadFile(path)
+			Expect(readErr).ToNot(HaveOccurred())
+			Expect(string(contents)).To(Equal("title Kairos\n"))
+		})
+
+		It("reports a conf whose first line is longer than the scanner allows", func() {
+			// a .conf whose contents got replaced by newline-free garbage
+			// makes the reader fail on bufio.ErrTooLong rather than on open
+			path := filepath.Join(dir, "recovery.conf")
+			Expect(os.WriteFile(path, bytes.Repeat([]byte("x"), 128*1024), 0644)).To(Succeed())
+
+			var err error
+			Expect(func() {
+				err = AddSystemdConfSortKey(fs, dir, logger)
+			}).ToNot(Panic())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(path))
+		})
+
+		It("still sorts the entries it can read", func() {
+			if os.Geteuid() == 0 {
+				Skip("file permissions are not enforced for root")
+			}
+			// the walk visits this one first, so before the fix it would
+			// have taken every later entry down with it
+			bad := filepath.Join(dir, "aaa.conf")
+			Expect(os.WriteFile(bad, []byte("title Whatever\n"), 0644)).To(Succeed())
+			Expect(os.Chmod(bad, 0000)).To(Succeed())
+
+			good := filepath.Join(dir, "active.conf")
+			Expect(os.WriteFile(good, []byte("title Kairos\nuki /EFI/kairos/active.efi\n"), 0644)).To(Succeed())
+
+			Expect(AddSystemdConfSortKey(fs, dir, logger)).ToNot(Succeed())
+
+			conf, err := sdkutils.SystemdBootConfReader(good)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(conf["sort-key"]).To(Equal("0001"))
+			Expect(conf["title"]).To(Equal("Kairos"))
+			Expect(conf["uki"]).To(Equal("/EFI/kairos/active.efi"))
 		})
 	})
 
