@@ -9,24 +9,34 @@
 //
 // # Transport
 //
-// stdio only. The machine an installer runs on is live-booted and
-// unauthenticated, so listening on the network would let anything that can
-// reach it repartition the disk. Driving the install therefore requires the
-// ability to spawn a process on the machine already, which is the same bar as
-// running the TUI.
+// Streamable HTTP, served by kairos-installer alongside the TUI, so an agent
+// reaches the installer the same way a person reaches the web UI: over the
+// network, without having to spawn a process on the machine first. That is the
+// exposure the live image already has, because kairos-webui listens on :8080
+// on the same boot and can install from there.
+//
+// [Handler] is the server as an http.Handler so it can be mounted on the
+// installer's own mux once the web UI moves in (kairos-io/kairos#4340);
+// [ListenAndServe] is the standalone listener used until then.
 //
 // # The install tool is destructive
 //
 // install repartitions a disk. It refuses to run unless the caller passes
 // confirm=true and names a device that is currently an installation candidate,
 // so an agent cannot wipe a disk through a hallucinated device path or by
-// calling the tool with defaults.
+// calling the tool with defaults. The guard is held by one [Server] shared by
+// every HTTP session, so a client cannot get a second install by reconnecting.
 package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	stdlog "log"
+	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -100,7 +110,8 @@ type Server struct {
 	generateBundle   func() (string, error)
 	writeCloudConfig func(content string) (path string, cleanup func(), err error)
 
-	// installing guards against two concurrent installs on one session.
+	// installing guards against two concurrent installs. It lives on the Server,
+	// which every HTTP session shares, so reconnecting does not reset it.
 	installing sync.Mutex
 	installed  bool
 }
@@ -125,20 +136,78 @@ func New(log sdkLogger.KairosLogger) *Server {
 	return s
 }
 
-// Serve runs the server on stdio until the client disconnects or ctx is done.
+// Defaults for the HTTP transport. The port sits next to the web UI's :8080 on
+// the same live machine, and the path is the one MCP clients assume.
+const (
+	DefaultListenAddress = ":8090"
+	Path                 = "/mcp"
+)
+
+// Handler returns the MCP server as an http.Handler, so it can be mounted on
+// the installer's own mux next to the web UI.
 //
-// Only a failure to start is an error. Every session ends with the client
-// closing the stream, which the transport reports as an error of its own, so
-// that one is logged rather than returned: a caller cannot tell "the agent is
-// done" from "the installer is broken" if both come back the same way.
-func Serve(ctx context.Context, log sdkLogger.KairosLogger) error {
-	session, err := New(log).MCPServer().Connect(ctx, &mcp.StdioTransport{}, nil)
+// One Server backs every session. The "one install per boot" guard is held on
+// it, so reconnecting does not hand a client a second install.
+func Handler(log sdkLogger.KairosLogger) http.Handler {
+	return handlerFor(New(log))
+}
+
+func handlerFor(s *Server) http.Handler {
+	srv := s.MCPServer()
+
+	h := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return srv },
+		// The zerolog logger is an io.Writer, so the SDK's transport logging
+		// lands in the installer log rather than on the TUI's terminal.
+		&mcp.StreamableHTTPOptions{Logger: slog.New(slog.NewTextHandler(s.log.Logger, nil))},
+	)
+
+	// The installer listens on a machine whose browser a person is also using,
+	// so a page they visit must not be able to POST an install to it.
+	return http.NewCrossOriginProtection().Handler(h)
+}
+
+// ListenAndServe serves the installer over MCP on addr until ctx is done.
+//
+// A client hanging up is not an error: the installer keeps listening for the
+// next one. Only failing to bind, or the listener itself dying, comes back.
+func ListenAndServe(ctx context.Context, log sdkLogger.KairosLogger, addr string) error {
+	mux := http.NewServeMux()
+	mux.Handle(Path, Handler(log))
+
+	srv := &http.Server{
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		// Deliberately no read or write timeout: install streams progress
+		// events for as long as the install takes, and either one would cut
+		// the stream off part-way through writing a disk.
+		ErrorLog: stdlog.New(log.Logger, "mcp: ", 0),
+	}
+
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
 
-	if err := session.Wait(); err != nil {
-		log.Logger.Info().Err(err).Msg("MCP session ended")
+	log.Logger.Info().Str("address", ln.Addr().String()).Str("path", Path).Msg("MCP server listening")
+
+	done := make(chan struct{})
+	defer close(done)
+
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-done:
+			return
+		}
+
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutdownCtx)
+	}()
+
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
 	}
 
 	return nil
