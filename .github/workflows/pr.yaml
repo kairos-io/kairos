@@ -27,7 +27,17 @@ name: PR
 # the codeql-flagged "pwn request" attack surface real.
 
 on:
-  pull_request_target:
+  # TEMPORARY: revert before merging ci/cncf-runners.
+  # pull_request_target resolves the workflow files (including the
+  # reusable ones invoked below) against the BASE ref, which means
+  # this branch's runs-on flip is never loaded when the PR runs.
+  # Flipping to pull_request for the duration of the validation so
+  # GitHub picks up the PR head's manifests. Same-repo PRs still
+  # get secrets under pull_request, which is what the downstream
+  # image-push and encryption tests need. Fork PRs would lose
+  # secrets under this trigger, so restoring pull_request_target
+  # is a prerequisite for merging.
+  pull_request:
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
