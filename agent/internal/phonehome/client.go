@@ -284,18 +284,16 @@ func (c *Client) Run(ctx context.Context) error {
 
 	// Retry registration with backoff until successful or context cancelled
 	regBackoff := c.cfg.ReconnectBackoff
+	regDelay := retry.Exponential(regBackoff, MaxReconnectBackoff)
 	regErr := retry.Do(func() error {
 		return c.Register(ctx)
-	},
-		retry.WithUnlimitedAttempts(),
-		retry.WithExponentialBackoff(regBackoff),
-		retry.WithMaxDelay(MaxReconnectBackoff),
-		retry.WithContext(ctx),
-		retry.WithOnRetry(func(n uint, err error) {
-			d := retry.ExponentialDelay(regBackoff, n, MaxReconnectBackoff)
-			c.logger.Warnf("registration failed: %v, retrying in %s", err, d)
-		}),
-	)
+	}, retry.Config{
+		Ctx:   ctx,
+		Delay: regDelay,
+		OnRetry: func(n uint, err error) {
+			c.logger.Warnf("registration failed: %v, retrying in %s", err, regDelay(n))
+		},
+	})
 	if regErr != nil {
 		// Only ctx being done can end an unlimited-attempts retry loop early.
 		return nil
@@ -306,6 +304,7 @@ func (c *Client) Run(ctx context.Context) error {
 	// the loop's only exit is ctx being done -- so the retried func reports
 	// every non-cancellation return as a failure to keep retry.Do retrying.
 	backoff := c.cfg.ReconnectBackoff
+	reconnectDelay := retry.Exponential(backoff, MaxReconnectBackoff)
 	_ = retry.Do(func() error {
 		err := c.Connect(ctx)
 		if ctx.Err() != nil {
@@ -315,19 +314,16 @@ func (c *Client) Run(ctx context.Context) error {
 			return err
 		}
 		return errReconnect
-	},
-		retry.WithUnlimitedAttempts(),
-		retry.WithExponentialBackoff(backoff),
-		retry.WithMaxDelay(MaxReconnectBackoff),
-		retry.WithContext(ctx),
-		retry.WithOnRetry(func(n uint, err error) {
+	}, retry.Config{
+		Ctx:   ctx,
+		Delay: reconnectDelay,
+		OnRetry: func(n uint, err error) {
 			if errors.Is(err, errReconnect) {
 				return
 			}
-			d := retry.ExponentialDelay(backoff, n, MaxReconnectBackoff)
-			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, d)
-		}),
-	)
+			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, reconnectDelay(n))
+		},
+	})
 	return nil
 }
 

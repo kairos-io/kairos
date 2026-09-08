@@ -586,7 +586,7 @@ func (s *State) UKIMountLiveCd(g *herd.Graph, opts ...herd.OpOption) error {
 			out, _ := internalUtils.CommandWithPath("ls -ltra /dev/disk/by-label/")
 			internalUtils.KLog.Logger.Debug().Str("out", out).Msg("contents of /dev/disk/by-label/")
 			return statErr
-		}, retry.WithAttempts(5), retry.WithLinearBackoffFromZero(1*time.Second))
+		}, retry.Config{Attempts: 5, Delay: retry.LinearFromZero(1*time.Second, 0)})
 
 		// Fallback to try to get the /dev/sr0 device directly, no retry as that wont take time to appear
 		if cdrom == "" {

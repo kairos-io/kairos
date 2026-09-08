@@ -104,7 +104,7 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 		}
 		attempt++
 		return rerr
-	}, retry.WithAttempts(5), retry.WithLinearBackoffFromZero(1*time.Second))
+	}, retry.Config{Attempts: 5, Delay: retry.LinearFromZero(1*time.Second, 0)})
 
 	err = disk.ReReadPartitionTable()
 	if err != nil {
