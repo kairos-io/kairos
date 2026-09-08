@@ -158,7 +158,7 @@ users:
 		})
 
 		By("checking no selinux vars in the OEM grubenv", func() {
-			out, err := vm.Sudo("grep selinux /oem/grubenv || true")
+			out, err := vm.Sudo("grep selinux /oem/grubenv 2>/dev/null || true")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).To(BeEmpty())
 		})
