@@ -12,11 +12,21 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/mudler/go-pluggable"
+)
+
+// unlockPartitionAttempts and unlockPartitionBackoffUnit are shared by all
+// three PartitionEncryptor implementations' unlockPartition: up to 10 tries,
+// linear backoff of attempt-index seconds (0s, 1s, 2s, ... up to 9s) between
+// them.
+const (
+	unlockPartitionAttempts    = 10
+	unlockPartitionBackoffUnit = 1 * time.Second
 )
 
 // PartitionEncryptor defines the interface for encrypting and decrypting partitions.
@@ -65,26 +75,24 @@ func (e *RemoteKMSEncryptor) Unlock(partitions []string) error {
 }
 
 func (e *RemoteKMSEncryptor) unlockPartition(partitionLabel string) error {
-	var lastErr error
-
-	for attempt := 0; attempt < 10; attempt++ {
+	attempt := 0
+	err := retry.Do(func() error {
 		if attempt > 0 {
 			e.logger.Logger.Info().
 				Str("partition", partitionLabel).
 				Int("attempt", attempt).
 				Msg("Retrying unlock")
-			time.Sleep(time.Duration(attempt) * time.Second)
 		}
+		attempt++
 
 		// Find partition information
 		info, err := findPartitionByLabel(partitionLabel)
 		if err != nil {
-			lastErr = err
 			e.logger.Logger.Debug().
 				Str("partition", partitionLabel).
 				Err(err).
 				Msg("Failed to find partition, will retry")
-			continue
+			return err
 		}
 
 		// If partition is already unlocked, we're done
@@ -97,22 +105,22 @@ func (e *RemoteKMSEncryptor) unlockPartition(partitionLabel string) error {
 		// Get passphrase from remote KMS
 		pass, err := e.getPasswordFromChallenger(info)
 		if err != nil {
-			lastErr = fmt.Errorf("failed to get password: %w", err)
+			err = fmt.Errorf("failed to get password: %w", err)
 			e.logger.Logger.Warn().
 				Str("partition", partitionLabel).
-				Err(lastErr).
+				Err(err).
 				Msg("Failed to get password, will retry")
-			continue
+			return err
 		}
 
 		err = luksUnlock(info.Path, info.Name, pass, &e.logger)
 		if err != nil {
-			lastErr = fmt.Errorf("unlock failed: %w", err)
+			err = fmt.Errorf("unlock failed: %w", err)
 			e.logger.Logger.Warn().
 				Str("partition", partitionLabel).
-				Err(lastErr).
+				Err(err).
 				Msg("Unlock failed, will retry")
-			continue
+			return err
 		}
 
 		// Verify the partition is now visible
@@ -124,10 +132,13 @@ func (e *RemoteKMSEncryptor) unlockPartition(partitionLabel string) error {
 			return nil
 		}
 
-		lastErr = fmt.Errorf("partition unlocked but not visible")
-	}
+		return fmt.Errorf("partition unlocked but not visible")
+	}, retry.WithAttempts(unlockPartitionAttempts), retry.WithLinearBackoff(unlockPartitionBackoffUnit), retry.WithLastErrorOnly(true))
 
-	return fmt.Errorf("failed after 10 attempts: %w", lastErr)
+	if err != nil {
+		return fmt.Errorf("failed after %d attempts: %w", unlockPartitionAttempts, err)
+	}
+	return nil
 }
 
 func (e *RemoteKMSEncryptor) Name() string {
@@ -324,26 +335,24 @@ func (e *TPMWithPCREncryptor) Unlock(partitions []string) error {
 }
 
 func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
-	var lastErr error
-
-	for attempt := 0; attempt < 10; attempt++ {
+	attempt := 0
+	err := retry.Do(func() error {
 		if attempt > 0 {
 			e.logger.Logger.Info().
 				Str("partition", partitionLabel).
 				Int("attempt", attempt).
 				Msg("Retrying unlock")
-			time.Sleep(time.Duration(attempt) * time.Second)
 		}
+		attempt++
 
 		// Find partition information
 		info, err := findPartitionByLabel(partitionLabel)
 		if err != nil {
-			lastErr = err
 			e.logger.Logger.Debug().
 				Str("partition", partitionLabel).
 				Err(err).
 				Msg("Failed to find partition, will retry")
-			continue
+			return err
 		}
 
 		// If partition is already unlocked, we're done
@@ -354,12 +363,12 @@ func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
 		// Attempt to unlock with TPM
 		out, err := utils.SH(fmt.Sprintf("/usr/lib/systemd/systemd-cryptsetup attach %s %s - tpm2-device=auto", info.Name, info.Path))
 		if err != nil {
-			lastErr = fmt.Errorf("TPM unlock failed: %w (output: %s)", err, out)
+			err = fmt.Errorf("TPM unlock failed: %w (output: %s)", err, out)
 			e.logger.Logger.Warn().
 				Str("partition", partitionLabel).
-				Err(lastErr).
+				Err(err).
 				Msg("TPM unlock failed, will retry")
-			continue
+			return err
 		}
 
 		// Verify the partition is now visible
@@ -371,10 +380,13 @@ func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
 			return nil
 		}
 
-		lastErr = fmt.Errorf("partition unlocked but not visible")
-	}
+		return fmt.Errorf("partition unlocked but not visible")
+	}, retry.WithAttempts(unlockPartitionAttempts), retry.WithLinearBackoff(unlockPartitionBackoffUnit), retry.WithLastErrorOnly(true))
 
-	return fmt.Errorf("failed after 10 attempts: %w", lastErr)
+	if err != nil {
+		return fmt.Errorf("failed after %d attempts: %w", unlockPartitionAttempts, err)
+	}
+	return nil
 }
 
 func (e *TPMWithPCREncryptor) Name() string {
@@ -446,26 +458,24 @@ func (e *LocalTPMNVEncryptor) Unlock(partitions []string) error {
 }
 
 func (e *LocalTPMNVEncryptor) unlockPartition(partitionLabel string) error {
-	var lastErr error
-
-	for attempt := 0; attempt < 10; attempt++ {
+	attempt := 0
+	err := retry.Do(func() error {
 		if attempt > 0 {
 			e.logger.Logger.Info().
 				Str("partition", partitionLabel).
 				Int("attempt", attempt).
 				Msg("Retrying unlock")
-			time.Sleep(time.Duration(attempt) * time.Second)
 		}
+		attempt++
 
 		// Find partition information
 		info, err := findPartitionByLabel(partitionLabel)
 		if err != nil {
-			lastErr = err
 			e.logger.Logger.Debug().
 				Str("partition", partitionLabel).
 				Err(err).
 				Msg("Failed to find partition, will retry")
-			continue
+			return err
 		}
 
 		// If partition is already unlocked, we're done
@@ -488,23 +498,23 @@ func (e *LocalTPMNVEncryptor) unlockPartition(partitionLabel string) error {
 		// Get passphrase from local TPM NV memory (not from remote)
 		passphrase, err := getOrCreateLocalTPMPassphrase(nvIndex, cIndex, tpmDevice)
 		if err != nil {
-			lastErr = fmt.Errorf("failed to get passphrase from local TPM: %w", err)
+			err = fmt.Errorf("failed to get passphrase from local TPM: %w", err)
 			e.logger.Logger.Warn().
 				Str("partition", partitionLabel).
-				Err(lastErr).
+				Err(err).
 				Msg("Failed to get local TPM passphrase, will retry")
-			continue
+			return err
 		}
 
 		// Unlock directly with the local passphrase
 		err = luksUnlock(info.Path, info.Name, passphrase, &e.logger)
 		if err != nil {
-			lastErr = fmt.Errorf("unlock failed: %w", err)
+			err = fmt.Errorf("unlock failed: %w", err)
 			e.logger.Logger.Warn().
 				Str("partition", partitionLabel).
-				Err(lastErr).
+				Err(err).
 				Msg("Unlock failed, will retry")
-			continue
+			return err
 		}
 
 		// Verify the partition is now visible
@@ -516,10 +526,13 @@ func (e *LocalTPMNVEncryptor) unlockPartition(partitionLabel string) error {
 			return nil
 		}
 
-		lastErr = fmt.Errorf("partition unlocked but not visible")
-	}
+		return fmt.Errorf("partition unlocked but not visible")
+	}, retry.WithAttempts(unlockPartitionAttempts), retry.WithLinearBackoff(unlockPartitionBackoffUnit), retry.WithLastErrorOnly(true))
 
-	return fmt.Errorf("failed after 10 attempts: %w", lastErr)
+	if err != nil {
+		return fmt.Errorf("failed after %d attempts: %w", unlockPartitionAttempts, err)
+	}
+	return nil
 }
 
 func (e *LocalTPMNVEncryptor) Name() string {
