@@ -72,6 +72,36 @@ func TestOemFilesDir(t *testing.T) {
 			t.Fatal("oemFilesDir() error = nil, want an error for a spec with no partitions")
 		}
 	})
+
+	t.Run("also resolves the mountpoint from a UKI install spec", func(t *testing.T) {
+		// uki/install.go runs the same PostInstall hooks against
+		// *implSpec.InstallUkiSpec, not *implSpec.InstallSpec. Both satisfy
+		// sdkSpec.SharedInstallSpec, but only InstallSpec was exercised
+		// above; this pins the type assertion against the other concrete
+		// type production actually passes on a UKI install.
+		mounter := v1mock.NewErrorMounter()
+		if err := mounter.Mount("/dev/device1", constants.OEMDir, "auto", []string{}); err != nil {
+			t.Fatalf("Mount: %v", err)
+		}
+		c := sdkConfig.Config{Mounter: mounter, Logger: sdkLogger.NewNullLogger()}
+
+		ukiSpec := &implSpec.InstallUkiSpec{
+			Partitions: sdkPartitions.ElementalPartitions{
+				OEM: &sdkPartitions.Partition{
+					FilesystemLabel: constants.OEMLabel,
+					MountPoint:      constants.OEMDir,
+				},
+			},
+		}
+
+		dir, err := oemFilesDir(c, ukiSpec)
+		if err != nil {
+			t.Fatalf("oemFilesDir() error = %v", err)
+		}
+		if dir != constants.OEMDir {
+			t.Fatalf("oemFilesDir() = %q, want %q", dir, constants.OEMDir)
+		}
+	})
 }
 
 func TestOemFileName(t *testing.T) {
