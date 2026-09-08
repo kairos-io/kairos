@@ -19,6 +19,12 @@ import (
 // what the command did before the flag existed.
 const defaultPairingTimeout = 15 * time.Minute
 
+// sendPayload is a seam for tests. nodepair.Send cannot be driven to the
+// expired-context branch for real: it discards the error from n.Start(ctx)
+// (go-nodepair pairing.go:238), so with a dead context it may return a ledger
+// error instead of the nil this code has to cope with.
+var sendPayload = nodepair.Send
+
 // RegisterCMD builds the register command under the given tool name, which is
 // only used to render usage text so the examples name whatever entrypoint the
 // reader actually reached this command through.
@@ -138,7 +144,7 @@ func register(loglevel, arg, configFile, device string, reboot, poweroff bool, t
 		config["poweroff"] = ""
 	}
 
-	err := nodepair.Send(
+	err := sendPayload(
 		ctx,
 		config,
 		nodepair.WithReader(qr.Reader),
