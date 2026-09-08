@@ -52,37 +52,22 @@ func testInstall(cloudConfig string, vm VM) string { //, actual interface{}, m t
 	return out
 }
 
-// configURLMarkerPath is written only by the payload startConfigURLServer
-// serves. Nothing in the base image, the ISO, or the inline cloud-config of
-// the config_url cells touches it, so its presence is evidence that the
-// remote payload was fetched, merged and run, and its absence is evidence
-// that it was not.
+// configURLMarkerPath is written only by the payload the test server serves,
+// so its presence proves the remote config was fetched, merged and run.
 const configURLMarkerPath = "/run/kairos-config-url-applied"
 
 // configURLMarkerContent is the marker body. A fixed string rather than a
 // bare file so a stray empty file cannot pass the assertion.
 const configURLMarkerContent = "config-url-payload-applied"
 
-// configURLGuestHost is the QEMU user-net (slirp) gateway. The guest reaches
-// services listening on the test host through it, the same way the
-// insecure-registry cell reaches the registry container.
+// configURLGuestHost is the QEMU user-net (slirp) gateway, through which the
+// guest reaches services listening on the test host.
 const configURLGuestHost = "10.0.2.2"
 
 // configURLPayload is the remote cloud-config the reachable cell points at.
-//
-// The #cloud-config header is load-bearing: sdk/collector.fetchRemoteConfig
-// runs HasValidHeader over the response body and, if it does not match,
-// discards the payload and returns an empty config with a nil error. A
-// header-less remote config is therefore a silent no-op. The gist this cell
-// used to point at (Itxaka/c94e42bd52a67e2c9bffd11b8e633e38) starts at
-// "stages:" with no header, so nothing it declared was ever applied and the
-// old "boot: active_boot" assertion could not tell.
-//
-// The stage is "network" on purpose. cos-setup-network.service is
-// After=network-online.target, so it is the first stage guaranteed to run
-// with the network up. The earlier "fs" stage runs Before=sysinit.target with
-// no network dependency at all and its fetch can fail quietly, which would
-// make this cell flaky rather than meaningful.
+// The #cloud-config header is required or fetchRemoteConfig drops the body,
+// and the "network" stage is the first one guaranteed to run with the network
+// up.
 var configURLPayload = fmt.Sprintf(`#cloud-config
 stages:
   network:
@@ -100,9 +85,8 @@ type configURLServer struct {
 }
 
 // startConfigURLServer binds a payload server on a free port on all
-// interfaces. httptest's own listener is loopback-only; the guest arrives
-// through the slirp gateway, so the listener has to accept on 0.0.0.0.
-// Fails the current spec if the listener cannot be opened.
+// interfaces, because httptest's own listener is loopback-only and the guest
+// arrives through the slirp gateway.
 func startConfigURLServer() *configURLServer {
 	GinkgoHelper()
 
@@ -327,11 +311,8 @@ users:
 					return out
 				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("boot: active_boot"))
 
-				// The state check above says the machine booted, not that the
-				// remote config was ever merged. The payload writes a marker
-				// from a stage nothing else in this cell declares, so the
-				// marker existing is only explainable by the fetch and the
-				// merge both having happened.
+				// The state check above only says the machine booted, not that
+				// the remote config was merged.
 				By("Checking the remote payload was applied", func() {
 					Eventually(func() string {
 						out, _ := vm.Sudo("cat " + configURLMarkerPath)
@@ -340,9 +321,8 @@ users:
 						"the config_url payload was not applied: %s is missing", configURLMarkerPath)
 				})
 
-				// And the server really was asked for it, which separates "the
-				// guest applied our payload" from "the guest already had a
-				// marker lying around".
+				// Separates "the guest applied our payload" from "the guest
+				// already had a marker lying around".
 				Expect(payloadServer.Hits()).To(BeNumerically(">", 0),
 					"the guest never fetched the config_url payload")
 			})
@@ -364,9 +344,8 @@ users:
 					return out
 				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring("boot: active_boot"))
 
-				// The counterpart of the assertion above. Without this the two
-				// cells pass on identical evidence and cannot tell a payload
-				// that was applied from one that was silently dropped.
+				// Counterpart of the assertion above: without it both cells
+				// pass on identical evidence.
 				By("Checking no payload was applied", func() {
 					out, _ := vm.Sudo("test -e " + configURLMarkerPath + " && echo present || echo absent")
 					Expect(out).To(ContainSubstring("absent"),
