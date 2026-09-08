@@ -231,11 +231,23 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
-      - name: Block all traffic to metadata ip  # For cloud runners, the metadata ip can interact with our test machines
+      - name: Block guest-VM traffic to the host's cloud metadata ip
+        # Keeps our nested test VMs from reaching 169.254.169.254 on
+        # the runner host, where a cloud provider typically exposes
+        # IAM credentials and other host-scoped metadata. Only relevant
+        # on self-hosted runners that live on cloud VMs.
+        #
+        # The rules go on FORWARD, not INPUT/OUTPUT, on purpose. On
+        # some clouds (OCI, where the CNCF pool lives) 169.254.169.254
+        # is also the DHCP-provided DNS resolver; an INPUT/OUTPUT drop
+        # takes the host's own DNS with it and every later apt-get in
+        # this job fails to resolve. FORWARD only affects traffic that
+        # the host is routing between interfaces, which is exactly the
+        # guest-to-metadata path we care about.
         if: runner.environment == 'self-hosted'
         run: |
-          sudo iptables -I INPUT -s 169.254.169.254 -j DROP
-          sudo iptables -I OUTPUT -d 169.254.169.254 -j DROP
+          sudo iptables -I FORWARD -s 169.254.169.254 -j DROP
+          sudo iptables -I FORWARD -d 169.254.169.254 -j DROP
       - name: Enable KVM group perms
         run: |
           sudo apt-get update
