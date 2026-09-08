@@ -33,6 +33,9 @@ on:
       - 'scripts/prepare-kairos-init-binaries.sh'
       - 'osv-scanner.toml'
       - '.github/workflows/release-scan.yml'
+      # TEMPORARY: revert before merging ci/cncf-runners.
+      # Exercises the runs-on flip on this PR.
+      - '.github/workflows/**'
 
 permissions:
   contents: read

@@ -4,6 +4,9 @@ on:
   push:
     paths:
       - 'examples/builds/**'
+  # TEMPORARY: revert before merging ci/cncf-runners.
+  # Exercises the runs-on flip on this PR.
+  pull_request:
 
 # This workflow only checks out code and builds a Dockerfile locally
 # (push: is not set on docker/build-push-action, so nothing is
