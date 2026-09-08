@@ -296,18 +296,16 @@ func (c *Client) Run(ctx context.Context) error {
 
 	// Retry registration with backoff until successful or context cancelled
 	regBackoff := c.cfg.ReconnectBackoff
+	regDelay := retry.Exponential(regBackoff, MaxReconnectBackoff)
 	regErr := retry.Do(func() error {
 		return c.Register(ctx)
-	},
-		retry.WithUnlimitedAttempts(),
-		retry.WithExponentialBackoff(regBackoff),
-		retry.WithMaxDelay(MaxReconnectBackoff),
-		retry.WithContext(ctx),
-		retry.WithOnRetry(func(n uint, err error) {
-			d := retry.ExponentialDelay(regBackoff, n, MaxReconnectBackoff)
-			c.logger.Warnf("registration failed: %v, retrying in %s", err, d)
-		}),
-	)
+	}, retry.Config{
+		Ctx:   ctx,
+		Delay: regDelay,
+		OnRetry: func(n uint, err error) {
+			c.logger.Warnf("registration failed: %v, retrying in %s", err, regDelay(n))
+		},
+	})
 	if regErr != nil {
 		// Only ctx being done can end an unlimited-attempts retry loop early.
 		return nil

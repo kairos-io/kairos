@@ -105,7 +105,7 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 			attempt++
 		}
 		return rerr
-	}, retry.WithAttempts(5), retry.WithLinearBackoff(1*time.Second), retry.WithLastErrorOnly(true))
+	}, retry.Config{Attempts: 5, Delay: retry.Linear(1*time.Second, 0)})
 	if err != nil {
 		e.config.Logger.Errorf("Reread table: %s", err)
 		return err
