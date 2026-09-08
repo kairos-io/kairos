@@ -94,6 +94,15 @@ The immutable rootfs can be configured with the following kernel parameters:
 
 * `rd.immucore.uki`: Enables UKI booting
 
+* `rd.immucore.break=<step>`: Stops the boot right before `<step>` and hands the
+  console to an interactive shell, like dracut's `rd.break`. The boot resumes
+  when that shell exits, so this is for looking around mid-boot, not for
+  recovering from a failure (that shell still comes up on its own). Valid values
+  are the step names shown in the DAG diagrams below, e.g.
+  `rd.immucore.break=mount-root` or `rd.immucore.break=uki-pivot-to-sysroot`.
+  Several steps can be given comma-separated (`rd.immucore.break=load-config,mount-root`)
+  or by repeating the stanza. A name that matches no step is ignored.
+
 * `rd.immucore.sysrootwait=<seconds>`: Waits for the sysroot to be mounted up to <seconds> before continuing with the boot process. This is useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready. Sometimes dracut can be really slow and the default 1 minute of waiting is not enough. In those cases you can increase this value to wait more time. Defaults to 60s.
 
 ### In-RAM boot (`kairos.ram.*`)
