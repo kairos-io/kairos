@@ -71,6 +71,42 @@ users:
 				Expect(config.HasHeader()).To(BeTrue())
 			})
 		})
+
+		Context("with install.oem_files nested under the root config", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo
+      content: "#cloud-config"`
+			})
+
+			It("is successful", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+			})
+		})
+
+		Context("with an install.oem_files entry missing its content", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo`
+			})
+
+			It("errors", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("content"))
+			})
+		})
 	})
 
 	Context("ValidateSemantics", func() {

@@ -15,6 +15,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
@@ -289,6 +290,108 @@ var _ = Describe("Hooks", func() {
 
 		It("names the stage first-boot", func() {
 			Expect(cnst.FirstBootHook).To(Equal("first-boot"))
+		})
+	})
+
+	Context("OEMFiles", func() {
+		BeforeEach(func() {
+			runner = v1mock.NewFakeRunner()
+			syscallMock = &v1mock.FakeSyscall{}
+			mounter = v1mock.NewErrorMounter()
+			client = &v1mock.FakeHTTPClient{}
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+
+			cloudInit = &v1mock.FakeCloudInitRunner{}
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithRunner(runner),
+				config.WithLogger(logger),
+				config.WithMounter(mounter),
+				config.WithSyscall(syscallMock),
+				config.WithClient(client),
+				config.WithCloudInitRunner(cloudInit),
+			)
+			cfg.Collector = collector.Config{}
+			// There is no COS_OEM partition to find in a unit test, so the
+			// hook always takes the fallback path below; that is the branch
+			// worth covering here.
+			cfg.Install = &sdkInstall.Install{}
+		})
+		AfterEach(func() {
+			cleanup()
+		})
+
+		It("does nothing when install.oem_files is empty", func() {
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+		})
+
+		It("writes the configured files under /usr/local/cloud-config when there is no OEM partition", func() {
+			err = fsutils.MkdirAll(fs, "/usr/local", os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
+				{Name: "foo", Content: "#cloud-config\nfoo: bar\n"},
+				{Name: "bar.yaml", Content: "#cloud-config\nbar: baz\n"},
+			}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+
+			content, err := fs.ReadFile("/usr/local/cloud-config/foo.yaml")
+			Expect(err).Should(BeNil())
+			Expect(string(content)).Should(Equal("#cloud-config\nfoo: bar\n"))
+
+			info, err := fs.Stat("/usr/local/cloud-config/foo.yaml")
+			Expect(err).Should(BeNil())
+			Expect(info.Mode().Perm()).Should(Equal(os.FileMode(0400)))
+
+			content, err = fs.ReadFile("/usr/local/cloud-config/bar.yaml")
+			Expect(err).Should(BeNil())
+			Expect(string(content)).Should(Equal("#cloud-config\nbar: baz\n"))
+		})
+
+		It("falls back to /etc/kairos when /usr/local is not there either", func() {
+			err = fsutils.MkdirAll(fs, "/etc", os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+
+			content, err := fs.ReadFile("/etc/kairos/foo.yaml")
+			Expect(err).Should(BeNil())
+			Expect(string(content)).Should(Equal("hello"))
+		})
+
+		It("errors when no cloud-config directory is available at all", func() {
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, nil)
+			Expect(err).ShouldNot(BeNil())
+		})
+
+		It("rejects a bad name before writing anything, leaving earlier entries unwritten", func() {
+			err = fsutils.MkdirAll(fs, "/usr/local", os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
+				{Name: "good", Content: "hello"},
+				{Name: "../evil", Content: "hello"},
+			}
+
+			oemFiles := hook.OEMFiles{}
+			err = oemFiles.Run(*cfg, nil)
+			Expect(err).ShouldNot(BeNil())
+
+			_, err = fs.Stat("/usr/local/cloud-config/good.yaml")
+			Expect(err).ShouldNot(BeNil())
 		})
 	})
 })
