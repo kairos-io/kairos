@@ -10,6 +10,7 @@ import (
 	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	implSpec "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
@@ -294,6 +295,8 @@ var _ = Describe("Hooks", func() {
 	})
 
 	Context("OEMFiles", func() {
+		var installSpec *implSpec.InstallSpec
+
 		BeforeEach(func() {
 			runner = v1mock.NewFakeRunner()
 			syscallMock = &v1mock.FakeSyscall{}
@@ -316,10 +319,23 @@ var _ = Describe("Hooks", func() {
 				config.WithCloudInitRunner(cloudInit),
 			)
 			cfg.Collector = collector.Config{}
-			// There is no COS_OEM partition to find in a unit test, so the
-			// hook always takes the fallback path below; that is the branch
-			// worth covering here.
 			cfg.Install = &sdkInstall.Install{}
+
+			// The state the installer is in when it runs the PostInstall
+			// hooks: every partition of the spec is mounted, OEM included.
+			installSpec = &implSpec.InstallSpec{
+				Partitions: sdkPartitions.ElementalPartitions{
+					OEM: &sdkPartitions.Partition{
+						FilesystemLabel: cnst.OEMLabel,
+						Path:            "/dev/device1",
+						MountPoint:      cnst.OEMDir,
+					},
+				},
+			}
+			err = fsutils.MkdirAll(fs, cnst.OEMDir, os.ModeDir|os.ModePerm)
+			Expect(err).Should(BeNil())
+			err = mounter.Mount("/dev/device1", cnst.OEMDir, "auto", []string{})
+			Expect(err).Should(BeNil())
 		})
 		AfterEach(func() {
 			cleanup()
@@ -327,70 +343,69 @@ var _ = Describe("Hooks", func() {
 
 		It("does nothing when install.oem_files is empty", func() {
 			oemFiles := hook.OEMFiles{}
-			err = oemFiles.Run(*cfg, nil)
+			err = oemFiles.Run(*cfg, installSpec)
 			Expect(err).Should(BeNil())
 		})
 
-		It("writes the configured files under /usr/local/cloud-config when there is no OEM partition", func() {
-			err = fsutils.MkdirAll(fs, "/usr/local", os.ModeDir|os.ModePerm)
-			Expect(err).Should(BeNil())
+		It("writes the configured files into the mounted OEM partition", func() {
 			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
 				{Name: "foo", Content: "#cloud-config\nfoo: bar\n"},
 				{Name: "bar.yaml", Content: "#cloud-config\nbar: baz\n"},
 			}
 
 			oemFiles := hook.OEMFiles{}
-			err = oemFiles.Run(*cfg, nil)
+			err = oemFiles.Run(*cfg, installSpec)
 			Expect(err).Should(BeNil())
 
-			content, err := fs.ReadFile("/usr/local/cloud-config/foo.yaml")
+			content, err := fs.ReadFile(filepath.Join(cnst.OEMDir, "foo.yaml"))
 			Expect(err).Should(BeNil())
 			Expect(string(content)).Should(Equal("#cloud-config\nfoo: bar\n"))
 
-			info, err := fs.Stat("/usr/local/cloud-config/foo.yaml")
+			info, err := fs.Stat(filepath.Join(cnst.OEMDir, "foo.yaml"))
 			Expect(err).Should(BeNil())
 			Expect(info.Mode().Perm()).Should(Equal(os.FileMode(0400)))
 
-			content, err = fs.ReadFile("/usr/local/cloud-config/bar.yaml")
+			content, err = fs.ReadFile(filepath.Join(cnst.OEMDir, "bar.yaml"))
 			Expect(err).Should(BeNil())
 			Expect(string(content)).Should(Equal("#cloud-config\nbar: baz\n"))
 		})
 
-		It("falls back to /etc/kairos when /usr/local is not there either", func() {
-			err = fsutils.MkdirAll(fs, "/etc", os.ModeDir|os.ModePerm)
+		It("errors instead of writing anywhere else when OEM is not mounted", func() {
+			err = mounter.Unmount(cnst.OEMDir)
+			Expect(err).Should(BeNil())
+			err = fsutils.MkdirAll(fs, "/usr/local/cloud-config", os.ModeDir|os.ModePerm)
 			Expect(err).Should(BeNil())
 			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
 
 			oemFiles := hook.OEMFiles{}
-			err = oemFiles.Run(*cfg, nil)
-			Expect(err).Should(BeNil())
+			err = oemFiles.Run(*cfg, installSpec)
+			Expect(err).ShouldNot(BeNil())
 
-			content, err := fs.ReadFile("/etc/kairos/foo.yaml")
-			Expect(err).Should(BeNil())
-			Expect(string(content)).Should(Equal("hello"))
+			_, err = fs.Stat(filepath.Join(cnst.OEMDir, "foo.yaml"))
+			Expect(err).ShouldNot(BeNil())
+			_, err = fs.Stat("/usr/local/cloud-config/foo.yaml")
+			Expect(err).ShouldNot(BeNil())
 		})
 
-		It("errors when no cloud-config directory is available at all", func() {
+		It("errors when the spec has no OEM partition to write to", func() {
 			cfg.Install.OEMFiles = []sdkInstall.OEMFile{{Name: "foo", Content: "hello"}}
 
 			oemFiles := hook.OEMFiles{}
-			err = oemFiles.Run(*cfg, nil)
+			err = oemFiles.Run(*cfg, &implSpec.InstallSpec{})
 			Expect(err).ShouldNot(BeNil())
 		})
 
 		It("rejects a bad name before writing anything, leaving earlier entries unwritten", func() {
-			err = fsutils.MkdirAll(fs, "/usr/local", os.ModeDir|os.ModePerm)
-			Expect(err).Should(BeNil())
 			cfg.Install.OEMFiles = []sdkInstall.OEMFile{
 				{Name: "good", Content: "hello"},
 				{Name: "../evil", Content: "hello"},
 			}
 
 			oemFiles := hook.OEMFiles{}
-			err = oemFiles.Run(*cfg, nil)
+			err = oemFiles.Run(*cfg, installSpec)
 			Expect(err).ShouldNot(BeNil())
 
-			_, err = fs.Stat("/usr/local/cloud-config/good.yaml")
+			_, err = fs.Stat(filepath.Join(cnst.OEMDir, "good.yaml"))
 			Expect(err).ShouldNot(BeNil())
 		})
 	})

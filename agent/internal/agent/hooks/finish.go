@@ -12,8 +12,9 @@ type Finish struct{}
 func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 	var err error
 
-	// Drop the user cloud-config files first, while OEM is still plain: the
-	// encryption below snapshots and restores whatever is there.
+	// Drop the user cloud-config files first, while the installer still has
+	// OEM mounted: the encryption below unmounts it, and snapshots and
+	// restores whatever is there.
 	err = OEMFiles{}.Run(c, spec)
 	if err != nil {
 		c.Logger.Logger.Error().Err(err).Msg("could not write the oem files")
