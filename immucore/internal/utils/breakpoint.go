@@ -116,7 +116,7 @@ func spawnBreakpointShell(banner string) error {
 		out = tty
 		defer func() { _ = tty.Close() }()
 	} else {
-		KLog.Logger.Warn().Msg("Could not open a console for the breakpoint shell, using the inherited stdio")
+		KLog.Logger.Warn().Msg("No usable console for the breakpoint shell, falling back to the inherited stdio; if that stdin is not a terminal the shell exits at once and the boot resumes")
 	}
 
 	_, _ = fmt.Fprint(out, banner)
