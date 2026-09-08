@@ -80,9 +80,10 @@ func MountOPWithFstab(what, where, t string, options []string, timeout time.Dura
 		// Zero wait for the first attempt: the device is usually already
 		// there, and every caller pays this wait otherwise. Bounded only by
 		// ctx's timeout, not by an attempt count.
-		retry.WithUnlimitedAttempts(),
-		retry.WithFixedDelay(mountRetryInterval),
-		retry.WithContext(ctx),
+		retry.Config{
+			Delay: retry.Fixed(mountRetryInterval),
+			Ctx:   ctx,
+		},
 	)
 
 	if err != nil {

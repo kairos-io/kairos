@@ -480,11 +480,13 @@ func GetState() string {
 			}
 			return nil
 		},
-		retry.WithAttempts(10),
-		retry.WithFixedDelay(1*time.Second),
-		retry.WithOnRetry(func(n uint, _ error) {
-			KLog.Logger.Debug().Uint("try", n).Msg("Cannot get state label, retrying")
-		}),
+		retry.Config{
+			Attempts: 10,
+			Delay:    retry.Fixed(1 * time.Second),
+			OnRetry: func(n uint, _ error) {
+				KLog.Logger.Debug().Uint("try", n).Msg("Cannot get state label, retrying")
+			},
+		},
 	)
 	if err != nil {
 		KLog.Logger.Panic().Err(err).Msg("Could not get state label")

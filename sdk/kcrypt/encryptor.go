@@ -133,7 +133,7 @@ func (e *RemoteKMSEncryptor) unlockPartition(partitionLabel string) error {
 		}
 
 		return fmt.Errorf("partition unlocked but not visible")
-	}, retry.WithAttempts(unlockPartitionAttempts), retry.WithLinearBackoff(unlockPartitionBackoffUnit), retry.WithLastErrorOnly(true))
+	}, retry.Config{Attempts: unlockPartitionAttempts, Delay: retry.Linear(unlockPartitionBackoffUnit, 0)})
 
 	if err != nil {
 		return fmt.Errorf("failed after %d attempts: %w", unlockPartitionAttempts, err)
@@ -381,7 +381,7 @@ func (e *TPMWithPCREncryptor) unlockPartition(partitionLabel string) error {
 		}
 
 		return fmt.Errorf("partition unlocked but not visible")
-	}, retry.WithAttempts(unlockPartitionAttempts), retry.WithLinearBackoff(unlockPartitionBackoffUnit), retry.WithLastErrorOnly(true))
+	}, retry.Config{Attempts: unlockPartitionAttempts, Delay: retry.Linear(unlockPartitionBackoffUnit, 0)})
 
 	if err != nil {
 		return fmt.Errorf("failed after %d attempts: %w", unlockPartitionAttempts, err)
@@ -527,7 +527,7 @@ func (e *LocalTPMNVEncryptor) unlockPartition(partitionLabel string) error {
 		}
 
 		return fmt.Errorf("partition unlocked but not visible")
-	}, retry.WithAttempts(unlockPartitionAttempts), retry.WithLinearBackoff(unlockPartitionBackoffUnit), retry.WithLastErrorOnly(true))
+	}, retry.Config{Attempts: unlockPartitionAttempts, Delay: retry.Linear(unlockPartitionBackoffUnit, 0)})
 
 	if err != nil {
 		return fmt.Errorf("failed after %d attempts: %w", unlockPartitionAttempts, err)
