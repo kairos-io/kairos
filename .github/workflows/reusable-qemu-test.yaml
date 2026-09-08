@@ -237,15 +237,27 @@ jobs:
         # IAM credentials and other host-scoped metadata. Only relevant
         # on self-hosted runners that live on cloud VMs.
         #
-        # The rules go on FORWARD, not INPUT/OUTPUT, on purpose. On
-        # some clouds (OCI, where the CNCF pool lives) 169.254.169.254
-        # is also the DHCP-provided DNS resolver; an INPUT/OUTPUT drop
-        # takes the host's own DNS with it and every later apt-get in
-        # this job fails to resolve. FORWARD only affects traffic that
-        # the host is routing between interfaces, which is exactly the
-        # guest-to-metadata path we care about.
+        # The tests default to QEMU user-mode networking (slirp), where
+        # a guest's outbound packets appear on the host as OUTPUT from
+        # the qemu userspace process; the opt-in USE_BRIDGE_NETWORK path
+        # NAT's through virbr0 instead and shows up on FORWARD. Cover
+        # both so the block behaves the same regardless of the NIC mode
+        # a given test cell picks.
+        #
+        # On OCI (where the CNCF pool lives) 169.254.169.254 is also
+        # the DHCP-provided DNS resolver, so an OUTPUT drop takes the
+        # host's own DNS with it and every later apt-get fails to
+        # resolve archive.ubuntu.com. Repoint /etc/resolv.conf at a
+        # public resolver first when it is currently on 169.254.169.254;
+        # elsewhere the grep is a no-op and the block goes on unchanged.
         if: runner.environment == 'self-hosted'
         run: |
+          if grep -qE '^\s*nameserver\s+169\.254\.169\.254(\s|$)' /etc/resolv.conf; then
+            sudo rm -f /etc/resolv.conf
+            printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' | sudo tee /etc/resolv.conf > /dev/null
+          fi
+          sudo iptables -I INPUT   -s 169.254.169.254 -j DROP
+          sudo iptables -I OUTPUT  -d 169.254.169.254 -j DROP
           sudo iptables -I FORWARD -s 169.254.169.254 -j DROP
           sudo iptables -I FORWARD -d 169.254.169.254 -j DROP
       - name: Enable KVM group perms
