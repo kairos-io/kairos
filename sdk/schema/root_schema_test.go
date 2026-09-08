@@ -230,5 +230,26 @@ users:
 			})
 		})
 
+		Context("for the real RootSchema's install.oem_files description", func() {
+			var rootSchema string
+
+			BeforeEach(func() {
+				var genErr error
+				rootSchema, genErr = GenerateSchema(RootSchema{}, "")
+				Expect(genErr).ToNot(HaveOccurred())
+			})
+
+			It("no longer advertises the removed /usr/local/cloud-config fallback", func() {
+				// Regression guard for the stale-description bug: the fallback
+				// was deleted from the code (oemFilesDir errors out instead),
+				// but the published schema kept telling users about it.
+				Expect(rootSchema).NotTo(ContainSubstring("/usr/local/cloud-config"))
+			})
+
+			It("still names the OEM partition as the only destination", func() {
+				Expect(rootSchema).To(ContainSubstring("OEM partition"))
+			})
+		})
+
 	})
 })
