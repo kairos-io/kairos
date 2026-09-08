@@ -34,13 +34,34 @@ stages:
 
             [Service]
             Type=oneshot
-            ExecStart=/usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem /root /opt /srv
+            ExecStart=/usr/sbin/restorecon -Riv /etc /var
+            ExecStart=/usr/local/bin/selinux-relabel-persistent
             ExecStart=/usr/sbin/setenforce $MODE
             RemainAfterExit=yes
 
             [Install]
             WantedBy=multi-user.target
             EOF
+        - path: /usr/local/bin/selinux-relabel-persistent
+          permissions: 0755
+          owner: 0
+          group: 0
+          content: |
+            #!/bin/bash
+
+            set -eu
+
+            STAMP=/usr/local/.state/selinux/.kairos-selinux-relabeled
+            POLICY_DIR=/etc/selinux/targeted/policy
+
+            CUR=$(ls "$POLICY_DIR"/policy.[0-9]* 2>/dev/null | sed 's/.*policy\.//' | sort -n | tail -n1)
+            [ -n "$CUR" ] || exit 0
+            [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$CUR" ] || exit 0
+
+            /usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem /root /opt /srv
+
+            mkdir -p "$(dirname "$STAMP")"
+            echo "$CUR" > "$STAMP"
       commands:
         - /usr/local/bin/setup-selinux-relabel-unit
         - systemctl enable kairos-selinux-relabel
@@ -72,13 +93,47 @@ stages:
                 }
             ' /etc/fstab > "$TMP"
 
-            install -m 0644 -o root -g root --context=system_u:object_r:file_context_t:s0 "$TMP" "$SUBS"
+            [ -e /sys/fs/selinux/enforce ] || /usr/sbin/load_policy -i
 
-            if [ "$(getenforce 2>/dev/null || true)" = "Disabled" ]; then
-                /usr/sbin/load_policy -i
-            fi
+            install -m 0644 -o root -g root "$TMP" "$SUBS"
 
-            # Relabel the writable/final filesystem view before switch-root.
+            STAMP=/usr/local/.state/selinux/.kairos-selinux-relabeled
+            POLICY_DIR=/etc/selinux/targeted/policy
+            CUR=$(ls "$POLICY_DIR"/policy.[0-9]* 2>/dev/null | sed 's/.*policy\.//' | sort -n | tail -n1)
+            [ -n "$CUR" ] || exit 0
+            [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$CUR" ] || exit 0
+
             /usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem /root /opt /srv
+
+            mkdir -p "$(dirname "$STAMP")"
+            echo "$CUR" > "$STAMP"
       commands:
         - /usr/local/bin/fix-selinux-file-contexts
+    - name: "Align /etc/selinux/config with active SELinux state"
+      only_service_manager: "systemd"
+      files:
+        - path: /usr/local/bin/align-selinux-config
+          permissions: 0755
+          owner: 0
+          group: 0
+          content: |
+            #!/bin/bash
+
+            set -eu
+
+            CFG=/etc/selinux/config
+            [ -f "$CFG" ] || exit 0
+
+            if grep -q "selinux=1" /proc/cmdline; then
+                if grep -q "rd.cos.selinux=enforcing" /proc/cmdline; then
+                    MODE=enforcing
+                else
+                    MODE=permissive
+                fi
+            else
+                MODE=disabled
+            fi
+
+            sed -i "s/^SELINUX=.*/SELINUX=$MODE/" "$CFG"
+      commands:
+        - /usr/local/bin/align-selinux-config
