@@ -46,6 +46,7 @@ Each entry is an object with two required fields:
 
 5. **Application order**: Files in the OEM partition are applied in lexicographic (alphabetical) order by their final file name. This is independent of the order entries appear in the `oem_files` list. The order of application matters because standard cloud-config merge semantics apply: files processed later can extend or override settings from earlier files.
    - To control the order relative to other cloud-config files in `/oem` (such as Kairos-generated files like `10_ssh_hardening.yaml`, `10_user_custom_mounts.yaml`, and `99_phonehome_remote.yaml`), use a numeric prefix in your file name. For example: `05-custom-config.yaml` will be processed before `10_ssh_hardening.yaml`, and `15-overrides.yaml` will be processed after it.
+   - Avoid the names `90_custom.yaml`, `91_custom.yaml` and so on: the installer writes the cloud-config it was launched with into the OEM partition under those names before this hook runs, so reusing one silently replaces the installed system's own configuration, including its users and `ssh_authorized_keys`.
 
 ### Example: Multi-Stage Configuration
 
