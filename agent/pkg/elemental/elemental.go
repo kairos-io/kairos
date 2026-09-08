@@ -37,6 +37,7 @@ import (
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils/loop"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -82,20 +83,29 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 		return err
 	}
 
-	// Try to make the kernel re-read the partition table a couple of times
-	for i := 0; i < 5; i++ {
-		err = disk.ReReadPartitionTable()
-		if err == nil {
-			break
+	// Try to make the kernel re-read the partition table a couple of times.
+	//
+	// NOTE: this retry loop's own result is discarded -- whatever it decides
+	// (success or exhausted) is immediately overwritten by the unconditional
+	// disk.ReReadPartitionTable() call right after it, which is the one that
+	// actually determines err below. Kept as-is (pure refactor); tracked as
+	// a follow-up.
+	attempt := 0
+	_ = retry.Do(func() error {
+		rerr := disk.ReReadPartitionTable()
+		if rerr == nil {
+			return nil
 		}
-		e.config.Logger.Debugf("Reread table attempt %d failed: %s", i+1, err)
-		if i < 5-1 {
+		e.config.Logger.Debugf("Reread table attempt %d failed: %s", attempt+1, rerr)
+		if attempt < 5-1 {
+			// NOTE: pre-existing bug -- this always logs "5" instead of the
+			// actual per-attempt wait (attempt seconds).
 			e.config.Logger.Debugf("Waiting %d seconds before next attempt", 5)
 		}
-		// Wait a bit before retrying
-		time.Sleep(time.Duration(i) * time.Second)
+		attempt++
+		return rerr
+	}, retry.WithAttempts(5), retry.WithLinearBackoffFromZero(1*time.Second))
 
-	}
 	err = disk.ReReadPartitionTable()
 	if err != nil {
 		e.config.Logger.Errorf("Reread table: %s", err)
