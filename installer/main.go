@@ -20,8 +20,8 @@ func main() {
 	source := flag.String("source", "", "installation source (passed through to kairos-agent)")
 	collect := flag.Bool("collect-debug-bundle", false,
 		"collect a debug bundle non-interactively (no TUI), print its path, and exit")
-	serveMCP := flag.Bool("mcp", false,
-		"serve the installer over the Model Context Protocol on stdio instead of starting the TUI, so an agent can drive the installation")
+	mcpAddress := flag.String("mcp-address", mcp.DefaultListenAddress,
+		"address the Model Context Protocol server listens on, so an agent can drive the installation; empty disables it")
 	flag.Parse()
 
 	if *collect {
@@ -30,16 +30,20 @@ func main() {
 
 	logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", true, "/var/log/kairos/")
 
-	// The MCP server owns stdout: it is the transport. Nothing may print
-	// there, which is why this runs before the TUI is built and logs to the
-	// installer log like every other frontend.
-	if *serveMCP {
-		if err := mcp.Serve(context.Background(), logger); err != nil {
-			logger.Logger.Error().Err(err).Msg("MCP server stopped")
-			fmt.Fprintln(os.Stderr, "Error:", err)
-			os.Exit(1)
-		}
-		return
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// The MCP server is a frontend on the same install contract as the TUI, and
+	// runs alongside it the way the web UI does. It must never write to the
+	// terminal the TUI is drawing on, which is why it logs to the installer log.
+	if *mcpAddress != "" {
+		go func() {
+			if err := mcp.ListenAndServe(ctx, logger, *mcpAddress); err != nil {
+				// A port that will not bind leaves the TUI perfectly usable, so
+				// this is logged rather than taken as a reason to give up.
+				logger.Logger.Error().Err(err).Str("address", *mcpAddress).Msg("MCP server stopped")
+			}
+		}()
 	}
 
 	p := tea.NewProgram(tui.InitialModel(&logger, *source), tea.WithAltScreen())
