@@ -17,6 +17,7 @@ import (
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/mcp"
 	"github.com/kairos-io/kairos/v4/installer/internal/tui"
 	"github.com/kairos-io/kairos/v4/installer/internal/webui"
 )
@@ -32,6 +33,8 @@ func main() {
 		"collect a debug bundle non-interactively (no TUI), print its path, and exit")
 	noTUI := flag.Bool("no-tui", false,
 		"serve only the web UI, without the terminal installer, for boots that ask for an unattended install")
+	serveMCP := flag.Bool("mcp", false,
+		"serve the installer over the Model Context Protocol on stdio instead of starting the TUI, so an agent can drive the installation")
 	flag.Parse()
 
 	if *collect {
@@ -64,6 +67,18 @@ func main() {
 	}
 
 	logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", true, "/var/log/kairos/")
+
+	// The MCP server owns stdout: it is the transport. Nothing may print
+	// there, which is why this runs before the TUI and the web UI are built
+	// and logs to the installer log like every other frontend.
+	if *serveMCP {
+		if err := mcp.Serve(context.Background(), logger); err != nil {
+			logger.Logger.Error().Err(err).Msg("MCP server stopped")
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	// The web UI runs alongside the TUI so a user can install from either.
 	// It gets a file-backed logger because echo writes JSON to stdout by
