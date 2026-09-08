@@ -1,6 +1,9 @@
 package services
 
 import (
+	"strings"
+
+	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
 	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -71,7 +74,7 @@ supervise_daemon_args="--stdout /var/log/${name}.log --stderr /var/log/${name}.e
 # wins, so command_args set here replaces the default above. k3s' own openrc
 # script sources /etc/rancher/k3s/k3s.env the same way.
 set -o allexport
-if [ -f /etc/k0s/k0scontroller.env ]; then . /etc/k0s/k0scontroller.env; fi
+if [ -f @ENVFILE@ ]; then . @ENVFILE@; fi
 set +o allexport
 
 : "${rc_ulimit=-n 1048576 -u unlimited}"
@@ -94,7 +97,7 @@ supervise_daemon_args="--stdout /var/log/${name}.log --stderr /var/log/${name}.e
 # wins, so command_args set here replaces the default above. k3s' own openrc
 # script sources /etc/rancher/k3s/k3s.env the same way.
 set -o allexport
-if [ -f /etc/k0s/k0sworker.env ]; then . /etc/k0s/k0sworker.env; fi
+if [ -f @ENVFILE@ ]; then . @ENVFILE@; fi
 set +o allexport
 
 : "${rc_ulimit=-n 1048576 -u unlimited}"
@@ -105,6 +108,15 @@ depend() {
 	after firewall
 }`
 
+// k0sEnvFilePlaceholder marks where the openrc scripts source the file that
+// carries command_args. K0sServices fills it in from machine.K0sEnvUnit, the
+// same helper OverrideCmd writes to, so the two cannot drift (#2149).
+const k0sEnvFilePlaceholder = "@ENVFILE@"
+
+func k0sOpenrcScript(script, envFile string) string {
+	return strings.ReplaceAll(script, k0sEnvFilePlaceholder, envFile)
+}
+
 // K0s Services end here
 
 // K0sServices creates the k0s controller and worker services for openrc or systemd based systems.
@@ -112,7 +124,7 @@ func K0sServices(logger loggerpkg.KairosLogger) error {
 	if utils.IsOpenRCBased() {
 		controller, err := openrc.NewService(
 			openrc.WithName("k0scontroller"),
-			openrc.WithUnitContent(K0sControllerOpenrc),
+			openrc.WithUnitContent(k0sOpenrcScript(K0sControllerOpenrc, machine.K0sEnvUnit("k0scontroller"))),
 		)
 		if err != nil {
 			logger.Logger.Error().Err(err).Str("init", "openrc").Msg("Failed to create k0s controller service")
@@ -124,7 +136,7 @@ func K0sServices(logger loggerpkg.KairosLogger) error {
 		}
 		worker, err := openrc.NewService(
 			openrc.WithName("k0sworker"),
-			openrc.WithUnitContent(K0sWorkerOpenrc),
+			openrc.WithUnitContent(k0sOpenrcScript(K0sWorkerOpenrc, machine.K0sEnvUnit("k0sworker"))),
 		)
 
 		if err != nil {

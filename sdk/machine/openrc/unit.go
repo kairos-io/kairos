@@ -45,8 +45,11 @@ func WithUnitContent(n string) ServiceOpts {
 // arguments of a service without rewriting its script is to set command_args in
 // a file that the script sources. Which file that is belongs to the service:
 // k3s reads /etc/rancher/k3s/<unit>.env, k0s reads /etc/k0s/<unit>.env. Pass the
-// path the unit actually sources. Without it, OverrideCmd writes to openrc's own
-// /etc/conf.d/<name>.
+// path the unit actually sources.
+//
+// There is no useful default: openrc sources /etc/conf.d/<name> before the
+// script body runs, so a command_args written there is overwritten by the
+// script's own assignment. OverrideCmd fails instead.
 func WithEnvFile(n string) ServiceOpts {
 	return func(su *ServiceUnit) error {
 		su.envFile = n
@@ -74,13 +77,14 @@ func (s ServiceUnit) WriteUnit() error {
 	return nil
 }
 
-// EnvFile returns the file OverrideCmd writes command_args to.
+// EnvFile returns the file OverrideCmd writes command_args to, or an empty
+// string when the service has none.
 func (s ServiceUnit) EnvFile() string {
-	if s.envFile != "" {
-		return filepath.Join(s.rootdir, s.envFile)
+	if s.envFile == "" {
+		return ""
 	}
 
-	return filepath.Join(s.rootdir, fmt.Sprintf("/etc/conf.d/%s", s.name))
+	return filepath.Join(s.rootdir, s.envFile)
 }
 
 // OverrideCmd changes the arguments the service runs with.
@@ -96,11 +100,16 @@ func (s ServiceUnit) OverrideCmd(cmd string) error {
 		return fmt.Errorf("no command to override for service %s", s.name)
 	}
 
-	env := map[string]string{
-		"command_args": fmt.Sprintf("%s >>/var/log/%s.log 2>&1", strings.TrimSpace(args), s.name),
+	envFile := s.EnvFile()
+	if envFile == "" {
+		return fmt.Errorf("no env file configured for service %s", s.name)
 	}
 
-	return utils.WriteEnv(s.EnvFile(), env)
+	env := map[string]string{
+		"command_args": strings.TrimSpace(args),
+	}
+
+	return utils.WriteEnv(envFile, env)
 }
 
 func (s ServiceUnit) Start() error {

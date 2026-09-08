@@ -22,7 +22,7 @@ func TestOverrideCmd(t *testing.T) {
 			},
 			cmd:      "/usr/bin/k3s server --with-node-id",
 			wantFile: "/etc/rancher/k3s/k3s.env",
-			wantArgs: "server --with-node-id >>/var/log/k3s.log 2>&1",
+			wantArgs: "server --with-node-id",
 		},
 		{
 			name: "k0s controller, no k3s binary in sight",
@@ -32,28 +32,21 @@ func TestOverrideCmd(t *testing.T) {
 			},
 			cmd:      "/usr/bin/k0s controller --config /etc/k0s/k0s.yaml",
 			wantFile: "/etc/k0s/k0scontroller.env",
-			wantArgs: "controller --config /etc/k0s/k0s.yaml >>/var/log/k0scontroller.log 2>&1",
-		},
-		{
-			name:     "no env file falls back to openrc's conf.d",
-			opts:     []ServiceOpts{WithName("myservice")},
-			cmd:      "/usr/bin/myservice --flag",
-			wantFile: "/etc/conf.d/myservice",
-			wantArgs: "--flag >>/var/log/myservice.log 2>&1",
+			wantArgs: "controller --config /etc/k0s/k0s.yaml",
 		},
 		{
 			name:     "arguments repeating the binary path are left alone",
 			opts:     []ServiceOpts{WithName("k3s"), WithEnvFile("/etc/rancher/k3s/k3s.env")},
 			cmd:      "/usr/bin/k3s server --kubelet-arg=root-dir=/usr/bin/k3s",
 			wantFile: "/etc/rancher/k3s/k3s.env",
-			wantArgs: "server --kubelet-arg=root-dir=/usr/bin/k3s >>/var/log/k3s.log 2>&1",
+			wantArgs: "server --kubelet-arg=root-dir=/usr/bin/k3s",
 		},
 		{
 			name:     "a command with no arguments",
 			opts:     []ServiceOpts{WithName("k0sworker"), WithEnvFile("/etc/k0s/k0sworker.env")},
 			cmd:      "/usr/bin/k0s",
 			wantFile: "/etc/k0s/k0sworker.env",
-			wantArgs: " >>/var/log/k0sworker.log 2>&1",
+			wantArgs: "",
 		},
 	}
 
@@ -113,18 +106,35 @@ func TestOverrideCmdKeepsExistingEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reading the env file: %s", err)
 	}
-	want := "K0S_TOKEN=\"sometoken\"\ncommand_args=\"controller >>/var/log/k0scontroller.log 2>&1\"\n"
+	want := "K0S_TOKEN=\"sometoken\"\ncommand_args=\"controller\"\n"
 	if string(got) != want {
 		t.Errorf("env file content:\ngot  %q\nwant %q", string(got), want)
 	}
 }
 
 func TestOverrideCmdEmptyCommand(t *testing.T) {
-	s, err := NewService(WithRoot(t.TempDir()), WithName("k3s"))
+	s, err := NewService(WithRoot(t.TempDir()), WithName("k3s"), WithEnvFile("/etc/rancher/k3s/k3s.env"))
 	if err != nil {
 		t.Fatalf("NewService: %s", err)
 	}
 	if err := s.OverrideCmd("   "); err == nil {
 		t.Error("expected an error for an empty command, got none")
+	}
+}
+
+// openrc sources /etc/conf.d/<name> before the script body, so a command_args
+// written there is overwritten by the script's own assignment. Fail loudly
+// instead of writing a file that cannot take effect.
+func TestOverrideCmdWithoutEnvFile(t *testing.T) {
+	root := t.TempDir()
+	s, err := NewService(WithRoot(root), WithName("myservice"))
+	if err != nil {
+		t.Fatalf("NewService: %s", err)
+	}
+	if err := s.OverrideCmd("/usr/bin/myservice --flag"); err == nil {
+		t.Error("expected an error when no env file is configured, got none")
+	}
+	if _, err := os.Stat(filepath.Join(root, "/etc/conf.d/myservice")); !os.IsNotExist(err) {
+		t.Errorf("nothing should have been written to conf.d, got %v", err)
 	}
 }
