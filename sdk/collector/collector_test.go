@@ -627,6 +627,46 @@ info:
 				}))
 			})
 		})
+
+		Context("nil map on one side (e.g. an empty config file)", func() {
+			var a ConfigValues // nil, as produced by yaml.Unmarshal on an empty document
+			b := ConfigValues{"key": "value"}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"key": "value"}))
+			})
+		})
+
+		Context("nested value decoded as plain map[string]interface{} on both sides", func() {
+			// yaml.Unmarshal recreates ConfigValues at every nesting level, but
+			// parseReaders' json.Unmarshal fallback -- and any other caller that
+			// hands DeepMerge a value straight out of encoding/json -- only ever
+			// produces plain map[string]interface{}. A merge of two such nested
+			// maps used to panic with a failed type assertion to ConfigValues.
+			a := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner": 1,
+				},
+			}
+			b := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner2": 2,
+				},
+			}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{
+					"outer": ConfigValues{
+						"inner":  1,
+						"inner2": 2,
+					},
+				}))
+			})
+		})
 	})
 
 	Describe("Scan", func() {
