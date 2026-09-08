@@ -83,6 +83,19 @@ on:
         required: false
         default: false
 
+      suite_timeout:
+        description: |
+          ginkgo's suite timeout, as a Go duration.
+
+          Passed to ginkgo as --timeout. Without it ginkgo applies its own
+          default of 1h, which is invisible in the log and in this file
+          (kairos-io/kairos#4489). The default keeps today's effective
+          budget, now stated. Raise it for a caller only alongside per-step
+          ceilings that still fit inside it.
+        type: string
+        required: false
+        default: '60m'
+
 permissions:
   contents: read
   packages: read
@@ -91,6 +104,11 @@ jobs:
   test:
     runs-on: kvm
     name: ${{ inputs.test }}
+    # Backstop only. ginkgo's own --timeout below should always fire first,
+    # because it stops the suite with a progress report naming the step,
+    # whereas this kills the runner and leaves nothing to read. Without it
+    # the job is bounded only by GitHub's 6h default.
+    timeout-minutes: 120
     steps:
       - name: Split base image
         id: split
@@ -246,6 +264,7 @@ jobs:
           FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
           UKI_TEST: true
           TEST_LABEL: ${{ inputs.test }}
+          SUITE_TIMEOUT: ${{ inputs.suite_timeout }}
         run: |
           set -euo pipefail
           mkdir -p "$PWD/build"
@@ -261,7 +280,7 @@ jobs:
             export EXPECTED_SINGLE_ENTRY="testentry"
           fi
           cp tests/go.* .
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_LABEL" --fail-fast -r ./tests/
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "$SUITE_TIMEOUT" --label-filter "$TEST_LABEL" --fail-fast -r ./tests/
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         if: failure()
