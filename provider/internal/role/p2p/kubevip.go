@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	httpimpl "github.com/kairos-io/kairos/v4/agent/pkg/implementations/http"
 	"github.com/kairos-io/kairos/v4/provider/internal/assets"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/verify"
 	"github.com/kube-vip/kube-vip/pkg/kubevip"
 )
@@ -183,34 +185,30 @@ func downloadFromURL(url, where string) error {
 }
 
 // downloadVerifiedManifest fetches url and writes it to where only if the
-// response body's sha256 digest matches want. Unlike downloadFromURL, the
-// write is atomic (temp file in the same directory, then rename), so a
-// tampered or truncated response never appears at where — the kubelet
-// watches this directory, so a half-verified file landing there is as bad
-// as an unverified one. This mirrors the stream-hash-verify-rename pattern
+// response body's sha256 digest matches want. The write is atomic (temp file
+// in the same directory, then rename), so a tampered or truncated response
+// never appears at where — the kubelet watches this directory, so a
+// half-verified file landing there is as bad as an unverified one. This
+// mirrors the stream-hash-verify-rename pattern
 // sdk/utils/image.ExtractRawExtension uses for OCI raw extension downloads.
+//
+// The download itself goes through sdk/types/http.Client (via
+// verify.VerifiedDownload), the same download interface every other
+// download call site in this tree depends on; there is no logger threaded
+// through this call chain, so a null logger is used here the same way
+// agent/pkg/action/sysext.go does for its own GetURL call.
 func downloadVerifiedManifest(url, where string, want verify.SHA256Sum) error {
-	data, err := verify.VerifiedDownload(url, want)
-	if err != nil {
-		return err
-	}
-
 	dir := filepath.Dir(where)
 	temporary, err := os.CreateTemp(dir, "."+filepath.Base(where)+".*")
 	if err != nil {
 		return fmt.Errorf("create temporary file for %s: %w", where, err)
 	}
 	temporaryName := temporary.Name()
-	defer func() {
-		_ = temporary.Close()
-		_ = os.Remove(temporaryName)
-	}()
+	_ = temporary.Close()
+	defer func() { _ = os.Remove(temporaryName) }()
 
-	if _, err := temporary.Write(data); err != nil {
-		return fmt.Errorf("write %s: %w", where, err)
-	}
-	if err := temporary.Close(); err != nil {
-		return fmt.Errorf("write %s: %w", where, err)
+	if err := verify.VerifiedDownload(httpimpl.NewClient(), sdkLogger.NewNullLogger(), url, temporaryName, want); err != nil {
+		return err
 	}
 	if err := os.Rename(temporaryName, where); err != nil {
 		return fmt.Errorf("move verified manifest into %s: %w", where, err)
