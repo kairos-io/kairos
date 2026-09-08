@@ -106,6 +106,12 @@ on:
         description: "Registry token matching QUAY_USERNAME. Same write scope."
         required: true
 
+# The Quay push in the "bundles" cell authenticates with the
+# QUAY_USERNAME/QUAY_PASSWORD secrets above, not GITHUB_TOKEN, so
+# this workflow never needs GITHUB_TOKEN write access.
+permissions:
+  contents: read
+
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
     runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
