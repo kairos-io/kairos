@@ -12,6 +12,14 @@ type Finish struct{}
 func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 	var err error
 
+	// Drop the user cloud-config files first, while OEM is still plain: the
+	// encryption below snapshots and restores whatever is there.
+	err = OEMFiles{}.Run(c, spec)
+	if err != nil {
+		c.Logger.Logger.Error().Err(err).Msg("could not write the oem files")
+		return err
+	}
+
 	// Run encryption (handles both UKI and non-UKI, returns early if nothing to encrypt)
 	err = Encrypt(c)
 	defer lockPartitions(c.Logger) // partitions are unlocked, make sure to lock them before we end
