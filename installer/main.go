@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/mcp"
 	"github.com/kairos-io/kairos/v4/installer/internal/tui"
 )
 
@@ -18,6 +20,8 @@ func main() {
 	source := flag.String("source", "", "installation source (passed through to kairos-agent)")
 	collect := flag.Bool("collect-debug-bundle", false,
 		"collect a debug bundle non-interactively (no TUI), print its path, and exit")
+	serveMCP := flag.Bool("mcp", false,
+		"serve the installer over the Model Context Protocol on stdio instead of starting the TUI, so an agent can drive the installation")
 	flag.Parse()
 
 	if *collect {
@@ -25,6 +29,19 @@ func main() {
 	}
 
 	logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", true, "/var/log/kairos/")
+
+	// The MCP server owns stdout: it is the transport. Nothing may print
+	// there, which is why this runs before the TUI is built and logs to the
+	// installer log like every other frontend.
+	if *serveMCP {
+		if err := mcp.Serve(context.Background(), logger); err != nil {
+			logger.Logger.Error().Err(err).Msg("MCP server stopped")
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	p := tea.NewProgram(tui.InitialModel(&logger, *source), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v\n", err)
