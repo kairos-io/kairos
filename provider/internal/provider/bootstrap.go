@@ -217,7 +217,7 @@ func oneTimeBootstrap(l loggerpkg.KairosLogger, c *providerConfig.Config, vpnSet
 
 	// Initialize the service based on the system's init system
 	if utils.IsOpenRCBased() {
-		svc, err = openrc.NewService(openrc.WithName(svcName))
+		svc, err = openrc.NewService(openrc.WithName(svcName), openrc.WithEnvFile(envFile))
 	} else {
 		svc, err = systemd.NewService(systemd.WithName(svcName))
 	}

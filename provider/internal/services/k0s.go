@@ -67,6 +67,13 @@ command_args="'controller' "
 name=$(basename $(readlink -f $command))
 supervise_daemon_args="--stdout /var/log/${name}.log --stderr /var/log/${name}.err"
 
+# Read the environment and the arguments the provider writes at bootstrap. Last
+# wins, so command_args set here replaces the default above. k3s' own openrc
+# script sources /etc/rancher/k3s/k3s.env the same way.
+set -o allexport
+if [ -f /etc/k0s/k0scontroller.env ]; then . /etc/k0s/k0scontroller.env; fi
+set +o allexport
+
 : "${rc_ulimit=-n 1048576 -u unlimited}"
 depend() {
 	need cgroups
@@ -82,6 +89,13 @@ command=/usr/bin/k0s
 command_args="'worker' "
 name=$(basename $(readlink -f $command))
 supervise_daemon_args="--stdout /var/log/${name}.log --stderr /var/log/${name}.err"
+
+# Read the environment and the arguments the provider writes at bootstrap. Last
+# wins, so command_args set here replaces the default above. k3s' own openrc
+# script sources /etc/rancher/k3s/k3s.env the same way.
+set -o allexport
+if [ -f /etc/k0s/k0sworker.env ]; then . /etc/k0s/k0sworker.env; fi
+set +o allexport
 
 : "${rc_ulimit=-n 1048576 -u unlimited}"
 depend() {

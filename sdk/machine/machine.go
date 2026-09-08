@@ -79,6 +79,7 @@ func K3s() (Service, error) {
 	if utils.IsOpenRCBased() {
 		return openrc.NewService(
 			openrc.WithName("k3s"),
+			openrc.WithEnvFile(K3sEnvUnit("k3s")),
 		)
 	}
 
@@ -91,6 +92,7 @@ func K3sAgent() (Service, error) {
 	if utils.IsOpenRCBased() {
 		return openrc.NewService(
 			openrc.WithName("k3s-agent"),
+			openrc.WithEnvFile(K3sEnvUnit("k3s-agent")),
 		)
 	}
 
@@ -111,6 +113,7 @@ func K0s() (Service, error) {
 	if utils.IsOpenRCBased() {
 		return openrc.NewService(
 			openrc.WithName("k0scontroller"),
+			openrc.WithEnvFile(K0sEnvUnit("k0scontroller")),
 		)
 	}
 
@@ -123,6 +126,7 @@ func K0sWorker() (Service, error) {
 	if utils.IsOpenRCBased() {
 		return openrc.NewService(
 			openrc.WithName("k0sworker"),
+			openrc.WithEnvFile(K0sEnvUnit("k0sworker")),
 		)
 	}
 
