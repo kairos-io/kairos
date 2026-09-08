@@ -31,7 +31,6 @@ type userManager struct {
 	logger   loggerpkg.KairosLogger
 	lookup   func(name string) (bool, error)
 	lookPath func(file string) (string, error)
-	evalLink func(path string) (string, error)
 	run      func(name string, args ...string) ([]byte, error)
 }
 
@@ -40,7 +39,6 @@ func newUserManager(logger loggerpkg.KairosLogger) *userManager {
 		logger:   logger,
 		lookup:   userExists,
 		lookPath: exec.LookPath,
-		evalLink: filepath.EvalSymlinks,
 		run: func(name string, args ...string) ([]byte, error) {
 			return exec.Command(name, args...).CombinedOutput()
 		},
@@ -123,6 +121,17 @@ func (m *userManager) nologinShell() (string, error) {
 // SUSE and Arch images. Alpine has neither useradd nor Debian's adduser, only
 // busybox's applet of that name, which takes short options and rejects the long
 // ones the other two want.
+//
+// No numeric UID is pinned. /etc/passwd ships inside the immutable image while
+// /var/lib/k0s is persistent (PERSISTENT_STATE_PATHS in
+// kairos-init/pkg/bundled/cloudconfigs/00_rootfs.yaml), so an account's UID can
+// shift when the image is rebuilt with a different package set. k0s repairs
+// that itself on every controller start: Etcd.Init calls recursiveChown
+// (filepath.Walk + os.Chown) over EtcdDataDir and EtcdCertDir, and Kine.Init
+// chowns its socket dir, db dir and db file (k0sproject/k0s
+// pkg/component/controller/etcd.go at dddd0e5a). So a UID change self-heals,
+// where pinning numbers here would trade that for a build that fails wherever
+// the number is already taken.
 func (m *userManager) createUser(name, home, shell string) error {
 	if path, err := m.lookPath("useradd"); err == nil {
 		return m.exec(path, "--home", home, "--shell", shell, "--system", "--no-create-home", name)
@@ -133,21 +142,26 @@ func (m *userManager) createUser(name, home, shell string) error {
 		return errors.New("neither useradd nor adduser is available")
 	}
 
-	if m.isBusybox(path) {
-		return m.exec(path, "-h", home, "-s", shell, "-S", "-D", "-H", name)
+	// Which adduser this is cannot be told from its path. busybox installs its
+	// applets as symlinks on Alpine but as hardlinks elsewhere, and the
+	// multi-call binary is not always named "busybox" (busybox.static,
+	// busybox-extras), so resolving the link and comparing the basename gets
+	// it wrong on those and sends long options to a tool that rejects them.
+	// Ask the tool instead: an adduser that refuses the flags creates nothing,
+	// so retrying with the busybox short options is safe.
+	longErr := m.exec(path, "--disabled-password", "--gecos", "", "--home", home, "--shell", shell, "--system", "--no-create-home", name)
+	if longErr == nil {
+		return nil
 	}
 
-	return m.exec(path, "--disabled-password", "--gecos", "", "--home", home, "--shell", shell, "--system", "--no-create-home", name)
-}
-
-// isBusybox reports whether an applet path is served by busybox, which on Alpine
-// is a symlink into the busybox multi-call binary.
-func (m *userManager) isBusybox(path string) bool {
-	target, err := m.evalLink(path)
-	if err != nil {
-		return false
+	if shortErr := m.exec(path, "-h", home, "-s", shell, "-S", "-D", "-H", name); shortErr != nil {
+		return errors.Join(
+			fmt.Errorf("long options: %w", longErr),
+			fmt.Errorf("busybox short options: %w", shortErr),
+		)
 	}
-	return filepath.Base(target) == "busybox"
+
+	return nil
 }
 
 func (m *userManager) exec(name string, args ...string) error {

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"os/user"
+	"strings"
 
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
@@ -16,20 +18,21 @@ type recordedCommand struct {
 }
 
 // managerFixture builds a userManager whose whole environment is scripted:
-// which accounts exist, which binaries are on PATH, which of them are busybox
-// symlinks, and what every invocation returns.
+// which accounts exist, which binaries are on PATH, and what every invocation
+// returns. rejectLongOptions is the busybox applet: it refuses any argument
+// starting with "--".
 type managerFixture struct {
-	existing  map[string]bool
-	lookupErr map[string]error
-	onPath    map[string]string
-	busybox   map[string]bool
-	runErr    error
-	calls     []recordedCommand
+	existing          map[string]bool
+	lookupErr         map[string]error
+	onPath            map[string]string
+	rejectLongOptions bool
+	runErr            error
+	calls             []recordedCommand
 }
 
 func (f *managerFixture) manager() *userManager {
 	return &userManager{
-		logger: loggerpkg.NewKairosLogger("test", "fatal", true),
+		logger: loggerpkg.NewNullLogger(),
 		lookup: func(name string) (bool, error) {
 			if err, ok := f.lookupErr[name]; ok {
 				return false, err
@@ -42,16 +45,17 @@ func (f *managerFixture) manager() *userManager {
 			}
 			return "", exec.ErrNotFound
 		},
-		evalLink: func(path string) (string, error) {
-			if f.busybox[path] {
-				return "/bin/busybox", nil
-			}
-			return path, nil
-		},
 		run: func(name string, args ...string) ([]byte, error) {
 			f.calls = append(f.calls, recordedCommand{name: name, args: args})
 			if f.runErr != nil {
 				return []byte("boom"), f.runErr
+			}
+			if f.rejectLongOptions {
+				for _, arg := range args {
+					if strings.HasPrefix(arg, "--") {
+						return []byte("adduser: unrecognized option: " + arg), errors.New("exit status 1")
+					}
+				}
 			}
 			return nil, nil
 		},
@@ -63,7 +67,6 @@ func withUseradd() *managerFixture {
 	return &managerFixture{
 		existing: map[string]bool{},
 		onPath:   map[string]string{"useradd": "/usr/sbin/useradd", "nologin": "/usr/sbin/nologin"},
-		busybox:  map[string]bool{},
 	}
 }
 
@@ -164,19 +167,35 @@ var _ = Describe("k0s system users", func() {
 			}))
 		})
 
-		It("uses short options when adduser is a busybox applet", func() {
-			// Alpine ships neither shadow-utils nor Debian's adduser. Its
-			// busybox applet rejects the long options both of those take, so
-			// sending them would fail the image build on every Alpine flavor.
+		It("retries with short options when adduser rejects the long ones", func() {
+			// Alpine ships neither shadow-utils nor Debian's adduser, only the
+			// busybox applet, which rejects the long options both of those
+			// take. The retry is driven by the tool's own answer rather than by
+			// its path, because busybox applets are hardlinks on some images
+			// and the multi-call binary is not always named "busybox".
 			f := withUseradd()
 			delete(f.onPath, "useradd")
 			f.onPath["adduser"] = "/usr/sbin/adduser"
-			f.busybox["/usr/sbin/adduser"] = true
+			f.rejectLongOptions = true
 
 			Expect(f.manager().ensure([]string{"etcd"}, k0sUserHome)).To(Succeed())
-			Expect(f.calls[0].args).To(Equal([]string{
+			Expect(f.calls).To(HaveLen(2))
+			Expect(f.calls[1].args).To(Equal([]string{
 				"-h", "/var/lib/k0s", "-s", "/usr/sbin/nologin", "-S", "-D", "-H", "etcd",
 			}))
+		})
+
+		It("reports both attempts when neither option set works", func() {
+			f := withUseradd()
+			delete(f.onPath, "useradd")
+			f.onPath["adduser"] = "/usr/sbin/adduser"
+			f.runErr = errors.New("exit status 1")
+
+			err := f.manager().ensure([]string{"etcd"}, k0sUserHome)
+			Expect(err).To(HaveOccurred())
+			Expect(f.calls).To(HaveLen(2), "a rejected adduser creates nothing, so the retry is safe")
+			Expect(err.Error()).To(ContainSubstring("long options:"))
+			Expect(err.Error()).To(ContainSubstring("busybox short options:"))
 		})
 
 		It("fails when the image has no tool to create users with", func() {
@@ -186,6 +205,36 @@ var _ = Describe("k0s system users", func() {
 			err := f.manager().ensure([]string{"etcd"}, k0sUserHome)
 			Expect(err).To(MatchError(ContainSubstring("neither useradd nor adduser is available")))
 			Expect(f.calls).To(BeEmpty())
+		})
+	})
+
+	// Everything above injects its environment. These two touch the real
+	// system, because they are what a wrong answer costs the most on: a
+	// not-found detection that misses turns every account into a lookup error
+	// and fails the whole image build, and a dropped wiring line nil-panics in
+	// a real build while the injected specs stay green.
+	Describe("userExists, against the real password database", func() {
+		It("finds the account this test is running as", func() {
+			me, err := user.Current()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(userExists(me.Username)).To(BeTrue())
+		})
+
+		It("reports a name that cannot exist as absent, not as an error", func() {
+			exists, err := userExists("k0s-users-test-no-such-account")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exists).To(BeFalse())
+		})
+	})
+
+	Describe("newUserManager", func() {
+		It("wires every seam the real build depends on", func() {
+			m := newUserManager(loggerpkg.NewNullLogger())
+
+			Expect(m.lookup).ToNot(BeNil())
+			Expect(m.lookPath).ToNot(BeNil())
+			Expect(m.run).ToNot(BeNil())
 		})
 	})
 
