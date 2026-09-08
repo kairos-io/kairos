@@ -67,7 +67,7 @@ jobs:
   # three minors. Feeds build-iso-k3s / build-iso-k0s below. Same
   # jq expression release-legacy.yaml carried before retirement.
   get-k3s-versions:
-    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     outputs:
       kubernetes_versions: ${{ steps.get.outputs.kubernetes_versions }}
     steps:
@@ -95,7 +95,7 @@ jobs:
           echo "kubernetes_versions=$kubernetes_versions" >> "$GITHUB_OUTPUT"
 
   get-k0s-versions:
-    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
     outputs:
       kubernetes_versions: ${{ steps.get.outputs.kubernetes_versions }}
     steps:

@@ -19,7 +19,7 @@ permissions:
 jobs:
   generate-diff:
     if: ${{ !github.event.release.prerelease && !github.event.release.draft }}
-    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-24.04' }}
     env:
       GH_TOKEN: ${{ github.token }}
       CURRENT_TAG: ${{ github.event.release.tag_name || inputs.tag }}
