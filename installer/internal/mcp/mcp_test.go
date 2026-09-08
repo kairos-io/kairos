@@ -59,9 +59,9 @@ func steps(names ...string) []agentrun.ProgressEvent {
 	return out
 }
 
-// testServer builds a Server with every outside dependency replaced, and a
-// connected MCP client to drive it through the real protocol.
-func testServer(t *testing.T, configure func(*Server)) (*mcp.ClientSession, *Server) {
+// newFakeServer builds a Server with every outside dependency replaced, so no
+// test can reach a real disk.
+func newFakeServer(t *testing.T, configure func(*Server)) *Server {
 	t.Helper()
 
 	s := &Server{
@@ -89,6 +89,16 @@ func testServer(t *testing.T, configure func(*Server)) (*mcp.ClientSession, *Ser
 	if configure != nil {
 		configure(s)
 	}
+
+	return s
+}
+
+// testServer wires a fake Server to a client over the in-memory transport, to
+// drive it through the real protocol without an HTTP round trip.
+func testServer(t *testing.T, configure func(*Server)) (*mcp.ClientSession, *Server) {
+	t.Helper()
+
+	s := newFakeServer(t, configure)
 
 	ctx := context.Background()
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
