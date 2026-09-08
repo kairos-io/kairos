@@ -153,26 +153,34 @@ const (
 	CmdlineAutoCreatePartitionsWipe = "kairos.ram.wipe"
 	CmdlineAutoCreateOemSize        = "kairos.ram.oem="
 	CmdlineAutoCreatePersistentSize = "kairos.ram.persistent="
-	UkiLivecdMountPoint             = "/run/initramfs/live"
-	UkiIsoBaseTree                  = "/run/rootfsbase"
-	UkiIsoBootImage                 = "efiboot.img"
-	UkiLivecdPath                   = "/dev/disk/by-label/UKI_ISO_INSTALL"
-	UkiDefaultcdrom                 = "/dev/sr0"
-	UkiDefaultcdromFsType           = "iso9660"
-	UkiDefaultEfiimgFsType          = "vfat"
-	UkiSysrootDir                   = "sysroot"
-	PersistentStateTarget           = "/usr/local/.state"
-	LogDir                          = "/run/immucore"
-	PathAppend                      = "/usr/bin:/usr/sbin:/bin:/sbin"
-	PATH                            = "PATH"
-	DefaultPCR                      = 11
-	SysExt                          = "sysext"
-	ConfExt                         = "confext"
-	SourceSysExtDir                 = "/var/lib/kairos/extensions/"
-	SourceConfExtDir                = "/var/lib/kairos/confexts/"
-	DestSysExtDir                   = "/run/extensions"
-	DestConfExtDir                  = "/run/confexts"
-	VerityCertDir                   = "/run/verity.d/"
-	SysextDefaultPolicy             = "--image-policy=\"root=signed+absent:usr=signed+absent\""
-	EfiDir                          = "/efi"
+
+	// CmdlineBreak requests dracut-style breakpoints. Its values are step
+	// names, i.e. the Op* constants above (rd.immucore.break=mount-root), and
+	// several can be given either comma-separated or by repeating the stanza.
+	// Immucore stops right before a named step, hands the console to a shell
+	// and resumes the boot once that shell exits.
+	CmdlineBreak = "rd.immucore.break="
+
+	UkiLivecdMountPoint    = "/run/initramfs/live"
+	UkiIsoBaseTree         = "/run/rootfsbase"
+	UkiIsoBootImage        = "efiboot.img"
+	UkiLivecdPath          = "/dev/disk/by-label/UKI_ISO_INSTALL"
+	UkiDefaultcdrom        = "/dev/sr0"
+	UkiDefaultcdromFsType  = "iso9660"
+	UkiDefaultEfiimgFsType = "vfat"
+	UkiSysrootDir          = "sysroot"
+	PersistentStateTarget  = "/usr/local/.state"
+	LogDir                 = "/run/immucore"
+	PathAppend             = "/usr/bin:/usr/sbin:/bin:/sbin"
+	PATH                   = "PATH"
+	DefaultPCR             = 11
+	SysExt                 = "sysext"
+	ConfExt                = "confext"
+	SourceSysExtDir        = "/var/lib/kairos/extensions/"
+	SourceConfExtDir       = "/var/lib/kairos/confexts/"
+	DestSysExtDir          = "/run/extensions"
+	DestConfExtDir         = "/run/confexts"
+	VerityCertDir          = "/run/verity.d/"
+	SysextDefaultPolicy    = "--image-policy=\"root=signed+absent:usr=signed+absent\""
+	EfiDir                 = "/efi"
 )
