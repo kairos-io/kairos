@@ -53,3 +53,32 @@ func FuzzDeepMerge(f *testing.F) {
 		_, _ = DeepMerge(a, b)
 	})
 }
+
+// FuzzDeepMergeJSON exercises the json.Unmarshal fallback in
+// decodeLikeAReader directly. yaml.Unmarshal already accepts every valid
+// JSON document, so FuzzDeepMerge above never actually reaches the json
+// branch through the yaml-then-json fallback -- this target calls
+// json.Unmarshal on its own to give that path real coverage.
+func FuzzDeepMergeJSON(f *testing.F) {
+	seeds := []string{
+		"{}",
+		`{"outer":{"inner":1}}`,
+		`{"a":[1,2]}`,
+	}
+	for _, a := range seeds {
+		for _, b := range seeds {
+			f.Add(a, b)
+		}
+	}
+
+	f.Fuzz(func(t *testing.T, sourceA, sourceB string) {
+		var a, b ConfigValues
+		if err := json.Unmarshal([]byte(sourceA), &a); err != nil {
+			return
+		}
+		if err := json.Unmarshal([]byte(sourceB), &b); err != nil {
+			return
+		}
+		_, _ = DeepMerge(a, b)
+	})
+}
