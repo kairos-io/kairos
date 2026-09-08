@@ -1,13 +1,19 @@
 package utils
 
 import (
+	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"syscall"
+	"time"
 
+	"github.com/creack/pty"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rs/zerolog"
 )
 
 var _ = Describe("breakpoints", func() {
@@ -180,6 +186,56 @@ var _ = Describe("breakpoints", func() {
 			Expect(out).To(ContainSubstring("IMMUCORE BREAKPOINT: overlay-mount"))
 			Expect(out).To(ContainSubstring(constants.CmdlineBreak + constants.OpOverlayMount))
 			Expect(out).To(ContainSubstring(constants.LogDir))
+		})
+	})
+
+	// This is the one branch none of the tests above exercise: what happens
+	// when TIOCSCTTY genuinely refuses to hand the console over because
+	// another session already owns it as its controlling tty (the exact
+	// scenario runShellAndWait's comment describes). A plain file (even a
+	// TempDir file opened O_RDWR) can never trigger that refusal -- only a
+	// real pty slave that another process has already Setctty'd onto can.
+	Context("the console session fallback", func() {
+		It("falls back to sharing immucore's session when the console already belongs to another session", func() {
+			master, slave, err := pty.Open()
+			Expect(err).NotTo(HaveOccurred())
+			defer func() { _ = master.Close() }()
+			defer func() { _ = slave.Close() }()
+
+			// Claim the slave as another session's controlling tty first, so
+			// the breakpoint shell's own Setctty attempt below is guaranteed
+			// to hit EPERM -- TIOCSCTTY refuses to steal a tty that already
+			// is a session's ctty.
+			holder := exec.Command("sleep", "5")
+			holder.Stdin, holder.Stdout, holder.Stderr = slave, slave, slave
+			holder.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
+			Expect(holder.Start()).To(Succeed())
+			defer func() {
+				_ = holder.Process.Kill()
+				_, _ = holder.Process.Wait()
+			}()
+			// give the holder a beat to actually own the tty before we race it
+			time.Sleep(150 * time.Millisecond)
+
+			var logbuf bytes.Buffer
+			oldLogger := KLog.Logger
+			KLog.Logger = zerolog.New(&logbuf).Level(zerolog.DebugLevel)
+			defer func() { KLog.Logger = oldLogger }()
+
+			dir := GinkgoT().TempDir()
+			marker := filepath.Join(dir, "shell-exited")
+			shPath := filepath.Join(dir, "fakeshell")
+			Expect(os.WriteFile(shPath, []byte("#!/bin/sh\ntouch "+marker+"\n"), 0o700)).To(Succeed())
+
+			started, err := runShellAndWait(shPath, slave)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(started).To(BeTrue())
+			// The marker only exists if the fallback attempt actually ran
+			// the shell to completion, proving the retry recovered rather
+			// than swallowing the first Start() error.
+			Expect(marker).To(BeAnExistingFile())
+			Expect(logbuf.String()).To(ContainSubstring("sharing immucore's"))
 		})
 	})
 })
