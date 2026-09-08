@@ -1,6 +1,78 @@
 package hook
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	implSpec "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
+	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
+	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
+)
+
+func installSpecWithOEM(mountPoint string) *implSpec.InstallSpec {
+	return &implSpec.InstallSpec{
+		Partitions: sdkPartitions.ElementalPartitions{
+			OEM: &sdkPartitions.Partition{
+				FilesystemLabel: constants.OEMLabel,
+				MountPoint:      mountPoint,
+			},
+		},
+	}
+}
+
+func TestOemFilesDir(t *testing.T) {
+	t.Run("returns the mountpoint the installer has OEM on", func(t *testing.T) {
+		mounter := v1mock.NewErrorMounter()
+		if err := mounter.Mount("/dev/device1", constants.OEMDir, "auto", []string{}); err != nil {
+			t.Fatalf("Mount: %v", err)
+		}
+		c := sdkConfig.Config{Mounter: mounter, Logger: sdkLogger.NewNullLogger()}
+
+		dir, err := oemFilesDir(c, installSpecWithOEM(constants.OEMDir))
+		if err != nil {
+			t.Fatalf("oemFilesDir() error = %v", err)
+		}
+		if dir != constants.OEMDir {
+			t.Fatalf("oemFilesDir() = %q, want %q", dir, constants.OEMDir)
+		}
+	})
+
+	t.Run("errors when the OEM partition is not mounted", func(t *testing.T) {
+		c := sdkConfig.Config{Mounter: v1mock.NewErrorMounter(), Logger: sdkLogger.NewNullLogger()}
+
+		if _, err := oemFilesDir(c, installSpecWithOEM(constants.OEMDir)); err == nil {
+			t.Fatal("oemFilesDir() error = nil, want an error for an unmounted OEM partition")
+		}
+	})
+
+	t.Run("errors when the spec has no OEM partition", func(t *testing.T) {
+		c := sdkConfig.Config{Mounter: v1mock.NewErrorMounter(), Logger: sdkLogger.NewNullLogger()}
+
+		if _, err := oemFilesDir(c, &implSpec.InstallSpec{}); err == nil {
+			t.Fatal("oemFilesDir() error = nil, want an error for a spec without an OEM partition")
+		}
+	})
+
+	t.Run("errors when the OEM partition has no mountpoint", func(t *testing.T) {
+		c := sdkConfig.Config{Mounter: v1mock.NewErrorMounter(), Logger: sdkLogger.NewNullLogger()}
+
+		if _, err := oemFilesDir(c, installSpecWithOEM("")); err == nil {
+			t.Fatal("oemFilesDir() error = nil, want an error for an OEM partition without a mountpoint")
+		}
+	})
+
+	t.Run("errors when the spec carries no partition table", func(t *testing.T) {
+		c := sdkConfig.Config{Mounter: v1mock.NewErrorMounter(), Logger: sdkLogger.NewNullLogger()}
+
+		var spec sdkSpec.Spec
+		if _, err := oemFilesDir(c, spec); err == nil {
+			t.Fatal("oemFilesDir() error = nil, want an error for a spec with no partitions")
+		}
+	})
+}
 
 func TestOemFileName(t *testing.T) {
 	tests := []struct {
