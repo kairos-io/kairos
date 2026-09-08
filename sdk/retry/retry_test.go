@@ -9,150 +9,130 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/retry"
 )
 
-func TestDoSucceedsWithoutRetrying(t *testing.T) {
-	calls := 0
-	err := retry.Do(func() error {
-		calls++
-		return nil
-	}, retry.WithAttempts(3), retry.WithFixedDelay(time.Millisecond))
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if calls != 1 {
-		t.Fatalf("expected 1 call, got %d", calls)
-	}
-}
-
-func TestDoRetriesUntilAttemptsExhausted(t *testing.T) {
-	calls := 0
+func TestDo(t *testing.T) {
 	boom := errors.New("boom")
-	err := retry.Do(func() error {
-		calls++
-		return boom
-	}, retry.WithAttempts(4), retry.WithFixedDelay(time.Millisecond), retry.WithLastErrorOnly(true))
-	if !errors.Is(err, boom) {
-		t.Fatalf("expected wrapped boom, got %v", err)
-	}
-	if calls != 4 {
-		t.Fatalf("expected 4 calls, got %d", calls)
-	}
+
+	t.Run("succeeds without retrying", func(t *testing.T) {
+		calls := 0
+		err := retry.Do(func() error { calls++; return nil }, retry.Config{Attempts: 3, Delay: retry.Fixed(time.Millisecond)})
+		if err != nil || calls != 1 {
+			t.Fatalf("err=%v calls=%d, want nil/1", err, calls)
+		}
+	})
+
+	t.Run("retries until attempts exhausted, no sleep after final attempt", func(t *testing.T) {
+		calls, delayCalls := 0, 0
+		err := retry.Do(func() error { calls++; return boom }, retry.Config{
+			Attempts: 4,
+			Delay:    func(uint) time.Duration { delayCalls++; return time.Millisecond },
+		})
+		if !errors.Is(err, boom) || calls != 4 {
+			t.Fatalf("err=%v calls=%d, want boom/4", err, calls)
+		}
+		if delayCalls != 3 {
+			t.Fatalf("Delay called %d times, want 3 (never after the final attempt)", delayCalls)
+		}
+	})
+
+	t.Run("stops immediately on Unrecoverable", func(t *testing.T) {
+		calls := 0
+		err := retry.Do(func() error { calls++; return retry.Unrecoverable(boom) }, retry.Config{Attempts: 5, Delay: retry.Fixed(time.Millisecond)})
+		if !errors.Is(err, boom) || calls != 1 {
+			t.Fatalf("err=%v calls=%d, want boom/1", err, calls)
+		}
+	})
+
+	t.Run("stops on context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+		defer cancel()
+		calls := 0
+		err := retry.Do(func() error { calls++; return boom }, retry.Config{Delay: retry.Fixed(5 * time.Millisecond), Ctx: ctx})
+		if !errors.Is(err, context.DeadlineExceeded) || calls < 2 {
+			t.Fatalf("err=%v calls=%d, want DeadlineExceeded/>=2", err, calls)
+		}
+	})
+
+	t.Run("OnRetry runs once per retry, never after the final attempt", func(t *testing.T) {
+		var seen []uint
+		_ = retry.Do(func() error { return boom }, retry.Config{
+			Attempts: 3, Delay: retry.Fixed(time.Millisecond),
+			OnRetry: func(n uint, _ error) { seen = append(seen, n) },
+		})
+		if len(seen) != 2 || seen[0] != 0 || seen[1] != 1 {
+			t.Fatalf("seen=%v, want [0 1]", seen)
+		}
+	})
 }
 
-func TestDoStopsOnUnrecoverable(t *testing.T) {
-	calls := 0
-	boom := errors.New("permanent")
-	err := retry.Do(func() error {
-		calls++
-		return retry.Unrecoverable(boom)
-	}, retry.WithAttempts(5), retry.WithFixedDelay(time.Millisecond), retry.WithLastErrorOnly(true))
-	if !errors.Is(err, boom) {
-		t.Fatalf("expected unwrapped permanent error, got %v", err)
-	}
-	if calls != 1 {
-		t.Fatalf("expected exactly 1 call for an unrecoverable error, got %d", calls)
-	}
-}
-
-func TestWithLinearBackoffDelaysGrowByOneUnitEachRetry(t *testing.T) {
-	var starts []time.Time
-	unit := 20 * time.Millisecond
-	_ = retry.Do(func() error {
-		starts = append(starts, time.Now())
-		return errors.New("retry me")
-	}, retry.WithAttempts(3), retry.WithLinearBackoff(unit), retry.WithLastErrorOnly(true))
-
-	if len(starts) != 3 {
-		t.Fatalf("expected 3 attempts, got %d", len(starts))
-	}
-	firstGap := starts[1].Sub(starts[0])
-	secondGap := starts[2].Sub(starts[1])
-	if firstGap < unit {
-		t.Fatalf("expected first gap >= %s, got %s", unit, firstGap)
-	}
-	if secondGap < 2*unit {
-		t.Fatalf("expected second gap >= %s, got %s", 2*unit, secondGap)
-	}
-}
-
-func TestExponentialDelayDoublesAndCaps(t *testing.T) {
+func TestDelayShapes(t *testing.T) {
 	base := 100 * time.Millisecond
 	cases := []struct {
-		n    uint
-		max  time.Duration
-		want time.Duration
+		name string
+		fn   func(uint) time.Duration
+		n    []uint
+		want []time.Duration
 	}{
-		{0, 0, 100 * time.Millisecond},
-		{1, 0, 200 * time.Millisecond},
-		{2, 0, 400 * time.Millisecond},
-		{3, 350 * time.Millisecond, 350 * time.Millisecond}, // would be 800ms, capped
-		{0, 350 * time.Millisecond, 100 * time.Millisecond},
+		{"Fixed", retry.Fixed(base), []uint{0, 1, 5}, []time.Duration{base, base, base}},
+		{"Linear capped", retry.Linear(base, 250*time.Millisecond), []uint{0, 1, 2},
+			[]time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 250 * time.Millisecond}},
+		{"LinearFromZero capped", retry.LinearFromZero(base, 150*time.Millisecond), []uint{0, 1, 2},
+			[]time.Duration{0, 100 * time.Millisecond, 150 * time.Millisecond}},
+		{"Exponential capped", retry.Exponential(base, 350*time.Millisecond), []uint{0, 1, 2, 3},
+			[]time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 350 * time.Millisecond, 350 * time.Millisecond}},
+		{"Exponential uncapped", retry.Exponential(base, 0), []uint{0, 1, 2, 3},
+			[]time.Duration{100 * time.Millisecond, 200 * time.Millisecond, 400 * time.Millisecond, 800 * time.Millisecond}},
 	}
 	for _, c := range cases {
-		got := retry.ExponentialDelay(base, c.n, c.max)
-		if got != c.want {
-			t.Errorf("ExponentialDelay(%s, %d, %s) = %s, want %s", base, c.n, c.max, got, c.want)
+		t.Run(c.name, func(t *testing.T) {
+			for i, n := range c.n {
+				if got := c.fn(n); got != c.want[i] {
+					t.Errorf("n=%d: got %s, want %s", n, got, c.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestPollUntil(t *testing.T) {
+	boom := errors.New("boom")
+
+	t.Run("checkFirst skips the initial wait", func(t *testing.T) {
+		calls := 0
+		err := retry.PollUntil(context.Background(), time.Hour, time.Hour, true, func() (bool, error) { calls++; return true, nil })
+		if err != nil || calls != 1 {
+			t.Fatalf("err=%v calls=%d, want nil/1", err, calls)
 		}
-	}
-}
-
-func TestWithUnlimitedAttemptsStopsOnContextCancel(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
-	defer cancel()
-
-	calls := 0
-	err := retry.Do(func() error {
-		calls++
-		return errors.New("never succeeds")
-	}, retry.WithUnlimitedAttempts(), retry.WithFixedDelay(5*time.Millisecond), retry.WithContext(ctx))
-
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("expected context.DeadlineExceeded, got %v", err)
-	}
-	if calls < 2 {
-		t.Fatalf("expected several attempts before the context deadline, got %d", calls)
-	}
-}
-
-func TestPollUntilCheckFirstSkipsInitialWait(t *testing.T) {
-	calls := 0
-	err := retry.PollUntil(context.Background(), time.Hour, time.Hour, true, func() (bool, error) {
-		calls++
-		return true, nil
 	})
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if calls != 1 {
-		t.Fatalf("expected exactly 1 check, got %d", calls)
-	}
-}
 
-func TestPollUntilTimesOut(t *testing.T) {
-	err := retry.PollUntil(context.Background(), 5*time.Millisecond, 20*time.Millisecond, false, func() (bool, error) {
-		return false, nil
+	t.Run("without checkFirst waits one interval first", func(t *testing.T) {
+		start := time.Now()
+		interval := 20 * time.Millisecond
+		err := retry.PollUntil(context.Background(), interval, time.Hour, false, func() (bool, error) { return true, nil })
+		if err != nil || time.Since(start) < interval {
+			t.Fatalf("err=%v elapsed=%s, want nil/>=%s", err, time.Since(start), interval)
+		}
 	})
-	if !errors.Is(err, retry.ErrTimeout) {
-		t.Fatalf("expected ErrTimeout, got %v", err)
-	}
-}
 
-func TestPollUntilRespectsContextCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	err := retry.PollUntil(ctx, 5*time.Millisecond, time.Hour, false, func() (bool, error) {
-		return false, nil
+	t.Run("times out", func(t *testing.T) {
+		err := retry.PollUntil(context.Background(), 5*time.Millisecond, 20*time.Millisecond, false, func() (bool, error) { return false, nil })
+		if !errors.Is(err, retry.ErrTimeout) {
+			t.Fatalf("err=%v, want ErrTimeout", err)
+		}
 	})
-	if !errors.Is(err, context.Canceled) {
-		t.Fatalf("expected context.Canceled, got %v", err)
-	}
-}
 
-func TestPollUntilPropagatesCheckError(t *testing.T) {
-	boom := errors.New("permanent check failure")
-	err := retry.PollUntil(context.Background(), time.Millisecond, time.Hour, true, func() (bool, error) {
-		return false, boom
+	t.Run("respects context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := retry.PollUntil(ctx, 5*time.Millisecond, time.Hour, false, func() (bool, error) { return false, nil })
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err=%v, want context.Canceled", err)
+		}
 	})
-	if !errors.Is(err, boom) {
-		t.Fatalf("expected boom, got %v", err)
-	}
+
+	t.Run("propagates a check error immediately", func(t *testing.T) {
+		err := retry.PollUntil(context.Background(), time.Millisecond, time.Hour, true, func() (bool, error) { return false, boom })
+		if !errors.Is(err, boom) {
+			t.Fatalf("err=%v, want boom", err)
+		}
+	})
 }

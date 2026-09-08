@@ -113,7 +113,7 @@ func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger)
 			logger.Logger.Debug().Str("device", device).Msg("Successfully unlocked")
 		}
 		return nil
-	}, retry.WithAttempts(uint(maxRetries)), retry.WithLinearBackoff(1*time.Second), retry.WithLastErrorOnly(true))
+	}, retry.Config{Attempts: uint(maxRetries), Delay: retry.Linear(1*time.Second, 0)})
 
 	// If all retries failed, return the error
 	if unlockErr != nil {

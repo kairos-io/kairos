@@ -314,7 +314,7 @@ func waitDevice(device string, attempts int) error {
 			return nil
 		}
 		return fmt.Errorf("no device found %s", device)
-	}, retry.WithAttempts(uint(attempts)), retry.WithFixedDelay(1*time.Second), retry.WithLastErrorOnly(true))
+	}, retry.Config{Attempts: uint(attempts), Delay: retry.Fixed(1 * time.Second)})
 
 	return err
 }
