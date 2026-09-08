@@ -130,7 +130,7 @@ permissions:
 
 jobs:
   test:  # decentralized k8s needs to run in github hosted workers for network stuff to work
-    runs-on: ${{ inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast' }}
+    runs-on: ${{ github.repository_owner == 'kairos-io' && (inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'cncf-ubuntu-16-64-x86') || (inputs.test == 'provider-decentralized-k8s' && 'ubuntu-24.04' || 'fast') }}
     name: ${{ inputs.test }}${{ inputs.secureboot == true && ' - SecureBoot' || '' }}
     # Backstop only. ginkgo's own --timeout below should always fire first,
     # because it stops the suite with a progress report naming the step,

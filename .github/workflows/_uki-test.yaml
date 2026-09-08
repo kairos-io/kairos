@@ -89,7 +89,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: kvm
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'kvm' }}
     name: ${{ inputs.test }}
     steps:
       - name: Split base image
