@@ -26,9 +26,8 @@ fi
 
 # --- External binary versions ---
 # Single source of truth for the edgevpn pin: kairos-init/EDGEVPN_VERSION.
-# kairos-init/Makefile reads it from the same place. Bumping edgevpn =
-# editing that one line. An EDGEVPN_VERSION env var still overrides it for
-# one-off local runs.
+# Bumping edgevpn = editing that one line. An EDGEVPN_VERSION env var still
+# overrides it for one-off local runs.
 EDGEVPN_VERSION_FILE="$REPO_ROOT/kairos-init/EDGEVPN_VERSION"
 : "${EDGEVPN_VERSION:=$(cat "$EDGEVPN_VERSION_FILE" 2>/dev/null)}"
 if [ -z "$EDGEVPN_VERSION" ]; then
