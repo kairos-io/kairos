@@ -46,6 +46,9 @@ type Config struct {
 // recursively until a remote config no longer defines a config_url.
 // NOTE: The "config_url" value of the final result is the value of the last
 // config file in the chain because we replace values when we merge.
+// NOTE: a remote body without one of ValidFileHeaders, and a fetch that fails
+// after its retries, are both silently dropped: fetchRemoteConfig returns an
+// empty config and a nil error. Both are marked TODO there.
 func (c *Config) MergeConfigURL() error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
