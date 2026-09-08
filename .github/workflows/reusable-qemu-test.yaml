@@ -265,6 +265,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf curl
           sudo setfacl -m "u:$(id -un):rwx" /dev/kvm
+      - name: Size the guest VM from host resources
+        # Give the nested guest a fixed fraction of the runner instead
+        # of hardcoding values from the old pool. Keeps the small pools
+        # (fast/kvm, ubuntu-latest fallback) close to today's numbers
+        # and expands automatically on the beefy CNCF runners.
+        # Reserves 25% RAM and 2 vCPUs for the host + qemu userspace.
+        # Floors match the old hardcoded values so no regression.
+        run: |
+          host_mem=$(free -m | awk '/^Mem:/ {print $2}')
+          host_cpus=$(nproc)
+          guest_mem=$(( host_mem * 75 / 100 ))
+          [ "$guest_mem" -lt 5000 ] && guest_mem=5000
+          guest_cpus=$(( host_cpus - 2 ))
+          [ "$guest_cpus" -lt 4 ] && guest_cpus=4
+          {
+            echo "MEMORY=${guest_mem}"
+            echo "CPUS=${guest_cpus}"
+          } >> "$GITHUB_ENV"
+          echo "host: ${host_mem} MiB / ${host_cpus} vCPU -> guest: ${guest_mem} MiB / ${guest_cpus} vCPU"
       - name: Encryption deps
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         run: |
@@ -374,9 +393,7 @@ jobs:
       - name: Run tests
         if: ${{ !startsWith(inputs.test, 'encryption-') }}
         env:
-          MEMORY: 5000
           DRIVE_SIZE: 50000
-          CPUS: 4
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           USE_BRIDGE_NETWORK: ${{ inputs.use_bridge_network && '1' || '' }}
         run: |
@@ -394,8 +411,6 @@ jobs:
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         env:
           LABEL: ${{ inputs.test }}
-          MEMORY: 6000
-          CPUS: 2
           DRIVE_SIZE: 50000
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           KCRYPT_CHALLENGER_IMAGE: ${{ inputs.kcrypt_challenger_image }}

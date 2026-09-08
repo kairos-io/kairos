@@ -151,6 +151,26 @@ jobs:
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
           sudo setfacl -m "u:$(id -un):rwx" /dev/kvm
 
+      - name: Size the guest VM from host resources
+        # Give the nested guest a fixed fraction of the runner instead
+        # of hardcoding values from the old pool. Keeps the small pools
+        # (fast/kvm, ubuntu-latest fallback) close to today's numbers
+        # and expands automatically on the beefy CNCF runners.
+        # Reserves 25% RAM and 2 vCPUs for the host + qemu userspace.
+        # Floors match the old hardcoded values so no regression.
+        run: |
+          host_mem=$(free -m | awk '/^Mem:/ {print $2}')
+          host_cpus=$(nproc)
+          guest_mem=$(( host_mem * 75 / 100 ))
+          [ "$guest_mem" -lt 6000 ] && guest_mem=6000
+          guest_cpus=$(( host_cpus - 2 ))
+          [ "$guest_cpus" -lt 4 ] && guest_cpus=4
+          {
+            echo "MEMORY=${guest_mem}"
+            echo "CPUS=${guest_cpus}"
+          } >> "$GITHUB_ENV"
+          echo "host: ${host_mem} MiB / ${host_cpus} vCPU -> guest: ${guest_mem} MiB / ${guest_cpus} vCPU"
+
       - name: Login to quay.io
         # Only the generic cell needs quay: it pushes the freshly-
         # built UKI upgrade image to quay.io/kairos/ci-temp-images
@@ -241,8 +261,6 @@ jobs:
 
       - name: Run tests
         env:
-          MEMORY: 6000
-          CPUS: 4
           FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
           UKI_TEST: true
           TEST_LABEL: ${{ inputs.test }}
