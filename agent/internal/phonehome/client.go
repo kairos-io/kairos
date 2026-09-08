@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kairos-io/kairos/v4/internal/version"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -295,24 +296,21 @@ func (c *Client) Run(ctx context.Context) error {
 
 	// Retry registration with backoff until successful or context cancelled
 	regBackoff := c.cfg.ReconnectBackoff
-	for {
-		err := c.Register(ctx)
-		if err == nil {
-			break
-		}
-		if ctx.Err() != nil {
-			return nil
-		}
-		c.logger.Warnf("registration failed: %v, retrying in %s", err, regBackoff)
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(regBackoff):
-		}
-		regBackoff = regBackoff * 2
-		if regBackoff > MaxReconnectBackoff {
-			regBackoff = MaxReconnectBackoff
-		}
+	regErr := retry.Do(func() error {
+		return c.Register(ctx)
+	},
+		retry.WithUnlimitedAttempts(),
+		retry.WithExponentialBackoff(regBackoff),
+		retry.WithMaxDelay(MaxReconnectBackoff),
+		retry.WithContext(ctx),
+		retry.WithOnRetry(func(n uint, err error) {
+			d := retry.ExponentialDelay(regBackoff, n, MaxReconnectBackoff)
+			c.logger.Warnf("registration failed: %v, retrying in %s", err, d)
+		}),
+	)
+	if regErr != nil {
+		// Only ctx being done can end an unlimited-attempts retry loop early.
+		return nil
 	}
 
 	backoff := c.cfg.ReconnectBackoff
