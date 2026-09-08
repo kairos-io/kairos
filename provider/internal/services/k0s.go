@@ -1,13 +1,10 @@
 package services
 
 import (
-	"strings"
+	"fmt"
 
-	"github.com/kairos-io/kairos/v4/sdk/machine"
-	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
-	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	"github.com/kairos-io/kairos/v4/sdk/machine/service"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
-	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // K0s Services start here
@@ -108,71 +105,56 @@ depend() {
 	after firewall
 }`
 
-// k0sEnvFilePlaceholder marks where the openrc scripts source the file that
-// carries command_args. K0sServices fills it in from machine.K0sEnvUnit, the
-// same helper OverrideCmd writes to, so the two cannot drift (#2149).
-const k0sEnvFilePlaceholder = "@ENVFILE@"
-
-func k0sOpenrcScript(script, envFile string) string {
-	return strings.ReplaceAll(script, k0sEnvFilePlaceholder, envFile)
-}
-
 // K0s Services end here
 
-// K0sServices creates the k0s controller and worker services for openrc or systemd based systems.
+// K0sServiceNames are the two k0s services, in the order they are installed.
+var K0sServiceNames = []string{"k0scontroller", "k0sworker"}
+
+// K0sEnvFile is the file a k0s openrc script sources for its environment and
+// for the arguments the provider writes at bootstrap.
+//
+// k0s ships no such file of its own, unlike k3s, so this path is Kairos'. The
+// scripts above reach it through service.EnvFilePlaceholder rather than
+// spelling it out, so the script and whatever writes to it cannot end up
+// pointing at different files (#2149).
+func K0sEnvFile(unit string) string {
+	return fmt.Sprintf("/etc/k0s/%s.env", unit)
+}
+
+// K0sSpec describes a k0s service without naming an init system. It is the one
+// place that knows which unit body and which env file each init system needs;
+// callers just say which of the two services they want.
+func K0sSpec(name string) service.Spec {
+	openrcUnit, systemdUnit := K0sControllerOpenrc, K0sControllerSystemd
+	if name == "k0sworker" {
+		openrcUnit, systemdUnit = K0sWorkerOpenrc, K0sWorkerSystemd
+	}
+
+	return service.Spec{
+		Name: name,
+		Init: map[service.Flavor]service.InitSpec{
+			service.OpenRC:  {Unit: openrcUnit, EnvFile: K0sEnvFile(name)},
+			service.Systemd: {Unit: systemdUnit},
+		},
+	}
+}
+
+// K0sServices installs the k0s controller and worker units.
 func K0sServices(logger loggerpkg.KairosLogger) error {
-	if utils.IsOpenRCBased() {
-		controller, err := openrc.NewService(
-			openrc.WithName("k0scontroller"),
-			openrc.WithUnitContent(k0sOpenrcScript(K0sControllerOpenrc, machine.K0sEnvUnit("k0scontroller"))),
-		)
-		if err != nil {
-			logger.Logger.Error().Err(err).Str("init", "openrc").Msg("Failed to create k0s controller service")
-			return err
-		}
-		if err = controller.WriteUnit(); err != nil {
-			logger.Logger.Error().Err(err).Str("init", "openrc").Msg("Failed to write k0s controller service unit")
-			return err
-		}
-		worker, err := openrc.NewService(
-			openrc.WithName("k0sworker"),
-			openrc.WithUnitContent(k0sOpenrcScript(K0sWorkerOpenrc, machine.K0sEnvUnit("k0sworker"))),
-		)
+	for _, name := range K0sServiceNames {
+		spec := K0sSpec(name)
+		// The units are written for a system that is not running yet, so there
+		// is no init system to reload afterwards.
+		spec.NoReload = true
 
+		svc, err := service.New(spec)
 		if err != nil {
-			logger.Logger.Error().Err(err).Str("init", "openrc").Msg("Failed to create k0s worker service")
-			return err
-		}
-		if err = worker.WriteUnit(); err != nil {
-			logger.Logger.Error().Err(err).Str("init", "openrc").Msg("Failed to write k0s worker service unit")
+			logger.Logger.Error().Err(err).Str("service", name).Msg("Failed to create k0s service")
 			return err
 		}
 
-	} else {
-		controller, err := systemd.NewService(
-			systemd.WithName("k0scontroller"),
-			systemd.WithUnitContent(K0sControllerSystemd),
-			systemd.WithReload(false), // we are not in a running system, so we cant reload
-		)
-		if err != nil {
-			logger.Logger.Error().Err(err).Str("init", "systemd").Msg("Failed to create k0s controller service")
-			return err
-		}
-		if err = controller.WriteUnit(); err != nil {
-			logger.Logger.Error().Err(err).Str("init", "systemd").Msg("Failed to write k0s controller service unit")
-			return err
-		}
-		worker, err := systemd.NewService(
-			systemd.WithName("k0sworker"),
-			systemd.WithUnitContent(K0sWorkerSystemd),
-			systemd.WithReload(false), // we are not in a running system, so we cant reload
-		)
-		if err != nil {
-			logger.Logger.Error().Err(err).Str("init", "systemd").Msg("Failed to create k0s worker service")
-			return err
-		}
-		if err = worker.WriteUnit(); err != nil {
-			logger.Logger.Error().Err(err).Str("init", "systemd").Msg("Failed to write k0s worker service unit")
+		if err := svc.WriteUnit(); err != nil {
+			logger.Logger.Error().Err(err).Str("service", name).Msg("Failed to write k0s service unit")
 			return err
 		}
 	}

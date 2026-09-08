@@ -5,6 +5,7 @@ import (
 
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
+	machinesvc "github.com/kairos-io/kairos/v4/sdk/machine/service"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	service "github.com/mudler/edgevpn/api/client/service"
 )
@@ -110,4 +111,18 @@ func NewK8sNodeWithDetector(c *providerConfig.Config, detector BinaryDetector) (
 // This is the convenience function for production use.
 func NewK8sNode(c *providerConfig.Config) (K8sNode, error) {
 	return NewK8sNodeWithDetector(c, &DefaultBinaryDetector{})
+}
+
+// envFileOf returns the env file of a service spec as the unit sees it.
+//
+// It answers "" when no init system on this host can host the service, which is
+// the same answer the callers of this used to give for an init system they did
+// not recognise.
+func envFileOf(spec machinesvc.Spec) string {
+	svc, err := machinesvc.New(spec)
+	if err != nil {
+		return ""
+	}
+
+	return svc.EnvFile()
 }

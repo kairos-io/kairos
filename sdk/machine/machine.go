@@ -7,19 +7,16 @@ import (
 	"strings"
 
 	"github.com/denisbrodbeck/machineid"
-	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
-	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	"github.com/kairos-io/kairos/v4/sdk/machine/service"
 
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
-type Service interface {
-	WriteUnit() error
-	Start() error
-	OverrideCmd(string) error
-	Enable() error
-	Restart() error
-}
+// Service is a system service, whatever the init system underneath.
+//
+// The interface and the implementations live in sdk/machine/service; this alias
+// is here so existing callers keep compiling.
+type Service = service.Service
 
 const (
 	PassiveBoot  = "passive"
@@ -52,96 +49,35 @@ func BootFrom() string {
 	}
 }
 
-type fakegetty struct{}
+// consoleSwitch stands in for a getty service on an init system that runs no
+// getty unit we can address. Switching the console is then the whole of what
+// starting one can mean.
+type consoleSwitch struct {
+	service.Noop
+}
 
-func (fakegetty) Restart() error           { return nil }
-func (fakegetty) Enable() error            { return nil }
-func (fakegetty) OverrideCmd(string) error { return nil }
-func (fakegetty) SetEnvFile(string) error  { return nil }
-func (fakegetty) WriteUnit() error         { return nil }
-func (fakegetty) Start() error {
+func (consoleSwitch) Start() error {
 	utils.SH("chvt 2") //nolint:errcheck
 	return nil
 }
 
+// Getty returns the service that owns a virtual console.
+//
+// On openrc the tty asked for is ignored and the console switches to tty2, as
+// it did before this was a generic service. That looks wrong next to the
+// systemd side, but changing which console Kairos switches to belongs in its
+// own change, with a reason.
 func Getty(i int) (Service, error) {
-	if utils.IsOpenRCBased() {
-		return &fakegetty{}, nil
+	if service.Detect() == service.OpenRC {
+		return consoleSwitch{Noop: service.Noop{ServiceName: "getty"}}, nil
 	}
 
-	return systemd.NewService(
-		systemd.WithName("getty"),
-		systemd.WithInstance(fmt.Sprintf("tty%d", i)),
-	)
+	return service.New(service.Spec{
+		Name:     "getty",
+		Instance: fmt.Sprintf("tty%d", i),
+	})
 }
 
-func K3s() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k3s"),
-			openrc.WithEnvFile(K3sEnvUnit("k3s")),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k3s"),
-	)
-}
-
-func K3sAgent() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k3s-agent"),
-			openrc.WithEnvFile(K3sEnvUnit("k3s-agent")),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k3s-agent"),
-	)
-}
-
-func K3sEnvUnit(unit string) string {
-	if utils.IsOpenRCBased() {
-		return fmt.Sprintf("/etc/rancher/k3s/%s.env", unit)
-	}
-
-	return fmt.Sprintf("/etc/sysconfig/%s", unit)
-}
-
-func K0s() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k0scontroller"),
-			openrc.WithEnvFile(K0sEnvUnit("k0scontroller")),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k0scontroller"),
-	)
-}
-
-func K0sWorker() (Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("k0sworker"),
-			openrc.WithEnvFile(K0sEnvUnit("k0sworker")),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("k0sworker"),
-	)
-}
-
-func K0sEnvUnit(unit string) string {
-	if utils.IsOpenRCBased() {
-		return fmt.Sprintf("/etc/k0s/%s.env", unit)
-	}
-
-	return fmt.Sprintf("/etc/sysconfig/%s", unit)
-}
 func UUID() string {
 	if os.Getenv("UUID") != "" {
 		return os.Getenv("UUID")

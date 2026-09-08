@@ -12,8 +12,6 @@ import (
 	p2p "github.com/kairos-io/kairos/v4/provider/internal/role/p2p"
 	"github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
-	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
-	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	edgeVPNClient "github.com/mudler/edgevpn/api/client"
@@ -188,8 +186,7 @@ func oneTimeBootstrap(l loggerpkg.KairosLogger, c *providerConfig.Config, vpnSet
 	}
 	l.Info("One time bootstrap starting")
 
-	var svc machine.Service
-	var svcName, svcRole, envFile, binPath, args string
+	var svcName, svcRole, binPath, args string
 	var svcEnv map[string]string
 
 	node, err := p2p.NewK8sNode(c)
@@ -203,31 +200,23 @@ func oneTimeBootstrap(l loggerpkg.KairosLogger, c *providerConfig.Config, vpnSet
 	svcEnv = node.Env()
 	args = strings.Join(node.Args(), " ")
 	binPath = node.K8sBin()
-	envFile = node.EnvFile()
 
 	if binPath == "" {
 		l.Errorf("no %s binary found", svcName)
 		return fmt.Errorf("no %s binary found", svcName)
 	}
 
-	if err := utils.WriteEnv(envFile, svcEnv); err != nil {
-		l.Errorf("Failed to write %s env file: %s", svcName, err.Error())
-		return err
-	}
-
-	// Initialize the service based on the system's init system
-	if utils.IsOpenRCBased() {
-		svc, err = openrc.NewService(openrc.WithName(svcName), openrc.WithEnvFile(envFile))
-	} else {
-		svc, err = systemd.NewService(systemd.WithName(svcName))
-	}
-
+	// The node knows which service it runs under; the service knows which init
+	// system is underneath and where that init system reads its environment.
+	svc, err := node.Service()
 	if err != nil {
 		l.Errorf("Failed to instantiate service: %s", err.Error())
 		return err
 	}
-	if svc == nil {
-		return fmt.Errorf("could not detect OS")
+
+	if err := svc.SetEnv(svcEnv); err != nil {
+		l.Errorf("Failed to write %s env file: %s", svcName, err.Error())
+		return err
 	}
 
 	// Override the service command and start it
