@@ -357,7 +357,7 @@ jobs:
     # kcrypt-challenger image is on a parallel pipe and must also be
     # pushed to :master-scratch before this job can promote it.
     needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger]
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     steps:
       - name: Login to ghcr.io
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4

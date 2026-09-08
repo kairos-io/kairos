@@ -340,7 +340,7 @@ jobs:
     name: "${{ inputs.custom_job_name_format != '' && inputs.custom_job_name_format || format('{0}-{1}-{2}-{3}{4}{5}',
       inputs.base_image, (inputs.kubernetes_distro != '' && 'standard' || 'core'), inputs.arch, inputs.model,
       (inputs.kubernetes_distro != '' && format('-{0}', inputs.kubernetes_distro) || ''), (inputs.trusted_boot && '-uki' || '')) }}"
-    runs-on: ${{ inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.repository_owner == 'kairos-io' && (inputs.arch == 'arm64' && 'cncf-ubuntu-16-64-arm' || 'cncf-ubuntu-16-64-x86') || (inputs.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04') }}
     steps:
       - name: Release space from worker
         if: inputs.cleanup

@@ -24,7 +24,7 @@ permissions: read-all
 jobs:
   upload-gcp:
     name: Upload to GCP
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     # Only run for a workflow_run event when the release build actually
     # succeeded -- a failed or skipped run means the hadron tag this job
     # needs was never published. schedule/workflow_dispatch have no
@@ -124,7 +124,7 @@ jobs:
   # https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services
   upload-aws:
     name: Upload to AWS
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     # See upload-gcp's identical guard above.
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     permissions:
@@ -192,7 +192,7 @@ jobs:
     permissions:
       id-token: write
     name: Upload to Azure
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     # https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-create-trust?pivots=identity-wif-apps-methods-azp#github-actions
     environment: azure-push
     # See upload-gcp's identical guard above. Azure's own version check only

@@ -51,7 +51,7 @@ permissions:
 
 jobs:
   golangci_lint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     if: ${{ inputs.is-go }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -114,7 +114,7 @@ jobs:
             golangci-lint -v --timeout="${TIMEOUT}" run
 
   hadolint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -127,7 +127,7 @@ jobs:
         run: find . -path "./examples" -prune -o -name "Dockerfile.*" -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "hadolint/hadolint:${HADOLINT_VERSION}" hadolint
 
   renovate-validator:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -140,7 +140,7 @@ jobs:
         run: docker run -v "$PWD":/work -w /work renovate/renovate renovate-config-validator
 
   shellcheck-lint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -153,7 +153,7 @@ jobs:
         run: find . -path "./examples" -prune -o -name "*.sh" -print | xargs -r -n1 docker run -v "$PWD":/work -w /work "koalaman/shellcheck-alpine:${SHELLCHECK_VERSION}" shellcheck
 
   yamllint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'kairos-io' && 'cncf-ubuntu-16-64-x86' || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
