@@ -201,8 +201,9 @@ func TestMonorepoBinaryURLs_KnownAssets(t *testing.T) {
 
 // TestMonorepoBinaryURLs_UnknownReponameFallsBack ensures a reponame with no
 // monorepo mapping is rejected with ok=false and no URLs, rather than
-// guessing — the caller falls back to downloadLegacyPerComponentBinary in
-// that case (e.g. mudler/edgevpn, which was never part of the monorepo).
+// guessing (e.g. mudler/edgevpn, which was never part of the monorepo and is
+// routed to downloadLegacyPerComponentBinary directly by its own org check,
+// never through this function).
 func TestMonorepoBinaryURLs_UnknownReponameFallsBack(t *testing.T) {
 	_, _, _, ok := monorepoBinaryURLs("edgevpn", "v0.35.5", "amd64", false)
 	if ok {

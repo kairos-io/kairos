@@ -552,19 +552,7 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 
 			reponame := filepath.Base(dest)
 			l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Resolving binary from the kairos-io/kairos monorepo release")
-			err := downloadKairosMonorepoBinary(client, l, reponame, version, string(sis.Arch), config.DefaultConfig.Fips, dest)
-			if err != nil {
-				// TODO(supply-chain): kairos-agent, immucore and
-				// kcrypt-discovery-challenger were archived into
-				// kairos-io/kairos in August 2026; their last standalone
-				// releases (e.g. kairos-agent v2.31.4) still resolve here,
-				// but no new ones will ever appear. Drop this fallback once
-				// pinning to one of those frozen pre-monorepo tags stops
-				// being a realistic use case.
-				l.Logger.Warn().Err(err).Str("binary", dest).Msg("Monorepo resolution failed, falling back to the archived pre-monorepo per-component repo")
-				err = downloadLegacyPerComponentBinary(client, l, "kairos-io", reponame, version, string(sis.Arch), config.DefaultConfig.Fips, dest)
-			}
-			if err != nil {
+			if err := downloadKairosMonorepoBinary(client, l, reponame, version, string(sis.Arch), config.DefaultConfig.Fips, dest); err != nil {
 				l.Logger.Error().Err(err).Str("binary", dest).Msg("Failed to download and extract binary")
 				return err
 			}
@@ -661,15 +649,6 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 			if org == "kairos-io" {
 				l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Resolving binary from the kairos-io/kairos monorepo release")
 				err = downloadKairosMonorepoBinary(client, l, binaryName, version, arch, fips, dest)
-				if err != nil {
-					// TODO(supply-chain): provider-kairos was archived into
-					// kairos-io/kairos in August 2026; its last standalone
-					// release still resolves here, but no new ones will
-					// appear. Drop this fallback once pinning to a frozen
-					// pre-monorepo tag stops being a realistic use case.
-					l.Logger.Warn().Err(err).Str("binary", dest).Msg("Monorepo resolution failed, falling back to the archived pre-monorepo per-component repo")
-					err = downloadLegacyPerComponentBinary(client, l, org, binaryName, version, arch, fips, dest, binaryName)
-				}
 			} else {
 				// mudler/edgevpn is a separate upstream project, never part
 				// of the kairos-io/kairos monorepo — always resolves via its
@@ -801,11 +780,10 @@ var monorepoAssets = map[string]monorepoAsset{
 // monorepoBinaryURLs builds the tarball and shared-checksums URLs for
 // reponame's binary against the kairos-io/kairos release at version, and the
 // name of the binary inside that tarball. ok is false when reponame has no
-// known monorepo asset mapping, so the caller can fall back to
-// downloadLegacyPerComponentBinary without making any request at all.
-// Pulled out of downloadKairosMonorepoBinary so the URL-building logic
-// (asset renames, the FIPS suffix, the shared checksums.txt) is unit
-// testable without a network call.
+// known monorepo asset mapping, so downloadKairosMonorepoBinary can reject it
+// without making any request at all. Pulled out of downloadKairosMonorepoBinary
+// so the URL-building logic (asset renames, the FIPS suffix, the shared
+// checksums.txt) is unit testable without a network call.
 func monorepoBinaryURLs(reponame, version, arch string, fips bool) (assetURL, checksumsURL, binaryName string, ok bool) {
 	asset, ok := monorepoAssets[reponame]
 	if !ok {
@@ -852,19 +830,10 @@ func legacyPerComponentURLs(org, reponame, version, arch string, fips bool) (ass
 	return assetURL, checksumsURL
 }
 
-// downloadLegacyPerComponentBinary is the pre-monorepo resolution: reponame
-// published its own release, with its own goreleaser "*-checksums.txt"
-// sibling, under org. kairos-io archived kairos-agent, immucore,
-// kcrypt-discovery-challenger, kairos-installer and provider-kairos once
-// their code moved into kairos-io/kairos, but their last releases (e.g.
-// kairos-agent v2.31.4) are still fetchable — this path exists ONLY so an
-// operator's .init_versions.yaml pin to one of those frozen pre-monorepo
-// tags keeps resolving; mudler/edgevpn (never part of the monorepo) always
-// uses this path.
-//
-// TODO(supply-chain): drop this once pinning to a pre-monorepo tag stops
-// being a realistic use case — downloadKairosMonorepoBinary should be the
-// only resolution left at that point.
+// downloadLegacyPerComponentBinary resolves a binary against its own
+// (non-monorepo) release, with its own goreleaser "*-checksums.txt" sibling,
+// under org. mudler/edgevpn is the only caller left: it was never folded
+// into kairos-io/kairos, so it always publishes this way.
 func downloadLegacyPerComponentBinary(client sdkhttp.Client, l logger.KairosLogger, org, reponame, version, arch string, fips bool, dest string, binaryName ...string) error {
 	url, checksumsURL := legacyPerComponentURLs(org, reponame, version, arch, fips)
 	l.Logger.Info().Str("url", url).Msg("Downloading binary")
