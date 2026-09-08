@@ -35,6 +35,16 @@ func (b GrubPostInstallOptions) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		grubOpts[k] = v
 	}
 
+	// Warn on selinux configs that are set but not effective, so the
+	// install log is not silent about SELinux staying off or falling
+	// back to permissive.
+	if c.Install.Selinux.Mode != "" && !c.Install.Selinux.Enabled {
+		c.Logger.Logger.Warn().Msg("install.selinux.mode is set but install.selinux.enabled is false; SELinux stays disabled")
+	}
+	if c.Install.Selinux.Enabled && c.Install.Selinux.Mode != "" && !isSelinuxModeExists(c.Install.Selinux.Mode) {
+		c.Logger.Logger.Warn().Msgf("unknown install.selinux.mode %q, using permissive", c.Install.Selinux.Mode)
+	}
+
 	for k, v := range SelinuxGrubOpts(c.Install.Selinux) {
 		grubOpts[k] = v
 	}
@@ -93,10 +103,16 @@ func SelinuxGrubOpts(selinux install.SelinuxOptions) map[string]string {
 	if !selinux.Enabled {
 		return nil
 	}
-	mode := "permissive"
-	if selinux.Mode == "enforcing" {
-		mode = "enforcing"
+
+	mode := selinux.Mode
+	if mode == "" {
+		mode = "permissive"
 	}
+
+	if !isSelinuxModeExists(mode) {
+		mode = "permissive"
+	}
+
 	return map[string]string{
 		"selinux_enabled": "true",
 		"selinux_mode":    mode,
@@ -240,4 +256,14 @@ func extractKcryptCmdline(c *sdkConfig.Config) string {
 	}
 
 	return strings.Join(cmdlineArgs, " ")
+}
+
+func isSelinuxModeExists(m string) bool {
+	availableModes := map[string]struct{}{
+		"permissive": {},
+		"enforcing":  {},
+	}
+
+	_, ok := availableModes[m]
+	return ok
 }
