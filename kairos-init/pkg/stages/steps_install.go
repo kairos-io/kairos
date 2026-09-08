@@ -2,10 +2,10 @@ package stages
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +21,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/installer"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/verify"
 	"github.com/mudler/yip/pkg/schema"
 )
 
@@ -554,8 +555,12 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 			}
 			// Add the .tar.gz to the url
 			url = fmt.Sprintf("%s.tar.gz", url)
+			// kairos-io's release pipeline publishes a "*-checksums.txt" sibling
+			// of every binary tarball in the same release; verify the download
+			// against it rather than trusting the tarball on its own.
+			checksumsURL := fmt.Sprintf("https://github.com/kairos-io/%[1]s/releases/download/%[2]s/%[1]s-%[2]s-checksums.txt", reponame, version)
 			l.Logger.Info().Str("url", url).Msg("Downloading binary")
-			err := DownloadAndExtract(url, dest)
+			err := DownloadAndExtract(url, checksumsURL, dest)
 			if err != nil {
 				l.Logger.Error().Err(err).Str("binary", dest).Msg("Failed to download and extract binary")
 				return err
@@ -652,8 +657,11 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 			}
 			// Add the .tar.gz to the url
 			url = fmt.Sprintf("%s.tar.gz", url)
+			// Same goreleaser "*-checksums.txt" convention as kairos-io's own
+			// releases; org already accounts for the mudler/edgevpn exception.
+			checksumsURL := fmt.Sprintf("https://github.com/%[3]s/%[1]s/releases/download/%[2]s/%[1]s-%[2]s-checksums.txt", binaryName, version, org)
 			l.Logger.Info().Str("url", url).Msg("Downloading binary")
-			err := DownloadAndExtract(url, dest, binaryName)
+			err := DownloadAndExtract(url, checksumsURL, dest, binaryName)
 			if err != nil {
 				l.Logger.Error().Err(err).Str("binary", dest).Msg("Failed to download and extract binary")
 				return err
@@ -738,19 +746,29 @@ func GetKairosMiscellaneousFilesStage(sis values.System, l logger.KairosLogger) 
 	return data
 }
 
-// DownloadAndExtract downloads a tar.gz file from the specified URL, extracts its contents,
+// DownloadAndExtract downloads a tar.gz file from the specified URL, verifying it against the
+// sha256 recorded for it in the goreleaser-style "*-checksums.txt" published at checksumsURL
+// alongside every kairos-io (and mudler/edgevpn) release tarball, then extracts its contents,
 // and searches for a binary file to move to the destination path. If a binary name is provided
 // as an optional parameter, it uses that name to locate the binary in the archive; otherwise,
 // it defaults to using the base name of the destination path. The function returns an error
-// if the download, extraction, or file operations fail, or if the binary is not found in the archive.
-func DownloadAndExtract(url, dest string, binaryName ...string) error {
-	resp, err := http.Get(url)
+// if the checksum fetch, download, verification, extraction, or file operations fail, or if the
+// binary is not found in the archive.
+func DownloadAndExtract(url, checksumsURL, dest string, binaryName ...string) error {
+	sums, err := verify.FetchChecksums(checksumsURL)
+	if err != nil {
+		return fmt.Errorf("failed to fetch checksums for %s: %w", url, err)
+	}
+	want, err := verify.ChecksumFromSumsFile(sums, filepath.Base(url))
+	if err != nil {
+		return fmt.Errorf("failed to find checksum for %s: %w", url, err)
+	}
+	data, err := verify.VerifiedDownload(url, want)
 	if err != nil {
 		return fmt.Errorf("failed to download file: %w", err)
 	}
-	defer resp.Body.Close()
 
-	gzr, err := gzip.NewReader(resp.Body)
+	gzr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}

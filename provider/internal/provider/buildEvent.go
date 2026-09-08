@@ -13,13 +13,45 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/bus"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/verify"
 	"github.com/mudler/go-pluggable"
 )
 
 const (
 	K3s = "k3s"
 	K0s = "k0s"
+
+	k3sInstallScriptURL = "https://get.k3s.io"
+	k0sInstallScriptURL = "https://get.k0s.sh"
+
+	// k3sInstallScriptSumsURL is published by k3s-io/k3s itself, alongside
+	// install.sh in the same repo, specifically so this script can be
+	// verified (added in k3s-io/k3s#8312). get.k3s.io serves the master
+	// branch's install.sh byte-for-byte, so checking the download against
+	// this sibling file catches a compromised or spoofed get.k3s.io without
+	// k3s needing to sign anything new.
+	k3sInstallScriptSumsURL = "https://raw.githubusercontent.com/k3s-io/k3s/master/install.sh.sha256sum"
 )
+
+// downloadK3sInstaller fetches the k3s install script from scriptURL and
+// verifies it against the sha256 digest published at sumsURL before writing
+// it to dest. It fails closed: a fetch error, a parse error, or a digest
+// mismatch all return an error and leave dest untouched.
+func downloadK3sInstaller(scriptURL, sumsURL, dest string) error {
+	sums, err := verify.FetchChecksums(sumsURL)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", sumsURL, err)
+	}
+	want, err := verify.ChecksumFromSumsFile(sums, "install.sh")
+	if err != nil {
+		return fmt.Errorf("parse %s: %w", sumsURL, err)
+	}
+	data, err := verify.VerifiedDownload(scriptURL, want)
+	if err != nil {
+		return fmt.Errorf("download %s: %w", scriptURL, err)
+	}
+	return os.WriteFile(dest, data, 0644)
+}
 
 // BuildEvent handles the buildtime event for the provider. Called by kairos-init during the build process.
 func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
@@ -45,23 +77,26 @@ func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
 	// Now move the logger to the requested log level
 	l.SetLevel(p.LogLevel)
 	l.Logger.Debug().Interface("payload", p).Msg("Payload details")
-	// Download the installer script for the provider
-	var url string
-	switch p.Provider {
-	case K3s:
-		url = "https://get.k3s.io"
-	case K0s:
-		url = "https://get.k0s.sh"
-	}
-
 	installerFile := filepath.Join(os.TempDir(), "installer.sh")
 
-	// Download the installer script
+	// Download the installer script for the provider
 	switch p.Provider {
-	case K3s, K0s:
-		l.Logger.Info().Msgf("Downloading installer script for %s from %s", p.Provider, url)
-		// TODO: Do it with golang instead of needing curl?
-		out, err := exec.Command("curl", "-sfL", url, "-o", installerFile).CombinedOutput()
+	case K3s:
+		l.Logger.Info().Msgf("Downloading installer script for %s from %s", p.Provider, k3sInstallScriptURL)
+		if err := downloadK3sInstaller(k3sInstallScriptURL, k3sInstallScriptSumsURL, installerFile); err != nil {
+			l.Logger.Error().Err(err).Msg("Failed to download and verify k3s installer script")
+			returnData.Error = fmt.Sprintf("Failed to download and verify k3s installer script: %s", err)
+			returnData.State = bus.EventResponseError
+			return returnData
+		}
+	case K0s:
+		l.Logger.Info().Msgf("Downloading installer script for %s from %s", p.Provider, k0sInstallScriptURL)
+		// TODO(supply-chain): get.k0s.sh is served from the k0sproject/get
+		// GitHub Pages repo (a plain index.html), which publishes no
+		// companion checksum or signature for it — unlike get.k3s.io's
+		// install.sh.sha256sum. There is currently no real verification
+		// path to hook into here; don't invent a homegrown one for it.
+		out, err := exec.Command("curl", "-sfL", k0sInstallScriptURL, "-o", installerFile).CombinedOutput()
 		if err != nil {
 			l.Logger.Error().Err(err).Msgf("Failed to download installer script: %s", string(out))
 			returnData.Error = fmt.Sprintf("Failed to download installer script: %s", string(out))
