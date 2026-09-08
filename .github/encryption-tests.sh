@@ -58,7 +58,11 @@ retry() {
 # (something like that). If you run k3d inside a k3s cluster (inside a Pod), DNS won't work
 # inside the k3d server container unless you use a different CIDR.
 # Here we are avoiding CIDR "10.43.x.x"
-k3d cluster create "$CLUSTER_NAME" --k3s-arg "--cluster-cidr=10.49.0.1/16@server:0" --k3s-arg "--service-cidr=10.48.0.1/16@server:0" -p '80:80@server:0' -p '443:443@server:0' --image "$K3S_IMAGE"
+# k3d rolls its own creation back when it fails ("Cluster creation FAILED,
+# all changes have been rolled back!"), so a retry starts from a clean slate.
+# It needs one: the runner's docker intermittently refuses to start the server
+# container, which fails the whole encryption cell before a spec runs.
+retry 3 10 k3d cluster create "$CLUSTER_NAME" --k3s-arg "--cluster-cidr=10.49.0.1/16@server:0" --k3s-arg "--service-cidr=10.48.0.1/16@server:0" -p '80:80@server:0' -p '443:443@server:0' --image "$K3S_IMAGE"
 k3d kubeconfig get "$CLUSTER_NAME" > "$KUBECONFIG"
 
 # Wait for cluster to be fully ready before proceeding. "k3d cluster create"
