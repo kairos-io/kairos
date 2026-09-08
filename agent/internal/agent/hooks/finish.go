@@ -12,6 +12,10 @@ type Finish struct{}
 func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 	var err error
 
+	// Encrypt below unlocks the partitions it works on, so every return path
+	// from here has to lock them again.
+	defer lockPartitions(c.Logger)
+
 	// Drop the user cloud-config files first, while the installer still has
 	// OEM mounted: the encryption below unmounts it, and snapshots and
 	// restores whatever is there.
@@ -23,7 +27,6 @@ func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 
 	// Run encryption (handles both UKI and non-UKI, returns early if nothing to encrypt)
 	err = Encrypt(c)
-	defer lockPartitions(c.Logger) // partitions are unlocked, make sure to lock them before we end
 	if err != nil {
 		c.Logger.Logger.Error().Err(err).Msg("could not encrypt partitions")
 		return err
