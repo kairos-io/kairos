@@ -45,16 +45,23 @@ func (s SHA256Sum) Valid() bool {
 // VerifiedDownload downloads url through client to destination and verifies
 // the downloaded content's sha256 digest matches want before leaving it in
 // place. It fails closed: a malformed want, a download error, or a digest
-// mismatch all leave no verified content at destination — on a mismatch it
-// removes whatever client.GetURL wrote before returning, so a tampered,
+// mismatch all leave no verified content at destination — it clears
+// destination before downloading and again on every failure, so a tampered,
 // truncated, or wrong-version artifact is never left where a caller expects
-// a verified one.
+// a verified one, and a caller passing a fixed path can call it repeatedly.
 func VerifiedDownload(client sdkhttp.Client, log logger.KairosLogger, url, destination string, want SHA256Sum) error {
 	if !want.Valid() {
 		return fmt.Errorf("verify: refusing to download %s: %q is not a valid sha256 digest", url, want)
 	}
 
+	// client's implementation resumes an interrupted download by default, so
+	// a file left at destination by an earlier run is treated as a partial
+	// copy of this url and continued with a Range request. Clear it first so
+	// every download starts from zero bytes against the current remote.
+	_ = os.Remove(destination)
+
 	if err := client.GetURL(log, url, destination); err != nil {
+		_ = os.Remove(destination)
 		return fmt.Errorf("verify: download %s: %w", url, err)
 	}
 
