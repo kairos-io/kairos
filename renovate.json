@@ -42,6 +42,16 @@
       "allowedVersions": "<2.0.0"
     },
     {
+      "description": "edgevpn v0.35.4 added api/spa.go with a //go:embed of react-ui/dist, which is gitignored upstream and absent from the published module zip, so every version from v0.35.4 on fails to compile for consumers. See #4464 and mudler/edgevpn#1080.",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchDepNames": [
+        "github.com/mudler/edgevpn"
+      ],
+      "allowedVersions": "<0.35.4"
+    },
+    {
       "description": "kubo v0.41.0 pulls cockroachdb/swiss, which go:linknames into runtime internals that Go 1.27 removed. The pin and its reason live in the Dockerfile. See #4509.",
       "matchFileNames": [
         "examples/bundle/Dockerfile"
