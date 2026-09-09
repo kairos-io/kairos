@@ -107,6 +107,87 @@ func TestRenderCloudConfigCannotBeRedirectedByTheCallersYAML(t *testing.T) {
 	if strings.Contains(got, "/dev/sdb") {
 		t.Errorf("the other device is still in the config:\n%s", got)
 	}
+	if install := installBlock(t, got); install["reboot"] != false {
+		t.Errorf("reboot = %v, want false: the caller's YAML changed the finish action", install["reboot"])
+	}
+}
+
+// reboot and poweroff are omitempty, so the confirmed finish action renders no
+// key at all when it is "none". Unless it is written back explicitly, the
+// caller's own value is what the machine ends up obeying.
+func TestRenderCloudConfigFinishActionCannotBeOverriddenByTheCallersYAML(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		extra            string
+		finish           string
+		reboot, poweroff bool
+	}{
+		{
+			name:  "poweroff asked for in the YAML, finish action none",
+			extra: "install:\n  poweroff: true\n",
+		},
+		{
+			name:  "reboot asked for in the YAML, finish action none",
+			extra: "install:\n  reboot: true\n",
+		},
+		{
+			name:     "reboot asked for in the YAML, finish action poweroff",
+			extra:    "install:\n  reboot: true\n",
+			finish:   FinishPoweroff,
+			poweroff: true,
+		},
+		{
+			name:   "poweroff asked for in the YAML, finish action reboot",
+			extra:  "install:\n  poweroff: true\n",
+			finish: FinishReboot,
+			reboot: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			finish := tc.finish
+			if finish == "" {
+				finish = FinishNone
+			}
+
+			got, err := renderCloudConfig("/dev/sda", "", finish, tc.extra)
+			if err != nil {
+				t.Fatalf("renderCloudConfig: %v", err)
+			}
+
+			install := installBlock(t, got)
+			if install["reboot"] != tc.reboot {
+				t.Errorf("reboot = %v, want %v for finish action %q:\n%s",
+					install["reboot"], tc.reboot, finish, got)
+			}
+			if install["poweroff"] != tc.poweroff {
+				t.Errorf("poweroff = %v, want %v for finish action %q:\n%s",
+					install["poweroff"], tc.poweroff, finish, got)
+			}
+		})
+	}
+}
+
+// An omitted source is the one key the caller's YAML may still set: writing an
+// empty string in its place would override the source kairos-agent resolves for
+// itself. A source that was passed still wins.
+func TestRenderCloudConfigSourceOnlyWinsWhenGiven(t *testing.T) {
+	extra := "install:\n  source: oci:quay.io/kairos/from-yaml:v1\n"
+
+	got, err := renderCloudConfig("/dev/sda", "", FinishNone, extra)
+	if err != nil {
+		t.Fatalf("renderCloudConfig: %v", err)
+	}
+	if install := installBlock(t, got); install["source"] != "oci:quay.io/kairos/from-yaml:v1" {
+		t.Errorf("source = %v, want the caller's: an omitted source must not blank it out", install["source"])
+	}
+
+	got, err = renderCloudConfig("/dev/sda", "oci:quay.io/kairos/confirmed:v1", FinishNone, extra)
+	if err != nil {
+		t.Fatalf("renderCloudConfig: %v", err)
+	}
+	if install := installBlock(t, got); install["source"] != "oci:quay.io/kairos/confirmed:v1" {
+		t.Errorf("source = %v, want the source the tool was called with", install["source"])
+	}
 }
 
 // Install options this tool does not model still have to be settable, or the

@@ -61,10 +61,25 @@ func (w WebUI) HasAddress() bool {
 	return w.ListenAddress != ""
 }
 
+// MCP configures the Model Context Protocol server the interactive installer
+// serves alongside its TUI, so an agent can drive an install. It is a listener
+// on a live machine like the web UI, so it takes the same two knobs.
+type MCP struct {
+	Disable       bool   `yaml:"disable"`
+	ListenAddress string `yaml:"listen_address"`
+}
+
+// HasAddress reports whether the image pinned a listen address, as opposed to
+// leaving the default one.
+func (m MCP) HasAddress() bool {
+	return m.ListenAddress != ""
+}
+
 // Config is the content of /etc/kairos/agent.yaml.
 type Config struct {
 	Fast     bool  `yaml:"fast,omitempty"`
 	WebUI    WebUI `yaml:"webui"`
+	MCP      MCP   `yaml:"mcp"`
 	Branding Text  `yaml:"branding"`
 }
 
