@@ -600,6 +600,11 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 	return nil
 }
 
+// edgevpnDest is where the edgevpn binary lands. It doubles as the marker
+// for the one entry in GetInstallProviderBinaries' binaries map that does not
+// come from kairos-io.
+const edgevpnDest = "/usr/bin/edgevpn"
+
 // GetInstallProviderBinaries installs the provider and edgevpn binaries
 func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error {
 	if config.ContainsSkipStep(values.ProviderBinariesStep) {
@@ -619,7 +624,7 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 
 	binaries := map[string]string{
 		"/system/providers/agent-provider-kairos": config.DefaultConfig.VersionOverrides.Provider,
-		"/usr/bin/edgevpn":                        config.DefaultConfig.VersionOverrides.EdgeVpn,
+		edgevpnDest: config.DefaultConfig.VersionOverrides.EdgeVpn,
 	}
 
 	client := httpimpl.NewClient()
@@ -628,7 +633,7 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 		// edgevpn is deliberately not exempted here: mudler/edgevpn is a
 		// separate upstream project, so its versions never collide with
 		// kairos-init's own and its releases are always already published.
-		if ownBuildVersion(version) && dest != "/usr/bin/edgevpn" {
+		if ownBuildVersion(version) && dest != edgevpnDest {
 			l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Pinned version is the one kairos-init was built from, using the embedded binary")
 			version = ""
 		}
@@ -647,7 +652,7 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 			arch := string(sis.Arch)
 			// Check if the destination is edgevpn, if so we need to use mudler as the org
 			// And change the arch to x86_64 if its amd64
-			if dest == "/usr/bin/edgevpn" {
+			if dest == edgevpnDest {
 				org = "mudler"
 				if arch == "amd64" {
 					arch = "x86_64"
@@ -656,7 +661,7 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 			// Binary destination has the prefix agent- so we need to remove it as the repo does not have it, nor the file
 			binaryName := strings.Replace(filepath.Base(dest), "agent-", "", 1)
 			// fips only ever applies to provider-kairos, never to edgevpn
-			fips := config.DefaultConfig.Fips && dest != "/usr/bin/edgevpn"
+			fips := config.DefaultConfig.Fips && dest != edgevpnDest
 
 			var err error
 			if org == "kairos-io" {
@@ -682,7 +687,7 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 				} else {
 					data = bundled.EmbeddedKairosProvider
 				}
-			case "/usr/bin/edgevpn":
+			case edgevpnDest:
 				data = bundled.EmbeddedEdgeVPN
 			}
 
@@ -783,9 +788,14 @@ type monorepoAsset struct {
 	binaryName string
 }
 
+// multiCallBinary is the name of the multi-call binary that absorbed
+// kairos-agent and immucore, used both as its tarball's filename prefix and
+// as the file inside that tarball.
+const multiCallBinary = "kairos"
+
 var monorepoAssets = map[string]monorepoAsset{
-	"kairos-agent":                {prefix: "kairos", binaryName: "kairos"},
-	"immucore":                    {prefix: "kairos", binaryName: "kairos"},
+	"kairos-agent":                {prefix: multiCallBinary, binaryName: multiCallBinary},
+	"immucore":                    {prefix: multiCallBinary, binaryName: multiCallBinary},
 	"kcrypt-discovery-challenger": {prefix: "kcrypt-challenger"},
 	"provider-kairos":             {prefix: "provider-kairos"},
 }
