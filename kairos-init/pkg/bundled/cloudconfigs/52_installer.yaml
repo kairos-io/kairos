@@ -2,11 +2,12 @@ name: "Start installer on tty1"
 stages:
   initramfs:
     # Start installer if we get the install-mode cmdline and NOT the install-mode-interactive cmdline as we can have both
-    # and we dont want to trigger both
+    # and we dont want to trigger both. install-mode is a prefix of
+    # install-mode-interactive, so the keyword has to be matched space-delimited.
     # Works in livecd or uki install mode
     # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
     - if: |
-        (grep -q "install-mode" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
+        (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
         ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
       only_service_manager: "systemd"
       files:
@@ -57,7 +58,7 @@ stages:
     # Starts installer on boot for openRC based systems
     # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
     - if: |
-        (grep -q "install-mode" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
+        (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline ) && \
         ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
       only_service_manager: "openrc"
       commands:
