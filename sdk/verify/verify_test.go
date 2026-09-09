@@ -85,31 +85,24 @@ func TestVerifiedDownload_NetworkError(t *testing.T) {
 	}
 }
 
-// TestVerifiedDownload_StaleDestinationSurvivesDownloadError captures a bug:
-// VerifiedDownload's real download path goes through the grab-backed
-// sdkhttp.Client, whose underlying grab.Request defaults NoResume to false.
-// When destination already holds a file (e.g. a previous run's artifact,
-// the shape provider/internal/provider/buildEvent.go's fixed k0sBinaryDest
-// leaves behind), grab issues a HEAD first to learn the remote size and, on
-// finding the existing local file *larger* than what the remote now
-// reports, fails closed with grab.ErrBadLength ("bad content length")
-// before ever opening the destination for writing — so client.GetURL
-// returns a plain download error, never a checksum mismatch.
-//
-// VerifiedDownload's own doc comment promises "a malformed want, a download
-// error, or a digest mismatch all leave no verified content at destination",
-// but its download-error branch only wraps and returns client.GetURL's
-// error — it never calls os.Remove(destination) the way the digest-mismatch
-// branch does a few lines below. This test proves that today: the stale
-// file is still sitting at destination, byte-for-byte unchanged, after
-// VerifiedDownload has returned an error.
-func TestVerifiedDownload_StaleDestinationSurvivesDownloadError(t *testing.T) {
+// TestVerifiedDownload_StaleDestinationIsReplaced covers a caller that
+// passes a fixed path rather than a temp file — the shape
+// provider/internal/provider/buildEvent.go's k0sBinaryDest has, where a
+// previous run's artifact is already on disk. The download path goes
+// through the grab-backed sdkhttp.Client, whose grab.Request defaults
+// NoResume to false, so a file left at destination would otherwise be
+// treated as a partial copy of this url and continued with a Range
+// request: grab HEADs first, and finding the local file *larger* than what
+// the remote now reports it fails closed with grab.ErrBadLength before
+// ever opening destination for writing. VerifiedDownload clears
+// destination up front, so the stale bytes cannot poison the request and
+// the download runs to completion against the current remote.
+func TestVerifiedDownload_StaleDestinationIsReplaced(t *testing.T) {
 	newBody := []byte("new release bytes")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Advertise range support and a Content-Length shorter than the
-		// stale local file below, so grab's HEAD-driven resume check finds
-		// the "remote" smaller than what is already on disk and bails out
-		// with ErrBadLength instead of ever performing a GET.
+		// stale local file below: the combination that makes grab's
+		// HEAD-driven resume check bail out instead of performing a GET.
 		w.Header().Set("Accept-Ranges", "bytes")
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(newBody)))
 		if r.Method == http.MethodHead {
@@ -126,19 +119,48 @@ func TestVerifiedDownload_StaleDestinationSurvivesDownloadError(t *testing.T) {
 	}
 
 	err := verify.VerifiedDownload(client(), logger.NewNullLogger(), srv.URL, dest, sumOf(newBody))
-	if err == nil {
-		t.Fatal("VerifiedDownload succeeded despite a shorter remote than the stale local file, want a download error")
+	if err != nil {
+		t.Fatalf("VerifiedDownload over a stale destination returned error: %v", err)
 	}
 
-	// This is the bug: VerifiedDownload's doc comment promises a download
-	// error "leaves no verified content at destination", but the stale
-	// file below was never touched by the download-error path.
-	got, statErr := os.ReadFile(dest)
-	if statErr != nil {
-		t.Fatalf("stale destination unexpectedly gone after download error: %v", statErr)
+	got, readErr := os.ReadFile(dest)
+	if readErr != nil {
+		t.Fatalf("reading destination: %v", readErr)
 	}
-	if string(got) != string(staleBody) {
-		t.Fatalf("stale destination content changed unexpectedly: got %q, want unchanged %q", got, staleBody)
+	if string(got) != string(newBody) {
+		t.Fatalf("VerifiedDownload left %q at destination, want the freshly downloaded %q", got, newBody)
+	}
+}
+
+// TestVerifiedDownload_PartialDownloadRemovedOnError covers the other half
+// of the same contract: a download that fails part-way through has already
+// written bytes to destination, and those bytes are unverified. The
+// download-error path removes them, so no caller finds a truncated
+// artifact where it expects a verified one.
+func TestVerifiedDownload_PartialDownloadRemovedOnError(t *testing.T) {
+	fullBody := []byte("the complete release artifact, all of these bytes")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Promise the full length, then hand over a prefix and hang up, so
+		// the client writes a partial file and then sees an unexpected EOF.
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(fullBody)))
+		if r.Method == http.MethodHead {
+			return
+		}
+		_, _ = w.Write(fullBody[:10])
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+	defer srv.Close()
+
+	dest := filepath.Join(t.TempDir(), "artifact")
+	err := verify.VerifiedDownload(client(), logger.NewNullLogger(), srv.URL, dest, sumOf(fullBody))
+	if err == nil {
+		t.Fatal("VerifiedDownload succeeded on a truncated response, want error")
+	}
+
+	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {
+		t.Fatalf("partially downloaded content must not be left at %s (stat error was %v)", dest, statErr)
 	}
 }
 
