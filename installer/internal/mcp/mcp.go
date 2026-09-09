@@ -19,6 +19,23 @@
 // installer's own mux once the web UI moves in (kairos-io/kairos#4340);
 // [ListenAndServe] is the standalone listener used until then.
 //
+// # Who can reach it
+//
+// Nobody is authenticated. Anything that can reach the listening address can
+// call every tool, install included. The cross-origin wrapper below is a
+// browser control and nothing else: it decides on Sec-Fetch-Site and Origin,
+// which a non-browser caller does not send, so it stops a page the operator
+// opened and not a program on the network.
+//
+// That is deliberate, and it is the exposure a live-booted machine already has
+// from kairos-webui on :8080, which can install too. An operator who does not
+// want it turns the listener off or moves it to loopback through the agent
+// config, the same two knobs the web UI takes:
+//
+//	mcp:
+//	  disable: true
+//	  listen_address: 127.0.0.1:8090
+//
 // # The install tool is destructive
 //
 // install repartitions a disk. It refuses to run unless the caller passes
@@ -49,6 +66,7 @@ import (
 	"github.com/kairos-io/kairos/v4/installer/internal/disks"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
@@ -143,6 +161,34 @@ const (
 	Path                 = "/mcp"
 )
 
+// ListenAddressFromConfig resolves where to listen from /etc/kairos/agent.yaml,
+// the same file and the same two knobs kairos-webui reads for itself. An empty
+// result means do not listen at all.
+//
+// This is the only control an operator has on a real boot: kairos-agent execs
+// the installer with a fixed argument list, so a flag never reaches it there.
+// The variadic paths are for tests; main calls this with none and gets
+// /etc/kairos/agent.yaml, the same file kairos-webui reads.
+func ListenAddressFromConfig(paths ...string) string {
+	cfg, err := branding.LoadConfig(paths...)
+	if err != nil || cfg == nil {
+		return DefaultListenAddress
+	}
+
+	return listenAddressFor(cfg.MCP)
+}
+
+func listenAddressFor(m branding.MCP) string {
+	switch {
+	case m.Disable:
+		return ""
+	case m.HasAddress():
+		return m.ListenAddress
+	default:
+		return DefaultListenAddress
+	}
+}
+
 // Handler returns the MCP server as an http.Handler, so it can be mounted on
 // the installer's own mux next to the web UI.
 //
@@ -163,7 +209,10 @@ func handlerFor(s *Server) http.Handler {
 	)
 
 	// The installer listens on a machine whose browser a person is also using,
-	// so a page they visit must not be able to POST an install to it.
+	// so a page they visit must not be able to POST an install to it. This is
+	// the only thing it does: a caller that sends no Origin and no
+	// Sec-Fetch-Site is not a browser and passes straight through, which is
+	// what the "Who can reach it" note above is about.
 	return http.NewCrossOriginProtection().Handler(h)
 }
 

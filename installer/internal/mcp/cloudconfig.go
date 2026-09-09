@@ -12,9 +12,15 @@ import (
 //
 // The caller's own YAML is merged on top of the install block, so an agent can
 // add users, SSH keys or yip stages without this package having to model them.
-// It cannot, however, redirect the install: the device, source and finish
-// action come from the tool arguments that were confirmed, and are written last
-// so extra YAML cannot quietly move the install to another disk.
+// It cannot, however, redirect the install: the device and the finish action
+// come from the tool arguments that were confirmed, and are written last so
+// extra YAML cannot quietly move the install to another disk or send the
+// machine somewhere the caller did not ask it to go.
+//
+// A source is only written when one was given. Forcing an empty string in
+// would override the source kairos-agent resolves for itself, which is a
+// working install turned into a broken one, so an omitted source leaves the
+// caller's own YAML standing.
 func renderCloudConfig(device, source, finishAction, extra string) (string, error) {
 	merged := map[string]any{}
 
@@ -47,14 +53,30 @@ func renderCloudConfig(device, source, finishAction, extra string) (string, erro
 	}
 	// The install block is merged key by key, so a caller can still set
 	// install options this tool does not model without losing the device.
-	if existing, ok := merged["install"].(map[string]any); ok {
-		if incoming, ok := overlay["install"].(map[string]any); ok {
-			for k, v := range incoming {
-				existing[k] = v
-			}
-			overlay["install"] = existing
-		}
+	block, _ := overlay["install"].(map[string]any)
+	if block == nil {
+		block = map[string]any{}
 	}
+	if existing, ok := merged["install"].(map[string]any); ok {
+		for k, v := range block {
+			existing[k] = v
+		}
+		block = existing
+	}
+
+	// The keys this tool owns are written back explicitly, because a zero value
+	// has to win too and an omitempty field never renders one. Without this,
+	// `install: {poweroff: true}` in the caller's YAML survives a finish action
+	// of none and the machine powers off after an install nobody asked to end
+	// that way.
+	block["device"] = device
+	block["reboot"] = install.Reboot
+	block["poweroff"] = install.Poweroff
+	if source != "" {
+		block["source"] = source
+	}
+	overlay["install"] = block
+
 	for k, v := range overlay {
 		merged[k] = v
 	}

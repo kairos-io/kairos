@@ -109,6 +109,33 @@ func TestCrossOriginPostIsRejected(t *testing.T) {
 	}
 }
 
+// The cross-origin wrapper is a browser control, not an authorization one:
+// http.CrossOriginProtection decides on Sec-Fetch-Site and Origin, and a
+// non-browser caller sends neither. Pinning that here so the test above is not
+// read as saying the port is protected. Anything that can reach it can call
+// every tool, which is the same exposure kairos-webui has on :8080 today.
+func TestARequestWithNoBrowserHeadersIsNotRejected(t *testing.T) {
+	endpoint := httpServer(t, newFakeServer(t, nil))
+
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusForbidden {
+		t.Fatalf("a plain POST with no Origin and no Sec-Fetch-Site got %d: "+
+			"the cross-origin wrapper is not what keeps a non-browser caller out", resp.StatusCode)
+	}
+}
+
 // ListenAndServe is what main calls, so bind, serve and shutdown are checked
 // here rather than only the handler underneath them.
 func TestListenAndServeBindsAndShutsDownWithTheContext(t *testing.T) {
