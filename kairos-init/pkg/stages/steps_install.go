@@ -541,6 +541,11 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 	kairosWritten := false
 
 	for dest, version := range binaries {
+		if ownBuildVersion(version) {
+			l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Pinned version is the one kairos-init was built from, using the embedded binary")
+			version = ""
+		}
+
 		if version != "" {
 			// Create the directory if it doesn't exist
 			if _, err := os.Stat(filepath.Dir(dest)); os.IsNotExist(err) {
@@ -620,6 +625,14 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 	client := httpimpl.NewClient()
 
 	for dest, version := range binaries {
+		// edgevpn is deliberately not exempted here: mudler/edgevpn is a
+		// separate upstream project, so its versions never collide with
+		// kairos-init's own and its releases are always already published.
+		if ownBuildVersion(version) && dest != "/usr/bin/edgevpn" {
+			l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Pinned version is the one kairos-init was built from, using the embedded binary")
+			version = ""
+		}
+
 		if version != "" {
 			// Create the directory if it doesn't exist
 			if _, err := os.Stat(filepath.Dir(dest)); os.IsNotExist(err) {
@@ -777,14 +790,36 @@ var monorepoAssets = map[string]monorepoAsset{
 	"provider-kairos":             {prefix: "provider-kairos"},
 }
 
+// ownBuildVersion reports whether version names the kairos-io/kairos release
+// this kairos-init was itself built from.
+//
+// Nothing can be downloaded from that release while it is being cut: the
+// pipeline compiles kairos-init, bakes it into a container image, and runs
+// that image to build every OS image, and only afterwards attaches the
+// tarballs and the shared checksums.txt to the GitHub Release. So for the
+// whole build, URLs into it resolve to nothing.
+//
+// Nothing needs to be, either. The binaries kairos-init embeds were
+// cross-compiled from the same commit, in the same run, and are the ones
+// those tarballs will contain — so a pin naming this version is already
+// satisfied locally, bit for bit, with no request at all.
+func ownBuildVersion(version string) bool {
+	return version != "" && version == values.GetVersion()
+}
+
 // monorepoBinaryURLs builds the tarball and shared-checksums URLs for
 // reponame's binary against the kairos-io/kairos release at version, and the
-// name of the binary inside that tarball. ok is false when reponame has no
-// known monorepo asset mapping, so downloadKairosMonorepoBinary can reject it
-// without making any request at all. Pulled out of downloadKairosMonorepoBinary
-// so the URL-building logic (asset renames, the FIPS suffix, the shared
+// name of the binary inside that tarball. ok is false when there is nothing
+// fetchable for the pair — reponame has no known monorepo asset mapping, or
+// version is the release kairos-init was built from and so has no published
+// assets yet — which lets downloadKairosMonorepoBinary reject it without
+// making any request at all. Pulled out of downloadKairosMonorepoBinary so
+// the URL-building logic (asset renames, the FIPS suffix, the shared
 // checksums.txt) is unit testable without a network call.
 func monorepoBinaryURLs(reponame, version, arch string, fips bool) (assetURL, checksumsURL, binaryName string, ok bool) {
+	if ownBuildVersion(version) {
+		return "", "", "", false
+	}
 	asset, ok := monorepoAssets[reponame]
 	if !ok {
 		return "", "", "", false
@@ -805,6 +840,9 @@ func monorepoBinaryURLs(reponame, version, arch string, fips bool) (assetURL, ch
 // per-component "*-checksums.txt" sibling. This is the default resolution
 // for every kairos-io-owned binary kairos-init can download.
 func downloadKairosMonorepoBinary(client sdkhttp.Client, l logger.KairosLogger, reponame, version, arch string, fips bool, dest string) error {
+	if ownBuildVersion(version) {
+		return fmt.Errorf("kairos-io/kairos %s is the release kairos-init was built from, its assets are not published yet: use the embedded binary", version)
+	}
 	url, checksumsURL, binaryName, ok := monorepoBinaryURLs(reponame, version, arch, fips)
 	if !ok {
 		return fmt.Errorf("%q has no known kairos-io/kairos monorepo asset mapping", reponame)
