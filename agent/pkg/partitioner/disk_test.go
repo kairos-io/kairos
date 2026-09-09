@@ -234,6 +234,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			for i, p := range gptParts {
 				Expect(p.Size).To(Equal(uint64(parts[i].Size)*mib), "partition %s", p.Name)
 				Expect((p.End-p.Start+1)*sectorSize).To(Equal(p.Size), "partition %s", p.Name)
+				Expect((p.End + 1) % uint64(mib/sectorSize)).To(BeZero(), "partition %s ends on sector %d, not 1MiB aligned", p.Name, p.End)
 			}
 		})
 
