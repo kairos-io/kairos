@@ -349,6 +349,24 @@ info:
 				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
 				Expect(warnings.String()).To(ContainSubstring("<redacted>"))
 			})
+
+			It("keeps the query string out of the wrapped transport error too", func() {
+				// A transport failure, unlike a bad status code, is a *url.Error that
+				// stringifies the whole URL. Closing the server first gives a
+				// connection refused on a port nothing is listening on.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				unreachable := server.URL
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": unreachable + "/config.yaml?token=supersecret&machine=abc123",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).ToNot(ContainSubstring("abc123"))
+			})
 		})
 
 		Context("when config_url contains template markers", func() {

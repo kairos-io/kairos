@@ -53,6 +53,20 @@ func redactURL(rawURL string) string {
 	return u.String()
 }
 
+// redactErrURL removes rawURL's query string from an error message. http.Get
+// wraps every transport failure in a *url.Error that stringifies the URL it
+// was handed, so printing the error next to a redacted URL would reprint the
+// token the redaction just removed.
+func redactErrURL(err error, rawURL string) string {
+	msg := err.Error()
+	msg = strings.ReplaceAll(msg, rawURL, redactURL(rawURL))
+	if u, perr := url.Parse(rawURL); perr == nil && u.RawQuery != "" {
+		msg = strings.ReplaceAll(msg, u.RawQuery, "<redacted>")
+	}
+
+	return msg
+}
+
 var ValidFileHeaders = []string{
 	"#cloud-config",
 	"#kairos-config",
@@ -548,7 +562,7 @@ func fetchRemoteConfig(url string) (*Config, error) {
 	if err != nil {
 		// TODO: This keeps the old behaviour but IMHO we should return an error here
 		warnf("warning: could not fetch config_url %s after %d attempts: %s. Booting without it\n",
-			redactURL(url), configURLAttempts, err.Error())
+			redactURL(url), configURLAttempts, redactErrURL(err, url))
 		return result, nil
 	}
 
