@@ -21,8 +21,18 @@ func main() {
 	collect := flag.Bool("collect-debug-bundle", false,
 		"collect a debug bundle non-interactively (no TUI), print its path, and exit")
 	mcpAddress := flag.String("mcp-address", mcp.DefaultListenAddress,
-		"address the Model Context Protocol server listens on, so an agent can drive the installation; empty disables it")
+		"address the Model Context Protocol server listens on, so an agent can drive the installation; "+
+			"nothing on it is authenticated, so use 127.0.0.1:8090 to keep it on this machine or an empty value to "+
+			"switch it off. Defaults to what /etc/kairos/agent.yaml says under mcp:")
 	flag.Parse()
+
+	// kairos-agent execs this binary with a fixed argument list, so on a real
+	// boot no flag ever arrives and the agent config is the only say an operator
+	// gets. Someone running the installer by hand has said what they want, so
+	// the flag wins when it is actually passed.
+	if !flagWasPassed("mcp-address") {
+		*mcpAddress = mcp.ListenAddressFromConfig()
+	}
 
 	if *collect {
 		os.Exit(collectDebugBundle())
@@ -51,6 +61,19 @@ func main() {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// flagWasPassed reports whether the named flag appeared on the command line, as
+// opposed to holding its default. flag.Visit walks only the flags that were set.
+func flagWasPassed(name string) bool {
+	passed := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			passed = true
+		}
+	})
+
+	return passed
 }
 
 // collectDebugBundle generates a debug bundle without starting the TUI, for use

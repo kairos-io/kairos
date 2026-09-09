@@ -50,6 +50,52 @@ The full, authoritative contract is documented in kairos-agent:
 
 ---
 
+## Driving an install with an agent (MCP)
+
+Alongside the TUI, `kairos-installer` serves the same install contract over the
+[Model Context Protocol](https://modelcontextprotocol.io), so an AI agent can do
+what a person does on the screen. The transport is streamable HTTP on
+**`http://<host>:8090/mcp`**.
+
+| Tool | What it does | Writes anything? |
+| --- | --- | --- |
+| `list_disks` | the disks an install can target | no |
+| `list_prerequisites` | run the provider `tui-check-*` plugins | no |
+| `apply_prerequisites` | act on those checks | yes, whatever the plugin does |
+| `get_install_options` | agent binary, disks, finish actions, progress steps | no |
+| `install` | perform the install | **repartitions a disk** |
+| `collect_debug_bundle` | write a debug bundle | writes the bundle |
+
+`install` refuses to run unless `confirm=true` and the device is an
+installation candidate at the moment of the call, and it runs once per boot.
+
+### Turning it off, or moving it
+
+**Nothing on this port is authenticated.** Anything that can reach it can call
+every tool, `install` included, and a `cloud_config` passed to `install` reaches
+the installed system. This is the exposure a live-booted machine already has
+from `kairos-webui` on `:8080`, and it takes the same two knobs in
+`/etc/kairos/agent.yaml`:
+
+```yaml
+mcp:
+  disable: true                     # do not listen at all
+  listen_address: 127.0.0.1:8090    # or listen only on this machine
+```
+
+That block is what an operator has on a real boot, because `kairos-agent
+interactive-install` execs the installer with a fixed argument list and no flag
+of yours ever reaches it. Running the installer by hand, `--mcp-address`
+overrides the config:
+
+```sh
+kairos-installer                              # TUI, MCP on :8090
+kairos-installer --mcp-address=127.0.0.1:8090 # TUI, MCP on loopback only
+kairos-installer --mcp-address=               # TUI only
+```
+
+---
+
 ## Overriding with your own installer
 
 You do **not** need to fork this project to ship a different installer. There
