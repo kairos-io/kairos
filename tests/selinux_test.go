@@ -81,7 +81,7 @@ users:
 		})
 
 		By("checking live mode is permissive", func() {
-			// The relabel unit runs restorecon over /etc /var /home /oem
+			// The relabel unit relabels /etc /var /srv and the persistent tree
 			// before multi-user; give it room before reading getenforce.
 			Eventually(func() string {
 				out, _ := vm.Sudo("getenforce")
@@ -154,6 +154,12 @@ users:
 			Expect(err).ToNot(HaveOccurred())
 			Expect(out).ToNot(ContainSubstring("selinux=1"))
 			Expect(out).ToNot(ContainSubstring("rd.cos.selinux"))
+		})
+
+		By("checking /etc/selinux/config is set to disabled", func() {
+			out, err := vm.Sudo("cat /etc/selinux/config")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("SELINUX=disabled"))
 		})
 
 		By("checking the relabel unit does not exist", func() {

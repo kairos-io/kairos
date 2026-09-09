@@ -34,7 +34,7 @@ stages:
 
             [Service]
             Type=oneshot
-            ExecStart=/usr/sbin/restorecon -Rivx /etc /var /home
+            ExecStart=/usr/sbin/restorecon -Rivx /etc /var /srv
             ExecStart=/usr/local/bin/selinux-relabel-persistent
             ExecStart=/usr/sbin/setenforce $MODE
             RemainAfterExit=yes
