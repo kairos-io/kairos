@@ -48,8 +48,8 @@ var _ = Describe("mounting immutable setup", func() {
 		})
 	})
 
-	Context("CleanStaleUnitsDagStep", func() {
-		It("removes a stale unit symlink under the rootdir when the step runs", func() {
+	Context("QuarantineStaleUnitsDagStep", func() {
+		It("moves a stale unit symlink out of the unit dir when the step runs", func() {
 			internalUtils.KLog = logger.NewNullLogger()
 			root := GinkgoT().TempDir()
 			unitDir := filepath.Join(root, "etc", "systemd", "system")
@@ -61,11 +61,14 @@ var _ = Describe("mounting immutable setup", func() {
 			Expect(os.Symlink("/usr/lib/systemd/system/ssh.service", stale)).To(Succeed())
 
 			s := &state.State{Rootdir: root}
-			Expect(s.CleanStaleUnitsDagStep(g)).To(Succeed())
+			Expect(s.QuarantineStaleUnitsDagStep(g)).To(Succeed())
 			Expect(g.Run(context.Background())).To(Succeed())
 
 			_, err := os.Lstat(stale)
 			Expect(os.IsNotExist(err)).To(BeTrue())
+			parked, err := os.Readlink(filepath.Join(root, "etc", "systemd", "kairos-stale-units", "sshd.service"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(parked).To(Equal("/usr/lib/systemd/system/ssh.service"))
 		})
 	})
 
@@ -116,7 +119,7 @@ var _ = Describe("mounting immutable setup", func() {
 			checkInRAMDag(g.Analyze(), s.WriteDAG(g))
 		})
 
-		It("cleans stale units after the persistent binds and before the initramfs hook", func() {
+		It("quarantines stale units after the persistent binds and before the initramfs hook", func() {
 			// Running after mount-bind is what makes the step see the
 			// persistent copy of /etc/systemd instead of the image copy, and
 			// running before the initramfs hook is what keeps a stale symlink
@@ -129,9 +132,9 @@ var _ = Describe("mounting immutable setup", func() {
 			layers := g.Analyze()
 			actualDag := s.WriteDAG(g)
 
-			clean := layerOf(layers, cnst.OpCleanStaleUnits)
-			Expect(clean).To(BeNumerically(">", layerOf(layers, cnst.OpMountBind)), actualDag)
-			Expect(clean).To(BeNumerically("<", layerOf(layers, cnst.OpInitramfsHook)), actualDag)
+			quarantine := layerOf(layers, cnst.OpQuarantineStaleUnits)
+			Expect(quarantine).To(BeNumerically(">", layerOf(layers, cnst.OpMountBind)), actualDag)
+			Expect(quarantine).To(BeNumerically("<", layerOf(layers, cnst.OpInitramfsHook)), actualDag)
 		})
 
 		It("generates UKI dag without ensure-partitions", func() {
@@ -272,7 +275,7 @@ func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
 		{cnst.OpMountBaseOverlay, cnst.OpCustomMounts},
 		{cnst.OpOverlayMount},
 		{cnst.OpMountBind},
-		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions, cnst.OpCleanStaleUnits},
+		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions, cnst.OpQuarantineStaleUnits},
 		{cnst.OpInitramfsHook},
 	}
 	Expect(len(dag)).To(Equal(len(expected)), actualDag)

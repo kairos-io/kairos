@@ -8,13 +8,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("CleanStaleUnitSymlinks", func() {
+var _ = Describe("QuarantineStaleUnitSymlinks", func() {
 	var root string
 
 	// unitDir is /etc/systemd/system, the directory that persists across an
 	// image change because /etc/systemd is a persistent state bind.
 	unitDir := func() string { return filepath.Join(root, "etc", "systemd", "system") }
 	packagedDir := func() string { return filepath.Join(root, "usr", "lib", "systemd", "system") }
+	parkedDir := func() string { return filepath.Join(root, "etc", "systemd", "kairos-stale-units") }
 
 	BeforeEach(func() {
 		root = GinkgoT().TempDir()
@@ -22,7 +23,7 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		Expect(os.MkdirAll(packagedDir(), 0o755)).To(Succeed())
 	})
 
-	It("removes a dangling unit symlink that shadows a packaged unit", func() {
+	It("parks a dangling unit symlink that shadows a packaged unit", func() {
 		// kairos-io/kairos#4085: enabling Ubuntu's ssh.service leaves the
 		// Alias=sshd.service symlink in persistent /etc, and on Hadron it
 		// dangles and shadows the real sshd.service.
@@ -30,11 +31,56 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		stale := filepath.Join(unitDir(), "sshd.service")
 		Expect(os.Symlink("/usr/lib/systemd/system/ssh.service", stale)).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(ConsistOf("sshd.service"))
-		Expect(stale).ToNot(BeAnExistingFile())
+		Expect(moved).To(ConsistOf("sshd.service"))
+		// Out of the unit load path, so it no longer shadows anything.
+		_, lerr := os.Lstat(stale)
+		Expect(os.IsNotExist(lerr)).To(BeTrue())
+		// And still on disk, unchanged, where an admin can put it back.
+		target, rerr := os.Readlink(filepath.Join(parkedDir(), "sshd.service"))
+		Expect(rerr).ToNot(HaveOccurred())
+		Expect(target).To(Equal("/usr/lib/systemd/system/ssh.service"))
+	})
+
+	It("keeps an already parked symlink that points somewhere else", func() {
+		// Two boots can park the same unit name from different images. The
+		// older entry is the evidence of the earlier image, so it survives
+		// under a numbered suffix instead of being overwritten.
+		Expect(os.MkdirAll(parkedDir(), 0o755)).To(Succeed())
+		Expect(os.Symlink("/usr/lib/systemd/system/older.service", filepath.Join(parkedDir(), "sshd.service"))).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(packagedDir(), "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
+		Expect(os.Symlink("/usr/lib/systemd/system/ssh.service", filepath.Join(unitDir(), "sshd.service"))).To(Succeed())
+
+		moved, err := QuarantineStaleUnitSymlinks(root)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(moved).To(ConsistOf("sshd.service"))
+		first, err := os.Readlink(filepath.Join(parkedDir(), "sshd.service"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(first).To(Equal("/usr/lib/systemd/system/older.service"))
+		second, err := os.Readlink(filepath.Join(parkedDir(), "sshd.service.1"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(second).To(Equal("/usr/lib/systemd/system/ssh.service"))
+	})
+
+	It("reuses the parked entry when it is the identical symlink", func() {
+		// The same stale symlink re-appearing carries nothing new, so it
+		// replaces its own parked copy rather than piling up a suffix per
+		// boot.
+		Expect(os.MkdirAll(parkedDir(), 0o755)).To(Succeed())
+		Expect(os.Symlink("/usr/lib/systemd/system/ssh.service", filepath.Join(parkedDir(), "sshd.service"))).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(packagedDir(), "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
+		Expect(os.Symlink("/usr/lib/systemd/system/ssh.service", filepath.Join(unitDir(), "sshd.service"))).To(Succeed())
+
+		moved, err := QuarantineStaleUnitSymlinks(root)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(moved).To(ConsistOf("sshd.service"))
+		entries, err := os.ReadDir(parkedDir())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(entries).To(HaveLen(1))
 	})
 
 	It("keeps a unit symlink whose target exists", func() {
@@ -42,10 +88,10 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		link := filepath.Join(unitDir(), "ssh.service")
 		Expect(os.Symlink("/usr/lib/systemd/system/sshd.service", link)).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
 		_, lerr := os.Lstat(link)
 		Expect(lerr).ToNot(HaveOccurred())
 	})
@@ -55,10 +101,10 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		mask := filepath.Join(unitDir(), "wicked.service")
 		Expect(os.Symlink("/dev/null", mask)).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
 		_, lerr := os.Lstat(mask)
 		Expect(lerr).ToNot(HaveOccurred())
 	})
@@ -72,18 +118,18 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		mask := filepath.Join(unitDir(), "wicked.service")
 		Expect(os.Symlink("../../../dev/null", mask)).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
 		_, lerr := os.Lstat(mask)
 		Expect(lerr).ToNot(HaveOccurred())
 	})
 
 	It("keeps a symlink whose target cannot be stat'ed for a reason other than absence", func() {
 		// An unreadable directory on the target path yields EACCES, which
-		// says nothing about whether the target is there. Deleting on that
-		// guess would drop a live symlink.
+		// says nothing about whether the target is there. Acting on that
+		// guess would move a live symlink.
 		Expect(os.WriteFile(filepath.Join(packagedDir(), "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
 		blocked := filepath.Join(root, "opt", "units")
 		Expect(os.MkdirAll(blocked, 0o755)).To(Succeed())
@@ -94,17 +140,18 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		link := filepath.Join(unitDir(), "sshd.service")
 		Expect(os.Symlink("/opt/units/sshd.service", link)).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
 		_, lerr := os.Lstat(link)
 		Expect(lerr).ToNot(HaveOccurred())
 	})
 
-	It("keeps sweeping after a symlink it cannot remove", func() {
-		// A read-only unit directory makes every removal fail. The sweep
-		// must report the failures rather than stop at the first one.
+	It("keeps sweeping after a symlink it cannot move", func() {
+		// A read-only unit directory makes every rename fail. The sweep must
+		// report the failures rather than stop at the first one, and it must
+		// leave both symlinks in place.
 		for _, name := range []string{"a.service", "z.service"} {
 			Expect(os.WriteFile(filepath.Join(packagedDir(), name), []byte("[Unit]\n"), 0o644)).To(Succeed())
 			Expect(os.Symlink("/usr/lib/systemd/system/gone-"+name, filepath.Join(unitDir(), name))).To(Succeed())
@@ -112,10 +159,10 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		Expect(os.Chmod(unitDir(), 0o555)).To(Succeed())
 		DeferCleanup(func() { _ = os.Chmod(unitDir(), 0o755) })
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).To(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
 		// Both entries were attempted, not just the first.
 		Expect(err.Error()).To(ContainSubstring("a.service"))
 		Expect(err.Error()).To(ContainSubstring("z.service"))
@@ -123,14 +170,14 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 
 	It("keeps a dangling symlink when no packaged unit of that name exists", func() {
 		// A unit shipped only by a sysext is not merged yet while immucore
-		// runs, so removing its symlink would disable it for good.
+		// runs, so moving its symlink would disable it for good.
 		link := filepath.Join(unitDir(), "sysext-only.service")
 		Expect(os.Symlink("/usr/lib/systemd/system/sysext-only.service", link)).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
 		_, lerr := os.Lstat(link)
 		Expect(lerr).ToNot(HaveOccurred())
 	})
@@ -143,10 +190,10 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		link := filepath.Join(wants, "ssh.service")
 		Expect(os.Symlink("/usr/lib/systemd/system/nope.service", link)).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
 		_, lerr := os.Lstat(link)
 		Expect(lerr).ToNot(HaveOccurred())
 	})
@@ -157,10 +204,10 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		Expect(os.WriteFile(filepath.Join(packagedDir(), "gone.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
 		Expect(os.Symlink("missing.service", filepath.Join(unitDir(), "gone.service"))).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(ConsistOf("gone.service"))
+		Expect(moved).To(ConsistOf("gone.service"))
 		Expect(filepath.Join(unitDir(), "here.service")).To(BeAnExistingFile())
 	})
 
@@ -170,18 +217,19 @@ var _ = Describe("CleanStaleUnitSymlinks", func() {
 		Expect(os.WriteFile(filepath.Join(libDir, "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
 		Expect(os.Symlink("/lib/systemd/system/ssh.service", filepath.Join(unitDir(), "sshd.service"))).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(ConsistOf("sshd.service"))
+		Expect(moved).To(ConsistOf("sshd.service"))
 	})
 
 	It("does nothing when the unit directory is absent", func() {
 		Expect(os.RemoveAll(unitDir())).To(Succeed())
 
-		removed, err := CleanStaleUnitSymlinks(root)
+		moved, err := QuarantineStaleUnitSymlinks(root)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(removed).To(BeEmpty())
+		Expect(moved).To(BeEmpty())
+		Expect(parkedDir()).ToNot(BeAnExistingFile())
 	})
 })
