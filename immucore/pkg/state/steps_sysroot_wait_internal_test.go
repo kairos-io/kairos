@@ -76,6 +76,39 @@ var _ = Describe("waitForSysroot", func() {
 		Expect(time.Since(start)).To(BeNumerically("<", 5*time.Second))
 	}, NodeTimeout(30*time.Second))
 
+	It("takes one last look when the deadline lands before the next check", func(ctx SpecContext) {
+		// rd.immucore.sysrootwait= shorter than the poll interval used to
+		// mean the sysroot was checked once and never again, so a sysroot
+		// that turned up inside the deadline was reported as missing and
+		// mount-oem, the rootfs hook and the initramfs hook were all
+		// skipped (kairos-io/kairos#4485).
+		setDeadline("1")
+		stretchPollInterval()
+
+		state := &State{Rootdir: rootDir}
+		go func() {
+			time.Sleep(200 * time.Millisecond)
+			_ = os.MkdirAll(filepath.Join(rootDir, "system"), 0755)
+		}()
+
+		Expect(state.waitForSysroot(ctx)).To(Succeed())
+	}, NodeTimeout(30*time.Second))
+
+	It("notices a sysroot dracut stages mid-interval, on the shipped interval", func(ctx SpecContext) {
+		// Deliberately does not stretch the interval: dracut mounts
+		// /sysroot within a second of immucore starting, so the shipped
+		// value has to be fine enough to end the wait when the sysroot is
+		// ready rather than at the next round multiple of the interval.
+		state := &State{Rootdir: rootDir}
+		go func() {
+			time.Sleep(300 * time.Millisecond)
+			_ = os.MkdirAll(filepath.Join(rootDir, "system"), 0755)
+		}()
+
+		start := time.Now()
+		Expect(state.waitForSysroot(ctx)).To(Succeed())
+		Expect(time.Since(start)).To(BeNumerically("<", time.Second))
+	}, NodeTimeout(30*time.Second))
 	It("gives up on a canceled context without sitting out the interval", func(ctx SpecContext) {
 		stretchPollInterval()
 

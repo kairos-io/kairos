@@ -115,8 +115,11 @@ func (s *State) MountRootDagStep(g *herd.Graph) error {
 }
 
 // sysrootPollInterval is how long waitForSysroot waits between two checks for
-// the sysroot. It is a var so the specs do not have to wait whole seconds.
-var sysrootPollInterval = 2 * time.Second
+// the sysroot. Dracut stages /sysroot within a second of immucore starting, so
+// an interval measured in seconds ends the wait at the next round multiple of
+// itself rather than when the sysroot is ready. It is a var so the specs can
+// stretch it.
+var sysrootPollInterval = 100 * time.Millisecond
 
 // WaitForSysrootDagStep waits for the s.Rootdir and s.Rootdir/system paths to be there
 // Useful for livecd/netboot as we want to run steps after s.Rootdir is ready but we don't mount it ourselves.
@@ -158,6 +161,13 @@ func (s *State) waitForSysroot(ctx context.Context) error {
 			internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check canceled")
 			return e
 		case <-cc:
+			// Look once more before giving up. The sysroot may have been
+			// staged during the interval we were waiting out, and a
+			// rd.immucore.sysrootwait= shorter than sysrootPollInterval
+			// would otherwise never get a second check at all.
+			if s.missingSysrootPath() == "" {
+				return nil
+			}
 			e := fmt.Errorf("timeout exhausted")
 			internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check timeout")
 			return e
