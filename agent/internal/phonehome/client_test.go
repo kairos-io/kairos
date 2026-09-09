@@ -291,6 +291,10 @@ var _ = Describe("PhoneHome Client", func() {
 
 			client := newTestClient("test-token")
 			Expect(client.Register(context.Background())).To(Succeed())
+			// Register must go through the same helper, not a startup snapshot.
+			ms.mu.Lock()
+			Expect(ms.lastReg.Hostname).To(Equal("kairos"))
+			ms.mu.Unlock()
 
 			ctx, cancel := context.WithCancel(context.Background())
 
@@ -329,6 +333,11 @@ var _ = Describe("PhoneHome Client", func() {
 
 			client := newTestClient("test-token")
 			Expect(client.Register(context.Background())).To(Succeed())
+			// RegisterRequest.Hostname has no omitempty, so a read failure goes
+			// on the wire as "", never as a placeholder.
+			ms.mu.Lock()
+			Expect(ms.lastReg.Hostname).To(BeEmpty())
+			ms.mu.Unlock()
 
 			ctx, cancel := context.WithCancel(context.Background())
 
