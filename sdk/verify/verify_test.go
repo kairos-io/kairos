@@ -3,6 +3,7 @@ package verify_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -81,6 +82,63 @@ func TestVerifiedDownload_NetworkError(t *testing.T) {
 	err := verify.VerifiedDownload(client(), logger.NewNullLogger(), url, dest, validLookingDigest)
 	if err == nil {
 		t.Fatal("VerifiedDownload succeeded against a closed server, want error")
+	}
+}
+
+// TestVerifiedDownload_StaleDestinationSurvivesDownloadError captures a bug:
+// VerifiedDownload's real download path goes through the grab-backed
+// sdkhttp.Client, whose underlying grab.Request defaults NoResume to false.
+// When destination already holds a file (e.g. a previous run's artifact,
+// the shape provider/internal/provider/buildEvent.go's fixed k0sBinaryDest
+// leaves behind), grab issues a HEAD first to learn the remote size and, on
+// finding the existing local file *larger* than what the remote now
+// reports, fails closed with grab.ErrBadLength ("bad content length")
+// before ever opening the destination for writing — so client.GetURL
+// returns a plain download error, never a checksum mismatch.
+//
+// VerifiedDownload's own doc comment promises "a malformed want, a download
+// error, or a digest mismatch all leave no verified content at destination",
+// but its download-error branch only wraps and returns client.GetURL's
+// error — it never calls os.Remove(destination) the way the digest-mismatch
+// branch does a few lines below. This test proves that today: the stale
+// file is still sitting at destination, byte-for-byte unchanged, after
+// VerifiedDownload has returned an error.
+func TestVerifiedDownload_StaleDestinationSurvivesDownloadError(t *testing.T) {
+	newBody := []byte("new release bytes")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Advertise range support and a Content-Length shorter than the
+		// stale local file below, so grab's HEAD-driven resume check finds
+		// the "remote" smaller than what is already on disk and bails out
+		// with ErrBadLength instead of ever performing a GET.
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(newBody)))
+		if r.Method == http.MethodHead {
+			return
+		}
+		_, _ = w.Write(newBody)
+	}))
+	defer srv.Close()
+
+	dest := filepath.Join(t.TempDir(), "artifact")
+	staleBody := []byte("stale k0s binary bytes left over from a previous, unrelated install run")
+	if err := os.WriteFile(dest, staleBody, 0o644); err != nil {
+		t.Fatalf("seeding stale destination: %v", err)
+	}
+
+	err := verify.VerifiedDownload(client(), logger.NewNullLogger(), srv.URL, dest, sumOf(newBody))
+	if err == nil {
+		t.Fatal("VerifiedDownload succeeded despite a shorter remote than the stale local file, want a download error")
+	}
+
+	// This is the bug: VerifiedDownload's doc comment promises a download
+	// error "leaves no verified content at destination", but the stale
+	// file below was never touched by the download-error path.
+	got, statErr := os.ReadFile(dest)
+	if statErr != nil {
+		t.Fatalf("stale destination unexpectedly gone after download error: %v", statErr)
+	}
+	if string(got) != string(staleBody) {
+		t.Fatalf("stale destination content changed unexpectedly: got %q, want unchanged %q", got, staleBody)
 	}
 }
 
