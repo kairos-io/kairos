@@ -12,17 +12,27 @@ import (
 // because /etc/systemd is one of the persistent state binds.
 const systemdUnitDir = "etc/systemd/system"
 
+// staleUnitDir is where a shadowing symlink is parked. It sits next to
+// systemdUnitDir so the move is a rename on one filesystem, it is inside the
+// same persistent bind so the parked symlink is still there after the boot,
+// and it is in none of systemd's unit load paths so nothing loads from it.
+const staleUnitDir = "etc/systemd/kairos-stale-units"
+
+// maxStaleUnitCollisions bounds the numbered suffixes tried when a symlink of
+// the same name, but a different target, is already parked.
+const maxStaleUnitCollisions = 20
+
 // packagedUnitDirs are the unit load paths an OS image can ship a unit in.
-// /etc is deliberately absent: it is the directory being cleaned.
+// /etc is deliberately absent: it is the directory being swept.
 var packagedUnitDirs = []string{
 	"usr/local/lib/systemd/system",
 	"usr/lib/systemd/system",
 	"lib/systemd/system",
 }
 
-// CleanStaleUnitSymlinks removes unit symlinks in <root>/etc/systemd/system
-// that dangle while the image ships a real unit under the same name, and
-// returns the names it removed.
+// QuarantineStaleUnitSymlinks moves unit symlinks in <root>/etc/systemd/system
+// that dangle while the image ships a real unit under the same name into
+// <root>/etc/systemd/kairos-stale-units, and returns the names it moved.
 //
 // /etc/systemd is a persistent state bind and the state directory is synced
 // from the image with rsync and no --delete, so the sync only ever adds. A
@@ -34,8 +44,14 @@ var packagedUnitDirs = []string{
 // behind (Alias=sshd.service), which kills sshd once the node moves to an
 // image whose real unit is sshd.service (kairos-io/kairos#4085).
 //
-// The rule is deliberately narrow, so that removing a symlink can only ever
-// reveal a unit that works:
+// Nothing is deleted. Getting the symlink out of the unit load path is all
+// that is needed to stop it shadowing, so the symlink is parked instead,
+// under its own name, where an admin can read what was moved and put it back
+// with a single mv. A rule that decides wrongly then costs a rename, not a
+// file.
+//
+// The rule is still deliberately narrow, so that a move can only ever reveal
+// a unit that works:
 //
 //   - only symlinks directly in etc/systemd/system, never the enablement
 //     symlinks under .wants/ and .requires/. Those shadow nothing, and a unit
@@ -45,7 +61,7 @@ var packagedUnitDirs = []string{
 //   - never a mask, whose target is /dev/null and which the sysroot has no
 //     device node for yet.
 //   - only when a packaged unit of the same name is there to take over.
-func CleanStaleUnitSymlinks(root string) ([]string, error) {
+func QuarantineStaleUnitSymlinks(root string) ([]string, error) {
 	unitDir := filepath.Join(root, systemdUnitDir)
 	entries, err := os.ReadDir(unitDir)
 	if err != nil {
@@ -55,7 +71,7 @@ func CleanStaleUnitSymlinks(root string) ([]string, error) {
 		return nil, fmt.Errorf("reading %s: %w", unitDir, err)
 	}
 
-	var removed []string
+	var moved []string
 	var errs *multierror.Error
 	for _, entry := range entries {
 		name := entry.Name()
@@ -72,7 +88,7 @@ func CleanStaleUnitSymlinks(root string) ([]string, error) {
 		}
 		// Only a genuine ENOENT means the target is gone. Any other stat
 		// error (EACCES on a path component, ELOOP, ENOTDIR) tells us
-		// nothing about the target, and deleting on a guess would be worse
+		// nothing about the target, and acting on a guess would be worse
 		// than leaving the symlink alone.
 		if _, err := os.Stat(resolveUnitTarget(root, unitDir, target)); !os.IsNotExist(err) {
 			continue
@@ -80,16 +96,52 @@ func CleanStaleUnitSymlinks(root string) ([]string, error) {
 		if !packagedUnitExists(root, name) {
 			continue
 		}
-		if err := os.Remove(path); err != nil {
-			// Keep sweeping: one symlink we cannot remove must not hide
+		if err := parkStaleUnit(root, path, name, target); err != nil {
+			// Keep sweeping: one symlink we cannot move must not hide
 			// every stale symlink after it.
-			errs = multierror.Append(errs, fmt.Errorf("removing stale unit symlink %s: %w", path, err))
+			errs = multierror.Append(errs, err)
 			continue
 		}
-		removed = append(removed, name)
+		moved = append(moved, name)
 	}
-	// os.ReadDir sorts by name, so removed comes out deterministic.
-	return removed, errs.ErrorOrNil()
+	// os.ReadDir sorts by name, so moved comes out deterministic.
+	return moved, errs.ErrorOrNil()
+}
+
+// parkStaleUnit renames one shadowing symlink out of the unit load path.
+//
+// An entry of the same name already parked by an earlier boot is only
+// replaced when it points at the same target, because then it carries no
+// information the incoming one does not. A different target gets a numbered
+// suffix, so the older evidence survives.
+func parkStaleUnit(root, path, name, target string) error {
+	dir := filepath.Join(root, staleUnitDir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", dir, err)
+	}
+	dest, err := staleUnitDest(dir, name, target)
+	if err != nil {
+		return fmt.Errorf("parking stale unit symlink %s: %w", path, err)
+	}
+	if err := os.Rename(path, dest); err != nil {
+		return fmt.Errorf("parking stale unit symlink %s: %w", path, err)
+	}
+	return nil
+}
+
+// staleUnitDest picks the name to park a symlink under inside dir.
+func staleUnitDest(dir, name, target string) (string, error) {
+	dest := filepath.Join(dir, name)
+	for i := 1; ; i++ {
+		existing, err := os.Readlink(dest)
+		if os.IsNotExist(err) || (err == nil && existing == target) {
+			return dest, nil
+		}
+		if i > maxStaleUnitCollisions {
+			return "", fmt.Errorf("%s already holds %d entries called %s", dir, maxStaleUnitCollisions, name)
+		}
+		dest = filepath.Join(dir, fmt.Sprintf("%s.%d", name, i))
+	}
 }
 
 // isMask reports whether the symlink target is a systemd mask. A mask points

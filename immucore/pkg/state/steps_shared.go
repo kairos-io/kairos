@@ -474,26 +474,27 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 		)...)
 }
 
-// CleanStaleUnitsDagStep drops unit symlinks that an earlier OS image left
-// behind in the persistent /etc/systemd bind and that now shadow a unit the
-// current image ships. It has to run after OpMountBind, so that it sees the
-// persistent copy of /etc/systemd rather than the one in the image, and
-// before switch_root, so that systemd never loads the stale symlink.
+// QuarantineStaleUnitsDagStep moves unit symlinks that an earlier OS image
+// left behind in the persistent /etc/systemd bind, and that now shadow a unit
+// the current image ships, into /etc/systemd/kairos-stale-units. It has to run
+// after OpMountBind, so that it sees the persistent copy of /etc/systemd
+// rather than the one in the image, and before switch_root, so that systemd
+// never loads the stale symlink.
 //
 // A failure here does not fail the boot: a node that boots with one stale
 // symlink left in place is the state we are already in, while taking the
 // boot down over it would be a regression.
-func (s *State) CleanStaleUnitsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
-	return g.Add(cnst.OpCleanStaleUnits, append(opts,
-		TimedCallback(cnst.OpCleanStaleUnits, func(_ context.Context) error {
-			removed, err := internalUtils.CleanStaleUnitSymlinks(s.Rootdir)
-			if len(removed) > 0 {
-				internalUtils.KLog.Logger.Info().Strs("units", removed).
-					Msg("Removed stale systemd unit symlinks that shadowed a packaged unit")
+func (s *State) QuarantineStaleUnitsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
+	return g.Add(cnst.OpQuarantineStaleUnits, append(opts,
+		TimedCallback(cnst.OpQuarantineStaleUnits, func(_ context.Context) error {
+			moved, err := internalUtils.QuarantineStaleUnitSymlinks(s.Rootdir)
+			if len(moved) > 0 {
+				internalUtils.KLog.Logger.Info().Strs("units", moved).
+					Msg("Moved stale systemd unit symlinks that shadowed a packaged unit to /etc/systemd/kairos-stale-units")
 			}
 			if err != nil {
 				internalUtils.KLog.Logger.Warn().Err(err).
-					Msg("Could not clean stale systemd unit symlinks")
+					Msg("Could not quarantine stale systemd unit symlinks")
 			}
 			return nil
 		}),
