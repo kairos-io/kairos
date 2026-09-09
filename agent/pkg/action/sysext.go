@@ -38,18 +38,18 @@ import (
 const (
 	sysext             = "sysext"
 	confext            = "confext"
-	sysextDir          = "/var/lib/kairos/extensions/"
-	confExtDir         = "/var/lib/kairos/confexts/"
-	sysextDirActive    = sysextDir + cnst.BootActive
-	sysextDirPassive   = sysextDir + cnst.BootPassive
-	sysextDirRecovery  = sysextDir + cnst.BootRecovery
-	sysextDirCommon    = sysextDir + cnst.BootCommon
-	confExtDirActive   = confExtDir + cnst.BootActive
-	confExtDirPassive  = confExtDir + cnst.BootPassive
-	confExtDirRecovery = confExtDir + cnst.BootRecovery
-	confExtDirCommon   = confExtDir + cnst.BootCommon
-	sysextRunDir       = "/run/extensions/"
-	confExtRunDir      = "/run/confexts/"
+	sysextDir          = "/var/lib/kairos/extensions"
+	confExtDir         = "/var/lib/kairos/confexts"
+	sysextDirActive    = sysextDir + "/" + cnst.BootActive
+	sysextDirPassive   = sysextDir + "/" + cnst.BootPassive
+	sysextDirRecovery  = sysextDir + "/" + cnst.BootRecovery
+	sysextDirCommon    = sysextDir + "/" + cnst.BootCommon
+	confExtDirActive   = confExtDir + "/" + cnst.BootActive
+	confExtDirPassive  = confExtDir + "/" + cnst.BootPassive
+	confExtDirRecovery = confExtDir + "/" + cnst.BootRecovery
+	confExtDirCommon   = confExtDir + "/" + cnst.BootCommon
+	sysextRunDir       = "/run/extensions"
+	confExtRunDir      = "/run/confexts"
 	sysextCommand      = "systemd-sysext"
 	confextCommand     = "systemd-confext"
 )
@@ -62,6 +62,26 @@ type Extension struct {
 
 func (s *Extension) String() string {
 	return s.Name
+}
+
+// ensureDir creates dir and any missing parent, and does nothing if it is
+// already there.
+//
+// It cleans the path first because vfs.MkdirAll is not safe against a trailing
+// slash: filepath.Dir strips the slash, so the recursion creates the leaf and
+// the outer call then tries to create it a second time and returns a bare
+// "file exists". A caller that passes "/var/lib/kairos/extensions/" would fail
+// on the first install and only succeed on the second, once the directory was
+// already there.
+func ensureDir(cfg *sdkConfig.Config, dir string) error {
+	dir = filepath.Clean(dir)
+	if _, err := cfg.Fs.Stat(dir); !os.IsNotExist(err) {
+		return nil
+	}
+	if err := vfs.MkdirAll(cfg.Fs, dir, 0755); err != nil {
+		return fmt.Errorf("failed to create target dir %s: %w", dir, err)
+	}
+	return nil
 }
 
 func dirFromBootState(bootState, extType string) string {
@@ -108,10 +128,8 @@ func getDirExtensions(cfg *sdkConfig.Config, dir string) ([]Extension, error) {
 	var out []Extension
 	// get all the extensions in the sysextDir
 	// Try to create the dir if it does not exist
-	if _, err := cfg.Fs.Stat(dir); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create target dir %s: %w", dir, err)
-		}
+	if err := ensureDir(cfg, dir); err != nil {
+		return nil, err
 	}
 	entries, err := cfg.Fs.ReadDir(dir)
 	// We don't care if the dir does not exist, we just return an empty list
@@ -164,10 +182,8 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 	targetDir := dirFromBootState(bootState, extType)
 
 	// Check if the target dir exists and create it if it doesn't
-	if _, err := cfg.Fs.Stat(targetDir); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, targetDir, 0755); err != nil {
-			return fmt.Errorf("failed to create target dir %s: %w", targetDir, err)
-		}
+	if err := ensureDir(cfg, targetDir); err != nil {
+		return err
 	}
 
 	// Check if the extension is already enabled
@@ -294,10 +310,8 @@ func InstallExtension(cfg *sdkConfig.Config, uri, extType string) error {
 		return fmt.Errorf("failed to parse URI %s: %w", uri, err)
 	}
 	// Check if directory exists or create it
-	if _, err := cfg.Fs.Stat(linkTarget); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, linkTarget, 0755); err != nil {
-			return fmt.Errorf("failed to create target dir %s: %w", linkTarget, err)
-		}
+	if err := ensureDir(cfg, linkTarget); err != nil {
+		return err
 	}
 	// Download the extension
 	if err := download.Download(linkTarget); err != nil {
