@@ -858,6 +858,9 @@ cloud-init-paths:
 				cfg.Mounter = mounter
 				cfg.CloudInitRunner = ci
 				cfg.Logger = logger
+				// The upgrade section sets an oci: source, and sizing it calls the
+				// registry. Keep the spec off the network.
+				cfg.ImageExtractor = v1mock.NewFakeImageExtractor(logger)
 				spec, err := config.ReadSpecFromCloudConfig(cfg, "upgrade")
 				Expect(err).ToNot(HaveOccurred())
 				upgradeSpec := spec.(*v1.UpgradeSpec)
