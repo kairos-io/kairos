@@ -10,9 +10,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	httpimpl "github.com/kairos-io/kairos/v4/agent/pkg/implementations/http"
+	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
@@ -208,6 +210,27 @@ func TestMonorepoBinaryURLs_UnknownReponameFallsBack(t *testing.T) {
 	_, _, _, ok := monorepoBinaryURLs("edgevpn", "v0.35.5", "amd64", false)
 	if ok {
 		t.Fatal("monorepoBinaryURLs(\"edgevpn\") reported a mapping, want none (edgevpn is not part of the monorepo)")
+	}
+}
+
+// TestMonorepoBinaryURLs_OwnBuildVersion covers the one version whose
+// release assets cannot be fetched: the version kairos-init itself was built
+// from. The release pipeline compiles kairos-init, bakes it into an image,
+// and runs that image to build every OS image before it ever publishes the
+// tag's tarballs and shared checksums.txt — so for the duration of that run
+// a download URL into that release resolves to nothing.
+func TestMonorepoBinaryURLs_OwnBuildVersion(t *testing.T) {
+	own := values.GetVersion()
+
+	asset, checksums, _, ok := monorepoBinaryURLs("kairos-agent", own, "amd64", false)
+	if !ok {
+		t.Fatalf("monorepoBinaryURLs reported no mapping for %q", own)
+	}
+	if want := "/download/" + own + "/checksums.txt"; !strings.HasSuffix(checksums, want) {
+		t.Fatalf("checksums URL = %q, want it to end in %q", checksums, want)
+	}
+	if want := "/download/" + own + "/"; !strings.Contains(asset, want) {
+		t.Fatalf("asset URL = %q, want it to contain %q", asset, want)
 	}
 }
 
