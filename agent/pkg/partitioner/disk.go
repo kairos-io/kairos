@@ -138,13 +138,20 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 
 		end = getSectorEndFromSize(start, size, sectorSize)
 
-		// A partition sized to reach the very end of the disk would land on
-		// the sectors go-diskfs writes the backup GPT into, so hand those
-		// back. Only to a partition that actually reaches them: this used to
-		// come off every last partition unconditionally, which left a
-		// fixed-size one that ended nowhere near the tail short of the size
-		// it asked for. Overshooting by more than the tail is a layout that
-		// does not fit, and validateGPTPartitionsFit rejects it below.
+		// The backup GPT header and partition array sit in the last
+		// gptBackupTailSectors of the disk, so a partition whose end
+		// lands on them has to give those sectors back. Only a
+		// partition that actually reaches them, though: this used to
+		// come off every last partition unconditionally, and a
+		// fixed-size one that ended nowhere near the tail came out
+		// short of the size it asked for.
+		//
+		// The <=tail bound is what distinguishes a partition kissing
+		// the backup GPT from one that runs past the end of the disk
+		// entirely. That second case is a layout that does not fit,
+		// and we want the user to hear about it, so we leave end
+		// alone and let validateGPTPartitionsFit reject it below
+		// instead of silently truncating the partition here.
 		if lastDataSector, ok := gptLastDataSector(diskSize, sectorSize); ok &&
 			end > lastDataSector && end-lastDataSector <= gptBackupTailSectors(sectorSize) {
 			end = lastDataSector
