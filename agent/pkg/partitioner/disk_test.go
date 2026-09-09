@@ -215,6 +215,50 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 				MatchError(ContainSubstring("past the last usable sector")))
 		})
 
+		ginkgo.It("keeps every requested size when the last partition ends far from the tail", func() {
+			// A 1TiB disk holding ~1.3GiB of partitions: the last one ends
+			// with the best part of a terabyte to spare, so nothing should
+			// come off it. The tail used to be reserved from the last
+			// partition unconditionally, leaving it 33 sectors short.
+			const diskSize = int64(1024 * 1024 * 1024 * 1024)
+			parts := partitions.PartitionList{
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 64, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.OEMPartName, FilesystemLabel: sdkConstants.OEMLabel, Size: 100},
+				{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 500},
+				{Name: "data_partition", FilesystemLabel: "SYSTEM_DATA", Size: 700, FS: "ext4"},
+			}
+
+			gptParts := kairosPartsToDiskfsGPTParts(parts, diskSize, sectorSize)
+			Expect(gptParts).To(HaveLen(len(parts)))
+			Expect(validateGPTPartitionsFit(gptParts, diskSize, sectorSize)).To(Succeed())
+			for i, p := range gptParts {
+				Expect(p.Size).To(Equal(uint64(parts[i].Size)*mib), "partition %s", p.Name)
+				Expect((p.End-p.Start+1)*sectorSize).To(Equal(p.Size), "partition %s", p.Name)
+			}
+		})
+
+		ginkgo.It("still fits a layout whose sizes add up to the whole disk", func() {
+			// This is what the unconditional reserve was there for: 1MiB of
+			// leading alignment plus 1023MiB of partitions on a 1GiB disk.
+			// The last partition has to land on the last usable sector, not
+			// on top of the backup GPT.
+			const diskSize = int64(1024 * 1024 * 1024)
+			parts := partitions.PartitionList{
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 64, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 959},
+			}
+
+			gptParts := kairosPartsToDiskfsGPTParts(parts, diskSize, sectorSize)
+			Expect(gptParts).To(HaveLen(len(parts)))
+			Expect(validateGPTPartitionsFit(gptParts, diskSize, sectorSize)).To(Succeed())
+
+			lastDataSector, ok := gptLastDataSector(diskSize, sectorSize)
+			Expect(ok).To(BeTrue())
+			last := gptParts[len(gptParts)-1]
+			Expect(last.End).To(Equal(lastDataSector))
+			Expect((last.End - last.Start + 1) * sectorSize).To(Equal(last.Size))
+		})
+
 		ginkgo.It("expands a zero-sized partition to fill the remaining disk", func() {
 			parts := partitions.PartitionList{
 				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 30, FS: "ext4"},
@@ -583,74 +627,4 @@ func TestBug4257ExactDiskFromReport(t *testing.T) {
 		last.Start, last.End, onDiskSize, last.Name)
 	t.Logf("lastDataSector=%d diskSectors=%d", lastDataSector, diskSectors)
 	t.Logf("img path (kept in temp dir for inspection): %s", imgPath)
-}
-
-// TestLastFixedPartitionKeepsItsRequestedSize covers the second half of
-// kairos-io/kairos#4257. Reserving the backup GPT tail used to come off the
-// last requested partition unconditionally, so an extra partition that ended
-// far from the end of the disk still came out 33 sectors short of the size
-// the cloud-config asked for. Reserve it only from a partition that actually
-// reaches those sectors.
-func TestLastFixedPartitionKeepsItsRequestedSize(t *testing.T) {
-	const sector int64 = 512
-	// 1 TiB disk holding ~1.3 GiB of partitions: the last one ends with the
-	// best part of a terabyte to spare.
-	const diskSize int64 = 1024 * 1024 * 1024 * 1024
-
-	parts := partitions.PartitionList{
-		{Name: sdkConstants.EfiPartName, FS: sdkConstants.EfiFs, FilesystemLabel: sdkConstants.EfiLabel, Size: 64},
-		{Name: sdkConstants.OEMPartName, FilesystemLabel: sdkConstants.OEMLabel, Size: 100},
-		{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 500},
-		{Name: "data_partition", FilesystemLabel: "SYSTEM_DATA", FS: "ext4", Size: 700},
-	}
-
-	got := kairosPartsToDiskfsGPTParts(parts, diskSize, sector)
-	if err := validateGPTPartitionsFit(got, diskSize, sector); err != nil {
-		t.Fatalf("validateGPTPartitionsFit: %v", err)
-	}
-	if len(got) != len(parts) {
-		t.Fatalf("expected %d partitions, got %d", len(parts), len(got))
-	}
-	for i, p := range got {
-		want := uint64(parts[i].Size) * 1024 * 1024
-		if p.Size != want {
-			t.Errorf("%s: Size = %d bytes, want %d (short by %d)",
-				p.Name, p.Size, want, int64(want)-int64(p.Size))
-		}
-		if implied := (p.End - p.Start + 1) * uint64(sector); implied != p.Size {
-			t.Errorf("partition %d (%s): declared Size=%d but End-Start+1 implies %d",
-				i, p.Name, p.Size, implied)
-		}
-	}
-}
-
-// TestPartitionsFillingTheWholeDiskStillFit pins the behaviour the
-// unconditional reserve was there for: a layout whose sizes add up to exactly
-// the disk still has to be writable, with the last partition ending on the
-// last usable sector rather than on top of the backup GPT.
-func TestPartitionsFillingTheWholeDiskStillFit(t *testing.T) {
-	const sector int64 = 512
-	const diskSize int64 = 1024 * 1024 * 1024 // 1 GiB
-
-	// 1 MiB of leading alignment plus 1023 MiB of partitions.
-	parts := partitions.PartitionList{
-		{Name: sdkConstants.EfiPartName, FS: sdkConstants.EfiFs, FilesystemLabel: sdkConstants.EfiLabel, Size: 64},
-		{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 959},
-	}
-
-	got := kairosPartsToDiskfsGPTParts(parts, diskSize, sector)
-	if err := validateGPTPartitionsFit(got, diskSize, sector); err != nil {
-		t.Fatalf("validateGPTPartitionsFit: %v", err)
-	}
-	lastDataSector, ok := gptLastDataSector(diskSize, sector)
-	if !ok {
-		t.Fatal("gptLastDataSector: disk reported as too small")
-	}
-	last := got[len(got)-1]
-	if last.End != lastDataSector {
-		t.Errorf("last partition End = %d, want lastDataSector %d", last.End, lastDataSector)
-	}
-	if implied := (last.End - last.Start + 1) * uint64(sector); implied != last.Size {
-		t.Errorf("last partition declared Size=%d but End-Start+1 implies %d", last.Size, implied)
-	}
 }
