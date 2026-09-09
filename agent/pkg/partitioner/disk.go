@@ -56,6 +56,22 @@ func gptBackupTailSectors(sectorSize int64) uint64 {
 	return partArraySectors + 1
 }
 
+// gptLastDataSector returns the highest sector a partition may end on, that is
+// the sector before the backup GPT structures at the tail of the disk. The
+// second return value is false when the geometry is unknown or too small to
+// hold a GPT at all.
+func gptLastDataSector(diskSize, sectorSize int64) (uint64, bool) {
+	if diskSize <= 0 || sectorSize <= 0 {
+		return 0, false
+	}
+	diskSectors := uint64(diskSize / sectorSize)
+	tail := gptBackupTailSectors(sectorSize)
+	if diskSectors <= tail+1 {
+		return 0, false
+	}
+	return diskSectors - tail - 1, true
+}
+
 // validateGPTPartitionsFit refuses layouts whose last partition would land on
 // or past the sectors go-diskfs reserves for the backup GPT structures.
 // Without this the partitioner happily writes a table where the last partition
@@ -66,12 +82,10 @@ func validateGPTPartitionsFit(parts []*gpt.Partition, diskSize, sectorSize int64
 	if diskSize <= 0 || sectorSize <= 0 {
 		return nil
 	}
-	diskSectors := uint64(diskSize / sectorSize)
-	tail := gptBackupTailSectors(sectorSize)
-	if diskSectors <= tail+1 {
+	lastDataSector, ok := gptLastDataSector(diskSize, sectorSize)
+	if !ok {
 		return fmt.Errorf("target disk is too small to hold a GPT partition table")
 	}
-	lastDataSector := diskSectors - tail - 1
 	for _, p := range parts {
 		if p == nil {
 			continue
@@ -118,18 +132,24 @@ func kairosPartsToDiskfsGPTParts(parts partitions.PartitionList, diskSize int64,
 			}
 			size = uint64(diskSize) - sizeUsed - tailReserveBytes
 		} else {
-			// Change it to bytes. If it is the last partition, trim the
-			// backup-GPT tail off its requested size so the write stays
-			// inside lastDataSector.
-			if index == len(parts)-1 {
-				size = uint64(part.Size*1024*1024) - tailReserveBytes
-			} else {
-				size = uint64(part.Size * 1024 * 1024)
-			}
-
+			// Change it to bytes
+			size = uint64(part.Size) * 1024 * 1024
 		}
 
 		end = getSectorEndFromSize(start, size, sectorSize)
+
+		// A partition sized to reach the very end of the disk would land on
+		// the sectors go-diskfs writes the backup GPT into, so hand those
+		// back. Only to a partition that actually reaches them: this used to
+		// come off every last partition unconditionally, which left a
+		// fixed-size one that ended nowhere near the tail short of the size
+		// it asked for. Overshooting by more than the tail is a layout that
+		// does not fit, and validateGPTPartitionsFit rejects it below.
+		if lastDataSector, ok := gptLastDataSector(diskSize, sectorSize); ok &&
+			end > lastDataSector && end-lastDataSector <= gptBackupTailSectors(sectorSize) {
+			end = lastDataSector
+			size = (end - start + 1) * uint64(sectorSize)
+		}
 
 		if part.Name == sdkConstants.EfiPartName && part.FS == sdkConstants.EfiFs {
 			// EFI boot partition

@@ -176,19 +176,43 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(kairosPartsToDiskfsGPTParts(partitions.PartitionList{}, 100*mib, sectorSize)).To(BeEmpty())
 		})
 
-		ginkgo.It("reserves the backup GPT tail when the last partition has an explicit size", func() {
+		ginkgo.It("gives the last partition the size it asked for when it fits", func() {
 			parts := partitions.PartitionList{
 				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts).To(HaveLen(1))
 			Expect(gptParts[0].Start).To(Equal(uint64(2048)))
-			expectedSize := uint64(10*mib) - gptBackupTailSectors(sectorSize)*uint64(sectorSize)
-			Expect(gptParts[0].Size).To(Equal(expectedSize))
-			Expect(gptParts[0].End).To(Equal(uint64(2048 + expectedSize/sectorSize - 1)))
+			Expect(gptParts[0].Size).To(Equal(uint64(10 * mib)))
+			Expect(gptParts[0].End).To(Equal(uint64(2048 + 10*mib/sectorSize - 1)))
 			Expect(gptParts[0].Type).To(Equal(gpt.LinuxFilesystem))
 			Expect(gptParts[0].Index).To(Equal(1))
 			Expect(gptParts[0].Attributes).To(BeZero())
+		})
+
+		ginkgo.It("reserves the backup GPT tail only from a partition that reaches it", func() {
+			// 1MiB of alignment plus 99MiB of partition is the whole 100MiB
+			// disk, so this one does cross the backup GPT sectors.
+			parts := partitions.PartitionList{
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 99, FS: "ext4"},
+			}
+			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
+			Expect(gptParts).To(HaveLen(1))
+			lastDataSector, ok := gptLastDataSector(100*mib, sectorSize)
+			Expect(ok).To(BeTrue())
+			Expect(gptParts[0].End).To(Equal(lastDataSector))
+			Expect(gptParts[0].Size).To(Equal(uint64(99*mib) - gptBackupTailSectors(sectorSize)*uint64(sectorSize)))
+			Expect(validateGPTPartitionsFit(gptParts, 100*mib, sectorSize)).To(Succeed())
+		})
+
+		ginkgo.It("still rejects a layout that overshoots the disk by more than the tail", func() {
+			parts := partitions.PartitionList{
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 50, FS: "ext4"},
+				{Name: "persistent", FilesystemLabel: sdkConstants.PersistentLabel, Size: 60, FS: "ext4"},
+			}
+			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
+			Expect(validateGPTPartitionsFit(gptParts, 100*mib, sectorSize)).To(
+				MatchError(ContainSubstring("past the last usable sector")))
 		})
 
 		ginkgo.It("expands a zero-sized partition to fill the remaining disk", func() {
@@ -559,4 +583,74 @@ func TestBug4257ExactDiskFromReport(t *testing.T) {
 		last.Start, last.End, onDiskSize, last.Name)
 	t.Logf("lastDataSector=%d diskSectors=%d", lastDataSector, diskSectors)
 	t.Logf("img path (kept in temp dir for inspection): %s", imgPath)
+}
+
+// TestLastFixedPartitionKeepsItsRequestedSize covers the second half of
+// kairos-io/kairos#4257. Reserving the backup GPT tail used to come off the
+// last requested partition unconditionally, so an extra partition that ended
+// far from the end of the disk still came out 33 sectors short of the size
+// the cloud-config asked for. Reserve it only from a partition that actually
+// reaches those sectors.
+func TestLastFixedPartitionKeepsItsRequestedSize(t *testing.T) {
+	const sector int64 = 512
+	// 1 TiB disk holding ~1.3 GiB of partitions: the last one ends with the
+	// best part of a terabyte to spare.
+	const diskSize int64 = 1024 * 1024 * 1024 * 1024
+
+	parts := partitions.PartitionList{
+		{Name: sdkConstants.EfiPartName, FS: sdkConstants.EfiFs, FilesystemLabel: sdkConstants.EfiLabel, Size: 64},
+		{Name: sdkConstants.OEMPartName, FilesystemLabel: sdkConstants.OEMLabel, Size: 100},
+		{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 500},
+		{Name: "data_partition", FilesystemLabel: "SYSTEM_DATA", FS: "ext4", Size: 700},
+	}
+
+	got := kairosPartsToDiskfsGPTParts(parts, diskSize, sector)
+	if err := validateGPTPartitionsFit(got, diskSize, sector); err != nil {
+		t.Fatalf("validateGPTPartitionsFit: %v", err)
+	}
+	if len(got) != len(parts) {
+		t.Fatalf("expected %d partitions, got %d", len(parts), len(got))
+	}
+	for i, p := range got {
+		want := uint64(parts[i].Size) * 1024 * 1024
+		if p.Size != want {
+			t.Errorf("%s: Size = %d bytes, want %d (short by %d)",
+				p.Name, p.Size, want, int64(want)-int64(p.Size))
+		}
+		if implied := (p.End - p.Start + 1) * uint64(sector); implied != p.Size {
+			t.Errorf("partition %d (%s): declared Size=%d but End-Start+1 implies %d",
+				i, p.Name, p.Size, implied)
+		}
+	}
+}
+
+// TestPartitionsFillingTheWholeDiskStillFit pins the behaviour the
+// unconditional reserve was there for: a layout whose sizes add up to exactly
+// the disk still has to be writable, with the last partition ending on the
+// last usable sector rather than on top of the backup GPT.
+func TestPartitionsFillingTheWholeDiskStillFit(t *testing.T) {
+	const sector int64 = 512
+	const diskSize int64 = 1024 * 1024 * 1024 // 1 GiB
+
+	// 1 MiB of leading alignment plus 1023 MiB of partitions.
+	parts := partitions.PartitionList{
+		{Name: sdkConstants.EfiPartName, FS: sdkConstants.EfiFs, FilesystemLabel: sdkConstants.EfiLabel, Size: 64},
+		{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 959},
+	}
+
+	got := kairosPartsToDiskfsGPTParts(parts, diskSize, sector)
+	if err := validateGPTPartitionsFit(got, diskSize, sector); err != nil {
+		t.Fatalf("validateGPTPartitionsFit: %v", err)
+	}
+	lastDataSector, ok := gptLastDataSector(diskSize, sector)
+	if !ok {
+		t.Fatal("gptLastDataSector: disk reported as too small")
+	}
+	last := got[len(got)-1]
+	if last.End != lastDataSector {
+		t.Errorf("last partition End = %d, want lastDataSector %d", last.End, lastDataSector)
+	}
+	if implied := (last.End - last.Start + 1) * uint64(sector); implied != last.Size {
+		t.Errorf("last partition declared Size=%d but End-Start+1 implies %d", last.Size, implied)
+	}
 }
