@@ -643,9 +643,32 @@ upgrade:
 			var bootedFrom string
 			var dir string
 			var ghwTest ghwMock.GhwMock
+			var extractor *v1mock.FakeImageExtractor
+			var sizedImages []string
+
+			// The configs here come from a real Scan, so they carry the real
+			// implementations. Point them at the suite doubles instead. The
+			// image extractor matters most: sizing an OCI source calls out to
+			// the registry, which a unit test must never do.
+			useTestDoubles := func(cfg *sdkConfig.Config) {
+				cfg.Runner = runner
+				cfg.Fs = fs
+				cfg.Mounter = mounter
+				cfg.CloudInitRunner = ci
+				cfg.Logger = logger
+				cfg.ImageExtractor = extractor
+			}
 
 			BeforeEach(func() {
 				bootedFrom = ""
+				sizedImages = nil
+				extractor = &v1mock.FakeImageExtractor{
+					Logger: logger,
+					SizeSideEffect: func(imageRef, platformRef string) (int64, error) {
+						sizedImages = append(sizedImages, imageRef)
+						return 0, nil
+					},
+				}
 				runner.SideEffect = func(cmd string, args ...string) ([]byte, error) {
 					switch cmd {
 					case "cat":
@@ -675,7 +698,7 @@ upgrade:
   system:
     source: oci:busybox
   recovery-system:
-    source: oci:busybox
+    source: oci:busybox-recovery
 cloud-init-paths:
 - /what
 `)
@@ -728,15 +751,8 @@ cloud-init-paths:
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...),
 					collector.NoLogs,
 				)
-				cfg.Fs = fs
-				cfg.Logger = logger
-
 				Expect(err).ToNot(HaveOccurred())
-				// Once we got the cfg override the fs to our test fs
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
+				useTestDoubles(cfg)
 				installSpec, err := config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(cfg.Strict).To(BeTrue())
@@ -771,11 +787,7 @@ cloud-init-paths:
 
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{autoDir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				installSpec, err := config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(installSpec.Target).To(Equal("/dev/sda"))
@@ -797,11 +809,7 @@ cloud-init-paths:
 
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{scriptDir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				installSpec, err := config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(installSpec.Target).To(Equal("/some/device"))
@@ -823,11 +831,7 @@ cloud-init-paths:
 
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{scriptDir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				_, err = config.ReadInstallSpecFromConfig(cfg)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("no disk available"))
@@ -837,11 +841,7 @@ cloud-init-paths:
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
 				// Override the config with our test params
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				spec, err := config.ReadSpecFromCloudConfig(cfg, "reset")
 				Expect(err).ToNot(HaveOccurred())
 				resetSpec := spec.(*v1.ResetSpec)
@@ -853,15 +853,15 @@ cloud-init-paths:
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...), collector.NoLogs)
 				Expect(err).ToNot(HaveOccurred())
 				// Override the config with our test params
-				cfg.Runner = runner
-				cfg.Fs = fs
-				cfg.Mounter = mounter
-				cfg.CloudInitRunner = ci
-				cfg.Logger = logger
+				useTestDoubles(cfg)
 				spec, err := config.ReadSpecFromCloudConfig(cfg, "upgrade")
 				Expect(err).ToNot(HaveOccurred())
 				upgradeSpec := spec.(*v1.UpgradeSpec)
 				Expect(upgradeSpec.RecoveryUpgrade()).To(BeTrue())
+				Expect(upgradeSpec.Recovery.Source.Value()).To(Equal("busybox-recovery:latest"))
+				// A recovery upgrade sizes the recovery source, and it does so
+				// through the extractor we injected, not over the network.
+				Expect(sizedImages).To(Equal([]string{"busybox-recovery:latest"}))
 			})
 			It("Fails when a wrong action is read", func() {
 				cfg, err := config.ScanNoLogs(collector.Directories([]string{dir}...), collector.NoLogs)
