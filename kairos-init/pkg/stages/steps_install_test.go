@@ -217,20 +217,65 @@ func TestMonorepoBinaryURLs_UnknownReponameFallsBack(t *testing.T) {
 // release assets cannot be fetched: the version kairos-init itself was built
 // from. The release pipeline compiles kairos-init, bakes it into an image,
 // and runs that image to build every OS image before it ever publishes the
-// tag's tarballs and shared checksums.txt — so for the duration of that run
-// a download URL into that release resolves to nothing.
+// tag's tarballs and shared checksums.txt — so for the duration of that run a
+// download URL into that release resolves to nothing, and resolution must
+// report nothing fetchable rather than hand one out.
 func TestMonorepoBinaryURLs_OwnBuildVersion(t *testing.T) {
 	own := values.GetVersion()
 
 	asset, checksums, _, ok := monorepoBinaryURLs("kairos-agent", own, "amd64", false)
-	if !ok {
-		t.Fatalf("monorepoBinaryURLs reported no mapping for %q", own)
+	if ok {
+		t.Fatalf("monorepoBinaryURLs offered %q / %q for kairos-init's own build version %q, want no fetchable asset", asset, checksums, own)
 	}
-	if want := "/download/" + own + "/checksums.txt"; !strings.HasSuffix(checksums, want) {
+	if asset != "" || checksums != "" {
+		t.Fatalf("asset URL = %q, checksums URL = %q, want both empty", asset, checksums)
+	}
+
+	// Every other version is an already-published release and still resolves.
+	other := own + "-not-this-build"
+	asset, checksums, _, ok = monorepoBinaryURLs("kairos-agent", other, "amd64", false)
+	if !ok {
+		t.Fatalf("monorepoBinaryURLs reported no mapping for %q, want one", other)
+	}
+	if want := "/download/" + other + "/checksums.txt"; !strings.HasSuffix(checksums, want) {
 		t.Fatalf("checksums URL = %q, want it to end in %q", checksums, want)
 	}
-	if want := "/download/" + own + "/"; !strings.Contains(asset, want) {
+	if want := "/download/" + other + "/"; !strings.Contains(asset, want) {
 		t.Fatalf("asset URL = %q, want it to contain %q", asset, want)
+	}
+}
+
+// TestDownloadKairosMonorepoBinary_OwnBuildVersionFailsClosed pins the
+// fail-closed half: a caller that reaches for kairos-init's own build version
+// anyway is refused before any request goes out, rather than 404ing against
+// the release still being cut.
+func TestDownloadKairosMonorepoBinary_OwnBuildVersionFailsClosed(t *testing.T) {
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "kairos-agent")
+
+	err := downloadKairosMonorepoBinary(testClient(), logger.NewNullLogger(), "kairos-agent", values.GetVersion(), "amd64", false, dest)
+	if err == nil {
+		t.Fatal("downloadKairosMonorepoBinary accepted kairos-init's own build version, want an error")
+	}
+	if !strings.Contains(err.Error(), "not published yet") {
+		t.Fatalf("error = %v, want it to name the unpublished release as the reason", err)
+	}
+	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {
+		t.Fatalf("nothing must be written to %s", dest)
+	}
+}
+
+// TestOwnBuildVersion covers the predicate both paths share. An empty pin
+// means no pin at all and must never be mistaken for one naming this build.
+func TestOwnBuildVersion(t *testing.T) {
+	if ownBuildVersion("") {
+		t.Fatal("ownBuildVersion(\"\") = true, want false (an empty pin is not a pin)")
+	}
+	if !ownBuildVersion(values.GetVersion()) {
+		t.Fatalf("ownBuildVersion(%q) = false, want true", values.GetVersion())
+	}
+	if ownBuildVersion("v2.31.4") {
+		t.Fatal("ownBuildVersion(\"v2.31.4\") = true, want false (an already-published release stays downloadable)")
 	}
 }
 
