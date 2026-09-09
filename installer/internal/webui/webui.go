@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
@@ -15,8 +15,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/sdk/branding"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/labstack/echo/v5"
 	process "github.com/mudler/go-processmanager"
@@ -318,7 +318,31 @@ func (t *TemplateRenderer) Render(c *echo.Context, w io.Writer, name string, dat
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
+// Options configures a web UI server.
+type Options struct {
+	// Listen is the address to bind on.
+	Listen string
+	// Logger receives everything the server has to say: echo's startup
+	// banner and port line, handler errors and the http.Server error log.
+	// A nil Logger means stdout, which is what a standalone run wants.
+	//
+	// The installer passes a file-backed logger, because it runs the TUI on
+	// the same terminal and echo's default handler writes JSON to stdout,
+	// which would land on top of the alt screen.
+	Logger *slog.Logger
+}
+
+// Start runs the web UI with the listen address and enablement resolved from
+// the image's branding config, logging to stdout. It blocks until ctx is
+// cancelled or the listener errors, and returns nil immediately when branding
+// disabled the web UI.
 func Start(ctx context.Context) error {
+	return StartConfigured(ctx, nil)
+}
+
+// StartConfigured is Start with a logger of the caller's choosing. A nil
+// logger means stdout.
+func StartConfigured(ctx context.Context, logger *slog.Logger) error {
 	listen := constants.DefaultWebUIListenAddress
 
 	agentConfig, err := branding.LoadConfig()
@@ -331,24 +355,36 @@ func Start(ctx context.Context) error {
 	}
 
 	if agentConfig.WebUI.Disable {
-		log.Println("WebUI installer disabled by branding")
+		logTo(logger).Info("WebUI installer disabled by branding")
 		return nil
 	}
 
-	return StartOn(ctx, listen)
+	return StartWith(ctx, Options{Listen: listen, Logger: logger})
 }
 
-// StartOn runs the web UI server on the given listen address and
-// blocks until ctx is cancelled or the underlying listener errors.
-// Start (the normal entry point) resolves the listen address from the
-// agent config and delegates here; tests bind on ":0" so the OS picks
-// an ephemeral port and the run cannot collide with anything else
-// listening on the developer's box.
+// StartOn runs the web UI server on the given listen address, logging to
+// stdout. Tests bind on ":0" so the OS picks an ephemeral port and the run
+// cannot collide with anything else listening on the developer's box.
 func StartOn(ctx context.Context, listen string) error {
+	return StartWith(ctx, Options{Listen: listen})
+}
+
+// logTo returns l, or a stdout logger when l is nil, so callers never have to
+// nil-check before logging.
+func logTo(l *slog.Logger) *slog.Logger {
+	if l != nil {
+		return l
+	}
+	return slog.New(slog.NewJSONHandler(os.Stdout, nil))
+}
+
+// StartWith runs the web UI server and blocks until ctx is cancelled or the
+// underlying listener errors.
+func StartWith(ctx context.Context, o Options) error {
 
 	s := state{}
 
-	ec := echo.New()
+	ec := echo.NewWithConfig(echo.Config{Logger: logTo(o.Logger)})
 	assetHandler := http.FileServer(getFileSystem())
 
 	renderer := &TemplateRenderer{
@@ -410,15 +446,23 @@ func StartOn(ctx context.Context, listen string) error {
 		}
 		args = append(args, "--device", installationDevice)
 
-		// create tempfile to store cloud-config, bail out if we fail as we couldn't go much further
+		// Report a tempfile failure back to the browser rather than exiting.
+		// This handler shares a process with the installer TUI, so a
+		// log.Fatalf here would take the whole installer down with it.
 		file, err := os.CreateTemp("", "install-webui-*.yaml")
 		if err != nil {
-			log.Fatalf("could not create tmpfile for cloud-config: %s", err.Error())
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{
+				"message": fmt.Sprintf("could not create tmpfile for cloud-config: %s", err.Error()),
+				"type":    "danger",
+			})
 		}
 
 		err = os.WriteFile(file.Name(), []byte(cloudConfig), 0600)
 		if err != nil {
-			log.Fatalf("could not write tmpfile for cloud-config: %s", err.Error())
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{
+				"message": fmt.Sprintf("could not write tmpfile for cloud-config: %s", err.Error()),
+				"type":    "danger",
+			})
 		}
 
 		args = append(args, file.Name())
@@ -441,7 +485,7 @@ func StartOn(ctx context.Context, listen string) error {
 	ec.GET("/ws", streamProcess(&s))
 
 	sc := echo.StartConfig{
-		Address:         listen,
+		Address:         o.Listen,
 		GracefulTimeout: 10 * time.Second,
 	}
 	if err := sc.Start(ctx, ec); err != nil && err != http.ErrServerClosed {

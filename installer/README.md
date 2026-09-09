@@ -12,6 +12,10 @@ fields) and then drives [`kairos-agent`](../agent/) to perform the install.
 It does **not** partition or install anything itself — that is `kairos-agent`'s
 job. The installer only owns the UX and hands a configuration to the agent.
 
+It also serves the **web installer**, on `:8080` by default, next to the
+terminal UI and in the same process, so a live boot offers both frontends
+without two services fighting over the port.
+
 It is shipped in Kairos images (by [`kairos-init`](../kairos-init/)) at
 `/system/installer/kairos-installer`, where `kairos-agent interactive-install`
 picks it up automatically.
@@ -27,6 +31,12 @@ wins):
 1. `$KAIROS_INSTALLER` — explicit path (testing/override)
 2. `/system/installer/installer` — **override slot** (you drop your binary here)
 3. `/system/installer/kairos-installer` — the default (this project)
+
+`kairos-agent webui` is a dispatcher onto the same binary, with the same
+resolution order, adding `--no-tui`. In that mode the installer serves only its
+web UI and never touches the terminal, which is what the non-interactive live
+boot entry wants. The web installer is a frontend of the installer, not of the
+agent, so an image that ships its own installer serves its own web UI.
 
 The agent forwards `--source <uri>` to the installer. The installer, in turn,
 drives the install by running:
@@ -90,6 +100,9 @@ over the bundled default. The agent execs it directly, so it can be written in
 any language. Your binary must:
 
 - accept `--source <uri>` (the agent forwards it; it may be empty);
+- accept `--no-tui`, and in that mode stay off the terminal entirely: it is how
+  `kairos-agent webui` asks for a web-only frontend on a non-interactive boot.
+  Serving nothing and exiting 0 is a valid answer if you have no web UI;
 - run on the inherited terminal (stdin/stdout/stderr are passed through);
 - gather whatever input it wants, write a `#cloud-config` to a temp file, then
   drive the install:
@@ -131,10 +144,18 @@ To customize the UX itself, fork or vendor this repo:
 ## Architecture
 
 ```
-main.go               flag(--source) → launch the bubbletea program
+main.go               flags(--source, --no-tui) → serve the web UI, and unless
+                      --no-tui, launch the bubbletea program alongside it
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
                       the install page calls kairos-sdk/agentrun and renders progress
+internal/webui/       the web frontend: embedded assets, cloud-config validation,
+                      and the install/progress websocket
 ```
+
+Echo writes its own log to a file (`/var/log/kairos/webui.log`) whenever the TUI
+is running, because its default handler writes JSON to stdout and that would
+land on top of the alt screen. With `--no-tui` it logs to stdout, so it ends up
+in the journal.
 
 The reusable pieces live in **kairos-sdk**: `kairos-sdk/agentrun` drives
 `kairos-agent manual-install` and parses its JSON-Lines progress, and

@@ -11,4 +11,3 @@ func TestWebUISuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "WebUI test suite")
 }
-

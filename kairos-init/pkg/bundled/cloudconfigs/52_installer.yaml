@@ -117,19 +117,30 @@ stages:
         - sed -i -e 's/tty1.*//g' /etc/inittab
         - echo "tty1::respawn:/usr/bin/kairos-agent interactive-install --shell tty1" >> /etc/inittab
   boot:
+    # Every live boot that is not an interactive one gets the WebUI as its own
+    # service. An interactive boot does not: `kairos-agent webui` and
+    # `kairos-agent interactive-install` both delegate to the same installer
+    # binary, which serves the WebUI in-process next to its terminal UI, so
+    # starting the service too would just leave a second process losing the
+    # race for the listen address. The negative match mirrors the interactive
+    # stage's guard above term for term, so the two can never both fire.
     - if: |
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ]) && \
+        ! grep -q "interactive-install" /proc/cmdline && \
+        ! grep -q "install-mode-interactive" /proc/cmdline
       only_service_manager: "openrc"
       commands:
         - rc-service kairos-webui start
     - if: |
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ]) && \
+        ! grep -q "interactive-install" /proc/cmdline && \
+        ! grep -q "install-mode-interactive" /proc/cmdline
       only_service_manager: "systemd"
       files:
         - <<: *webui-service
       commands:
         # enable, not just start. The install-mode stage above also enables it,
-        # but that stage does not fire on an interactive boot, so the WebUI
-        # would not come back after a restart there. This stage runs on every
-        # live boot, so the enable belongs here too.
+        # but that stage does not fire on a plain live boot with no install
+        # keyword at all, and the WebUI has to come back after a restart there
+        # too.
         - systemctl enable --now kairos-webui

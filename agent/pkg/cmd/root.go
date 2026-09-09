@@ -16,7 +16,6 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/internal/agent"
 	"github.com/kairos-io/kairos/v4/agent/internal/bus"
 	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
-	"github.com/kairos-io/kairos/v4/agent/internal/webui"
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
@@ -386,10 +385,16 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 	{
 		Name:        "webui",
 		Usage:       "Starts the webui",
-		Description: "Starts the webui installer",
+		Description: "Starts the webui installer, by delegating to the image's installer with its terminal UI suppressed",
 		Aliases:     []string{"w"},
+		Flags:       []cli.Flag{&sourceFlag},
 		Action: func(c *cli.Context) error {
-			return webui.Start(context.Background())
+			log := sdkLogger.NewKairosLogger("agent", "info", true)
+			if viper.GetBool("debug") {
+				log.SetLevel("debug")
+			}
+
+			return agent.WebUI(c.String("source"), log)
 		},
 	},
 	{

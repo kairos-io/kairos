@@ -5,6 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -24,6 +28,33 @@ var _ = Describe("installer dispatch", func() {
 		It("omits --source when no source is given", func() {
 			cmd := installerCommand("/bin/installer", "")
 			Expect(cmd.Args).To(Equal([]string{"/bin/installer"}))
+		})
+
+		It("appends extra flags after the source", func() {
+			cmd := installerCommand("/bin/installer", "oci://foo:bar", "--no-tui")
+			Expect(cmd.Args).To(Equal([]string{"/bin/installer", "--source", "oci://foo:bar", "--no-tui"}))
+		})
+	})
+
+	// The web installer is a frontend of the installer, not of the agent, so
+	// `kairos-agent webui` has to reach it through the same resolution the
+	// interactive install uses. An image shipping its own installer serves its
+	// own web UI.
+	Describe("WebUI", func() {
+		It("runs the resolved installer with --no-tui", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "fake-installer")
+			argsFile := filepath.Join(dir, "args")
+			Expect(os.WriteFile(bin,
+				[]byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > "+argsFile+"\n"), 0o755)).To(Succeed())
+			GinkgoT().Setenv(sdkConstants.InstallerEnvVar, bin)
+
+			logger := sdkLogger.NewKairosLogger("test", "info", true)
+			Expect(WebUI("oci://foo:bar", logger)).To(Succeed())
+
+			recorded, err := os.ReadFile(argsFile)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.Fields(string(recorded))).To(Equal([]string{"--source", "oci://foo:bar", "--no-tui"}))
 		})
 	})
 
