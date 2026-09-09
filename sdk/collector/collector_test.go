@@ -705,6 +705,20 @@ info:
 				Expect(err.Error()).To(ContainSubstring("non-string map keys"))
 			})
 		})
+
+		Context("slices whose items are themselves slices", func() {
+			// mergeSlices compared items with ==, which panics at runtime on
+			// uncomparable dynamic types. A yaml document like "a:\n- - 1\n"
+			// decodes the item into []interface{}, which is uncomparable.
+			a := []interface{}{[]interface{}{1}}
+			b := []interface{}{[]interface{}{2}}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal([]interface{}{[]interface{}{1}, []interface{}{2}}))
+			})
+		})
 	})
 
 	Describe("Scan", func() {
