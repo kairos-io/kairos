@@ -310,9 +310,10 @@ func (u *UpgradeAction) remove(path string) error {
 //
 // This handles GRUB-mode systems only. UKI-mode upgrades refresh the ESP
 // through agent/pkg/uki/upgrade.go. Machines with no EFI partition (BIOS
-// GRUB) skip cleanly because Partitions.EFI is nil, and machines with too
-// little ESP room to fit the refresh skip with a warning so a tight
-// partition never turns a working upgrade into a boot failure.
+// GRUB) skip cleanly because Partitions.EFI is nil. Machines with too little
+// ESP room to fit the refresh, and images that ship no shim or grub at a path
+// Kairos knows, skip with a warning, so neither a tight partition nor a moved
+// binary turns a working upgrade into a boot failure.
 func (u *UpgradeAction) refreshESP(sourceDir string) error {
 	efiPart := u.spec.Partitions.EFI
 	if efiPart == nil {
@@ -337,7 +338,7 @@ func (u *UpgradeAction) refreshESP(sourceDir string) error {
 		}
 	}()
 
-	if err := utils.CheckESPRefreshSpace(u.config.Fs, u.config.Arch, sourceDir, efiPart.MountPoint); err != nil {
+	if err := utils.CheckESPRefresh(u.config.Fs, u.config.Arch, sourceDir, efiPart.MountPoint); err != nil {
 		u.config.Logger.Warnf("Skipping ESP refresh: %s", err)
 		return nil
 	}

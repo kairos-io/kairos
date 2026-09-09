@@ -12,10 +12,18 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
-// CheckESPRefreshSpace fails before RefreshESP starts writing rather than
-// letting a copy run out of room part way and leave the ESP holding a shim
-// that the firmware still lists but that no longer chainloads a working
+// CheckESPRefresh reports whether an ESP refresh can be carried out from
+// sourceDir into efiDir, so a refresh that cannot complete is skipped before
+// it writes anything rather than part way through, leaving the ESP holding a
+// shim that the firmware still lists but that no longer chainloads a working
 // grub.efi.
+//
+// It rejects two cases. First, a source missing either of the binaries
+// RefreshESP copies: shim and grub, or grub alone on riscv64, which boots
+// grub.efi directly. Writing a new shim next to the old grub, or the other
+// way round, is worse than leaving both alone, so a distro that moves one of
+// them to a path Kairos does not know skips the refresh. Second, an ESP with
+// no room for them.
 //
 // The rotation is not atomic: for each of shim and grub, an existing file at
 // the target is overwritten in place. That means the free-space budget the
@@ -25,18 +33,19 @@ import (
 // sourceDir must hold the rootfs of the installation source, so the shim and
 // grub binaries GetEfiShimFiles/GetEfiGrubFiles list are resolvable. efiDir
 // must be the mount point of the ESP.
-func CheckESPRefreshSpace(fs sdkFS.KairosFS, arch, sourceDir, efiDir string) error {
-	needed, sources, err := espRefreshBytes(fs, arch, sourceDir)
+func CheckESPRefresh(fs sdkFS.KairosFS, arch, sourceDir, efiDir string) error {
+	refresh, err := espRefreshSources(fs, arch, sourceDir)
 	if err != nil {
 		return err
 	}
-	if needed == 0 {
-		// Nothing to write: no shim/grub found under sourceDir. RefreshESP
-		// itself will surface this as an error, do not shadow it here.
-		return nil
+	if refresh.shim == "" && arch != cnst.ArchRiscv64 {
+		return fmt.Errorf("no shim found under %s at any known path, leaving the current shim and grub in place", sourceDir)
+	}
+	if refresh.grub == "" {
+		return fmt.Errorf("no grub found under %s at any known path, leaving the current shim and grub in place", sourceDir)
 	}
 
-	replaced, err := espCurrentTargetBytes(fs, arch, efiDir, sources)
+	replaced, err := espCurrentTargetBytes(fs, arch, efiDir, refresh.sources())
 	if err != nil {
 		return err
 	}
@@ -47,53 +56,72 @@ func CheckESPRefreshSpace(fs sdkFS.KairosFS, arch, sourceDir, efiDir string) err
 	}
 
 	room := free + replaced
-	if needed > room {
+	if refresh.bytes > room {
 		return fmt.Errorf("not enough space on the EFI partition %s: refreshing shim and grub needs %d bytes, %d free plus %d reclaimable from the current shim and grub. Free space on the EFI partition or skip the ESP refresh",
-			efiDir, needed, free, replaced)
+			efiDir, refresh.bytes, free, replaced)
 	}
 
 	return nil
 }
 
-// espRefreshBytes returns the total bytes RefreshESP will write, and the
-// source paths those bytes came from so espCurrentTargetBytes can size the
-// exact same set of files at the target.
+// espRefresh is the shim and grub an ESP refresh would copy out of a source,
+// with the total bytes RefreshESP writes for them.
+type espRefresh struct {
+	shim  string
+	grub  string
+	bytes int64
+}
+
+// sources returns the source paths the refresh reads, so espCurrentTargetBytes
+// can size the exact same set of files at the target.
+func (e espRefresh) sources() []string {
+	var sources []string
+	if e.shim != "" {
+		sources = append(sources, e.shim)
+	}
+	if e.grub != "" {
+		sources = append(sources, e.grub)
+	}
+	return sources
+}
+
+// espRefreshSources finds the shim and grub RefreshESP would pick under
+// sourceDir and sizes what it would write for them.
 //
 // RefreshESP picks the first matching shim under sourceDir and the first
 // matching grub under sourceDir, so the sizing walks in the same order and
 // stops at the same file.
-func espRefreshBytes(fs sdkFS.KairosFS, arch, sourceDir string) (int64, []string, error) {
-	var sources []string
-	var total int64
+func espRefreshSources(fs sdkFS.KairosFS, arch, sourceDir string) (espRefresh, error) {
+	var refresh espRefresh
 
 	if arch != cnst.ArchRiscv64 {
 		size, src, err := firstPresent(fs, sourceDir, utils.GetEfiShimFiles(arch))
 		if err != nil {
-			return 0, nil, err
+			return refresh, err
 		}
 		if src != "" {
 			// Shim is written twice: once under its real name and once as the
 			// removable-media fallback BOOT<arch>.EFI.
-			total += size * 2
-			sources = append(sources, src)
+			refresh.bytes += size * 2
+			refresh.shim = src
 		}
 	}
 
 	size, src, err := firstPresent(fs, sourceDir, utils.GetEfiGrubFiles(arch))
 	if err != nil {
-		return 0, nil, err
+		return refresh, err
 	}
 	if src != "" {
-		total += size
+		refresh.bytes += size
 		if arch == cnst.ArchRiscv64 {
 			// On riscv64 with no shim, copyGrub also writes grub as the
 			// removable-media fallback.
-			total += size
+			refresh.bytes += size
 		}
-		sources = append(sources, src)
+		refresh.grub = src
 	}
 
-	return total, sources, nil
+	return refresh, nil
 }
 
 // espCurrentTargetBytes sums the sizes of the files currently at the target

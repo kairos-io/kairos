@@ -17,7 +17,7 @@ import (
 // EFBIG on the runner before the test can even call the function under test.
 const hugeFile int64 = 4 << 40 // 4 TiB
 
-var _ = Describe("CheckESPRefreshSpace", func() {
+var _ = Describe("CheckESPRefresh", func() {
 	var fs vfs.FS
 	var cleanup func()
 	var err error
@@ -49,14 +49,14 @@ var _ = Describe("CheckESPRefreshSpace", func() {
 		write("/source/usr/lib/shim/shimx64.efi.signed", 1024)
 		write("/source/usr/lib/grub/x86_64-efi/grubx64.efi", 2048)
 
-		Expect(utils.CheckESPRefreshSpace(fs, "amd64", "/source", "/efi")).To(Succeed())
+		Expect(utils.CheckESPRefresh(fs, "amd64", "/source", "/efi")).To(Succeed())
 	})
 
 	It("fails before writing when the shim will not fit", func() {
 		write("/source/usr/lib/shim/shimx64.efi.signed", hugeFile)
 		write("/source/usr/lib/grub/x86_64-efi/grubx64.efi", 2048)
 
-		err := utils.CheckESPRefreshSpace(fs, "amd64", "/source", "/efi")
+		err := utils.CheckESPRefresh(fs, "amd64", "/source", "/efi")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("not enough space on the EFI partition"))
 	})
@@ -72,7 +72,7 @@ var _ = Describe("CheckESPRefreshSpace", func() {
 		write("/efi/EFI/boot/grubx64.efi", size)
 		write("/efi/EFI/boot/BOOTX64.EFI", size)
 
-		Expect(utils.CheckESPRefreshSpace(fs, "amd64", "/source", "/efi")).To(Succeed())
+		Expect(utils.CheckESPRefresh(fs, "amd64", "/source", "/efi")).To(Succeed())
 	})
 
 	It("passes on a first-ever refresh with no existing shim or grub at the target", func() {
@@ -80,20 +80,44 @@ var _ = Describe("CheckESPRefreshSpace", func() {
 		write("/source/usr/lib/grub/x86_64-efi/grubx64.efi", 2048)
 		// no /efi/EFI/boot contents
 
-		Expect(utils.CheckESPRefreshSpace(fs, "amd64", "/source", "/efi")).To(Succeed())
+		Expect(utils.CheckESPRefresh(fs, "amd64", "/source", "/efi")).To(Succeed())
 	})
 
-	It("returns nil when the source has no shim or grub", func() {
-		// RefreshESP itself surfaces this as an error; the space check must
-		// not shadow that with a misleading "not enough space" message.
-		Expect(utils.CheckESPRefreshSpace(fs, "amd64", "/source", "/efi")).To(Succeed())
+	It("fails when the source has no shim or grub", func() {
+		err := utils.CheckESPRefresh(fs, "amd64", "/source", "/efi")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no shim found under /source"))
+	})
+
+	It("fails when the source has a shim but no grub", func() {
+		// Copying the shim without the grub it chainloads is worse than
+		// leaving both alone, so this must be caught before any write.
+		write("/source/usr/lib/shim/shimx64.efi.signed", 1024)
+
+		err := utils.CheckESPRefresh(fs, "amd64", "/source", "/efi")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no grub found under /source"))
+	})
+
+	It("fails when the source has a grub but no shim", func() {
+		write("/source/usr/lib/grub/x86_64-efi/grubx64.efi", 2048)
+
+		err := utils.CheckESPRefresh(fs, "amd64", "/source", "/efi")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no shim found under /source"))
+	})
+
+	It("fails on riscv64 when the source has no grub", func() {
+		err := utils.CheckESPRefresh(fs, "riscv64", "/source", "/efi")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("no grub found under /source"))
 	})
 
 	It("does not require a shim on riscv64", func() {
 		// riscv64 boots grub.efi directly with no shim.
 		write("/source/usr/share/efi/riscv64/grub.efi", 2048)
 
-		Expect(utils.CheckESPRefreshSpace(fs, "riscv64", "/source", "/efi")).To(Succeed())
+		Expect(utils.CheckESPRefresh(fs, "riscv64", "/source", "/efi")).To(Succeed())
 	})
 })
 
