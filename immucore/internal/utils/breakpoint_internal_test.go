@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,8 +20,13 @@ import (
 var _ = Describe("breakpoints", func() {
 	var cmdlinePath string
 
+	// BreakpointSteps parses the cmdline once per process, so every rewrite
+	// here has to drop that cache or the case would assert on whatever the
+	// previous one wrote.
 	writeCmdline := func(s string) {
 		Expect(os.WriteFile(cmdlinePath, []byte(s+"\n"), 0o600)).To(Succeed())
+		breakpointStepsOnce = sync.Once{}
+		breakpointStepsCache = nil
 	}
 
 	BeforeEach(func() {

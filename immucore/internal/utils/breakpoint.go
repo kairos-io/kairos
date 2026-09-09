@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -28,12 +29,28 @@ var runBreakpointShell = spawnBreakpointShell
 // concurrently, and two shells sharing one console cannot both be typed into.
 var breakpointMu sync.Mutex
 
+var (
+	breakpointStepsOnce  sync.Once
+	breakpointStepsCache []string
+)
+
 // BreakpointSteps returns the step names requested on the cmdline via
 // rd.immucore.break=. The stanza can be repeated and each occurrence can carry
 // a comma-separated list, so rd.immucore.break=load-config,mount-root and
 // rd.immucore.break=load-config rd.immucore.break=mount-root mean the same
 // thing. Names are the Op* constants; anything else simply never matches.
+//
+// The cmdline is fixed for the life of the process, so it is read and parsed
+// once. BreakpointRequested asks for this on every DAG step, which would
+// otherwise be one /proc/cmdline read per step.
 func BreakpointSteps() []string {
+	breakpointStepsOnce.Do(func() {
+		breakpointStepsCache = parseBreakpointSteps()
+	})
+	return slices.Clone(breakpointStepsCache)
+}
+
+func parseBreakpointSteps() []string {
 	var out []string
 	for _, v := range ReadCMDLineArg(constants.CmdlineBreak) {
 		for _, name := range strings.Split(v, ",") {
