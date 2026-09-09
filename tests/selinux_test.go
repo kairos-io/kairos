@@ -13,9 +13,11 @@ import (
 
 // SELinux e2e: install with install.selinux enabled, reboot, assert the
 // kernel cmdline, the OEM grubenv, the relabel unit, and the live
-// getenforce state. Only runs in test-core (hadron/SUSE): the package
-// stage installs selinux-policy-targeted/policycoreutils via zypper
-// (SUSE) or dnf (RHEL) only
+// getenforce state. Runs in exactly two jobs, defined in pr.yaml and
+// master.yaml: test-core-rocky-9 on rockylinux/rockylinux:9 and
+// test-core-leap on opensuse/leap:16.0, because the package stage
+// installs selinux-policy-targeted and policycoreutils only on the RHEL
+// and SUSE families.
 var _ = Describe("kairos selinux test", Label("selinux"), func() {
 	var vm VM
 	BeforeEach(func() {
@@ -116,6 +118,12 @@ users:
 			out, err := vm.Sudo("cat /etc/systemd/system/kairos-selinux-relabel.service")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(ContainSubstring("setenforce 1"))
+		})
+
+		By("checking /etc/selinux/config matches the requested mode", func() {
+			out, err := vm.Sudo("cat /etc/selinux/config")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("SELINUX=enforcing"))
 		})
 
 		By("checking live mode is enforcing after relabel", func() {

@@ -34,7 +34,7 @@ stages:
 
             [Service]
             Type=oneshot
-            ExecStart=/usr/sbin/restorecon -Riv /etc /var /home
+            ExecStart=/usr/sbin/restorecon -Rivx /etc /var /home
             ExecStart=/usr/local/bin/selinux-relabel-persistent
             ExecStart=/usr/sbin/setenforce $MODE
             RemainAfterExit=yes
@@ -96,17 +96,6 @@ stages:
             [ -e /sys/fs/selinux/enforce ] || /usr/sbin/load_policy -i
 
             install -m 0644 -o root -g root "$TMP" "$SUBS"
-
-            STAMP=/usr/local/.state/selinux/.kairos-selinux-relabeled
-            POLICY_DIR=/etc/selinux/targeted/policy
-            CUR=$(ls "$POLICY_DIR"/policy.[0-9]* 2>/dev/null | sed 's/.*policy\.//' | sort -n | tail -n1)
-            [ -n "$CUR" ] || exit 0
-            [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$CUR" ] || exit 0
-
-            /usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem /root /opt /srv
-
-            mkdir -p "$(dirname "$STAMP")"
-            echo "$CUR" > "$STAMP"
       commands:
         - /usr/local/bin/fix-selinux-file-contexts
     - name: "Align /etc/selinux/config with active SELinux state"
