@@ -232,36 +232,44 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD }}
       - name: Block guest-VM traffic to the host's cloud metadata ip
-        # Keeps our nested test VMs from reaching 169.254.169.254 on
-        # the runner host, where a cloud provider typically exposes
-        # IAM credentials and other host-scoped metadata. Only relevant
-        # on self-hosted runners that live on cloud VMs.
-        #
-        # The tests default to QEMU user-mode networking (slirp), where
-        # a guest's outbound packets appear on the host as OUTPUT from
-        # the qemu userspace process; the opt-in USE_BRIDGE_NETWORK path
-        # NAT's through virbr0 instead and shows up on FORWARD. Cover
-        # both so the block behaves the same regardless of the NIC mode
-        # a given test cell picks.
-        #
-        # On OCI (where the CNCF pool lives) 169.254.169.254 is also
-        # the DHCP-provided DNS resolver, so a blanket OUTPUT drop
-        # takes the host's own DNS with it and every later apt-get
-        # fails to resolve archive.ubuntu.com. Carve out DNS ports
-        # before the drop so name resolution survives; port 80 (the
-        # actual metadata http endpoint) still goes to DROP.
+        # Threat: Kairos guest cloud-init probes 169.254.169.254 by
+        # default and would consume the RUNNER host's metadata (IAM
+        # identity, SSH keys, user-data) instead of the empty response
+        # tests expect. Only relevant on self-hosted runners that live
+        # on cloud VMs where that IP actually resolves to real metadata.
+        # On OCI (the CNCF pool) 169.254.169.254 is also the DHCP DNS
+        # upstream, so blanket-blocking it kills host DNS and every
+        # later apt-get. DNS is carved out where it needs to be.
         if: runner.environment == 'self-hosted'
         run: |
-          # ACCEPT rules first, DROP last, so DNS goes through but
-          # everything else to metadata is blocked.
+          # OUTPUT catches the default SLIRP guest path. In slirp mode
+          # qemu emulates the guest's TCP/IP stack in userspace and
+          # translates the guest's connect(169.254.169.254) into a
+          # socket() call FROM the qemu process on the host, which
+          # exits via OUTPUT. The DROP kills that path.
+          #
+          # The two ACCEPTs must precede the DROP so glibc /
+          # systemd-resolved DNS to the same IP keeps working on OCI,
+          # where 169.254.169.254 doubles as the resolver.
           sudo iptables -A OUTPUT -d 169.254.169.254 -p udp --dport 53 -j ACCEPT
           sudo iptables -A OUTPUT -d 169.254.169.254 -p tcp --dport 53 -j ACCEPT
           sudo iptables -A OUTPUT -d 169.254.169.254 -j DROP
+          # INPUT is defense in depth. With OUTPUT blocked, no reply
+          # from 169.254.169.254 should ever arrive, but this also
+          # drops unsolicited packets (some cloud metadata services
+          # send DHCP-adjacent broadcasts) so a compromised guest or
+          # host process cannot use spoofed responses as a covert
+          # channel. DNS reply ports match the OUTPUT carve-out so
+          # round-trip name resolution completes.
           sudo iptables -A INPUT  -s 169.254.169.254 -p udp --sport 53 -j ACCEPT
           sudo iptables -A INPUT  -s 169.254.169.254 -p tcp --sport 53 -j ACCEPT
           sudo iptables -A INPUT  -s 169.254.169.254 -j DROP
-          # Bridge-mode guests never need metadata for anything, so
-          # FORWARD stays fully closed.
+          # FORWARD catches the opt-in USE_BRIDGE_NETWORK path. With
+          # that flag the guest gets a virbr0 NIC and its traffic is
+          # NAT'd through the host, transiting FORWARD instead of
+          # OUTPUT. Bridge-mode guests have their own resolver via
+          # libvirt's dnsmasq (10.0.2.3 or similar), so no DNS
+          # carve-out is needed here; the DROP is total.
           sudo iptables -A FORWARD -s 169.254.169.254 -j DROP
           sudo iptables -A FORWARD -d 169.254.169.254 -j DROP
       - name: Enable KVM group perms
