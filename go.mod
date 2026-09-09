@@ -11,8 +11,7 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/containerd/containerd v1.7.34
-	github.com/containerd/containerd/v2 v2.3.4
+	github.com/containerd/containerd/v2 v2.3.5
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/deniswernert/go-fstab v0.0.0-20141204152952-eb4090f26517
 	github.com/diskfs/go-diskfs v1.9.4
@@ -38,12 +37,12 @@ require (
 	github.com/kairos-io/go-nodepair v0.3.0
 	github.com/kairos-io/tpm-helpers v0.0.0-20260901080153-3b403a08f864
 	github.com/labstack/echo/v5 v5.3.1
-	github.com/moby/moby/api v1.55.0
-	github.com/moby/moby/client v0.5.1
+	github.com/moby/moby/api v1.56.0
+	github.com/moby/moby/client v0.6.0
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mudler/go-pluggable v0.0.0-20230126220627-7710299a0ae5
 	github.com/mudler/go-processmanager v0.1.1
-	github.com/mudler/yip v1.26.0
+	github.com/mudler/yip v1.26.1
 	github.com/nxadm/tail v1.4.11
 	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.43.0
@@ -372,7 +371,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

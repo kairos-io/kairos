@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/containerd/containerd/mount"
 	"github.com/jaypipes/ghw/pkg/block"
+	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	"github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/tests/mocks"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"

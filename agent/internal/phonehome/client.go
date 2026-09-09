@@ -129,10 +129,9 @@ func (c *Client) Register(ctx context.Context) error {
 		return nil
 	}
 
-	hostname, _ := os.Hostname()
 	reqBody := RegisterRequest{
 		MachineID:         c.machineIDFn(),
-		Hostname:          hostname,
+		Hostname:          gatherHostname(),
 		RegistrationToken: c.cfg.RegistrationToken,
 		Group:             c.cfg.Group,
 		Labels:            c.cfg.Labels,
@@ -357,6 +356,7 @@ func (c *Client) sendHeartbeat(conn *websocket.Conn) error {
 		Labels:       c.cfg.Labels,
 		Addresses:    gatherAddresses(),
 		BootState:    detectBootState(c.logger.Logger),
+		Hostname:     gatherHostname(),
 	}
 	data, _ := json.Marshal(hb)
 	msg := WSMessage{Type: "heartbeat", Data: data}

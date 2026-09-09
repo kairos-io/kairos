@@ -423,18 +423,30 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	memory := getEnvOrDefault("MEMORY", "2048")
 	cpus := getEnvOrDefault("CPUS", "2")
+	cpuType := getEnvOrDefault("CPU_TYPE", "")
 	arch := getEnvOrDefault("ARCH", "x86_64")
+
+	if cpuType == "" && arch == "x86_64" {
+		cpuType = "host"
+	}
 
 	opts := []types.MachineOption{
 		types.QEMUEngine,
 		types.WithISO(os.Getenv("ISO")),
 		types.WithMemory(memory),
 		types.WithCPU(cpus),
+		types.WithCPUType(cpuType),
 		types.WithSSHPort(strconv.Itoa(sshPort)),
 		types.WithID(vmName),
 		types.WithSSHUser(user()),
 		types.WithSSHPass(pass()),
 		types.OnFailure(func(p *process.Process) {
+			// peg calls this from the goroutine it starts in
+			// machine.monitor, not from a Ginkgo node, so the Fail below
+			// needs a GinkgoRecover to be turned into a spec failure
+			// instead of an unrecovered panic.
+			defer GinkgoRecover()
+
 			var serial string
 
 			out, _ := os.ReadFile(p.StdoutPath())

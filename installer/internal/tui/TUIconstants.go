@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/joho/godotenv"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 )
 
 var (
@@ -34,7 +35,7 @@ func init() {
 		border = "ascii"
 	}
 	// Check to see if there is a custom color scheme defined in a file
-	brandingFile := BrandingFile("interactive_install_colors")
+	brandingFile := branding.File("interactive_install_colors")
 	if _, err := os.Stat(brandingFile); err == nil {
 		f, err := godotenv.Read(brandingFile)
 		if err == nil {

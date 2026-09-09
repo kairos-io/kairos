@@ -28,6 +28,7 @@ stages:
           /etc/runlevels
           /etc/ssh
           /etc/ssl/certs
+          /etc/ssl/private
           /etc/sysconfig
           /etc/systemd
           /etc/zfs

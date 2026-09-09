@@ -26,9 +26,8 @@ fi
 
 # --- External binary versions ---
 # Single source of truth for the edgevpn pin: kairos-init/EDGEVPN_VERSION.
-# kairos-init/Makefile reads it from the same place. Bumping edgevpn =
-# editing that one line. An EDGEVPN_VERSION env var still overrides it for
-# one-off local runs.
+# Bumping edgevpn = editing that one line. An EDGEVPN_VERSION env var still
+# overrides it for one-off local runs.
 EDGEVPN_VERSION_FILE="$REPO_ROOT/kairos-init/EDGEVPN_VERSION"
 : "${EDGEVPN_VERSION:=$(cat "$EDGEVPN_VERSION_FILE" 2>/dev/null)}"
 if [ -z "$EDGEVPN_VERSION" ]; then
@@ -59,9 +58,33 @@ fetch() {
     local project=$1 version=$2 dest=$3 suffix=${4:-} url_arch=${5:-$ARCH} owner=${6:-kairos-io}
     local url="https://github.com/${owner}/${project}/releases/download/${version}/${project}-${version}-Linux-${url_arch}${suffix}.tar.gz"
     local staging="$tmpdir/$dest"
+    local tarball="$tmpdir/${dest}-${project}${suffix}.tar.gz"
     mkdir -p "$staging"
     echo "  fetching $project $version${suffix:+ ($suffix)} for $url_arch -> $dest"
-    curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" | tar -xz -C "$staging"
+
+    # A GitHub release exists the moment its tag is pushed, but the assets
+    # attached to it can take minutes to finish uploading. A version bump
+    # that lands inside that window gets a 404 from a URL that is perfectly
+    # valid a few minutes later, so the failure reads as "the bump is wrong"
+    # rather than "the asset is not there yet" (kairos-io/kairos#4316). The
+    # budget here used to be --retry 5 --retry-delay 2, about 10 seconds,
+    # against an observed upload window of 3m40s.
+    #
+    # Download to a file instead of piping straight into tar. curl retries
+    # the whole request, so on a mid-transfer reset the retried bytes are
+    # appended to what tar has already consumed and the stream is corrupt.
+    # A 404 does not hit that, because -f writes no body, but a dropped
+    # connection does.
+    if ! curl -fsSL --retry 30 --retry-all-errors --retry-delay 10 \
+        --retry-max-time 300 -o "$tarball" "$url"; then
+        echo "  failed to download $url" >&2
+        echo "  if $owner/$project $version was published in the last few minutes," >&2
+        echo "  its release assets may still be uploading; retry once they are up" >&2
+        return 1
+    fi
+
+    tar -xzf "$tarball" -C "$staging"
+    rm -f "$tarball"
 }
 
 # edgevpn amd64 tarball is named x86_64; arm64 and riscv64 match GOARCH.
