@@ -37,14 +37,11 @@ on:
       - 'v*'
 
 permissions:
-  # See _build-iso.yaml for the reusable-workflow permission
-  # rationale. contents:write is also required to attach artifacts
-  # to the GitHub Release the tag created.
-  contents: write
-  packages: write
-  id-token: write
-  security-events: write
-  actions: read
+  # Least-privilege baseline. A job that calls a reusable workflow
+  # needing more declares its own job-level `permissions:` matching
+  # exactly what that callee needs -- see _build-iso.yaml for the
+  # reusable-workflow rationale (callers must cover callee).
+  contents: read
 
 concurrency:
   group: ci-release-${{ github.ref }}-${{ github.repository }}
@@ -68,6 +65,7 @@ jobs:
   # jq expression release-legacy.yaml carried before retirement.
   get-k3s-versions:
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       kubernetes_versions: ${{ steps.get.outputs.kubernetes_versions }}
     steps:
@@ -96,6 +94,7 @@ jobs:
 
   get-k0s-versions:
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       kubernetes_versions: ${{ steps.get.outputs.kubernetes_versions }}
     steps:
@@ -144,6 +143,9 @@ jobs:
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kairos-init.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: quay.io/kairos
       image_tag: ${{ github.ref_name }}
@@ -164,6 +166,9 @@ jobs:
   build-image-kcrypt-challenger:
     needs: [build-kcrypt-challenger, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: quay.io/kairos
       image_tag: ${{ github.ref_name }}
@@ -187,6 +192,12 @@ jobs:
           - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
@@ -239,6 +250,12 @@ jobs:
             kubernetes_distro: ''
     name: build-iso-arm / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
@@ -277,6 +294,12 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: 'amd64-standard-k3s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
@@ -305,6 +328,12 @@ jobs:
         model: ['generic', 'rpi4']
         kubernetes_version: ${{ fromJson(needs.get-k3s-versions.outputs.kubernetes_versions) }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: 'arm64-standard-${{ matrix.model }}-k3s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
@@ -333,6 +362,12 @@ jobs:
       matrix:
         kubernetes_version: ${{ fromJson(needs.get-k0s-versions.outputs.kubernetes_versions) }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: 'amd64-standard-k0s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
@@ -366,4 +401,6 @@ jobs:
       - build-image-kairos-init
       - build-image-kcrypt-challenger
     uses: ./.github/workflows/_upload-release.yaml
+    permissions:
+      contents: write
     secrets: inherit

@@ -36,13 +36,11 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  # See _build-iso.yaml for the reusable-workflow permission
-  # rationale (callers must cover callee).
-  contents: write
-  packages: write
-  id-token: write
-  security-events: write
-  actions: read
+  # Least-privilege baseline. A job that calls a reusable workflow
+  # needing more declares its own job-level `permissions:` matching
+  # exactly what that callee needs -- see _build-iso.yaml for the
+  # reusable-workflow rationale (callers must cover callee).
+  contents: read
 
 concurrency:
   group: ci-pr-${{ github.head_ref || github.ref }}-${{ github.repository }}
@@ -65,6 +63,7 @@ jobs:
     name: authorize
     environment: ${{ github.event.pull_request.head.repo.full_name != github.repository && 'fork-pr-builds' || 'internal' }}
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - run: 'true'
 
@@ -109,6 +108,9 @@ jobs:
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kairos-init.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: pr-${{ github.event.pull_request.number }}
@@ -134,6 +136,9 @@ jobs:
   build-image-kcrypt-challenger:
     needs: [build-kcrypt-challenger, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: pr-${{ github.event.pull_request.number }}
@@ -181,6 +186,12 @@ jobs:
           - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
@@ -244,6 +255,12 @@ jobs:
             registry_repository: 'ci-temp-images'
     name: build-iso-arm / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
@@ -435,6 +452,9 @@ jobs:
           - {test: 'boot-assessment', variant: 'core'}
     name: test-uki / ${{ matrix.test }}
     uses: ./.github/workflows/_uki-test.yaml
+    permissions:
+      contents: read
+      packages: read
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}
