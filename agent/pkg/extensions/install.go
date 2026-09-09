@@ -22,6 +22,24 @@ import (
 	"github.com/twpayne/go-vfs/v5"
 )
 
+// ensureDir creates dir and any missing parent, and does nothing if it is
+// already there.
+//
+// It cleans the path first because vfs.MkdirAll is not safe against a trailing
+// slash: filepath.Dir strips the slash, so the recursion creates the leaf and
+// the outer call then tries to create it a second time and returns a bare
+// "file exists". See kairos-io/kairos#4535.
+func ensureDir(cfg *sdkConfig.Config, dir string) error {
+	dir = filepath.Clean(dir)
+	if _, err := cfg.Fs.Stat(dir); !os.IsNotExist(err) {
+		return nil
+	}
+	if err := vfs.MkdirAll(cfg.Fs, dir, 0755); err != nil {
+		return fmt.Errorf("failed to create target dir %s: %w", dir, err)
+	}
+	return nil
+}
+
 // Install downloads the extension at uri into target, creating target when it
 // does not exist yet.
 func Install(cfg *sdkConfig.Config, uri, target string) error {
@@ -29,10 +47,8 @@ func Install(cfg *sdkConfig.Config, uri, target string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse URI %s: %w", uri, err)
 	}
-	if _, err := cfg.Fs.Stat(target); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, target, 0755); err != nil {
-			return fmt.Errorf("failed to create target dir %s: %w", target, err)
-		}
+	if err := ensureDir(cfg, target); err != nil {
+		return err
 	}
 	return download.Download(target)
 }
@@ -257,8 +273,8 @@ func InstallDeclared(cfg *sdkConfig.Config, requested extensiontypes.Extensions,
 		}
 	}
 
-	if err := vfs.MkdirAll(cfg.Fs, target, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create target dir %s: %w", target, err)
+	if err := ensureDir(cfg, target); err != nil {
+		return nil, err
 	}
 
 	var installed []string

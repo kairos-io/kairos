@@ -12,8 +12,8 @@ type Partition struct {
 	PartitionLabel  string   `yaml:"partition_label,omitempty" mapstructure:"partition_label" json:"partition_label,omitempty"`
 	FilesystemLabel string   `yaml:"label,omitempty" mapstructure:"label" json:"label,omitempty"`
 	Size            uint     `yaml:"size,omitempty" mapstructure:"size" json:"size,omitempty"`
-	FS              string   `yaml:"fs,omitempty" mapstrcuture:"fs" json:"fs,omitempty"`
-	Flags           []string `yaml:"flags,omitempty" mapstrcuture:"flags" json:"flags,omitempty"`
+	FS              string   `yaml:"fs,omitempty" mapstructure:"fs" json:"fs,omitempty"`
+	Flags           []string `yaml:"flags,omitempty" mapstructure:"flags" json:"flags,omitempty"`
 	UUID            string   `yaml:"uuid,omitempty" mapstructure:"uuid" json:"uuid,omitempty"`
 	MountPoint      string   `yaml:"-" json:"-"` // MountPoint is not serialized
 	LoopDevice      string   `yaml:"-" json:"-"` // LoopDevice is not serialized

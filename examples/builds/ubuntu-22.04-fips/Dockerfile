@@ -1,6 +1,6 @@
 FROM quay.io/kairos/kairos-init:v0.7.0-beta13 AS kairos-init
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc
 ARG VERSION=v0.0.1
 
 RUN --mount=type=bind,from=kairos-init,src=/kairos-init,dst=/kairos-init \

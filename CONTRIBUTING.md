@@ -12,6 +12,7 @@ How to contribute
    sure to file an issue first.
 -  **Check good first-issue** - check out [good first issues](https://github.com/kairos-io/kairos/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) if you want to contribute to a specific problem
 -  **Read about our code of conduct and governance**: Kairos is an Open source, community-driven project with a [governance](https://github.com/kairos-io/community/blob/main/GOVERNANCE.md) and adopts CNCF [Code of conduct](https://github.com/kairos-io/kairos/blob/master/CODE_OF_CONDUCT.md)
+-  **Grow into a project role**: Kairos has a [contributor ladder](https://github.com/kairos-io/community/blob/main/GOVERNANCE.md#project-roles), from Contributor to Approver to Maintainer to Administrator, with a checklist for each step
 
 Guiding user stories
 --------------------

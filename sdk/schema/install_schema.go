@@ -39,7 +39,7 @@ type Image struct {
 type Partition struct {
 	Name string `json:"name,omitempty"`
 	Size uint   `json:"size,omitempty" mapstructure:"size"`
-	FS   string `json:"fs,omitempty" mapstrcuture:"fs"`
+	FS   string `json:"fs,omitempty" mapstructure:"fs"`
 }
 
 type ElementalPartitions struct {

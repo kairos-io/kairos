@@ -366,3 +366,26 @@ func writeImage(cfg *sdkConfig.Config, files map[string]string) func(string, str
 		return cfg.Fs.WriteFile(filepath.Join(destination, name), []byte(imageRef), 0644)
 	}
 }
+
+// Install has to survive a target written with a trailing slash whose parent is
+// also missing, which is the shape that broke the first install in #4535:
+// vfs.MkdirAll recurses on filepath.Dir, which strips the slash, so the leaf
+// gets created twice and the second attempt returns a bare "file exists".
+func TestInstallCreatesATargetWrittenWithATrailingSlash(t *testing.T) {
+	cfg, _, _ := testConfig(t, nil)
+	if err := vfs.MkdirAll(cfg.Fs, "/src", 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Fs.WriteFile("/src/tools.sysext.raw", []byte("extension"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Neither /var/lib/kairos nor its children exist yet.
+	if err := installer.Install(cfg, "file:/src/tools.sysext.raw", "/var/lib/kairos/extensions/"); err != nil {
+		t.Fatalf("installing into a target with a trailing slash: %v", err)
+	}
+
+	if _, err := cfg.Fs.Stat("/var/lib/kairos/extensions/tools.sysext.raw"); err != nil {
+		t.Fatalf("extension was not written: %v", err)
+	}
+}
