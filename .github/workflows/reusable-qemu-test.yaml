@@ -240,7 +240,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf curl
-          sudo setfacl -m u:runner:rwx /dev/kvm
+          # setfacl on its own is not enough. Installing the qemu/libvirt stack
+          # triggers udev, and udevadm trigger is asynchronous, so /dev/kvm can be
+          # re-created with the packaged root:kvm 0660 seconds after this step has
+          # already run setfacl and returned 0. Install a rule that outranks the
+          # packaged one, drain the udev queue, and only then fall back to the ACL.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules || true
+          sudo udevadm trigger --name-match=kvm || true
+          sudo udevadm settle || true
+          sudo setfacl -m u:runner:rwx /dev/kvm || true
+          # Fail here rather than 20 minutes into the suite with an aborted VM.
+          test -w /dev/kvm
       - name: Encryption deps
         if: ${{ startsWith(inputs.test, 'encryption-') }}
         run: |
