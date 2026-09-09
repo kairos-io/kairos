@@ -15,8 +15,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/kairos-io/kairos/v4/agent/internal/agent"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/labstack/echo/v5"
 	process "github.com/mudler/go-processmanager"
@@ -321,7 +321,7 @@ func (t *TemplateRenderer) Render(c *echo.Context, w io.Writer, name string, dat
 func Start(ctx context.Context) error {
 	listen := constants.DefaultWebUIListenAddress
 
-	agentConfig, err := agent.LoadConfig()
+	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
 	}

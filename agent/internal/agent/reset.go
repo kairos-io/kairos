@@ -14,6 +14,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/uki"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	sdk "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
@@ -104,7 +105,7 @@ func sharedReset(reboot, unattended, resetOem bool, dir ...string) (c *sdkConfig
 	var optionsFromEvent map[string]string
 
 	// This config is only for reset branding.
-	agentConfig, err := LoadConfig()
+	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return c, err
 	}

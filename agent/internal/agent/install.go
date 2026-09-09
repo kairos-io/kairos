@@ -22,6 +22,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/uki"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
@@ -32,7 +33,7 @@ import (
 	"github.com/sanity-io/litter"
 )
 
-func displayInfo(agentConfig *Config) {
+func displayInfo(agentConfig *branding.Config) {
 	if !agentConfig.WebUI.Disable {
 		ifaces := machine.Interfaces()
 		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
@@ -146,7 +147,7 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 	if err != nil {
 		fmt.Printf("- config not found in the system: %s", err.Error())
 	}
-	agentConfig, err := LoadConfig()
+	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
 	}
