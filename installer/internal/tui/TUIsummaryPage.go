@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	"gopkg.in/yaml.v3"
 )
 
@@ -39,7 +40,7 @@ func (p *summaryPage) View() string {
 	s := "Installation Summary\n\n"
 	s += "Selected Disk: " + mainModel.disk + "\n\n"
 	s += "Action to take when installation is complete: " + mainModel.finishAction + "\n\n"
-	if _, ok := os.Stat(BrandingFile("interactive_install_advanced_disabled")); ok != nil {
+	if _, ok := os.Stat(branding.File("interactive_install_advanced_disabled")); ok != nil {
 		s += "Configuration Summary:\n"
 		if mainModel.username != "" {
 			s += fmt.Sprintf("  - Username: %s\n", mainModel.username)
