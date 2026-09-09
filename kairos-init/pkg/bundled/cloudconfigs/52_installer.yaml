@@ -128,4 +128,8 @@ stages:
       files:
         - <<: *webui-service
       commands:
-        - systemctl start kairos-webui
+        # enable, not just start. The install-mode stage above also enables it,
+        # but that stage does not fire on an interactive boot, so the WebUI
+        # would not come back after a restart there. This stage runs on every
+        # live boot, so the enable belongs here too.
+        - systemctl enable --now kairos-webui

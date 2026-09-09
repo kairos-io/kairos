@@ -23,31 +23,39 @@ type guardConfig struct {
 }
 
 func readStages(name string) []guardStage {
+	return readStage(name, "initramfs")
+}
+
+func readStage(name, stage string) []guardStage {
 	content, err := os.ReadFile(filepath.Join("..", "bundled", "cloudconfigs", name))
 	Expect(err).NotTo(HaveOccurred(), "read cloudconfig %s", name)
 
 	var cfg guardConfig
 	Expect(yaml.Unmarshal(content, &cfg)).To(Succeed(), "parse cloudconfig %s", name)
-	Expect(cfg.Stages["initramfs"]).NotTo(BeEmpty(), "%s has no initramfs stage", name)
-	return cfg.Stages["initramfs"]
+	Expect(cfg.Stages[stage]).NotTo(BeEmpty(), "%s has no %s stage", name, stage)
+	return cfg.Stages[stage]
 }
 
 // stageEnabling returns the systemd initramfs stage that enables the named
 // service, so the specs below identify a stage by what it does rather than by
 // its position in the file.
 func stageEnabling(stages []guardStage, service string) guardStage {
-	want := "systemctl enable " + service
+	return stageRunning(stages, "systemctl enable "+service)
+}
+
+// stageRunning returns the systemd stage that runs command verbatim.
+func stageRunning(stages []guardStage, command string) guardStage {
 	for _, s := range stages {
 		if s.OnlyServiceManager != "systemd" {
 			continue
 		}
 		for _, c := range s.Commands {
-			if c == want {
+			if c == command {
 				return s
 			}
 		}
 	}
-	Fail("no systemd stage enables " + service)
+	Fail("no systemd stage runs " + command)
 	return guardStage{}
 }
 
@@ -118,6 +126,25 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel root=LABEL=COS_STATE", true)).To(BeFalse())
 			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel root=LABEL=COS_STATE", true)).To(BeFalse())
 			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel install-mode", false)).To(BeFalse())
+		})
+
+		// Narrowing the install-mode guard took the WebUI's `systemctl enable`
+		// off the interactive path, since that enable sits in the install-mode
+		// stage. The boot stage runs on every live boot, so it has to enable
+		// the unit and not only start it, or the WebUI does not come back after
+		// a restart on an interactive boot.
+		It("enables the webui on every live boot, not only an install-mode one", func() {
+			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
+
+			for _, cmdline := range []string{
+				"BOOT_IMAGE=/boot/kernel install-mode",
+				"BOOT_IMAGE=/boot/kernel install-mode-interactive",
+				"BOOT_IMAGE=/boot/kernel interactive-install",
+				"BOOT_IMAGE=/boot/kernel",
+			} {
+				Expect(evalGuard(boot.If, cmdline, true)).To(BeTrue(), "cmdline %q", cmdline)
+			}
+			Expect(evalGuard(boot.If, "BOOT_IMAGE=/boot/kernel install-mode", false)).To(BeFalse())
 		})
 	})
 
