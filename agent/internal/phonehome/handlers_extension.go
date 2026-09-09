@@ -12,6 +12,31 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 )
 
+// Extension types and actions accepted in the `extension` command's arguments.
+// Each one doubles as a kairos-agent subcommand: runCLI passes them straight
+// through as argv, so type=sysext action=enable runs `kairos-agent sysext
+// enable`.
+const (
+	extTypeSysext  = "sysext"
+	extTypeConfext = "confext"
+
+	extActionInstall = "install"
+	extActionEnable  = "enable"
+	extActionDisable = "disable"
+	extActionRemove  = "remove"
+)
+
+// Keys of the `extension` command's Args map, and the one CLI flag we repeat.
+const (
+	argType      = "type"
+	argAction    = "action"
+	argName      = "name"
+	argBootState = "bootState"
+	argNow       = "now"
+
+	flagNow = "--now"
+)
+
 // execCommand is a seam for tests. Production points at exec.Command.
 var execCommand = exec.Command
 
@@ -27,28 +52,28 @@ type ExtensionArgs struct {
 
 func parseExtensionArgs(in map[string]string) (ExtensionArgs, error) {
 	out := ExtensionArgs{
-		Type:      in["type"],
-		Action:    in["action"],
-		Name:      in["name"],
-		Source:    in["source"],
-		BootState: in["bootState"],
-		Now:       in["now"] == "true",
+		Type:      in[argType],
+		Action:    in[argAction],
+		Name:      in[argName],
+		Source:    in[argSource],
+		BootState: in[argBootState],
+		Now:       in[argNow] == argTrue,
 	}
-	if out.Type != "sysext" && out.Type != "confext" {
+	if out.Type != extTypeSysext && out.Type != extTypeConfext {
 		return out, fmt.Errorf("extension: unsupported type %q (want sysext or confext)", out.Type)
 	}
 	switch out.Action {
-	case "install", "enable", "disable", "remove":
+	case extActionInstall, extActionEnable, extActionDisable, extActionRemove:
 	default:
 		return out, fmt.Errorf("extension: unsupported action %q (want install|enable|disable|remove)", out.Action)
 	}
 	if out.Name == "" {
 		return out, fmt.Errorf("extension: name is required")
 	}
-	if out.Action == "install" && out.Source == "" {
+	if out.Action == extActionInstall && out.Source == "" {
 		return out, fmt.Errorf("extension: source is required for action=install")
 	}
-	if out.Action != "remove" && out.BootState == "" {
+	if out.Action != extActionRemove && out.BootState == "" {
 		return out, fmt.Errorf("extension: bootState is required for action=%s", out.Action)
 	}
 	switch out.BootState {
@@ -65,11 +90,11 @@ func handleExtension(ctx context.Context, cmd CommandData) (string, error) {
 		return "", err
 	}
 	switch args.Action {
-	case "install":
+	case extActionInstall:
 		return extInstall(ctx, args)
-	case "enable", "disable":
+	case extActionEnable, extActionDisable:
 		return extToggle(ctx, args, args.Action)
-	case "remove":
+	case extActionRemove:
 		return extRemove(ctx, args)
 	default:
 		// parseExtensionArgs already rejects anything else.
@@ -81,11 +106,11 @@ func handleExtension(ctx context.Context, cmd CommandData) (string, error) {
 // downloads the .raw; `enable` creates the symlink under the chosen scope. Doing
 // both keeps AuroraBoot's Install action card a single round-trip for the operator.
 func extInstall(ctx context.Context, a ExtensionArgs) (string, error) {
-	out1, err := runCLI(ctx, a.Type, "install", a.Source)
+	out1, err := runCLI(ctx, a.Type, extActionInstall, a.Source)
 	if err != nil {
 		return out1, fmt.Errorf("extension install: %w: %s", err, out1)
 	}
-	out2, err := runCLI(ctx, enableArgs(a, "enable")...)
+	out2, err := runCLI(ctx, enableArgs(a, extActionEnable)...)
 	if err != nil {
 		return out1 + "\n" + out2, fmt.Errorf("extension enable: %w: %s", err, out2)
 	}
@@ -108,15 +133,15 @@ func extToggle(ctx context.Context, a ExtensionArgs, action string) (string, err
 func enableArgs(a ExtensionArgs, action string) []string {
 	args := []string{a.Type, action, "--" + a.BootState}
 	if a.Now {
-		args = append(args, "--now")
+		args = append(args, flagNow)
 	}
 	return append(args, a.Name)
 }
 
 func extRemove(ctx context.Context, a ExtensionArgs) (string, error) {
-	cliArgs := []string{a.Type, "remove"}
+	cliArgs := []string{a.Type, extActionRemove}
 	if a.Now {
-		cliArgs = append(cliArgs, "--now")
+		cliArgs = append(cliArgs, flagNow)
 	}
 	cliArgs = append(cliArgs, a.Name)
 	out, err := runCLI(ctx, cliArgs...)
@@ -187,13 +212,13 @@ func extensionEnabledAnywhere(extType, name string) bool {
 // left out on purpose: the OS upgrade is about to reboot, and the new active
 // boot picks the extension up then.
 func installBundledExtension(ctx context.Context, e BundledExtension, scope string) error {
-	if out, err := runCLI(ctx, e.Type, "install", e.Source); err != nil {
+	if out, err := runCLI(ctx, e.Type, extActionInstall, e.Source); err != nil {
 		return fmt.Errorf("install %s/%s: %w: %s", e.Type, e.Name, err, out)
 	}
 	if extensionEnabledAnywhere(e.Type, e.Name) {
 		return nil
 	}
-	if out, err := runCLI(ctx, e.Type, "enable", "--"+scope, e.Name); err != nil {
+	if out, err := runCLI(ctx, e.Type, extActionEnable, "--"+scope, e.Name); err != nil {
 		return fmt.Errorf("enable %s/%s --%s: %w: %s", e.Type, e.Name, scope, err, out)
 	}
 	return nil
@@ -208,7 +233,7 @@ func parseBundledExtensions(raw string) ([]BundledExtension, error) {
 		return nil, fmt.Errorf("extensions arg: %w", err)
 	}
 	for i, e := range list {
-		if e.Type != "sysext" && e.Type != "confext" {
+		if e.Type != extTypeSysext && e.Type != extTypeConfext {
 			return nil, fmt.Errorf("extensions[%d]: unsupported type %q", i, e.Type)
 		}
 		if e.Name == "" {
