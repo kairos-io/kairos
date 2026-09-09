@@ -11,7 +11,6 @@ require (
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/containerd/containerd v1.7.34
 	github.com/containerd/containerd/v2 v2.3.4
 	github.com/denisbrodbeck/machineid v1.0.1
 	github.com/deniswernert/go-fstab v0.0.0-20141204152952-eb4090f26517
