@@ -69,6 +69,20 @@ progress as **JSON Lines** on stdout:
 {"event":"error","message":"no target device found"}
 ```
 
+The web UI is a third frontend on that same contract, not a separate path into
+the agent. Its `/ws` re-publishes the events above as one JSON object per
+frame:
+
+```json
+{"type":"step","step":"partition"}
+{"type":"log","message":"a line of agent output"}
+{"type":"error","message":"no target device found"}
+{"type":"done","ok":true}
+```
+
+The stream is replayed from the start of the run, so reloading the progress
+page shows the whole install rather than whatever arrives next.
+
 The full, authoritative contract is documented in kairos-agent:
 **[`docs/installer-contract.md`](https://github.com/kairos-io/kairos-agent/blob/main/docs/installer-contract.md)**.
 
@@ -163,8 +177,10 @@ main.go               flags(--source, --no-tui) → serve the web UI, and unless
                       --no-tui, launch the bubbletea program alongside it
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
                       the install page calls kairos-sdk/agentrun and renders progress
-internal/webui/       the web frontend: embedded assets, cloud-config validation,
-                      and the install/progress websocket
+internal/webui/       the web frontend: embedded assets, cloud-config
+                      validation, and the install/progress websocket. It calls
+                      kairos-sdk/agentrun too, so /ws carries the same typed
+                      progress events the TUI renders
 ```
 
 Echo writes its own log to a file (`/var/log/kairos/webui.log`) whenever the TUI
