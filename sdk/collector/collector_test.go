@@ -1444,6 +1444,51 @@ local_key_2: local_value_2
 				Expect(c.Values["under_key"]).ToNot(BeNil())
 			})
 		})
+
+		Context("when the scanned directory holds non-yaml files (issue kairos-io/kairos#2064)", func() {
+			var tmpDir string
+
+			BeforeEach(func() {
+				var err error
+				tmpDir, err = os.MkdirTemp("", "config_mixed")
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+				Expect(os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(`#cloud-config
+name: Mario
+`), os.ModePerm)).To(Succeed())
+
+				Expect(os.WriteFile(path.Join(tmpDir, "no_header.yaml"), []byte(`name: Luigi
+`), os.ModePerm)).To(Succeed())
+
+				for _, name := range []string{"grub.cfg", "bootx64.efi", "unicode.pf2", "acpi.mod"} {
+					Expect(os.WriteFile(path.Join(tmpDir, name), []byte("x"), os.ModePerm)).To(Succeed())
+				}
+			})
+
+			It("silently skips non-yaml files and keeps the header warning for yaml siblings", func() {
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(scanErr).ToNot(HaveOccurred())
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+
+				Expect(string(out)).ToNot(ContainSubstring("(extension)"))
+				Expect(string(out)).To(ContainSubstring("no_header.yaml because it has no valid header"))
+			})
+		})
 	})
 
 	Describe("String", func() {
