@@ -109,7 +109,11 @@ lint-workflows-actions:
 # .github/scripts/verify_k8s_tag.py extracts the real `run:` shell out of
 # all three files via PyYAML and executes it under bash, so a future
 # drift shows up as a mismatch rather than as a passing test of stale
-# text. Like actionlint above, this is a local-only check -- not currently
+# text. It also walks pr.yaml/master.yaml and requires every qemu/UKI
+# test job to resolve to exactly one build-iso matrix cell, which is the
+# other half of #4579: a test job whose kubernetes_distro does not match
+# the cell it consumes boots one image and reports as another's coverage.
+# Like actionlint above, this is a local-only check -- not currently
 # wired into a CI job -- because it needs PyYAML and this is otherwise a
 # Python-free repo. Requires: pip install pyyaml.
 # ============================================================================
