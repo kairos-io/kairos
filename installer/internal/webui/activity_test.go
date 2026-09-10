@@ -1,11 +1,6 @@
 package webui
 
 import (
-	"os"
-	"path/filepath"
-
-	process "github.com/mudler/go-processmanager"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -25,25 +20,33 @@ var _ = Describe("Activity", func() {
 		var a *Activity
 		Expect(a.InstallInFlight()).To(BeFalse())
 		a.WaitForInstall()
-		a.started(process.New())
+		a.started(make(chan struct{}))
 	})
 
-	It("reports an install in flight until the process exits", func() {
-		dir := GinkgoT().TempDir()
-		release := filepath.Join(dir, "release")
-		p := process.New(
-			process.WithName("/bin/sh"),
-			process.WithArgs("-c", "until [ -f "+release+" ]; do sleep 0.05; done"),
-			process.WithStateDir(filepath.Join(dir, "state")),
-		)
-		Expect(p.Run()).To(Succeed())
+	It("reports an install in flight until the run ends", func() {
+		log := newProgressLog()
 
 		a := &Activity{}
-		a.started(p)
+		a.started(log.doneChan())
 		Expect(a.InstallInFlight()).To(BeTrue())
 
-		Expect(os.WriteFile(release, []byte("go"), 0o600)).To(Succeed())
+		// Only the done message ends a run: ordinary output must not make
+		// the TUI think the browser is finished.
+		log.publish(Message{Type: MessageLog, Message: "still going"})
+		Expect(a.InstallInFlight()).To(BeTrue())
+
+		log.publish(Message{Type: MessageDone, OK: true})
 		a.WaitForInstall()
 		Expect(a.InstallInFlight()).To(BeFalse())
+	})
+
+	It("reports a run that already ended as not in flight", func() {
+		log := newProgressLog()
+		log.publish(Message{Type: MessageDone, OK: false})
+
+		a := &Activity{}
+		a.started(log.doneChan())
+		Expect(a.InstallInFlight()).To(BeFalse())
+		a.WaitForInstall()
 	})
 })
