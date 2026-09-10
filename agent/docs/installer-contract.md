@@ -6,12 +6,15 @@ contract between them.
 
 ## Unattended installs come first
 
-Before resolving an installer, `interactive-install` scans the config the way
-`install` does. If it finds `install.auto: true`, it performs that installation
-itself and never launches an installer: a config that says "install me without
-asking" leaves nothing to ask, and the live CD's default entry must not stop at
-a prompt with nobody there to answer it. An installer therefore only ever runs
-when there is a decision left for a human to make.
+Both live boot entrypoints, `install` and `interactive-install`, call
+`agent.AutoInstall` before they show anything. If the config says
+`install.auto: true`, that call performs the installation and the command
+returns: a config that says "install me without asking" leaves nothing to ask,
+and the live CD must not stop at a prompt with nobody there to answer it.
+
+An installer is therefore resolved and launched only when there is a decision
+left for a human to make. `interactive-install` itself does not read the
+config; the switch is at the call site, not inside the installer path.
 
 ## Discovery & launch
 
