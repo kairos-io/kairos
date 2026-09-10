@@ -291,11 +291,11 @@ var _ = Describe("Uki install action", func() {
 		})
 
 		It("refuses to install when the EFI partition can not hold a copy per role", func() {
-			// An unassigned set larger than any filesystem this test can run
-			// on, so the four role copies cannot fit. Sparse, so it costs
-			// nothing to create.
+			// An unassigned set that does not fit in the free space, so the four
+			// role copies cannot fit either. Sparse, so it costs nothing to
+			// create.
 			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
-			Expect(fs.Truncate(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", 512<<40)).To(Succeed())
+			Expect(fs.Truncate(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", tooBigFor(fs, efiDir))).To(Succeed())
 
 			err := installer.Run()
 			Expect(err).To(HaveOccurred())

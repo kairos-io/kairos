@@ -13,10 +13,28 @@ import (
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
-// hugeFile is larger than any filesystem a test can run on, so a check that
-// asks for it is guaranteed to come back short. The files are sparse, so
-// writing one costs nothing.
-const hugeFile int64 = 512 << 40 // 512TiB
+// sparseMargin is how far past the free space tooBigFor goes. It has to clear
+// the small fixture files that a check counts as room it will get back (the
+// passive set an upgrade rotation frees), and 1MiB is far past those.
+const sparseMargin int64 = 1 << 20
+
+// tooBigFor returns a file size that cannot fit on the filesystem behind path,
+// so a check that has to make a copy of a file this size is guaranteed to come
+// back short.
+//
+// The size is measured rather than hardcoded. A constant picked to be larger
+// than any filesystem is refused outright by a filesystem with a smaller
+// per-file limit: ext4 caps a single file at 16TiB and returns EFBIG, so
+// 512TiB truncates fine on a tmpfs /tmp and fails on an ext4 one.
+//
+// The file stays sparse at this size, so it costs no blocks and does not move
+// the free space the checks read.
+func tooBigFor(fs vfs.FS, path string) int64 {
+	free, err := freeSpaceOn(fs, path)
+	ExpectWithOffset(1, err).ToNot(HaveOccurred())
+
+	return free + sparseMargin
+}
 
 var _ = Describe("EFI partition space checks", func() {
 	var fs vfs.FS
@@ -76,7 +94,7 @@ var _ = Describe("EFI partition space checks", func() {
 		})
 
 		It("fails before copying when the copies do not fit", func() {
-			write("EFI/kairos/norole.efi", hugeFile)
+			write("EFI/kairos/norole.efi", tooBigFor(fs, "/efi"))
 
 			err := checkSpaceForInstall(fs, "/efi", roles, logger)
 			Expect(err).To(HaveOccurred())
@@ -106,7 +124,7 @@ var _ = Describe("EFI partition space checks", func() {
 		})
 
 		It("fails before the rotation deletes anything when the new set does not fit", func() {
-			write("EFI/kairos/norole.efi", hugeFile)
+			write("EFI/kairos/norole.efi", tooBigFor(fs, "/efi"))
 			write("EFI/kairos/active.efi", 1024)
 			write("EFI/kairos/passive.efi", 1024)
 
@@ -118,7 +136,7 @@ var _ = Describe("EFI partition space checks", func() {
 
 		It("fails when copying the current active over passive would not fit", func() {
 			write("EFI/kairos/norole.efi", 1024)
-			write("EFI/kairos/active.efi", hugeFile)
+			write("EFI/kairos/active.efi", tooBigFor(fs, "/efi"))
 			write("EFI/kairos/passive.efi", 1024)
 
 			Expect(checkSpaceForUpgradeRotation(fs, "/efi", logger)).To(HaveOccurred())
@@ -127,16 +145,16 @@ var _ = Describe("EFI partition space checks", func() {
 		It("counts the passive set it is about to free", func() {
 			// Nothing here fits in the free space on its own, but dropping the
 			// equally large passive set pays for both copies.
-			write("EFI/kairos/norole.efi", hugeFile)
-			write("EFI/kairos/active.efi", hugeFile)
-			write("EFI/kairos/passive.efi", hugeFile)
+			write("EFI/kairos/norole.efi", tooBigFor(fs, "/efi"))
+			write("EFI/kairos/active.efi", tooBigFor(fs, "/efi"))
+			write("EFI/kairos/passive.efi", tooBigFor(fs, "/efi"))
 
 			Expect(checkSpaceForUpgradeRotation(fs, "/efi", logger)).ToNot(HaveOccurred())
 		})
 
 		It("has nothing to free on a machine with no passive set yet", func() {
-			write("EFI/kairos/norole.efi", hugeFile)
-			write("EFI/kairos/active.efi", hugeFile)
+			write("EFI/kairos/norole.efi", tooBigFor(fs, "/efi"))
+			write("EFI/kairos/active.efi", tooBigFor(fs, "/efi"))
 
 			Expect(checkSpaceForUpgradeRotation(fs, "/efi", logger)).To(HaveOccurred())
 		})

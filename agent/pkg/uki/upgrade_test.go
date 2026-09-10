@@ -167,10 +167,10 @@ var _ = Describe("Uki upgrade action", func() {
 		})
 
 		It("refuses to rotate when the EFI partition can not hold both copies", func() {
-			// An active set larger than any filesystem this test can run on, so
-			// copying it over passive cannot fit. Sparse, so it costs nothing.
+			// An active set that does not fit in the free space, so copying it
+			// over passive cannot fit. Sparse, so it costs nothing.
 			Expect(fs.WriteFile("/efi/EFI/Kairos/active.efi", []byte("old active"), os.ModePerm)).To(Succeed())
-			Expect(fs.Truncate("/efi/EFI/Kairos/active.efi", 512<<40)).To(Succeed())
+			Expect(fs.Truncate("/efi/EFI/Kairos/active.efi", tooBigFor(fs, "/efi"))).To(Succeed())
 			Expect(fs.WriteFile("/efi/EFI/Kairos/passive.efi", []byte("old passive"), os.ModePerm)).To(Succeed())
 
 			err := upgrader.Run()
