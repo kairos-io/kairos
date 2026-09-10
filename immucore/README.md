@@ -94,6 +94,26 @@ The immutable rootfs can be configured with the following kernel parameters:
 
 * `rd.immucore.uki`: Enables UKI booting
 
+* `rd.immucore.break=<step>`: Stops the boot right before `<step>` and hands the
+  console to an interactive shell, like dracut's `rd.break`. The boot resumes
+  when that shell exits, so this is for looking around mid-boot, not for
+  recovering from a failure (that shell still comes up on its own). Valid values
+  are the DAG step names (not the `<init>` node herd itself adds), e.g.
+  `rd.immucore.break=mount-root` or `rd.immucore.break=uki-pivot-to-sysroot`.
+  Several steps can be given comma-separated (`rd.immucore.break=load-config,mount-root`)
+  or by repeating the stanza. A name that matches no step is ignored. To see all
+  available step names for your boot configuration, run `immucore --dry-run` to
+  display the full DAG.
+
+  There is a ceiling on how long you can sit at a breakpoint: systemd bounds the
+  start of `immucore.service` by its start timeout (`TimeoutStartSec=` on the
+  unit, or `DefaultTimeoutStartSec` from `systemd-system.conf` when the unit
+  sets none). When that expires systemd moves on to
+  `initrd-switch-root.target` with none of immucore's mounts done and nothing
+  said on the console — the same silent boot-continue the `RebootOrWait` doc
+  comment in `internal/utils/common.go` describes. Raise `TimeoutStartSec=` on
+  `immucore.service` if you need to hold a breakpoint open longer than that.
+
 * `rd.immucore.sysrootwait=<seconds>`: Waits for the sysroot to be mounted up to <seconds> before continuing with the boot process. This is useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready. Sometimes dracut can be really slow and the default 1 minute of waiting is not enough. In those cases you can increase this value to wait more time. Defaults to 60s.
 
 ### In-RAM boot (`kairos.ram.*`)
