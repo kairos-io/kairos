@@ -408,7 +408,7 @@ const BootArgsCfg = `function setSelinux {
     fi
 
     if test "${KAIROS_FAMILY}" == "redhat" -o test "${KAIROS_FAMILY}" == "suse"; then
-        if test -z "${recoverylabel}" -a "${selinux_enabled}" == "true"; then
+        if test "${label}" != "COS_SYSTEM" -a "${selinux_enabled}" == "true"; then
             set baseSelinuxCmd="security=selinux selinux=1 enforcing=0 rd.cos.selinux=${selinux_mode}"
         else
             set baseSelinuxCmd="selinux=0"
