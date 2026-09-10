@@ -71,6 +71,13 @@ stages:
         ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
       only_service_manager: "systemd"
       files:
+        # Written but deliberately not enabled. The interactive installer
+        # serves the WebUI in-process, so enabling this would leave a second
+        # process losing the race for the listen address. Quitting the
+        # terminal UI ends that in-process WebUI, and this unit is the only
+        # way back for the rest of the boot: openrc already has one at
+        # /etc/init.d/kairos-webui, and without this systemd did not.
+        - <<: *webui-service
         - path: /etc/systemd/system/kairos-interactive.service
           permissions: 0644
           owner: 0

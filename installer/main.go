@@ -7,7 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -41,7 +43,19 @@ func main() {
 
 	// Web-UI-only mode has no terminal UI to protect, so echo logs to stdout
 	// and lands in the journal, and serving it is the whole job.
+	//
+	// It is also the only mode a supervisor stops directly, so it is the only
+	// one that needs its own handler: `rc-service kairos-webui stop` and
+	// `systemctl stop kairos-webui` both send SIGTERM, and left at its
+	// default disposition that kills the process mid-response. Cancelling ctx
+	// instead lets echo drain within its GracefulTimeout and exit 0. The
+	// interactive mode below needs nothing: bubbletea installs its own
+	// SIGINT/SIGTERM handler and quits the program, and signal delivery fans
+	// out to every registered channel.
 	if *noTUI {
+		ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
+		defer stop()
+
 		if err := webui.StartConfigured(ctx, noTUIWebUIOptions(*source)); err != nil {
 			fmt.Fprintln(os.Stderr, "web UI:", err)
 			os.Exit(1)
@@ -74,6 +88,14 @@ func main() {
 	// /ws stream with it. Nothing on an interactive boot re-execs the
 	// installer, so there would be no way back for that boot.
 	if activity.InstallInFlight() {
+		// On the console too, not just the log. logger is built with
+		// quiet=true and so has no console writer, and without this the
+		// terminal sits with no output and no shell for the rest of the
+		// install, which is indistinguishable from a hang: someone would
+		// Ctrl-C it and take the remote operator's install with it. Safe
+		// here because p.Run() has returned, so bubbletea has left the alt
+		// screen and released the terminal.
+		fmt.Println("An install started from the web installer is still running. Keeping the web UI up until it finishes.")
 		logger.Infof("terminal UI exited while an install started from the web UI is running: serving the web UI until it finishes")
 		activity.WaitForInstall()
 	}

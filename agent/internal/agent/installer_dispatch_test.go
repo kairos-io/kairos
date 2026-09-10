@@ -117,6 +117,34 @@ var _ = Describe("installer dispatch", func() {
 			Expect(gotTerm).To(BeAnExistingFile())
 		})
 
+		// The installer is resolved at runtime, so whether it traps TERM is
+		// not the agent's to assume: the override slot and KAIROS_INSTALLER
+		// both accept a binary the agent has never seen, and an older image
+		// ships one that predates the handler. A child left at the default
+		// SIGTERM disposition dies and exec reports
+		// *ExitError("signal: terminated"), which does not wrap the context
+		// error, and a stop the operator asked for must not look like an
+		// installer failure either way.
+		It("treats a cancelled installer that does not trap TERM as a stop", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "untrapped-installer")
+			ready := filepath.Join(dir, "ready")
+			Expect(os.WriteFile(bin, []byte(
+				"#!/bin/sh\n"+
+					"echo yes > "+ready+"\n"+
+					"while true; do sleep 0.1; done\n"), 0o755)).To(Succeed())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- runExternalInstallerCtx(ctx, bin, "") }()
+
+			Eventually(ready, "10s", "50ms").Should(BeAnExistingFile())
+			cancel()
+
+			Eventually(done, "10s").Should(Receive(BeNil()))
+		})
+
 		It("still propagates an exit code when nothing cancelled it", func() {
 			dir := GinkgoT().TempDir()
 			bin := filepath.Join(dir, "failing-installer")

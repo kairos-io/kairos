@@ -19,8 +19,11 @@ without two services fighting over the port.
 One process means one lifetime: quitting the terminal UI ends the web session
 too, unless an install started from the browser is still running, which the
 installer serves to the end before it exits. Nothing re-execs the installer on
-an interactive boot, so bringing the web UI back afterwards means starting the
-`kairos-webui` service by hand.
+an interactive boot, so bringing the web UI back for that boot means starting
+the `kairos-webui` service by hand, once the installer has exited and released
+the port. An interactive boot ships that service on both init systems but
+leaves it disabled, so nothing competes with the in-process web UI while the
+installer is still up.
 
 It is shipped in Kairos images (by [`kairos-init`](../kairos-init/)) at
 `/system/installer/kairos-installer`, where `kairos-agent interactive-install`
@@ -44,7 +47,8 @@ web UI and draws no terminal UI, which is what the non-interactive live
 boot entry wants. The web installer is a frontend of the installer, not of the
 agent, so an image that ships its own installer serves its own web UI.
 
-That subcommand is **deprecated** and prints a warning: it exists only so the
+That subcommand is **deprecated** and logs a warning to the journal (the agent
+runs quiet, so nothing is printed to the terminal): it exists only so the
 `kairos-webui` service keeps working, and it goes away with that service. Call
 the installer with `--no-tui` instead.
 

@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -89,10 +88,15 @@ func runExternalInstallerCtx(ctx context.Context, path, source string, extra ...
 	cmd.WaitDelay = installerShutdownGrace
 
 	err := cmd.Run()
-	// Being asked to stop is not an installer failure. Once Cancel has
-	// fired, exec reports the context error and masks the installer's own
-	// exit status, so there is nothing left to propagate.
-	if err != nil && ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+	// Being asked to stop is not an installer failure. exec only reports the
+	// context error when the child exits 0 after Cancel; one left at the
+	// default SIGTERM disposition dies and yields
+	// *exec.ExitError("signal: terminated") instead. The installer is
+	// resolved at runtime, so keying off the shape of the error would make
+	// this depend on which binary the image happens to ship. Key off the
+	// cancellation: nothing but an operator-requested SIGTERM or SIGINT
+	// cancels this context.
+	if err != nil && ctx.Err() != nil {
 		return nil
 	}
 	return err

@@ -11,11 +11,27 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type guardFile struct {
+	Path string `yaml:"path"`
+}
+
 type guardStage struct {
-	Name               string   `yaml:"name"`
-	If                 string   `yaml:"if"`
-	OnlyServiceManager string   `yaml:"only_service_manager"`
-	Commands           []string `yaml:"commands"`
+	Name               string      `yaml:"name"`
+	If                 string      `yaml:"if"`
+	OnlyServiceManager string      `yaml:"only_service_manager"`
+	Commands           []string    `yaml:"commands"`
+	Files              []guardFile `yaml:"files"`
+}
+
+// writesFile reports whether the stage lays down the given path. Unmarshalling
+// resolves the file list's YAML merge keys, so an aliased entry counts.
+func (s guardStage) writesFile(path string) bool {
+	for _, f := range s.Files {
+		if f.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 type guardConfig struct {
@@ -171,6 +187,28 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 					"boot stage should refuse %q", cmdline)
 				Expect(evalGuard(openrc.If, cmdline, true)).To(BeFalse(),
 					"openrc boot stage should refuse %q", cmdline)
+			}
+		})
+
+		// Quitting the terminal UI ends the in-process WebUI with it, and
+		// nothing re-execs the installer for that boot. openrc can bring it
+		// back because /etc/init.d/kairos-webui is written unconditionally;
+		// systemd could not, because the only stages writing the unit are the
+		// install-mode one (whose guard excludes install-mode-interactive) and
+		// the boot one (which refuses it outright), so `systemctl start
+		// kairos-webui` failed with "Unit kairos-webui.service not found".
+		It("installs the webui unit on an interactive systemd boot without enabling it", func() {
+			stages := readStages("52_installer.yaml")
+			stage := stageEnabling(stages, "kairos-interactive")
+
+			Expect(stage.writesFile("/etc/systemd/system/kairos-webui.service")).To(BeTrue(),
+				"interactive stage must write the unit so the WebUI can be restarted by hand")
+
+			// Enabling or starting it here would put a second process on the
+			// listen address the installer already holds.
+			for _, c := range stage.Commands {
+				Expect(c).NotTo(ContainSubstring("kairos-webui"),
+					"interactive stage must not touch the kairos-webui service")
 			}
 		})
 	})
