@@ -708,6 +708,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "kubernetes_version=$KUBERNETES_VERSION" >> $GITHUB_OUTPUT
           echo "kubernetes_distro=$KUBERNETES_DISTRO" >> $GITHUB_OUTPUT
+          echo "k8s=$K8S" >> $GITHUB_OUTPUT
           echo "flavor=$FLAVOR" >> $GITHUB_OUTPUT
           echo "flavor_release=$FLAVOR_RELEASE" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
@@ -982,19 +983,23 @@ jobs:
           output: trivy.sarif
           severity: critical
 
+      # The category identifies one analysis of one artifact. Two uploads
+      # sharing it within a run are rejected as a misconfiguration, so it
+      # has to carry every axis the matrix varies -- including $K8S, since
+      # `variant` collapses k3s and k0s to `standard`.
       - name: Upload Trivy scan results to GitHub Security tab
         if: inputs.trivy_sarif
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4.37.9
         with:
           sarif_file: 'trivy.sarif'
-          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
+          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
 
       - name: Upload Grype scan results to GitHub Security tab
         if: inputs.grype_sarif
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938  # v4.37.9
         with:
           sarif_file: 'grype.sarif'
-          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ inputs.trusted_boot && '-uki' || '' }}
+          category: ${{ steps.setup.outputs.flavor }}-${{ steps.setup.outputs.flavor_release }}-${{ steps.setup.outputs.variant }}-${{ inputs.arch }}-${{ inputs.model }}${{ steps.setup.outputs.k8s }}${{ inputs.trusted_boot && '-uki' || '' }}
 
       # The step name no longer promises an SBOM, because `sbom` is now an
       # input. A step called "with SBOM" that pushed without one would be the
