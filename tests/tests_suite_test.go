@@ -423,6 +423,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	memory := getEnvOrDefault("MEMORY", "2048")
 	cpus := getEnvOrDefault("CPUS", "2")
+	cpuType := getEnvOrDefault("CPU_TYPE", "host")
 	arch := getEnvOrDefault("ARCH", "x86_64")
 
 	opts := []types.MachineOption{
@@ -430,6 +431,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 		types.WithISO(os.Getenv("ISO")),
 		types.WithMemory(memory),
 		types.WithCPU(cpus),
+		types.WithCPUType(cpuType),
 		types.WithSSHPort(strconv.Itoa(sshPort)),
 		types.WithID(vmName),
 		types.WithSSHUser(user()),
