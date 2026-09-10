@@ -211,6 +211,37 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 					"interactive stage must not touch the kairos-webui service")
 			}
 		})
+
+		// install-mode and install-mode-interactive are not mutually
+		// exclusive on the cmdline, and the space-delimited match means a
+		// cmdline carrying both fires the plain stage as well as the
+		// interactive one. That is deliberate for tty1: the interactive stage
+		// runs later and disables kairos-installer. It is not deliberate for
+		// the WebUI, so no stage that fires on this cmdline may enable or
+		// start kairos-webui, or the service and the installer's in-process
+		// WebUI both go for the same listen address.
+		It("leaves the webui service alone when the cmdline carries both keywords", func() {
+			const cmdline = "BOOT_IMAGE=/boot/kernel install-mode install-mode-interactive"
+
+			plainStage := stageEnabling(readStages("52_installer.yaml"), "kairos-installer")
+			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
+			openrc := stageRunningFor(readStage("52_installer.yaml", "boot"), "openrc", "rc-service kairos-webui start")
+
+			Expect(evalGuard(plain, cmdline, true)).To(BeTrue(),
+				"install-mode stage should still claim %q", cmdline)
+			Expect(evalGuard(interactive, cmdline, true)).To(BeTrue(),
+				"interactive stage should claim %q", cmdline)
+
+			Expect(evalGuard(boot.If, cmdline, true)).To(BeFalse(),
+				"boot stage should refuse %q", cmdline)
+			Expect(evalGuard(openrc.If, cmdline, true)).To(BeFalse(),
+				"openrc boot stage should refuse %q", cmdline)
+
+			for _, c := range plainStage.Commands {
+				Expect(c).NotTo(ContainSubstring("kairos-webui"),
+					"install-mode stage must not touch the kairos-webui service")
+			}
+		})
 	})
 
 	// The autologin guard used to be two OR'd `grep -qv`, which is true for

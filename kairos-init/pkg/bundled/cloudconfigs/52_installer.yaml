@@ -1,9 +1,14 @@
 name: "Start installer on tty1"
 stages:
   initramfs:
-    # Start installer if we get the install-mode cmdline and NOT the install-mode-interactive cmdline as we can have both
-    # and we dont want to trigger both. install-mode is a prefix of
-    # install-mode-interactive, so the keyword has to be matched space-delimited.
+    # Start the plain installer on the install-mode cmdline. install-mode is a
+    # prefix of install-mode-interactive, so the keyword is matched
+    # space-delimited to keep an interactive-only cmdline out. A cmdline with
+    # both keywords still lands here; the interactive stage below runs later
+    # and disables kairos-installer again. That is also why nothing here
+    # enables kairos-webui: the boot stage owns that, and it refuses every
+    # interactive cmdline, because on those the installer serves the WebUI
+    # in-process and a service would race it for the listen address.
     # Works in livecd or uki install mode
     # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
     - if: |
@@ -54,7 +59,6 @@ stages:
         - systemctl stop getty@tty1
         - systemctl mask getty@tty1
         - systemctl enable kairos-installer
-        - systemctl enable kairos-webui
     # Starts installer on boot for openRC based systems
     # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
     - if: |
@@ -146,8 +150,9 @@ stages:
       files:
         - <<: *webui-service
       commands:
-        # enable, not just start. The install-mode stage above also enables it,
-        # but that stage does not fire on a plain live boot with no install
-        # keyword at all, and the WebUI has to come back after a restart there
-        # too.
+        # enable, not just start, so the WebUI comes back after a restart.
+        # This is the only stage that enables it: doing it from the
+        # install-mode stage too would leave it enabled on a cmdline carrying
+        # both install-mode and install-mode-interactive, which this guard
+        # refuses but that one accepts.
         - systemctl enable --now kairos-webui
