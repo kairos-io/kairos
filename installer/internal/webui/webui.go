@@ -406,7 +406,9 @@ func StartWith(ctx context.Context, o Options) error {
 		// which understands Kairos-specific structures like users in stages
 		err := schema.Validate(cloudConfig)
 		if err != nil {
-			fmt.Printf("Validation error: %s", err.Error())
+			// Through the logger, not stdout: in the interactive installer
+			// this shares a terminal with the TUI's alt screen.
+			c.Logger().Error(err.Error())
 			return c.String(http.StatusOK, err.Error())
 		}
 
