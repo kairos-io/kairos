@@ -188,4 +188,80 @@ var _ = Describe("Hooks", func() {
 		})
 
 	})
+
+	Context("FirstBootStage", func() {
+		BeforeEach(func() {
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			Expect(err).Should(BeNil())
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			cloudInit = &v1mock.FakeCloudInitRunner{}
+			cfg = config.NewConfig(
+				config.WithFs(fs),
+				config.WithLogger(logger),
+				config.WithCloudInitRunner(cloudInit),
+			)
+			cfg.Collector = collector.Config{}
+		})
+		AfterEach(func() {
+			cleanup()
+		})
+
+		It("drives the cloud-init runner through the first-boot stage family", func() {
+			stage := hook.FirstBootStage{}
+			err = stage.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+
+			// RunStage (already covered end-to-end in agent/pkg/utils) fans a
+			// single stage name out into before/main/after, and may revisit
+			// them again for the dot-notation cmdline pass. What belongs to
+			// this hook's own contract is: every stage name it produces is
+			// part of the first-boot family, and before/main/after each show
+			// up at least once -- i.e. FirstBootStage handed "first-boot",
+			// not some other stage name, to RunStage.
+			Expect(cloudInit.ExecStages).To(ContainElements(
+				cnst.FirstBootHook+".before",
+				cnst.FirstBootHook,
+				cnst.FirstBootHook+".after",
+			))
+			for _, s := range cloudInit.ExecStages {
+				Expect(s).To(HavePrefix(cnst.FirstBootHook))
+			}
+			Expect(memLog.String()).To(ContainSubstring("Running first-boot hook"))
+			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
+		})
+
+		It("propagates a cloud-init failure when strict mode is enabled", func() {
+			cloudInit.Error = true
+			cfg.Strict = true
+			stage := hook.FirstBootStage{}
+			err = stage.Run(*cfg, nil)
+			Expect(err).ShouldNot(BeNil())
+			// The hook returns before logging completion on a strict failure,
+			// which is what leaves the sentinel unwritten one level up in
+			// agent.Run (not exercised here -- see hooks_test.go package doc).
+			Expect(memLog.String()).ToNot(ContainSubstring("Finish first-boot hook"))
+		})
+
+		It("does not fail the hook when strict mode is off, even if the runner errors", func() {
+			cloudInit.Error = true
+			cfg.Strict = false
+			stage := hook.FirstBootStage{}
+			err = stage.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
+		})
+
+		It("runs last in the FirstBoot hook list, after bundles and grub options", func() {
+			Expect(hook.FirstBoot).To(HaveLen(3))
+			Expect(hook.FirstBoot[0]).To(BeAssignableToTypeOf(&hook.BundleFirstBoot{}))
+			Expect(hook.FirstBoot[1]).To(BeAssignableToTypeOf(&hook.GrubFirstBootOptions{}))
+			Expect(hook.FirstBoot[2]).To(BeAssignableToTypeOf(&hook.FirstBootStage{}))
+		})
+
+		It("names the stage first-boot", func() {
+			Expect(cnst.FirstBootHook).To(Equal("first-boot"))
+		})
+	})
 })
