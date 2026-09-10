@@ -37,6 +37,17 @@ on:
         type: string
         required: true
 
+      kubernetes_distro:
+        description: |
+          k3s | k0s | empty. Must match the kubernetes_distro of the
+          build-iso cell that produced the UKI under test, because it is
+          part of the image tag this workflow reconstructs. The standard
+          UKI cell is built with k3s, so `variant: standard` callers
+          need to say so here.
+        type: string
+        required: false
+        default: ''
+
       test:
         description: 'ginkgo label filter: install-upgrade or boot-assessment'
         type: string
@@ -47,8 +58,9 @@ on:
           Where the fresh trusted-boot OS image lives. The literal
           `${flavor}` token is expanded from base_image, matching the
           same convention reusable-qemu-test.yaml uses. The tag suffix
-          `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>-uki`
-          is appended internally.
+          `<flavor>-<flavor_release>-<variant>-<arch>-<model><k8s>-<version>-uki`
+          is appended internally, where `<k8s>` is `-<kubernetes_distro>`
+          or empty.
         type: string
         default: 'quay.io/kairos/ci-temp-images'
 
@@ -201,15 +213,22 @@ jobs:
           VARIANT: ${{ inputs.variant }}
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
+          KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
         run: |
           # Match _build-iso.yaml's custom_tag_format:
           # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
-          # UKI cells never carry a k8s pair, so $K8S is empty. $UKI is
-          # -uki here (trusted_boot=true is the whole point of this file).
-          # $VERSION was set two steps up via `git describe --tags --dirty`
-          # and is already in the env, matching factory-action's setup.
+          # $UKI is -uki here (trusted_boot=true is the whole point of
+          # this file). $VERSION was set two steps up via
+          # `git describe --tags --dirty` and is already in the env,
+          # matching factory-action's setup. No UKI cell pins a k8s
+          # version, so $K8S is just the distro, which the standard cell
+          # does carry (it is built with k3s).
+          K8S=""
+          if [[ -n "$KUBERNETES_DISTRO" ]]; then
+            K8S="-$KUBERNETES_DISTRO"
+          fi
           PREFIX="${PREFIX_TEMPLATE//\$\{flavor\}/$FLAVOR}"
-          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${VERSION}-uki" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}${K8S}-${VERSION}-uki" >> "$GITHUB_ENV"
 
       - name: Download UKI ISO artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1

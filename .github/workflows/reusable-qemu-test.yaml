@@ -24,8 +24,21 @@ on:
         type: string
         default: "generic"
       kubernetes_distro:
+        description: |
+          k3s | k0s | empty. Must match the kubernetes_distro of the
+          build-iso cell that produced the image under test: it is part
+          of the tag this workflow reconstructs, and every `standard`
+          image carries one.
         required: false
         type: string
+      kubernetes_version:
+        description: |
+          Specific k8s version, or empty/`auto` when the build cell let
+          kairos-init pick. Only pinned versions reach the tag, so this
+          only needs setting by callers that pinned one at build time.
+        required: false
+        type: string
+        default: ''
       release-matcher:
         description: "The release matcher to use for the latest release. Full regex match"
         required: false
@@ -303,12 +316,13 @@ jobs:
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
           KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
+          KUBERNETES_VERSION: ${{ inputs.kubernetes_version }}
         run: |
           # Match _build-iso.yaml's custom_tag_format:
           # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
-          # Reusable-qemu-test only tests non-UKI, non-per-k8s-version cells
-          # today, so $K8S is derived from what factory-action would produce
-          # for the same kubernetes_distro/version inputs and $UKI stays empty.
+          # Reusable-qemu-test only tests non-UKI cells today, so $UKI
+          # stays empty; $K8S is derived exactly as factory-action's setup
+          # step derives it for the same kubernetes_distro/version inputs.
           # $VERSION uses the same `git describe --tags --dirty --always`
           # rule factory-action's setup step uses so both sides land on the
           # same tag.
@@ -316,10 +330,21 @@ jobs:
           if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
             VERSION="v0.0.0-$VERSION"
           fi
-          # Currently no caller passes kubernetes_version to this reusable,
-          # so K8S stays empty; keep the placeholder wired so future callers
-          # can flip it on without a second edit here.
+          # Keep in lockstep with reusable-factory.yaml's $K8S: gated on
+          # the distro, version appended only when the caller pinned one
+          # (`auto` resolves to empty there). A caller that tests a
+          # standard image but omits kubernetes_distro pulls the wrong tag.
+          if [[ "$KUBERNETES_VERSION" == "auto" ]]; then
+            KUBERNETES_VERSION=""
+          fi
+          SANITIZED_KUBERNETES_VERSION="${KUBERNETES_VERSION//+/-}"
           K8S=""
+          if [[ -n "$KUBERNETES_DISTRO" ]]; then
+            K8S="-$KUBERNETES_DISTRO"
+            if [[ -n "$SANITIZED_KUBERNETES_VERSION" ]]; then
+              K8S="$K8S-$SANITIZED_KUBERNETES_VERSION"
+            fi
+          fi
           # Expand the literal `${flavor}` token in the caller-provided
           # prefix. Callers that don't use the token (or take the
           # default) pass through unchanged.

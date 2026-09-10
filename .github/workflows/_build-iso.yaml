@@ -138,8 +138,11 @@ on:
           _uki-test.yaml resolve to (`$FLAVOR-` prefix so tests find
           the fresh image); release.yaml overrides this to drop the
           prefix and match the tag shape v4.2.0 shipped.
-          $K8S expands to `-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION`
-          when a k8s pair is set and empty otherwise; $VERSION is
+          $K8S expands to `-$KUBERNETES_DISTRO`, plus
+          `-$SANITIZED_KUBERNETES_VERSION` when the version was pinned,
+          and is empty when there is no k8s distro. It is what keeps two
+          cells that differ only by distro off the same tag, since
+          $VARIANT is `standard` for all of them. $VERSION is
           factory-action's `git describe --tags --dirty --always`.
         type: string
         default: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'

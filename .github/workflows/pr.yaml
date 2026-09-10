@@ -163,6 +163,14 @@ jobs:
         include:
           - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
           - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          # k0s build coverage (#4579): before this cell nothing built
+          # k0s until a release tag was cut. Image only, because the k0s
+          # provider does its work at build time (kairos-init calls
+          # provider BuildEvent), which is where #4299 lived.
+          # iso:false is required, not just cheaper: the default
+          # custom_artifact_format carries no $K8S, so an ISO here would
+          # collide with amd64-standard's artifact name.
+          - {name: 'amd64-standard-k0s', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: false, trusted_boot: false, kubernetes_distro: 'k0s', fips: false}
           # FIPS core cell. hadron-fips is a distinct base image from
           # hadron (FIPS-hardened kernel + userspace); passing fips:true
           # additionally flips the FIPS=fips build_arg in images/Dockerfile
@@ -375,6 +383,9 @@ jobs:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
       variant: 'standard'
+      # The standard image is built with k3s, and the distro is part of
+      # the tag this reusable reconstructs, so it has to be named here.
+      kubernetes_distro: 'k3s'
       arch: 'amd64'
       model: 'generic'
       secureboot: false
@@ -411,6 +422,7 @@ jobs:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
       variant: 'standard'
+      kubernetes_distro: 'k3s'
       arch: 'amd64'
       model: 'generic'
       secureboot: false
@@ -431,13 +443,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {test: 'install-upgrade', variant: 'standard'}
-          - {test: 'boot-assessment', variant: 'core'}
+          # kubernetes_distro must match the build-iso UKI cell each
+          # test consumes, because it is part of the image tag.
+          - {test: 'install-upgrade', variant: 'standard', kubernetes_distro: 'k3s'}
+          - {test: 'boot-assessment', variant: 'core', kubernetes_distro: ''}
     name: test-uki / ${{ matrix.test }}
     uses: ./.github/workflows/_uki-test.yaml
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}
+      kubernetes_distro: ${{ matrix.kubernetes_distro }}
       base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1'
       arch: 'amd64'
       model: 'generic'
