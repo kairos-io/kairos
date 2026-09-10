@@ -94,13 +94,13 @@ func scanDisksGHW() ([]diskStruct, error) {
 }
 
 func newDiskSelectionPage() *diskSelectionPage {
-	disks, err := scanDisks()
+	found, err := scanDisks()
 	if err != nil {
 		fmt.Printf("Error initializing block device info: %v\n", err)
 		return nil
 	}
 	return &diskSelectionPage{
-		disks:  disks,
+		disks:  found,
 		cursor: 0,
 	}
 }
@@ -113,14 +113,14 @@ func newDiskSelectionPage() *diskSelectionPage {
 //
 // See kairos-io/kairos#4260.
 func (p *diskSelectionPage) Init() tea.Cmd {
-	disks, err := scanDisks()
+	found, err := scanDisks()
 	if err != nil {
 		if mainModel.log != nil {
 			mainModel.log.Logger.Warn().Err(err).Msg("Failed to refresh disk list; keeping previous view")
 		}
 		return nil
 	}
-	p.disks = disks
+	p.disks = found
 	// The previously-selected disk may no longer exist. Clamp the cursor into
 	// the new range and reset the scroll window to keep the view sane.
 	if p.cursor >= len(p.disks) {
