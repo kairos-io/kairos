@@ -20,10 +20,16 @@ func main() {
 	source := flag.String("source", "", "installation source (passed through to kairos-agent)")
 	collect := flag.Bool("collect-debug-bundle", false,
 		"collect a debug bundle non-interactively (no TUI), print its path, and exit")
-	mcpAddress := flag.String("mcp-address", mcp.DefaultListenAddress,
+	// The default is deliberately the empty string and not
+	// mcp.DefaultListenAddress: this value is never read, because it is
+	// replaced below whenever the flag was not passed, and flag.PrintDefaults
+	// only stays quiet about a zero value. Any other default would print a
+	// "(default ...)" note contradicting the help text.
+	mcpAddress := flag.String("mcp-address", "",
 		"address the Model Context Protocol server listens on, so an agent can drive the installation; "+
-			"nothing on it is authenticated, so use 127.0.0.1:8090 to keep it on this machine or an empty value to "+
-			"switch it off. Defaults to what /etc/kairos/agent.yaml says under mcp:")
+			"nothing on it is authenticated, so an empty value switches it off and \":8090\" makes it "+
+			"reachable from the network. Defaults to what /etc/kairos/agent.yaml says under mcp:, "+
+			"or 127.0.0.1:8090")
 	flag.Parse()
 
 	// kairos-agent execs this binary with a fixed argument list, so on a real

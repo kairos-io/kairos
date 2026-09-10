@@ -33,7 +33,9 @@ func TestFlagWasPassed(t *testing.T) {
 
 			flag.CommandLine = flag.NewFlagSet(tc.args[0], flag.ContinueOnError)
 			flag.String("source", "", "")
-			flag.String("mcp-address", ":8090", "")
+			// Mirrors main's empty default, which is what makes "passed
+			// empty" indistinguishable by value and only detectable by Visit.
+			flag.String("mcp-address", "", "")
 			os.Args = tc.args
 			if err := flag.CommandLine.Parse(tc.args[1:]); err != nil {
 				t.Fatal(err)

@@ -17,12 +17,15 @@ func TestListenAddressFor(t *testing.T) {
 		mcp  branding.MCP
 		want string
 	}{
-		{name: "nothing configured keeps the default", want: DefaultListenAddress},
+		{
+			name: "nothing configured keeps the default",
+			want: "127.0.0.1:8090",
+		},
 		{name: "disable means do not listen", mcp: branding.MCP{Disable: true}, want: ""},
 		{
 			name: "a listen address moves the listener",
-			mcp:  branding.MCP{ListenAddress: "127.0.0.1:8090"},
-			want: "127.0.0.1:8090",
+			mcp:  branding.MCP{ListenAddress: ":8090"},
+			want: ":8090",
 		},
 		{
 			name: "disable wins over an address that is also set",
@@ -53,13 +56,16 @@ func TestListenAddressFromAnAgentConfigFile(t *testing.T) {
 		},
 		{
 			name: "listen address",
-			body: "mcp:\n  listen_address: 127.0.0.1:8090\n",
-			want: "127.0.0.1:8090",
+			body: "mcp:\n  listen_address: \":8090\"\n",
+			want: ":8090",
 		},
+		// The exact case the loopback default exists for: this operator turned
+		// the unauthenticated network installer off, and must not get another
+		// one on a new port.
 		{
-			name: "a config that says nothing about mcp",
+			name: "webui disabled and nothing said about mcp stays on loopback",
 			body: "webui:\n  disable: true\n",
-			want: DefaultListenAddress,
+			want: "127.0.0.1:8090",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -80,7 +86,7 @@ func TestListenAddressFromAnAgentConfigFile(t *testing.T) {
 func TestListenAddressWithNoConfigFileAtAll(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "there-is-no-agent.yaml")
 
-	if got := ListenAddressFromConfig(missing); got != DefaultListenAddress {
-		t.Errorf("address = %q, want the default %q", got, DefaultListenAddress)
+	if got := ListenAddressFromConfig(missing); got != "127.0.0.1:8090" {
+		t.Errorf("address = %q, want the loopback default", got)
 	}
 }
