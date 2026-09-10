@@ -32,6 +32,7 @@ on:
           points the suite at a different cell's image.
         required: false
         type: string
+        default: ''
       kubernetes_version:
         description: |
           k8s version baked into the image under test, or "auto" when the

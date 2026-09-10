@@ -14,10 +14,23 @@ executes all three and compares results.
 
 This script extracts the real `run:` shell out of the three workflow files
 via PyYAML, substitutes the `${{ inputs.* }}` expressions the same way
-GitHub Actions would, and executes the result under bash. Nothing here is
-copy-pasted shell logic: a future drift between the three copies shows up
-as a mismatch between what this script observed the files doing, not as a
+GitHub Actions would, and executes the result under bash. The two tag
+formats come out of `_build-iso.yaml`'s input default and `release.yaml`'s
+overrides rather than being retyped here. Nothing in this file is
+copy-pasted shell logic or a copied format string: a future drift shows up
+as a mismatch between what the script observed the files doing, not as a
 passing test of text duplicated into this file.
+
+Deriving the segment correctly is only half of it -- the two sides also
+have to agree on which cell is which. So the second half walks pr.yaml and
+master.yaml and, for every `reusable-qemu-test.yaml` / `_uki-test.yaml`
+job, resolves the `kubernetes_distro` it passes against the `build-iso`
+matrix cell sharing its base_image/arch/model. Exactly one cell has to
+match, and its computed variant has to be the variant the test job claims;
+otherwise the suite is booting one cell's image and reporting as another's
+coverage. Build cells are also checked pairwise for a unique pushed tag and
+a unique upload-sarif category, both of which collapse when two cells
+differ only by k8s distro.
 
 Usage:
     python3 .github/scripts/verify_k8s_tag.py
@@ -55,6 +68,24 @@ def step(doc, job, name_fragment):
     raise KeyError(name_fragment)
 
 
+def wf_call_inputs(doc):
+    # YAML 1.1 resolves a bare `on` to the boolean True, which is what
+    # PyYAML hands back for a workflow's trigger key.
+    trigger = doc["on"] if "on" in doc else doc[True]
+    return trigger["workflow_call"]["inputs"]
+
+
+def input_default(doc, name):
+    spec = wf_call_inputs(doc)[name]
+    if "default" in spec:
+        return spec["default"]
+    if spec.get("required"):
+        raise KeyError(f"{name} is required and has no default")
+    # A non-required workflow_call input without a default arrives as the
+    # zero value of its type.
+    return {"string": "", "boolean": False, "number": 0}[spec["type"]]
+
+
 def subst_inputs(script, inputs):
     def repl(m):
         key = m.group(1)
@@ -83,15 +114,22 @@ setup_script = step(factory, "build", "Setup environment")["run"]
 
 
 def factory_tag(distro, version, trusted_boot=False, tag_format=None,
-                artifact_format=None):
+                artifact_format=None, base_image="ghcr.io/kairos-io/hadron:v0.5.1",
+                model="generic", arch="amd64"):
+    """Run reusable-factory.yaml's real "Setup environment" step.
+
+    Returns UPPERCASE keys for shell variables printed after the step, and
+    lowercase keys for whatever the step wrote to $GITHUB_OUTPUT (the same
+    values later steps read back as steps.setup.outputs.*).
+    """
     inputs = {
         "kubernetes_distro": distro,
         "kubernetes_version": version,
         "version": "v4.5.0",
         "kairos_version": "v4.0.0",
-        "base_image": "ghcr.io/kairos-io/hadron:v0.5.1",
-        "model": "generic",
-        "arch": "amd64",
+        "base_image": base_image,
+        "model": model,
+        "arch": arch,
         "trusted_boot": "true" if trusted_boot else "false",
         "custom_tag_format": tag_format or "",
         "custom_artifact_format": artifact_format or "",
@@ -108,7 +146,8 @@ def factory_tag(distro, version, trusted_boot=False, tag_format=None,
         'git() { echo "v4.5.0"; }\n'
     )
     out = run(script + '\nprintf "TAG=%s\\nARTIFACT=%s\\nK8S=%s\\nDEFAULT_TAG=%s\\n" '
-                        '"$TAG" "$ARTIFACT_NAME" "$K8S" "$DEFAULT_TAG"', prelude)
+                        '"$TAG" "$ARTIFACT_NAME" "$K8S" "$DEFAULT_TAG"'
+                        '\ncat "$GITHUB_OUTPUT"', prelude)
     return dict(
         line.split("=", 1) for line in out.strip().splitlines() if "=" in line
     )
@@ -151,17 +190,44 @@ def uki_tag(distro, version, variant):
     return out.strip().split("IMAGE_NAME=")[1]
 
 
-PR_TAG_FMT = "$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI"
-REL_TAG_FMT = "$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI"
+# ---- the two tag formats, read out of the workflows that set them -----------
+# Retyping these as literals would let someone reorder _build-iso.yaml's
+# default (say, move $K8S after $VERSION) and keep this file green while the
+# real build and the two mirrors disagreed.
+build_iso = load(f"{WF}/_build-iso.yaml")
+release = load(f"{WF}/release.yaml")
+
+PR_TAG_FMT = input_default(build_iso, "custom_tag_format")
+
+release_fmts = {
+    name: job["with"]["custom_tag_format"]
+    for name, job in release["jobs"].items()
+    if "custom_tag_format" in (job.get("with") or {})
+}
+if not release_fmts:
+    raise SystemExit("release.yaml passes no custom_tag_format")
+if len(set(release_fmts.values())) != 1:
+    raise SystemExit(f"release.yaml's custom_tag_format copies diverged: {release_fmts}")
+REL_TAG_FMT = next(iter(release_fmts.values()))
+
+print(f"tag formats in use ({len(release_fmts)} release jobs agree):")
+print(f"  _build-iso.yaml default: {PR_TAG_FMT}")
+print(f"  release.yaml override:   {REL_TAG_FMT}\n")
 
 failures = []
 
 
-def check(label, got, want):
-    status = "ok  " if got == want else "FAIL"
+def fail(label, got, want):
+    failures.append((label, got, want))
+    print(f"  [FAIL] {label}\n         got  {got}\n         want {want}")
+
+
+def check(label, got, want, terse=False):
     if got != want:
-        failures.append((label, got, want))
-    print(f"  [{status}] {label}\n         got  {got}\n         want {want}")
+        return fail(label, got, want)
+    print(f"  [ok  ] {label}")
+    if not terse:
+        print(f"         got  {got}\n         want {want}")
 
 
 print("== pr/master build cells (kubernetes_version: auto) ==")
@@ -173,7 +239,7 @@ check("k3s tag", k3s["TAG"], "hadron-v0.5.1-standard-amd64-generic-k3s-v4.5.0")
 check("k0s tag", k0s["TAG"], "hadron-v0.5.1-standard-amd64-generic-k0s-v4.5.0")
 print(f"  k3s vs k0s collide? {k3s['TAG'] == k0s['TAG']}")
 if k3s["TAG"] == k0s["TAG"]:
-    failures.append(("k3s/k0s tag collision", k3s["TAG"], "distinct tags"))
+    fail("k3s/k0s tag collision", k3s["TAG"], "distinct tags")
 
 print("\n== release cells (kubernetes_version pinned) -- must be byte-identical to before ==")
 relcore = factory_tag("", "auto", tag_format=REL_TAG_FMT,
@@ -224,8 +290,199 @@ check("qemu pinned", qemu_tag("k3s", "v1.33.9+k3s1", "standard"),
       "ghcr.io/kairos-io/kairos/hadron:"
       + factory_tag("k3s", "v1.33.9+k3s1", tag_format=PR_TAG_FMT)["TAG"])
 
+
+# ---- callers: each test job must resolve to one build cell ------------------
+# The mirror checks above take the distro from this file on both sides, so they
+# cannot see a test job aimed at a cell that was built with a different
+# kubernetes_distro. That is the coupling that breaks quietly: `standard` alone
+# does not identify a k3s image once a k0s cell computes the same variant, so a
+# test job can end up booting one cell's image while reporting as the other's
+# coverage. Walk the callers instead and require each test job to land on
+# exactly one build-iso matrix cell.
+
+CALLEES = {
+    "_build-iso.yaml": build_iso,
+    "reusable-qemu-test.yaml": qemu,
+    "_uki-test.yaml": uki,
+}
+
+MATRIX_REF = re.compile(
+    r"^\$\{\{\s*matrix\.([A-Za-z0-9_-]+)\s*(?:\|\|\s*'([^']*)'\s*)?\}\}$"
+)
+
+
+def callee(job):
+    return job.get("uses", "").rsplit("/", 1)[-1]
+
+
+def matrix_rows(job):
+    include = ((job.get("strategy") or {}).get("matrix") or {}).get("include")
+    return include or [{}]
+
+
+def resolve(job, row, key):
+    """What `job` passes for `key`, for one matrix row.
+
+    Falls back to the callee's declared input default when the job does not
+    pass the key at all, so an omitted input is read from the workflow that
+    defines it rather than assumed here.
+    """
+    passed = job.get("with") or {}
+    if key not in passed:
+        return input_default(CALLEES[callee(job)], key)
+    val = passed[key]
+    if not isinstance(val, str):
+        return val
+    m = MATRIX_REF.match(val.strip())
+    if m:
+        name, fallback = m.group(1), m.group(2)
+        if name not in row:
+            if fallback is None:
+                raise SystemExit(f"matrix.{name} missing from row {row}")
+            return fallback
+        got = row[name]
+        if got == "" and fallback is not None:
+            return fallback
+        return got
+    if "${{" in val:
+        raise SystemExit(f"cannot resolve {key}={val!r} without a GitHub runner")
+    return val
+
+
+def as_bool(val):
+    return val if isinstance(val, bool) else str(val).lower() == "true"
+
+
+GH_EXPR = re.compile(r"\$\{\{(.+?)\}\}")
+GH_TERNARY = re.compile(r"([\w.]+)\s*&&\s*'([^']*)'\s*\|\|\s*'([^']*)'")
+
+
+def eval_ghexpr(expr, inputs, outputs):
+    """Evaluate the expression subset the factory's `category:` values use:
+    context lookups plus the `<cond> && '<a>' || '<b>'` idiom."""
+
+    def lookup(ref):
+        ref = ref.strip()
+        for prefix, source in (("inputs.", inputs),
+                               ("steps.setup.outputs.", outputs)):
+            if ref.startswith(prefix):
+                return source[ref[len(prefix):]]
+        raise SystemExit(f"unsupported expression context: {ref}")
+
+    def repl(m):
+        body = m.group(1).strip()
+        tern = GH_TERNARY.fullmatch(body)
+        if tern:
+            cond = lookup(tern.group(1))
+            falsy = cond in ("", "false", False, None)
+            return tern.group(3) if falsy else tern.group(2)
+        return str(lookup(body))
+
+    return GH_EXPR.sub(repl, expr)
+
+
+sarif_steps = [
+    (st["name"], st["with"]["category"])
+    for st in factory["jobs"]["build"]["steps"]
+    if "upload-sarif" in str(st.get("uses", ""))
+]
+if not sarif_steps:
+    raise SystemExit("reusable-factory.yaml has no upload-sarif step")
+
+for caller_name in ("pr.yaml", "master.yaml"):
+    caller = load(f"{WF}/{caller_name}")
+    print(f"\n== {caller_name}: build cells ==")
+    cells = []
+    for job_name, job in caller["jobs"].items():
+        if callee(job) != "_build-iso.yaml":
+            continue
+        for row in matrix_rows(job):
+            cell = {
+                "name": resolve(job, row, "name"),
+                "base_image": resolve(job, row, "base_image"),
+                "arch": resolve(job, row, "arch"),
+                "model": resolve(job, row, "model"),
+                "distro": resolve(job, row, "kubernetes_distro"),
+                "version": resolve(job, row, "kubernetes_version"),
+                "trusted_boot": as_bool(resolve(job, row, "trusted_boot")),
+                "iso": as_bool(resolve(job, row, "iso")),
+            }
+            cell["out"] = factory_tag(
+                cell["distro"], cell["version"],
+                trusted_boot=cell["trusted_boot"],
+                base_image=cell["base_image"], model=cell["model"],
+                arch=cell["arch"],
+                tag_format=resolve(job, row, "custom_tag_format"),
+            )
+            cells.append(cell)
+            print(f"  {cell['name']:<26} distro={cell['distro'] or '-':<4}"
+                  f" variant={cell['out']['variant']:<8} iso={str(cell['iso']):<5}"
+                  f" tag={cell['out']['TAG']}")
+
+    # Two cells whose pushed tag is identical race each other into the same
+    # registry reference, and two cells whose SARIF category is identical are
+    # rejected by upload-sarif as a misconfigured run.
+    seen = {}
+    for cell in cells:
+        got = cell["out"]["TAG"]
+        if got in seen:
+            fail(f"{caller_name} pushed tag", got,
+                 f"unique per cell ({seen[got]} vs {cell['name']})")
+        seen[got] = cell["name"]
+    for step_name, expr in sarif_steps:
+        seen = {}
+        for cell in cells:
+            cat = eval_ghexpr(expr, {"arch": cell["arch"], "model": cell["model"],
+                                     "trusted_boot": cell["trusted_boot"]},
+                              cell["out"])
+            if cat in seen:
+                fail(f"{caller_name} {step_name!r} category", cat,
+                     f"unique per cell ({seen[cat]} vs {cell['name']})")
+            seen[cat] = cell["name"]
+
+    print(f"\n== {caller_name}: test jobs must name the cell they consume ==")
+    for job_name, job in caller["jobs"].items():
+        target = callee(job)
+        if target not in ("reusable-qemu-test.yaml", "_uki-test.yaml"):
+            continue
+        # reusable-qemu-test.yaml boots plain ISOs; _uki-test.yaml is the
+        # trusted-boot path, so it consumes the trusted_boot cells.
+        wants_uki = target == "_uki-test.yaml"
+        for row in matrix_rows(job):
+            label = job_name
+            if "test" in row:
+                label += f" [{row['test']}]"
+            distro = resolve(job, row, "kubernetes_distro")
+            version = resolve(job, row, "kubernetes_version")
+            variant = resolve(job, row, "variant")
+            key = (resolve(job, row, "base_image"), resolve(job, row, "arch"),
+                   resolve(job, row, "model"), wants_uki)
+            siblings = [c for c in cells
+                        if (c["base_image"], c["arch"], c["model"],
+                            c["trusted_boot"]) == key]
+            hits = [c for c in siblings
+                    if (c["distro"], c["version"]) == (distro, version)]
+            if len(hits) != 1:
+                offered = ", ".join(
+                    f"{c['name']}={c['distro'] or '-'}/{c['version']}"
+                    for c in siblings
+                ) or "no cell with that base_image/arch/model"
+                check(f"{label} distro={distro or '-'}/{version}",
+                      f"{len(hits)} build cells ({offered})",
+                      "exactly 1 build cell")
+                continue
+            cell = hits[0]
+            check(f"{label} -> {cell['name']} variant",
+                  variant, cell["out"]["variant"], terse=True)
+            if not cell["iso"]:
+                check(f"{label} -> {cell['name']} artifact",
+                      "iso: false, no ISO artifact to download",
+                      "a cell built with iso: true")
+
 print()
 if failures:
     print(f"{len(failures)} FAILURE(S)")
+    for label, got, want in failures:
+        print(f"  {label}\n    got  {got}\n    want {want}")
     sys.exit(1)
 print("all checks pass")
