@@ -262,12 +262,25 @@ on:
       custom_tag_format:
         type: string
         required: false
-        description: "Custom tag format using variables like $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $UKI, $COMMIT_SHA. If not provided, uses default format."
+        description: |
+          Custom tag format using variables like $FLAVOR, $FLAVOR_RELEASE,
+          $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO,
+          $KUBERNETES_VERSION, $K8S, $UKI, $COMMIT_SHA. $K8S is
+          `-<kubernetes_distro>` whenever kubernetes_distro is set, with
+          `-<sanitized kubernetes_version>` appended when
+          kubernetes_version is not `auto`, and empty otherwise. If not
+          provided, uses default format.
 
       custom_artifact_format:
         type: string
         required: false
-        description: "Custom artifact filename format using variables like $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION, $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $UKI, $COMMIT_SHA. If not provided, uses auroraboot's default naming."
+        description: |
+          Custom artifact filename format using variables like $FLAVOR,
+          $FLAVOR_RELEASE, $VARIANT, $ARCH, $MODEL, $VERSION,
+          $KUBERNETES_DISTRO, $KUBERNETES_VERSION, $K8S, $UKI,
+          $COMMIT_SHA. $K8S follows the same rule as in
+          custom_tag_format. If not provided, uses auroraboot's default
+          naming.
 
       custom_job_name_format:
         type: string
