@@ -191,7 +191,10 @@ var _ = Describe("Hooks", func() {
 
 	Context("FirstBootStage", func() {
 		BeforeEach(func() {
-			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
+			// An empty /proc/cmdline keeps RunStage's cmdline read from
+			// manufacturing an error of its own on every call, which would
+			// otherwise mask what the strict specs below assert on.
+			fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{"/proc/cmdline": ""})
 			Expect(err).Should(BeNil())
 			memLog = &bytes.Buffer{}
 			logger = sdkLogger.NewBufferLogger(memLog)
@@ -232,16 +235,19 @@ var _ = Describe("Hooks", func() {
 			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
 		})
 
-		It("propagates a cloud-init failure when strict mode is enabled", func() {
+		It("logs a cloud-init failure in strict mode instead of failing the hook", func() {
 			cloudInit.Error = true
 			cfg.Strict = true
 			stage := hook.FirstBootStage{}
 			err = stage.Run(*cfg, nil)
-			Expect(err).ShouldNot(BeNil())
-			// The hook returns before logging completion on a strict failure,
-			// which is what leaves the sentinel unwritten one level up in
-			// agent.Run (not exercised here -- see hooks_test.go package doc).
-			Expect(memLog.String()).ToNot(ContainSubstring("Finish first-boot hook"))
+			Expect(err).Should(BeNil())
+			// Swallowing the error is what keeps
+			// machine.CreateSentinel("firstboot") reachable in agent.Run (not
+			// exercised by this suite), so the node is not stuck re-running the
+			// first boot block. The log line is the operator's only trace.
+			Expect(memLog.String()).To(ContainSubstring("continuing so the firstboot sentinel still gets written"))
+			Expect(memLog.String()).To(ContainSubstring("cloud init failure"))
+			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
 		})
 
 		It("does not fail the hook when strict mode is off, even if the runner errors", func() {
@@ -250,6 +256,9 @@ var _ = Describe("Hooks", func() {
 			stage := hook.FirstBootStage{}
 			err = stage.Run(*cfg, nil)
 			Expect(err).Should(BeNil())
+			// Non-strict runs never reach the hook's own error branch: RunStage
+			// absorbs the failure itself and hands back nil.
+			Expect(memLog.String()).ToNot(ContainSubstring("continuing so the firstboot sentinel still gets written"))
 			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
 		})
 
