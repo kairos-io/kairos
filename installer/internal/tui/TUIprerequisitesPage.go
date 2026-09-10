@@ -85,14 +85,14 @@ func (p *prerequisitesPage) Help() string {
 func (p *prerequisitesPage) Init() tea.Cmd {
 	if !p.loaded {
 		p.mgr = checks.NewManager(*mainModel.log)
-		checks, err := checks.Gather(p.mgr, *mainModel.log, "")
+		found, err := checks.Gather(p.mgr, *mainModel.log, "")
 		if err != nil {
 			mainModel.log.Logger.Warn().Err(err).Msg("gathering prerequisites checks")
 		}
-		p.checks = checks
+		p.checks = found
 		p.buildFields()
 		p.loaded = true
-		mainModel.log.Logger.Debug().Int("checks", len(checks)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
+		mainModel.log.Logger.Debug().Int("checks", len(found)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
 	}
 
 	if len(p.checks) == 0 {
