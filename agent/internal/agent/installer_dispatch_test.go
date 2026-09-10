@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -81,6 +82,47 @@ var _ = Describe("installer dispatch", func() {
 			Expect(os.WriteFile(bin, []byte("#!/bin/sh\nexit 7\n"), 0o755)).To(Succeed())
 
 			err := runExternalInstaller(bin, "")
+			var exitErr *exec.ExitError
+			Expect(errors.As(err, &exitErr)).To(BeTrue())
+			Expect(exitErr.ExitCode()).To(Equal(7))
+		})
+	})
+
+	// supervise-daemon signals the agent, not the installer the agent spawns,
+	// so a `rc-service kairos-webui restart` used to leave an orphan holding
+	// :8080 and the respawned installer could never bind.
+	Describe("runExternalInstallerCtx", func() {
+		It("terminates the installer when the context is cancelled", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "trapping-installer")
+			gotTerm := filepath.Join(dir, "got-term")
+			ready := filepath.Join(dir, "ready")
+			Expect(os.WriteFile(bin, []byte(
+				"#!/bin/sh\n"+
+					"trap 'echo yes > "+gotTerm+"; exit 0' TERM\n"+
+					"echo yes > "+ready+"\n"+
+					"while true; do sleep 0.1; done\n"), 0o755)).To(Succeed())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- runExternalInstallerCtx(ctx, bin, "") }()
+
+			Eventually(ready, "10s", "50ms").Should(BeAnExistingFile())
+			cancel()
+
+			// A signalled shutdown is a stop, not an installer failure, so
+			// the deprecated subcommand must not exit non-zero on it.
+			Eventually(done, "10s").Should(Receive(BeNil()))
+			Expect(gotTerm).To(BeAnExistingFile())
+		})
+
+		It("still propagates an exit code when nothing cancelled it", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "failing-installer")
+			Expect(os.WriteFile(bin, []byte("#!/bin/sh\nexit 7\n"), 0o755)).To(Succeed())
+
+			err := runExternalInstallerCtx(context.Background(), bin, "")
 			var exitErr *exec.ExitError
 			Expect(errors.As(err, &exitErr)).To(BeTrue())
 			Expect(exitErr.ExitCode()).To(Equal(7))
