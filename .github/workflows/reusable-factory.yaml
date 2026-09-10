@@ -586,23 +586,37 @@ jobs:
           UKI="$UKI_SUFFIX"
           COMMIT_SHA="${{ github.sha }}"
 
-          # Set kubernetes suffix (leading dash) if a k8s distro+version
-          # pair was passed; empty otherwise. Consumers use this in
+          # Set kubernetes suffix (leading dash) if a k8s distro was
+          # passed; empty otherwise. Consumers use this in
           # custom_tag_format so cells without k8s don't get a stray dash
-          # (e.g. `...-generic--v4.3.0`) and cells with k8s get the
-          # distro+version pair disambiguating them from each other and
-          # from the no-k8s cell.
+          # (e.g. `...-generic--v4.3.0`) and cells with k8s get a segment
+          # disambiguating them from each other and from the no-k8s cell.
+          #
+          # Gated on the distro, not the version: the distro is known
+          # whether or not the caller pinned a version, and it is the
+          # distro that tells two otherwise-identical cells apart. Gating
+          # on the version instead made `kubernetes_version: auto` (which
+          # resolves to the empty string above so kairos-init picks the
+          # version) drop the distro from the tag entirely, so a k3s cell
+          # and a k0s cell sharing an arch/model pushed to the same tag
+          # and whichever finished last silently won.
+          #
+          # The version is appended only when pinned, so `auto` yields
+          # `-k0s` rather than a trailing bare dash.
+          #
+          # reusable-qemu-test.yaml and _uki-test.yaml reconstruct this
+          # same segment in shell to find the image under test. Keep all
+          # three in lockstep.
           K8S=""
-          if [[ -n "$KUBERNETES_VERSION" ]]; then
-            K8S="-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION"
+          if [[ -n "$KUBERNETES_DISTRO" ]]; then
+            K8S="-$KUBERNETES_DISTRO"
+            if [[ -n "$SANITIZED_KUBERNETES_VERSION" ]]; then
+              K8S="$K8S-$SANITIZED_KUBERNETES_VERSION"
+            fi
           fi
 
           # Generate default tag
-          if [[ -n "$KUBERNETES_VERSION" ]]; then
-            DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION$UKI"
-          else
-            DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$UKI"
-          fi
+          DEFAULT_TAG="$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI"
 
           # Use custom tag format if provided, otherwise use default
           if [[ -n "${{ inputs.custom_tag_format }}" ]]; then
@@ -647,9 +661,7 @@ jobs:
             DEFAULT_ARTIFACT_NAME="kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION"
 
             # Append kubernetes distro and version if defined
-            if [[ -n "$KUBERNETES_DISTRO" ]]; then
-              DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION"
-            fi
+            DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME$K8S"
 
             # Append UKI suffix if trusted boot is enabled
             DEFAULT_ARTIFACT_NAME="$DEFAULT_ARTIFACT_NAME$UKI"
