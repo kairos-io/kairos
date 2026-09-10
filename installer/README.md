@@ -38,6 +38,10 @@ web UI and never touches the terminal, which is what the non-interactive live
 boot entry wants. The web installer is a frontend of the installer, not of the
 agent, so an image that ships its own installer serves its own web UI.
 
+That subcommand is **deprecated** and prints a warning: it exists only so the
+`kairos-webui` service keeps working, and it goes away with that service. Call
+the installer with `--no-tui` instead.
+
 The agent forwards `--source <uri>` to the installer. The installer, in turn,
 drives the install by running:
 

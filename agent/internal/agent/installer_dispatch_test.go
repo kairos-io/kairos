@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"os/exec"
@@ -55,6 +56,21 @@ var _ = Describe("installer dispatch", func() {
 			recorded, err := os.ReadFile(argsFile)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(strings.Fields(string(recorded))).To(Equal([]string{"--source", "oci://foo:bar", "--no-tui"}))
+		})
+
+		// The subcommand is on its way out, so an operator who runs it by
+		// hand has to be told where the web UI went.
+		It("warns that the subcommand is deprecated", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "fake-installer")
+			Expect(os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0o755)).To(Succeed())
+			GinkgoT().Setenv(sdkConstants.InstallerEnvVar, bin)
+
+			var logged bytes.Buffer
+			Expect(WebUI("", sdkLogger.NewBufferLogger(&logged))).To(Succeed())
+
+			Expect(logged.String()).To(ContainSubstring(WebUIDeprecationNotice))
+			Expect(logged.String()).To(ContainSubstring("--no-tui"))
 		})
 	})
 

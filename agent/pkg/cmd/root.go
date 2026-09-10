@@ -384,8 +384,8 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 	},
 	{
 		Name:        "webui",
-		Usage:       "Starts the webui",
-		Description: "Starts the webui installer, by delegating to the image's installer with its terminal UI suppressed",
+		Usage:       "Starts the webui (deprecated)",
+		Description: "DEPRECATED: starts the webui installer by delegating to the image's installer with its terminal UI suppressed. The web UI is served by the installer itself; run the installer with --no-tui instead. This subcommand is kept for the kairos-webui service and will be removed with it.",
 		Aliases:     []string{"w"},
 		Flags:       []cli.Flag{&sourceFlag},
 		Action: func(c *cli.Context) error {
@@ -394,7 +394,8 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 				log.SetLevel("debug")
 			}
 
-			return agent.WebUI(c.String("source"), log)
+			// The deprecated subcommand is what has to keep calling it.
+			return agent.WebUI(c.String("source"), log) //nolint:staticcheck
 		},
 	},
 	{

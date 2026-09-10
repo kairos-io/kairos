@@ -25,11 +25,22 @@ func InteractiveInstall(spawnShell bool, source string, logger sdkLogger.KairosL
 	return nil
 }
 
+// WebUIDeprecationNotice is what `kairos-agent webui` prints before it
+// delegates. The subcommand exists only so the live CD's kairos-webui service
+// keeps working while the web UI moves into the installer, where an
+// interactive boot already serves it in-process.
+const WebUIDeprecationNotice = "`kairos-agent webui` is deprecated and will be removed: the web UI is served by the installer. Run the installer with --no-tui instead."
+
 // WebUI resolves the same installer binary and asks it to serve only its web
 // UI, with no terminal UI. The web installer is a frontend of the installer,
 // not of the agent, so it has to come from whichever installer the image
 // resolves to; an image that ships its own installer serves its own web UI.
+//
+// Deprecated: call the resolved installer with --no-tui. This subcommand is
+// kept for the kairos-webui service and goes away with it.
 func WebUI(source string, logger sdkLogger.KairosLogger) error {
+	logger.Warnf("%s", WebUIDeprecationNotice)
+
 	path, err := resolveInstaller()
 	if err != nil {
 		return err
