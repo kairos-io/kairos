@@ -10,10 +10,8 @@
 // # Transport
 //
 // Streamable HTTP, served by kairos-installer alongside the TUI, so an agent
-// reaches the installer the same way a person reaches the web UI: over the
-// network, without having to spawn a process on the machine first. That is the
-// exposure the live image already has, because kairos-webui listens on :8080
-// on the same boot and can install from there.
+// reaches the installer without having to spawn a process on the machine
+// first. It listens on loopback by default; see below.
 //
 // [Handler] is the server as an http.Handler so it can be mounted on the
 // installer's own mux once the web UI moves in (kairos-io/kairos#4340);
@@ -27,14 +25,18 @@
 // which a non-browser caller does not send, so it stops a page the operator
 // opened and not a program on the network.
 //
-// That is deliberate, and it is the exposure a live-booted machine already has
-// from kairos-webui on :8080, which can install too. An operator who does not
-// want it turns the listener off or moves it to loopback through the agent
-// config, the same two knobs the web UI takes:
+// So the default address is loopback, 127.0.0.1:8090, and reaching it from
+// another host is something an operator asks for:
 //
 //	mcp:
-//	  disable: true
-//	  listen_address: 127.0.0.1:8090
+//	  disable: true                  # do not listen at all
+//	  listen_address: ":8090"        # or reachable from the network
+//
+// kairos-webui listens on :8080 on the same boot and can install too, but that
+// is not a reason to copy its exposure: webui.disable is how an operator says
+// "no unauthenticated network installer on this box", and this listener cannot
+// see that setting. A machine that turned webui off must not find a new door
+// open on :8090.
 //
 // # The install tool is destructive
 //
@@ -154,10 +156,13 @@ func New(log sdkLogger.KairosLogger) *Server {
 	return s
 }
 
-// Defaults for the HTTP transport. The port sits next to the web UI's :8080 on
-// the same live machine, and the path is the one MCP clients assume.
+// Defaults for the HTTP transport. Loopback, because a machine must not gain a
+// network-reachable install endpoint it did not already have: an operator who
+// set webui.disable turned the unauthenticated network installer off, and this
+// listener has no way to see that. Reaching it from another host is an opt-in,
+// through mcp.listen_address. The path is the one MCP clients assume.
 const (
-	DefaultListenAddress = ":8090"
+	DefaultListenAddress = "127.0.0.1:8090"
 	Path                 = "/mcp"
 )
 
