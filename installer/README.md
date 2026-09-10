@@ -238,14 +238,23 @@ To customize the UX itself, fork or vendor this repo:
 ## Architecture
 
 ```
-main.go               flags(--source, --no-tui) → serve the web UI, and unless
-                      --no-tui, launch the bubbletea program alongside it
+main.go               flags (--source, --no-tui, --mcp-address,
+                      --collect-debug-bundle), starts the MCP server when it has
+                      an address, serves the web UI, and unless --no-tui runs the
+                      bubbletea program alongside it
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
                       the install page calls kairos-sdk/agentrun and renders progress
 internal/webui/       the web frontend: embedded assets, cloud-config
                       validation, and the install/progress websocket. It calls
                       kairos-sdk/agentrun too, so /ws carries the same typed
                       progress events the TUI renders
+internal/mcp/         the same install contract exposed as MCP tools an agent
+                      can call, sharing the cloud-config shaping with the TUI
+internal/checks/      gathers provider prerequisite checks over the bus and
+                      applies the answers the user gave
+internal/disks/       block-device discovery for the disk-selection page
+internal/debugbundle/ collects, serves and copies out a debug bundle
+prereqs/              the Check and prompt types providers and the TUI share
 ```
 
 Echo writes its own log to a file (`/var/log/kairos/webui.log`) whenever the TUI
@@ -253,14 +262,14 @@ is running, because its default handler writes JSON to stdout and that would
 land on top of the alt screen. With `--no-tui` it logs to stdout, so it ends up
 in the journal.
 
-`--source` reaches both frontends: the web UI passes it to `manual-install` the
-same way `agentrun.Command` does for the TUI, so an install driven from the
-browser pulls the image the boot asked for.
+`--source` reaches both interactive frontends: the web UI passes it to
+`manual-install` the same way `agentrun.Command` does for the TUI, so an install
+driven from the browser pulls the image the boot asked for.
 
-The reusable pieces live in **kairos-sdk**: `kairos-sdk/agentrun` drives
-`kairos-agent manual-install` and parses its JSON-Lines progress, and
-`kairos-sdk/bus` is the provider plugin bus (`agent.interactive-install →
-[]YAMLPrompt`). This project is mostly the bubbletea UI on top of those.
+The reusable pieces live in the **SDK**: `sdk/agentrun` drives
+`kairos-agent manual-install` and parses its JSON-Lines progress, and `sdk/bus`
+is the provider plugin bus (`agent.interactive-install → []YAMLPrompt`). This
+package is the three frontends (TUI, web UI and MCP) on top of those.
 
 Decoupling: this module depends only on `kairos-sdk`, the charmbracelet TUI
 libraries, and `go-pluggable`. It never imports `kairos-agent` — the only
