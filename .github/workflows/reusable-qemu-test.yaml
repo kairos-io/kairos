@@ -24,8 +24,23 @@ on:
         type: string
         default: "generic"
       kubernetes_distro:
+        description: |
+          k8s distro baked into the image under test: k3s, k0s, or empty
+          for a core image. Feeds the $K8S segment of the tag this
+          workflow reconstructs to find that image, so it must match the
+          `kubernetes_distro` the build cell was given. Getting it wrong
+          points the suite at a different cell's image.
         required: false
         type: string
+      kubernetes_version:
+        description: |
+          k8s version baked into the image under test, or "auto" when the
+          build cell let kairos-init choose. Only affects the tag this
+          workflow reconstructs; must match the build cell's
+          `kubernetes_version`.
+        required: false
+        type: string
+        default: 'auto'
       release-matcher:
         description: "The release matcher to use for the latest release. Full regex match"
         required: false
@@ -68,8 +83,9 @@ on:
         description: |
           Registry path (registry/namespace/repo, no tag) where the Kairos
           OS container image was pushed. Combined with the tag suffix
-          `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>` to
-          form the IMAGE_NAME ginkgo tests docker-pull from inside the VM.
+          `<flavor>-<flavor_release>-<variant>-<arch>-<model><k8s>-<sha>`
+          to form the IMAGE_NAME ginkgo tests docker-pull from inside the
+          VM, where `<k8s>` comes from kubernetes_distro/kubernetes_version.
 
           The literal `${flavor}` (bash brace syntax) is expanded to the
           flavor derived from base_image; use it when each flavor lives
@@ -303,23 +319,37 @@ jobs:
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
           KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
+          KUBERNETES_VERSION_INPUT: ${{ inputs.kubernetes_version }}
         run: |
           # Match _build-iso.yaml's custom_tag_format:
           # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
-          # Reusable-qemu-test only tests non-UKI, non-per-k8s-version cells
-          # today, so $K8S is derived from what factory-action would produce
-          # for the same kubernetes_distro/version inputs and $UKI stays empty.
-          # $VERSION uses the same `git describe --tags --dirty --always`
-          # rule factory-action's setup step uses so both sides land on the
-          # same tag.
+          # Reusable-qemu-test only tests non-UKI cells today, so $UKI stays
+          # empty. $VERSION uses the same `git describe --tags --dirty
+          # --always` rule factory-action's setup step uses so both sides
+          # land on the same tag.
           VERSION=$(git describe --tags --dirty --always)
           if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
             VERSION="v0.0.0-$VERSION"
           fi
-          # Currently no caller passes kubernetes_version to this reusable,
-          # so K8S stays empty; keep the placeholder wired so future callers
-          # can flip it on without a second edit here.
+          # $K8S derivation, kept identical to reusable-factory.yaml's
+          # setup step (and to _uki-test.yaml). "auto" resolves to the
+          # empty string there so kairos-init picks the version, and the
+          # segment is gated on the distro so it survives that. Change one
+          # copy without the others and the suite pulls a tag nobody
+          # pushed, or worse, another cell's image.
+          if [[ "$KUBERNETES_VERSION_INPUT" == "auto" ]]; then
+            KUBERNETES_VERSION=""
+          else
+            KUBERNETES_VERSION="$KUBERNETES_VERSION_INPUT"
+          fi
+          SANITIZED_KUBERNETES_VERSION="${KUBERNETES_VERSION//+/-}"
           K8S=""
+          if [[ -n "$KUBERNETES_DISTRO" ]]; then
+            K8S="-$KUBERNETES_DISTRO"
+            if [[ -n "$SANITIZED_KUBERNETES_VERSION" ]]; then
+              K8S="$K8S-$SANITIZED_KUBERNETES_VERSION"
+            fi
+          fi
           # Expand the literal `${flavor}` token in the caller-provided
           # prefix. Callers that don't use the token (or take the
           # default) pass through unchanged.
