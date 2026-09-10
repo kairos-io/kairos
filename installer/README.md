@@ -184,15 +184,24 @@ To customize the UX itself, fork or vendor this repo:
 ## Architecture
 
 ```
-main.go               flag(--source) → launch the bubbletea program
+main.go               flags (--source, --mcp-address, --collect-debug-bundle),
+                      starts the MCP server when it has an address, then runs
+                      the bubbletea program
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
-                      the install page calls kairos-sdk/agentrun and renders progress
+                      the install page calls sdk/agentrun and renders progress
+internal/mcp/         the same install contract exposed as MCP tools an agent
+                      can call, sharing the cloud-config shaping with the TUI
+internal/checks/      gathers provider prerequisite checks over the bus and
+                      applies the answers the user gave
+internal/disks/       block-device discovery for the disk-selection page
+internal/debugbundle/ collects, serves and copies out a debug bundle
+prereqs/              the Check and prompt types providers and the TUI share
 ```
 
-The reusable pieces live in **kairos-sdk**: `kairos-sdk/agentrun` drives
-`kairos-agent manual-install` and parses its JSON-Lines progress, and
-`kairos-sdk/bus` is the provider plugin bus (`agent.interactive-install →
-[]YAMLPrompt`). This project is mostly the bubbletea UI on top of those.
+The reusable pieces live in the **SDK**: `sdk/agentrun` drives
+`kairos-agent manual-install` and parses its JSON-Lines progress, and `sdk/bus`
+is the provider plugin bus (`agent.interactive-install → []YAMLPrompt`). This
+package is the two frontends (TUI and MCP) on top of those.
 
 Decoupling: this module depends only on `kairos-sdk`, the charmbracelet TUI
 libraries, and `go-pluggable`. It never imports `kairos-agent` — the only
