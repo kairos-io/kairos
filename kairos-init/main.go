@@ -236,7 +236,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&version, "version", "v", "", "set a version number to use for the generated system. Its used to identify this system for upgrades and such. Required.")
 	rootCmd.Flags().BoolVarP(&config.DefaultConfig.Extensions, "stage-extensions", "x", false, "enable stage extensions mode")
 	rootCmd.Flags().Var(skipStepsFlag, "skip-step", "Skip one or more steps. Valid values are: "+strings.Join(skipStepsFlag.Allowed, ", ")+". You can pass multiple values separated by commas, for example: --skip-step initrd,workarounds")
-	rootCmd.Flags().BoolVar(&config.DefaultConfig.DryRun, "dry-run", false, "print the resolved yip stages to stdout and exit without applying any change to the system")
+	rootCmd.Flags().BoolVar(&config.DefaultConfig.DryRun, "dry-run", false, "print the resolved yip stages to stdout and exit without running yip stages, copying configs/binaries, or invoking provider hooks (logs may still be written)")
 	// Mark required flags
 	_ = rootCmd.MarkFlagRequired("version")
 
