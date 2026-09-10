@@ -548,7 +548,7 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 				log.SetLevel("debug")
 			}
 
-			return agent.InteractiveInstall(c.Bool("shell"), c.String("source"), log)
+			return agent.InteractiveInstall(c.Bool("shell"), c.String("source"), log, constants.GetUserConfigDirs()...)
 		},
 	},
 	{

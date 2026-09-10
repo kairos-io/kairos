@@ -85,6 +85,31 @@ func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValid
 	return RunInstall(cc)
 }
 
+// autoInstallRequested reports whether the config asks to be installed without
+// being asked anything, so there is no UX to show.
+func autoInstallRequested(cc *sdkConfig.Config) bool {
+	return cc != nil && cc.Install != nil && cc.Install.Auto
+}
+
+// runAutoInstall performs the unattended installation install.auto asks for.
+// Both live entrypoints go through it, so a config that says "install me"
+// behaves the same whichever one of them boots.
+func runAutoInstall(cc *sdkConfig.Config) error {
+	if err := RunInstall(cc); err != nil {
+		return err
+	}
+
+	if !cc.Install.Reboot && !cc.Install.Poweroff {
+		_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
+		svc, err := machine.Getty(1)
+		if err == nil {
+			_ = svc.Start() //nolint:errcheck
+		}
+	}
+
+	return nil
+}
+
 func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
 	var cc *sdkConfig.Config
 	var err error
@@ -128,21 +153,8 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 		collector.Readers(strings.NewReader(cliConf)),
 		collector.MergeBootLine)
 
-	if err == nil && cc.Install != nil && cc.Install.Auto {
-		err = RunInstall(cc)
-		if err != nil {
-			return err
-		}
-
-		if !cc.Install.Reboot && !cc.Install.Poweroff {
-			_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
-			svc, err := machine.Getty(1)
-			if err == nil {
-				_ = svc.Start() //nolint:errcheck
-			}
-		}
-
-		return nil
+	if err == nil && autoInstallRequested(cc) {
+		return runAutoInstall(cc)
 	}
 	if err != nil {
 		fmt.Printf("- config not found in the system: %s", err.Error())

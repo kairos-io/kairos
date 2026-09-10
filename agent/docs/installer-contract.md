@@ -4,6 +4,15 @@ kairos-agent owns partitioning/configuration/install. The interactive **UX**
 is owned by a separate `kairos-installer` binary. This document is the stable
 contract between them.
 
+## Unattended installs come first
+
+Before resolving an installer, `interactive-install` scans the config the way
+`install` does. If it finds `install.auto: true`, it performs that installation
+itself and never launches an installer: a config that says "install me without
+asking" leaves nothing to ask, and the live CD's default entry must not stop at
+a prompt with nobody there to answer it. An installer therefore only ever runs
+when there is a decision left for a human to make.
+
 ## Discovery & launch
 
 `kairos-agent interactive-install` resolves an installer binary in this order
