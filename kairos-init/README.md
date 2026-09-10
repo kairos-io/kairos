@@ -33,7 +33,7 @@ You can then use [AuroraBoot](https://github.com/kairos-io/auroraboot) to transf
 ## Dry-run
 
 Pass `--dry-run` to print the resolved yip stages that would run without
-applying any change to the system. The console logger is silenced so
+executing them (no `yip` execution, file copies, or provider hook runs). The console logger is silenced so
 stdout is the raw yip YAML — the same format `yip` itself consumes, so
 you can pipe it back into `yip` (or diff it across builds) directly:
 
