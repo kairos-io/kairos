@@ -423,7 +423,7 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	memory := getEnvOrDefault("MEMORY", "2048")
 	cpus := getEnvOrDefault("CPUS", "2")
-	cpuType := getEnvOrDefault("CPU_TYPE", "host")
+	cpuType := getEnvOrDefault("CPU_TYPE", "")
 	arch := getEnvOrDefault("ARCH", "x86_64")
 
 	opts := []types.MachineOption{
@@ -487,6 +487,12 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 			if m.Arch == "x86_64" {
 				m.Args = append(m.Args,
 					"-enable-kvm",
+				)
+			}
+
+			if  os.Getenv("CPU_TYPE") == "" && m.Arch == "x86_64" {
+				m.Args = append(m.Args,
+				 	"-cpu","host",
 				)
 			}
 
