@@ -14,12 +14,12 @@ executes all three and compares results.
 
 This script extracts the real `run:` shell out of the three workflow files
 via PyYAML, substitutes the `${{ inputs.* }}` expressions the same way
-GitHub Actions would, and executes the result under bash. The two tag
-formats come out of `_build-iso.yaml`'s input default and `release.yaml`'s
-overrides rather than being retyped here. Nothing in this file is
-copy-pasted shell logic or a copied format string: a future drift shows up
-as a mismatch between what the script observed the files doing, not as a
-passing test of text duplicated into this file.
+GitHub Actions would, and executes the result under bash. The tag and
+artifact formats come out of `_build-iso.yaml`'s input defaults and
+`release.yaml`'s overrides rather than being retyped here. Nothing in this
+file is copy-pasted shell logic or a copied format string: a future drift
+shows up as a mismatch between what the script observed the files doing,
+not as a passing test of text duplicated into this file.
 
 Deriving the segment correctly is only half of it -- the two sides also
 have to agree on which cell is which. So the second half walks pr.yaml and
@@ -28,9 +28,9 @@ job, resolves the `kubernetes_distro` it passes against the `build-iso`
 matrix cell sharing its base_image/arch/model. Exactly one cell has to
 match, and its computed variant has to be the variant the test job claims;
 otherwise the suite is booting one cell's image and reporting as another's
-coverage. Build cells are also checked pairwise for a unique pushed tag and
-a unique upload-sarif category, both of which collapse when two cells
-differ only by k8s distro.
+coverage. Build cells are also checked pairwise for a unique pushed tag, a
+unique uploaded artifact name and a unique upload-sarif category, all three
+of which collapse when two cells differ only by k8s distro.
 
 Usage:
     python3 .github/scripts/verify_k8s_tag.py
@@ -190,7 +190,7 @@ def uki_tag(distro, version, variant):
     return out.strip().split("IMAGE_NAME=")[1]
 
 
-# ---- the two tag formats, read out of the workflows that set them -----------
+# ---- the tag and artifact formats, read out of the workflows that set them ---
 # Retyping these as literals would let someone reorder _build-iso.yaml's
 # default (say, move $K8S after $VERSION) and keep this file green while the
 # real build and the two mirrors disagreed.
@@ -198,21 +198,37 @@ build_iso = load(f"{WF}/_build-iso.yaml")
 release = load(f"{WF}/release.yaml")
 
 PR_TAG_FMT = input_default(build_iso, "custom_tag_format")
+PR_ARTIFACT_FMT = input_default(build_iso, "custom_artifact_format")
 
-release_fmts = {
-    name: job["with"]["custom_tag_format"]
-    for name, job in release["jobs"].items()
-    if "custom_tag_format" in (job.get("with") or {})
-}
-if not release_fmts:
-    raise SystemExit("release.yaml passes no custom_tag_format")
-if len(set(release_fmts.values())) != 1:
-    raise SystemExit(f"release.yaml's custom_tag_format copies diverged: {release_fmts}")
-REL_TAG_FMT = next(iter(release_fmts.values()))
 
-print(f"tag formats in use ({len(release_fmts)} release jobs agree):")
+def release_format(key):
+    """The single value release.yaml's jobs pass for `key`.
+
+    release.yaml repeats the same format across its build jobs; one copy
+    drifting is itself the bug, so read them all and refuse to pick one
+    when they disagree.
+    """
+    fmts = {
+        name: job["with"][key]
+        for name, job in release["jobs"].items()
+        if key in (job.get("with") or {})
+    }
+    if not fmts:
+        raise SystemExit(f"release.yaml passes no {key}")
+    if len(set(fmts.values())) != 1:
+        raise SystemExit(f"release.yaml's {key} copies diverged: {fmts}")
+    return next(iter(fmts.values())), len(fmts)
+
+
+REL_TAG_FMT, rel_tag_jobs = release_format("custom_tag_format")
+REL_ARTIFACT_FMT, rel_artifact_jobs = release_format("custom_artifact_format")
+
+print(f"tag formats in use ({rel_tag_jobs} release jobs agree):")
 print(f"  _build-iso.yaml default: {PR_TAG_FMT}")
-print(f"  release.yaml override:   {REL_TAG_FMT}\n")
+print(f"  release.yaml override:   {REL_TAG_FMT}")
+print(f"artifact formats in use ({rel_artifact_jobs} release jobs agree):")
+print(f"  _build-iso.yaml default: {PR_ARTIFACT_FMT}")
+print(f"  release.yaml override:   {REL_ARTIFACT_FMT}\n")
 
 failures = []
 
@@ -243,14 +259,14 @@ if k3s["TAG"] == k0s["TAG"]:
 
 print("\n== release cells (kubernetes_version pinned) -- must be byte-identical to before ==")
 relcore = factory_tag("", "auto", tag_format=REL_TAG_FMT,
-                      artifact_format="kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI")
+                      artifact_format=REL_ARTIFACT_FMT)
 check("release core", relcore["TAG"], "v0.5.1-core-amd64-generic-v4.5.0")
 relk3s = factory_tag("k3s", "v1.33.9+k3s1", tag_format=REL_TAG_FMT,
-                     artifact_format="kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI")
+                     artifact_format=REL_ARTIFACT_FMT)
 check("release k3s", relk3s["TAG"],
       "v0.5.1-standard-amd64-generic-v4.5.0-k3s-v1.33.9-k3s1")
 relk0s = factory_tag("k0s", "v1.33.4+k0s.0", tag_format=REL_TAG_FMT,
-                     artifact_format="kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI")
+                     artifact_format=REL_ARTIFACT_FMT)
 check("release k0s", relk0s["TAG"],
       "v0.5.1-standard-amd64-generic-v4.5.0-k0s-v1.33.4-k0s.0")
 check("release k3s artifact", relk3s["ARTIFACT"],
@@ -320,12 +336,17 @@ def matrix_rows(job):
     return include or [{}]
 
 
-def resolve(job, row, key):
+_RAISE = object()
+
+
+def resolve(job, row, key, dynamic=_RAISE):
     """What `job` passes for `key`, for one matrix row.
 
     Falls back to the callee's declared input default when the job does not
     pass the key at all, so an omitted input is read from the workflow that
-    defines it rather than assumed here.
+    defines it rather than assumed here. An expression this script cannot
+    evaluate is a hard error unless the caller supplies `dynamic`, which is
+    then returned in its place.
     """
     passed = job.get("with") or {}
     if key not in passed:
@@ -345,6 +366,8 @@ def resolve(job, row, key):
             return fallback
         return got
     if "${{" in val:
+        if dynamic is not _RAISE:
+            return dynamic
         raise SystemExit(f"cannot resolve {key}={val!r} without a GitHub runner")
     return val
 
@@ -406,6 +429,12 @@ for caller_name in ("pr.yaml", "master.yaml"):
                 "version": resolve(job, row, "kubernetes_version"),
                 "trusted_boot": as_bool(resolve(job, row, "trusted_boot")),
                 "iso": as_bool(resolve(job, row, "iso")),
+                # The factory gates both upload-artifact steps on iso/raw,
+                # so an image-only cell publishes no artifact name at all.
+                # A `raw:` the caller computes on the runner counts as an
+                # upload here, which keeps the check on the strict side.
+                "uploads": as_bool(resolve(job, row, "iso", dynamic=True))
+                or as_bool(resolve(job, row, "raw", dynamic=True)),
             }
             cell["out"] = factory_tag(
                 cell["distro"], cell["version"],
@@ -413,20 +442,37 @@ for caller_name in ("pr.yaml", "master.yaml"):
                 base_image=cell["base_image"], model=cell["model"],
                 arch=cell["arch"],
                 tag_format=resolve(job, row, "custom_tag_format"),
+                artifact_format=resolve(job, row, "custom_artifact_format"),
             )
             cells.append(cell)
-            print(f"  {cell['name']:<26} distro={cell['distro'] or '-':<4}"
-                  f" variant={cell['out']['variant']:<8} iso={str(cell['iso']):<5}"
-                  f" tag={cell['out']['TAG']}")
+            line = (f"  {cell['name']:<26} distro={cell['distro'] or '-':<4}"
+                    f" variant={cell['out']['variant']:<8}"
+                    f" iso={str(cell['iso']):<5} tag={cell['out']['TAG']}")
+            if cell["uploads"]:
+                line += f"\n  {'':<26} artifact={cell['out']['ARTIFACT']}"
+            print(line)
 
     # Two cells whose pushed tag is identical race each other into the same
-    # registry reference, and two cells whose SARIF category is identical are
-    # rejected by upload-sarif as a misconfigured run.
+    # registry reference; two cells uploading the same artifact name fail the
+    # run on upload-artifact (v4 and later refuse a duplicate name, and
+    # v4.3.0-rc3 shipped exactly that collision -- every k3s/k0s cell writing
+    # kairos-hadron-v0.5.1-standard-amd64-generic.iso.zip); and two cells whose
+    # SARIF category is identical are rejected by upload-sarif as a
+    # misconfigured run.
     seen = {}
     for cell in cells:
         got = cell["out"]["TAG"]
         if got in seen:
             fail(f"{caller_name} pushed tag", got,
+                 f"unique per cell ({seen[got]} vs {cell['name']})")
+        seen[got] = cell["name"]
+    seen = {}
+    for cell in cells:
+        if not cell["uploads"]:
+            continue
+        got = cell["out"]["ARTIFACT"]
+        if got in seen:
+            fail(f"{caller_name} uploaded artifact", got,
                  f"unique per cell ({seen[got]} vs {cell['name']})")
         seen[got] = cell["name"]
     for step_name, expr in sarif_steps:
