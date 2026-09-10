@@ -161,6 +161,10 @@ is running, because its default handler writes JSON to stdout and that would
 land on top of the alt screen. With `--no-tui` it logs to stdout, so it ends up
 in the journal.
 
+`--source` reaches both frontends: the web UI passes it to `manual-install` the
+same way `agentrun.Command` does for the TUI, so an install driven from the
+browser pulls the image the boot asked for.
+
 The reusable pieces live in **kairos-sdk**: `kairos-sdk/agentrun` drives
 `kairos-agent manual-install` and parses its JSON-Lines progress, and
 `kairos-sdk/bus` is the provider plugin bus (`agent.interactive-install →

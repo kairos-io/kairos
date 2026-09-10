@@ -44,3 +44,30 @@ func TestWebUILoggerDiscardsWhenItsFileIsUnwritable(t *testing.T) {
 		t.Errorf("expected no log file at %s", webUILogPath)
 	}
 }
+
+// The installer forwards --source to kairos-agent, and the web UI is one of
+// its two frontends. A --no-tui boot pointed at a private registry has to
+// install from it, so the flag cannot stop at the TUI.
+func TestWebUICarriesTheInstallSourceInBothModes(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
+
+	if got := noTUIWebUIOptions("oci://foo:bar").Source; got != "oci://foo:bar" {
+		t.Errorf("--no-tui dropped the source: %q", got)
+	}
+	if got := tuiWebUIOptions("oci://foo:bar").Source; got != "oci://foo:bar" {
+		t.Errorf("the TUI's web UI dropped the source: %q", got)
+	}
+}
+
+// The two modes differ only in where echo logs: to stdout when nothing owns
+// the terminal, to a file when the TUI does.
+func TestWebUILoggerIsSetOnlyForTheTUIMode(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
+
+	if o := noTUIWebUIOptions(""); o.Logger != nil {
+		t.Error("--no-tui should leave echo on stdout, so it reaches the journal")
+	}
+	if o := tuiWebUIOptions(""); o.Logger == nil {
+		t.Error("the TUI mode must keep echo off stdout")
+	}
+}

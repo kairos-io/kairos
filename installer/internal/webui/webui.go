@@ -330,36 +330,37 @@ type Options struct {
 	// the same terminal and echo's default handler writes JSON to stdout,
 	// which would land on top of the alt screen.
 	Logger *slog.Logger
+	// Source is the install source the boot asked for, forwarded to
+	// `kairos-agent manual-install --source`. Empty means the cloud-config
+	// the browser submitted decides. It is the same value the TUI receives,
+	// so both frontends of one installer install the same image.
+	Source string
 }
 
-// Start runs the web UI with the listen address and enablement resolved from
-// the image's branding config, logging to stdout. It blocks until ctx is
-// cancelled or the listener errors, and returns nil immediately when branding
-// disabled the web UI.
-func Start(ctx context.Context) error {
-	return StartConfigured(ctx, nil)
-}
-
-// StartConfigured is Start with a logger of the caller's choosing. A nil
-// logger means stdout.
-func StartConfigured(ctx context.Context, logger *slog.Logger) error {
-	listen := constants.DefaultWebUIListenAddress
-
+// StartConfigured fills in the listen address and enablement from the image's
+// branding config and runs the server with the rest of o as the caller set it.
+// A Listen the caller set explicitly wins over branding. It blocks until ctx
+// is cancelled or the listener errors, and returns nil immediately when
+// branding disabled the web UI.
+func StartConfigured(ctx context.Context, o Options) error {
 	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
 	}
 
-	if agentConfig.WebUI.ListenAddress != "" {
-		listen = agentConfig.WebUI.ListenAddress
-	}
-
 	if agentConfig.WebUI.Disable {
-		logTo(logger).Info("WebUI installer disabled by branding")
+		logTo(o.Logger).Info("WebUI installer disabled by branding")
 		return nil
 	}
 
-	return StartWith(ctx, Options{Listen: listen, Logger: logger})
+	if o.Listen == "" {
+		o.Listen = constants.DefaultWebUIListenAddress
+		if agentConfig.WebUI.ListenAddress != "" {
+			o.Listen = agentConfig.WebUI.ListenAddress
+		}
+	}
+
+	return StartWith(ctx, o)
 }
 
 // StartOn runs the web UI server on the given listen address, logging to
@@ -376,6 +377,29 @@ func logTo(l *slog.Logger) *slog.Logger {
 		return l
 	}
 	return slog.New(slog.NewJSONHandler(os.Stdout, nil))
+}
+
+// manualInstallArgs builds the `kairos-agent manual-install` argv for one
+// submitted form, with cfgPath the temp file holding the browser's
+// cloud-config.
+//
+// source is the install source the installer itself was started with. It goes
+// in whenever it is set, which is the same precedence the TUI gives it through
+// agentrun.Command: the agent merges --source over the config file, so the
+// source the boot asked for wins over one in the submitted cloud-config, and
+// both frontends of one installer install the same image.
+func manualInstallArgs(source string, f *FormData, cfgPath string) []string {
+	args := []string{"manual-install"}
+	if source != "" {
+		args = append(args, "--source", source)
+	}
+	if f.PowerOff == "on" {
+		args = append(args, "--poweroff")
+	}
+	if f.Reboot == "on" {
+		args = append(args, "--reboot")
+	}
+	return append(args, "--device", f.InstallationDevice, cfgPath)
 }
 
 // StartWith runs the web UI server and blocks until ctx is cancelled or the
@@ -432,21 +456,7 @@ func StartWith(ctx context.Context, o Options) error {
 			return err
 		}
 
-		// Process the form data as necessary
 		cloudConfig := formData.CloudConfig
-		reboot := formData.Reboot
-		powerOff := formData.PowerOff
-		installationDevice := formData.InstallationDevice
-
-		args := []string{"manual-install"}
-
-		if powerOff == "on" {
-			args = append(args, "--poweroff")
-		}
-		if reboot == "on" {
-			args = append(args, "--reboot")
-		}
-		args = append(args, "--device", installationDevice)
 
 		// Report a tempfile failure back to the browser rather than exiting.
 		// This handler shares a process with the installer TUI, so a
@@ -467,7 +477,7 @@ func StartWith(ctx context.Context, o Options) error {
 			})
 		}
 
-		args = append(args, file.Name())
+		args := manualInstallArgs(o.Source, formData, file.Name())
 
 		s.Lock()
 		s.p = process.New(process.WithName("/usr/bin/kairos-agent"), process.WithArgs(args...), process.WithTemporaryStateDir())

@@ -42,7 +42,7 @@ func main() {
 	// Web-UI-only mode has no terminal UI to protect, so echo logs to stdout
 	// and lands in the journal, and serving it is the whole job.
 	if *noTUI {
-		if err := webui.Start(ctx); err != nil {
+		if err := webui.StartConfigured(ctx, noTUIWebUIOptions(*source)); err != nil {
 			fmt.Fprintln(os.Stderr, "web UI:", err)
 			os.Exit(1)
 		}
@@ -55,7 +55,7 @@ func main() {
 	// It gets a file-backed logger because echo writes JSON to stdout by
 	// default, which would land on top of the TUI's alt screen.
 	go func() {
-		if err := webui.StartConfigured(ctx, webUILogger()); err != nil {
+		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source)); err != nil {
 			logger.Warnf("web UI stopped: %s", err.Error())
 		}
 	}()
@@ -65,6 +65,23 @@ func main() {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// noTUIWebUIOptions is what --no-tui hands the web UI. Nothing owns the
+// terminal in that mode, so echo keeps its default stdout logger and its
+// output lands in the journal.
+func noTUIWebUIOptions(source string) webui.Options {
+	return webui.Options{Source: source}
+}
+
+// tuiWebUIOptions is what the interactive installer hands the web UI it runs
+// alongside the TUI. It differs only in the logger, because echo's default
+// writes JSON to stdout and the TUI owns that terminal.
+//
+// Both carry the install source, so an install driven from the browser pulls
+// the same image the terminal installer would.
+func tuiWebUIOptions(source string) webui.Options {
+	return webui.Options{Source: source, Logger: webUILogger()}
 }
 
 // webUILogger returns a logger writing to webUILogPath, or one writing nowhere
