@@ -33,6 +33,20 @@ func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 			return err
 		}
 	}
+	err = ExtensionsPostInstall{}.Run(c, spec)
+	if err != nil {
+		c.Logger.Logger.Warn().Err(err).Msg("could not install the declared extensions")
+		if c.FailOnBundleErrors {
+			return err
+		}
+	}
+	err = ExtensionSignaturePolicy{}.Run(c, spec)
+	if err != nil {
+		c.Logger.Logger.Warn().Err(err).Msg("could not relax the extension signature policy")
+		if c.FailOnBundleErrors {
+			return err
+		}
+	}
 	err = CustomMounts{}.Run(c, spec)
 	if err != nil {
 		c.Logger.Logger.Warn().Err(err).Msg("could not create custom mounts")
