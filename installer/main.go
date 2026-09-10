@@ -54,8 +54,9 @@ func main() {
 	// The web UI runs alongside the TUI so a user can install from either.
 	// It gets a file-backed logger because echo writes JSON to stdout by
 	// default, which would land on top of the TUI's alt screen.
+	activity := &webui.Activity{}
 	go func() {
-		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source)); err != nil {
+		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity)); err != nil {
 			logger.Warnf("web UI stopped: %s", err.Error())
 		}
 	}()
@@ -64,6 +65,17 @@ func main() {
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
+	}
+
+	// An install driven from the browser outlives the terminal UI. `q` on any
+	// TUI page returns from p.Run(), and returning from main runs the
+	// deferred cancel() that stops echo, so without this wait someone at the
+	// console ends a remote operator's install and takes the progress page's
+	// /ws stream with it. Nothing on an interactive boot re-execs the
+	// installer, so there would be no way back for that boot.
+	if activity.InstallInFlight() {
+		logger.Infof("terminal UI exited while an install started from the web UI is running: serving the web UI until it finishes")
+		activity.WaitForInstall()
 	}
 }
 
@@ -80,8 +92,11 @@ func noTUIWebUIOptions(source string) webui.Options {
 //
 // Both carry the install source, so an install driven from the browser pulls
 // the same image the terminal installer would.
-func tuiWebUIOptions(source string) webui.Options {
-	return webui.Options{Source: source, Logger: webUILogger()}
+//
+// activity is how main learns that the browser started an install, so quitting
+// the TUI does not cut it short.
+func tuiWebUIOptions(source string, activity *webui.Activity) webui.Options {
+	return webui.Options{Source: source, Logger: webUILogger(), Activity: activity}
 }
 
 // webUILogger returns a logger writing to webUILogPath, or one writing nowhere

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kairos-io/kairos/v4/installer/internal/webui"
 )
 
 // The web UI shares a process with the TUI, and echo's default handler writes
@@ -54,7 +56,7 @@ func TestWebUICarriesTheInstallSourceInBothModes(t *testing.T) {
 	if got := noTUIWebUIOptions("oci://foo:bar").Source; got != "oci://foo:bar" {
 		t.Errorf("--no-tui dropped the source: %q", got)
 	}
-	if got := tuiWebUIOptions("oci://foo:bar").Source; got != "oci://foo:bar" {
+	if got := tuiWebUIOptions("oci://foo:bar", nil).Source; got != "oci://foo:bar" {
 		t.Errorf("the TUI's web UI dropped the source: %q", got)
 	}
 }
@@ -67,7 +69,23 @@ func TestWebUILoggerIsSetOnlyForTheTUIMode(t *testing.T) {
 	if o := noTUIWebUIOptions(""); o.Logger != nil {
 		t.Error("--no-tui should leave echo on stdout, so it reaches the journal")
 	}
-	if o := tuiWebUIOptions(""); o.Logger == nil {
+	if o := tuiWebUIOptions("", nil); o.Logger == nil {
 		t.Error("the TUI mode must keep echo off stdout")
+	}
+}
+
+// `q` on any TUI page returns from p.Run() and the deferred cancel() stops
+// echo, so main has to hold the server up while the browser has an install
+// running. Nothing re-execs the installer on an interactive boot.
+func TestTUIWebUIOptionsCarryTheActivityHandle(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
+
+	activity := &webui.Activity{}
+	if o := tuiWebUIOptions("", activity); o.Activity != activity {
+		t.Error("the TUI's web UI cannot report a browser-driven install back to main")
+	}
+	// --no-tui has no terminal UI to quit, so there is nothing to wait for.
+	if o := noTUIWebUIOptions(""); o.Activity != nil {
+		t.Error("--no-tui should not need an activity handle")
 	}
 }

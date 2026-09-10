@@ -16,6 +16,12 @@ It also serves the **web installer**, on `:8080` by default, next to the
 terminal UI and in the same process, so a live boot offers both frontends
 without two services fighting over the port.
 
+One process means one lifetime: quitting the terminal UI ends the web session
+too, unless an install started from the browser is still running, which the
+installer serves to the end before it exits. Nothing re-execs the installer on
+an interactive boot, so bringing the web UI back afterwards means starting the
+`kairos-webui` service by hand.
+
 It is shipped in Kairos images (by [`kairos-init`](../kairos-init/)) at
 `/system/installer/kairos-installer`, where `kairos-agent interactive-install`
 picks it up automatically.
@@ -34,7 +40,7 @@ wins):
 
 `kairos-agent webui` is a dispatcher onto the same binary, with the same
 resolution order, adding `--no-tui`. In that mode the installer serves only its
-web UI and never touches the terminal, which is what the non-interactive live
+web UI and draws no terminal UI, which is what the non-interactive live
 boot entry wants. The web installer is a frontend of the installer, not of the
 agent, so an image that ships its own installer serves its own web UI.
 

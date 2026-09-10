@@ -308,6 +308,59 @@ type state struct {
 	sync.Mutex
 }
 
+// Activity reports on an install started from the web UI, so a caller that
+// also owns a terminal frontend can avoid tearing the server down under one.
+// A nil *Activity is usable and reports no install.
+type Activity struct {
+	mu   sync.Mutex
+	done <-chan struct{}
+}
+
+// started records a process the web UI just started. It must only be called
+// after a successful Run: process.Done() on a process that was never started
+// is never closed, so publishing it earlier would block WaitForInstall for
+// good.
+func (a *Activity) started(p *process.Process) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.done = p.Done()
+	a.mu.Unlock()
+}
+
+// InstallInFlight reports whether an install started from the web UI is still
+// running.
+func (a *Activity) InstallInFlight() bool {
+	done := a.installDone()
+	if done == nil {
+		return false
+	}
+	select {
+	case <-done:
+		return false
+	default:
+		return true
+	}
+}
+
+// WaitForInstall blocks until an install started from the web UI has exited,
+// and returns immediately when none was ever started.
+func (a *Activity) WaitForInstall() {
+	if done := a.installDone(); done != nil {
+		<-done
+	}
+}
+
+func (a *Activity) installDone() <-chan struct{} {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.done
+}
+
 // TemplateRenderer is a custom html/template renderer for Echo framework.
 type TemplateRenderer struct {
 	templates *template.Template
@@ -335,6 +388,10 @@ type Options struct {
 	// the browser submitted decides. It is the same value the TUI receives,
 	// so both frontends of one installer install the same image.
 	Source string
+	// Activity, when non-nil, is where the server publishes the install it
+	// starts, so the caller can wait for a browser-driven install to finish
+	// before it shuts the server down.
+	Activity *Activity
 }
 
 // StartConfigured fills in the listen address and enablement from the image's
@@ -489,6 +546,7 @@ func StartWith(ctx context.Context, o Options) error {
 				"type":    "danger",
 			})
 		}
+		o.Activity.started(s.p)
 
 		// Start install process, lock with sentinel
 		return c.Redirect(http.StatusSeeOther, "progress.html")
