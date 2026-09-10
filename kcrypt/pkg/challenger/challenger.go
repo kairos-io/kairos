@@ -37,9 +37,9 @@ type PassphraseRequestData struct {
 	UUID       string
 }
 
-// ChallengerAttestator implements the attestation.Attestator interface
+// Attestator implements the attestation.Attestator interface
 // and handles selective enrollment logic for the kcrypt-challenger
-type ChallengerAttestator struct {
+type Attestator struct {
 	reconciler *controllers.SealedVolumeReconciler
 	kclient    *kubernetes.Clientset
 	namespace  string
@@ -47,9 +47,9 @@ type ChallengerAttestator struct {
 	partition  PartitionInfo // Store partition info from WebSocket headers
 }
 
-// NewChallengerAttestator creates a new ChallengerAttestator
-func NewChallengerAttestator(reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger, partition PartitionInfo) *ChallengerAttestator {
-	return &ChallengerAttestator{
+// NewAttestator creates a new Attestator
+func NewAttestator(reconciler *controllers.SealedVolumeReconciler, kclient *kubernetes.Clientset, namespace string, logger logr.Logger, partition PartitionInfo) *Attestator {
+	return &Attestator{
 		reconciler: reconciler,
 		kclient:    kclient,
 		namespace:  namespace,
@@ -60,7 +60,7 @@ func NewChallengerAttestator(reconciler *controllers.SealedVolumeReconciler, kcl
 
 // IssuePassphrase implements the attestation.Attestator interface
 // This method handles the selective enrollment logic and returns the passphrase
-func (ca *ChallengerAttestator) IssuePassphrase(ctx context.Context, req attestation.AttestationRequest) ([]byte, error) {
+func (ca *Attestator) IssuePassphrase(ctx context.Context, req attestation.Request) ([]byte, error) {
 	// Convert PCRs from map[int][]byte to the format expected by the existing logic
 	pcrValues := &keyserverv1alpha1.PCRValues{
 		PCRs: make(map[string]string),
@@ -431,39 +431,6 @@ func Start(ctx context.Context, logger logr.Logger, kclient *kubernetes.Clientse
 	}()
 }
 
-func findVolumeFor(requestData PassphraseRequestData, volumeList *keyserverv1alpha1.SealedVolumeList) (*SealedVolumeData, *keyserverv1alpha1.SealedVolume) {
-	for _, v := range volumeList.Items {
-		if requestData.TPMHash == v.Spec.TPMHash {
-			for _, p := range v.Spec.Partitions {
-				deviceNameMatches := requestData.DeviceName != "" && p.DeviceName == requestData.DeviceName
-				uuidMatches := requestData.UUID != "" && p.UUID == requestData.UUID
-				labelMatches := requestData.Label != "" && p.Label == requestData.Label
-
-				secretName := ""
-				if p.Secret != nil && p.Secret.Name != "" {
-					secretName = p.Secret.Name
-				}
-				secretPath := ""
-				if p.Secret != nil && p.Secret.Path != "" {
-					secretPath = p.Secret.Path
-				}
-				if labelMatches || uuidMatches || deviceNameMatches {
-					volumeData := &SealedVolumeData{
-						Quarantined:    v.Spec.Quarantined,
-						SecretName:     secretName,
-						SecretPath:     secretPath,
-						VolumeName:     v.Name,
-						PartitionLabel: p.Label,
-					}
-					return volumeData, &v
-				}
-			}
-		}
-	}
-
-	return nil, nil
-}
-
 // errorMessage should be used when an error should be both, printed to the stdout
 // and sent over the wire to the websocket client.
 func errorMessage(conn *websocket.Conn, logger logr.Logger, theErr error, description string) {
@@ -485,7 +452,7 @@ func securityRejection(conn *websocket.Conn, logger logr.Logger, reason string, 
 // sendErrorResponse sends an error response to the client with the error message
 func sendErrorResponse(conn *websocket.Conn, logger logr.Logger, errorMsg string) {
 	// Send error response as JSON so client can log the specific error
-	response := attestation.AttestationResponse{
+	response := attestation.Response{
 		Error: errorMsg,
 	}
 
@@ -517,14 +484,14 @@ func handleTPMAttestation(w http.ResponseWriter, r *http.Request, logger logr.Lo
 	}
 	defer conn.Close()
 
-	// 2. Create attestation server with ChallengerAttestator
-	attestator := NewChallengerAttestator(reconciler, kclient, namespace, logger, partition)
+	// 2. Create attestation server with Attestator
+	attestator := NewAttestator(reconciler, kclient, namespace, logger, partition)
 	attestationServer := attestation.NewRemoteAttestationServer(attestator)
 
 	// 3. Perform attestation flow
 	// Protocol Step 1: Receive attestation init from client
 	logger.Info("Waiting for attestation init from client")
-	var init attestation.AttestationInit
+	var init attestation.Init
 	if err := conn.ReadJSON(&init); err != nil {
 		errorMessage(conn, logger, fmt.Errorf("reading attestation init: %w", err), "WebSocket read")
 		return
@@ -547,7 +514,7 @@ func handleTPMAttestation(w http.ResponseWriter, r *http.Request, logger logr.Lo
 
 	// Protocol Step 3: Receive proof from client
 	logger.Info("Waiting for proof from client")
-	var proof attestation.AttestationProof
+	var proof attestation.Proof
 	if err := conn.ReadJSON(&proof); err != nil {
 		errorMessage(conn, logger, fmt.Errorf("reading proof: %w", err), "Proof read")
 		return
@@ -564,7 +531,7 @@ func handleTPMAttestation(w http.ResponseWriter, r *http.Request, logger logr.Lo
 
 	// Protocol Step 5: Send passphrase to client
 	logger.Info("Sending passphrase to client")
-	response := attestation.AttestationResponse{
+	response := attestation.Response{
 		Passphrase: passphrase,
 	}
 
@@ -845,14 +812,6 @@ func updateEnrollmentData(ctx *EnrollmentContext, attestation *ClientAttestation
 	}
 
 	logger.Info("Successfully updated attestation data")
-	return nil
-}
-
-// updateLastVerificationTimestamp updates the last verification time for an existing SealedVolume
-func updateLastVerificationTimestamp(reconciler *controllers.SealedVolumeReconciler, namespace, tpmHash string) error {
-	// This would need to be implemented in the reconciler to update the LastVerifiedAt field
-	// For now, we'll log that it should be updated
-	// NOTE: Reconciler method to update verification timestamps needs implementation
 	return nil
 }
 

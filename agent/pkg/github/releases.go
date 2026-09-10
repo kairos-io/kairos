@@ -29,7 +29,7 @@ func FindReleases(ctx context.Context, token, slug string, preReleases bool) (se
 
 	repo := strings.Split(slug, "/")
 	if len(repo) != 2 || repo[0] == "" || repo[1] == "" {
-		return nil, fmt.Errorf("Invalid slug format. It should be 'owner/name': %s", slug)
+		return nil, fmt.Errorf("invalid slug format, expected 'owner/name': %s", slug)
 	}
 
 	// Get at least 30 releases

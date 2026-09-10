@@ -3,7 +3,6 @@ package kcrypt
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,8 +10,8 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
-	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -163,7 +162,19 @@ func (e *RemoteKMSEncryptor) luksify(label string, argsCreate ...string) (string
 		return "", err
 	}
 
-	e.logger.Logger.Info().Str("partition", label).Msg("Getting password from kcrypt-challenger")
+	// Compute the outer LUKS label now and send THAT to the challenger, not
+	// the raw partition label ghw currently reports. This function will write
+	// outerLabel on the LUKS header a few lines down (via --label in
+	// extraArgs); on the next boot the SDK's unlock path reads that same
+	// label off the header and sends it on the wire. If we sent the raw
+	// partition label here instead, TOFU would key the secret by the raw
+	// name at encrypt time and by the outer name at unlock time, and every
+	// unlock would fail with "passphrase does not match". See
+	// kairos-io/kairos#4403.
+	outerLabel := lookup.OuterLUKSLabel(label)
+	info.FilesystemLabel = outerLabel
+
+	e.logger.Logger.Info().Str("partition", outerLabel).Msg("Getting password from kcrypt-challenger")
 	pass, err = e.getPasswordFromChallenger(info)
 	if err != nil {
 		e.logger.Err(err).Msg("get password")
@@ -172,15 +183,15 @@ func (e *RemoteKMSEncryptor) luksify(label string, argsCreate ...string) (string
 
 	// Log that we received a passphrase (without revealing it)
 	e.logger.Logger.Info().
-		Str("partition", label).
+		Str("partition", outerLabel).
 		Int("passphrase_length", len(pass)).
 		Msg("ENCRYPTION: Received passphrase from kcrypt-challenger")
 
-	mapper := partitionMapperPath(info)
+	mapper := lookup.MapperPath(info)
 	device := info.Path
 
 	extraArgs := []string{"--uuid", uuid.NewV5(uuid.NamespaceURL, label).String()}
-	extraArgs = append(extraArgs, "--label", label)
+	extraArgs = append(extraArgs, "--label", outerLabel)
 	extraArgs = append(extraArgs, argsCreate...)
 
 	// Unmount the device if it's mounted before attempting to encrypt it
@@ -615,68 +626,16 @@ func partitionLocked(p *partitions.Partition) bool {
 	if p == nil {
 		return false
 	}
-	return !utils.Exists(partitionMapperPath(p))
+	return !utils.Exists(lookup.MapperPath(p))
 }
 
-// partitionMapperPath returns the device mapper path for the partition (e.g., /dev/mapper/sda1).
-func partitionMapperPath(p *partitions.Partition) string {
-	if p == nil {
-		return ""
-	}
-	return filepath.Join("/dev", "mapper", p.Name)
-}
-
-// findPartitionByLabel finds a partition by its filesystem label and returns its information.
-// It performs all the common logic needed before attempting to unlock a partition.
-// Returns an error if the partition is not found. Use partitionLocked() to check if the partition is locked.
+// findPartitionByLabel is the encrypt-time / unlock-time partition lookup.
+// It intentionally accepts any FS type: at encrypt time no LUKS exists yet,
+// at unlock time only the LUKS container carries the label (pre-mapper).
+// Post-mapper label collisions are handled by callers reaching for the
+// type-filtered lookup.FindLUKSContainerByLabel / lookup.FindMapperByLabel.
 func findPartitionByLabel(partitionLabel string) (*partitions.Partition, error) {
-	// Find the partition device by label
-	devicePath, err := utils.SH(fmt.Sprintf("blkid -L %s", partitionLabel))
-	devicePath = strings.TrimSpace(devicePath)
-	legacyName := legacyPartitionName(partitionLabel)
-	if (err != nil || devicePath == "") && legacyName != "" {
-		devicePath, err = utils.SH(fmt.Sprintf("blkid -t PARTLABEL=%s -o device", legacyName))
-		devicePath = strings.TrimSpace(devicePath)
-	}
-
-	if err != nil || devicePath == "" {
-		return nil, fmt.Errorf("partition not found")
-	}
-
-	logger := sdkLogger.NewNullLogger()
-	disks := ghw.GetDisks(ghw.NewPaths(""), &logger)
-	if disks == nil {
-		return nil, fmt.Errorf("failed to scan block devices")
-	}
-
-	var partition *partitions.Partition
-	for _, disk := range disks {
-		for _, p := range disk.Partitions {
-			if p.FilesystemLabel == partitionLabel || (legacyName != "" && p.PartitionLabel == legacyName) {
-				partition = p
-				break
-			}
-		}
-		if partition != nil {
-			break
-		}
-	}
-
-	if partition == nil {
-		return nil, fmt.Errorf("partition not found in block devices")
-	}
-
-	// Ensure Path is set to the device path found by blkid
-	// This ensures we use the actual device path even if Partition.Path wasn't set
-	if partition.Path == "" {
-		partition.Path = devicePath
-	}
-	// Ensure Name is set if it wasn't populated
-	if partition.Name == "" {
-		partition.Name = filepath.Base(devicePath)
-	}
-
-	return partition, nil
+	return lookup.FindByLabel(partitionLabel)
 }
 
 // validateSystemdVersion checks if systemd version is >= required version.

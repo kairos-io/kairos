@@ -722,18 +722,6 @@ func GetKairosMiscellaneousFilesStage(sis values.System, l logger.KairosLogger) 
 			},
 		},
 		{
-			Name: "Install suc-upgrade script",
-			Files: []schema.File{
-				{
-					Path:        "/usr/sbin/suc-upgrade",
-					Permissions: 0755,
-					Owner:       0,
-					Group:       0,
-					Content:     bundled.SucUpgrade,
-				},
-			},
-		},
-		{
 			Name: "Install logrotate config",
 			Files: []schema.File{
 				{

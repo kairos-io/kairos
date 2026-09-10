@@ -12,6 +12,12 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// syslogIdentifierKey is the structured-log field journald uses to identify
+// the source program. We attach it to every log line as "kairos-<name>" and
+// exclude it from the file-backed ConsoleWriters, whose output is meant to be
+// read directly and does not need the tag repeated on every line.
+const syslogIdentifierKey = "SYSLOG_IDENTIFIER"
+
 // NewKairosLogger creates a new logger with the given name and level.
 // The level is used to set the log level, defaulting to info
 // The log level can be overridden by setting the environment variable $NAME_DEBUG to any parseable value.
@@ -48,7 +54,7 @@ func newKairosLogger(name, level string, quiet bool, dirs ...string) KairosLogge
 		logfile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err == nil {
 			fds = append(fds, int(logfile.Fd()))
-			loggers = append(loggers, zerolog.ConsoleWriter{Out: logfile, TimeFormat: time.RFC3339, NoColor: true, FieldsExclude: []string{"SYSLOG_IDENTIFIER"}})
+			loggers = append(loggers, zerolog.ConsoleWriter{Out: logfile, TimeFormat: time.RFC3339, NoColor: true, FieldsExclude: []string{syslogIdentifierKey}})
 		}
 	}
 
@@ -60,14 +66,14 @@ func newKairosLogger(name, level string, quiet bool, dirs ...string) KairosLogge
 		logfile, err := os.OpenFile(logFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err == nil {
 			fds = append(fds, int(logfile.Fd()))
-			loggers = append(loggers, zerolog.ConsoleWriter{Out: logfile, TimeFormat: time.RFC3339, NoColor: true, FieldsExclude: []string{"SYSLOG_IDENTIFIER"}})
+			loggers = append(loggers, zerolog.ConsoleWriter{Out: logfile, TimeFormat: time.RFC3339, NoColor: true, FieldsExclude: []string{syslogIdentifierKey}})
 		}
 	}
 
 	if !quiet {
 		loggers = append(loggers, zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) {
 			w.TimeFormat = time.RFC3339
-			w.FieldsExclude = []string{"SYSLOG_IDENTIFIER"}
+			w.FieldsExclude = []string{syslogIdentifierKey}
 		}))
 	}
 
@@ -90,7 +96,7 @@ func newKairosLogger(name, level string, quiet bool, dirs ...string) KairosLogge
 		l = zerolog.TraceLevel
 	}
 	k := KairosLogger{
-		zerolog.New(multi).With().Str("SYSLOG_IDENTIFIER", fmt.Sprintf("kairos-%s", name)).Timestamp().Logger().Level(l),
+		zerolog.New(multi).With().Str(syslogIdentifierKey, fmt.Sprintf("kairos-%s", name)).Timestamp().Logger().Level(l),
 		isJournaldAvailable(),
 		fds,
 	}
@@ -130,7 +136,7 @@ func (m *KairosLogger) Close() {
 func (m *KairosLogger) SetLevel(level string) {
 	l, _ := zerolog.ParseLevel(level)
 	// I think this returns a full child logger so we need to overwrite the logger
-	m.Logger = m.Logger.Level(l)
+	m.Logger = m.Level(l)
 }
 
 func (m KairosLogger) GetLevel() zerolog.Level {

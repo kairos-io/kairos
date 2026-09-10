@@ -17,11 +17,9 @@ func GetHostDirForK8s() string {
 	if underKubernetes {
 		if hostDirEnv != "" {
 			return hostDirEnv
-		} else {
-			return "/host"
 		}
-	} else {
-		// We return an empty string so any filepath.join does not alter the paths
-		return ""
+		return "/host"
 	}
+	// We return an empty string so any filepath.join does not alter the paths
+	return ""
 }

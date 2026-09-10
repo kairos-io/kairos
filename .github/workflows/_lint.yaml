@@ -41,6 +41,6 @@ jobs:
     uses: ./.github/workflows/reusable-linting.yaml
     with:
       yamldirs: '.github/workflows/'
-      is-go: false
+      is-go: true
       ref: ${{ inputs.ref }}
       caller-vetted-ref: ${{ inputs.caller-vetted-ref }}

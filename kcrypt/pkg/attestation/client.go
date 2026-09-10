@@ -23,8 +23,8 @@ func (c *RemoteAttestationClient) Close() error {
 	return c.akm.Close()
 }
 
-// CreateInit gathers EK and creates a transient AK, returning AttestationInit
-func (c *RemoteAttestationClient) CreateInit() (*AttestationInit, error) {
+// CreateInit gathers EK and creates a transient AK, returning Init
+func (c *RemoteAttestationClient) CreateInit() (*Init, error) {
 	// Get attestation params of cached AK
 	params, err := c.akm.AKParams()
 	if err != nil {
@@ -48,15 +48,15 @@ func (c *RemoteAttestationClient) CreateInit() (*AttestationInit, error) {
 		return nil, err
 	}
 
-	return &AttestationInit{
+	return &Init{
 		EKPublic: ekSPKI,
 		AKParams: akParamsBytes,
 	}, nil
 }
 
-// CreateInitDeferredEnrollment creates an AttestationInit with PCR enrollment deferred
+// CreateInitDeferredEnrollment creates an Init with PCR enrollment deferred
 // Used in livecd mode where PCR values will differ after installation
-func (c *RemoteAttestationClient) CreateInitDeferredEnrollment() (*AttestationInit, error) {
+func (c *RemoteAttestationClient) CreateInitDeferredEnrollment() (*Init, error) {
 	init, err := c.CreateInit()
 	if err != nil {
 		return nil, err
@@ -65,9 +65,9 @@ func (c *RemoteAttestationClient) CreateInitDeferredEnrollment() (*AttestationIn
 	return init, nil
 }
 
-// HandleChallenge takes an AttestationChallenge, activates credential, and returns AttestationProof
+// HandleChallenge takes an Challenge, activates credential, and returns Proof
 // The client selects PCRs.
-func (c *RemoteAttestationClient) HandleChallenge(challenge *AttestationChallenge, pcrs []int) (*AttestationProof, error) {
+func (c *RemoteAttestationClient) HandleChallenge(challenge *Challenge, pcrs []int) (*Proof, error) {
 	// Activate credential to get secret
 	// Unmarshal EncryptedCredential into the right type
 	var enc attest.EncryptedCredential
@@ -85,7 +85,7 @@ func (c *RemoteAttestationClient) HandleChallenge(challenge *AttestationChalleng
 		return nil, err
 	}
 
-	return &AttestationProof{
+	return &Proof{
 		Secret:   secret,
 		PCRQuote: pcrQuote,
 	}, nil

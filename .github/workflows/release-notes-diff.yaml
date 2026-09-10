@@ -25,7 +25,7 @@ jobs:
       CURRENT_TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: Check for CVEs in standard k3s/k0s images
         id: cve-check
@@ -172,6 +172,52 @@ jobs:
           output_file="RELEASE_DIFF_${CURRENT_TAG}.md"
           ./scripts/kairos-diff.sh "${{ steps.prev.outputs.tag }}" "$CURRENT_TAG" --output "$output_file"
           echo "output_file=$output_file" >> "$GITHUB_ENV"
+
+      - name: Generate security fixes section
+        # OpenSSF Best Practices `release_notes_vulns`: release notes must
+        # explicitly list the publicly known vulnerabilities (CVEs) fixed in
+        # each release, or say plainly that there are none. This scans the
+        # diff already generated above for CVE identifiers in PR titles and
+        # commit subjects across kairos, kairos-init, and every tracked
+        # component, so a security-fix PR is picked up automatically as long
+        # as its title names the CVE it fixes.
+        if: ${{ steps.prev.outputs.skip == 'false' }}
+        id: security
+        run: |
+          security_file="SECURITY_FIXES_${CURRENT_TAG}.md"
+          cve_lines="$(grep -oE '^- .*CVE-[0-9]{4}-[0-9]+.*$' "${output_file}" | sort -u || true)"
+
+          {
+            echo "## Security fixes"
+            echo
+            if [ -n "$cve_lines" ]; then
+              printf '%s\n' "$cve_lines"
+            else
+              echo "No security fixes in this release."
+            fi
+          } > "$security_file"
+
+          echo "security_file=$security_file" >> "$GITHUB_OUTPUT"
+
+      - name: Prepend security fixes section to release description
+        if: ${{ steps.prev.outputs.skip == 'false' }}
+        run: |
+          security_header="## Security fixes"
+
+          gh release view "$CURRENT_TAG" --repo "${{ github.repository }}" --json body --jq '.body // ""' > current_body.md
+
+          if grep -Fq "$security_header" current_body.md; then
+            echo "Security fixes section already present in release body. Skipping."
+            exit 0
+          fi
+
+          {
+            cat current_body.md
+            echo
+            cat "${{ steps.security.outputs.security_file }}"
+          } > with_security_body.md
+
+          gh release edit "$CURRENT_TAG" --repo "${{ github.repository }}" --notes-file with_security_body.md
 
       - name: Append diff to release description
         if: ${{ steps.prev.outputs.skip == 'false' }}

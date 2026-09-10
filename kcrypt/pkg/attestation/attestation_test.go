@@ -13,7 +13,7 @@ import (
 
 type dummyAttestator struct{}
 
-func (d *dummyAttestator) IssuePassphrase(ctx context.Context, req AttestationRequest) ([]byte, error) {
+func (d *dummyAttestator) IssuePassphrase(ctx context.Context, req Request) ([]byte, error) {
 	return []byte("passphrase"), nil
 }
 
@@ -59,7 +59,7 @@ var _ = Describe("Remote attestation end-to-end", func() {
 	It("methods validate input formats", func() {
 		// malformed init (invalid EK public key)
 		server := NewRemoteAttestationServer(&dummyAttestator{})
-		malformedInit := &AttestationInit{
+		malformedInit := &Init{
 			EKPublic: []byte("not-valid-spki"),
 			AKParams: []byte("{}"),
 		}
@@ -71,7 +71,7 @@ var _ = Describe("Remote attestation end-to-end", func() {
 		Expect(err).ToNot(HaveOccurred())
 		defer client.Close() //nolint:errcheck
 
-		malformedChallenge := &AttestationChallenge{
+		malformedChallenge := &Challenge{
 			EncryptedCredential: []byte("not-json"),
 		}
 		_, err = client.HandleChallenge(malformedChallenge, []int{0})

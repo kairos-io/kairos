@@ -13,12 +13,10 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/uki"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	k8sutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/k8s"
-	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/kairos-io/kairos/v4/sdk/versioneer"
-	"github.com/mudler/go-pluggable"
 )
 
 func CurrentImage(registry string) (string, error) {
@@ -175,6 +173,11 @@ func allReleases(registry string) (versioneer.TagList, error) {
 	return tagList.OtherAnyVersion().RSorted(), nil
 }
 
+// newerReleases lists the releases a node can upgrade to. It uses
+// NewerAllVersions rather than NewerAnyVersion so that a newer Kairos version
+// built against an older Kubernetes version is left out: Kubernetes does not
+// support downgrades, so those tags are not upgrade candidates
+// (kairos-io/kairos#3382). `list-releases --all` still shows every other tag.
 func newerReleases(registry string) (versioneer.TagList, error) {
 	artifact, err := versioneer.NewArtifactFromOSRelease()
 	if err != nil {
@@ -185,7 +188,7 @@ func newerReleases(registry string) (versioneer.TagList, error) {
 	if err != nil {
 		return tagList, err
 	}
-	return tagList.NewerAnyVersion().RSorted(), nil
+	return tagList.NewerAllVersions().RSorted(), nil
 }
 
 // generateUpgradeConfForCLIArgs creates a kairos configuration for `--source` and `--recovery` and `--excluded-paths`
@@ -211,26 +214,6 @@ func generateUpgradeConfForCLIArgs(source, upgradeEntry string, allowInsecureReg
 
 	d, err := json.Marshal(upgradeConfig)
 	return string(d), err
-}
-
-func getReleasesFromProvider(includePrereleases bool) ([]string, error) {
-	var result []string
-	bus.Manager.Response(events.EventAvailableReleases, func(p *pluggable.Plugin, r *pluggable.EventResponse) {
-		if r.Data == "" {
-			return
-		}
-		if err := json.Unmarshal([]byte(r.Data), &result); err != nil {
-			fmt.Printf("warn: failed unmarshalling data: '%s'\n", err.Error())
-		}
-	})
-
-	configYAML := "IncludePreReleases: true"
-	_, err := bus.Manager.Publish(events.EventAvailableReleases, events.EventPayload{Config: configYAML})
-	if err != nil {
-		return result, fmt.Errorf("failed publishing event: %w", err)
-	}
-
-	return result, nil
 }
 
 // ExtraConfigUpgrade is the struct that holds the upgrade options that come from flags and events

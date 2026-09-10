@@ -72,6 +72,7 @@ func NewInstallAction(cfg *sdkConfig.Config, spec *v1.InstallSpec) *InstallActio
 }
 
 // Run will install the system from a given configuration
+// nolint:gocyclo // Install is a long linear pipeline (partitions, mounts, cloud-init stages, image copy, bootloader, kcrypt, cleanup) each of which can fail; the branches follow the installer flow rather than any splittable concern.
 func (i InstallAction) Run() (err error) {
 	defer func() {
 		if err != nil {

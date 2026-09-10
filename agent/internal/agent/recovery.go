@@ -7,6 +7,7 @@ import (
 	qr "github.com/kairos-io/go-nodepair/qrcode"
 	"github.com/kairos-io/kairos/v4/agent/internal/bus"
 	"github.com/kairos-io/kairos/v4/agent/internal/cmd"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -29,7 +30,7 @@ func Recovery() error {
 
 	cmd.PrintBranding(DefaultBanner)
 
-	agentConfig, err := LoadConfig()
+	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
 	}

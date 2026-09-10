@@ -14,7 +14,7 @@ type CleanJob func() error
 // Usually its setup inside a function with a defer immediately so it auto cleans if you return from anywhere in the function
 // That way you don't need to track on each return what needs to be cleaned and whatnot
 // cleanup := utils.NewCleanStack()
-// defer func() { err = cleanup.Cleanup(err) }()
+// defer func() { err = cleanup.Cleanup(err) }().
 func NewCleanStack() *CleanStack {
 	return &CleanStack{}
 }
@@ -25,7 +25,7 @@ type CleanStack struct {
 	current int
 }
 
-// Push adds a node to the stack
+// Push adds a node to the stack.
 func (clean *CleanStack) Push(job CleanJob) {
 	clean.jobs = append(clean.jobs[:clean.current], job)
 	clean.current++

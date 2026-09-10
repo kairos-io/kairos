@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
@@ -101,6 +102,7 @@ stages:
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			verifyPersistentFstabUsesMapper(vm)
 		})
 	})
 
@@ -138,6 +140,7 @@ stages:
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			verifyPersistentFstabUsesMapper(vm)
 
 			By("running kairos-agent kcrypt checknv on the default NV index")
 			out, err = vm.Sudo("kairos-agent kcrypt checknv")
@@ -201,7 +204,7 @@ kcrypt:
 			// Clean up the TOFU-created SealedVolume
 			// The name format is "tofu-{tpmHash[:8]}-{partitionLabel}"
 			tpmHash := getTPMHash(vm)
-			tofuName := fmt.Sprintf("tofu-%s-cos-persistent", tpmHash[:8])
+			tofuName := fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8])
 			cmd := exec.Command("kubectl", "delete", "sealedvolume", tofuName, "--ignore-not-found")
 			out, err := cmd.CombinedOutput()
 			Expect(err).ToNot(HaveOccurred(), out)
@@ -217,11 +220,12 @@ kcrypt:
 			out, err := vm.Sudo("blkid")
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			verifyPersistentFstabUsesMapper(vm)
 
 			By("Expecting the secret to be created")
 			// TOFU mode creates secrets with name format: "tofu-{tpmHash[:8]}-{partitionLabel}"
 			tpmHash := getTPMHash(vm)
-			expectedSecretName := fmt.Sprintf("tofu-%s-cos-persistent", tpmHash[:8])
+			expectedSecretName := fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8])
 			cmd := exec.Command("kubectl", "get", "secrets", expectedSecretName)
 
 			secretOut, err := cmd.CombinedOutput()
@@ -267,7 +271,7 @@ metadata:
 spec:
   TPMHash: "%[2]s"
   partitions:
-    - label: COS_PERSISTENT
+    - label: %[3]s
       secret:
         name: "%[1]s"
         path: pass
@@ -278,7 +282,7 @@ spec:
         "0": ""
         "7": ""
         "11": ""
-`, shortName, tpmHash))
+`, shortName, tpmHash, sdkConstants.PersistentLUKSLabel))
 
 			config = fmt.Sprintf(`#cloud-config
 
@@ -330,6 +334,7 @@ kcrypt:
 			Expect(err).ToNot(HaveOccurred(), out)
 			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 			Expect(out).To(MatchRegexp("/dev/mapper.*LABEL=\"COS_PERSISTENT\""), out)
+			verifyPersistentFstabUsesMapper(vm)
 		})
 	})
 
@@ -344,7 +349,7 @@ kcrypt:
 			// Clean up the TOFU-created SealedVolume
 			// The name format is "tofu-{tpmHash[:8]}-{partitionLabel}"
 			tpmHash := getTPMHash(vm)
-			tofuName := fmt.Sprintf("tofu-%s-cos-persistent", tpmHash[:8])
+			tofuName := fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8])
 			cmd := exec.Command("kubectl", "delete", "sealedvolume", tofuName, "--ignore-not-found")
 			cmd.CombinedOutput() // Ignore errors - cleanup is best effort
 		})
@@ -388,6 +393,7 @@ install:
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
 				Expect(out).To(MatchRegexp("/dev/(mapper|dm).*LABEL=\"COS_PERSISTENT\""), out)
+				verifyPersistentFstabUsesMapper(vm)
 			})
 		})
 

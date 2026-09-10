@@ -101,6 +101,11 @@ func RunInstallStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 	// Add extensions from disk
 	data.Stages["after-install"] = append(data.Stages["after-install"], GetStageExtensions("after-install", logger)...)
 
+	if config.DefaultConfig.DryRun {
+		logger.Info("Dry-run: skipping execution of install stages and binary/config copies")
+		return data, nil
+	}
+
 	for _, st := range []string{"before-install", "install", "after-install"} {
 		err = initExecutor.Run(st, vfs.OSFS, yipConsole, data.ToString())
 		if err != nil {
@@ -181,7 +186,7 @@ func RunInitStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 	}
 	data.Stages["init"] = append(data.Stages["init"], initrdStage...)
 	data.Stages["init"] = append(data.Stages["init"], GetServicesStage(sis, logger)...)
-	data.Stages["init"] = append(data.Stages["init"], GetSshHardeningStage(sis, logger)...)
+	data.Stages["init"] = append(data.Stages["init"], GetSSHHardeningStage(sis, logger)...)
 	data.Stages["init"] = append(data.Stages["init"], GetWorkaroundsStage(sis, logger)...)
 	data.Stages["init"] = append(data.Stages["init"], GetCleanupStage(sis, logger)...)
 
@@ -193,6 +198,11 @@ func RunInitStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 
 	// Add extensions from disk
 	data.Stages["after-init"] = append(data.Stages["after-init"], GetStageExtensions("after-init", logger)...)
+
+	if config.DefaultConfig.DryRun {
+		logger.Info("Dry-run: skipping execution of init stages")
+		return data, nil
+	}
 
 	for _, st := range []string{"before-init", "init", "after-init"} {
 		err = initExecutor.Run(st, vfs.OSFS, yipConsole, data.ToString())

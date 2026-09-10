@@ -14,7 +14,7 @@ import (
 	"github.com/mudler/yip/pkg/schema"
 )
 
-var _ = Describe("GetSshHardeningStage", func() {
+var _ = Describe("GetSSHHardeningStage", func() {
 	var log logger.KairosLogger
 
 	BeforeEach(func() {
@@ -25,7 +25,7 @@ var _ = Describe("GetSshHardeningStage", func() {
 		var result []schema.Stage
 
 		BeforeEach(func() {
-			result = stages.GetSshHardeningStage(values.System{}, log)
+			result = stages.GetSSHHardeningStage(values.System{}, log)
 		})
 
 		It("returns at least one stage", func() {
@@ -80,7 +80,7 @@ var _ = Describe("GetSshHardeningStage", func() {
 
 		BeforeEach(func() {
 			previous = config.DefaultConfig.SkipSteps
-			config.DefaultConfig.SkipSteps = []string{values.SshHardeningStep}
+			config.DefaultConfig.SkipSteps = []string{values.SSHHardeningStep}
 		})
 
 		AfterEach(func() {
@@ -88,7 +88,7 @@ var _ = Describe("GetSshHardeningStage", func() {
 		})
 
 		It("returns no stages", func() {
-			Expect(stages.GetSshHardeningStage(values.System{}, log)).To(BeEmpty())
+			Expect(stages.GetSSHHardeningStage(values.System{}, log)).To(BeEmpty())
 		})
 	})
 })

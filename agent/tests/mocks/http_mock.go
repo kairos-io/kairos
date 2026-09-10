@@ -22,8 +22,8 @@ import (
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
-// FakeHTTPClient is an implementation of HTTPClient interface used for testing
-// It stores Get calls into ClientCalls for easy checking of what was called
+// FakeHTTPClient is an implementation of HTTPClient interface used for testing.
+// It stores Get calls into ClientCalls for easy checking of what was called.
 type FakeHTTPClient struct {
 	ClientCalls []string
 	Error       bool

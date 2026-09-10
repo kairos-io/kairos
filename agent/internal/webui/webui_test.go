@@ -22,10 +22,13 @@ var _ = Describe("WebUI", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Start webui server in a goroutine
+			// Start webui server in a goroutine. Bind on ":0" so the
+			// kernel picks an ephemeral free port; hard-coding :8080
+			// races against whatever the developer already has
+			// running.
 			errChan := make(chan error, 1)
 			go func() {
-				errChan <- webui.Start(ctx)
+				errChan <- webui.StartOn(ctx, ":0")
 			}()
 
 			// Give server time to start

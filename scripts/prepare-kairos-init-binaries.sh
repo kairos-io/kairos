@@ -25,21 +25,26 @@ if [[ "$ARCH" != "riscv64" ]]; then
 fi
 
 # --- External binary versions ---
-# Bump these when the corresponding repo cuts a release you want to consume.
-# Absorbing provider-kairos into the monorepo would replace the last of
-# these fetches by an in-tree cp; only edgevpn (github.com/mudler) is
-# genuinely external.
-: "${PROVIDER_KAIROS_VERSION:=v2.16.4}"
-: "${EDGEVPN_VERSION:=v0.35.4}"
+# Single source of truth for the edgevpn pin: kairos-init/EDGEVPN_VERSION.
+# Bumping edgevpn = editing that one line. An EDGEVPN_VERSION env var still
+# overrides it for one-off local runs.
+EDGEVPN_VERSION_FILE="$REPO_ROOT/kairos-init/EDGEVPN_VERSION"
+: "${EDGEVPN_VERSION:=$(cat "$EDGEVPN_VERSION_FILE" 2>/dev/null)}"
+if [ -z "$EDGEVPN_VERSION" ]; then
+    echo "edgevpn version missing from $EDGEVPN_VERSION_FILE and not passed via EDGEVPN_VERSION" >&2
+    exit 1
+fi
 
 cp "$BIN_SOURCE/kairos" "$DEST_ROOT/kairos"
 cp "$BIN_SOURCE/kairos-installer" "$DEST_ROOT/kairos-installer"
+cp "$BIN_SOURCE/provider-kairos" "$DEST_ROOT/provider-kairos"
 if [[ "$ARCH" != "riscv64" ]]; then
     cp "$BIN_SOURCE_FIPS/kairos" "$DEST_FIPS/kairos"
     cp "$BIN_SOURCE_FIPS/kairos-installer" "$DEST_FIPS/kairos-installer"
+    cp "$BIN_SOURCE_FIPS/provider-kairos" "$DEST_FIPS/provider-kairos"
 fi
 
-# --- Fetch defaults from external repos (provider-kairos, kairos-installer, edgevpn) ---
+# --- Fetch defaults from external repos (edgevpn only) ---
 tmpdir=$(mktemp -d)
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -53,9 +58,33 @@ fetch() {
     local project=$1 version=$2 dest=$3 suffix=${4:-} url_arch=${5:-$ARCH} owner=${6:-kairos-io}
     local url="https://github.com/${owner}/${project}/releases/download/${version}/${project}-${version}-Linux-${url_arch}${suffix}.tar.gz"
     local staging="$tmpdir/$dest"
+    local tarball="$tmpdir/${dest}-${project}${suffix}.tar.gz"
     mkdir -p "$staging"
     echo "  fetching $project $version${suffix:+ ($suffix)} for $url_arch -> $dest"
-    curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 "$url" | tar -xz -C "$staging"
+
+    # A GitHub release exists the moment its tag is pushed, but the assets
+    # attached to it can take minutes to finish uploading. A version bump
+    # that lands inside that window gets a 404 from a URL that is perfectly
+    # valid a few minutes later, so the failure reads as "the bump is wrong"
+    # rather than "the asset is not there yet" (kairos-io/kairos#4316). The
+    # budget here used to be --retry 5 --retry-delay 2, about 10 seconds,
+    # against an observed upload window of 3m40s.
+    #
+    # Download to a file instead of piping straight into tar. curl retries
+    # the whole request, so on a mid-transfer reset the retried bytes are
+    # appended to what tar has already consumed and the stream is corrupt.
+    # A 404 does not hit that, because -f writes no body, but a dropped
+    # connection does.
+    if ! curl -fsSL --retry 30 --retry-all-errors --retry-delay 10 \
+        --retry-max-time 300 -o "$tarball" "$url"; then
+        echo "  failed to download $url" >&2
+        echo "  if $owner/$project $version was published in the last few minutes," >&2
+        echo "  its release assets may still be uploading; retry once they are up" >&2
+        return 1
+    fi
+
+    tar -xzf "$tarball" -C "$staging"
+    rm -f "$tarball"
 }
 
 # edgevpn amd64 tarball is named x86_64; arm64 and riscv64 match GOARCH.
@@ -66,17 +95,12 @@ case "$ARCH" in
   *)     edgevpn_arch=$ARCH ;;
 esac
 
-# Defaults (external repos only; the in-tree kairos multi-call, its
-# FIPS twin, and kairos-installer were cp'd from BIN_SOURCE /
+# Defaults (external repos only; the in-tree kairos multi-call, its FIPS
+# twin, kairos-installer and provider-kairos were cp'd from BIN_SOURCE /
 # BIN_SOURCE_FIPS above).
-fetch provider-kairos "$PROVIDER_KAIROS_VERSION" default ""  ""             ""
-fetch edgevpn         "$EDGEVPN_VERSION"         default ""  "$edgevpn_arch" mudler
+fetch edgevpn "$EDGEVPN_VERSION" default "" "$edgevpn_arch" mudler
 
-# FIPS provider-kairos stays external (mudler/kairos-io repo). No FIPS
-# variant of edgevpn or kairos-installer.
-if [[ "$ARCH" != "riscv64" ]]; then
-    fetch provider-kairos "$PROVIDER_KAIROS_VERSION" fips "-fips" "" ""
-fi
+# No FIPS variant of edgevpn.
 
 # Move each fetched executable into the right destination dir.
 for src in "$tmpdir/default" "$tmpdir/fips"; do
@@ -97,7 +121,7 @@ kairos-agent: ${AGENT_VERSION:-in-tree}
 immucore: ${IMMUCORE_VERSION:-in-tree}
 kcrypt-discovery-challenger: ${KCRYPT_DISCOVERY_VERSION:-in-tree}
 kairos-installer: ${INSTALLER_VERSION:-in-tree}
-provider-kairos: ${PROVIDER_KAIROS_VERSION}
+provider-kairos: ${PROVIDER_KAIROS_VERSION:-in-tree}
 edgevpn: ${EDGEVPN_VERSION}
 YAML
 

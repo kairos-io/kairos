@@ -17,7 +17,7 @@ func permError(op, path string) error {
 	}
 }
 
-// MkdirAll directory and all parents if not existing
+// MkdirAll directory and all parents if not existing.
 func MkdirAll(fs sdkTypes.KairosFS, name string, mode os.FileMode) (err error) {
 	if _, isReadOnly := fs.(*vfs.ReadOnlyFS); isReadOnly {
 		return permError("mkdir", name)

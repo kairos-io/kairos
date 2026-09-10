@@ -33,8 +33,9 @@ var FinishUpgrade = []Interface{
 
 // FirstBoot is a list of hooks that run on the first boot of the node.
 var FirstBoot = []Interface{
-	&BundleFirstBoot{},
-	&GrubFirstBootOptions{},
+	&BundleFirstBoot{},      // Installs bundles
+	&GrubFirstBootOptions{}, // Applies grub options
+	&FirstBootStage{},       // Runs the first-boot cloud-config stage, last so it sees a fully provisioned node
 }
 
 // FinishUKIInstall is a list of hooks that run when the install process is finished completely.

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
@@ -19,7 +20,7 @@ func UpgradeKcryptPartitions() error {
 
 	for _, disk := range disks {
 		for _, p := range disk.Partitions {
-			if p.FS == "crypto_LUKS" {
+			if p.FS == constants.LUKSFs {
 				// Check against known partition label on persistent
 				KLog.Logger.Debug().Str("label", p.FilesystemLabel).Str("dev", p.Name).Msg("found luks partition")
 				if p.FilesystemLabel == "persistent" {

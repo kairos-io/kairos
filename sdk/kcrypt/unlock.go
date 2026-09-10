@@ -34,17 +34,6 @@ func encryptedPartitionLabel(partition *partitions.Partition) string {
 	}
 }
 
-func legacyPartitionName(filesystemLabel string) string {
-	switch filesystemLabel {
-	case constants.OEMLabel:
-		return constants.OEMPartName
-	case constants.PersistentLabel:
-		return constants.PersistentPartName
-	default:
-		return ""
-	}
-}
-
 func luksUnlock(device, mapper, password string, logger *sdkLogger.KairosLogger) error {
 	// Check if device exists and is accessible
 	if _, err := os.Stat(device); err != nil {
@@ -174,7 +163,7 @@ func findEncryptedPartitions(logger sdkLogger.KairosLogger) ([]string, error) {
 		for _, p := range disk.Partitions {
 			// Check if partition is LUKS encrypted by examining the filesystem type
 			// LUKS partitions have FS type "crypto_LUKS"
-			if p.FS == "crypto_LUKS" {
+			if p.FS == constants.LUKSFs {
 				// Check if device is already unlocked
 				// We mount it under /dev/mapper/DEVICE, so it's pretty easy to check
 				mapperPath := filepath.Join("/dev", "mapper", p.Name)

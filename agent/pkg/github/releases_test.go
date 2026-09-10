@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/github"
@@ -90,7 +91,7 @@ var _ = Describe("Releases with a mocked API", func() {
 	It("fails on invalid slug without separator", func() {
 		_, err := github.FindReleases(ctx, "fake-token", "invalidslug", false)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Invalid slug format"))
+		Expect(err.Error()).To(ContainSubstring("invalid slug format"))
 	})
 
 	It("fails on slug with empty owner or name", func() {
@@ -107,20 +108,28 @@ var _ = Describe("Releases with a mocked API", func() {
 		// the invalid slug aborts before any request is made.
 		_, err := github.FindReleases(context.Background(), "", "invalidslug", false)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Invalid slug format"))
+		Expect(err.Error()).To(ContainSubstring("invalid slug format"))
 	})
 })
 
 var _ = Describe("Releases", func() {
+	// Live integration probe against api.github.com. Unauthenticated requests
+	// are capped at 60/hour per IP and shared-runner IPs regularly exhaust
+	// that on their own, so pick up GITHUB_TOKEN if the caller set one (CI
+	// gets it via secrets.GITHUB_TOKEN in _unit-tests.yaml, lifting the cap
+	// to 5000/hour). Local dev runs without the env var still work if the
+	// IP hasn't already blown the anon budget.
+	token := os.Getenv("GITHUB_TOKEN")
+
 	It("can find the proper releases in order", func() {
-		releases, err := github.FindReleases(context.Background(), "", "kairos-io/kairos", false)
+		releases, err := github.FindReleases(context.Background(), token, "kairos-io/kairos", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(releases)).To(BeNumerically(">", 0))
 		// Expect the first one to be greater than the last one
 		Expect(releases[0].GreaterThan(releases[len(releases)-1]))
 	})
 	It("can find the proper releases in order with prereleases", func() {
-		releases, err := github.FindReleases(context.Background(), "", "kairos-io/kairos", true)
+		releases, err := github.FindReleases(context.Background(), token, "kairos-io/kairos", true)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(len(releases)).To(BeNumerically(">", 0))
 		// Expect the first one to be greater than the last one

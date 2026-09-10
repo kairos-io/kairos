@@ -64,7 +64,7 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 		switch header.Typeflag {
 		case tar.TypeDir:
 			log.Debugf("%s is a directory", header.Name)
-			if fi, err := os.Lstat(path); !(err == nil && fi.IsDir()) {
+			if fi, err := os.Lstat(path); err != nil || !fi.IsDir() {
 				if err := os.MkdirAll(path, mask); err != nil {
 					return fmt.Errorf("mkdir: %w", err)
 				}

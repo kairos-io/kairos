@@ -39,6 +39,10 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	// Every reconnect below is capped at 10 minutes: the suite budget is 60
+	// minutes, and three 20-minute ceilings plus the BeforeEach overran it, so a
+	// slow reboot hit the suite timeout before its own assertion (#4489). The
+	// measured green run of this spec is 453s end to end.
 	Describe("Uki install + upgrade tests", Label("uki", "install-upgrade"), func() {
 		BeforeEach(func() {
 			datasource = CreateDatasource("assets/uki-install.yaml")
@@ -83,7 +87,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			out, err := vm.Sudo("kairos-agent bootentry --select recovery")
 			Expect(err).ToNot(HaveOccurred(), out)
 			vm.Reboot()
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 
 			By("Checking the boot mode (recovery)", func() {
 				out, err := vm.Sudo("stat /run/cos/recovery_mode")
@@ -99,7 +103,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			out, err = vm.Sudo("kairos-agent --debug reset --unattended")
 			Expect(err).ToNot(HaveOccurred(), out)
 			vm.Reboot()
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 
 			By("checking if after-reset was run")
 			out, err = vm.Sudo("ls /usr/local/after-reset-file")
@@ -113,7 +117,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug bootentry --select %s", os.Getenv("EXPECTED_SINGLE_ENTRY")))
 			Expect(err).ToNot(HaveOccurred(), out)
 			vm.Reboot()
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 
 			By("checking if upgrade worked")
 			out, err = vm.Sudo("cat /etc/kairos-release")
@@ -187,10 +191,16 @@ func genericTests(vm VM) {
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 	By("Checking OEM/PERSISTENT are not mounted", func() {
+		// On the livecd nothing should be mounted at /oem or /usr/local
+		// yet. Assert the mountpoints directly rather than a specific
+		// device-path form, since kairos-io/kairos#4403 removed
+		// /dev/disk/by-label from the mount pipeline; a vacuously
+		// passing "does not contain by-label" check would no longer
+		// detect a stray mount.
 		out, err := vm.Sudo("mount")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_OEM"))
-		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
+		Expect(out).ToNot(MatchRegexp(`\son\s/oem\b`), out)
+		Expect(out).ToNot(MatchRegexp(`\son\s/usr/local\b`), out)
 	})
 	By("installing kairos", func() {
 		// Install has already started, so we can use Eventually here to track the logs
@@ -249,10 +259,16 @@ func genericTests(vm VM) {
 		Expect(err).ToNot(HaveOccurred(), out)
 	})
 	By("Checking OEM/PERSISTENT are mounted", func() {
-		out, err := vm.Sudo("df -h") // Shows the disk by label which is easier to check
+		// Immucore resolves the label to the concrete mapper path
+		// before mounting (kairos-io/kairos#4403), so df reports
+		// /dev/mapper/<name> for both /oem and /usr/local rather
+		// than the racy /dev/disk/by-label form.
+		out, err := vm.Sudo("df -h")
 		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_OEM"))
-		Expect(out).To(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"))
+		Expect(out).To(MatchRegexp(`/dev/mapper/\S+\s.*\s/oem\b`), out)
+		Expect(out).To(MatchRegexp(`/dev/mapper/\S+\s.*\s/usr/local\b`), out)
+		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_OEM"), out)
+		Expect(out).ToNot(ContainSubstring("/dev/disk/by-label/COS_PERSISTENT"), out)
 	})
 	By("Checking OEM/PERSISTENT are encrypted", func() {
 		out, err := vm.Sudo("blkid /dev/vda2")

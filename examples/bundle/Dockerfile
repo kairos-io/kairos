@@ -1,3 +1,7 @@
+# Stays on 1.26 until kubo builds under 1.27: kubo v0.41.0 pulls in
+# cockroachdb/swiss, which go:linknames into runtime internals (hashFn,
+# getRuntimeHasher, fastrand64) that 1.27 no longer exposes, so the ipfs
+# build below dies with a pile of "undefined:" errors.
 FROM golang:1.26 AS build
 
 # Install a binary

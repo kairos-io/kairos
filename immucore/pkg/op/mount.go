@@ -6,11 +6,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/containerd/containerd/mount"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 )
+
+// mountRetryInterval is how long MountOPWithFstab waits between two mount
+// attempts. Nothing waits before the first one. A var, not a const, so the
+// tests can shorten or lengthen it instead of measuring the real one.
+var mountRetryInterval = 250 * time.Millisecond
 
 // MountOPWithFstab creates and executes a mount operation.
 // returns the fstab entries created and an error if any.
@@ -19,9 +24,14 @@ func MountOPWithFstab(what, where, t string, options []string, timeout time.Dura
 	l := internalUtils.KLog.With().Str("what", what).Str("where", where).Str("type", t).Strs("options", options).Logger().Level(internalUtils.KLog.GetLevel())
 	c := context.Background()
 	cc := time.After(timeout)
+	// Zero for the first attempt: the device is usually already there, and
+	// every caller pays this wait otherwise. Retries wait mountRetryInterval,
+	// and the wait is a select case so the timeout can cut it short.
+	wait := time.Duration(0)
 	for {
 		select {
-		default:
+		case <-time.After(wait):
+			wait = mountRetryInterval
 			// check fs type just-in-time before running the OP
 			if t != "tmpfs" {
 				fsType := internalUtils.DiskFSType(what)
@@ -36,7 +46,6 @@ func MountOPWithFstab(what, where, t string, options []string, timeout time.Dura
 				l.Err(err).Msg("Creating dir")
 				continue
 			}
-			time.Sleep(1 * time.Second)
 			mountPoint := mount.Mount{
 				Type:    t,
 				Source:  what,

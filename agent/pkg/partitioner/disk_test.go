@@ -108,9 +108,9 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			parts := partitions.PartitionList{
-				{Name: sdkConstants.EfiPartName, FilesystemLabel: "COS_GRUB", Size: 20, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 20, FS: sdkConstants.EfiFs},
 				{Name: sdkConstants.BiosPartName, FilesystemLabel: "bios", Size: 2, FS: ""},
-				{Name: "state", FilesystemLabel: "COS_STATE", Size: 0, FS: "ext4"},
+				{Name: "state", FilesystemLabel: sdkConstants.StateLabel, Size: 0, FS: "ext4"},
 			}
 			Expect(d.NewPartitionTable(sdkConstants.GPT, parts)).To(Succeed())
 
@@ -130,7 +130,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(tableParts[0].Attributes).To(Equal(uint64(0x1)))
 			Expect(tableParts[0].Start).To(Equal(uint64(mib / sectorSize)))
 			Expect(tableParts[0].End).To(Equal(uint64(20*mib/sectorSize + mib/sectorSize - 1)))
-			Expect(strings.ToLower(tableParts[0].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, "COS_GRUB").String()))
+			Expect(strings.ToLower(tableParts[0].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, sdkConstants.EfiLabel).String()))
 
 			// BIOS partition, starts right after EFI, legacy bios bootable attribute
 			Expect(tableParts[1].Name).To(Equal(sdkConstants.BiosPartName))
@@ -145,7 +145,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(tableParts[2].Start).To(Equal(tableParts[1].End + 1))
 			expectedStateSize := uint64(100*mib) - uint64(23*mib) - gptBackupTailSectors(sectorSize)*uint64(sectorSize)
 			Expect(tableParts[2].End).To(Equal(tableParts[2].Start + expectedStateSize/sectorSize - 1))
-			Expect(strings.ToLower(tableParts[2].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, "COS_STATE").String()))
+			Expect(strings.ToLower(tableParts[2].GUID)).To(Equal(uuid.NewV5(uuid.NamespaceURL, sdkConstants.StateLabel).String()))
 		})
 
 		ginkgo.It("fails to write the partition table on a read-only device", func() {
@@ -155,7 +155,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			d := &Disk{roDisk, log}
 
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			err = d.NewPartitionTable(sdkConstants.GPT, parts)
 			Expect(err).To(HaveOccurred())
@@ -176,25 +176,94 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 			Expect(kairosPartsToDiskfsGPTParts(partitions.PartitionList{}, 100*mib, sectorSize)).To(BeEmpty())
 		})
 
-		ginkgo.It("reserves the backup GPT tail when the last partition has an explicit size", func() {
+		ginkgo.It("gives the last partition the size it asked for when it fits", func() {
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts).To(HaveLen(1))
 			Expect(gptParts[0].Start).To(Equal(uint64(2048)))
-			expectedSize := uint64(10*mib) - gptBackupTailSectors(sectorSize)*uint64(sectorSize)
-			Expect(gptParts[0].Size).To(Equal(expectedSize))
-			Expect(gptParts[0].End).To(Equal(uint64(2048 + expectedSize/sectorSize - 1)))
+			Expect(gptParts[0].Size).To(Equal(uint64(10 * mib)))
+			Expect(gptParts[0].End).To(Equal(uint64(2048 + 10*mib/sectorSize - 1)))
 			Expect(gptParts[0].Type).To(Equal(gpt.LinuxFilesystem))
 			Expect(gptParts[0].Index).To(Equal(1))
 			Expect(gptParts[0].Attributes).To(BeZero())
 		})
 
+		ginkgo.It("reserves the backup GPT tail only from a partition that reaches it", func() {
+			// 1MiB of alignment plus 99MiB of partition is the whole 100MiB
+			// disk, so this one does cross the backup GPT sectors.
+			parts := partitions.PartitionList{
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 99, FS: "ext4"},
+			}
+			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
+			Expect(gptParts).To(HaveLen(1))
+			lastDataSector, ok := gptLastDataSector(100*mib, sectorSize)
+			Expect(ok).To(BeTrue())
+			Expect(gptParts[0].End).To(Equal(lastDataSector))
+			Expect(gptParts[0].Size).To(Equal(uint64(99*mib) - gptBackupTailSectors(sectorSize)*uint64(sectorSize)))
+			Expect(validateGPTPartitionsFit(gptParts, 100*mib, sectorSize)).To(Succeed())
+		})
+
+		ginkgo.It("still rejects a layout that overshoots the disk by more than the tail", func() {
+			parts := partitions.PartitionList{
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 50, FS: "ext4"},
+				{Name: "persistent", FilesystemLabel: sdkConstants.PersistentLabel, Size: 60, FS: "ext4"},
+			}
+			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
+			Expect(validateGPTPartitionsFit(gptParts, 100*mib, sectorSize)).To(
+				MatchError(ContainSubstring("past the last usable sector")))
+		})
+
+		ginkgo.It("keeps every requested size when the last partition ends far from the tail", func() {
+			// A 1TiB disk holding ~1.3GiB of partitions: the last one ends
+			// with the best part of a terabyte to spare, so nothing should
+			// come off it. The tail used to be reserved from the last
+			// partition unconditionally, leaving it 33 sectors short.
+			const diskSize = int64(1024 * 1024 * 1024 * 1024)
+			parts := partitions.PartitionList{
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 64, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.OEMPartName, FilesystemLabel: sdkConstants.OEMLabel, Size: 100},
+				{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 500},
+				{Name: "data_partition", FilesystemLabel: "SYSTEM_DATA", Size: 700, FS: "ext4"},
+			}
+
+			gptParts := kairosPartsToDiskfsGPTParts(parts, diskSize, sectorSize)
+			Expect(gptParts).To(HaveLen(len(parts)))
+			Expect(validateGPTPartitionsFit(gptParts, diskSize, sectorSize)).To(Succeed())
+			for i, p := range gptParts {
+				Expect(p.Size).To(Equal(uint64(parts[i].Size)*mib), "partition %s", p.Name)
+				Expect((p.End-p.Start+1)*sectorSize).To(Equal(p.Size), "partition %s", p.Name)
+				Expect((p.End + 1) % uint64(mib/sectorSize)).To(BeZero(), "partition %s ends on sector %d, not 1MiB aligned", p.Name, p.End)
+			}
+		})
+
+		ginkgo.It("still fits a layout whose sizes add up to the whole disk", func() {
+			// This is what the unconditional reserve was there for: 1MiB of
+			// leading alignment plus 1023MiB of partitions on a 1GiB disk.
+			// The last partition has to land on the last usable sector, not
+			// on top of the backup GPT.
+			const diskSize = int64(1024 * 1024 * 1024)
+			parts := partitions.PartitionList{
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 64, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.PersistentPartName, FilesystemLabel: sdkConstants.PersistentLabel, Size: 959},
+			}
+
+			gptParts := kairosPartsToDiskfsGPTParts(parts, diskSize, sectorSize)
+			Expect(gptParts).To(HaveLen(len(parts)))
+			Expect(validateGPTPartitionsFit(gptParts, diskSize, sectorSize)).To(Succeed())
+
+			lastDataSector, ok := gptLastDataSector(diskSize, sectorSize)
+			Expect(ok).To(BeTrue())
+			last := gptParts[len(gptParts)-1]
+			Expect(last.End).To(Equal(lastDataSector))
+			Expect((last.End - last.Start + 1) * sectorSize).To(Equal(last.Size))
+		})
+
 		ginkgo.It("expands a zero-sized partition to fill the remaining disk", func() {
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 30, FS: "ext4"},
-				{Name: "persistent", FilesystemLabel: "COS_PERSISTENT", Size: 0, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 30, FS: "ext4"},
+				{Name: "persistent", FilesystemLabel: sdkConstants.PersistentLabel, Size: 0, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts).To(HaveLen(2))
@@ -207,7 +276,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 
 		ginkgo.It("sets EFI specific type and attributes only for vfat efi partitions", func() {
 			parts := partitions.PartitionList{
-				{Name: sdkConstants.EfiPartName, FilesystemLabel: "COS_GRUB", Size: 20, FS: sdkConstants.EfiFs},
+				{Name: sdkConstants.EfiPartName, FilesystemLabel: sdkConstants.EfiLabel, Size: 20, FS: sdkConstants.EfiFs},
 				{Name: sdkConstants.EfiPartName, FilesystemLabel: "COS_GRUB2", Size: 20, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
@@ -222,7 +291,7 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 		ginkgo.It("sets BIOS specific type and attributes for the bios partition", func() {
 			parts := partitions.PartitionList{
 				{Name: sdkConstants.BiosPartName, FilesystemLabel: "bios", Size: 1},
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
 			Expect(gptParts).To(HaveLen(2))
@@ -233,10 +302,10 @@ var _ = ginkgo.Describe("Disk", ginkgo.Label("disk"), func() {
 
 		ginkgo.It("assigns predictable UUIDs based on the filesystem label", func() {
 			parts := partitions.PartitionList{
-				{Name: "oem", FilesystemLabel: "COS_OEM", Size: 10, FS: "ext4"},
+				{Name: "oem", FilesystemLabel: sdkConstants.OEMLabel, Size: 10, FS: "ext4"},
 			}
 			gptParts := kairosPartsToDiskfsGPTParts(parts, 100*mib, sectorSize)
-			Expect(gptParts[0].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, "COS_OEM").String()))
+			Expect(gptParts[0].GUID).To(Equal(uuid.NewV5(uuid.NamespaceURL, sdkConstants.OEMLabel).String()))
 		})
 	})
 })

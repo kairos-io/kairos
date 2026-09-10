@@ -5,7 +5,8 @@
 # `docker buildx build --platform=linux/amd64,linux/arm64` in the release
 # workflow, which sets TARGETARCH per platform and picks up the right
 # binary from the build context.
-FROM gcr.io/distroless/static:nonroot
+# nonroot, resolved 2026-09-04
+FROM gcr.io/distroless/static:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7
 WORKDIR /
 ARG TARGETARCH
 COPY dist/linux-${TARGETARCH}/kcrypt-challenger /manager

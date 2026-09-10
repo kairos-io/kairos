@@ -16,6 +16,8 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
@@ -333,8 +335,9 @@ func writeOEMCloudConfig(content string) error {
 	if err := os.MkdirAll("/oem", 0750); err != nil {
 		Logger.Warnf("mkdir /oem: %v", err)
 	}
-	// Best-effort mount — error is expected and ignored when /oem is already mounted.
-	_ = exec.Command("mount", "-L", "COS_OEM", "/oem").Run() //nosec G204 -- fixed label, called on local mountpoint
+	// Best-effort mount. The error is expected and ignored when /oem is
+	// already mounted.
+	_ = machine.Mount(sdkConstants.OEMLabel, "/oem")
 
 	return os.WriteFile("/oem/99_phonehome_remote.yaml", []byte(content), 0600)
 }

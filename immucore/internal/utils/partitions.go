@@ -155,7 +155,13 @@ func DiskHasKairosPartitions(devPath string) bool {
 			continue
 		}
 		for _, p := range d.Partitions {
-			if p.FilesystemLabel == sdkConstants.OEMLabel || p.FilesystemLabel == sdkConstants.PersistentLabel {
+			// Match both the plaintext label (unencrypted install, or
+			// pre-#4403 encrypted install where the LUKS shared the
+			// plaintext label) and the LUKS-container label
+			// (post-#4403 encrypted install).
+			switch p.FilesystemLabel {
+			case sdkConstants.OEMLabel, sdkConstants.OEMLUKSLabel,
+				sdkConstants.PersistentLabel, sdkConstants.PersistentLUKSLabel:
 				return true
 			}
 		}
