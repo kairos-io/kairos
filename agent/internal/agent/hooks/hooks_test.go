@@ -262,6 +262,24 @@ var _ = Describe("Hooks", func() {
 			Expect(memLog.String()).To(ContainSubstring("Finish first-boot hook"))
 		})
 
+		It("keeps the FirstBoot hook chain alive when the stage fails in strict mode", func() {
+			// This is the actual failure mode from the bug report: agent.Run
+			// walks hook.FirstBoot as a single chain and only reaches
+			// machine.CreateSentinel("firstboot") if that chain returns nil.
+			// The specs above only exercise FirstBootStage in isolation, so
+			// they can't tell us whether hook.Run -- which returns early on
+			// the first error, see hook.go -- still makes it past this stage
+			// when it's last in line and the node is strict. Drive the real
+			// chain to be sure nothing upstream of FirstBootStage regresses
+			// that guarantee.
+			cloudInit.Error = true
+			cfg.Strict = true
+			err = hook.Run(*cfg, nil, hook.FirstBoot...)
+			Expect(err).Should(BeNil())
+			Expect(cloudInit.ExecStages).To(ContainElement(cnst.FirstBootHook))
+			Expect(memLog.String()).To(ContainSubstring("continuing so the firstboot sentinel still gets written"))
+		})
+
 		It("runs last in the FirstBoot hook list, after bundles and grub options", func() {
 			Expect(hook.FirstBoot).To(HaveLen(3))
 			Expect(hook.FirstBoot[0]).To(BeAssignableToTypeOf(&hook.BundleFirstBoot{}))
