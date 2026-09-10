@@ -34,7 +34,9 @@ stages:
 
             [Service]
             Type=oneshot
-            ExecStart=/usr/sbin/restorecon -Rivx /etc /var /srv
+            ExecStart=/usr/sbin/restorecon -Riv /etc
+            ExecStart=/usr/sbin/restorecon -Rivx /var /srv
+            ExecStart=/usr/bin/find /usr/local/.state -mindepth 1 -maxdepth 1 -type d -name *.bind -exec /usr/sbin/restorecon -i {} +
             ExecStart=/usr/local/bin/selinux-relabel-persistent
             ExecStart=/usr/sbin/setenforce $MODE
             RemainAfterExit=yes
