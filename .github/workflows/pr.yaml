@@ -148,7 +148,10 @@ jobs:
   # the slow arm64/nvidia builds that no test consumes.
   #
   # build-iso: amd64 core, amd64 standard, amd64 standard-uki,
-  # amd64 core-uki -- everything the qemu suites boot.
+  # amd64 core-uki -- everything the qemu suites boot -- plus
+  # amd64 standard-k0s, which is image-only (iso: false) and boots
+  # nowhere; it exists so the k0s provider's build-time work runs
+  # on every PR instead of first on a release tag.
   # build-iso-arm: arm64 core + rpi3 + rpi4 + both nvidia jetson
   # cells -- build-only smoke coverage (no qemu on arm64 in CI).
   #
@@ -163,6 +166,20 @@ jobs:
         include:
           - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
           - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          # k0s build coverage. iso: false on purpose -- the k0s provider
+          # does its work at image build time (runs the k0s installer,
+          # relocates the binary out of /usr/local/bin, writes the service
+          # units), so pushing the OS container image is enough to exercise
+          # it. That is the whole class of defect #4299 was: k0s
+          # control-plane components fell back to root because the native
+          # system users were never created, and nothing built a k0s image
+          # outside release.yaml so it shipped. Runtime k0s coverage (does
+          # the cluster come up) is a separate, larger gap; this cell does
+          # not claim to close it. Skipping the ISO also keeps the cost of
+          # the extra cell off the critical path the test-* jobs wait on:
+          # no auroraboot run, so it is the amd64-standard cell's work
+          # minus the slowest step.
+          - {name: 'amd64-standard-k0s', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: false, trusted_boot: false, kubernetes_distro: 'k0s', fips: false}
           # FIPS core cell. hadron-fips is a distinct base image from
           # hadron (FIPS-hardened kernel + userspace); passing fips:true
           # additionally flips the FIPS=fips build_arg in images/Dockerfile
