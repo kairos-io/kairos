@@ -104,9 +104,10 @@ over the bundled default. The agent execs it directly, so it can be written in
 any language. Your binary must:
 
 - accept `--source <uri>` (the agent forwards it; it may be empty);
-- accept `--no-tui`, and in that mode stay off the terminal entirely: it is how
+- accept `--no-tui`, and in that mode draw no terminal UI: it is how
   `kairos-agent webui` asks for a web-only frontend on a non-interactive boot.
-  Serving nothing and exiting 0 is a valid answer if you have no web UI;
+  Plain log lines on stdout/stderr are fine there, since nothing owns the
+  screen. Serving nothing and exiting 0 is a valid answer if you have no web UI;
 - run on the inherited terminal (stdin/stdout/stderr are passed through);
 - gather whatever input it wants, write a `#cloud-config` to a temp file, then
   drive the install:

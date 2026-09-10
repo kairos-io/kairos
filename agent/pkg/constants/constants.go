@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 const (
@@ -130,6 +132,12 @@ const (
 	MultipleEntriesAssessmentError = "multiple boot entries found for %s"
 	NoBootAssessmentWarning        = "No boot assessment found in current boot entry config file"
 )
+
+// Deprecated: use sdkConstants.DefaultWebUIListenAddress. This package is
+// importable outside the repo, so the constant stays as an alias rather than
+// breaking an out-of-tree build. Remove it together with the
+// `kairos-agent webui` subcommand.
+const DefaultWebUIListenAddress = sdkConstants.DefaultWebUIListenAddress
 
 func UkiDefaultMenuEntries() []string {
 	return []string{"cos", "fallback", "recovery", "statereset"}
