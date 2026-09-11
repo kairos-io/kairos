@@ -21,6 +21,34 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 )
 
+// Command names the fleet server can send. This is the wire vocabulary of
+// CommandData.Command and of Config.AllowedCommands, so it has to stay in step
+// with the server and with AuroraBoot's command cards.
+const (
+	commandExec             = "exec"
+	commandUpgrade          = "upgrade"
+	commandUpgradeRecovery  = "upgrade-recovery"
+	commandReset            = "reset"
+	commandApplyCloudConfig = "apply-cloud-config"
+	commandReboot           = "reboot"
+	commandUnregister       = "unregister"
+	commandExtension        = "extension"
+)
+
+// Keys of CommandData.Args, the other half of the same wire vocabulary.
+const (
+	argCommand    = "command"
+	argSource     = "source"
+	argRecovery   = "recovery"
+	argExtensions = "extensions"
+	argConfig     = "config"
+	argResetOEM   = "reset-oem"
+
+	// argTrue is how a true boolean reaches us: Args is a map[string]string,
+	// so booleans travel as text.
+	argTrue = "true"
+)
+
 var selectBootEntry = action.SelectBootEntry
 var rebootScheduler = scheduleReboot
 var persistentDir = constants.PersistentDir
@@ -72,8 +100,8 @@ func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed fun
 		ctx := context.Background()
 
 		switch cmd.Command {
-		case "exec":
-			cmdStr, ok := cmd.Args["command"]
+		case commandExec:
+			cmdStr, ok := cmd.Args[argCommand]
 			if !ok {
 				return "", fmt.Errorf("exec command requires 'command' arg")
 			}
@@ -81,20 +109,23 @@ func DefaultCommandHandler(serverURL string, apiKey func() string, isAllowed fun
 			out, err := exec.CommandContext(ctx, "sh", "-c", cmdStr).CombinedOutput() //nosec G204 -- gated by Config.AllowedCommands policy
 			return string(out), err
 
-		case "upgrade", "upgrade-recovery":
+		case commandUpgrade, commandUpgradeRecovery:
 			return handleUpgrade(ctx, cmd, serverURL, apiKey(), systemConfig, retries, retryInterval)
 
-		case "reset":
+		case commandReset:
 			return handleReset(cmd, systemConfig)
 
-		case "apply-cloud-config":
+		case commandApplyCloudConfig:
 			return handleApplyCloudConfig(cmd)
 
-		case "reboot":
+		case commandReboot:
 			return handleReboot()
 
-		case "unregister":
+		case commandUnregister:
 			return handleUnregister(stop)
+
+		case commandExtension:
+			return handleExtension(ctx, cmd)
 
 		default:
 			return "", fmt.Errorf("unknown command: %s", cmd.Command)
@@ -143,7 +174,7 @@ func handleUnregister(stop func()) (string, error) {
 
 // handleUpgrade downloads the image (if artifact-based) and runs kairos-agent upgrade.
 func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKey string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
-	source := cmd.Args["source"]
+	source := cmd.Args[argSource]
 	if source == "" {
 		return "", fmt.Errorf("upgrade requires 'source' arg")
 	}
@@ -169,13 +200,31 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 	}
 
 	args := []string{"upgrade", "--source", source}
-	if cmd.Command == "upgrade-recovery" || cmd.Args["recovery"] == "true" {
+	if cmd.Command == commandUpgradeRecovery || cmd.Args[argRecovery] == argTrue {
 		args = append(args, "--recovery")
+	}
+
+	// Install bundled extensions before the OS upgrade. Each install overwrites
+	// the .raw in place, so retrying the same compound command after a partial
+	// failure is safe.
+	bundled, err := parseBundledExtensions(cmd.Args[argExtensions])
+	if err != nil {
+		return "", err
+	}
+	scope := constants.BootActive
+	if cmd.Command == commandUpgradeRecovery {
+		scope = constants.BootRecovery
+	}
+	for _, e := range bundled {
+		if err := installBundledExtension(ctx, e, scope); err != nil {
+			// Do not start the OS upgrade if any extension failed.
+			return "", err
+		}
 	}
 
 	// Use background context — upgrade must NOT be killed if WS disconnects
 	Logger.Infof("running: kairos-agent %s", strings.Join(args, " "))
-	out, err := exec.Command("kairos-agent", args...).CombinedOutput() //nosec G204 -- args is a fixed set built from validated CommandData fields
+	out, err := execCommand("kairos-agent", args...).CombinedOutput() //nosec G204 -- args is a fixed set built from validated CommandData fields
 	if err != nil {
 		Logger.Errorf("kairos-agent upgrade exit: err=%v output=%s", err, string(out))
 		return string(out), err
@@ -184,8 +233,8 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 
 	// Reboot after successful upgrade so the new image takes effect.
 	// Do NOT reboot for recovery upgrades (recovery doesn't need reboot).
-	if cmd.Command != "upgrade-recovery" {
-		scheduleReboot()
+	if cmd.Command != commandUpgradeRecovery {
+		rebootScheduler()
 	}
 
 	return string(out) + "\nUpgrade complete. Rebooting in 10s...", nil
@@ -286,7 +335,7 @@ func isTransientDownloadError(err error) bool {
 // itself cannot run from the active system; the statereset entry performs it on
 // the next boot and then returns the node to the active entry.
 func handleReset(cmd CommandData, systemConfig *sdkConfig.Config) (string, error) {
-	for _, argument := range []string{"reset-oem", "config"} {
+	for _, argument := range []string{argResetOEM, argConfig} {
 		if _, ok := cmd.Args[argument]; ok {
 			return "", fmt.Errorf("reset argument %q is not supported by automatic state reset", argument)
 		}
@@ -304,7 +353,7 @@ func handleReset(cmd CommandData, systemConfig *sdkConfig.Config) (string, error
 
 // handleApplyCloudConfig writes a cloud-config file to the OEM partition.
 func handleApplyCloudConfig(cmd CommandData) (string, error) {
-	cfg := cmd.Args["config"]
+	cfg := cmd.Args[argConfig]
 	if cfg == "" {
 		return "", fmt.Errorf("apply-cloud-config requires 'config' arg")
 	}
@@ -318,7 +367,7 @@ func handleApplyCloudConfig(cmd CommandData) (string, error) {
 
 // handleReboot schedules a system reboot.
 func handleReboot() (string, error) {
-	scheduleReboot()
+	rebootScheduler()
 	return "Rebooting in 10s...", nil
 }
 
