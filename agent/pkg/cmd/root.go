@@ -548,7 +548,16 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 				log.SetLevel("debug")
 			}
 
-			return agent.InteractiveInstall(c.Bool("shell"), c.String("source"), log)
+			source := c.String("source")
+
+			// install.auto wins over the UX: an unattended config leaves
+			// nothing to ask, so no installer is launched. Same call, same
+			// answer, as the install-mode entry.
+			if installed, err := agent.AutoInstall(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
+				return err
+			}
+
+			return agent.InteractiveInstall(c.Bool("shell"), source, log)
 		},
 	},
 	{
@@ -619,8 +628,15 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		},
 		Action: func(c *cli.Context) error {
 			source := c.String("source")
+			insecure := c.Bool("allow-insecure-registries")
 
-			return agent.Install(source, c.Bool("allow-insecure-registries"), constants.GetUserConfigDirs()...)
+			// An unattended config installs and returns; only when there is a
+			// decision left for a human does the provider flow run.
+			if installed, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...); installed || err != nil {
+				return err
+			}
+
+			return agent.Install(source, insecure, constants.GetUserConfigDirs()...)
 		},
 	},
 	{

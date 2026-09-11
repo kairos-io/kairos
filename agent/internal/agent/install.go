@@ -85,6 +85,57 @@ func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValid
 	return RunInstall(cc)
 }
 
+// autoInstallRequested reports whether the config asks to be installed without
+// being asked anything, so there is no UX to show.
+func autoInstallRequested(cc *sdkConfig.Config) bool {
+	return cc != nil && cc.Install != nil && cc.Install.Auto
+}
+
+// AutoInstall performs the unattended installation a config asks for with
+// install.auto, and reports whether it did.
+//
+// Both live boot entrypoints call it before they show anything: a config that
+// says "install me without asking" leaves nothing to ask, and a live CD that
+// boots with an autoinstall datasource must install rather than stop at a
+// prompt with nobody there to answer it. When it reports false there is still
+// a decision left for a human, and the caller runs its own UX.
+//
+// A config that cannot be read is not an error here, only the absence of an
+// unattended install; the caller reports it if it needs one.
+func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...string) (bool, error) {
+	utils.OnSignal(func() {
+		svc, err := machine.Getty(1)
+		if err == nil {
+			_ = svc.Start() //nolint:errcheck
+		}
+	}, syscall.SIGINT, syscall.SIGTERM)
+
+	// Without the wait, a config still being written by the datasource reads
+	// as absent, which is the race this function exists to close.
+	ensureDataSourceReady()
+
+	cc, err := config.Scan(collector.Directories(dir...),
+		collector.Readers(strings.NewReader(generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries))),
+		collector.MergeBootLine)
+	if err != nil || !autoInstallRequested(cc) {
+		return false, nil
+	}
+
+	if err := RunInstall(cc); err != nil {
+		return true, err
+	}
+
+	if !cc.Install.Reboot && !cc.Install.Poweroff {
+		_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
+		svc, err := machine.Getty(1)
+		if err == nil {
+			_ = svc.Start() //nolint:errcheck
+		}
+	}
+
+	return true, nil
+}
+
 func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
 	var cc *sdkConfig.Config
 	var err error
@@ -123,27 +174,12 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 
 	cliConf := generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries)
 
-	// Reads config, and if present and offline is defined, runs the installation
+	// Read the config the provider flow below hands to the installation. The
+	// unattended case is already gone: AutoInstall runs before this.
 	cc, err = config.Scan(collector.Directories(dir...),
 		collector.Readers(strings.NewReader(cliConf)),
 		collector.MergeBootLine)
 
-	if err == nil && cc.Install != nil && cc.Install.Auto {
-		err = RunInstall(cc)
-		if err != nil {
-			return err
-		}
-
-		if !cc.Install.Reboot && !cc.Install.Poweroff {
-			_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
-			svc, err := machine.Getty(1)
-			if err == nil {
-				_ = svc.Start() //nolint:errcheck
-			}
-		}
-
-		return nil
-	}
 	if err != nil {
 		fmt.Printf("- config not found in the system: %s", err.Error())
 	}
