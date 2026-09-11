@@ -78,12 +78,10 @@ func TestDracutNetworkModules(t *testing.T) {
 		wantSysext bool
 	}{
 		{
-			// Bug: systemd-networkd without systemd-resolved leaves the
-			// initramfs without a resolver. kairos-io/kairos#835.
-			name:       "ubuntu 22.04 skips resolved",
+			name:       "ubuntu 22.04 adds resolved",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "22.04"},
 			files:      []string{fixtureResolved, fixtureResolvedModule},
-			wantModule: "systemd-networkd network-legacy",
+			wantModule: "systemd-networkd network-legacy systemd-resolved",
 			wantSysext: false,
 		},
 		{
@@ -94,6 +92,8 @@ func TestDracutNetworkModules(t *testing.T) {
 			wantSysext: false,
 		},
 		{
+			// The plain network module writes /etc/resolv.conf itself, so
+			// resolved has nothing to do here.
 			name:       "ubuntu 20.04 uses the plain network module",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "20.04"},
 			files:      []string{fixtureResolved, fixtureResolvedModule},
@@ -115,22 +115,28 @@ func TestDracutNetworkModules(t *testing.T) {
 			wantSysext: true,
 		},
 		{
-			// Bug: kairos-io/kairos#835.
-			name:       "opensuse leap skips resolved",
+			name:       "opensuse leap adds resolved",
 			sis:        values.System{Distro: values.OpenSUSELeap, Family: values.SUSEFamily, Version: "15.6"},
 			files:      []string{fixtureResolved, fixtureResolvedModule},
+			wantModule: "systemd-networkd network-legacy systemd-resolved",
+			wantSysext: true,
+		},
+		{
+			name:       "opensuse leap without resolved installed",
+			sis:        values.System{Distro: values.OpenSUSELeap, Family: values.SUSEFamily, Version: "15.6"},
 			wantModule: "systemd-networkd network-legacy",
 			wantSysext: true,
 		},
 		{
-			// Bug: kairos-io/kairos#835.
-			name:       "debian skips resolved",
+			name:       "debian adds resolved",
 			sis:        values.System{Distro: values.Debian, Family: values.DebianFamily, Version: "13"},
 			files:      []string{fixtureResolved, fixtureResolvedModule},
-			wantModule: "systemd-networkd network-legacy",
+			wantModule: "systemd-networkd network-legacy systemd-resolved",
 			wantSysext: true,
 		},
 		{
+			// NetworkManager and the legacy network modules write
+			// /etc/resolv.conf themselves, so they get no resolved.
 			name:       "rhel 9 uses NetworkManager",
 			sis:        values.System{Distro: values.RedHat, Family: values.RedHatFamily, Version: "9.5"},
 			files:      []string{fixtureNetworkManager, fixtureResolved, fixtureResolvedModule},
@@ -159,10 +165,12 @@ func TestDracutNetworkModules(t *testing.T) {
 			wantSysext: true,
 		},
 		{
+			// Asking dracut for a module it does not ship fails the initramfs
+			// build, so the daemon alone is not enough.
 			name:       "fedora with networkd and no resolved dracut module",
 			sis:        values.System{Distro: values.Fedora, Family: values.RedHatFamily, Version: "42"},
 			files:      []string{fixtureNetworkd, fixtureResolved},
-			wantModule: "systemd-networkd systemd-resolved",
+			wantModule: "systemd-networkd",
 			wantSysext: true,
 		},
 		{
