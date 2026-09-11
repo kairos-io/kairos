@@ -426,6 +426,10 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 	cpuType := getEnvOrDefault("CPU_TYPE", "")
 	arch := getEnvOrDefault("ARCH", "x86_64")
 
+	if cpuType == "" && arch == "x86_64" {
+		cpuType = "host"
+	}
+
 	opts := []types.MachineOption{
 		types.QEMUEngine,
 		types.WithISO(os.Getenv("ISO")),
@@ -487,12 +491,6 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 			if m.Arch == "x86_64" {
 				m.Args = append(m.Args,
 					"-enable-kvm",
-				)
-			}
-
-			if  os.Getenv("CPU_TYPE") == "" && m.Arch == "x86_64" {
-				m.Args = append(m.Args,
-				 	"-cpu","host",
 				)
 			}
 
