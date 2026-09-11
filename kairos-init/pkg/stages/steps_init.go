@@ -911,12 +911,12 @@ func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger)
 	// leaves /etc/resolv.conf to resolved, so an initramfs that has networkd
 	// and no resolved cannot resolve names at all.
 	//
-	// Ubuntu 22.04 keeps the plain networkd list even though it matches every
-	// other condition: jammy only ever published dracut 051 (universe, with
-	// nothing newer in -updates, -backports or -security) and dracut grew the
-	// systemd-resolved module in 054, so no package on that release can put
-	// the module into the build root. Getting resolved into the 22.04
-	// initramfs needs a newer dracut for jammy, not a change here.
+	// Ubuntu 22.04 keeps "systemd-networkd network-legacy" even though it
+	// matches every other condition: jammy only ever published dracut 051
+	// (universe, with nothing newer in -updates, -backports or -security) and
+	// dracut grew the systemd-resolved module in 054, so no package on that
+	// release can put the module into the build root. Getting resolved into
+	// the 22.04 initramfs needs a newer dracut for jammy, not a change here.
 	if strings.Contains(networkModule, dracutModSystemdNetworkd) &&
 		!strings.Contains(networkModule, dracutModSystemdResolved) &&
 		resolvedModuleAvailable(root) {
