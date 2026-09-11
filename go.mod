@@ -44,7 +44,7 @@ require (
 	github.com/mudler/go-processmanager v0.1.1
 	github.com/mudler/yip v1.26.1
 	github.com/nxadm/tail v1.4.11
-	github.com/onsi/ginkgo/v2 v2.32.1
+	github.com/onsi/ginkgo/v2 v2.32.2
 	github.com/onsi/gomega v1.43.0
 	github.com/pterm/pterm v0.12.83
 	github.com/qeesung/image2ascii v1.0.1
