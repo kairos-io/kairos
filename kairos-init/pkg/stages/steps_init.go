@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -32,6 +33,14 @@ const (
 	dracutModSystemdNetworkd = "systemd-networkd"
 	dracutModSystemdResolved = "systemd-resolved"
 	serviceSSHD              = "sshd"
+)
+
+// Paths, relative to the root of the image being built, that tell which
+// network daemons the initramfs can use.
+const (
+	networkManagerBinary  = "usr/sbin/NetworkManager"
+	systemdNetworkdBinary = "usr/lib/systemd/systemd-networkd"
+	systemdResolvedBinary = "usr/lib/systemd/systemd-resolved"
 )
 
 // GetInitrdStage Returns the initrd stage
@@ -793,6 +802,117 @@ func getLatestKernel(l logger.KairosLogger) (string, error) {
 	return kernel.GetLatest(config.DefaultConfig.Model, l)
 }
 
+// dracutNetworkModules returns the dracut network modules for the given system
+// and whether the sysext module can be used. Availability of the userspace
+// daemons is checked under root, which is "/" outside of tests.
+func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger) (string, bool, error) {
+	// Add proper network and systemd-sysext if needed
+	// We default to systemd-networkd+network-legacy and sysext enabled
+	// If its ubuntu <= 22.04 we need to disable sysext
+	// If its ubuntu <= 20.04 we need to use the plain network module
+	// network-legacy is needed for ipxe as it comes up very fast which makes the livenet stuff work properly
+	// otherwise systemd-networkd does not trigger the dracut hooks to let it know that its up and running
+	// https://github.com/dracutdevs/dracut/issues/1822
+	networkModule := "systemd-networkd network-legacy"
+	sysextModule := true
+
+	if sis.Distro == values.Ubuntu {
+		ver, err := semver.NewVersion(sis.Version)
+		if err != nil {
+			l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
+			return "", false, err
+		}
+		constraint, _ := semver.NewConstraint("<=22.04")
+		// If its <= 22.04 we need to use the plain network module and disable sysext
+		if constraint.Check(ver) {
+			l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
+			sysextModule = false
+			constraint, _ = semver.NewConstraint("<=20.04")
+			// If its <= 20.04 we need to use the plain network module
+			if constraint.Check(ver) {
+				l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Using the plain network module")
+				networkModule = "network"
+			}
+		}
+		constraint, _ = semver.NewConstraint(">=24.04")
+		// If its >= 24.04 we need to append resolved to the network module
+		if constraint.Check(ver) {
+			networkModule += " systemd-resolved"
+		}
+		constraint, _ = semver.NewConstraint(">=26.04")
+		if constraint.Check(ver) {
+			// For 26.04+, network-legacy is merged into systemd-networkd and removed
+			networkModule = "systemd-networkd systemd-resolved"
+		}
+	}
+
+	if sis.Family == values.RedHatFamily {
+		// Check sysext first
+		ver, err := semver.NewVersion(sis.Version)
+		if err != nil {
+			l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
+			return "", false, err
+		}
+		constraint, _ := semver.NewConstraint("<9.0")
+		// If its < 9.0 we need to disable sysext
+		if constraint.Check(ver) {
+			l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
+			sysextModule = false
+		}
+
+		// Now network
+		// we default to NetworkManager
+		// if systemd-network is available we use it instead
+		// depending on the version we might add network-legacy
+		// Every branch below reassigns networkModule unconditionally,
+		// so we do not need to clear it first.
+		// Do we have NetworkManager? Then add it and skip the rest of checks
+		if _, err := os.Stat(filepath.Join(root, networkManagerBinary)); err == nil {
+			networkModule = "network-manager"
+		} else {
+			// Nothing seems to ship networkd modules for dracut in the RHEL+clones so only add them under Fedora
+			if sis.Distro == values.Fedora {
+				// Do we have systemd-networkd?
+				if _, err := os.Stat(filepath.Join(root, systemdNetworkdBinary)); err == nil {
+					networkModule = dracutModSystemdNetworkd
+					// Systemd resolved modules only make sense if networkd is used alongside
+					// Otherwise other modules provide their own resolvers
+					// Do we have systemd-resolved?
+					if _, err := os.Stat(filepath.Join(root, systemdResolvedBinary)); err == nil {
+						networkModule += " systemd-resolved"
+					}
+				} else {
+					// Fallback: if neither NetworkManager nor systemd-networkd is available on Fedora,
+					// add either network or network-legacy based on the version, same as other distros.
+					// network-legacy was dropped from 10.0 onwards
+					constraint, _ = semver.NewConstraint("<10")
+					if constraint.Check(ver) {
+						networkModule = "network-legacy"
+					} else {
+						networkModule = "network"
+					}
+				}
+			} else {
+				// On other distros add either network or network-legacy
+				// network-legacy was dropped from 10.0 onwards
+				constraint, _ = semver.NewConstraint("<10")
+				if constraint.Check(ver) {
+					networkModule = "network-legacy"
+				} else {
+					networkModule = "network"
+				}
+			}
+		}
+	}
+
+	// Hadron uses the full systemd network stuff
+	if sis.Distro == values.Hadron {
+		networkModule = "systemd-networkd systemd-resolved"
+	}
+
+	return networkModule, sysextModule, nil
+}
+
 // GetKairosInitramfsFilesStage installs the kairos initramfs files
 // This stage is used to install the initramfs files that are needed for the system to boot
 func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]schema.Stage, error) {
@@ -876,108 +996,9 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 			},
 		}...)
 	} else {
-		// Add proper network and systemd-sysext if needed
-		// We default to systemd-networkd+network-legacy and sysext enabled
-		// If its ubuntu <= 22.04 we need to disable sysext
-		// If its ubuntu <= 20.04 we need to use the plain network module
-		// network-legacy is needed for ipxe as it comes up very fast which makes the livenet stuff work properly
-		// otherwise systemd-networkd does not trigger the dracut hooks to let it know that its up and running
-		// https://github.com/dracutdevs/dracut/issues/1822
-		networkModule := "systemd-networkd network-legacy"
-		sysextModule := true
-
-		if sis.Distro == values.Ubuntu {
-			ver, err := semver.NewVersion(sis.Version)
-			if err != nil {
-				l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
-				return []schema.Stage{}, err
-			}
-			constraint, _ := semver.NewConstraint("<=22.04")
-			// If its <= 22.04 we need to use the plain network module and disable sysext
-			if constraint.Check(ver) {
-				l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
-				sysextModule = false
-				constraint, _ = semver.NewConstraint("<=20.04")
-				// If its <= 20.04 we need to use the plain network module
-				if constraint.Check(ver) {
-					l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Using the plain network module")
-					networkModule = "network"
-				}
-			}
-			constraint, _ = semver.NewConstraint(">=24.04")
-			// If its >= 24.04 we need to append resolved to the network module
-			if constraint.Check(ver) {
-				networkModule += " systemd-resolved"
-			}
-			constraint, _ = semver.NewConstraint(">=26.04")
-			if constraint.Check(ver) {
-				// For 26.04+, network-legacy is merged into systemd-networkd and removed
-				networkModule = "systemd-networkd systemd-resolved"
-			}
-		}
-
-		if sis.Family == values.RedHatFamily {
-			// Check sysext first
-			ver, err := semver.NewVersion(sis.Version)
-			if err != nil {
-				l.Logger.Error().Msgf("Failed to parse the version %s: %s", sis.Version, err)
-				return []schema.Stage{}, err
-			}
-			constraint, _ := semver.NewConstraint("<9.0")
-			// If its < 9.0 we need to disable sysext
-			if constraint.Check(ver) {
-				l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Disabling sysext")
-				sysextModule = false
-			}
-
-			// Now network
-			// we default to NetworkManager
-			// if systemd-network is available we use it instead
-			// depending on the version we might add network-legacy
-			// Every branch below reassigns networkModule unconditionally,
-			// so we do not need to clear it first.
-			// Do we have NetworkManager? Then add it and skip the rest of checks
-			if _, err := os.Stat("/usr/sbin/NetworkManager"); err == nil {
-				networkModule = "network-manager"
-			} else {
-				// Nothing seems to ship networkd modules for dracut in the RHEL+clones so only add them under Fedora
-				if sis.Distro == values.Fedora {
-					// Do we have systemd-networkd?
-					if _, err := os.Stat("/usr/lib/systemd/systemd-networkd"); err == nil {
-						networkModule = dracutModSystemdNetworkd
-						// Systemd resolved modules only make sense if networkd is used alongside
-						// Otherwise other modules provide their own resolvers
-						// Do we have systemd-resolved?
-						if _, err := os.Stat("/usr/lib/systemd/systemd-resolved"); err == nil {
-							networkModule += " systemd-resolved"
-						}
-					} else {
-						// Fallback: if neither NetworkManager nor systemd-networkd is available on Fedora,
-						// add either network or network-legacy based on the version, same as other distros.
-						// network-legacy was dropped from 10.0 onwards
-						constraint, _ = semver.NewConstraint("<10")
-						if constraint.Check(ver) {
-							networkModule = "network-legacy"
-						} else {
-							networkModule = "network"
-						}
-					}
-				} else {
-					// On other distros add either network or network-legacy
-					// network-legacy was dropped from 10.0 onwards
-					constraint, _ = semver.NewConstraint("<10")
-					if constraint.Check(ver) {
-						networkModule = "network-legacy"
-					} else {
-						networkModule = "network"
-					}
-				}
-			}
-		}
-
-		// Hadron uses the full systemd network stuff
-		if sis.Distro == values.Hadron {
-			networkModule = "systemd-networkd systemd-resolved"
+		networkModule, sysextModule, err := dracutNetworkModules("/", sis, l)
+		if err != nil {
+			return []schema.Stage{}, err
 		}
 
 		l.Logger.Debug().Str("networkModule", networkModule).Bool("sysextModule", sysextModule).Msg("Adding dracut modules to initramfs")
