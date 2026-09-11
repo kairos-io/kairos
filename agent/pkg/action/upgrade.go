@@ -212,28 +212,9 @@ func (u *UpgradeAction) Run() (err error) {
 		return err
 	}
 
-	// If not upgrading recovery and booting from non passive, backup active into passive
-	// We dont want to overwrite passive if we are booting from passive as it could mean that active is broken and we would
-	// be overriding a working passive with a broken/unknown  active
-	if !u.spec.RecoveryUpgrade() && bootedFrom != state.Passive {
-		// backup current active.img to passive.img before overwriting the active.img
-		u.Info("Backing up current active image")
-		source := filepath.Join(u.spec.Partitions.State.MountPoint, "cOS", constants.ActiveImgFile)
-		u.Info("Moving %s to %s", source, u.spec.Passive.File)
-		err = u.config.Fs.Rename(source, u.spec.Passive.File)
-		if err != nil {
-			u.Error("Failed to move %s to %s: %s", source, u.spec.Passive.File, err)
-			return err
-		}
-		u.Info("Finished moving %s to %s", source, u.spec.Passive.File)
-		// Label the image to passive!
-		out, err := u.config.Runner.Run("tune2fs", "-L", u.spec.Passive.Label, u.spec.Passive.File)
-		if err != nil {
-			u.Error("Error while labeling the passive image %s: %s", u.spec.Passive.File, err)
-			u.Debug("Error while labeling the passive image %s, command output: %s", u.spec.Passive.File, out)
-			return err
-		}
-		syscall.Sync()
+	err = u.backupActiveToPassive(bootedFrom)
+	if err != nil {
+		return err
 	}
 
 	u.Info("Moving %s to %s", upgradeImg.File, finalImageFile)
@@ -274,6 +255,35 @@ func (u *UpgradeAction) Run() (err error) {
 		u.config.Logger.Debug(cleanErr.Error())
 	}
 
+	return nil
+}
+
+func (u *UpgradeAction) backupActiveToPassive(bootedFrom state.Boot) error {
+	// If not upgrading recovery and booting from non passive, backup active into passive.
+	// We dont want to overwrite passive if we are booting from passive as it could mean that active is broken and we would
+	// be overriding a working passive with a broken/unknown active.
+	if u.spec.RecoveryUpgrade() || bootedFrom == state.Passive {
+		return nil
+	}
+
+	// backup current active.img to passive.img before overwriting the active.img
+	u.Info("Backing up current active image")
+	source := filepath.Join(u.spec.Partitions.State.MountPoint, "cOS", constants.ActiveImgFile)
+	u.Info("Moving %s to %s", source, u.spec.Passive.File)
+	if err := u.config.Fs.Rename(source, u.spec.Passive.File); err != nil {
+		u.Error("Failed to move %s to %s: %s", source, u.spec.Passive.File, err)
+		return err
+	}
+	u.Info("Finished moving %s to %s", source, u.spec.Passive.File)
+
+	// Label the image to passive!
+	out, err := u.config.Runner.Run("tune2fs", "-L", u.spec.Passive.Label, u.spec.Passive.File)
+	if err != nil {
+		u.Error("Error while labeling the passive image %s: %s", u.spec.Passive.File, err)
+		u.Debug("Error while labeling the passive image %s, command output: %s", u.spec.Passive.File, out)
+		return err
+	}
+	syscall.Sync()
 	return nil
 }
 
