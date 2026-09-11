@@ -67,6 +67,48 @@ func buildRoot(t *testing.T, files ...string) string {
 	return root
 }
 
+// TestResolvedModuleAvailable exercises resolvedModuleAvailable directly, for
+// all four combinations of "daemon present" x "dracut module present". The
+// dracutNetworkModules table above only ever drives this through the full
+// selection, and never happens to cover the module-without-daemon case, so it
+// is worth pinning on its own: the function is documented to require both.
+func TestResolvedModuleAvailable(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string
+		want  bool
+	}{
+		{
+			name:  "daemon and module both present",
+			files: []string{fixtureResolved, fixtureResolvedModule},
+			want:  true,
+		},
+		{
+			name:  "daemon present, module missing",
+			files: []string{fixtureResolved},
+			want:  false,
+		},
+		{
+			name:  "module present, daemon missing",
+			files: []string{fixtureResolvedModule},
+			want:  false,
+		},
+		{
+			name:  "neither present",
+			files: nil,
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolvedModuleAvailable(buildRoot(t, tt.files...)); got != tt.want {
+				t.Errorf("resolvedModuleAvailable() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDracutNetworkModules(t *testing.T) {
 	log := logger.NewKairosLogger("test", "fatal", true)
 
