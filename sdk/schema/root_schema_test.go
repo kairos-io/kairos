@@ -71,6 +71,42 @@ users:
 				Expect(config.HasHeader()).To(BeTrue())
 			})
 		})
+
+		Context("with install.oem_files nested under the root config", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo
+      content: "#cloud-config"`
+			})
+
+			It("is successful", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+			})
+		})
+
+		Context("with an install.oem_files entry missing its content", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+install:
+  oem_files:
+    - name: foo`
+			})
+
+			It("errors", func() {
+				Expect(err).ToNot(HaveOccurred())
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("content"))
+			})
+		})
 	})
 
 	Context("ValidateSemantics", func() {
@@ -191,6 +227,27 @@ users:
 
 			It("appends the $schema key", func() {
 				Expect(strings.Contains(schema, `$schema": "http://foobar"`)).To(BeTrue())
+			})
+		})
+
+		Context("for the real RootSchema's install.oem_files description", func() {
+			var rootSchema string
+
+			BeforeEach(func() {
+				var genErr error
+				rootSchema, genErr = GenerateSchema(RootSchema{}, "")
+				Expect(genErr).ToNot(HaveOccurred())
+			})
+
+			It("no longer advertises the removed /usr/local/cloud-config fallback", func() {
+				// Regression guard for the stale-description bug: the fallback
+				// was deleted from the code (oemFilesDir errors out instead),
+				// but the published schema kept telling users about it.
+				Expect(rootSchema).NotTo(ContainSubstring("/usr/local/cloud-config"))
+			})
+
+			It("still names the OEM partition as the only destination", func() {
+				Expect(rootSchema).To(ContainSubstring("OEM partition"))
 			})
 		})
 

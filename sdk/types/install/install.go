@@ -36,4 +36,13 @@ type Install struct {
 	Force                  bool                           `yaml:"force,omitempty" mapstructure:"force" json:"force,omitempty"`
 	NoUsers                bool                           `yaml:"nousers,omitempty" mapstructure:"nousers" json:"nousers,omitempty"`
 	SSHHardening           bool                           `yaml:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" json:"ssh_hardening,omitempty"`
+	OEMFiles               []OEMFile                      `yaml:"oem_files,omitempty" mapstructure:"oem_files" json:"oem_files,omitempty"`
+}
+
+// OEMFile is a cloud-config file to drop into the cloud-config directory of
+// the installed system, so it is applied on its first boot without having to
+// write an after-install stage by hand.
+type OEMFile struct {
+	Name    string `yaml:"name,omitempty" mapstructure:"name" json:"name,omitempty"`
+	Content string `yaml:"content,omitempty" mapstructure:"content" json:"content,omitempty"`
 }

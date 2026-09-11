@@ -25,9 +25,17 @@ type InstallSchema struct {
 	Force                  bool                `json:"force,omitempty" mapstructure:"force"`
 	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty" mapstructure:"extra-dirs-rootfs"`
 	SSHHardening           bool                `json:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	OEMFiles               []OEMFileSchema     `json:"oem_files,omitempty" mapstructure:"oem_files" description:"Cloud-config files to write into the OEM partition of the installed system, which it reads as /oem, so they are applied on its first boot. The install fails if the target has no mounted OEM partition."`
 	Active                 Image               `json:"system,omitempty" mapstructure:"system"`
 	Recovery               Image               `json:"recovery-system,omitempty" mapstructure:"recovery-system"`
 	Passive                Image               `json:"passive,omitempty" mapstructure:"recovery-system"`
+}
+
+// OEMFileSchema represents one entry of the install.oem_files block. The file
+// lands as <name>.yaml, so name has to be a plain file name.
+type OEMFileSchema struct {
+	Name    string `json:"name,omitempty" required:"true" pattern:"^[^/]+$" description:"File name, without the yaml extension" examples:"[\"foo\"]"`
+	Content string `json:"content,omitempty" required:"true" description:"Content of the file, a cloud-config document"`
 }
 
 type Image struct {
