@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/kairos-io/kairos/v4/internal/version"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -282,49 +284,56 @@ func (c *Client) Run(ctx context.Context) error {
 
 	// Retry registration with backoff until successful or context cancelled
 	regBackoff := c.cfg.ReconnectBackoff
-	for {
-		err := c.Register(ctx)
-		if err == nil {
-			break
-		}
-		if ctx.Err() != nil {
-			return nil
-		}
-		c.logger.Warnf("registration failed: %v, retrying in %s", err, regBackoff)
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(regBackoff):
-		}
-		regBackoff = regBackoff * 2
-		if regBackoff > MaxReconnectBackoff {
-			regBackoff = MaxReconnectBackoff
-		}
+	regDelay := retry.Exponential(regBackoff, MaxReconnectBackoff)
+	regErr := retry.Do(func() error {
+		return c.Register(ctx)
+	}, retry.Config{
+		Ctx:   ctx,
+		Delay: regDelay,
+		OnRetry: func(n uint, err error) {
+			c.logger.Warnf("registration failed: %v, retrying in %s", err, regDelay(n))
+		},
+	})
+	if regErr != nil {
+		// Only ctx being done can end an unlimited-attempts retry loop early.
+		return nil
 	}
 
+	// Reconnect forever with backoff until context cancelled. Connect
+	// returning (with or without an error) always means "try again" here --
+	// the loop's only exit is ctx being done -- so the retried func reports
+	// every non-cancellation return as a failure to keep retry.Do retrying.
 	backoff := c.cfg.ReconnectBackoff
-	for {
+	reconnectDelay := retry.Exponential(backoff, MaxReconnectBackoff)
+	_ = retry.Do(func() error {
 		err := c.Connect(ctx)
 		if ctx.Err() != nil {
-			return nil // context cancelled, clean shutdown
+			return retry.Unrecoverable(ctx.Err())
 		}
 		if err != nil {
-			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, backoff)
+			return err
 		}
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-time.After(backoff):
-		}
-
-		// Exponential backoff
-		backoff = backoff * 2
-		if backoff > MaxReconnectBackoff {
-			backoff = MaxReconnectBackoff
-		}
-	}
+		return errReconnect
+	}, retry.Config{
+		Ctx:   ctx,
+		Delay: reconnectDelay,
+		OnRetry: func(n uint, err error) {
+			if errors.Is(err, errReconnect) {
+				return
+			}
+			c.logger.Warnf("disconnected: %v, reconnecting in %s", err, reconnectDelay(n))
+		},
+	})
+	return nil
 }
+
+// errReconnect is a sentinel forcing another Connect attempt in Run's
+// reconnect loop even when Connect returned nil (an unusual clean
+// disconnect): retry.Do's normal semantics treat a nil error as "done, stop
+// retrying", which doesn't apply here since only ctx cancellation should end
+// this loop. It never surfaces to a caller and is never logged (see
+// WithOnRetry above).
+var errReconnect = errors.New("reconnecting")
 
 func (c *Client) heartbeatLoop(ctx context.Context, conn *websocket.Conn) {
 	ticker := time.NewTicker(c.cfg.HeartbeatInterval)

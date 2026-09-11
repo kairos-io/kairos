@@ -18,6 +18,7 @@ import (
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
 	"github.com/kairos-io/kairos/v4/sdk/loop"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	"github.com/kairos-io/kairos/v4/sdk/signatures"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"github.com/spectrocloud-labs/herd"
@@ -573,19 +574,19 @@ func (s *State) UKIMountLiveCd(g *herd.Graph, opts ...herd.OpOption) error {
 		// try a couple of times as the udev daemon can take a bit of time to populate the devices
 		var cdrom string
 
-		for i := 0; i < 5; i++ {
-			_, err = os.Stat(cnst.UkiLivecdPath)
+		_ = retry.Do(func() error {
+			_, statErr := os.Stat(cnst.UkiLivecdPath)
 			// if found, set it
-			if err == nil {
+			if statErr == nil {
 				cdrom = cnst.UkiLivecdPath
-				break
+				return nil
 			}
 
 			internalUtils.KLog.Logger.Debug().Msg(fmt.Sprintf("No media with label found at %s", cnst.UkiLivecdPath))
 			out, _ := internalUtils.CommandWithPath("ls -ltra /dev/disk/by-label/")
 			internalUtils.KLog.Logger.Debug().Str("out", out).Msg("contents of /dev/disk/by-label/")
-			time.Sleep(time.Duration(i) * time.Second)
-		}
+			return statErr
+		}, retry.Config{Attempts: 5, Delay: retry.LinearFromZero(1*time.Second, 0)})
 
 		// Fallback to try to get the /dev/sr0 device directly, no retry as that wont take time to appear
 		if cdrom == "" {

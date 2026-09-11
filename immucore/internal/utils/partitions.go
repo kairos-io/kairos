@@ -14,6 +14,7 @@ import (
 	"github.com/jaypipes/ghw"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 )
 
 // KairosPartitionsPresent scans block devices via ghw and reports whether the
@@ -279,21 +280,14 @@ func BuildEnsurePartitionsStage(targetDisk string, oemFound, persistentFound boo
 // the timeout elapses. Kernel usually needs a beat after partx / partprobe
 // before /dev/disk/by-label/... is populated.
 func WaitForKairosPartitions(ctx context.Context, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	for {
+	err := retry.PollUntil(ctx, 500*time.Millisecond, timeout, true, func() (bool, error) {
 		oem, persistent, err := KairosPartitionsPresent()
-		if err == nil && oem && persistent {
-			return nil
-		}
-		if time.Now().After(deadline) {
-			return errors.New("timed out waiting for COS_OEM and COS_PERSISTENT to appear after partitioning")
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(500 * time.Millisecond):
-		}
+		return err == nil && oem && persistent, nil
+	})
+	if errors.Is(err, retry.ErrTimeout) {
+		return errors.New("timed out waiting for COS_OEM and COS_PERSISTENT to appear after partitioning")
 	}
+	return err
 }
 
 // ramModeIntro is the shared intro paragraph for every RAM-mode failure

@@ -12,12 +12,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/avast/retry-go"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"golang.org/x/term"
 )
@@ -480,12 +480,13 @@ func GetState() string {
 			}
 			return nil
 		},
-		retry.Delay(1*time.Second),
-		retry.Attempts(10),
-		retry.DelayType(retry.FixedDelay),
-		retry.OnRetry(func(n uint, _ error) {
-			KLog.Logger.Debug().Uint("try", n).Msg("Cannot get state label, retrying")
-		}),
+		retry.Config{
+			Attempts: 10,
+			Delay:    retry.Fixed(1 * time.Second),
+			OnRetry: func(n uint, _ error) {
+				KLog.Logger.Debug().Uint("try", n).Msg("Cannot get state label, retrying")
+			},
+		},
 	)
 	if err != nil {
 		KLog.Logger.Panic().Err(err).Msg("Could not get state label")

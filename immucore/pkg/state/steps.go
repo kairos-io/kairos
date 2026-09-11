@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	"github.com/kairos-io/kairos/v4/sdk/loop"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/spectrocloud-labs/herd"
 )
@@ -149,36 +151,32 @@ func (s *State) waitForSysroot(ctx context.Context) error {
 
 	internalUtils.KLog.Logger.Debug().Str("timeout", timeout.String()).Msg("Waiting for sysroot")
 
-	cc := time.After(timeout)
-	for {
+	err := retry.PollUntil(ctx, sysrootPollInterval, timeout, true, func() (bool, error) {
 		missing := s.missingSysrootPath()
-		if missing == "" {
+		if missing != "" {
+			internalUtils.KLog.Logger.Debug().Str("what", missing).Msg("Checking path existence")
+			return false, nil
+		}
+		return true, nil
+	})
+	switch {
+	case errors.Is(err, retry.ErrTimeout):
+		// Look once more before giving up. The sysroot may have been
+		// staged during the interval we were waiting out, and a
+		// rd.immucore.sysrootwait= shorter than sysrootPollInterval
+		// would otherwise never get a second check at all.
+		if s.missingSysrootPath() == "" {
 			return nil
 		}
-		internalUtils.KLog.Logger.Debug().Str("what", missing).Msg("Checking path existence")
-
-		// Wait before looking again. This has to be a select rather than a
-		// time.Sleep: a sleep holds this goroutine for the whole interval, so
-		// both the cancel and the deadline below are seen that late.
-		select {
-		case <-time.After(sysrootPollInterval):
-		case <-ctx.Done():
-			e := fmt.Errorf("context canceled")
-			internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check canceled")
-			return e
-		case <-cc:
-			// Look once more before giving up. The sysroot may have been
-			// staged during the interval we were waiting out, and a
-			// rd.immucore.sysrootwait= shorter than sysrootPollInterval
-			// would otherwise never get a second check at all.
-			if s.missingSysrootPath() == "" {
-				return nil
-			}
-			e := fmt.Errorf("timeout exhausted")
-			internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check timeout")
-			return e
-		}
+		e := fmt.Errorf("timeout exhausted")
+		internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check timeout")
+		return e
+	case err != nil:
+		e := fmt.Errorf("context canceled")
+		internalUtils.KLog.Logger.Err(e).Str("what", s.Rootdir).Msg("filepath check canceled")
+		return e
 	}
+	return nil
 }
 
 // missingSysrootPath returns the first of the paths the sysroot needs that is
