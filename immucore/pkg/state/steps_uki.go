@@ -17,6 +17,7 @@ import (
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
+	"github.com/kairos-io/kairos/v4/sdk/loop"
 	"github.com/kairos-io/kairos/v4/sdk/signatures"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"github.com/spectrocloud-labs/herd"
@@ -606,18 +607,19 @@ func (s *State) UKIMountLiveCd(g *herd.Graph, opts ...herd.OpOption) error {
 			internalUtils.KLog.Logger.Debug().Msg(fmt.Sprintf("Mounted %s", cdrom))
 
 			// This needs the loop module to be inserted in the kernel!
-			cmd := fmt.Sprintf("losetup --show -f %s", s.path(filepath.Join(cnst.UkiLivecdMountPoint, cnst.UkiIsoBootImage)))
-			out, err := internalUtils.CommandWithPath(cmd)
-			loop := strings.TrimSpace(out)
-
-			if err != nil || loop == "" {
-				internalUtils.KLog.Logger.Err(err).Str("out", out).Msg(cmd)
+			// The boot image sits on the live media, which is mounted
+			// read-only just above, so Attach opens it read-only and the
+			// device comes out read-only with it.
+			bootImage := s.path(filepath.Join(cnst.UkiLivecdMountPoint, cnst.UkiIsoBootImage))
+			device, err := loop.Loop{Logger: internalUtils.KLog}.Attach(bootImage)
+			if err != nil {
+				internalUtils.KLog.Logger.Err(err).Str("image", bootImage).Str("device", device).Msg("Attaching the boot image to a loop device")
 				return err
 			}
 
-			err = internalUtils.Mount(loop, s.path(cnst.UkiIsoBaseTree), cnst.UkiDefaultEfiimgFsType, syscall.MS_RDONLY, "")
+			err = internalUtils.Mount(device, s.path(cnst.UkiIsoBaseTree), cnst.UkiDefaultEfiimgFsType, syscall.MS_RDONLY, "")
 			if err != nil {
-				internalUtils.KLog.Logger.Err(err).Msg(fmt.Sprintf("Mounting %s into %s", loop, s.path(cnst.UkiIsoBaseTree)))
+				internalUtils.KLog.Logger.Err(err).Msg(fmt.Sprintf("Mounting %s into %s", device, s.path(cnst.UkiIsoBaseTree)))
 				return err
 			}
 			return nil

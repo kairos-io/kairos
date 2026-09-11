@@ -72,6 +72,7 @@ const (
 	AfterUpgradeChrootHook       = "after-upgrade-chroot"
 	AfterUpgradeHook             = "after-upgrade"
 	BeforeUpgradeHook            = "before-upgrade"
+	FirstBootHook                = "first-boot"
 	TransitionImgFile            = "transition.img"
 	RunningStateDir              = "/run/initramfs/cos-state" // TODO: converge this constant with StateDir/RecoveryDir in dracut module from cos-toolkit
 	RunningRecoveryStateDir      = "/run/initramfs/isoscan"   // TODO: converge this constant with StateDir/RecoveryDir in dracut module from cos-toolkit

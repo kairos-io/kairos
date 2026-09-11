@@ -83,6 +83,19 @@ on:
         required: false
         default: false
 
+      suite_timeout:
+        description: |
+          ginkgo's suite timeout, as a Go duration.
+
+          Passed to ginkgo as --timeout. Without it ginkgo applies its own
+          default of 1h, which is invisible in the log and in this file
+          (kairos-io/kairos#4489). The default keeps today's effective
+          budget, now stated. Raise it for a caller only alongside per-step
+          ceilings that still fit inside it.
+        type: string
+        required: false
+        default: '60m'
+
 permissions:
   contents: read
   packages: read
@@ -91,6 +104,11 @@ jobs:
   test:
     runs-on: kvm
     name: ${{ inputs.test }}
+    # Backstop only. ginkgo's own --timeout below should always fire first,
+    # because it stops the suite with a progress report naming the step,
+    # whereas this kills the runner and leaves nothing to read. Without it
+    # the job is bounded only by GitHub's 6h default.
+    timeout-minutes: 120
     steps:
       - name: Split base image
         id: split
@@ -126,7 +144,16 @@ jobs:
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
 
       - name: Set Version
-        run: echo "VERSION=$(git describe --tags --dirty)" >> "$GITHUB_ENV"
+        # Match reusable-factory.yaml's setup step so the IMAGE_NAME this
+        # file constructs matches what _build-iso.yaml -> factory-action
+        # actually tagged: `git describe --tags --dirty --always` plus the
+        # v0.0.0- prefix when git describe returns a bare SHA.
+        run: |
+          VERSION=$(git describe --tags --dirty --always)
+          if [[ "$VERSION" =~ ^[a-f0-9]+$ ]]; then
+            VERSION="v0.0.0-$VERSION"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Install Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
@@ -140,7 +167,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libvirt-clients libvirt-daemon-system libvirt-daemon virtinst bridge-utils qemu-system-x86 qemu-utils acl udev mkisofs swtpm ovmf
-          sudo setfacl -m u:runner:rwx /dev/kvm
+          # setfacl on its own is not enough. Installing the qemu/libvirt stack
+          # triggers udev, and udevadm trigger is asynchronous, so /dev/kvm can be
+          # re-created with the packaged root:kvm 0660 seconds after this step has
+          # already run setfacl and returned 0. Install a rule that outranks the
+          # packaged one, drain the udev queue, and only then fall back to the ACL.
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules || true
+          sudo udevadm trigger --name-match=kvm || true
+          sudo udevadm settle || true
+          sudo setfacl -m u:runner:rwx /dev/kvm || true
+          # Fail here rather than 20 minutes into the suite with an aborted VM.
+          test -w /dev/kvm
 
       - name: Login to quay.io
         # Only the generic cell needs quay: it pushes the freshly-
@@ -163,10 +201,15 @@ jobs:
           VARIANT: ${{ inputs.variant }}
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
-          SHA: ${{ github.sha }}
         run: |
+          # Match _build-iso.yaml's custom_tag_format:
+          # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
+          # UKI cells never carry a k8s pair, so $K8S is empty. $UKI is
+          # -uki here (trusted_boot=true is the whole point of this file).
+          # $VERSION was set two steps up via `git describe --tags --dirty`
+          # and is already in the env, matching factory-action's setup.
           PREFIX="${PREFIX_TEMPLATE//\$\{flavor\}/$FLAVOR}"
-          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${SHA}-uki" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${VERSION}-uki" >> "$GITHUB_ENV"
 
       - name: Download UKI ISO artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
@@ -232,6 +275,7 @@ jobs:
           FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
           UKI_TEST: true
           TEST_LABEL: ${{ inputs.test }}
+          SUITE_TIMEOUT: ${{ inputs.suite_timeout }}
         run: |
           set -euo pipefail
           mkdir -p "$PWD/build"
@@ -247,7 +291,7 @@ jobs:
             export EXPECTED_SINGLE_ENTRY="testentry"
           fi
           cp tests/go.* .
-          go run github.com/onsi/ginkgo/v2/ginkgo -v --label-filter "$TEST_LABEL" --fail-fast -r ./tests/
+          go run github.com/onsi/ginkgo/v2/ginkgo -v --timeout "$SUITE_TIMEOUT" --label-filter "$TEST_LABEL" --fail-fast -r ./tests/
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         if: failure()

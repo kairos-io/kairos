@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
 	"runtime"
@@ -52,18 +53,98 @@ var defaultRetryBackoff = remote.Backoff{
 }
 
 var defaultRetryPredicate = func(err error) bool {
+	if !isTransientNetworkError(err) {
+		return false
+	}
+	logs.Warn.Printf("retrying %v", err)
+	return true
+}
+
+// transientNetworkMessages are substrings of errors that are worth another
+// attempt but carry no sentinel to compare against.
+//
+// The HTTP/2 entries are the reason this list is matched on text at all. A
+// registry that resets a stream mid-download surfaces an *http2.StreamError
+// ("stream error: stream ID 3; PROTOCOL_ERROR; received from peer"), and the
+// HTTP/2 transport net/http uses is a bundled copy of golang.org/x/net/http2
+// with its own unexported error types. Neither errors.Is nor errors.As can
+// reach them from here.
+var transientNetworkMessages = []string{
+	"connection refused",
+	"connection reset by peer",
+	"stream error:",
+	"http2: server sent GOAWAY",
+	"http2: client connection",
+	"unexpected EOF",
+}
+
+// isTransientNetworkError reports whether err is a network failure that a
+// later attempt has a fair chance of getting past: a dropped or refused
+// connection, a timeout, or a broken HTTP/2 stream.
+//
+// It deliberately does not match protocol-level rejections. A 401, a missing
+// manifest or an untrusted certificate fails the same way every time, and
+// retrying those only delays the error the caller needs to see.
+func isTransientNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) || errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) || strings.Contains(err.Error(), "connection refused") {
-		logs.Warn.Printf("retrying %v", err)
+	if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) ||
+		errors.Is(err, net.ErrClosed) ||
+		errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNABORTED) || errors.Is(err, syscall.ETIMEDOUT) {
 		return true
 	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+
+	msg := err.Error()
+	for _, m := range transientNetworkMessages {
+		if strings.Contains(msg, m) {
+			return true
+		}
+	}
+
 	return false
 }
 
+// daemonImageOptions are the options GetImage passes to daemon.Image when it
+// reads an image out of the local Docker daemon.
+//
+// The daemon package buffers the whole `docker save` stream by default
+// (bufferMode is bufferMemory in pkg/v1/daemon/options.go), and its buffered
+// opener is an io.ReadAll into a byte slice the opener then holds for its own
+// lifetime. That asks for one allocation the size of the entire image before a
+// single layer is read: a 5.4 GB local image killed AuroraBoot with
+// "fatal error: runtime: out of memory" during the pull, which is
+// kairos-io/kairos#3037.
+//
+// WithFileBufferedOpener spools that stream to a temporary file instead, so the
+// cost lands on os.TempDir() rather than on the heap. It keeps the single save
+// that memory buffering existed to get; WithUnbufferedOpener would drop the
+// buffer entirely but re-run `docker save` on every access, and tarball.Image
+// opens the archive once per layer plus once for the manifest.
+//
+// It is a variable so tests can add a fake docker client. Production code does
+// not reassign it.
+var daemonImageOptions = []daemon.Option{daemon.WithFileBufferedOpener()}
+
+// ExtractOCIImage unpacks img into targetDestination.
+//
+// A Kairos raw extension artifact (see ExtractRawExtension) is written out as
+// the single file it carries: its one layer is an extension image, not a tar
+// stream, so untarring it fails on the missing tar header. excludes do not
+// apply to that case, there being one blob whose name the artifact fixes.
+// Every other image is applied layer by layer as a tar stream.
 func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string) error {
+	if _, err := ExtractRawExtension(img, targetDestination); !errors.Is(err, ErrNotRawExtension) {
+		return err
+	}
+
 	reader := mutate.Extract(img)
 	defer reader.Close()
 
@@ -186,7 +267,7 @@ func GetImage(targetImage, targetPlatform string, auth *registrytypes.AuthConfig
 	)
 
 	// Try to get the image from the local Docker daemon
-	image, daemonErr := daemon.Image(ref)
+	image, daemonErr := daemon.Image(ref, daemonImageOptions...)
 	if daemonErr == nil {
 		imgConfig, cfgErr := image.ConfigFile()
 		if cfgErr != nil {

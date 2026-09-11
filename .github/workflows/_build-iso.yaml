@@ -131,6 +131,33 @@ on:
         type: string
         default: ''
 
+      custom_tag_format:
+        description: |
+          Factory-action custom_tag_format for the pushed OS image.
+          The default matches what reusable-qemu-test.yaml and
+          _uki-test.yaml resolve to (`$FLAVOR-` prefix so tests find
+          the fresh image); release.yaml overrides this to drop the
+          prefix and match the tag shape v4.2.0 shipped.
+          $K8S expands to `-$KUBERNETES_DISTRO-$SANITIZED_KUBERNETES_VERSION`
+          when a k8s pair is set and empty otherwise; $VERSION is
+          factory-action's `git describe --tags --dirty --always`.
+        type: string
+        default: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI'
+
+      custom_artifact_format:
+        description: |
+          Factory-action custom_artifact_format for the ISO/RAW files
+          produced by the build. The default matches what
+          reusable-qemu-test.yaml downloads
+          (kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI).
+          release.yaml overrides this to add $K8S and $VERSION so
+          per-k8s-version cells no longer collide on the same filename
+          (v4.3.0-rc3 had every k3s/k0s cell writing to
+          `kairos-hadron-v0.5.1-standard-amd64-generic.iso.zip`), and
+          the release page names match v4.2.0's shape.
+        type: string
+        default: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
+
       ref:
         description: 'git ref to check out (passthrough to factory-action)'
         type: string
@@ -205,22 +232,13 @@ jobs:
       registry_domain: ${{ inputs.registry_domain }}
       registry_namespace: ${{ inputs.registry_namespace }}
       registry_repository: ${{ inputs.registry_repository }}
-      # Force factory-action to name the image tag and ISO artifact
-      # the same way reusable-qemu-test.yaml expects to find them.
-      # Factory-action's default artifact format is
-      # `kairos-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION` (no
-      # $FLAVOR, plus a trailing version), but reusable-qemu-test.yaml
-      # downloads `kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL.iso.zip`
-      # and expects the container image tag to end in $COMMIT_SHA.
-      # These two overrides are the same ones image-pr.yaml uses today.
-      # $UKI is `-uki` for trusted-boot builds, empty otherwise. UKI
-      # tests download by name with -uki suffix and pull the image
-      # from a tag ending in -uki (see _uki-test.yaml). Without
-      # $UKI here, trusted-boot cells would collide with non-UKI
-      # ones and neither the ISO artifact nor the container image
-      # would resolve.
-      custom_tag_format: '$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$COMMIT_SHA$UKI'
-      custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$UKI'
+      # Both formats are caller-supplied. Defaults keep the shape
+      # reusable-qemu-test.yaml and _uki-test.yaml expect (tests
+      # resolve by `$FLAVOR-`-prefixed tag and by kairos-$FLAVOR-...
+      # filename). release.yaml overrides both to drop the prefix and
+      # add $K8S/$VERSION so per-k8s-version cells no longer collide.
+      custom_tag_format: ${{ inputs.custom_tag_format }}
+      custom_artifact_format: ${{ inputs.custom_artifact_format }}
       trusted_boot: ${{ inputs.trusted_boot }}
       # Factory-action's keys_dir is "required when trusted_boot is
       # true" but has no sensible default -- if we leave it empty

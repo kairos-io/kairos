@@ -374,8 +374,10 @@ if grep -q netboot /proc/cmdline; then
   rd_break pre-netboot
 
   for x in $(cat /proc/cmdline); do
-    # shellcheck disable=SC2039
-    [[ $x = root=live:* ]] || continue
+    case "$x" in
+      root=live:*) ;;
+      *) continue ;;
+    esac
     root=${x#root=live:}
   done
 

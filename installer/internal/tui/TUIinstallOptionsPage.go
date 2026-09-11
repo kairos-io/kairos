@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 )
 
 // Install Options Page
@@ -23,7 +24,7 @@ func newInstallOptionsPage() *installOptionsPage {
 	// Check if advanced customization is disabled via branding file
 	// If the file exists, we do NOT show the "Customize Further" option
 	// If the file does not exist, we show the option
-	if _, ok := os.Stat(BrandingFile("interactive_install_advanced_disabled")); ok != nil {
+	if _, ok := os.Stat(branding.File("interactive_install_advanced_disabled")); ok != nil {
 		baseOptions = append(baseOptions, "Customize Further (User, SSH Keys, etc.)")
 	}
 	return &installOptionsPage{
@@ -59,11 +60,12 @@ func (p *installOptionsPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 				p.afterInstallIdx++
 			}
 		case "enter":
+			// Save the selected after-install action for either path, so it
+			// survives a detour through the customization page.
+			mainModel.finishAction = p.afterInstallOpts[p.afterInstallIdx]
 			if p.cursor == 0 {
 				// Start Install - store after install action in Model.extraFields
 				return p, func() tea.Msg {
-					// Set the finish action in the main model
-					mainModel.finishAction = p.afterInstallOpts[p.afterInstallIdx]
 					return GoToPageMsg{PageID: "summary"}
 				}
 			} else {
