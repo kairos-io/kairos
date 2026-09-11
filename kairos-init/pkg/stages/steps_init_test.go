@@ -133,7 +133,11 @@ func TestDracutNetworkModules(t *testing.T) {
 		wantSysext bool
 	}{
 		{
-			name:       "ubuntu 22.04 adds resolved",
+			// No jammy package ships the systemd-resolved dracut module: the
+			// release is stuck on dracut 051 and the module landed in 054. This
+			// row drives the selection logic against a backported or vendored
+			// dracut, not a stock 22.04 build root.
+			name:       "ubuntu 22.04 with a dracut that ships the module adds resolved",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "22.04"},
 			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd network-legacy systemd-resolved",
