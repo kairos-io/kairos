@@ -1,4 +1,10 @@
-package tui
+// Package checks runs the interactive-install prerequisite plugins.
+//
+// The plugins are a contract between Kairos and its providers (see
+// installer/prereqs), so every installer frontend has to speak it the same
+// way: the same plugin set, the same two events, and the same rule that a
+// misbehaving plugin is logged rather than fatal.
+package checks
 
 import (
 	"os"
@@ -18,12 +24,12 @@ const CheckPluginPrefix = "tui-check"
 // CheckPluginPaths are the directories scanned for tui-check-* plugins.
 var CheckPluginPaths = []string{"/system/tui-checks", "/usr/local/system/tui-checks"}
 
-// newCheckManager builds a go-pluggable manager dedicated to the
+// NewManager builds a go-pluggable manager dedicated to the
 // interactive-install check events and autoloads the tui-check-* plugins. It
 // deliberately does NOT install the global error->os.Exit handler that
 // internal/bus uses, so a misbehaving check plugin can never kill the TUI; all
 // problems are logged and surfaced through the returned data instead.
-func newCheckManager(log sdkLogger.KairosLogger) *pluggable.Manager {
+func NewManager(log sdkLogger.KairosLogger) *pluggable.Manager {
 	m := pluggable.NewManager([]pluggable.EventType{prereqs.EventChecks, prereqs.EventChecksApply})
 
 	wd, _ := os.Getwd()
@@ -70,10 +76,10 @@ func logPluginResponse(log sdkLogger.KairosLogger, phase string, p *pluggable.Pl
 	}
 }
 
-// gatherChecks publishes the prerequisites check event on the dedicated manager
+// Gather publishes the prerequisites check event on the dedicated manager
 // and collects the checks returned by every plugin. It is synchronous (go-
 // pluggable runs the plugins inline during Publish).
-func gatherChecks(m *pluggable.Manager, log sdkLogger.KairosLogger, config string) ([]prereqs.Check, error) {
+func Gather(m *pluggable.Manager, log sdkLogger.KairosLogger, config string) ([]prereqs.Check, error) {
 	var checks []prereqs.Check
 	var firstErr error
 
@@ -103,9 +109,9 @@ func gatherChecks(m *pluggable.Manager, log sdkLogger.KairosLogger, config strin
 	return checks, firstErr
 }
 
-// applyDecisions publishes the apply event with the user's decisions and
+// Apply publishes the apply event with the user's decisions and
 // collects the results returned by every plugin.
-func applyDecisions(m *pluggable.Manager, log sdkLogger.KairosLogger, decisions []prereqs.Decision, config string) ([]prereqs.ApplyResult, error) {
+func Apply(m *pluggable.Manager, log sdkLogger.KairosLogger, decisions []prereqs.Decision, config string) ([]prereqs.ApplyResult, error) {
 	var results []prereqs.ApplyResult
 	var firstErr error
 

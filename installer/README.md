@@ -50,6 +50,59 @@ The full, authoritative contract is documented in kairos-agent:
 
 ---
 
+## Driving an install with an agent (MCP)
+
+Alongside the TUI, `kairos-installer` serves the same install contract over the
+[Model Context Protocol](https://modelcontextprotocol.io), so an AI agent can do
+what a person does on the screen. The transport is streamable HTTP on
+**`http://127.0.0.1:8090/mcp`**, on loopback only unless an operator opens it up.
+
+| Tool | What it does | Writes anything? |
+| --- | --- | --- |
+| `list_disks` | the disks an install can target | no |
+| `list_prerequisites` | run the provider `tui-check-*` plugins | no |
+| `apply_prerequisites` | act on those checks | yes, whatever the plugin does |
+| `get_install_options` | agent binary, disks, finish actions, progress steps | no |
+| `install` | perform the install | **repartitions a disk** |
+| `collect_debug_bundle` | write a debug bundle | writes the bundle |
+
+`install` refuses to run unless `confirm=true` and the device is an
+installation candidate at the moment of the call, and it runs once per boot.
+
+### Turning it off, or moving it
+
+**Nothing on this port is authenticated.** Anything that can reach it can call
+every tool, `install` included, and a `cloud_config` passed to `install` reaches
+the installed system. So it listens on **loopback** by default: a caller has to
+already be on the machine, which is the same bar as running the TUI. Reaching it
+from another host is an opt-in, through the same two knobs in
+`/etc/kairos/agent.yaml` that `kairos-webui` takes:
+
+```yaml
+mcp:
+  disable: true              # do not listen at all
+  listen_address: ":8090"    # or reachable from the network
+```
+
+`kairos-webui` does listen on `:8080` on the same boot and can install too, but
+that is not a reason to copy its exposure: `webui.disable` is how an operator
+says "no unauthenticated network installer on this box", and this listener
+cannot see that setting. A machine that turned the web UI off must not find a
+new door open on `:8090`.
+
+That block is what an operator has on a real boot, because `kairos-agent
+interactive-install` execs the installer with a fixed argument list and no flag
+of yours ever reaches it. Running the installer by hand, `--mcp-address`
+overrides the config:
+
+```sh
+kairos-installer                              # TUI, MCP on 127.0.0.1:8090
+kairos-installer --mcp-address=:8090          # TUI, MCP on every interface
+kairos-installer --mcp-address=               # TUI only
+```
+
+---
+
 ## Overriding with your own installer
 
 You do **not** need to fork this project to ship a different installer. There
@@ -131,15 +184,24 @@ To customize the UX itself, fork or vendor this repo:
 ## Architecture
 
 ```
-main.go               flag(--source) → launch the bubbletea program
+main.go               flags (--source, --mcp-address, --collect-debug-bundle),
+                      starts the MCP server when it has an address, then runs
+                      the bubbletea program
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
-                      the install page calls kairos-sdk/agentrun and renders progress
+                      the install page calls sdk/agentrun and renders progress
+internal/mcp/         the same install contract exposed as MCP tools an agent
+                      can call, sharing the cloud-config shaping with the TUI
+internal/checks/      gathers provider prerequisite checks over the bus and
+                      applies the answers the user gave
+internal/disks/       block-device discovery for the disk-selection page
+internal/debugbundle/ collects, serves and copies out a debug bundle
+prereqs/              the Check and prompt types providers and the TUI share
 ```
 
-The reusable pieces live in **kairos-sdk**: `kairos-sdk/agentrun` drives
-`kairos-agent manual-install` and parses its JSON-Lines progress, and
-`kairos-sdk/bus` is the provider plugin bus (`agent.interactive-install →
-[]YAMLPrompt`). This project is mostly the bubbletea UI on top of those.
+The reusable pieces live in the **SDK**: `sdk/agentrun` drives
+`kairos-agent manual-install` and parses its JSON-Lines progress, and `sdk/bus`
+is the provider plugin bus (`agent.interactive-install → []YAMLPrompt`). This
+package is the two frontends (TUI and MCP) on top of those.
 
 Decoupling: this module depends only on `kairos-sdk`, the charmbracelet TUI
 libraries, and `go-pluggable`. It never imports `kairos-agent` — the only

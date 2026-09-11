@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kairos-io/kairos/v4/installer/internal/checks"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/mudler/go-pluggable"
 )
@@ -83,15 +84,15 @@ func (p *prerequisitesPage) Help() string {
 // navigation message to skip straight to disk selection.
 func (p *prerequisitesPage) Init() tea.Cmd {
 	if !p.loaded {
-		p.mgr = newCheckManager(*mainModel.log)
-		checks, err := gatherChecks(p.mgr, *mainModel.log, "")
+		p.mgr = checks.NewManager(*mainModel.log)
+		found, err := checks.Gather(p.mgr, *mainModel.log, "")
 		if err != nil {
 			mainModel.log.Logger.Warn().Err(err).Msg("gathering prerequisites checks")
 		}
-		p.checks = checks
+		p.checks = found
 		p.buildFields()
 		p.loaded = true
-		mainModel.log.Logger.Debug().Int("checks", len(checks)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
+		mainModel.log.Logger.Debug().Int("checks", len(found)).Int("fields", len(p.fields)).Msg("Prerequisites gathered")
 	}
 
 	if len(p.checks) == 0 {
@@ -312,7 +313,7 @@ func (p *prerequisitesPage) proceed() (Page, tea.Cmd) {
 
 	decisions := prereqs.BuildDecisions(p.checks, p.answers)
 	if len(decisions) > 0 {
-		results, err := applyDecisions(p.mgr, *mainModel.log, decisions, "")
+		results, err := checks.Apply(p.mgr, *mainModel.log, decisions, "")
 		if err != nil {
 			// A transport/exec failure is unrecoverable from here: block.
 			p.failure = failRequired
