@@ -194,7 +194,12 @@ jobs:
               | "| `\(.id)` | `\($pkg.package.name)@\($pkg.package.version)` |"
             ] | unique | .[]' osv.json > findings.md || true
           FINDINGS="$(wc -l < findings.md)"
+          IDS="$(jq -r '[.results[].packages[].vulnerabilities[]?.id] | unique | join(", ")' osv.json)"
           ADVISORIES="$(jq -r '[.results[].packages[].vulnerabilities[]?.id] | unique | length' osv.json)"
+          # tee, not >>: the step summary renders in the web UI but is not
+          # exposed by the REST API, and the artifact below downloads from a
+          # blob host that 403s outside a browser session. Without a copy in
+          # the log there is no way to read the findings from a failing run.
           {
             echo "## Vulnerability scan of the shipped bundle"
             echo
@@ -209,9 +214,11 @@ jobs:
               echo "|---|---|"
               cat findings.md
             fi
-          } >> "${GITHUB_STEP_SUMMARY}"
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
           if [ "${FINDINGS}" -gt 0 ]; then
-            echo "::error::${ADVISORIES} unignored advisories (${FINDINGS} findings) in the shipped bundle. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
+            # The IDs go in the annotation as well as the table above, because
+            # annotations are readable through the check-runs API.
+            echo "::error::${ADVISORIES} unignored advisories (${FINDINGS} findings) in the shipped bundle: ${IDS}. Bump the affected component, or add a dated entry to osv-scanner.toml with a reason."
             exit 1
           fi
 
