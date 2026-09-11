@@ -25,6 +25,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -46,7 +47,7 @@ func displayInfo(agentConfig *branding.Config) {
 					if strings.Contains("127.0.0.1", ip) || strings.Contains("::1", ip) {
 						continue
 					}
-					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, constants.DefaultWebUIListenAddress)
+					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, sdkConstants.DefaultWebUIListenAddress)
 				}
 				message = message + messageIps
 			}
