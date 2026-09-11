@@ -292,16 +292,6 @@ func GetWorkaroundsStage(_ values.System, l logger.KairosLogger) []schema.Stage 
 			},
 		},
 		{
-			Name:     "Disable SELinux for Red Hat",
-			OnlyIfOs: "Red.*Hat.*",
-			Files: []schema.File{
-				{
-					Path:    "/etc/selinux/config",
-					Content: `SELINUX=disabled`,
-				},
-			},
-		},
-		{
 			Name: "Link nvidia-smi into the expected place",
 			// Check and only do if the link/binary is not there
 			If: "test -f /usr/sbin/nvidia-smi && ! test -e /usr/bin/nvidia-smi",

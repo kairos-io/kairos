@@ -22,7 +22,7 @@ var _ = Describe("Install Schema", func() {
 device: auto`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -33,7 +33,7 @@ device: auto`
 device: "/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:0:0"`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
 		})
 	})
@@ -44,7 +44,7 @@ device: "/dev/disk/by-path/pci-0000:03:00.0-scsi-0:0:0:0"`
 device: /dev/sda`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -84,7 +84,7 @@ reboot: true
 poweroff: false`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -97,7 +97,7 @@ reboot: false
 poweroff: true`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -108,7 +108,7 @@ poweroff: true`
 device: /dev/sda`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
 		})
 	})
@@ -133,8 +133,60 @@ env:
   - foo=barevice: /dev/sda`
 		})
 
-		It("succeedes", func() {
+		It("succeeds", func() {
 			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("with selinux enabled and mode enforcing", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true
+  mode: enforcing`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("with selinux enabled and mode permissive", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true
+  mode: permissive`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("with selinux enabled and no mode (permissive is the default)", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true`
+		})
+
+		It("succeeds", func() {
+			Expect(config.IsValid()).To(BeTrue())
+		})
+	})
+
+	Context("with an invalid selinux mode", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+selinux:
+  enabled: true
+  mode: paranoid`
+		})
+
+		It("errors", func() {
+			Expect(config.IsValid()).NotTo(BeTrue())
+			Expect(config.ValidationError.Error()).To(MatchRegexp(`value must be one of "enforcing", "permissive"`))
 		})
 	})
 })
