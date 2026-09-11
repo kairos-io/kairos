@@ -403,6 +403,60 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 			Expect(spec.Partitions.Persistent).To(BeNil())
 			Expect(spec.Active.File).To(ContainSubstring(constants.TransitionImgFile))
 		})
+		It("gives the EFI partition a mountpoint so the ESP refresh can mount it", func() {
+			// A GRUB system does not keep the ESP mounted, so ghw reports it
+			// with no mountpoint. Without a default the ESP refresh cannot
+			// mount it and silently skips on every upgrade.
+			mainDisk := sdkPartitions.Disk{
+				Name: "device",
+				Partitions: []*sdkPartitions.Partition{
+					{
+						Name:            "device1",
+						FilesystemLabel: constants.EfiLabel,
+						FS:              "vfat",
+					},
+					{
+						Name:            "device4",
+						FilesystemLabel: constants.StateLabel,
+						FS:              "ext4",
+					},
+				},
+			}
+			ghwTest = ghwMock.GhwMock{}
+			ghwTest.AddDisk(mainDisk)
+			ghwTest.CreateDevices()
+
+			spec, err := config.NewUpgradeSpec(c)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(spec.Partitions.EFI).ToNot(BeNil())
+			Expect(spec.Partitions.EFI.MountPoint).To(Equal(sdkConstants.EfiDirTransient))
+		})
+		It("keeps a mountpoint the EFI partition already has", func() {
+			mainDisk := sdkPartitions.Disk{
+				Name: "device",
+				Partitions: []*sdkPartitions.Partition{
+					{
+						Name:            "device1",
+						FilesystemLabel: constants.EfiLabel,
+						FS:              "vfat",
+						MountPoint:      "/efi",
+					},
+					{
+						Name:            "device4",
+						FilesystemLabel: constants.StateLabel,
+						FS:              "ext4",
+					},
+				},
+			}
+			ghwTest = ghwMock.GhwMock{}
+			ghwTest.AddDisk(mainDisk)
+			ghwTest.CreateDevices()
+
+			spec, err := config.NewUpgradeSpec(c)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(spec.Partitions.EFI).ToNot(BeNil())
+			Expect(spec.Partitions.EFI.MountPoint).To(Equal("/efi"))
+		})
 		It("fails when a temporary dir cannot be created to check squashed recovery", func() {
 			mainDisk := sdkPartitions.Disk{
 				Name: "device",

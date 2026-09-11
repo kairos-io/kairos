@@ -237,77 +237,101 @@ func (g Grub) Install(target, rootDir, bootDir, grubConf, tty string, efi bool, 
 
 		copyGrubFonts(g.config, rootDir, grubdir, systemgrub)
 
-		err = fsutils.MkdirAll(g.config.Fs, filepath.Join(cnst.EfiDir, "EFI/boot/"), cnst.DirPerm)
-		if err != nil {
-			g.config.Logger.Errorf("Error creating dirs: %s", err)
+		if err = g.RefreshESP(cnst.ActiveDir, cnst.EfiDir, stateLabel, systemgrub); err != nil {
 			return err
-		}
-
-		flavor, err := utils.OSRelease("FLAVOR", filepath.Join(cnst.ActiveDir, "etc/kairos-release"))
-		if err != nil {
-			// Fallback to os-release
-			flavor, err = utils.OSRelease("FLAVOR", filepath.Join(cnst.ActiveDir, "os/kairos-release"))
-			if err != nil {
-				g.config.Logger.Warnf("Failed reading release info from %s and %s: %v", filepath.Join(cnst.ActiveDir, "etc/kairos-release"), filepath.Join(cnst.ActiveDir, "os/kairos-release"), err)
-			}
-		}
-		if flavor == "" {
-			// If os-release is gone with our vars, we dont know what flavor are we in, we should know if we are on ubuntu as we need
-			// a workaround for the grub efi install
-			// So lets try to get the info from the normal keys shipped with the os
-			flavorFromID, err := utils.OSRelease("ID", filepath.Join(cnst.ActiveDir, "etc/os-release"))
-			if err != nil {
-				g.config.Logger.Logger.Err(err).Msg("Getting flavor")
-			}
-			if strings.Contains(strings.ToLower(flavorFromID), "ubuntu") {
-				flavor = "ubuntu"
-			}
-		}
-		g.config.Logger.Debugf("Detected Flavor: %s", flavor)
-		// Copy needed files for efi boot
-		// This seems like a chore while we could provide a package for those bundled files as they are just a shim and a grub efi
-		// BUT this is needed for secureboot
-		// The shim contains the signature from microsoft and the shim provider (i.e. upstream distro like fedora, suse, etc)
-		// So if we use the shim+grub from a generic package (i.e. ubuntu) it WILL boot with secureboot
-		// but when loading the kernel it will fail because the kernel is not signed by the shim provider or grub provider
-		// the kernel signature would be from fedora while the shim signature would be from ubuntu
-		// This is why if we want to support secureboot we need to copy the shim+grub from the rootfs default paths instead of
-		// providing a generic package
-
-		// Shim is not available in Alpine + rpi
-		var model string
-		model, err = utils.OSRelease("KAIROS_MODEL", filepath.Join(cnst.ActiveDir, "etc/kairos-release"))
-		if err != nil {
-			// Fallback into os-release
-			model, err = utils.OSRelease("KAIROS_MODEL", filepath.Join(cnst.ActiveDir, "etc/os-release"))
-			if err != nil {
-				g.config.Logger.Warnf("Failed reading model info from %s and %s: %v", filepath.Join(cnst.ActiveDir, "etc/kairos-release"), filepath.Join(cnst.ActiveDir, "os/kairos-release"), err)
-			}
-		}
-		if strings.Contains(strings.ToLower(flavor), "alpine") && strings.Contains(strings.ToLower(model), "rpi") {
-			g.config.Logger.Debug("Running on Alpine+RPI, not copying shim or grub.")
-		} else {
-			// RISC-V has no shim package on Fedora/RHEL; firmware boots grub.efi directly.
-			if g.config.Arch != cnst.ArchRiscv64 {
-				err = g.copyShim()
-				if err != nil {
-					return err
-				}
-			} else {
-				g.config.Logger.Debug("Skipping shim copy for riscv64 - booting with grub EFI directly")
-			}
-			err = g.copyGrub()
-			if err != nil {
-				return err
-			}
-			err = g.writeEfiGrubCfg(stateLabel, systemgrub, flavor)
-			if err != nil {
-				return err
-			}
 		}
 	}
 
 	return nil
+}
+
+// RefreshESP copies the shim, grub and stub grub.cfg from sourceDir into the
+// EFI/boot directory of efiDir. It is what the tail of Install does on the
+// ESP, split off so upgrade can call the same shim/grub write path without
+// running grub2-install again.
+//
+// sourceDir must hold the rootfs of the installation source, mounted or
+// otherwise reachable, so the release files and shim/grub binaries are
+// resolvable from the paths that GetEfiShimFiles and GetEfiGrubFiles list.
+// efiDir must be the mount point of the ESP, mounted read-write.
+func (g Grub) RefreshESP(sourceDir, efiDir, stateLabel, systemgrub string) error {
+	if err := fsutils.MkdirAll(g.config.Fs, filepath.Join(efiDir, "EFI/boot/"), cnst.DirPerm); err != nil {
+		g.config.Logger.Errorf("Error creating dirs: %s", err)
+		return err
+	}
+
+	flavor, model := readFlavorAndModel(g.config, sourceDir)
+	g.config.Logger.Debugf("Detected Flavor: %s", flavor)
+
+	// Shim is not available in Alpine + rpi
+	if strings.Contains(strings.ToLower(flavor), "alpine") && strings.Contains(strings.ToLower(model), "rpi") {
+		g.config.Logger.Debug("Running on Alpine+RPI, not copying shim or grub.")
+		return nil
+	}
+
+	// Copy needed files for efi boot
+	// This seems like a chore while we could provide a package for those bundled files as they are just a shim and a grub efi
+	// BUT this is needed for secureboot
+	// The shim contains the signature from microsoft and the shim provider (i.e. upstream distro like fedora, suse, etc)
+	// So if we use the shim+grub from a generic package (i.e. ubuntu) it WILL boot with secureboot
+	// but when loading the kernel it will fail because the kernel is not signed by the shim provider or grub provider
+	// the kernel signature would be from fedora while the shim signature would be from ubuntu
+	// This is why if we want to support secureboot we need to copy the shim+grub from the rootfs default paths instead of
+	// providing a generic package
+
+	// RISC-V has no shim package on Fedora/RHEL; firmware boots grub.efi directly.
+	if g.config.Arch != cnst.ArchRiscv64 {
+		if err := g.copyShim(sourceDir, efiDir); err != nil {
+			return err
+		}
+	} else {
+		g.config.Logger.Debug("Skipping shim copy for riscv64 - booting with grub EFI directly")
+	}
+
+	if err := g.copyGrub(sourceDir, efiDir); err != nil {
+		return err
+	}
+
+	return g.writeEfiGrubCfg(efiDir, stateLabel, systemgrub, flavor)
+}
+
+// readFlavorAndModel pulls KAIROS_FLAVOR and KAIROS_MODEL from the release
+// files under sourceDir. It falls back to /etc/os-release and, for flavor, to
+// the plain ID key so an ubuntu image without kairos-release still triggers
+// the ubuntu grub.cfg workaround in writeEfiGrubCfg.
+func readFlavorAndModel(cfg *sdkConfig.Config, sourceDir string) (flavor, model string) {
+	kairosRelease := filepath.Join(sourceDir, "etc/kairos-release")
+	kairosReleaseFallback := filepath.Join(sourceDir, "os/kairos-release")
+	osRelease := filepath.Join(sourceDir, "etc/os-release")
+
+	flavor, err := utils.OSRelease("FLAVOR", kairosRelease)
+	if err != nil {
+		flavor, err = utils.OSRelease("FLAVOR", kairosReleaseFallback)
+		if err != nil {
+			cfg.Logger.Warnf("Failed reading release info from %s and %s: %v", kairosRelease, kairosReleaseFallback, err)
+		}
+	}
+	if flavor == "" {
+		// If os-release is gone with our vars, we dont know what flavor are we in, we should know if we are on ubuntu as we need
+		// a workaround for the grub efi install
+		// So lets try to get the info from the normal keys shipped with the os
+		flavorFromID, err := utils.OSRelease("ID", osRelease)
+		if err != nil {
+			cfg.Logger.Logger.Err(err).Msg("Getting flavor")
+		}
+		if strings.Contains(strings.ToLower(flavorFromID), "ubuntu") {
+			flavor = "ubuntu"
+		}
+	}
+
+	model, err = utils.OSRelease("KAIROS_MODEL", kairosRelease)
+	if err != nil {
+		model, err = utils.OSRelease("KAIROS_MODEL", osRelease)
+		if err != nil {
+			cfg.Logger.Warnf("Failed reading model info from %s and %s: %v", kairosRelease, osRelease, err)
+		}
+	}
+	return flavor, model
 }
 
 // findGrubDir will find the grub dir under the dir given if possible by searching for the modinfo.sh
@@ -411,26 +435,27 @@ func copyGrubFonts(cfg *sdkConfig.Config, rootDir, bootDir, systemgrub string) {
 	}
 }
 
-func (g Grub) copyShim() error {
+func (g Grub) copyShim(sourceDir, efiDir string) error {
 	shimFiles := utils.GetEfiShimFiles(g.config.Arch)
 	shimDone := false
 	for _, f := range shimFiles {
-		_, err := g.config.Fs.Stat(filepath.Join(cnst.ActiveDir, f))
+		src := filepath.Join(sourceDir, f)
+		_, err := g.config.Fs.Stat(src)
 		if err != nil {
-			g.config.Logger.Debugf("skip copying %s: not found", filepath.Join(cnst.ActiveDir, f))
+			g.config.Logger.Debugf("skip copying %s: not found", src)
 			continue
 		}
 		_, name := filepath.Split(f)
 		// remove the .signed suffix if present
 		name = strings.TrimSuffix(name, ".signed")
-		fileWriteName := filepath.Join(cnst.EfiDir, fmt.Sprintf("EFI/boot/%s", name))
+		fileWriteName := filepath.Join(efiDir, fmt.Sprintf("EFI/boot/%s", name))
 		g.config.Logger.Debugf("Copying %s to %s", f, fileWriteName)
 
 		// Try to find the paths give until we succeed
-		fileContent, err := g.config.Fs.ReadFile(filepath.Join(cnst.ActiveDir, f))
+		fileContent, err := g.config.Fs.ReadFile(src)
 
 		if err != nil {
-			g.config.Logger.Warnf("error reading %s: %s", filepath.Join(cnst.ActiveDir, f), err)
+			g.config.Logger.Warnf("error reading %s: %s", src, err)
 			continue
 		}
 		err = g.config.Fs.WriteFile(fileWriteName, fileContent, cnst.FilePerm)
@@ -442,9 +467,9 @@ func (g Grub) copyShim() error {
 		// Copy the shim content  to the fallback name so the system boots from fallback. This means that we do not create
 		// any bootloader entries, so our recent installation has the lower priority if something else is on the bootloader
 		writeShim := cnst.GetFallBackEfi(g.config.Arch)
-		err = g.config.Fs.WriteFile(filepath.Join(cnst.EfiDir, "EFI/boot/", writeShim), fileContent, cnst.FilePerm)
+		err = g.config.Fs.WriteFile(filepath.Join(efiDir, "EFI/boot/", writeShim), fileContent, cnst.FilePerm)
 		if err != nil {
-			return fmt.Errorf("could not write shim file %s at dir %s", writeShim, cnst.EfiDir)
+			return fmt.Errorf("could not write shim file %s at dir %s", writeShim, efiDir)
 		}
 		break
 	}
@@ -455,29 +480,30 @@ func (g Grub) copyShim() error {
 	return nil
 }
 
-func (g Grub) copyGrub() error {
+func (g Grub) copyGrub(sourceDir, efiDir string) error {
 	// Get standard grub efi file paths (includes Hadron paths)
 	grubFiles := utils.GetEfiGrubFiles(g.config.Arch)
 
 	grubDone := false
 	for _, f := range grubFiles {
-		_, err := g.config.Fs.Stat(filepath.Join(cnst.ActiveDir, f))
+		src := filepath.Join(sourceDir, f)
+		_, err := g.config.Fs.Stat(src)
 		if err != nil {
-			g.config.Logger.Debugf("skip copying %s: not found", filepath.Join(cnst.ActiveDir, f))
+			g.config.Logger.Debugf("skip copying %s: not found", src)
 			continue
 		}
 
 		_, name := filepath.Split(f)
 		// remove the .signed suffix if present
 		name = strings.TrimSuffix(name, ".signed")
-		fileWriteName := filepath.Join(cnst.EfiDir, fmt.Sprintf("EFI/boot/%s", name))
+		fileWriteName := filepath.Join(efiDir, fmt.Sprintf("EFI/boot/%s", name))
 
 		g.config.Logger.Debugf("Copying %s to %s", f, fileWriteName)
 
 		// Try to find the paths give until we succeed
-		fileContent, err := g.config.Fs.ReadFile(filepath.Join(cnst.ActiveDir, f))
+		fileContent, err := g.config.Fs.ReadFile(src)
 		if err != nil {
-			g.config.Logger.Warnf("error reading %s: %s", filepath.Join(cnst.ActiveDir, f), err)
+			g.config.Logger.Warnf("error reading %s: %s", src, err)
 			continue
 		}
 		err = g.config.Fs.WriteFile(fileWriteName, fileContent, cnst.FilePerm)
@@ -486,9 +512,9 @@ func (g Grub) copyGrub() error {
 		}
 		if g.config.Arch == cnst.ArchRiscv64 {
 			fallback := cnst.GetFallBackEfi(g.config.Arch)
-			err = g.config.Fs.WriteFile(filepath.Join(cnst.EfiDir, "EFI/boot/", fallback), fileContent, cnst.FilePerm)
+			err = g.config.Fs.WriteFile(filepath.Join(efiDir, "EFI/boot/", fallback), fileContent, cnst.FilePerm)
 			if err != nil {
-				return fmt.Errorf("could not write grub fallback %s at dir %s: %w", fallback, cnst.EfiDir, err)
+				return fmt.Errorf("could not write grub fallback %s at dir %s: %w", fallback, efiDir, err)
 			}
 		}
 		grubDone = true
@@ -503,26 +529,26 @@ func (g Grub) copyGrub() error {
 
 // writeEfiGrubCfg writes the grub.cfg file in EFI that chainloads the grub.cfg in state
 // It also handles Ubuntu-specific workarounds if the flavor is ubuntu
-func (g Grub) writeEfiGrubCfg(stateLabel, systemgrub, flavor string) error {
+func (g Grub) writeEfiGrubCfg(efiDir, stateLabel, systemgrub, flavor string) error {
 	// Add grub.cfg in EFI that chainloads the grub.cfg in state
 	// Notice that we set the config to /grub2/grub.cfg which means the above we need to copy the file from
 	// the installation source into that dir
 	grubCfgContent := []byte(fmt.Sprintf("search --no-floppy --label --set=root %s\nset prefix=($root)/%s\nconfigfile ($root)/%s/grub.cfg", stateLabel, systemgrub, systemgrub))
-	err := g.config.Fs.WriteFile(filepath.Join(cnst.EfiDir, "EFI/boot/grub.cfg"), grubCfgContent, cnst.FilePerm)
+	err := g.config.Fs.WriteFile(filepath.Join(efiDir, "EFI/boot/grub.cfg"), grubCfgContent, cnst.FilePerm)
 	if err != nil {
-		return fmt.Errorf("error writing %s: %s", filepath.Join(cnst.EfiDir, "EFI/boot/grub.cfg"), err)
+		return fmt.Errorf("error writing %s: %s", filepath.Join(efiDir, "EFI/boot/grub.cfg"), err)
 	}
 	// Ubuntu efi searches for the grub.cfg file under /EFI/ubuntu/grub.cfg while we store it under /boot/grub2/grub.cfg
 	// workaround this by copying it there as well
 	// read the kairos-release from the rootfs to know if we are creating a ubuntu based iso
 	if strings.Contains(strings.ToLower(flavor), "ubuntu") {
 		g.config.Logger.Infof("Ubuntu based ISO detected, copying grub.cfg to /EFI/ubuntu/grub.cfg")
-		err = fsutils.MkdirAll(g.config.Fs, filepath.Join(cnst.EfiDir, "EFI/ubuntu/"), cnst.DirPerm)
+		err = fsutils.MkdirAll(g.config.Fs, filepath.Join(efiDir, "EFI/ubuntu/"), cnst.DirPerm)
 		if err != nil {
 			g.config.Logger.Errorf("Failed writing grub.cfg: %v", err)
 			return err
 		}
-		err = g.config.Fs.WriteFile(filepath.Join(cnst.EfiDir, "EFI/ubuntu/grub.cfg"), grubCfgContent, cnst.FilePerm)
+		err = g.config.Fs.WriteFile(filepath.Join(efiDir, "EFI/ubuntu/grub.cfg"), grubCfgContent, cnst.FilePerm)
 		if err != nil {
 			g.config.Logger.Errorf("Failed writing grub.cfg: %v", err)
 			return err
