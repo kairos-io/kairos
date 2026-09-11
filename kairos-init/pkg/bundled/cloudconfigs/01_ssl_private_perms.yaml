@@ -1,0 +1,35 @@
+# /etc/ssl/private holds the system's private keys, so no distro ships it
+# world-traversable: Debian and Ubuntu use 0710 root:ssl-cert, so that daemons
+# in the ssl-cert group can reach a key they were granted, and RHEL, Fedora and
+# SUSE use 0700 root:root. Hadron ships it 0755 root:root.
+#
+# That matters once the directory is persisted (00_rootfs.yaml), because
+# immucore creates the backing directory under /usr/local/.state and rsyncs the
+# image's copy into it, mode included. Whatever the base image ships is what the
+# running system gets, and it is what every later boot gets, so a loose mode
+# there is not fixed by re-installing.
+#
+# Deliberately keyed on the ssl-cert group rather than on the distro: the group
+# is what the 0710 mode exists for, so a base image that has it wants 0710 and
+# one that does not wants 0700, whether or not we have heard of the distro.
+#
+# Runs in the initramfs stage, which immucore runs after the persistent bind
+# mounts are in place (dag_normal_boot.go wires it after OpMountBind), so this
+# applies to the backing directory and not to the empty one it shadows.
+#
+# To keep a different mode, override it from a later file, e.g.
+# /oem/91_ssl_private.yaml.
+name: "Restrict /etc/ssl/private"
+stages:
+  initramfs:
+    - if: '[ -d /etc/ssl/private ]'
+      name: "Restrict /etc/ssl/private to root"
+      commands:
+        - |
+          if grep -q '^ssl-cert:' /etc/group 2>/dev/null; then
+            chown root:ssl-cert /etc/ssl/private
+            chmod 0710 /etc/ssl/private
+          else
+            chown root:root /etc/ssl/private
+            chmod 0700 /etc/ssl/private
+          fi
