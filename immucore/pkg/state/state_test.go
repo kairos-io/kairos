@@ -1,13 +1,19 @@
 package state_test
 
 import (
-	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
-	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
+	"context"
+	"os"
+	"path/filepath"
 	"time"
 
+	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
+	"github.com/kairos-io/kairos/v4/immucore/pkg/state"
+
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/dag"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spectrocloud-labs/herd"
@@ -39,6 +45,30 @@ var _ = Describe("mounting immutable setup", func() {
 				"/etc/nginx/config.d/",
 				"/etc/kubernetes/child/grand-child",
 			}))
+		})
+	})
+
+	Context("QuarantineStaleUnitsDagStep", func() {
+		It("moves a stale unit symlink out of the unit dir when the step runs", func() {
+			internalUtils.KLog = logger.NewNullLogger()
+			root := GinkgoT().TempDir()
+			unitDir := filepath.Join(root, "etc", "systemd", "system")
+			packagedDir := filepath.Join(root, "usr", "lib", "systemd", "system")
+			Expect(os.MkdirAll(unitDir, 0o755)).To(Succeed())
+			Expect(os.MkdirAll(packagedDir, 0o755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(packagedDir, "sshd.service"), []byte("[Unit]\n"), 0o644)).To(Succeed())
+			stale := filepath.Join(unitDir, "sshd.service")
+			Expect(os.Symlink("/usr/lib/systemd/system/ssh.service", stale)).To(Succeed())
+
+			s := &state.State{Rootdir: root}
+			Expect(s.QuarantineStaleUnitsDagStep(g)).To(Succeed())
+			Expect(g.Run(context.Background())).To(Succeed())
+
+			_, err := os.Lstat(stale)
+			Expect(os.IsNotExist(err)).To(BeTrue())
+			parked, err := os.Readlink(filepath.Join(root, "etc", "systemd", "kairos-stale-units", "sshd.service"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(parked).To(Equal("/usr/lib/systemd/system/ssh.service"))
 		})
 	})
 
@@ -87,6 +117,24 @@ var _ = Describe("mounting immutable setup", func() {
 			err := dag.RegisterInRAMBoot(s, g)
 			Expect(err).ToNot(HaveOccurred())
 			checkInRAMDag(g.Analyze(), s.WriteDAG(g))
+		})
+
+		It("quarantines stale units after the persistent binds and before the initramfs hook", func() {
+			// Running after mount-bind is what makes the step see the
+			// persistent copy of /etc/systemd instead of the image copy, and
+			// running before the initramfs hook is what keeps a stale symlink
+			// from reaching the booted system. checkDag, the normal-boot shape
+			// test, is skipped, so assert the ordering on the UKI dag, which
+			// registers the same step and does run.
+			s := &state.State{Rootdir: "/"}
+			err := dag.RegisterUKI(s, g)
+			Expect(err).ToNot(HaveOccurred())
+			layers := g.Analyze()
+			actualDag := s.WriteDAG(g)
+
+			quarantine := layerOf(layers, cnst.OpQuarantineStaleUnits)
+			Expect(quarantine).To(BeNumerically(">", layerOf(layers, cnst.OpMountBind)), actualDag)
+			Expect(quarantine).To(BeNumerically("<", layerOf(layers, cnst.OpInitramfsHook)), actualDag)
 		})
 
 		It("generates UKI dag without ensure-partitions", func() {
@@ -227,7 +275,7 @@ func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
 		{cnst.OpMountBaseOverlay, cnst.OpCustomMounts},
 		{cnst.OpOverlayMount},
 		{cnst.OpMountBind},
-		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions},
+		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions, cnst.OpQuarantineStaleUnits},
 		{cnst.OpInitramfsHook},
 	}
 	Expect(len(dag)).To(Equal(len(expected)), actualDag)
