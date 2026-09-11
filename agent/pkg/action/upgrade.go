@@ -75,6 +75,8 @@ func (u UpgradeAction) upgradeHook(hook string, chroot bool) error {
 	return Hook(u.config, hook)
 }
 
+// Run will upgrade the system from a given configuration
+// nolint:gocyclo
 func (u *UpgradeAction) Run() (err error) {
 	var upgradeImg sdkImages.Image
 	var finalImageFile string
