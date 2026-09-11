@@ -153,6 +153,7 @@ const (
 	CmdlineAutoCreatePartitionsWipe = "kairos.ram.wipe"
 	CmdlineAutoCreateOemSize        = "kairos.ram.oem="
 	CmdlineAutoCreatePersistentSize = "kairos.ram.persistent="
+	CmdlineHardwareRO               = "rd.immucore.hardware_ro=1"
 	UkiLivecdMountPoint             = "/run/initramfs/live"
 	UkiIsoBaseTree                  = "/run/rootfsbase"
 	UkiIsoBootImage                 = "efiboot.img"
