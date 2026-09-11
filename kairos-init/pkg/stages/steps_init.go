@@ -41,6 +41,7 @@ const (
 	networkManagerBinary  = "usr/sbin/NetworkManager"
 	systemdNetworkdBinary = "usr/lib/systemd/systemd-networkd"
 	systemdResolvedBinary = "usr/lib/systemd/systemd-resolved"
+	resolvectlBinary      = "usr/bin/resolvectl"
 	dracutModulesDir      = "usr/lib/dracut/modules.d"
 )
 
@@ -920,12 +921,20 @@ func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger)
 }
 
 // resolvedModuleAvailable reports whether the systemd-resolved dracut module
-// can be pulled into an initramfs built from root. The module aborts the dracut
-// run when the daemon is missing, and older dracut releases do not ship it at
-// all, so both have to be there before asking for it.
+// can be pulled into an initramfs built from root.
+//
+// Every prerequisite the module declares has to be satisfied, because a module
+// named in add_dracutmodules whose check() fails takes the whole dracut run
+// down with it - it exits 1 and writes no initramfs at all rather than leaving
+// the module out. check() requires both resolvectl and the resolved daemon, so
+// a root carrying only one of the two is not enough. Dracut itself only grew
+// the module in 054, hence the module directory probe on top: older releases
+// ship the daemon but have nothing to ask dracut for.
 func resolvedModuleAvailable(root string) bool {
-	if _, err := os.Stat(filepath.Join(root, systemdResolvedBinary)); err != nil {
-		return false
+	for _, binary := range []string{systemdResolvedBinary, resolvectlBinary} {
+		if _, err := os.Stat(filepath.Join(root, binary)); err != nil {
+			return false
+		}
 	}
 
 	// The module directory carries a priority prefix that changes between

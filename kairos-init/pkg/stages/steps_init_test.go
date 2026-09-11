@@ -48,6 +48,7 @@ const (
 	fixtureNetworkManager = "usr/sbin/NetworkManager"
 	fixtureNetworkd       = "usr/lib/systemd/systemd-networkd"
 	fixtureResolved       = "usr/lib/systemd/systemd-resolved"
+	fixtureResolvectl     = "usr/bin/resolvectl"
 	fixtureResolvedModule = "usr/lib/dracut/modules.d/11systemd-resolved/module-setup.sh"
 )
 
@@ -67,11 +68,13 @@ func buildRoot(t *testing.T, files ...string) string {
 	return root
 }
 
-// TestResolvedModuleAvailable exercises resolvedModuleAvailable directly, for
-// all four combinations of "daemon present" x "dracut module present". The
-// dracutNetworkModules table above only ever drives this through the full
-// selection, and never happens to cover the module-without-daemon case, so it
-// is worth pinning on its own: the function is documented to require both.
+// TestResolvedModuleAvailable exercises resolvedModuleAvailable directly, over
+// the combinations of "resolved daemon present" x "resolvectl present" x
+// "dracut module present". The dracutNetworkModules table below only ever
+// drives this through the full selection and never covers the partial roots,
+// so it is worth pinning on its own: all three have to be there, and a root
+// missing any one of them must not get the module. Asking dracut for a module
+// whose check() fails aborts the initramfs build outright.
 func TestResolvedModuleAvailable(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -79,22 +82,32 @@ func TestResolvedModuleAvailable(t *testing.T) {
 		want  bool
 	}{
 		{
-			name:  "daemon and module both present",
-			files: []string{fixtureResolved, fixtureResolvedModule},
+			name:  "daemon, resolvectl and module all present",
+			files: []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			want:  true,
 		},
 		{
-			name:  "daemon present, module missing",
-			files: []string{fixtureResolved},
+			name:  "daemon and resolvectl present, module missing",
+			files: []string{fixtureResolved, fixtureResolvectl},
 			want:  false,
 		},
 		{
-			name:  "module present, daemon missing",
+			name:  "daemon and module present, resolvectl missing",
+			files: []string{fixtureResolved, fixtureResolvedModule},
+			want:  false,
+		},
+		{
+			name:  "resolvectl and module present, daemon missing",
+			files: []string{fixtureResolvectl, fixtureResolvedModule},
+			want:  false,
+		},
+		{
+			name:  "module present, both binaries missing",
 			files: []string{fixtureResolvedModule},
 			want:  false,
 		},
 		{
-			name:  "neither present",
+			name:  "nothing present",
 			files: nil,
 			want:  false,
 		},
@@ -122,14 +135,14 @@ func TestDracutNetworkModules(t *testing.T) {
 		{
 			name:       "ubuntu 22.04 adds resolved",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "22.04"},
-			files:      []string{fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd network-legacy systemd-resolved",
 			wantSysext: false,
 		},
 		{
 			name:       "ubuntu 22.04 without the resolved dracut module",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "22.04"},
-			files:      []string{fixtureResolved},
+			files:      []string{fixtureResolved, fixtureResolvectl},
 			wantModule: "systemd-networkd network-legacy",
 			wantSysext: false,
 		},
@@ -138,28 +151,28 @@ func TestDracutNetworkModules(t *testing.T) {
 			// resolved has nothing to do here.
 			name:       "ubuntu 20.04 uses the plain network module",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "20.04"},
-			files:      []string{fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "network",
 			wantSysext: false,
 		},
 		{
 			name:       "ubuntu 24.04 adds resolved",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04"},
-			files:      []string{fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd network-legacy systemd-resolved",
 			wantSysext: true,
 		},
 		{
 			name:       "ubuntu 26.04 drops network-legacy",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "26.04"},
-			files:      []string{fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd systemd-resolved",
 			wantSysext: true,
 		},
 		{
 			name:       "opensuse leap adds resolved",
 			sis:        values.System{Distro: values.OpenSUSELeap, Family: values.SUSEFamily, Version: "15.6"},
-			files:      []string{fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd network-legacy systemd-resolved",
 			wantSysext: true,
 		},
@@ -172,8 +185,18 @@ func TestDracutNetworkModules(t *testing.T) {
 		{
 			name:       "debian adds resolved",
 			sis:        values.System{Distro: values.Debian, Family: values.DebianFamily, Version: "13"},
-			files:      []string{fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd network-legacy systemd-resolved",
+			wantSysext: true,
+		},
+		{
+			// The module's check() wants resolvectl too, and dracut fails the
+			// build outright when a module it was told to add cannot install
+			// itself, so a root without it has to be left alone.
+			name:       "debian without resolvectl",
+			sis:        values.System{Distro: values.Debian, Family: values.DebianFamily, Version: "13"},
+			files:      []string{fixtureResolved, fixtureResolvedModule},
+			wantModule: "systemd-networkd network-legacy",
 			wantSysext: true,
 		},
 		{
@@ -181,14 +204,14 @@ func TestDracutNetworkModules(t *testing.T) {
 			// /etc/resolv.conf themselves, so they get no resolved.
 			name:       "rhel 9 uses NetworkManager",
 			sis:        values.System{Distro: values.RedHat, Family: values.RedHatFamily, Version: "9.5"},
-			files:      []string{fixtureNetworkManager, fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureNetworkManager, fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "network-manager",
 			wantSysext: true,
 		},
 		{
 			name:       "rocky 9 without NetworkManager falls back to network-legacy",
 			sis:        values.System{Distro: values.RockyLinux, Family: values.RedHatFamily, Version: "9.5"},
-			files:      []string{fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "network-legacy",
 			wantSysext: true,
 		},
@@ -202,7 +225,7 @@ func TestDracutNetworkModules(t *testing.T) {
 		{
 			name:       "fedora with networkd adds resolved",
 			sis:        values.System{Distro: values.Fedora, Family: values.RedHatFamily, Version: "42"},
-			files:      []string{fixtureNetworkd, fixtureResolved, fixtureResolvedModule},
+			files:      []string{fixtureNetworkd, fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd systemd-resolved",
 			wantSysext: true,
 		},
@@ -211,7 +234,7 @@ func TestDracutNetworkModules(t *testing.T) {
 			// build, so the daemon alone is not enough.
 			name:       "fedora with networkd and no resolved dracut module",
 			sis:        values.System{Distro: values.Fedora, Family: values.RedHatFamily, Version: "42"},
-			files:      []string{fixtureNetworkd, fixtureResolved},
+			files:      []string{fixtureNetworkd, fixtureResolved, fixtureResolvectl},
 			wantModule: "systemd-networkd",
 			wantSysext: true,
 		},
