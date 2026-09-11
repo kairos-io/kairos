@@ -140,6 +140,8 @@ func TestDracutNetworkModules(t *testing.T) {
 			wantSysext: false,
 		},
 		{
+			// What jammy actually looks like: the daemon and resolvectl are
+			// there, dracut 051 has no systemd-resolved module to ask for.
 			name:       "ubuntu 22.04 without the resolved dracut module",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "22.04"},
 			files:      []string{fixtureResolved, fixtureResolvectl},
