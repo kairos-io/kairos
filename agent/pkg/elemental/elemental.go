@@ -588,23 +588,27 @@ func (e *Elemental) SelinuxRelabel(rootDir string, raiseError bool) error {
 			return err
 		}
 
-		// Label the state image files as boot_t so boot-time components (e.g.
-		// systemd-gpt-auto-generator) can access them under SELinux.
-		for _, img := range []string{cnst.ActiveImgFile, cnst.PassiveImgFile, cnst.TransitionImgFile} {
-			imgFile := filepath.Join(rootDir, cnst.RunningStateDir, "cOS", img)
-			exists, _ := fsutils.Exists(e.config.Fs, imgFile)
-			if !exists {
-				continue
-			}
-			if out, err := e.config.Runner.Run("chcon", "system_u:object_r:boot_t:s0", imgFile); err != nil {
-				e.config.Logger.Warnf("SELinux state image relabel failed for %s: %s", imgFile, out)
-			}
-		}
 	} else {
 		e.config.Logger.Debugf("No files relabelling as SELinux utilities are not found")
 	}
 
 	return nil
+}
+
+// LabelStateImage applies the boot_t context to a state image file so
+// boot-time components (e.g. systemd-gpt-auto-generator) can access it.
+// It is a no-op when chcon is not available or the file does not exist.
+func (e *Elemental) LabelStateImage(imgFile string) {
+	if !utils.CommandExists("chcon") {
+		return
+	}
+	exists, _ := fsutils.Exists(e.config.Fs, imgFile)
+	if !exists {
+		return
+	}
+	if out, err := e.config.Runner.Run("chcon", "system_u:object_r:boot_t:s0", imgFile); err != nil {
+		e.config.Logger.Warnf("SELinux state image relabel failed for %s: %s", imgFile, out)
+	}
 }
 
 // CheckActiveDeployment returns true if at least one of the provided filesystem labels is found within the system

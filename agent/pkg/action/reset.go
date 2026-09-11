@@ -141,6 +141,10 @@ func (r ResetAction) Run() (err error) {
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&r.spec.Active) })
 
+	// Label the image as boot_t: it was just created and does not carry a
+	// label yet, so boot-time components can access it.
+	e.LabelStateImage(r.spec.Active.File)
+
 	// Create extra dirs in rootfs as afterwards this will be impossible due to RO system
 	createExtraDirsInRootfs(r.cfg, r.spec.ExtraDirsRootfs, r.spec.Active.MountPoint)
 
@@ -172,9 +176,7 @@ func (r ResetAction) Run() (err error) {
 	// Relabel SELinux
 	// TODO probably relabelling persistent volumes should be an opt in feature, it could
 	// have undesired effects in case of failures
-	binds := map[string]string{
-		r.spec.Partitions.State.MountPoint: cnst.RunningStateDir,
-	}
+	binds := map[string]string{}
 	if mnt, _ := utils.IsMounted(r.cfg, r.spec.Partitions.Persistent); mnt {
 		binds[r.spec.Partitions.Persistent.MountPoint] = cnst.UsrLocalPath
 	}
@@ -215,6 +217,8 @@ func (r ResetAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	// passive.img is created after SelinuxRelabel runs, so label it here
+	e.LabelStateImage(r.spec.Passive.File)
 
 	err = r.resetHook(cnst.AfterResetHook, false)
 	if err != nil {

@@ -153,6 +153,16 @@ func (u *UpgradeAction) Run() (err error) {
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&upgradeImg) })
 
+	// Label the state images for system upgrades. The existing active image
+	// is labeled so a boot back into it (failed upgrade, fallback boot)
+	// finds it as boot_t even if it was deployed by an agent version that
+	// did not label it. The transition image becomes active.img on rename
+	// and keeps the label; the old active moves to passive.img the same way.
+	if !u.spec.RecoveryUpgrade() {
+		e.LabelStateImage(filepath.Join(u.spec.Partitions.State.MountPoint, "cOS", constants.ActiveImgFile))
+		e.LabelStateImage(upgradeImg.File)
+	}
+
 	// Create extra dirs in rootfs as afterwards this will be impossible due to RO system
 	createExtraDirsInRootfs(u.config, u.spec.ExtraDirsRootfs, upgradeImg.MountPoint)
 
@@ -162,9 +172,7 @@ func (u *UpgradeAction) Run() (err error) {
 		// Relabel SELinux
 		// TODO probably relabelling persistent volumes should be an opt in feature, it could
 		// have undesired effects in case of failures
-		binds := map[string]string{
-			u.spec.Partitions.State.MountPoint: constants.RunningStateDir,
-		}
+		binds := map[string]string{}
 		if mnt, _ := utils.IsMounted(u.config, u.spec.Partitions.Persistent); mnt {
 			binds[u.spec.Partitions.Persistent.MountPoint] = constants.UsrLocalPath
 		}
