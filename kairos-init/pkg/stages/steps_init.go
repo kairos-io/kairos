@@ -41,6 +41,7 @@ const (
 	networkManagerBinary  = "usr/sbin/NetworkManager"
 	systemdNetworkdBinary = "usr/lib/systemd/systemd-networkd"
 	systemdResolvedBinary = "usr/lib/systemd/systemd-resolved"
+	dracutModulesDir      = "usr/lib/dracut/modules.d"
 )
 
 // GetInitrdStage Returns the initrd stage
@@ -875,12 +876,6 @@ func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger)
 				// Do we have systemd-networkd?
 				if _, err := os.Stat(filepath.Join(root, systemdNetworkdBinary)); err == nil {
 					networkModule = dracutModSystemdNetworkd
-					// Systemd resolved modules only make sense if networkd is used alongside
-					// Otherwise other modules provide their own resolvers
-					// Do we have systemd-resolved?
-					if _, err := os.Stat(filepath.Join(root, systemdResolvedBinary)); err == nil {
-						networkModule += " systemd-resolved"
-					}
 				} else {
 					// Fallback: if neither NetworkManager nor systemd-networkd is available on Fedora,
 					// add either network or network-legacy based on the version, same as other distros.
@@ -910,7 +905,33 @@ func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger)
 		networkModule = "systemd-networkd systemd-resolved"
 	}
 
+	// Systemd resolved modules only make sense if networkd is used alongside.
+	// Otherwise other modules provide their own resolvers, while networkd
+	// leaves /etc/resolv.conf to resolved, so an initramfs that has networkd
+	// and no resolved cannot resolve names at all.
+	if strings.Contains(networkModule, dracutModSystemdNetworkd) &&
+		!strings.Contains(networkModule, dracutModSystemdResolved) &&
+		resolvedModuleAvailable(root) {
+		l.Logger.Debug().Str("distro", string(sis.Distro)).Str("version", sis.Version).Msg("Adding the systemd-resolved module")
+		networkModule += " " + dracutModSystemdResolved
+	}
+
 	return networkModule, sysextModule, nil
+}
+
+// resolvedModuleAvailable reports whether the systemd-resolved dracut module
+// can be pulled into an initramfs built from root. The module aborts the dracut
+// run when the daemon is missing, and older dracut releases do not ship it at
+// all, so both have to be there before asking for it.
+func resolvedModuleAvailable(root string) bool {
+	if _, err := os.Stat(filepath.Join(root, systemdResolvedBinary)); err != nil {
+		return false
+	}
+
+	// The module directory carries a priority prefix that changes between
+	// dracut releases.
+	modules, err := filepath.Glob(filepath.Join(root, dracutModulesDir, "*"+dracutModSystemdResolved))
+	return err == nil && len(modules) > 0
 }
 
 // GetKairosInitramfsFilesStage installs the kairos initramfs files
