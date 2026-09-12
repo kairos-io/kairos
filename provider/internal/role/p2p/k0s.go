@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
+	machinesvc "github.com/kairos-io/kairos/v4/sdk/machine/service"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	service "github.com/mudler/edgevpn/api/client/service"
 	"gopkg.in/yaml.v3"
@@ -145,15 +147,11 @@ func (k *K0sNode) GenArgs() ([]string, error) {
 }
 
 func (k *K0sNode) EnvUnit() string {
-	return machine.K0sEnvUnit("k0scontroller")
+	return envFileOf(services.K0sSpec(K0sMasterServiceName))
 }
 
 func (k *K0sNode) Service() (machine.Service, error) {
-	if k.IsWorker() {
-		return machine.K0sWorker()
-	}
-
-	return machine.K0s()
+	return machinesvc.New(services.K0sSpec(k.ServiceName()))
 }
 
 func (k *K0sNode) Token() (string, error) {
@@ -315,7 +313,7 @@ func (k *K0sNode) Args() []string {
 }
 
 func (k *K0sNode) EnvFile() string {
-	return machine.K0sEnvUnit(k.ServiceName())
+	return envFileOf(services.K0sSpec(k.ServiceName()))
 }
 
 func (k *K0sNode) SetRole(role string) {
