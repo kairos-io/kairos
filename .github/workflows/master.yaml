@@ -25,13 +25,12 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  # See _build-iso.yaml for the reusable-workflow permission
-  # rationale (callers must cover callee).
-  contents: write
-  packages: write
-  id-token: write
-  security-events: write
-  actions: read
+  # Least-privilege baseline. A job that calls a reusable workflow
+  # needing more (or runs a privileged inline step) declares its own
+  # job-level `permissions:` matching exactly what that callee/step
+  # needs -- see _build-iso.yaml for the reusable-workflow rationale
+  # (callers must cover callee, never the other way round).
+  contents: read
 
 concurrency:
   group: ci-master-${{ github.ref }}-${{ github.repository }}
@@ -84,6 +83,9 @@ jobs:
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kairos-init.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: ghcr.io/kairos-io/kairos
       # Scratch tag: qemu tests consume this, promote-images copies
@@ -105,6 +107,9 @@ jobs:
   build-image-kcrypt-challenger:
     needs: [build-kcrypt-challenger, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: master-scratch
@@ -133,6 +138,12 @@ jobs:
           - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       # Consume the scratch kairos-init that build-image-kairos-init just published.
@@ -181,6 +192,12 @@ jobs:
             registry_repository: 'ci-temp-images'
     name: build-iso-arm / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
@@ -337,6 +354,9 @@ jobs:
           - {test: 'boot-assessment', variant: 'core'}
     name: test-uki / ${{ matrix.test }}
     uses: ./.github/workflows/_uki-test.yaml
+    permissions:
+      contents: read
+      packages: read
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}
@@ -358,6 +378,8 @@ jobs:
     # pushed to :master-scratch before this job can promote it.
     needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - name: Login to ghcr.io
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
