@@ -79,12 +79,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install cross-compiler (FIPS-arm64)
-        if: matrix.variant == 'fips' && matrix.arch == 'arm64'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y crossbuild-essential-arm64
-
       - name: Build kairos
         run: make kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
 
@@ -104,6 +98,10 @@ jobs:
       # scripts/prepare-kairos-init-binaries.sh; it is built here now.
       - name: Build provider-kairos
         run: make provider-kairos ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
+
+      - name: Verify FIPS binaries
+        if: matrix.variant == 'fips'
+        run: make verify-fips ARCH=${{ matrix.arch }} VARIANT=fips
 
       - name: Package archives
         run: make archives ARCH=${{ matrix.arch }} VARIANT=${{ matrix.variant }}
