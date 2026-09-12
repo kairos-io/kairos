@@ -46,7 +46,7 @@ progress as **JSON Lines** on stdout:
 ```
 
 The full, authoritative contract is documented in kairos-agent:
-**[`docs/installer-contract.md`](https://github.com/kairos-io/kairos-agent/blob/main/docs/installer-contract.md)**.
+**[`docs/installer-contract.md`](https://github.com/kairos-io/kairos/blob/master/agent/docs/installer-contract.md)**.
 
 ---
 

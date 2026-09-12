@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,12 +14,15 @@ import (
 	"github.com/mudler/go-pluggable"
 
 	semver "github.com/hashicorp/go-version"
+	httpimpl "github.com/kairos-io/kairos/v4/agent/pkg/implementations/http"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/bundled"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/config"
 	"github.com/kairos-io/kairos/v4/kairos-init/pkg/values"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/installer"
+	sdkhttp "github.com/kairos-io/kairos/v4/sdk/types/http"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
+	"github.com/kairos-io/kairos/v4/sdk/verify"
 	"github.com/mudler/yip/pkg/schema"
 )
 
@@ -528,6 +530,8 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 		"/system/discovery/kcrypt-discovery-challenger": config.DefaultConfig.VersionOverrides.KcryptChallenger,
 	}
 
+	client := httpimpl.NewClient()
+
 	// One embedded write of /usr/bin/kairos serves every dest via
 	// symlink. Track the write with a local so a leftover file or
 	// symlink at that path (from a re-run against an already-baked
@@ -537,6 +541,11 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 	kairosWritten := false
 
 	for dest, version := range binaries {
+		if ownBuildVersion(version) {
+			l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Pinned version is the one kairos-init was built from, using the embedded binary")
+			version = ""
+		}
+
 		if version != "" {
 			// Create the directory if it doesn't exist
 			if _, err := os.Stat(filepath.Dir(dest)); os.IsNotExist(err) {
@@ -547,16 +556,8 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 			}
 
 			reponame := filepath.Base(dest)
-			url := fmt.Sprintf("https://github.com/kairos-io/%[1]s/releases/download/%[2]s/%[1]s-%[2]s-Linux-%[3]s", reponame, version, sis.Arch)
-			// Append -fips to the url if fips is enabled
-			if config.DefaultConfig.Fips {
-				url = fmt.Sprintf("%s-fips", url)
-			}
-			// Add the .tar.gz to the url
-			url = fmt.Sprintf("%s.tar.gz", url)
-			l.Logger.Info().Str("url", url).Msg("Downloading binary")
-			err := DownloadAndExtract(url, dest)
-			if err != nil {
+			l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Resolving binary from the kairos-io/kairos monorepo release")
+			if err := downloadKairosMonorepoBinary(client, l, reponame, version, string(sis.Arch), config.DefaultConfig.Fips, dest); err != nil {
 				l.Logger.Error().Err(err).Str("binary", dest).Msg("Failed to download and extract binary")
 				return err
 			}
@@ -599,6 +600,11 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 	return nil
 }
 
+// edgevpnDest is where the edgevpn binary lands. It doubles as the marker
+// for the one entry in GetInstallProviderBinaries' binaries map that does not
+// come from kairos-io.
+const edgevpnDest = "/usr/bin/edgevpn"
+
 // GetInstallProviderBinaries installs the provider and edgevpn binaries
 func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error {
 	if config.ContainsSkipStep(values.ProviderBinariesStep) {
@@ -618,10 +624,20 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 
 	binaries := map[string]string{
 		"/system/providers/agent-provider-kairos": config.DefaultConfig.VersionOverrides.Provider,
-		"/usr/bin/edgevpn":                        config.DefaultConfig.VersionOverrides.EdgeVpn,
+		edgevpnDest: config.DefaultConfig.VersionOverrides.EdgeVpn,
 	}
 
+	client := httpimpl.NewClient()
+
 	for dest, version := range binaries {
+		// edgevpn is deliberately not exempted here: mudler/edgevpn is a
+		// separate upstream project, so its versions never collide with
+		// kairos-init's own and its releases are always already published.
+		if ownBuildVersion(version) && dest != edgevpnDest {
+			l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Pinned version is the one kairos-init was built from, using the embedded binary")
+			version = ""
+		}
+
 		if version != "" {
 			// Create the directory if it doesn't exist
 			if _, err := os.Stat(filepath.Dir(dest)); os.IsNotExist(err) {
@@ -633,10 +649,10 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 			}
 
 			org := "kairos-io"
-			arch := sis.Arch
+			arch := string(sis.Arch)
 			// Check if the destination is edgevpn, if so we need to use mudler as the org
 			// And change the arch to x86_64 if its amd64
-			if dest == "/usr/bin/edgevpn" {
+			if dest == edgevpnDest {
 				org = "mudler"
 				if arch == "amd64" {
 					arch = "x86_64"
@@ -644,16 +660,19 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 			}
 			// Binary destination has the prefix agent- so we need to remove it as the repo does not have it, nor the file
 			binaryName := strings.Replace(filepath.Base(dest), "agent-", "", 1)
-			url := fmt.Sprintf("https://github.com/%[4]s/%[1]s/releases/download/%[2]s/%[1]s-%[2]s-Linux-%[3]s", binaryName, version, arch, org)
+			// fips only ever applies to provider-kairos, never to edgevpn
+			fips := config.DefaultConfig.Fips && dest != edgevpnDest
 
-			// Append -fips to the url if fips is enabled for provider only
-			if config.DefaultConfig.Fips && dest != "/usr/bin/edgevpn" {
-				url = fmt.Sprintf("%s-fips", url)
+			var err error
+			if org == "kairos-io" {
+				l.Logger.Info().Str("dest", dest).Str("version", version).Msg("Resolving binary from the kairos-io/kairos monorepo release")
+				err = downloadKairosMonorepoBinary(client, l, binaryName, version, arch, fips, dest)
+			} else {
+				// mudler/edgevpn is a separate upstream project, never part
+				// of the kairos-io/kairos monorepo — always resolves via its
+				// own per-component release + "*-checksums.txt" sibling.
+				err = downloadLegacyPerComponentBinary(client, l, org, binaryName, version, arch, fips, dest, binaryName)
 			}
-			// Add the .tar.gz to the url
-			url = fmt.Sprintf("%s.tar.gz", url)
-			l.Logger.Info().Str("url", url).Msg("Downloading binary")
-			err := DownloadAndExtract(url, dest, binaryName)
 			if err != nil {
 				l.Logger.Error().Err(err).Str("binary", dest).Msg("Failed to download and extract binary")
 				return err
@@ -668,7 +687,7 @@ func GetInstallProviderBinaries(sis values.System, l logger.KairosLogger) error 
 				} else {
 					data = bundled.EmbeddedKairosProvider
 				}
-			case "/usr/bin/edgevpn":
+			case edgevpnDest:
 				data = bundled.EmbeddedEdgeVPN
 			}
 
@@ -738,19 +757,178 @@ func GetKairosMiscellaneousFilesStage(sis values.System, l logger.KairosLogger) 
 	return data
 }
 
-// DownloadAndExtract downloads a tar.gz file from the specified URL, extracts its contents,
-// and searches for a binary file to move to the destination path. If a binary name is provided
-// as an optional parameter, it uses that name to locate the binary in the archive; otherwise,
-// it defaults to using the base name of the destination path. The function returns an error
-// if the download, extraction, or file operations fail, or if the binary is not found in the archive.
-func DownloadAndExtract(url, dest string, binaryName ...string) error {
-	resp, err := http.Get(url)
+// monorepoOrg and monorepoRepo are where every kairos-io component ships
+// today: a single release tag publishes every component's tarball, all
+// covered by one shared "checksums.txt" instead of each component's own
+// "*-checksums.txt" sibling. kairos-agent, immucore, kcrypt-discovery-
+// challenger, kairos-installer and provider-kairos were folded in here and
+// their standalone repos archived in August 2026 (see kairos-io/kairos#4548
+// review discussion); mudler/edgevpn is a separate upstream project and was
+// never part of this.
+const (
+	monorepoOrg  = "kairos-io"
+	monorepoRepo = "kairos"
+)
+
+// monorepoAsset describes how a legacy per-component repo name (still used
+// as the map key for VersionOverrides and as the archived repo's own name)
+// maps onto today's kairos-io/kairos monorepo release asset.
+type monorepoAsset struct {
+	// prefix is the tarball's filename prefix, e.g. "kairos-installer" in
+	// "kairos-installer-v4.3.0-linux-amd64.tar.gz". It does not always match
+	// the legacy per-component repo name: kcrypt-discovery-challenger's
+	// tarball is published as "kcrypt-challenger" now.
+	prefix string
+	// binaryName is the file inside the tarball, when it differs from the
+	// destination's own base name. kairos-agent and immucore no longer have
+	// a tarball of their own at all — both are now the single "kairos"
+	// multi-call binary tarball, so each is downloaded and extracted
+	// independently under its own dest, pulling the "kairos" binary out of
+	// that shared tarball each time.
+	binaryName string
+}
+
+// multiCallBinary is the name of the multi-call binary that absorbed
+// kairos-agent and immucore, used both as its tarball's filename prefix and
+// as the file inside that tarball.
+const multiCallBinary = "kairos"
+
+var monorepoAssets = map[string]monorepoAsset{
+	"kairos-agent":                {prefix: multiCallBinary, binaryName: multiCallBinary},
+	"immucore":                    {prefix: multiCallBinary, binaryName: multiCallBinary},
+	"kcrypt-discovery-challenger": {prefix: "kcrypt-challenger"},
+	"provider-kairos":             {prefix: "provider-kairos"},
+}
+
+// ownBuildVersion reports whether version names the kairos-io/kairos release
+// this kairos-init was itself built from.
+//
+// Nothing can be downloaded from that release while it is being cut: the
+// pipeline compiles kairos-init, bakes it into a container image, and runs
+// that image to build every OS image, and only afterwards attaches the
+// tarballs and the shared checksums.txt to the GitHub Release. So for the
+// whole build, URLs into it resolve to nothing.
+//
+// Nothing needs to be, either. The binaries kairos-init embeds were
+// cross-compiled from the same commit, in the same run, and are the ones
+// those tarballs will contain — so a pin naming this version is already
+// satisfied locally, bit for bit, with no request at all.
+func ownBuildVersion(version string) bool {
+	return version != "" && version == values.GetVersion()
+}
+
+// monorepoBinaryURLs builds the tarball and shared-checksums URLs for
+// reponame's binary against the kairos-io/kairos release at version, and the
+// name of the binary inside that tarball. ok is false when there is nothing
+// fetchable for the pair — reponame has no known monorepo asset mapping, or
+// version is the release kairos-init was built from and so has no published
+// assets yet — which lets downloadKairosMonorepoBinary reject it without
+// making any request at all. Pulled out of downloadKairosMonorepoBinary so
+// the URL-building logic (asset renames, the FIPS suffix, the shared
+// checksums.txt) is unit testable without a network call.
+func monorepoBinaryURLs(reponame, version, arch string, fips bool) (assetURL, checksumsURL, binaryName string, ok bool) {
+	if ownBuildVersion(version) {
+		return "", "", "", false
+	}
+	asset, ok := monorepoAssets[reponame]
+	if !ok {
+		return "", "", "", false
+	}
+	suffix := ""
+	if fips {
+		suffix = "-fips"
+	}
+	filename := fmt.Sprintf("%s-%s-linux-%s%s.tar.gz", asset.prefix, version, arch, suffix)
+	assetURL = fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/%s", monorepoOrg, monorepoRepo, version, filename)
+	checksumsURL = fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/checksums.txt", monorepoOrg, monorepoRepo, version)
+	return assetURL, checksumsURL, asset.binaryName, true
+}
+
+// downloadKairosMonorepoBinary resolves and verifies reponame's binary
+// against the current kairos-io/kairos release at version: one shared
+// checksums.txt per release covers every component's tarball, rather than a
+// per-component "*-checksums.txt" sibling. This is the default resolution
+// for every kairos-io-owned binary kairos-init can download.
+func downloadKairosMonorepoBinary(client sdkhttp.Client, l logger.KairosLogger, reponame, version, arch string, fips bool, dest string) error {
+	if ownBuildVersion(version) {
+		return fmt.Errorf("kairos-io/kairos %s is the release kairos-init was built from, its assets are not published yet: use the embedded binary", version)
+	}
+	url, checksumsURL, binaryName, ok := monorepoBinaryURLs(reponame, version, arch, fips)
+	if !ok {
+		return fmt.Errorf("%q has no known kairos-io/kairos monorepo asset mapping", reponame)
+	}
+	if binaryName == "" {
+		binaryName = filepath.Base(dest)
+	}
+	l.Logger.Info().Str("url", url).Msg("Downloading binary")
+	return DownloadAndExtract(client, l, url, checksumsURL, dest, binaryName)
+}
+
+// legacyPerComponentURLs builds the tarball and per-component-checksums URLs
+// for reponame's own (pre-monorepo) release at version under org. Pulled out
+// of downloadLegacyPerComponentBinary for the same reason as
+// monorepoBinaryURLs: unit testable without a network call.
+func legacyPerComponentURLs(org, reponame, version, arch string, fips bool) (assetURL, checksumsURL string) {
+	suffix := ""
+	if fips {
+		suffix = "-fips"
+	}
+	assetURL = fmt.Sprintf("https://github.com/%[4]s/%[1]s/releases/download/%[2]s/%[1]s-%[2]s-Linux-%[3]s%[5]s.tar.gz", reponame, version, arch, org, suffix)
+	checksumsURL = fmt.Sprintf("https://github.com/%[3]s/%[1]s/releases/download/%[2]s/%[1]s-%[2]s-checksums.txt", reponame, version, org)
+	return assetURL, checksumsURL
+}
+
+// downloadLegacyPerComponentBinary resolves a binary against its own
+// (non-monorepo) release, with its own goreleaser "*-checksums.txt" sibling,
+// under org. mudler/edgevpn is the only caller left: it was never folded
+// into kairos-io/kairos, so it always publishes this way.
+func downloadLegacyPerComponentBinary(client sdkhttp.Client, l logger.KairosLogger, org, reponame, version, arch string, fips bool, dest string, binaryName ...string) error {
+	url, checksumsURL := legacyPerComponentURLs(org, reponame, version, arch, fips)
+	l.Logger.Info().Str("url", url).Msg("Downloading binary")
+	return DownloadAndExtract(client, l, url, checksumsURL, dest, binaryName...)
+}
+
+// DownloadAndExtract downloads a tar.gz file from the specified URL through
+// client, verifying it against the sha256 recorded for it in the
+// goreleaser-style checksums listing published at checksumsURL (either a
+// per-component "*-checksums.txt" sibling, pre-monorepo, or the single
+// shared "checksums.txt" every kairos-io/kairos release publishes today),
+// then extracts its contents and searches for a binary file to move to the
+// destination path. If a binary name is provided as an optional parameter,
+// it uses that name to locate the binary in the archive; otherwise, it
+// defaults to using the base name of the destination path. The function
+// returns an error if the checksum fetch, download, verification,
+// extraction, or file operations fail, or if the binary is not found in the
+// archive.
+func DownloadAndExtract(client sdkhttp.Client, l logger.KairosLogger, url, checksumsURL, dest string, binaryName ...string) error {
+	sums, err := verify.FetchChecksums(client, l, checksumsURL)
 	if err != nil {
+		return fmt.Errorf("failed to fetch checksums for %s: %w", url, err)
+	}
+	want, err := verify.ChecksumFromSumsFile(sums, filepath.Base(url))
+	if err != nil {
+		return fmt.Errorf("failed to find checksum for %s: %w", url, err)
+	}
+
+	archive, err := os.CreateTemp("", "kairos-init-download-*.tar.gz")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	archivePath := archive.Name()
+	_ = archive.Close()
+	defer func() { _ = os.Remove(archivePath) }()
+
+	if err := verify.VerifiedDownload(client, l, url, archivePath, want); err != nil {
 		return fmt.Errorf("failed to download file: %w", err)
 	}
-	defer resp.Body.Close()
 
-	gzr, err := gzip.NewReader(resp.Body)
+	archiveFile, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("failed to open downloaded archive: %w", err)
+	}
+	defer archiveFile.Close()
+
+	gzr, err := gzip.NewReader(archiveFile)
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
