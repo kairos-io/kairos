@@ -628,6 +628,98 @@ info:
 				}))
 			})
 		})
+
+		Context("nil map on one side (e.g. an empty config file)", func() {
+			var a ConfigValues // nil, as produced by yaml.Unmarshal on an empty document
+			b := ConfigValues{"key": "value"}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"key": "value"}))
+			})
+		})
+
+		Context("both sources set the same key to null", func() {
+			// Both sides recurse into DeepMerge(nil, nil) for "outer". The old
+			// guard (`a == nil && b != nil`) skipped the early return here,
+			// falling through to reflect.TypeOf(nil).Kind(), which panics on
+			// a nil Type.
+			a := ConfigValues{"outer": nil}
+			b := ConfigValues{"outer": nil}
+
+			It("merges without panicking, keeping the key null", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{"outer": nil}))
+			})
+		})
+
+		Context("nested value decoded as plain map[string]interface{} on both sides", func() {
+			// yaml.Unmarshal recreates ConfigValues at every nesting level, but
+			// parseReaders' json.Unmarshal fallback -- and any other caller that
+			// hands DeepMerge a value straight out of encoding/json -- only ever
+			// produces plain map[string]interface{}. A merge of two such nested
+			// maps used to panic with a failed type assertion to ConfigValues.
+			a := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner": 1,
+				},
+			}
+			b := ConfigValues{
+				"outer": map[string]interface{}{
+					"inner2": 2,
+				},
+			}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal(ConfigValues{
+					"outer": ConfigValues{
+						"inner":  1,
+						"inner2": 2,
+					},
+				}))
+			})
+		})
+
+		Context("nested map with a non-string key (e.g. `1: a` under a yaml key)", func() {
+			// yaml.Unmarshal decodes this to map[interface{}]interface{}.
+			// asConfigValues used to stringify every key with fmt.Sprint,
+			// which would silently collide the integer key 1 with a string
+			// key "1" from another source instead of erroring.
+			a := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					1: "a",
+				},
+			}
+			b := ConfigValues{
+				"outer": map[interface{}]interface{}{
+					2: "b",
+				},
+			}
+
+			It("errors instead of silently coercing the key to a string", func() {
+				_, err := DeepMerge(a, b)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("non-string map keys"))
+			})
+		})
+
+		Context("slices whose items are themselves slices", func() {
+			// mergeSlices compared items with ==, which panics at runtime on
+			// uncomparable dynamic types. A yaml document like "a:\n- - 1\n"
+			// decodes the item into []interface{}, which is uncomparable.
+			a := []interface{}{[]interface{}{1}}
+			b := []interface{}{[]interface{}{2}}
+
+			It("merges without panicking", func() {
+				c, err := DeepMerge(a, b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(c).To(Equal([]interface{}{[]interface{}{1}, []interface{}{2}}))
+			})
+		})
 	})
 
 	Describe("Scan", func() {
