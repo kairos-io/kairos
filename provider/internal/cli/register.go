@@ -4,12 +4,26 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/urfave/cli/v2"
 
 	nodepair "github.com/kairos-io/go-nodepair"
 	qr "github.com/kairos-io/go-nodepair/qrcode"
 )
+
+// defaultPairingTimeout bounds the wait for the node to appear on the pairing
+// network. nodepair.Send blocks until the context ends, so without a deadline
+// a node that never appears leaves this command printing progress forever,
+// with no exit and no error. Pass --timeout 0 to wait indefinitely, which is
+// what the command did before the flag existed.
+const defaultPairingTimeout = 15 * time.Minute
+
+// sendPayload is a seam for tests. nodepair.Send cannot be driven to the
+// expired-context branch for real: it discards the error from n.Start(ctx)
+// (go-nodepair pairing.go:238), so with a dead context it may return a ledger
+// error instead of the nil this code has to cope with.
+var sendPayload = nodepair.Send
 
 // RegisterCMD builds the register command under the given tool name, which is
 // only used to render usage text so the examples name whatever entrypoint the
@@ -59,6 +73,11 @@ func RegisterCMD(toolName string) *cli.Command {
 				Name:  "log-level",
 				Usage: "Set log level",
 			},
+			&cli.DurationFlag{
+				Name:  "timeout",
+				Usage: "Give up if the node has not paired within this duration. 0 waits forever.",
+				Value: defaultPairingTimeout,
+			},
 		},
 		Action: func(c *cli.Context) error {
 			var ref string
@@ -66,7 +85,7 @@ func RegisterCMD(toolName string) *cli.Command {
 				ref = c.Args().First()
 			}
 
-			return register(c.String("log-level"), ref, c.String("config"), c.String("device"), c.Bool("reboot"), c.Bool("poweroff"))
+			return register(c.String("log-level"), ref, c.String("config"), c.String("device"), c.Bool("reboot"), c.Bool("poweroff"), c.Duration("timeout"))
 		},
 	}
 }
@@ -93,9 +112,9 @@ func isReadable(fileName string) bool {
 	return true
 }
 
-func register(loglevel, arg, configFile, device string, reboot, poweroff bool) error {
+func register(loglevel, arg, configFile, device string, reboot, poweroff bool, timeout time.Duration) error {
 	b, _ := os.ReadFile(configFile)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := pairingContext(timeout)
 	defer cancel()
 
 	if arg != "" {
@@ -125,7 +144,7 @@ func register(loglevel, arg, configFile, device string, reboot, poweroff bool) e
 		config["poweroff"] = ""
 	}
 
-	err := nodepair.Send(
+	err := sendPayload(
 		ctx,
 		config,
 		nodepair.WithReader(qr.Reader),
@@ -136,6 +155,23 @@ func register(loglevel, arg, configFile, device string, reboot, poweroff bool) e
 		return err
 	}
 
+	// nodepair.Send returns nil when the context ends, so an expired deadline
+	// is indistinguishable from a delivered payload unless the context is
+	// examined here.
+	if ctx.Err() != nil {
+		return fmt.Errorf("the node did not pair within %s. Check that it is booted in pairing mode and reachable on the same network, then retry with a longer --timeout", timeout)
+	}
+
 	fmt.Println("Payload sent, installation will start on the machine briefly")
 	return nil
+}
+
+// pairingContext returns a context bounded by timeout, or an unbounded one
+// when timeout is zero or negative.
+func pairingContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(context.Background())
+	}
+
+	return context.WithTimeout(context.Background(), timeout)
 }
