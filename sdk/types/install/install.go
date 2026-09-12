@@ -29,7 +29,7 @@ type Install struct {
 	Partitions             partitions.ElementalPartitions `yaml:"partitions,omitempty" mapstructure:"partitions" json:"partitions,omitempty"`
 	Active                 images.Image                   `yaml:"system,omitempty" mapstructure:"system" json:"system,omitempty"`
 	Recovery               images.Image                   `yaml:"recovery-system,omitempty" mapstructure:"recovery-system" json:"recovery-system,omitempty"`
-	Passive                images.Image                   `yaml:"passive,omitempty" mapstructure:"recovery-system" json:"passive,omitempty"`
+	Passive                images.Image                   `yaml:"passive,omitempty" mapstructure:"passive" json:"passive,omitempty"`
 	GrubDefEntry           string                         `yaml:"grub-entry-name,omitempty" mapstructure:"grub-entry-name" json:"grub-entry-name,omitempty"`
 	ExtraPartitions        partitions.PartitionList       `yaml:"extra-partitions,omitempty" mapstructure:"extra-partitions" json:"extra-partitions,omitempty"`
 	ExtraDirsRootfs        []string                       `yaml:"extra-dirs-rootfs,omitempty" mapstructure:"extra-dirs-rootfs" json:"extra-dirs-rootfs,omitempty"`

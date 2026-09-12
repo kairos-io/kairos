@@ -10,7 +10,7 @@ type InstallSchema struct {
 	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
 	BindMounts          []string       `json:"bind_mounts,omitempty"`
 	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	NoFormat            bool           `json:"no_format,omitempty"`
+	NoFormat            bool           `json:"no-format,omitempty"`
 	Device              string         `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
 	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
 	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
@@ -27,7 +27,7 @@ type InstallSchema struct {
 	SSHHardening           bool                `json:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
 	Active                 Image               `json:"system,omitempty" mapstructure:"system"`
 	Recovery               Image               `json:"recovery-system,omitempty" mapstructure:"recovery-system"`
-	Passive                Image               `json:"passive,omitempty" mapstructure:"recovery-system"`
+	Passive                Image               `json:"passive,omitempty" mapstructure:"passive"`
 }
 
 type Image struct {

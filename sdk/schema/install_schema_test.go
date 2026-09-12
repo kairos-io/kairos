@@ -113,6 +113,18 @@ device: /dev/sda`
 		})
 	})
 
+	Context("when no-format is set", func() {
+		BeforeEach(func() {
+			yaml = `#cloud-config
+device: /dev/sda
+no-format: true`
+		})
+
+		It("succeedes", func() {
+			Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+		})
+	})
+
 	Context("with all possible options", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config
