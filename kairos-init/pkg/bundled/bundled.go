@@ -407,18 +407,15 @@ const BootArgsCfg = `function setSelinux {
         source (loop0)/etc/kairos-release
     fi
 
-    # Disable selinux for all distros. Supporting selinux requires more than
-    # just enabling it like this.
-    set baseSelinuxCmd="selinux=0"
-
-    #if test $KAIROS_FAMILY == "rhel" -o test $ID == "opensuse-tumbleweed" -o test $ID == "opensuse-leap"; then
-    #    set baseSelinuxCmd="selinux=0"
-    #else
-    #    # if not in recovery
-    #    if [ -z "$recoverylabel" ];then
-    #        set baseSelinuxCmd="security=selinux selinux=1"
-    #    fi
-    #fi
+    if test "${KAIROS_FAMILY}" == "redhat" -o test "${KAIROS_FAMILY}" == "suse"; then
+        if test "${label}" != "COS_SYSTEM" -a "${selinux_enabled}" == "true"; then
+            set baseSelinuxCmd="security=selinux selinux=1 enforcing=0 rd.cos.selinux=${selinux_mode}"
+        else
+            set baseSelinuxCmd="selinux=0"
+        fi
+    else
+        set baseSelinuxCmd="selinux=0"
+    fi
 }
 
 function setExtraConsole {

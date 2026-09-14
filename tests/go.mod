@@ -10,7 +10,7 @@ require (
 	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/mudler/edgevpn v0.35.5
 	github.com/mudler/go-processmanager v0.1.1
-	github.com/onsi/ginkgo/v2 v2.32.1
+	github.com/onsi/ginkgo/v2 v2.32.2
 	github.com/onsi/gomega v1.43.0
 	github.com/spectrocloud/peg v0.0.0-20260813125620-d8627da0983c
 	golang.org/x/crypto v0.57.0
@@ -157,7 +157,7 @@ require (
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260811182544-a038080d80e5 // indirect
