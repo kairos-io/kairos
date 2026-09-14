@@ -186,7 +186,13 @@ func (v *Validator) Validate() error {
 			if err != nil {
 				multi = multierror.Append(multi, fmt.Errorf("[INITRD] failed checking initrd contents: %s", err))
 			}
-			for _, binary := range []string{"immucore", "kairos-agent"} {
+			// Only immucore runs from the initrd (its immucore.service is
+			// what the 28immucore dracut module wires in). kairos-agent is a
+			// post-switch-root userland tool, driven by the cloud-config
+			// systemd units in 02_agent.yaml and 09_systemd_services.yaml,
+			// and the dracut module does not install a kairos-agent name
+			// into the initrd's PATH, so lsinitrd will never surface one.
+			for _, binary := range []string{"immucore"} {
 				if !strings.Contains(string(out), binary) {
 					multi = multierror.Append(multi, fmt.Errorf("[INITRD] did not find %s in the initrd", binary))
 				} else {
