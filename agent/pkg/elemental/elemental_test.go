@@ -705,7 +705,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(before).To(BeNumerically(">=", 0))
 
 			err := el.PartitionAndFormatDevice(install)
-			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ContainSubstring("invalid partition type")))
 
 			after := countOpenFDsForPath(install.Target)
 			Expect(after).To(Equal(before),
