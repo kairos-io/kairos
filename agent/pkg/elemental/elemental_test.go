@@ -57,12 +57,11 @@ func TestElementalSuite(t *testing.T) {
 }
 
 // countOpenFDsForPath returns how many of this process's open file
-// descriptors currently point at the given path. It is used to observe the
-// fd leak described in kairos-io/kairos#4610: partitioner.NewDisk() (via
-// diskfs.Open) opens the install target device, but PartitionAndFormatDevice
-// only Close()s the returned *Disk on the happy path, so several error
-// returns leak that fd. Returns -1 (and the caller should skip) when the
-// technique is not available, e.g. non-Linux platforms without /proc.
+// descriptors currently point at the given path. partitioner.NewDisk() opens
+// the install target device via diskfs.Open, so comparing this count before
+// and after a PartitionAndFormatDevice call tells us whether that handle was
+// released. Returns -1 (and the caller should skip) when the technique is not
+// available, e.g. non-Linux platforms without /proc.
 func countOpenFDsForPath(path string) int {
 	if runtime.GOOS != "linux" {
 		return -1
@@ -693,14 +692,13 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 				Expect(runner.IncludesCmds([][]string{{"mkfs." + fs}})).To(HaveOccurred())
 			}
 		})
-		It("leaks the disk file descriptor when NewPartitionTable fails (kairos-io/kairos#4610)", func() {
+		It("does not leak the disk file descriptor when NewPartitionTable fails (kairos-io/kairos#4610)", func() {
 			if runtime.GOOS != "linux" {
 				Skip("fd accounting via /proc/self/fd is Linux-only")
 			}
 			// An invalid partition table type makes disk.NewPartitionTable
-			// fail immediately, hitting the very first of the three
-			// "return err" paths between partitioner.NewDisk's diskfs.Open
-			// and the single Close() at the end of the happy path.
+			// fail immediately, which is the first error return after
+			// partitioner.NewDisk has already opened the target device.
 			install.PartTable = "not-a-real-partition-table-type"
 
 			before := countOpenFDsForPath(install.Target)
@@ -710,14 +708,8 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(err).To(HaveOccurred())
 
 			after := countOpenFDsForPath(install.Target)
-			// BUG (kairos-io/kairos#4610): this asserts the CURRENT, WRONG
-			// behavior. The fd opened for the target device by
-			// partitioner.NewDisk is never closed on this error path, so
-			// the number of fds pointing at the target device grows by one
-			// and stays leaked instead of returning to the pre-call
-			// baseline.
-			Expect(after).To(Equal(before+1),
-				"expected the disk fd opened by partitioner.NewDisk to leak on NewPartitionTable failure")
+			Expect(after).To(Equal(before),
+				"the disk fd opened by partitioner.NewDisk must be closed before returning an error")
 		})
 	})
 	Describe("DeployImage", Label("DeployImage"), func() {
