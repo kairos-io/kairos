@@ -19,6 +19,7 @@ type Install struct {
 	Device                 string                         `yaml:"device,omitempty" mapstructure:"device" json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
 	Poweroff               bool                           `yaml:"poweroff,omitempty" mapstructure:"poweroff" json:"poweroff,omitempty"`
 	GrubOptions            map[string]string              `yaml:"grub_options,omitempty" mapstructure:"grub_options" json:"grub_options,omitempty"`
+	Selinux                SelinuxOptions                 `yaml:"selinux,omitempty" mapstructure:"selinux" json:"selinux,omitempty"`
 	Bundles                bundles.Bundles                `yaml:"bundles,omitempty" mapstructure:"bundles" json:"bundles,omitempty"`
 	Encrypt                []string                       `yaml:"encrypted_partitions,omitempty" mapstructure:"encrypted_partitions" json:"encrypted_partitions,omitempty"`
 	SkipEncryptCopyPlugins bool                           `yaml:"skip_copy_kcrypt_plugin,omitempty" mapstructure:"skip_copy_kcrypt_plugin" json:"skip_copy_kcrypt_plugin,omitempty"`
@@ -36,4 +37,13 @@ type Install struct {
 	Force                  bool                           `yaml:"force,omitempty" mapstructure:"force" json:"force,omitempty"`
 	NoUsers                bool                           `yaml:"nousers,omitempty" mapstructure:"nousers" json:"nousers,omitempty"`
 	SSHHardening           bool                           `yaml:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" json:"ssh_hardening,omitempty"`
+}
+
+// SelinuxOptions controls SELinux on the installed system (RHEL and SUSE
+// families, incl. openSUSE Tumbleweed). When Enabled, the system boots with
+// selinux=1 and the kairos-selinux-relabel unit runs on every non-recovery
+// boot.
+type SelinuxOptions struct {
+	Enabled bool   `yaml:"enabled,omitempty" mapstructure:"enabled" json:"enabled,omitempty"`
+	Mode    string `yaml:"mode,omitempty" mapstructure:"mode" json:"mode,omitempty"`
 }

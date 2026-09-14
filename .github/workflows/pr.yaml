@@ -179,6 +179,10 @@ jobs:
           # Ubuntu 20.04: non-Hadron initramfs builder coverage for
           # the multi-call kairos symlinks. Feeds test-core-ubuntu-20.
           - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          # Rocky 9
+          - {name: 'amd64-core-rocky-9', arch: 'amd64', base_image: 'rockylinux/rockylinux:9', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          # openSUSE leap
+          - {name: 'amd64-core-leap', arch: 'amd64', base_image: 'opensuse/leap:16.0', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     with:
@@ -349,6 +353,48 @@ jobs:
     with:
       test: ${{ matrix.test }}
       base_image: 'ubuntu:20.04'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
+    secrets: inherit
+
+  test-core-rocky-9:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'selinux'}
+    name: test-core-rocky-9 / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'rockylinux/rockylinux:9'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
+    secrets: inherit
+
+  test-core-leap:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'selinux'}
+    name: test-core-leap / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'opensuse/leap:16.0'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
