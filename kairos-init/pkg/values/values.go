@@ -146,12 +146,13 @@ const (
 	InitramfsConfigsStep = "initramfsConfigs" // Configures the initramfs for the system
 	MiscellaneousStep    = "miscellaneous"    // Applies miscellaneous configurations
 	SSHHardeningStep     = "sshHardening"     // Installs the sshd hardening drop-in and filters weak Diffie-Hellman moduli
+	CISHardeningStep     = "cisHardening"     // Applies the CIS Distribution Independent Linux L1 initial setup controls
 )
 
 // StepsInfo returns a slice of StepInfo containing the steps and their descriptions
 func StepsInfo() []StepInfo {
 	steps := map[string]string{
-		InitStage:            "The full init stage, which includes kairosRelease, kubernetes, initrd, services, sshHardening, workarounds and cleanup steps",
+		InitStage:            "The full init stage, which includes kairosRelease, kubernetes, initrd, services, sshHardening, workarounds, cleanup and cisHardening steps",
 		InstallStage:         "The full install stage, which includes installPackages, kubernetes, cloudconfigs, branding, grub, services, kairosBinaries, providerBinaries, initramfsConfigs and miscellaneous steps",
 		InstallPackagesStep:  "installs the base system packages",
 		InstallKernelStep:    "installs the kernel packages",
@@ -171,6 +172,7 @@ func StepsInfo() []StepInfo {
 		InitramfsConfigsStep: "configures the initramfs for the system",
 		MiscellaneousStep:    "applies miscellaneous configurations",
 		SSHHardeningStep:     "installs the sshd hardening drop-in",
+		CISHardeningStep:     "applies the CIS Distribution Independent Linux L1 initial setup controls",
 	}
 	keys := make([]string, 0, len(steps))
 	for k := range steps {
