@@ -52,12 +52,24 @@ func chmodMode(result []schema.Stage, path string) string {
 	return fields[1]
 }
 
+// dropsBitFor builds a matcher for a symbolic chmod expression that takes the
+// given permission bit away from the given who-class (or from `a`). Matching
+// on substrings is not enough: "g-r" does not appear in "go-rwx" even though
+// that clause does clear group read.
+func dropsBitFor(who, bit string) OmegaMatcher {
+	return MatchRegexp(`(` + who + `|a)[ugoa]*-[a-z]*` + bit)
+}
+
 // dropsReadFor builds a matcher for a symbolic chmod expression that takes the
-// read bit away from the given who-class (or from `a`). Matching on substrings
-// is not enough: "g-r" does not appear in "go-rwx" even though that clause
-// does clear group read.
+// read bit away from the given who-class (or from `a`).
 func dropsReadFor(who string) OmegaMatcher {
-	return MatchRegexp(`(` + who + `|a)[ugoa]*-[a-z]*r`)
+	return dropsBitFor(who, "r")
+}
+
+// dropsExecFor builds a matcher for a symbolic chmod expression that takes the
+// execute bit away from the given who-class (or from `a`).
+func dropsExecFor(who string) OmegaMatcher {
+	return dropsBitFor(who, "x")
 }
 
 var _ = Describe("GetCISHardeningStage", func() {
@@ -189,6 +201,20 @@ var _ = Describe("GetCISHardeningStage", func() {
 				// Too much reads them by name for 0600 to be survivable.
 				for _, path := range []string{"/etc/passwd", "/etc/group"} {
 					Expect(chmodMode(result, path)).ToNot(dropsReadFor("o"))
+				}
+			})
+
+			It("clears the execute bit for every class on every account file and its backup", func() {
+				// CIS 1.1.x requires none of these ever be executable,
+				// regardless of which read/write bits a given base ships.
+				for _, path := range []string{
+					"/etc/passwd", "/etc/group", "/etc/shadow", "/etc/gshadow",
+					"/etc/passwd-", "/etc/group-", "/etc/shadow-", "/etc/gshadow-",
+				} {
+					mode := chmodMode(result, path)
+					Expect(mode).To(dropsExecFor("u"), "expected owner execute cleared on "+path)
+					Expect(mode).To(dropsExecFor("g"), "expected group execute cleared on "+path)
+					Expect(mode).To(dropsExecFor("o"), "expected other execute cleared on "+path)
 				}
 			})
 
