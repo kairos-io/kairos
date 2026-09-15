@@ -1,0 +1,57 @@
+name: 'GHCR image cleanup'
+description: |
+  Delete a list of ghcr.io container image tags via the GitHub packages
+  REST API. GHCR has no bulk-delete and no tag-scoped delete, so this
+  walks each package's version list, matches the tag, and deletes hits
+  one at a time. Missing tags, missing packages, and non-ghcr.io refs
+  are warnings (not failures) unless fail-on-error is true, so calling
+  this from an `if: always()` post-step is safe.
+
+inputs:
+  images:
+    description: |
+      Newline-separated list of ghcr.io/<owner>/<pkg>:<tag> refs to
+      delete. Blank lines and '#'-prefixed lines are ignored. The
+      <owner> may be an org or a user; the action tries the org
+      endpoint first and falls back to the user endpoint.
+    required: true
+  token:
+    description: |
+      GitHub token with delete:packages access to every target package.
+      The workflow-level GITHUB_TOKEN works as long as the package's
+      "Manage Actions access" list grants this repo write; PATs with
+      delete:packages work too. Defaults to github.token so callers do
+      not have to plumb it through explicitly.
+    required: false
+    default: ${{ github.token }}
+  fail-on-error:
+    description: |
+      "true" makes the step exit non-zero if any delete fails. Default
+      "false" (best-effort cleanup: a missing tag or a permission issue
+      on one package is logged and the rest are still attempted).
+    required: false
+    default: 'false'
+  go-version:
+    description: |
+      Go toolchain to install for the delete step. Kept in sync with
+      the version pinned in the action's own go.mod (see comment there).
+      Bump both together.
+    required: false
+    default: '1.24'
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+    - name: Delete GHCR image tags
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        IMAGES: ${{ inputs.images }}
+        GH_TOKEN: ${{ inputs.token }}
+        FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+      run: go run .

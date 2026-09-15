@@ -58,13 +58,11 @@ on:
           The `install-upgrade` test uses this image via UPGRADE_IMAGE
           inside the VM, which pulls it over the network, so the target
           repository must be readable without credentials (public
-          package on GHCR). No cleanup runs against this package: GHCR
-          offers no TTL-label equivalent to quay's expires-after, and
-          this repo runs no scheduled prune, so every install-upgrade
-          run leaves a fresh uniquely-tagged version behind for GitHub
-          to hold. If storage ever becomes a concern the versions can
-          be bulk-deleted from the package settings page or via the
-          org container-packages REST API.
+          package on GHCR). The "Clean up UKI upgrade image" post-step
+          below deletes each run's fresh tag once ginkgo returns, using
+          the ghcr-cleanup composite action against the container-
+          packages REST API (GHCR has no TTL-label equivalent to quay's
+          expires-after, so the tags accumulate otherwise).
         type: string
         default: 'ghcr.io/kairos-io/kairos/kairos-uki'
 
@@ -306,3 +304,26 @@ jobs:
           name: ${{ steps.split.outputs.flavor }}-${{ steps.split.outputs.flavor_release }}-${{ inputs.variant }}-${{ inputs.test }}-uki.logs.zip
           path: tests/**/logs/*
           if-no-files-found: warn
+
+      # Delete the freshly-pushed upgrade image once the VM has consumed
+      # it. `if: always()` runs even on ginkgo failure -- the tag is
+      # test-only and the same image ref lives in build/upgrade_image_name
+      # regardless of test outcome. The read step short-circuits when
+      # the file is missing (only install-upgrade produces it, and the
+      # earlier build/push step might not have reached the write yet if
+      # the job aborted very early).
+      - name: Read pushed upgrade image ref
+        id: pushed_upgrade_image
+        if: always() && inputs.test == 'install-upgrade'
+        run: |
+          f="$PWD/build/upgrade_image_name"
+          if [ -s "$f" ]; then
+            echo "ref=$(cat "$f")" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Clean up UKI upgrade image
+        if: always() && steps.pushed_upgrade_image.outputs.ref != ''
+        uses: ./.github/actions/ghcr-cleanup
+        with:
+          images: ${{ steps.pushed_upgrade_image.outputs.ref }}
+          # Cleanup issues must not mask a green test.
+          fail-on-error: 'false'

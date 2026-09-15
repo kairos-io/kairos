@@ -493,6 +493,50 @@ jobs:
       caller-vetted-ref: true
     secrets: inherit
 
+  # Delete the pr-N tags this run pushed to GHCR once every job that
+  # could still consume them has finished. Every reusable up to here
+  # pushes to the same tag on retry, so accumulation is per-PR (one
+  # tag per package), but that still adds up as PRs are opened; GHCR
+  # has no expires-after equivalent, and mass-deletion requires per-
+  # version calls (see .github/actions/ghcr-cleanup). Runs on any
+  # test outcome (`if: always()`) -- cleanup is orthogonal to whether
+  # the qemu suites passed. Failures inside the action are warnings,
+  # so a token-scope issue here never masks a green PR.
+  #
+  # ISO OS image tags (ghcr.io/kairos-io/kairos/<flavor>:...) are
+  # NOT deleted here: their tag shape includes the git-describe
+  # VERSION and expands across the whole build-iso matrix. That
+  # cleanup deserves its own pass (issue TODO).
+  cleanup-ghcr:
+    name: cleanup-ghcr
+    needs:
+      - test-core
+      - test-core-fips
+      - test-core-ubuntu-20
+      - test-core-rocky-9
+      - test-core-leap
+      - test-standard
+      - test-standard-encryption
+      - test-uki
+      - build-iso-arm
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/head
+          allow-unsafe-pr-checkout: true
+      - name: Delete pr-N kairos-init and kcrypt-challenger tags
+        uses: ./.github/actions/ghcr-cleanup
+        with:
+          images: |
+            ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
+            ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-${{ github.event.pull_request.number }}
+          fail-on-error: 'false'
+
   # Per-PR ISO size signal. Downloads the amd64/generic ISOs this PR
   # just built, grabs the same set from the last green master run as a
   # baseline, and writes a size delta table to the job summary. It is an
