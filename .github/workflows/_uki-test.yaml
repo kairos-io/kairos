@@ -50,17 +50,18 @@ on:
           `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>-uki`
           is appended internally.
         type: string
-        default: 'quay.io/kairos/ci-temp-images'
+        default: 'ghcr.io/kairos-io/kairos/${flavor}'
 
       upgrade_image_registry:
         description: |
           Registry to push the dynamically-built UKI upgrade image to.
-          The `generic` test uses this image via UPGRADE_IMAGE inside
-          the VM. Kept at quay ci-temp-images by default because that
-          repo is public and short-TTL, matching the old uki.yaml
-          behavior.
+          The `install-upgrade` test uses this image via UPGRADE_IMAGE
+          inside the VM, which pulls it over the network, so the target
+          repository must be readable without credentials (public
+          package on GHCR). Retention is handled at the package level,
+          not per push, so no expiry label is set on the pushed image.
         type: string
-        default: 'quay.io/kairos/ci-temp-images'
+        default: 'ghcr.io/kairos-io/kairos/kairos-uki'
 
       ref:
         description: 'git ref to check out; empty = the trigger event ref'
@@ -98,7 +99,7 @@ on:
 
 permissions:
   contents: read
-  packages: read
+  packages: write
 
 jobs:
   test:
@@ -180,18 +181,19 @@ jobs:
           # Fail here rather than 20 minutes into the suite with an aborted VM.
           test -w /dev/kvm
 
-      - name: Login to quay.io
-        # Only the generic cell needs quay: it pushes the freshly-
-        # built UKI upgrade image to quay.io/kairos/ci-temp-images
-        # (see "Build & push UKI upgrade image" below). boot-assessment
-        # never talks to quay -- it downloads the UKI ISO artifact
-        # from GitHub Actions storage and pulls no container images.
+      - name: Login to GHCR
+        # Only the install-upgrade cell needs to push: it produces the
+        # freshly-built UKI upgrade image and uploads it to
+        # ${{ inputs.upgrade_image_registry }} (see "Build & push UKI
+        # upgrade image" below). boot-assessment never pushes anywhere;
+        # it downloads the UKI ISO artifact from GitHub Actions
+        # storage and pulls no container images.
         if: inputs.test == 'install-upgrade'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compute IMAGE_NAME (fresh trusted-boot OS image)
         env:
@@ -256,7 +258,7 @@ jobs:
                     | sed 's/+/-/g' | xargs)
           rand=$(head /dev/urandom | tr -dc a-z0-9 | head -c 7)
           temp_image="${UPGRADE_IMAGE_REGISTRY}:${image/:latest/-${rand}}"
-          DOCKER_BUILDKIT=1 docker build --label quay.expires-after="6h" --tag "$temp_image" - <<EOF
+          DOCKER_BUILDKIT=1 docker build --tag "$temp_image" - <<EOF
           FROM $image
           EOF
           docker push "$temp_image"
