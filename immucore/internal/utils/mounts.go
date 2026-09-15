@@ -94,6 +94,18 @@ func DiskFSType(s string) string {
 
 // SyncState will rsync source into destination. Useful for Bind mounts.
 func SyncState(src, dst string) error {
+	// -X makes dst's extended attributes match src's, which deletes the ones src
+	// does not carry. MountBind creates src itself when the image does not ship
+	// the path, in the initramfs and so with no SELinux label, while dst is the
+	// persistent state dir and does have one. Without this the label comes off on
+	// every boot. Only the two roots can disagree that way: everything below src
+	// comes from the image and was labelled at build time, so -X keeps propagating
+	// those correctly.
+	// Snapshot now, put back on the way out. A failed sync can have stripped
+	// them already, so the restore runs either way.
+	restore := keepXattrs(dst)
+	defer restore()
+
 	// This has the --update flag to avoid overwriting newer files in dst.
 	// This also has a weird bug in which if the source is a file and destination is a symlink.
 	// According to docs it should overwrite the symlink as its of a different type but it does not.
@@ -103,6 +115,66 @@ func SyncState(src, dst string) error {
 	// https://github.com/RsyncProject/rsync/issues/827
 	_, err := CommandWithPath(fmt.Sprintf("rsync -aquAX %s %s", src, dst))
 	return err
+}
+
+// keepXattrs reads path's extended attributes and returns a function that puts
+// back the ones that have gone missing since. An attribute the sync gave a new
+// value is left alone: the source is entitled to an opinion, it is only removal
+// that is never wanted.
+func keepXattrs(path string) func() {
+	saved := map[string][]byte{}
+	for _, name := range listXattrs(path) {
+		if value, err := getXattr(path, name); err == nil {
+			saved[name] = value
+		}
+	}
+
+	return func() {
+		for name, value := range saved {
+			if _, err := getXattr(path, name); err == nil {
+				continue
+			}
+			if err := syscall.Setxattr(path, name, value, 0); err != nil {
+				KLog.Logger.Debug().Str("path", path).Str("attr", name).Err(err).Msg("Could not restore extended attribute")
+			}
+		}
+	}
+}
+
+// listXattrs returns the names of path's extended attributes, or nothing if
+// they cannot be read. The filesystem may not support them at all.
+func listXattrs(path string) []string {
+	size, err := syscall.Listxattr(path, nil)
+	if err != nil || size == 0 {
+		return nil
+	}
+	buf := make([]byte, size)
+	size, err = syscall.Listxattr(path, buf)
+	if err != nil {
+		return nil
+	}
+
+	var names []string
+	for _, name := range strings.Split(string(buf[:size]), "\x00") {
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// getXattr reads one extended attribute. The error tells absent apart from empty.
+func getXattr(path, name string) ([]byte, error) {
+	size, err := syscall.Getxattr(path, name, nil)
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, size)
+	size, err = syscall.Getxattr(path, name, buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:size], nil
 }
 
 // AppendSlash it's in the name. Appends a slash.
