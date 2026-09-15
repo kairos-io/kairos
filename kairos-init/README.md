@@ -46,6 +46,10 @@ The output is a full `schema.YipConfig` (commands, files, packages,
 services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
 `yip` execution, or provider hook runs during a dry run.
 
+## CIS L1 Hardening
+
+Kairos images are hardened according to the CIS Distribution Independent Linux v2.0.0 L1 initial setup controls. The six filesystem modules—cramfs, freevxfs, jffs2, hfs, hfsplus, and udf—are disabled via `/etc/modprobe.d/cis-blocklist.conf`. The pre-authentication banner in `/etc/issue.net` is replaced with a generic warning, and file permissions on the account database files (`/etc/passwd`, `/etc/shadow`, `/etc/group`, `/etc/gshadow`) and their backups are tightened to prevent unauthorized read access. To disable all CIS hardening, pass `--skip-step cisHardening` to kairos-init.
+
 ## NVIDIA / Jetson
 
 ### Jetson AGX Thor QSPI firmware
