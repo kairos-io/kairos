@@ -1095,6 +1095,8 @@ func unmarshallFullSpec(r *sdkConfig.Config, subkey string, sp sdkSpec.Spec) err
 		vp = viper.New()
 	}
 
+	warnDeprecatedKeys(r.Logger, subkey, vp)
+
 	err = vp.Unmarshal(sp, setDecoder, decodeHook)
 	if err != nil {
 		return fmt.Errorf("error unmarshalling %s Spec: %w", subkey, err)
@@ -1216,4 +1218,22 @@ func DetectPreConfiguredDevice(logger sdkLogger.KairosLogger) (string, error) {
 	}
 
 	return "", nil
+}
+
+// deprecatedKeys lists, per cloud-config block, the keys that no spec has ever
+// read, mapped to the key that actually drives the behaviour. They are not
+// aliased on purpose: a user who wrote the old key got nothing, and quietly
+// turning it on now would change what an existing config does.
+var deprecatedKeys = map[string]map[string]string{
+	"install": {"no_format": "no-format"},
+}
+
+// warnDeprecatedKeys tells the user when a block carries a key that is parsed
+// by nothing, instead of letting it be dropped in silence.
+func warnDeprecatedKeys(logger sdkLogger.KairosLogger, subkey string, vp *viper.Viper) {
+	for old, replacement := range deprecatedKeys[subkey] {
+		if vp.IsSet(old) {
+			logger.Warnf("%[1]s.%[2]s is not read by Kairos and is ignored, use %[1]s.%[3]s instead", subkey, old, replacement)
+		}
+	}
 }
