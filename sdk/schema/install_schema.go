@@ -10,7 +10,8 @@ type InstallSchema struct {
 	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
 	BindMounts          []string       `json:"bind_mounts,omitempty"`
 	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	NoFormat            bool           `json:"no-format,omitempty"`
+	NoFormat            bool           `json:"no-format,omitempty" description:"Skip formatting the partitions and reuse the existing layout"`
+	NoFormatDeprecated  bool           `json:"no_format,omitempty" deprecated:"true" description:"Deprecated and ignored: it was never read by the installer. Use no-format instead"`
 	Device              string         `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
 	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
 	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
