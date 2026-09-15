@@ -44,6 +44,12 @@ func (c Client) GetURL(log logger.KairosLogger, url string, destination string) 
 		return err
 	}
 
+	// grab treats an existing destination as a partially completed download:
+	// it appends to a shorter file, rejects a longer one with ErrBadLength and
+	// keeps a same-sized one. Every caller here wants the remote body, not a
+	// resume, so restart the transfer instead.
+	req.NoResume = true
+
 	// start download
 	log.Infof("Downloading %v...", req.URL())
 	resp := c.client.Do(req)
