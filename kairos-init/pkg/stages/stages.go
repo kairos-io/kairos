@@ -189,6 +189,9 @@ func RunInitStage(logger logger.KairosLogger) (schema.YipConfig, error) {
 	data.Stages["init"] = append(data.Stages["init"], GetSSHHardeningStage(sis, logger)...)
 	data.Stages["init"] = append(data.Stages["init"], GetWorkaroundsStage(sis, logger)...)
 	data.Stages["init"] = append(data.Stages["init"], GetCleanupStage(sis, logger)...)
+	// After the cleanup: it removes packages, and a removal that runs userdel
+	// would rewrite the account databases whose modes this stage pins down
+	data.Stages["init"] = append(data.Stages["init"], GetCISHardeningStage(sis, logger)...)
 
 	// Add extensions from disk
 	data.Stages["init"] = append(data.Stages["init"], GetStageExtensions("init", logger)...)
