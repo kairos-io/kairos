@@ -994,6 +994,36 @@ jobs:
             VERSION=${{ steps.setup.outputs.version }}
             ${{ inputs.build_args }}
 
+      # Record the ref we just pushed so the caller's cleanup-ghcr job
+      # can enumerate every per-matrix-cell OS image tag that landed on
+      # GHCR during this run and delete them once tests have consumed
+      # them. Gated on ghcr.io because release cells push to quay --
+      # those tags are permanent and never enter the cleanup path.
+      # The artifact name embeds the sanitized tag so parallel matrix
+      # cells never collide on the same name.
+      - name: Record pushed GHCR image ref for cleanup
+        if: inputs.registry_domain == 'ghcr.io'
+        id: ghcr_pushed_ref
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ steps.setup.outputs.image_tag }}
+        run: |
+          mkdir -p ghcr-cleanup-manifest
+          printf '%s\n' "$IMAGE_TAG" > ghcr-cleanup-manifest/image-ref.txt
+          # Artifact names allow [A-Za-z0-9._-] only. Squash '/' and ':'
+          # and anything else outside that set to '_', then cap the
+          # name at 200 chars (max is 255; leave room for the prefix).
+          SANITIZED=$(printf '%s' "$IMAGE_TAG" | tr -c 'A-Za-z0-9._-' '_')
+          echo "artifact_name=ghcr-image-ref-${SANITIZED:0:200}" >> "$GITHUB_OUTPUT"
+      - name: Upload GHCR image ref manifest
+        if: inputs.registry_domain == 'ghcr.io'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: ${{ steps.ghcr_pushed_ref.outputs.artifact_name }}
+          path: ghcr-cleanup-manifest/image-ref.txt
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Generate ISO artifact
         if: inputs.iso && inputs.model == 'generic'
         id: generate-iso

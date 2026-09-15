@@ -417,3 +417,68 @@ jobs:
             echo "Promoting $src -> $dst"
             docker buildx imagetools create -t "$dst" "$src"
           done
+
+  # Delete every ISO OS image tag this master push landed on GHCR once
+  # every consumer (qemu suites + arm build + promote-images) is done.
+  # The build-iso and build-iso-arm matrices push per-commit-SHA tags
+  # (custom_tag_format includes `$VERSION`), so they accumulate one set
+  # per master push forever otherwise. Refs come from the ghcr-image-
+  # ref-* artifacts reusable-factory.yaml uploads on every ghcr push.
+  #
+  # The :master-scratch kairos-init/kcrypt-challenger tags are
+  # intentionally NOT deleted here: they get overwritten by the next
+  # master push (one tag per package, no accumulation), and after
+  # promote-images has copied the manifest to :master via `docker
+  # buildx imagetools create` the scratch tag can share a package
+  # version with :master (deterministic manifest digest -> GHCR dedupes
+  # to one version with two tags), so a version-scoped DELETE would
+  # take :master with it.
+  cleanup-ghcr:
+    name: cleanup-ghcr
+    needs:
+      - test-core
+      - test-core-fips
+      - test-core-ubuntu-20
+      - test-core-rocky-9
+      - test-core-leap
+      - test-standard
+      - test-standard-encryption
+      - test-uki
+      - build-iso-arm
+      - promote-images
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Download GHCR image ref manifests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        continue-on-error: true
+        with:
+          pattern: 'ghcr-image-ref-*'
+          path: ghcr-refs
+      - name: Aggregate images to clean up
+        id: aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d ghcr-refs ]; then
+            find ghcr-refs -type f -name image-ref.txt -exec cat {} + | sort -u > images.txt
+          else
+            : > images.txt
+          fi
+          echo "--- images to delete ---"
+          cat images.txt
+          {
+            delim="EOF_$(date +%s%N)"
+            echo "images<<${delim}"
+            cat images.txt
+            echo "${delim}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Delete pushed GHCR tags
+        uses: ./.github/actions/ghcr-cleanup
+        with:
+          images: ${{ steps.aggregate.outputs.images }}
+          fail-on-error: 'false'

@@ -493,20 +493,16 @@ jobs:
       caller-vetted-ref: true
     secrets: inherit
 
-  # Delete the pr-N tags this run pushed to GHCR once every job that
-  # could still consume them has finished. Every reusable up to here
-  # pushes to the same tag on retry, so accumulation is per-PR (one
-  # tag per package), but that still adds up as PRs are opened; GHCR
-  # has no expires-after equivalent, and mass-deletion requires per-
-  # version calls (see .github/actions/ghcr-cleanup). Runs on any
-  # test outcome (`if: always()`) -- cleanup is orthogonal to whether
-  # the qemu suites passed. Failures inside the action are warnings,
-  # so a token-scope issue here never masks a green PR.
-  #
-  # ISO OS image tags (ghcr.io/kairos-io/kairos/<flavor>:...) are
-  # NOT deleted here: their tag shape includes the git-describe
-  # VERSION and expands across the whole build-iso matrix. That
-  # cleanup deserves its own pass (issue TODO).
+  # Delete every GHCR tag this run pushed once every job that could
+  # still consume them has finished. Covers:
+  #   * the pr-N kairos-init and kcrypt-challenger tags this pipeline
+  #     hard-codes,
+  #   * each ISO OS image tag pushed by build-iso / build-iso-arm,
+  #     discovered from the ghcr-image-ref-* artifacts reusable-
+  #     factory.yaml uploads on every ghcr push.
+  # Runs on any test outcome (`if: always()`) -- cleanup is orthogonal
+  # to whether the qemu suites passed, and failures inside the action
+  # are warnings, so a token-scope issue here never masks a green PR.
   cleanup-ghcr:
     name: cleanup-ghcr
     needs:
@@ -529,12 +525,47 @@ jobs:
         with:
           ref: refs/pull/${{ github.event.pull_request.number }}/head
           allow-unsafe-pr-checkout: true
-      - name: Delete pr-N kairos-init and kcrypt-challenger tags
+
+      # download-artifact drops each matching artifact under its own
+      # subdirectory (merge-multiple would collide on the shared
+      # `image-ref.txt` filename), so we walk them with `find` in the
+      # aggregate step below. continue-on-error handles the case where
+      # every build-iso cell failed early and no artifacts landed --
+      # cleanup of the hard-coded refs must still fire.
+      - name: Download GHCR image ref manifests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        continue-on-error: true
+        with:
+          pattern: 'ghcr-image-ref-*'
+          path: ghcr-refs
+
+      - name: Aggregate images to clean up
+        id: aggregate
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}"
+            echo "ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-${{ github.event.pull_request.number }}"
+            if [ -d ghcr-refs ]; then
+              find ghcr-refs -type f -name image-ref.txt -exec cat {} +
+            fi
+          } | sort -u > images.txt
+          echo "--- images to delete ---"
+          cat images.txt
+          {
+            # Multiline GITHUB_OUTPUT with a random-enough delimiter so
+            # a stray "EOF" line in the content can't close it early.
+            delim="EOF_$(date +%s%N)"
+            echo "images<<${delim}"
+            cat images.txt
+            echo "${delim}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Delete pushed GHCR tags
         uses: ./.github/actions/ghcr-cleanup
         with:
-          images: |
-            ghcr.io/kairos-io/kairos/kairos-init:pr-${{ github.event.pull_request.number }}
-            ghcr.io/kairos-io/kairos/kcrypt-challenger:pr-${{ github.event.pull_request.number }}
+          images: ${{ steps.aggregate.outputs.images }}
           fail-on-error: 'false'
 
   # Per-PR ISO size signal. Downloads the amd64/generic ISOs this PR
