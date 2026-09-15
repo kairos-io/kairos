@@ -79,6 +79,12 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 	// Bind mounts backed by the persistent-state target (COS_PERSISTENT).
 	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")
 
+	// Move unit symlinks an earlier image left in the persistent /etc/systemd
+	// bind out of the unit load path. An in-RAM node keeps COS_PERSISTENT on
+	// local disk, so it carries the same stale symlinks across an image change
+	// as a disk install does.
+	s.LogIfError(s.QuarantineStaleUnitsDagStep(g, herd.WithWeakDeps(cnst.OpMountBind)), "quarantine stale systemd units")
+
 	s.LogIfError(s.EnableSysAndConfExtensions(g, herd.WithWeakDeps(cnst.OpMountBind)), "enable sysext and confexts")
 
 	// Write fstab. Same deps as normal boot minus the mount-root chain.
@@ -88,7 +94,7 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 
 	s.LogIfError(s.InitramfsStageDagStep(g,
 		herd.WithDeps(cnst.OpWaitForSysroot, cnst.OpLoadConfig, cnst.OpWriteFstab),
-		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount),
+		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpQuarantineStaleUnits),
 	), "initramfs stage")
 	return err
 }
