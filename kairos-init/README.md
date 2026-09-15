@@ -30,6 +30,22 @@ docker build -t my-kairosified-image .
 
 You can then use [AuroraBoot](https://github.com/kairos-io/auroraboot) to transform that image into an ISO, RAW image, or use it as an upgrade source for a running Kairos system.
 
+## Dry-run
+
+Pass `--dry-run` to print the resolved yip stages that would run without
+executing them (no `yip` execution, file copies, or provider hook runs). The console logger is silenced so
+stdout is the raw yip YAML — the same format `yip` itself consumes, so
+you can pipe it back into `yip` (or diff it across builds) directly:
+
+```bash
+kairos-init --dry-run --version 1.0.0 > preview.yaml
+kairos-init --dry-run --version 1.0.0 --stage init | yip -
+```
+
+The output is a full `schema.YipConfig` (commands, files, packages,
+services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
+`yip` execution, or provider hook runs during a dry run.
+
 ## NVIDIA / Jetson
 
 ### Jetson AGX Thor QSPI firmware

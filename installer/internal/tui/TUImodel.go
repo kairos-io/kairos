@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
@@ -71,7 +72,7 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 	// First create the model with the logger in case any page needs to log something
 	mainModel = Model{
 		navigationStack: []string{},
-		title:           DefaultTitleInteractiveInstaller(),
+		title:           branding.DefaultTitleInteractiveInstaller(),
 		source:          source,
 		log:             l,
 		finishAction:    "nothing",

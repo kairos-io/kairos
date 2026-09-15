@@ -375,6 +375,12 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 		// Add the default mountpoint for it in case the chroot stages want to bind mount it
 		ep.OEM.MountPoint = constants.OEMPath
 	}
+	// On a GRUB system the ESP is not mounted while the system runs, so ghw
+	// reports it with no mountpoint. Give it the same transient mountpoint
+	// reset uses, so the ESP refresh has somewhere to mount it.
+	if ep.EFI != nil && ep.EFI.MountPoint == "" {
+		ep.EFI.MountPoint = sdkConstants.EfiDirTransient
+	}
 	// This is needed if we want to use the persistent as tmpdir for the upgrade images
 	// as tmpfs is 25% of the total RAM, we cannot rely on the tmp dir having enough space for our image
 	// This enables upgrades on low ram devices

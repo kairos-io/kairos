@@ -115,6 +115,15 @@ func dirFromBootState(bootState, extType string) string {
 	}
 }
 
+// ExtensionDirFromBootState returns the persistent directory that holds the
+// extensions of the given type for the given boot state. Callers outside this
+// package (the phonehome command handlers) need it so they do not have to
+// repeat the /var/lib/kairos paths. An unknown bootState yields the type's
+// base directory, and an unknown extType yields the empty string.
+func ExtensionDirFromBootState(bootState, extType string) string {
+	return dirFromBootState(bootState, extType)
+}
+
 // ListExtensions lists the system extensions in the given directory
 // If none is passed then it shows the generic ones
 func ListExtensions(cfg *sdkConfig.Config, bootState, extType string) ([]Extension, error) {
