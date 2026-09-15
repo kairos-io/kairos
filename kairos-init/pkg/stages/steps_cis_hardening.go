@@ -11,7 +11,7 @@ import (
 )
 
 // cisAccountFile is one of the account databases whose mode CIS Distribution
-// Independent Linux v2.0.0 L1 section 1.1 pins down.
+// Independent Linux v2.0.0 L1 section 6.1 pins down.
 type cisAccountFile struct {
 	path string
 	mode string
@@ -45,9 +45,10 @@ var cisAccountFiles = []cisAccountFile{
 }
 
 // GetCISHardeningStage applies the CIS Distribution Independent Linux v2.0.0
-// Level 1 "Initial Setup" controls that can be baked into the image: the
-// filesystem module blocklist (1.1.1.1-1.1.1.6), the remote login warning
-// banner (1.7) and the account database permissions (1.1).
+// Level 1 controls that can be baked into the image: the section 1 "Initial
+// Setup" ones - the filesystem module blocklist (1.1.1.1-1.1.1.6) and the
+// remote login warning banner (1.7) - plus the section 6.1 "System File
+// Permissions" modes on the account databases.
 //
 // The rest of the benchmark - SELinux enforcing, sysctl, auditd, PAM, time
 // sync - needs either runtime state or decisions that change how a node boots,

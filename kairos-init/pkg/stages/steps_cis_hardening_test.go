@@ -205,7 +205,7 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 
 			It("clears the execute bit for every class on every account file and its backup", func() {
-				// CIS 1.1.x requires none of these ever be executable,
+				// CIS 6.1.x requires none of these ever be executable,
 				// regardless of which read/write bits a given base ships.
 				for _, path := range []string{
 					"/etc/passwd", "/etc/group", "/etc/shadow", "/etc/gshadow",
