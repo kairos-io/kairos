@@ -156,7 +156,11 @@ func mergeSlices(sliceA, sliceB []interface{}) ([]interface{}, error) {
 	for _, vB := range sliceB {
 		found := false
 		for _, vA := range sliceA {
-			if vA == vB {
+			// vA/vB can hold uncomparable dynamic types (e.g. []interface{}
+			// decoded from a nested config value), and == panics at runtime
+			// on those. reflect.DeepEqual gives the same answer == would for
+			// every comparable type this handled before, without panicking.
+			if reflect.DeepEqual(vA, vB) {
 				found = true
 			}
 		}
@@ -169,7 +173,37 @@ func mergeSlices(sliceA, sliceB []interface{}) ([]interface{}, error) {
 	return sliceA, nil
 }
 
+// asConfigValues normalizes a map value into ConfigValues. yaml.Unmarshal
+// recreates our named ConfigValues type at every nesting level, but the
+// json.Unmarshal fallback in parseReaders (and other readers below) only ever
+// produces plain map[string]interface{}, which fails a direct type assertion
+// to ConfigValues.
+//
+// Only string-keyed maps convert. A caller merging YAML that used a
+// non-string key (e.g. `1: a`, which yaml.Unmarshal decodes into a
+// map[interface{}]interface{}) gets an error instead of a silent key
+// collision from stringifying two different keys to the same string.
+func asConfigValues(v interface{}) (ConfigValues, error) {
+	if cv, ok := v.(ConfigValues); ok {
+		return cv, nil
+	}
+	rv := reflect.ValueOf(v)
+	if rv.Type().Key().Kind() != reflect.String {
+		return nil, fmt.Errorf("cannot merge %s: non-string map keys", rv.Type())
+	}
+	result := make(ConfigValues, rv.Len())
+	for _, key := range rv.MapKeys() {
+		result[key.String()] = rv.MapIndex(key).Interface()
+	}
+	return result, nil
+}
+
 func deepMergeMaps(a, b ConfigValues) (ConfigValues, error) {
+	// a is nil when a source decoded to an empty document (e.g. an empty
+	// config file); writing into a nil map panics, so allocate one.
+	if a == nil {
+		a = ConfigValues{}
+	}
 	// go through all items in b and merge them to a
 	for k, v := range b {
 		current, ok := a[k]
@@ -192,7 +226,7 @@ func deepMergeMaps(a, b ConfigValues) (ConfigValues, error) {
 // DeepMerge takes two data structures and merges them together deeply. The results can vary depending on how the
 // arguments are passed since structure B will always overwrite what's on A.
 func DeepMerge(a, b interface{}) (interface{}, error) {
-	if a == nil && b != nil {
+	if a == nil {
 		return b, nil
 	}
 
@@ -219,7 +253,15 @@ func DeepMerge(a, b interface{}) (interface{}, error) {
 	}
 
 	if typeA.Kind() == reflect.Map {
-		return deepMergeMaps(a.(ConfigValues), b.(ConfigValues))
+		cvA, err := asConfigValues(a)
+		if err != nil {
+			return ConfigValues{}, err
+		}
+		cvB, err := asConfigValues(b)
+		if err != nil {
+			return ConfigValues{}, err
+		}
+		return deepMergeMaps(cvA, cvB)
 	}
 
 	// for any other type, b should take precedence
