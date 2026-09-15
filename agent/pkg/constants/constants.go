@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 const (
@@ -130,9 +132,13 @@ const (
 	UpgradeRecoveryNoSourceError   = "could not find a proper source for the recovery upgrade.\nThis can be configured in the cloud config files under the 'upgrade.recovery-system.uri' key or via cmdline using the '--source' flag"
 	MultipleEntriesAssessmentError = "multiple boot entries found for %s"
 	NoBootAssessmentWarning        = "No boot assessment found in current boot entry config file"
-
-	DefaultWebUIListenAddress = ":8080"
 )
+
+// Deprecated: use sdkConstants.DefaultWebUIListenAddress. This package is
+// importable outside the repo, so the constant stays as an alias rather than
+// breaking an out-of-tree build. Remove it together with the
+// `kairos-agent webui` subcommand.
+const DefaultWebUIListenAddress = sdkConstants.DefaultWebUIListenAddress
 
 func UkiDefaultMenuEntries() []string {
 	return []string{"cos", "fallback", "recovery", "statereset"}

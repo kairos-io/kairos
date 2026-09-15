@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
@@ -15,8 +15,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/sdk/branding"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/labstack/echo/v5"
 	process "github.com/mudler/go-processmanager"
@@ -308,6 +308,59 @@ type state struct {
 	sync.Mutex
 }
 
+// Activity reports on an install started from the web UI, so a caller that
+// also owns a terminal frontend can avoid tearing the server down under one.
+// A nil *Activity is usable and reports no install.
+type Activity struct {
+	mu   sync.Mutex
+	done <-chan struct{}
+}
+
+// started records a process the web UI just started. It must only be called
+// after a successful Run: process.Done() on a process that was never started
+// is never closed, so publishing it earlier would block WaitForInstall for
+// good.
+func (a *Activity) started(p *process.Process) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	a.done = p.Done()
+	a.mu.Unlock()
+}
+
+// InstallInFlight reports whether an install started from the web UI is still
+// running.
+func (a *Activity) InstallInFlight() bool {
+	done := a.installDone()
+	if done == nil {
+		return false
+	}
+	select {
+	case <-done:
+		return false
+	default:
+		return true
+	}
+}
+
+// WaitForInstall blocks until an install started from the web UI has exited,
+// and returns immediately when none was ever started.
+func (a *Activity) WaitForInstall() {
+	if done := a.installDone(); done != nil {
+		<-done
+	}
+}
+
+func (a *Activity) installDone() <-chan struct{} {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.done
+}
+
 // TemplateRenderer is a custom html/template renderer for Echo framework.
 type TemplateRenderer struct {
 	templates *template.Template
@@ -318,37 +371,101 @@ func (t *TemplateRenderer) Render(c *echo.Context, w io.Writer, name string, dat
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
-func Start(ctx context.Context) error {
-	listen := constants.DefaultWebUIListenAddress
+// Options configures a web UI server.
+type Options struct {
+	// Listen is the address to bind on.
+	Listen string
+	// Logger receives everything the server has to say: echo's startup
+	// banner and port line, handler errors and the http.Server error log.
+	// A nil Logger means stdout, which is what a standalone run wants.
+	//
+	// The installer passes a file-backed logger, because it runs the TUI on
+	// the same terminal and echo's default handler writes JSON to stdout,
+	// which would land on top of the alt screen.
+	Logger *slog.Logger
+	// Source is the install source the boot asked for, forwarded to
+	// `kairos-agent manual-install --source`. Empty means the cloud-config
+	// the browser submitted decides. It is the same value the TUI receives,
+	// so both frontends of one installer install the same image.
+	Source string
+	// Activity, when non-nil, is where the server publishes the install it
+	// starts, so the caller can wait for a browser-driven install to finish
+	// before it shuts the server down.
+	Activity *Activity
+}
 
+// StartConfigured fills in the listen address and enablement from the image's
+// branding config and runs the server with the rest of o as the caller set it.
+// A Listen the caller set explicitly wins over branding. It blocks until ctx
+// is cancelled or the listener errors, and returns nil immediately when
+// branding disabled the web UI.
+func StartConfigured(ctx context.Context, o Options) error {
 	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
 	}
 
-	if agentConfig.WebUI.ListenAddress != "" {
-		listen = agentConfig.WebUI.ListenAddress
-	}
-
 	if agentConfig.WebUI.Disable {
-		log.Println("WebUI installer disabled by branding")
+		logTo(o.Logger).Info("WebUI installer disabled by branding")
 		return nil
 	}
 
-	return StartOn(ctx, listen)
+	if o.Listen == "" {
+		o.Listen = constants.DefaultWebUIListenAddress
+		if agentConfig.WebUI.ListenAddress != "" {
+			o.Listen = agentConfig.WebUI.ListenAddress
+		}
+	}
+
+	return StartWith(ctx, o)
 }
 
-// StartOn runs the web UI server on the given listen address and
-// blocks until ctx is cancelled or the underlying listener errors.
-// Start (the normal entry point) resolves the listen address from the
-// agent config and delegates here; tests bind on ":0" so the OS picks
-// an ephemeral port and the run cannot collide with anything else
-// listening on the developer's box.
+// StartOn runs the web UI server on the given listen address, logging to
+// stdout. Tests bind on ":0" so the OS picks an ephemeral port and the run
+// cannot collide with anything else listening on the developer's box.
 func StartOn(ctx context.Context, listen string) error {
+	return StartWith(ctx, Options{Listen: listen})
+}
+
+// logTo returns l, or a stdout logger when l is nil, so callers never have to
+// nil-check before logging.
+func logTo(l *slog.Logger) *slog.Logger {
+	if l != nil {
+		return l
+	}
+	return slog.New(slog.NewJSONHandler(os.Stdout, nil))
+}
+
+// manualInstallArgs builds the `kairos-agent manual-install` argv for one
+// submitted form, with cfgPath the temp file holding the browser's
+// cloud-config.
+//
+// source is the install source the installer itself was started with. It goes
+// in whenever it is set, which is the same precedence the TUI gives it through
+// agentrun.Command: the agent merges --source over the config file, so the
+// source the boot asked for wins over one in the submitted cloud-config, and
+// both frontends of one installer install the same image.
+func manualInstallArgs(source string, f *FormData, cfgPath string) []string {
+	args := []string{"manual-install"}
+	if source != "" {
+		args = append(args, "--source", source)
+	}
+	if f.PowerOff == "on" {
+		args = append(args, "--poweroff")
+	}
+	if f.Reboot == "on" {
+		args = append(args, "--reboot")
+	}
+	return append(args, "--device", f.InstallationDevice, cfgPath)
+}
+
+// StartWith runs the web UI server and blocks until ctx is cancelled or the
+// underlying listener errors.
+func StartWith(ctx context.Context, o Options) error {
 
 	s := state{}
 
-	ec := echo.New()
+	ec := echo.NewWithConfig(echo.Config{Logger: logTo(o.Logger)})
 	assetHandler := http.FileServer(getFileSystem())
 
 	renderer := &TemplateRenderer{
@@ -370,7 +487,9 @@ func StartOn(ctx context.Context, listen string) error {
 		// which understands Kairos-specific structures like users in stages
 		err := schema.Validate(cloudConfig)
 		if err != nil {
-			fmt.Printf("Validation error: %s", err.Error())
+			// Through the logger, not stdout: in the interactive installer
+			// this shares a terminal with the TUI's alt screen.
+			c.Logger().Error(err.Error())
 			return c.String(http.StatusOK, err.Error())
 		}
 
@@ -394,34 +513,28 @@ func StartOn(ctx context.Context, listen string) error {
 			return err
 		}
 
-		// Process the form data as necessary
 		cloudConfig := formData.CloudConfig
-		reboot := formData.Reboot
-		powerOff := formData.PowerOff
-		installationDevice := formData.InstallationDevice
 
-		args := []string{"manual-install"}
-
-		if powerOff == "on" {
-			args = append(args, "--poweroff")
-		}
-		if reboot == "on" {
-			args = append(args, "--reboot")
-		}
-		args = append(args, "--device", installationDevice)
-
-		// create tempfile to store cloud-config, bail out if we fail as we couldn't go much further
+		// Report a tempfile failure back to the browser rather than exiting.
+		// This handler shares a process with the installer TUI, so a
+		// log.Fatalf here would take the whole installer down with it.
 		file, err := os.CreateTemp("", "install-webui-*.yaml")
 		if err != nil {
-			log.Fatalf("could not create tmpfile for cloud-config: %s", err.Error())
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{
+				"message": fmt.Sprintf("could not create tmpfile for cloud-config: %s", err.Error()),
+				"type":    "danger",
+			})
 		}
 
 		err = os.WriteFile(file.Name(), []byte(cloudConfig), 0600)
 		if err != nil {
-			log.Fatalf("could not write tmpfile for cloud-config: %s", err.Error())
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{
+				"message": fmt.Sprintf("could not write tmpfile for cloud-config: %s", err.Error()),
+				"type":    "danger",
+			})
 		}
 
-		args = append(args, file.Name())
+		args := manualInstallArgs(o.Source, formData, file.Name())
 
 		s.Lock()
 		s.p = process.New(process.WithName("/usr/bin/kairos-agent"), process.WithArgs(args...), process.WithTemporaryStateDir())
@@ -433,6 +546,7 @@ func StartOn(ctx context.Context, listen string) error {
 				"type":    "danger",
 			})
 		}
+		o.Activity.started(s.p)
 
 		// Start install process, lock with sentinel
 		return c.Redirect(http.StatusSeeOther, "progress.html")
@@ -441,7 +555,7 @@ func StartOn(ctx context.Context, listen string) error {
 	ec.GET("/ws", streamProcess(&s))
 
 	sc := echo.StartConfig{
-		Address:         listen,
+		Address:         o.Listen,
 		GracefulTimeout: 10 * time.Second,
 	}
 	if err := sc.Start(ctx, ec); err != nil && err != http.ErrServerClosed {

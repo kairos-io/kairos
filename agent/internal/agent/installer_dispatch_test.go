@@ -1,10 +1,16 @@
 package agent
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -25,6 +31,48 @@ var _ = Describe("installer dispatch", func() {
 			cmd := installerCommand("/bin/installer", "")
 			Expect(cmd.Args).To(Equal([]string{"/bin/installer"}))
 		})
+
+		It("appends extra flags after the source", func() {
+			cmd := installerCommand("/bin/installer", "oci://foo:bar", "--no-tui")
+			Expect(cmd.Args).To(Equal([]string{"/bin/installer", "--source", "oci://foo:bar", "--no-tui"}))
+		})
+	})
+
+	// The web installer is a frontend of the installer, not of the agent, so
+	// `kairos-agent webui` has to reach it through the same resolution the
+	// interactive install uses. An image shipping its own installer serves its
+	// own web UI.
+	Describe("WebUI", func() {
+		It("runs the resolved installer with --no-tui", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "fake-installer")
+			argsFile := filepath.Join(dir, "args")
+			Expect(os.WriteFile(bin,
+				[]byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > "+argsFile+"\n"), 0o755)).To(Succeed())
+			GinkgoT().Setenv(sdkConstants.InstallerEnvVar, bin)
+
+			logger := sdkLogger.NewKairosLogger("test", "info", true)
+			Expect(WebUI("oci://foo:bar", logger)).To(Succeed())
+
+			recorded, err := os.ReadFile(argsFile)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(strings.Fields(string(recorded))).To(Equal([]string{"--source", "oci://foo:bar", "--no-tui"}))
+		})
+
+		// The subcommand is on its way out, so an operator who runs it by
+		// hand has to be told where the web UI went.
+		It("warns that the subcommand is deprecated", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "fake-installer")
+			Expect(os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0o755)).To(Succeed())
+			GinkgoT().Setenv(sdkConstants.InstallerEnvVar, bin)
+
+			var logged bytes.Buffer
+			Expect(WebUI("", sdkLogger.NewBufferLogger(&logged))).To(Succeed())
+
+			Expect(logged.String()).To(ContainSubstring(WebUIDeprecationNotice))
+			Expect(logged.String()).To(ContainSubstring("--no-tui"))
+		})
 	})
 
 	Describe("runExternalInstaller", func() {
@@ -34,6 +82,75 @@ var _ = Describe("installer dispatch", func() {
 			Expect(os.WriteFile(bin, []byte("#!/bin/sh\nexit 7\n"), 0o755)).To(Succeed())
 
 			err := runExternalInstaller(bin, "")
+			var exitErr *exec.ExitError
+			Expect(errors.As(err, &exitErr)).To(BeTrue())
+			Expect(exitErr.ExitCode()).To(Equal(7))
+		})
+	})
+
+	// supervise-daemon signals the agent, not the installer the agent spawns,
+	// so a `rc-service kairos-webui restart` used to leave an orphan holding
+	// :8080 and the respawned installer could never bind.
+	Describe("runExternalInstallerCtx", func() {
+		It("terminates the installer when the context is cancelled", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "trapping-installer")
+			gotTerm := filepath.Join(dir, "got-term")
+			ready := filepath.Join(dir, "ready")
+			Expect(os.WriteFile(bin, []byte(
+				"#!/bin/sh\n"+
+					"trap 'echo yes > "+gotTerm+"; exit 0' TERM\n"+
+					"echo yes > "+ready+"\n"+
+					"while true; do sleep 0.1; done\n"), 0o755)).To(Succeed())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- runExternalInstallerCtx(ctx, bin, "") }()
+
+			Eventually(ready, "10s", "50ms").Should(BeAnExistingFile())
+			cancel()
+
+			// A signalled shutdown is a stop, not an installer failure, so
+			// the deprecated subcommand must not exit non-zero on it.
+			Eventually(done, "10s").Should(Receive(BeNil()))
+			Expect(gotTerm).To(BeAnExistingFile())
+		})
+
+		// The installer is resolved at runtime, so whether it traps TERM is
+		// not the agent's to assume: the override slot and KAIROS_INSTALLER
+		// both accept a binary the agent has never seen, and an older image
+		// ships one that predates the handler. A child left at the default
+		// SIGTERM disposition dies and exec reports
+		// *ExitError("signal: terminated"), which does not wrap the context
+		// error, and a stop the operator asked for must not look like an
+		// installer failure either way.
+		It("treats a cancelled installer that does not trap TERM as a stop", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "untrapped-installer")
+			ready := filepath.Join(dir, "ready")
+			Expect(os.WriteFile(bin, []byte(
+				"#!/bin/sh\n"+
+					"echo yes > "+ready+"\n"+
+					"while true; do sleep 0.1; done\n"), 0o755)).To(Succeed())
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- runExternalInstallerCtx(ctx, bin, "") }()
+
+			Eventually(ready, "10s", "50ms").Should(BeAnExistingFile())
+			cancel()
+
+			Eventually(done, "10s").Should(Receive(BeNil()))
+		})
+
+		It("still propagates an exit code when nothing cancelled it", func() {
+			dir := GinkgoT().TempDir()
+			bin := filepath.Join(dir, "failing-installer")
+			Expect(os.WriteFile(bin, []byte("#!/bin/sh\nexit 7\n"), 0o755)).To(Succeed())
+
+			err := runExternalInstallerCtx(context.Background(), bin, "")
 			var exitErr *exec.ExitError
 			Expect(errors.As(err, &exitErr)).To(BeTrue())
 			Expect(exitErr.ExitCode()).To(Equal(7))
