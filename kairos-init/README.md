@@ -48,7 +48,25 @@ services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
 
 ## CIS L1 Hardening
 
-Kairos images are hardened according to the CIS Distribution Independent Linux v2.0.0 L1 initial setup controls. The six filesystem modules—cramfs, freevxfs, jffs2, hfs, hfsplus, and udf—are disabled via `/etc/modprobe.d/cis-blocklist.conf`. The pre-authentication banner in `/etc/issue.net` is replaced with a generic warning, and file permissions on the account database files (`/etc/passwd`, `/etc/shadow`, `/etc/group`, `/etc/gshadow`) and their backups are tightened to prevent unauthorized read access. To disable all CIS hardening, pass `--skip-step cisHardening` to kairos-init.
+kairos-init applies a subset of the CIS Distribution Independent Linux
+v2.0.0 L1 controls to every image it builds. This is not full L1 coverage —
+SELinux enforcing mode, sysctl hardening, auditd, the PAM/login.defs controls
+and the local `/etc/issue` banner are not touched:
+
+- `/etc/modprobe.d/cis-blocklist.conf` gets an `install <mod> /bin/false` line
+  for cramfs, freevxfs, jffs2, hfs, hfsplus and udf (sections 1.1.1.1-1.1.1.6).
+  `modprobe` of those filesystems fails, so volumes that need them no longer
+  mount.
+- `/etc/issue.net` is replaced with a generic pre-authentication warning that
+  names no distribution, release or kernel (section 1.7). Wiring sshd to print
+  it (`Banner /etc/issue.net`) is not done here — set that yourself if you want
+  the banner on ssh logins.
+- `/etc/passwd`, `/etc/group`, `/etc/shadow`, `/etc/gshadow` and their `-`
+  backups have their modes tightened (section 6.1). Only the shadow files and
+  the backups lose read access; `/etc/passwd` and `/etc/group` stay
+  world-readable, and ownership is left as the base image shipped it.
+
+Pass `--skip-step cisHardening` to turn the whole set off.
 
 ## NVIDIA / Jetson
 
