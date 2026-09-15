@@ -78,12 +78,13 @@ on:
           which produces ghcr.io/kairos-io/kairos/hadron for the hadron
           base image and ghcr.io/kairos-io/kairos/ubuntu for ubuntu.
 
-          Default matches the pre-monorepo image-pr.yaml / release.yaml
-          shape, which puts every flavor in one ci-temp-images repo and
-          disambiguates via the tag.
+          Default matches the per-flavor GHCR layout every real caller
+          already passes explicitly; kept as a sane fallback rather than
+          a legacy quay ci-temp-images target that no longer exists in
+          the test path.
         required: false
         type: string
-        default: 'quay.io/kairos/ci-temp-images'
+        default: 'ghcr.io/kairos-io/kairos/${flavor}'
       kcrypt_challenger_image:
         description: |
           Fully-qualified image reference for the kcrypt-challenger
