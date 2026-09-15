@@ -113,6 +113,25 @@ stages:
       only_service_manager: "systemd"
       directories:
         - path: /var/log/journal
+    # auditd wants its log directory root-owned and unreadable to anyone else,
+    # and creates it 0700 itself when it is missing. /var/log is persisted
+    # (PERSISTENT_STATE_PATHS above), so the audit trail already survives an A/B
+    # upgrade, but the directory that carries it is machine state and no image
+    # ships it, so the mode depends on whoever got there first.
+    #
+    # immucore runs the initramfs stage after the persistent bind mounts are in
+    # place (dag_normal_boot.go wires it after OpMountBind), so this applies to
+    # the backing directory under /usr/local/.state and not to the empty one it
+    # shadows, and it applies on every boot: a directory that arrives from an
+    # older install with a loose mode is tightened rather than left alone.
+    #
+    # Not gated on a service manager: auditd runs under both systemd and OpenRC.
+    - name: "Create auditd /var/log/audit dir"
+      directories:
+        - path: /var/log/audit
+          permissions: 0700
+          owner: 0
+          group: 0
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /usr/local/etc/machine-id ]'
       name: "Restore /etc/machine-id for systemd systems"
       commands:
