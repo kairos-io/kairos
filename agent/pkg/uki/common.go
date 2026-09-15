@@ -142,33 +142,35 @@ func replaceConfTitle(path, role string) error {
 	return os.WriteFile(path, []byte(newContents), os.ModePerm)
 }
 
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (err error) {
 	sourceFile, err := os.Open(src)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("opening %s: %w", src, err)
 	}
 	defer sourceFile.Close()
 
 	destinationFile, err := os.Create(dst)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("creating %s: %w", dst, err)
 	}
-	defer destinationFile.Close()
+	// Close reports a failed flush, so it is not safe to discard. Sync below
+	// normally catches that first, hence only reporting it if nothing else did.
+	defer func() {
+		if cerr := destinationFile.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("closing %s: %w", dst, cerr)
+		}
+	}()
 
 	if _, err = io.Copy(destinationFile, sourceFile); err != nil {
-		return err
+		return fmt.Errorf("copying %s to %s: %w", src, dst, err)
 	}
 
 	// Flushes any buffered data to the destination file
 	if err = destinationFile.Sync(); err != nil {
-		return err
+		return fmt.Errorf("flushing %s: %w", dst, err)
 	}
 
-	if err = sourceFile.Close(); err != nil {
-		return err
-	}
-
-	return destinationFile.Close()
+	return nil
 }
 
 func AddSystemdConfSortKey(fs sdkFs.KairosFS, artifactDir string, log sdkLogger.KairosLogger) error {

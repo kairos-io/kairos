@@ -540,8 +540,10 @@ var BasePackages = PackageMap{
 				"openssh",
 				"pigz",
 				"polkit",
+				"policycoreutils",
 				"procps",
 				"qemu-guest-agent", // TODO: Move this to generic model?
+				"selinux-policy-targeted",
 				"strace",
 				"systemd",
 				"timezone",
@@ -672,7 +674,9 @@ var BasePackages = PackageMap{
 				"openssh-server",
 				"openssh-clients",
 				"polkit",
+				"policycoreutils",
 				"qemu-guest-agent",
+				"selinux-policy-targeted",
 				"systemd",    // Basic tool.
 				"which",      // Basic tool. Basepackages?
 				"cryptsetup", // For encrypted partitions support, needed for trusted boot and dracut building

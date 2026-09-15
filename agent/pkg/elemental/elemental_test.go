@@ -972,6 +972,66 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			Expect(runner.CmdsMatch([][]string{relabelCmd})).To(BeNil())
 		})
 	})
+	Describe("LabelStateImage", Label("LabelStateImage", "selinux"), func() {
+		var stateDir string
+		BeforeEach(func() {
+			// to mock the existence of the chcon command on non selinux hosts
+			err := fsutils.MkdirAll(fs, "/usr/sbin", cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+			sbin, err := fs.RawPath("/usr/sbin")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			path := os.Getenv("PATH")
+			os.Setenv("PATH", fmt.Sprintf("%s:%s", sbin, path))
+			_, err = fs.Create("/usr/sbin/chcon")
+			Expect(err).ShouldNot(HaveOccurred())
+			err = fs.Chmod("/usr/sbin/chcon", 0o777)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			stateDir = filepath.Join(cnst.RunningStateDir, "cOS")
+			err = fsutils.MkdirAll(fs, stateDir, cnst.DirPerm)
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+		It("labels a state image as boot_t", func() {
+			imgFile := filepath.Join(stateDir, cnst.PassiveImgFile)
+			_, err := fs.Create(imgFile)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			c := elemental.NewElemental(config)
+			c.LabelStateImage(imgFile)
+			Expect(runner.CmdsMatch([][]string{
+				{"chcon", "system_u:object_r:boot_t:s0", imgFile},
+			})).To(BeNil())
+		})
+		It("does nothing if the image does not exist", func() {
+			c := elemental.NewElemental(config)
+			c.LabelStateImage(filepath.Join(stateDir, cnst.PassiveImgFile))
+			Expect(runner.CmdsMatch([][]string{{}}))
+		})
+		It("does nothing if chcon is not available", func() {
+			imgFile := filepath.Join(stateDir, cnst.PassiveImgFile)
+			_, err := fs.Create(imgFile)
+			Expect(err).ShouldNot(HaveOccurred())
+			err = fs.Remove("/usr/sbin/chcon")
+			Expect(err).ShouldNot(HaveOccurred())
+
+			c := elemental.NewElemental(config)
+			c.LabelStateImage(imgFile)
+			Expect(runner.CmdsMatch([][]string{{}}))
+		})
+		It("does not raise on chcon failure", func() {
+			imgFile := filepath.Join(stateDir, cnst.PassiveImgFile)
+			_, err := fs.Create(imgFile)
+			Expect(err).ShouldNot(HaveOccurred())
+			runner.ReturnError = errors.New("chcon failure")
+
+			c := elemental.NewElemental(config)
+			c.LabelStateImage(imgFile)
+			Expect(runner.CmdsMatch([][]string{
+				{"chcon", "system_u:object_r:boot_t:s0", imgFile},
+			})).To(BeNil())
+		})
+	})
 	Describe("GetIso", Label("GetIso", "iso"), func() {
 		var e *elemental.Elemental
 		BeforeEach(func() {

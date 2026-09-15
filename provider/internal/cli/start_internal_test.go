@@ -28,6 +28,45 @@ var _ = Describe("EdgeVPN API CLI wiring", func() {
 		Expect(apiFlag.EnvVars).To(Equal([]string{"EDGEVPN_API"}))
 	})
 
+	It("registers rotate-token with the documented defaults", func() {
+		app := NewApp()
+		var cmd *cli.Command
+		for _, c := range app.Commands {
+			if c.Name == "rotate-token" {
+				cmd = c
+				break
+			}
+		}
+		Expect(cmd).NotTo(BeNil(), "rotate-token should be reachable from the provider CLI")
+
+		flags := map[string]cli.Flag{}
+		for _, f := range cmd.Flags {
+			for _, n := range f.Names() {
+				flags[n] = f
+			}
+		}
+		dirs, ok := flags["config-dir"].(*cli.StringSliceFlag)
+		Expect(ok).To(BeTrue())
+		Expect(dirs.Value.Value()).To(Equal([]string{"/etc/kairos", "/oem"}))
+
+		rootDir, ok := flags["root-dir"].(*cli.StringFlag)
+		Expect(ok).To(BeTrue())
+		Expect(rootDir.Value).To(Equal("/"))
+
+		restart, ok := flags["restart"].(*cli.BoolFlag)
+		Expect(ok).To(BeTrue())
+		Expect(restart.Value).To(BeFalse())
+
+		Expect(flags).To(HaveKey("api"))
+	})
+
+	It("rejects rotate-token when no new token is supplied", func() {
+		app := NewApp()
+		err := app.Run([]string{"kairos", "rotate-token"})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("token is required"))
+	})
+
 	It("dials a running EdgeVPN API through a Unix socket", func() {
 		socket := filepath.Join(GinkgoT().TempDir(), "edgevpn.sock")
 		address := "unix://" + socket

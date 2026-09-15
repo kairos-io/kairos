@@ -287,18 +287,29 @@ var _ = Describe("Common helpers", func() {
 			Expect(string(content)).To(Equal("payload"))
 		})
 
-		It("panics when the source is missing", func() {
+		It("reports a missing source instead of panicking", func() {
+			missing := filepath.Join(dir, "missing")
+			var err error
 			Expect(func() {
-				_ = copyFile(filepath.Join(dir, "missing"), filepath.Join(dir, "dst"))
-			}).To(Panic())
+				err = copyFile(missing, filepath.Join(dir, "dst"))
+			}).ToNot(Panic())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(missing))
+			Expect(err).To(MatchError(os.ErrNotExist))
+			Expect(filepath.Join(dir, "dst")).ToNot(BeAnExistingFile())
 		})
 
-		It("panics when the destination dir is missing", func() {
+		It("reports a missing destination dir instead of panicking", func() {
 			src := filepath.Join(dir, "src")
+			dst := filepath.Join(dir, "nonexistent", "dst")
 			Expect(os.WriteFile(src, []byte("payload"), 0644)).To(Succeed())
+			var err error
 			Expect(func() {
-				_ = copyFile(src, filepath.Join(dir, "nonexistent", "dst"))
-			}).To(Panic())
+				err = copyFile(src, dst)
+			}).ToNot(Panic())
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(dst))
+			Expect(err).To(MatchError(os.ErrNotExist))
 		})
 	})
 

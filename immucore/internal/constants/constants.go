@@ -175,4 +175,11 @@ const (
 	VerityCertDir                   = "/run/verity.d/"
 	SysextDefaultPolicy             = "--image-policy=\"root=signed+absent:usr=signed+absent\""
 	EfiDir                          = "/efi"
+
+	// CmdlineBreak requests dracut-style breakpoints. Its values are step
+	// names, i.e. the Op* constants above (rd.immucore.break=mount-root), and
+	// several can be given either comma-separated or by repeating the stanza.
+	// Immucore stops right before a named step, hands the console to a shell
+	// and resumes the boot once that shell exits.
+	CmdlineBreak = "rd.immucore.break="
 )

@@ -151,18 +151,36 @@ VARIANT  ?= default
 DIST_SUBDIR := linux-$(ARCH)$(if $(filter fips,$(VARIANT)),-fips)
 DIST_ARCH_DIR := $(DIST_DIR)/$(DIST_SUBDIR)
 
-# Build env for the current ARCH+VARIANT. FIPS binaries use
-# GOEXPERIMENT=boringcrypto; on a non-arm64 host, arm64 FIPS also needs
-# the aarch64 gcc (installed by the CI job that runs FIPS-arm64 builds).
+# Build env for the current ARCH+VARIANT. FIPS binaries use GOFIPS140=v1.0.0
+GOFIPS140_VERSION := v1.0.0
 BUILD_ENV := GOOS=linux GOARCH=$(ARCH) CGO_ENABLED=0
 ifeq ($(VARIANT),fips)
-  BUILD_ENV += GOEXPERIMENT=boringcrypto
-  ifeq ($(ARCH),arm64)
-    BUILD_ENV += CC=aarch64-linux-gnu-gcc
-  endif
+  BUILD_ENV += GOFIPS140=$(GOFIPS140_VERSION)
 endif
 
 GO_BUILD = $(BUILD_ENV) $(GO) build $(GOFLAGS) -ldflags='$(LDFLAGS)'
+
+# Verify every FIPS binary under dist/ was really built against the Go native
+# FIPS 140-3 module.
+.PHONY: verify-fips
+verify-fips:
+ifneq ($(VARIANT),fips)
+	@echo "verify-fips: VARIANT=$(VARIANT), nothing to verify"
+else
+	@set -e; found=0; \
+	for f in $(DIST_ARCH_DIR)/*; do \
+	  [ -f "$$f" ] || continue; \
+	  found=$$((found+1)); \
+	  meta="$$($(GO) version -m "$$f")"; \
+	  echo "$$meta" | grep -qF 'GOFIPS140=$(GOFIPS140_VERSION)' \
+	    || { echo "verify-fips: $$f not built with GOFIPS140=$(GOFIPS140_VERSION)" >&2; exit 1; }; \
+	  echo "$$meta" | grep -qE 'DefaultGODEBUG=.*fips140=on' \
+	    || { echo "verify-fips: $$f does not default to fips140=on" >&2; exit 1; }; \
+	  echo "verify-fips: $$f OK"; \
+	done; \
+	[ "$$found" -gt 0 ] \
+	  || { echo "verify-fips: no binaries under $(DIST_ARCH_DIR) -- refusing to report success" >&2; exit 1; }
+endif
 
 # Multi-call binary. Symlink it (or hard-link) as immucore, kairos-agent,
 # or kcrypt-discovery-challenger to invoke a specific sub-tool by argv[0].
@@ -238,6 +256,7 @@ binaries:
 	$(MAKE) kairos kcrypt-challenger kairos-installer provider-kairos ARCH=$(ARCH) VARIANT=default
 ifneq ($(ARCH),riscv64)
 	$(MAKE) kairos kcrypt-challenger kairos-installer provider-kairos ARCH=$(ARCH) VARIANT=fips
+	$(MAKE) verify-fips ARCH=$(ARCH) VARIANT=fips
 endif
 	$(MAKE) kairos-init ARCH=$(ARCH) VARIANT=default
 

@@ -278,6 +278,51 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 				Expect(ReadOneShotEfiVar(config)).To(Equal("active_install-mode_awesomeos.conf"))
 			})
 
+			// https://github.com/kairos-io/kairos/issues/4038
+			It("selects an extra-cmdline entry when the system has exactly four entries", func() {
+				// The layout reported in #4038: one entry per role, and the two
+				// install-mode roles carry an extra-cmdline suffix. Four entries in
+				// total, but not the four default names.
+				err := fs.WriteFile("/efi/loader/entries/active.conf", []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/passive.conf", []byte("title Kairos (fallback)\nefi /EFI/kairos/passive.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/recovery_install-mode_stylus.registration.conf", []byte("title Kairos recovery\nefi /EFI/kairos/recovery_install-mode_stylus.registration.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/statereset_install-mode_stylus.registration.conf", []byte("title Kairos state reset\nefi /EFI/kairos/statereset_install-mode_stylus.registration.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/loader.conf", []byte("default active.conf"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				// The names listBootEntriesSystemd prints must be selectable.
+				entries, err := listSystemdEntries(config, &sdkPartitions.Partition{MountPoint: "/efi"})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(entries).To(ConsistOf("cos", "fallback", "recovery install-mode_stylus.registration", "statereset install-mode_stylus.registration"))
+
+				err = SelectBootEntry(config, "recovery install-mode_stylus.registration")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("recovery_install-mode_stylus.registration.conf"))
+
+				err = SelectBootEntry(config, "statereset install-mode_stylus.registration")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("statereset_install-mode_stylus.registration.conf"))
+
+				// The bare role names still resolve to the only entry that has them
+				// as a prefix, which is what the reset and upgrade paths rely on.
+				err = SelectBootEntry(config, "recovery")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("recovery_install-mode_stylus.registration.conf"))
+
+				err = SelectBootEntry(config, "cos")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("active.conf"))
+
+				// A name that is not on disk is still rejected.
+				err = SelectBootEntry(config, "registration")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("does not exist"))
+			})
+
 			It("selects the boot entry in a extra-cmdline installation", func() {
 				err := fs.WriteFile("/efi/loader/entries/active.conf", []byte("title Kairos\nefi /EFI/kairos/active.efi\n"), os.ModePerm)
 				Expect(err).ToNot(HaveOccurred())
@@ -348,6 +393,24 @@ var _ = Describe("Bootentries tests", Label("bootentry"), func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(memLog.String()).To(ContainSubstring("Default boot entry set to active foobar"))
 				Expect(ReadOneShotEfiVar(config)).To(Equal("active_foobar.conf"))
+			})
+
+			It("refuses to guess when a bare role matches more than one entry", func() {
+				err := fs.WriteFile("/efi/loader/entries/recovery_one.conf", []byte("title Kairos recovery\nefi /EFI/kairos/recovery_one.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/entries/recovery_two.conf", []byte("title Kairos recovery\nefi /EFI/kairos/recovery_two.efi\n"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+				err = fs.WriteFile("/efi/loader/loader.conf", []byte("default recovery_one.conf"), os.ModePerm)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = SelectBootEntry(config, "recovery")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("ambiguous"))
+
+				// Naming one of them exactly is unambiguous and still works.
+				err = SelectBootEntry(config, "recovery two")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ReadOneShotEfiVar(config)).To(Equal("recovery_two.conf"))
 			})
 
 			It("fails when the EFI partition cannot be found", func() {

@@ -423,13 +423,19 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	memory := getEnvOrDefault("MEMORY", "2048")
 	cpus := getEnvOrDefault("CPUS", "2")
+	cpuType := getEnvOrDefault("CPU_TYPE", "")
 	arch := getEnvOrDefault("ARCH", "x86_64")
+
+	if cpuType == "" && arch == "x86_64" {
+		cpuType = "host"
+	}
 
 	opts := []types.MachineOption{
 		types.QEMUEngine,
 		types.WithISO(os.Getenv("ISO")),
 		types.WithMemory(memory),
 		types.WithCPU(cpus),
+		types.WithCPUType(cpuType),
 		types.WithSSHPort(strconv.Itoa(sshPort)),
 		types.WithID(vmName),
 		types.WithSSHUser(user()),
