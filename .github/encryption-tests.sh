@@ -12,7 +12,7 @@ GINKGO_NODES="${GINKGO_NODES:-1}"
 # (kairos-io/kairos#4489). The default matches that workflow's.
 GINKGO_SUITE_TIMEOUT="${GINKGO_SUITE_TIMEOUT:-60m}"
 # renovate: datasource=docker depName=rancher/k3s versioning=loose
-K3S_IMAGE="rancher/k3s:v1.33.4-k3s1"
+K3S_IMAGE="rancher/k3s:v1.37.0-rc5-k3s1"
 CERT_MANAGER_VERSION="v1.16.5"
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CLUSTER_NAME=$(echo $RANDOM | md5sum | head -c 10; echo;)
