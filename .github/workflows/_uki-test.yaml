@@ -42,13 +42,35 @@ on:
         type: string
         required: true
 
+      kubernetes_distro:
+        description: |
+          k8s distro baked into the UKI image under test: k3s, k0s, or
+          empty for a core image. Feeds the $K8S segment of the tag this
+          workflow reconstructs to find that image, so it must match the
+          `kubernetes_distro` the build cell was given. The standard UKI
+          cell carries k3s; the core one carries nothing.
+        type: string
+        required: false
+        default: ''
+
+      kubernetes_version:
+        description: |
+          k8s version baked into the UKI image under test, or "auto" when
+          the build cell let kairos-init choose. Only affects the tag this
+          workflow reconstructs; must match the build cell's
+          `kubernetes_version`.
+        type: string
+        required: false
+        default: 'auto'
+
       container_image_prefix:
         description: |
           Where the fresh trusted-boot OS image lives. The literal
           `${flavor}` token is expanded from base_image, matching the
           same convention reusable-qemu-test.yaml uses. The tag suffix
-          `<flavor>-<flavor_release>-<variant>-<arch>-<model>-<sha>-uki`
-          is appended internally.
+          `<flavor>-<flavor_release>-<variant>-<arch>-<model><k8s>-<sha>-uki`
+          is appended internally, where `<k8s>` comes from
+          kubernetes_distro/kubernetes_version below.
         type: string
         default: 'quay.io/kairos/ci-temp-images'
 
@@ -201,15 +223,36 @@ jobs:
           VARIANT: ${{ inputs.variant }}
           ARCH: ${{ inputs.arch }}
           MODEL: ${{ inputs.model }}
+          KUBERNETES_DISTRO: ${{ inputs.kubernetes_distro }}
+          KUBERNETES_VERSION_INPUT: ${{ inputs.kubernetes_version }}
         run: |
           # Match _build-iso.yaml's custom_tag_format:
           # $FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL$K8S-$VERSION$UKI
-          # UKI cells never carry a k8s pair, so $K8S is empty. $UKI is
-          # -uki here (trusted_boot=true is the whole point of this file).
-          # $VERSION was set two steps up via `git describe --tags --dirty`
-          # and is already in the env, matching factory-action's setup.
+          # $UKI is -uki here (trusted_boot=true is the whole point of this
+          # file). $VERSION was set two steps up via `git describe --tags
+          # --dirty` and is already in the env, matching factory-action's
+          # setup.
+          #
+          # $K8S derivation, kept identical to reusable-factory.yaml's
+          # setup step (and to reusable-qemu-test.yaml). "auto" resolves to
+          # the empty string there so kairos-init picks the version, and
+          # the segment is gated on the distro so it survives that. The
+          # standard UKI cell is a k3s image, so this is not decorative.
+          if [[ "$KUBERNETES_VERSION_INPUT" == "auto" ]]; then
+            KUBERNETES_VERSION=""
+          else
+            KUBERNETES_VERSION="$KUBERNETES_VERSION_INPUT"
+          fi
+          SANITIZED_KUBERNETES_VERSION="${KUBERNETES_VERSION//+/-}"
+          K8S=""
+          if [[ -n "$KUBERNETES_DISTRO" ]]; then
+            K8S="-$KUBERNETES_DISTRO"
+            if [[ -n "$SANITIZED_KUBERNETES_VERSION" ]]; then
+              K8S="$K8S-$SANITIZED_KUBERNETES_VERSION"
+            fi
+          fi
           PREFIX="${PREFIX_TEMPLATE//\$\{flavor\}/$FLAVOR}"
-          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}-${VERSION}-uki" >> "$GITHUB_ENV"
+          echo "IMAGE_NAME=${PREFIX}:${FLAVOR}-${FLAVOR_RELEASE}-${VARIANT}-${ARCH}-${MODEL}${K8S}-${VERSION}-uki" >> "$GITHUB_ENV"
 
       - name: Download UKI ISO artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1

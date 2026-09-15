@@ -97,6 +97,32 @@ lint-workflows-actions:
 	        \( -name 'pr.yaml' -o -name 'master.yaml' -o -name 'release.yaml' -o -name '_*.yaml' \))
 
 # ============================================================================
+# k8s image-tag derivation regression guard (kairos-io/kairos#4579).
+#
+# reusable-factory.yaml derives the $K8S image-tag segment in shell, and
+# reusable-qemu-test.yaml / _uki-test.yaml each hand-reconstruct the same
+# segment to find the image a test consumes -- reusable-factory.yaml is a
+# cross-repo callable, so the three copies cannot be collapsed into one
+# composite action/script. #4579 was exactly that: the derivation drifted
+# and a k3s cell and a k0s cell silently collided on the same pushed tag.
+#
+# .github/scripts/verify_k8s_tag.py extracts the real `run:` shell out of
+# all three files via PyYAML and executes it under bash, so a future
+# drift shows up as a mismatch rather than as a passing test of stale
+# text. It also walks pr.yaml/master.yaml and requires every qemu/UKI
+# test job to resolve to exactly one build-iso matrix cell, which is the
+# other half of #4579: a test job whose kubernetes_distro does not match
+# the cell it consumes boots one image and reports as another's coverage.
+# Like actionlint above, this is a local-only check -- not currently
+# wired into a CI job -- because it needs PyYAML and this is otherwise a
+# Python-free repo. Requires: pip install pyyaml.
+# ============================================================================
+
+.PHONY: verify-k8s-tag
+verify-k8s-tag:
+	@python3 .github/scripts/verify_k8s_tag.py
+
+# ============================================================================
 # Local Go lint. Mirrors the golangci-lint step in
 # .github/workflows/reusable-linting.yaml -- same image tag (pinned in
 # .golangci-version), same flags, same CGO_ENABLED, same embed-stub
