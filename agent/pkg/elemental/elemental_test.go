@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	sc "syscall"
 	"testing"
@@ -53,6 +54,37 @@ import (
 func TestElementalSuite(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Elemental test suite")
+}
+
+// countOpenFDsForPath returns how many of this process's open file
+// descriptors currently point at the given path. partitioner.NewDisk() opens
+// the install target device via diskfs.Open, so comparing this count before
+// and after a PartitionAndFormatDevice call tells us whether that handle was
+// released. Returns -1 (and the caller should skip) when the technique is not
+// available, e.g. non-Linux platforms without /proc.
+func countOpenFDsForPath(path string) int {
+	if runtime.GOOS != "linux" {
+		return -1
+	}
+	real, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		real = path
+	}
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		return -1
+	}
+	count := 0
+	for _, e := range entries {
+		target, err := os.Readlink(filepath.Join("/proc/self/fd", e.Name()))
+		if err != nil {
+			continue
+		}
+		if target == real {
+			count++
+		}
+	}
+	return count
 }
 
 var _ = Describe("Elemental", Label("elemental"), func() {
@@ -659,6 +691,25 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 			for _, fs := range []string{"-", "none", "noformat"} {
 				Expect(runner.IncludesCmds([][]string{{"mkfs." + fs}})).To(HaveOccurred())
 			}
+		})
+		It("does not leak the disk file descriptor when NewPartitionTable fails (kairos-io/kairos#4610)", func() {
+			if runtime.GOOS != "linux" {
+				Skip("fd accounting via /proc/self/fd is Linux-only")
+			}
+			// An invalid partition table type makes disk.NewPartitionTable
+			// fail immediately, which is the first error return after
+			// partitioner.NewDisk has already opened the target device.
+			install.PartTable = "not-a-real-partition-table-type"
+
+			before := countOpenFDsForPath(install.Target)
+			Expect(before).To(BeNumerically(">=", 0))
+
+			err := el.PartitionAndFormatDevice(install)
+			Expect(err).To(MatchError(ContainSubstring("invalid partition type")))
+
+			after := countOpenFDsForPath(install.Target)
+			Expect(after).To(Equal(before),
+				"the disk fd opened by partitioner.NewDisk must be closed before returning an error")
 		})
 	})
 	Describe("DeployImage", Label("DeployImage"), func() {
