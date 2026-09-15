@@ -309,7 +309,7 @@ Starts the kairos agent which automatically bootstrap and advertize to the kairo
 				// real fix is for the provider CLI to derive its default from
 				// the APILISTEN the provider already writes to
 				// /etc/systemd/system.conf.d/edgevpn-kairos.env, which belongs
-				// in kairos-io/provider-kairos.
+				// in provider/ (formerly kairos-io/provider-kairos).
 				Value: "",
 			},
 		},
