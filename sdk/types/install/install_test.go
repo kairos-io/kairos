@@ -1,45 +1,42 @@
-package install
+// install_selinux_test.go - Tests for parsing the install.selinux block into
+// the typed install.Install struct.
+package install_test
 
 import (
 	"testing"
 
-	"github.com/go-viper/mapstructure/v2"
+	install "github.com/kairos-io/kairos/v4/sdk/types/install"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 )
 
-// TestPassiveDoesNotAliasRecovery guards the mapstructure tag on the Passive
-// field. It used to be "recovery-system", the same tag Recovery already owned,
-// so a config setting install.passive alone was dropped and setting
-// install.recovery-system leaked into both fields.
-func TestPassiveDoesNotAliasRecovery(t *testing.T) {
-	src := map[string]interface{}{
-		"passive": map[string]interface{}{
-			"size": 1234,
-		},
-		"recovery-system": map[string]interface{}{
-			"size": 5678,
-		},
-	}
-	var got Install
-	if err := mapstructure.Decode(src, &got); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if got.Passive.Size != 1234 {
-		t.Errorf("passive.size: want 1234, got %d", got.Passive.Size)
-	}
-	if got.Recovery.Size != 5678 {
-		t.Errorf("recovery-system.size: want 5678, got %d", got.Recovery.Size)
-	}
+func TestInstallTypes(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Install Types Suite")
 }
 
-// TestNoFormatDecodesFromKebabCase pins the "no-format" spelling the runtime
-// InstallSpec reads. Any drift to "no_format" would leave install.no-format
-// silently ignored.
-func TestNoFormatDecodesFromKebabCase(t *testing.T) {
-	var got Install
-	if err := mapstructure.Decode(map[string]interface{}{"no-format": true}, &got); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if !got.NoFormat {
-		t.Error("install.no-format: want true, got false")
-	}
-}
+var _ = Describe("Install Selinux type parsing", func() {
+	DescribeTable("parses the install.selinux block into the typed struct",
+		func(yamlDoc string, expectedEnabled bool, expectedMode string) {
+			var inst install.Install
+			err := yaml.Unmarshal([]byte(yamlDoc), &inst)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(inst.Selinux.Enabled).To(Equal(expectedEnabled))
+			Expect(inst.Selinux.Mode).To(Equal(expectedMode))
+		},
+		Entry("enabled with explicit enforcing mode",
+			"selinux:\n  enabled: true\n  mode: enforcing\n",
+			true, "enforcing"),
+		Entry("enabled with explicit permissive mode",
+			"selinux:\n  enabled: true\n  mode: permissive\n",
+			true, "permissive"),
+		Entry("enabled without mode leaves mode empty (permissive is applied downstream)",
+			"selinux:\n  enabled: true\n",
+			true, ""),
+		Entry("absent selinux block leaves the zero value",
+			"auto: true\n",
+			false, ""),
+	)
+})

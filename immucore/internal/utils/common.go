@@ -667,7 +667,9 @@ func DropToEmergencyShellWithError(reason string) {
 	DropToEmergencyShell()
 }
 
-func DropToEmergencyShell() {
+// shellEnvWithPath returns the environment for a shell we hand the console to,
+// with the usual PATH appended: under UKI there is nothing else setting one.
+func shellEnvWithPath() []string {
 	env := os.Environ()
 	// try to extract any existing path from the environment
 	pathAppend := constants.PathAppend
@@ -677,7 +679,11 @@ func DropToEmergencyShell() {
 			pathAppend = fmt.Sprintf("%s:%s", pathAppend, splitted[1])
 		}
 	}
-	env = append(env, fmt.Sprintf("%s=%s", constants.PATH, pathAppend))
+	return append(env, fmt.Sprintf("%s=%s", constants.PATH, pathAppend))
+}
+
+func DropToEmergencyShell() {
+	env := shellEnvWithPath()
 	if err := syscall.Exec("/bin/bash", []string{"/bin/bash"}, env); err != nil {
 		if err := syscall.Exec("/bin/sh", []string{"/bin/sh"}, env); err != nil {
 			if err := syscall.Exec("/sysroot/bin/bash", []string{"/sysroot/bin/bash"}, env); err != nil {

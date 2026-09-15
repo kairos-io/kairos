@@ -1,9 +1,15 @@
 name: "Root autologin"
 stages:
   initramfs:
-    # TODO: Drop interactive-install keyword in Kairos 4.0.0
+    # Autologin applies to every live boot, interactive installs included.
+    # There used to be a "not an interactive install" guard here, written as
+    # two OR'd `grep -qv`. On a single-line /proc/cmdline each of those
+    # succeeds whenever the line lacks that one keyword, so the condition was
+    # true for every cmdline and the guard never ran. It is gone rather than
+    # repaired: 52_installer.yaml masks getty@tty1 on an interactive boot, so
+    # the tty1 override below is already inert there, and the ttyS0 one is the
+    # only way to reach a machine whose console is serial.
     - if: |
-        (grep -qv "interactive-install" /proc/cmdline || grep -qv "install-mode-interactive" /proc/cmdline ) && \
         ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
       only_service_manager: "systemd"
       files:
@@ -20,9 +26,8 @@ stages:
             ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
           permissions: 0644
     - name: "Autologin on livecd for OpenRC"
-      # TODO: Drop interactive-install keyword in Kairos 4.0.0
+      # Same dead guard as above, removed for the same reason.
       if: |
-        (grep -qv "interactive-install" /proc/cmdline || grep -qv "install-mode-interactive" /proc/cmdline) && \
         [ -f /run/cos/live_mode ]
       only_service_manager: "openrc"
       files:

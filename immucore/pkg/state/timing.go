@@ -48,11 +48,21 @@ func RunTimed(name string, fn func() error) error {
 	return err
 }
 
+// breakpointHook is consulted before every timed step. A variable so tests can
+// observe the breakpoint check without a console to drop into.
+var breakpointHook = internalUtils.MaybeBreakpoint
+
 // TimedCallback wraps a herd callback so its wall-clock duration is recorded under name,
 // and returns it as a herd.WithCallback OpOption. This is the drop-in replacement for
 // herd.WithCallback(fn) in step registrations: herd.WithCallback(fn) -> state.TimedCallback(name, fn).
+//
+// It is also where rd.immucore.break= is honored: since nearly every step in
+// the DAG registers through here, one check covers them all. The breakpoint
+// runs before the step and outside RunTimed, so time spent poking around in
+// the shell does not land in the boot timeline.
 func TimedCallback(name string, fn func(context.Context) error) herd.OpOption {
 	return herd.WithCallback(func(ctx context.Context) error {
+		breakpointHook(name)
 		return RunTimed(name, func() error { return fn(ctx) })
 	})
 }
