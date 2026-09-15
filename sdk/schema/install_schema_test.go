@@ -113,6 +113,69 @@ device: /dev/sda`
 		})
 	})
 
+	Context("with oem_files", func() {
+		Context("a well formed entry", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - name: foo
+    content: |
+      #cloud-config
+      users:
+        - name: kairos`
+			})
+
+			It("succeedes", func() {
+				Expect(config.IsValid()).To(BeTrue(), func() string { return config.ValidationError.Error() })
+			})
+		})
+
+		Context("an entry without a name", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - content: "#cloud-config"`
+			})
+
+			It("errors", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("name"))
+			})
+		})
+
+		Context("an entry without content", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - name: foo`
+			})
+
+			It("errors", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(ContainSubstring("content"))
+			})
+		})
+
+		Context("an entry whose name contains a slash", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+device: auto
+oem_files:
+  - name: sub/foo
+    content: "#cloud-config"`
+			})
+
+			It("errors", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).
+					To(ContainSubstring("does not match pattern '^[^/]+$'"))
+			})
+		})
+	})
+
 	Context("with all possible options", func() {
 		BeforeEach(func() {
 			yaml = `#cloud-config

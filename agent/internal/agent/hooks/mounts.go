@@ -2,13 +2,13 @@ package hook
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
-	"github.com/kairos-io/kairos/v4/sdk/machine"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 	"github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v3"
@@ -16,12 +16,13 @@ import (
 
 type CustomMounts struct{}
 
-func saveCloudConfig(name config.Stage, yc schema.YipConfig) error {
+func saveCloudConfig(fs sdkFs.KairosFS, name config.Stage, yc schema.YipConfig) error {
 	yipYAML, err := yaml.Marshal(yc)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join("/oem", fmt.Sprintf("10_%s.yaml", name)), yipYAML, 0400)
+	path := filepath.Join(constants.OEMPath, fmt.Sprintf("10_%s.yaml", name))
+	return writeCloudConfig(fs, path, string(yipYAML))
 }
 
 // Run Read the keys sections ephemeral_mounts and bind mounts from install key in the cloud config.
@@ -33,13 +34,11 @@ func (cm CustomMounts) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 	}
 	c.Logger.Logger.Debug().Msg("Running CustomMounts hook")
 
-	err := machine.Mount("COS_OEM", "/oem")
+	umount, err := mountOEM()
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = machine.Umount("/oem")
-	}()
+	defer umount()
 
 	var mountsList = map[string]string{}
 
@@ -58,7 +57,7 @@ func (cm CustomMounts) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		},
 	}
 
-	err = saveCloudConfig("user_custom_mounts", cfg)
+	err = saveCloudConfig(c.Fs, "user_custom_mounts", cfg)
 	if err != nil {
 		return err
 	}
