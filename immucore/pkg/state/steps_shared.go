@@ -197,6 +197,16 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 				// every install, not only on the ones whose cloud-config
 				// happens to name it, so the path is always on the list. An
 				// installation that also lists it is deduplicated below.
+				//
+				// Being an ordinary entry of the list mounts it in the
+				// initramfs, before switch_root, so it is in place before any
+				// service in the booted system starts. What the dedicated step
+				// this replaced added on top is gone: there is no
+				// Requires=/After= on a mount unit any more, so a bind that
+				// fails appends no fstab entry and the booted system has no
+				// mount at all. auditd then writes to the ephemeral directory
+				// with nothing but immucore's bind error in the boot log to say
+				// so.
 				s.BindMounts = append(s.BindMounts, cnst.AuditLogPath)
 
 				// Remove any duplicates

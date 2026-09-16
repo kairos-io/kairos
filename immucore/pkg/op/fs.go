@@ -117,6 +117,13 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 			if err := internalUtils.CreateBindStateDir(rootMount, stateDir); err != nil {
 				return err
 			}
+			// The sync has no --delete and no one-time guard, so it re-runs on
+			// every boot. A machine that upgraded from an image without a
+			// dedicated entry for a path keeps the snapshot it left under the
+			// shared bind that sorts ahead of it -- /var/log/audit inherits
+			// var-log.bind/audit -- and nothing ever empties that directory, so
+			// a file deleted from the new backing directory reappears from the
+			// old one on the next boot. Fresh installs never see it.
 			return internalUtils.SyncState(internalUtils.AppendSlash(rootMount), internalUtils.AppendSlash(stateDir))
 		},
 	}

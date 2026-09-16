@@ -130,8 +130,11 @@ func CreateIfNotExists(path string) error {
 // CreateDirIfNotExists is CreateIfNotExists for a caller that knows which mode
 // the directory has to have. A path that is already there is left alone, mode
 // included: whoever created it had a reason and it is not this function's to
-// override. Parents that have to be created along the way get the same mode
-// as os.MkdirAll gives them, only the last element is set to exactly mode.
+// override. Parents that have to be created along the way get mode too, minus
+// the umask, because that is what os.MkdirAll does with its mode argument;
+// only the last element is then set to exactly mode. A path whose parents may
+// be absent has to be checked against that before it goes in bindMountModes,
+// or a restrictive leaf mode silently applies to the parent as well.
 func CreateDirIfNotExists(path string, mode os.FileMode) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil
