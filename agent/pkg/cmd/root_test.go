@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/twpayne/go-vfs/v5/vfst"
@@ -168,5 +169,103 @@ func TestStartAPIFlagHasNoDefault(t *testing.T) {
 
 	if api.Value != "" {
 		t.Fatalf("start --api default = %q, want %q so the provider picks the address", api.Value, "")
+	}
+}
+
+// interactive-install must still install unattended by default: the whole
+// point of the command reading install.auto is that an ISO booted with an
+// autoinstall datasource does not stop at a TUI with nobody there to answer
+// it. --skip-auto-install is the documented way out, for an operator who
+// booted the media to look around, so it has to default to off.
+func TestSkipAutoInstallDefaultsOff(t *testing.T) {
+	command := interactiveInstallCommand(t)
+
+	var skip *cli.BoolFlag
+	for _, f := range command.Flags {
+		if bf, ok := f.(*cli.BoolFlag); ok && bf.Name == skipAutoInstallFlag {
+			skip = bf
+			break
+		}
+	}
+	if skip == nil {
+		t.Fatalf("interactive-install has no --%s flag", skipAutoInstallFlag)
+	}
+	if skip.Value {
+		t.Fatalf("--%s default = true, want false so an unattended config still owns the boot", skipAutoInstallFlag)
+	}
+
+	if got := skipAutoInstall(commandContext(t, command, "")); got {
+		t.Fatal("skipAutoInstall with no flag and no cmdline token = true, want false")
+	}
+	if got := skipAutoInstall(commandContext(t, command, "", "--"+skipAutoInstallFlag)); !got {
+		t.Fatalf("skipAutoInstall with --%s = false, want true", skipAutoInstallFlag)
+	}
+}
+
+// The kairos-interactive unit's ExecStart is fixed, so the GRUB edit line is
+// the only place an operator booting an ISO can ask for this. A substring
+// match would let an unrelated longer token turn it on, and would miss the
+// =true spelling people reach for.
+func TestSkipAutoInstallCmdlineMatchesWholeTokens(t *testing.T) {
+	for _, tc := range []struct {
+		cmdline string
+		want    bool
+	}{
+		{"console=tty1 kairos.skip-auto-install rd.immucore.debug", true},
+		{"kairos.skip-auto-install=true", true},
+		{"kairos.skip-auto-install=1", true},
+		{"console=tty1 install-mode-interactive", false},
+		{"kairos.skip-auto-install-never", false},
+		{"nokairos.skip-auto-install", false},
+		{"kairos.skip-auto-install=false", false},
+		{"", false},
+	} {
+		if got := cmdlineEnables(tc.cmdline, skipAutoInstallCmdline); got != tc.want {
+			t.Errorf("cmdlineEnables(%q) = %v, want %v", tc.cmdline, got, tc.want)
+		}
+	}
+}
+
+func interactiveInstallCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "interactive-install" {
+			return command
+		}
+	}
+	t.Fatal("interactive-install command not found")
+	return nil
+}
+
+// The two halves of the flag: with it, install.auto is never read and the
+// installer runs; without it, install.auto is read first. Both paths end in
+// the same "no installer found" error here, so the install.auto call itself is
+// what distinguishes them.
+func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
+	command := interactiveInstallCommand(t)
+
+	original := autoInstallFn
+	t.Cleanup(func() { autoInstallFn = original })
+
+	called := false
+	autoInstallFn = func(string, bool, ...string) (bool, *sdkConfig.Config, error) {
+		called = true
+		return false, nil, nil
+	}
+
+	err := command.Action(commandContext(t, command, "", "--"+skipAutoInstallFlag))
+	if err == nil || !strings.Contains(err.Error(), "no interactive installer found") {
+		t.Fatalf("--%s did not reach the installer, got %v", skipAutoInstallFlag, err)
+	}
+	if called {
+		t.Fatalf("--%s still consulted install.auto", skipAutoInstallFlag)
+	}
+
+	err = command.Action(commandContext(t, command, ""))
+	if err == nil || !strings.Contains(err.Error(), "no interactive installer found") {
+		t.Fatalf("interactive-install did not reach the installer, got %v", err)
+	}
+	if !called {
+		t.Fatal("interactive-install skipped install.auto by default, which is the behaviour this command exists to have")
 	}
 }

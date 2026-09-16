@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -42,7 +43,7 @@ var _ = Describe("AutoInstall", func() {
 	}
 
 	It("reports nothing to do when no config was written", func() {
-		installed, err := AutoInstall("", false, configDir)
+		installed, _, err := AutoInstall("", false, configDir)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(installed).To(BeFalse())
 	})
@@ -50,7 +51,7 @@ var _ = Describe("AutoInstall", func() {
 	It("reports nothing to do for a config without install.auto", func() {
 		writeConfig("#cloud-config\ninstall:\n  device: /dev/nonexistent\n")
 
-		installed, err := AutoInstall("", false, configDir)
+		installed, _, err := AutoInstall("", false, configDir)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(installed).To(BeFalse())
 	})
@@ -58,21 +59,44 @@ var _ = Describe("AutoInstall", func() {
 	It("reports nothing to do when install.auto is explicitly false", func() {
 		writeConfig("#cloud-config\ninstall:\n  auto: false\n  device: /dev/nonexistent\n")
 
-		installed, err := AutoInstall("", false, configDir)
+		installed, _, err := AutoInstall("", false, configDir)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(installed).To(BeFalse())
 	})
 
 	// install.auto set means AutoInstall owns the boot, so it reports true even
-	// when the install itself fails. The error is the user check RunInstall
-	// performs first, which is as far as an install gets without a real disk:
-	// reaching it is what proves the branch fired.
+	// when the install itself fails. Swap the install out rather than letting
+	// the spec run a real one: which check RunInstall fails first depends on
+	// the host filesystem, e.g. /etc/kairos/.nousers makes the user check pass
+	// and the spec fall through into an install against /dev/nonexistent.
 	It("takes over the boot when install.auto is set", func() {
 		writeConfig("#cloud-config\ninstall:\n  auto: true\n  device: /dev/nonexistent\n")
 
-		installed, err := AutoInstall("", false, configDir)
+		sentinel := errors.New("install ran")
+		var got *sdkConfig.Config
+		original := runInstallFn
+		runInstallFn = func(cc *sdkConfig.Config) error {
+			got = cc
+			return sentinel
+		}
+		DeferCleanup(func() { runInstallFn = original })
+
+		installed, cc, err := AutoInstall("", false, configDir)
 		Expect(installed).To(BeTrue())
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("user"))
+		Expect(err).To(MatchError(sentinel))
+		Expect(got).ToNot(BeNil())
+		Expect(got.Install.Auto).To(BeTrue())
+		Expect(got.Install.Device).To(Equal("/dev/nonexistent"))
+		Expect(cc).To(BeIdenticalTo(got))
+	})
+
+	It("hands the scanned config back when there is nothing to install", func() {
+		writeConfig("#cloud-config\ninstall:\n  device: /dev/nonexistent\n")
+
+		installed, cc, err := AutoInstall("", false, configDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(installed).To(BeFalse())
+		Expect(cc).ToNot(BeNil())
+		Expect(cc.Install.Device).To(Equal("/dev/nonexistent"))
 	})
 })
