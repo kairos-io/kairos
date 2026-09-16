@@ -53,22 +53,24 @@ func getTagName(s string) string {
 	return s[:index]
 }
 
-func structContainsField(f, t string, str interface{}) bool {
+// structContainsField reports whether str declares a field matching f (Go name)
+// or t (json tag), and hands back the match so callers can compare its type.
+func structContainsField(f, t string, str interface{}) (reflect.StructField, bool) {
 	values := reflect.ValueOf(str)
 	types := values.Type()
 
 	for j := 0; j < values.NumField(); j++ {
 		tagName := getTagName(types.Field(j).Tag.Get("json"))
 		if types.Field(j).Name == f || tagName == t {
-			return true
+			return types.Field(j), true
 		} else {
 			if types.Field(j).Type.Kind() == reflect.Struct {
 				if types.Field(j).Type.Name() != "" {
 					model := reflect.New(types.Field(j).Type)
 					if instance, ok := model.Interface().(schema.OneOfModel); ok {
 						for _, childSchema := range instance.JSONSchemaOneOf() {
-							if structContainsField(f, t, childSchema) {
-								return true
+							if found, ok := structContainsField(f, t, childSchema); ok {
+								return found, true
 							}
 						}
 					}
@@ -77,7 +79,7 @@ func structContainsField(f, t string, str interface{}) bool {
 		}
 	}
 
-	return false
+	return reflect.StructField{}, false
 }
 
 func structFieldsContainedInOtherStruct(left, right interface{}) {
@@ -85,18 +87,50 @@ func structFieldsContainedInOtherStruct(left, right interface{}) {
 	leftTypes := leftValues.Type()
 
 	for i := 0; i < leftValues.NumField(); i++ {
-		leftTagName := getTagName(leftTypes.Field(i).Tag.Get("yaml"))
-		leftFieldName := leftTypes.Field(i).Name
-		if leftTypes.Field(i).IsExported() {
+		leftField := leftTypes.Field(i)
+		leftTagName := getTagName(leftField.Tag.Get("yaml"))
+		leftFieldName := leftField.Name
+		if leftField.IsExported() {
 			It(fmt.Sprintf("Checks that the new schema contains the field %s", leftFieldName), func() {
-				if leftFieldName == "Source" || leftFieldName == "NoUsers" || leftFieldName == "BindPublicPCRs" || leftFieldName == "BindPCRs" || leftFieldName == "Logs" {
+				if leftFieldName == "Source" || leftFieldName == "NoUsers" {
 					Skip("Schema not updated yet")
 				}
-				Expect(
-					structContainsField(leftFieldName, leftTagName, right),
-				).To(BeTrue())
+				rightField, found := structContainsField(leftFieldName, leftTagName, right)
+				Expect(found).To(BeTrue())
+
+				// Presence is not enough. agent/pkg/config.scan unmarshals
+				// the cloud-config into the left struct and validates the
+				// same document against the right one, so a key the schema
+				// gives one JSON type while the runtime reads another makes
+				// the two disagree about what a valid config is. Compare the
+				// JSON type only: the schema deliberately uses its own Go
+				// types, and a struct and a map are both objects.
+				leftJSON, rightJSON := jsonTypeOf(leftField.Type), jsonTypeOf(rightField.Type)
+				if leftJSON != "" && rightJSON != "" {
+					Expect(rightJSON).To(Equal(leftJSON),
+						fmt.Sprintf("schema describes %s as a JSON %s, the runtime reads it as a JSON %s",
+							leftFieldName, rightJSON, leftJSON))
+				}
 			})
 		}
+	}
+}
+
+// jsonTypeOf reduces a Go type to the JSON Schema type it is generated as,
+// or "" for the kinds this check has nothing to say about. Only "array" and
+// "object" are distinguished, because those are the two a config author has
+// to spell differently in YAML.
+func jsonTypeOf(t reflect.Type) string {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Slice, reflect.Array:
+		return "array"
+	case reflect.Map, reflect.Struct:
+		return "object"
+	default:
+		return ""
 	}
 }
 
