@@ -130,6 +130,18 @@ const (
 	// the persistent /etc/systemd bind and that now shadow a packaged unit out
 	// of the unit load path. See internalUtils.QuarantineStaleUnitSymlinks.
 	OpQuarantineStaleUnits = "quarantine-stale-units"
+	// OpMountAuditLog binds AuditLogPath from the persistent state target. It
+	// is a step of its own, and not an entry of the PERSISTENT_STATE_PATHS list
+	// that OpMountBind walks, because the audit trail has to survive an A/B
+	// upgrade on every install and the list comes from a cloud-config that an
+	// installation can replace.
+	OpMountAuditLog = "mount-audit-log"
+	// OpAuditdMountRequirement writes the drop-in that keeps auditd from
+	// starting before OpMountAuditLog's mount is in place. It is deliberately
+	// not part of OpMountAuditLog: the drop-in has to be written even when the
+	// mount fails, because that is the case where auditd would otherwise log to
+	// the ephemeral directory the failed mount left behind.
+	OpAuditdMountRequirement = "auditd-mount-requirement"
 	// InRAMSentinelName is the extra sentinel file written under /run/cos/ when
 	// the kairos.ram workflow is active. It is additive: WriteSentinelDagStep
 	// still writes the BootState-driven sentinel (which is active_mode for
@@ -179,6 +191,27 @@ const (
 	VerityCertDir                   = "/run/verity.d/"
 	SysextDefaultPolicy             = "--image-policy=\"root=signed+absent:usr=signed+absent\""
 	EfiDir                          = "/efi"
+
+	// AuditLogPath is the kernel audit log directory. auditd keeps the audit
+	// trail here, so it has to be backed by the persistent partition rather
+	// than by the ephemeral /var overlay.
+	AuditLogPath = "/var/log/audit"
+	// AuditLogDirMode is the mode AuditLogPath and its backing directory are
+	// pinned to. auditd refuses to use a world-readable log directory, and the
+	// audit trail is not readable by anyone but root.
+	AuditLogDirMode = 0o700
+	// AuditdUnit is the unit that consumes AuditLogPath. It ships from the
+	// distro package, not from this repo, which is why the ordering lives in a
+	// drop-in rather than in the unit.
+	AuditdUnit = "auditd.service"
+	// RunSystemdUnitDir is the volatile unit directory. Drop-ins written here
+	// before switch_root are what the booted systemd reads, because /run is
+	// the same tmpfs on both sides of the transition.
+	RunSystemdUnitDir = "/run/systemd/system"
+	// MountRequirementDropInName is the drop-in file immucore writes under
+	// <unit>.d in RunSystemdUnitDir. The numeric prefix leaves room for an
+	// admin to override it from /etc.
+	MountRequirementDropInName = "10-kairos-mount-requirement.conf"
 
 	// CmdlineBreak requests dracut-style breakpoints. Its values are step
 	// names, i.e. the Op* constants above (rd.immucore.break=mount-root), and

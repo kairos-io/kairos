@@ -67,13 +67,21 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 	}
 }
 
+// BindStateDir returns the directory under the persistent state target that
+// backs the bind mount of mountpoint, e.g. /var/log/audit is backed by
+// <root>/<stateTarget>/var-log-audit.bind.
+func BindStateDir(mountpoint, root, stateTarget string) string {
+	mountpoint = strings.TrimLeft(mountpoint, "/")
+	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
+	return filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", bindMountPath))
+}
+
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L183
 func MountBind(mountpoint, root, stateTarget string) MountOperation {
 	mountpoint = strings.TrimLeft(mountpoint, "/") // normalize, remove / upfront as we are going to re-use it in subdirs
 	rootMount := filepath.Join(root, mountpoint)
-	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
 
-	stateDir := filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", bindMountPath))
+	stateDir := BindStateDir(mountpoint, root, stateTarget)
 
 	tmpMount := mount.Mount{
 		Type:   "overlay",
@@ -101,6 +109,46 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 			return internalUtils.SyncState(internalUtils.AppendSlash(rootMount), internalUtils.AppendSlash(stateDir))
 		},
 	}
+}
+
+// MountBindWithMode is MountBind with the mode and the ownership of both sides
+// of the bind pinned to mode and root:root.
+//
+// A bind mount shows the inode of the backing directory, so the mode that ends
+// up visible on the mountpoint is the one of the state directory. Pinning it
+// there is therefore also what keeps a remount from handing back whatever mode
+// the directory in the image happened to have. The mountpoint is pinned before
+// the sync so that the sync is what carries the mode, the ownership and the
+// SELinux label onto a backing directory that does not exist yet.
+func MountBindWithMode(mountpoint, root, stateTarget string, mode os.FileMode) MountOperation {
+	operation := MountBind(mountpoint, root, stateTarget)
+	rootMount := filepath.Join(root, strings.TrimLeft(mountpoint, "/"))
+	stateDir := BindStateDir(mountpoint, root, stateTarget)
+	sync := operation.PrepareCallback
+
+	operation.PrepareCallback = func() error {
+		if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
+			return err
+		}
+		if err := internalUtils.EnforceRootOwnedDir(rootMount, mode); err != nil {
+			return err
+		}
+		if err := sync(); err != nil {
+			return err
+		}
+		if err := internalUtils.EnforceRootOwnedDir(stateDir, mode); err != nil {
+			return err
+		}
+		// A label that could not be carried over is worth a warning, not a
+		// failed mount: the data still lands on the persistent partition, and
+		// the running system can be relabelled.
+		if err := internalUtils.CopySELinuxLabel(rootMount, stateDir); err != nil {
+			internalUtils.KLog.Logger.Warn().Err(err).Str("from", rootMount).Str("to", stateDir).
+				Msg("Could not carry the SELinux label over to the persistent state directory")
+		}
+		return nil
+	}
+	return operation
 }
 
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L145

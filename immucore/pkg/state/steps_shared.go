@@ -474,6 +474,105 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 		)...)
 }
 
+// auditLogPersistExpected reports whether a boot state keeps persistent state
+// for the audit log to be bound to. Recovery and autoreset deliberately boot
+// without the persistent volume (kairos-init's 00_rootfs.yaml sets no VOLUMES
+// on those branches, so there is no COS_PERSISTENT under /usr/local and the
+// state target would resolve to the read-only recovery image), and live media
+// has no persistent partition at all. In-RAM boots report Active, so they do
+// keep the mount: their COS_PERSISTENT is on local disk.
+func auditLogPersistExpected(b state.Boot) bool {
+	switch b {
+	case state.Active, state.Passive:
+		return true
+	case state.Recovery, state.AutoReset, state.LiveCD, state.Unknown:
+		return false
+	default:
+		return false
+	}
+}
+
+// AuditdMountRequirementDagStep writes the drop-in that keeps auditd from
+// starting before the audit log mount is in place.
+//
+// No auditd.service ships from this repo, it comes from the distro package, so
+// the ordering cannot be expressed in the unit and is expressed from the
+// outside instead. See internalUtils.WriteMountRequirementDropIn for why the
+// drop-in goes to a volatile unit directory and what Requires= on the mount
+// unit buys us.
+//
+// It is a step of its own rather than part of MountAuditLogDagStep because it
+// has to run even when the mount does not: a boot where the bind failed is
+// exactly the boot where auditd must refuse to start instead of logging to the
+// ephemeral directory underneath.
+func (s *State) AuditdMountRequirementDagStep(g *herd.Graph, opts ...herd.OpOption) error {
+	return g.Add(cnst.OpAuditdMountRequirement, append(opts,
+		TimedCallback(cnst.OpAuditdMountRequirement, func(_ context.Context) error {
+			runtime, err := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
+			if err != nil {
+				return err
+			}
+			if !auditLogPersistExpected(runtime.BootState) {
+				internalUtils.KLog.Logger.Debug().Str("bootstate", string(runtime.BootState)).
+					Msg("Not requiring the audit log mount: this boot keeps no persistent state")
+				return nil
+			}
+			file, err := internalUtils.WriteMountRequirementDropIn(cnst.RunSystemdUnitDir, cnst.AuditdUnit, cnst.AuditLogPath)
+			if err != nil {
+				return err
+			}
+			internalUtils.KLog.Logger.Info().Str("file", file).Str("unit", cnst.AuditdUnit).
+				Str("mount", cnst.AuditLogPath).Msg("Wrote the audit log mount requirement")
+			return nil
+		}),
+	)...)
+}
+
+// MountAuditLogDagStep binds cnst.AuditLogPath from the persistent state
+// target.
+//
+// This is not an entry of the PERSISTENT_STATE_PATHS list that OpMountBind
+// walks. That list arrives from a cloud-config at rootfs stage time, so
+// anything on it is only as persistent as the cloud-config that names it,
+// while the audit trail has to survive an A/B upgrade on every install
+// (kairos-io/kairos#4629). A dedicated step also gives auditd a mount to
+// depend on by name.
+//
+// It runs after OpMountBind because /var/log is itself one of the generic
+// binds: mounting the parent afterwards would shadow this mount and the audit
+// trail would go back to being ephemeral without anything saying so.
+func (s *State) MountAuditLogDagStep(g *herd.Graph, opts ...herd.OpOption) error {
+	return g.Add(cnst.OpMountAuditLog,
+		append(opts, herd.WithDeps(cnst.OpLoadConfig, cnst.OpMountBind),
+			TimedCallback(cnst.OpMountAuditLog, func(_ context.Context) error {
+				runtime, err := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
+				if err != nil {
+					return err
+				}
+				if !auditLogPersistExpected(runtime.BootState) {
+					internalUtils.KLog.Logger.Debug().Str("bootstate", string(runtime.BootState)).
+						Msg("Not binding the audit log: this boot keeps no persistent state")
+					return nil
+				}
+
+				operation := op.MountBindWithMode(cnst.AuditLogPath, s.Rootdir, s.StateDir, cnst.AuditLogDirMode)
+				err = operation.Run()
+				// An installation that also lists the path in
+				// PERSISTENT_STATE_PATHS has it mounted by OpMountBind
+				// already, which is the same mount from the same backing
+				// directory. AddToFstab drops the duplicate entry.
+				if err != nil && !errors.Is(err, cnst.ErrAlreadyMounted) {
+					return err
+				}
+				s.AddToFstab(&operation.FstabEntry)
+				internalUtils.KLog.Logger.Info().Str("what", cnst.AuditLogPath).
+					Str("from", op.BindStateDir(cnst.AuditLogPath, s.Rootdir, s.StateDir)).
+					Msg("Audit log bind mount done")
+				return nil
+			}),
+		)...)
+}
+
 // QuarantineStaleUnitsDagStep moves unit symlinks that an earlier OS image
 // left behind in the persistent /etc/systemd bind, and that now shadow a unit
 // the current image ships, into /etc/systemd/kairos-stale-units. It has to run

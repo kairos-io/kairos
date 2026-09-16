@@ -82,6 +82,12 @@ func RegisterUKI(s *state.State, g *herd.Graph) error {
 	// Depends on mount binds as that usually mounts COS_PERSISTENT
 	s.LogIfError(s.MountCustomBindsDagStep(g, herd.WeakDeps), "custom binds mount")
 
+	// Same audit log pair as the other boots that have a persistent partition.
+	// The requirement step depends on the base mounts here because under UKI
+	// immucore mounts /run itself, and that is where the drop-in goes.
+	s.LogIfError(s.AuditdMountRequirementDagStep(g, herd.WithDeps(cnst.OpUkiBaseMounts)), "auditd mount requirement")
+	s.LogIfError(s.MountAuditLogDagStep(g), "audit log bind mount")
+
 	s.LogIfError(s.MigrateSysExt(g, herd.WithWeakDeps(cnst.OpMountBind)), "uki transition sysextensions")
 	// Copy any sysextensions found under cnst.SourceSysExtDir into cnst.DestSysExtDir so its loaded by systemd automatically on start
 	// always after cnst.OpMountBind stage so we have a persistent cnst.DestSysExtDir
@@ -94,10 +100,14 @@ func RegisterUKI(s *state.State, g *herd.Graph) error {
 	s.LogIfError(s.QuarantineStaleUnitsDagStep(g, herd.WithWeakDeps(cnst.OpMountBind)), "quarantine stale systemd units")
 
 	// run initramfs stage
-	s.LogIfError(s.InitramfsStageDagStep(g, herd.WeakDeps, herd.WithDeps(cnst.OpMountBind, cnst.OpUkiCopySysExtensions), herd.WithWeakDeps(cnst.OpQuarantineStaleUnits)), "uki initramfs")
+	s.LogIfError(s.InitramfsStageDagStep(g, herd.WeakDeps, herd.WithDeps(cnst.OpMountBind, cnst.OpUkiCopySysExtensions), herd.WithWeakDeps(cnst.OpQuarantineStaleUnits, cnst.OpMountAuditLog)), "uki initramfs")
 
+	// The audit log mount is weak here for the same reason as in the normal
+	// boot: its entry belongs in the file, but a failed audit mount must not
+	// leave the system without an fstab.
 	s.LogIfError(s.WriteFstabDagStep(g,
 		herd.WithDeps(cnst.OpLoadConfig, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount),
+		herd.WithWeakDeps(cnst.OpMountAuditLog),
 	), "fstab")
 
 	// Handover to /sbin/init
