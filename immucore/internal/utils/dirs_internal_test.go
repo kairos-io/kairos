@@ -67,52 +67,81 @@ var _ = Describe("CopySELinuxLabel", func() {
 	})
 })
 
-var _ = Describe("DirHasContent", func() {
-	var root string
+var _ = Describe("StateMigrated", func() {
+	var root, stateDir string
 
 	BeforeEach(func() {
 		root = GinkgoT().TempDir()
+		stateDir = filepath.Join(root, "var-log-audit.bind")
+		Expect(os.Mkdir(stateDir, 0o700)).To(Succeed())
 	})
 
-	It("reports no content for a directory that is not there", func() {
-		has, err := DirHasContent(filepath.Join(root, "missing"))
+	It("reports not migrated while there is no marker", func() {
+		migrated, err := StateMigrated(stateDir)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(has).To(BeFalse())
+		Expect(migrated).To(BeFalse())
 	})
 
-	It("reports no content for an empty directory", func() {
-		has, err := DirHasContent(root)
+	It("reports not migrated for a state directory holding content but no marker", func() {
+		// A sync that died partway: the directory is populated and the
+		// migration still has files left to move.
+		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+
+		migrated, err := StateMigrated(stateDir)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(has).To(BeFalse())
+		Expect(migrated).To(BeFalse())
 	})
 
-	It("reports content for a directory with an entry in it", func() {
-		Expect(os.WriteFile(filepath.Join(root, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+	It("reports migrated once the marker is written", func() {
+		Expect(MarkStateMigrated(stateDir)).To(Succeed())
 
-		has, err := DirHasContent(root)
+		migrated, err := StateMigrated(stateDir)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(has).To(BeTrue())
+		Expect(migrated).To(BeTrue())
 	})
 
-	It("reports content for a directory that only holds a subdirectory", func() {
-		Expect(os.Mkdir(filepath.Join(root, "old"), 0o700)).To(Succeed())
+	It("reports migrated for a state directory that was emptied afterwards", func() {
+		// space_left_action cleanup on a full partition: the trail is gone but
+		// the migration is not owed again, or the pre-migration snapshot under
+		// the /var/log bind would come back.
+		Expect(MarkStateMigrated(stateDir)).To(Succeed())
 
-		has, err := DirHasContent(root)
+		migrated, err := StateMigrated(stateDir)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(has).To(BeTrue())
+		Expect(migrated).To(BeTrue())
+		Expect(stateDir).To(BeADirectory())
+	})
+})
+
+var _ = Describe("MarkStateMigrated", func() {
+	var root, stateDir string
+
+	BeforeEach(func() {
+		root = GinkgoT().TempDir()
+		stateDir = filepath.Join(root, "var-log-audit.bind")
+		Expect(os.Mkdir(stateDir, 0o700)).To(Succeed())
 	})
 
-	It("errors on a path that is not a directory", func() {
-		file := filepath.Join(root, "audit.log")
-		Expect(os.WriteFile(file, []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+	It("writes the marker next to the state directory, not in it", func() {
+		Expect(MarkStateMigrated(stateDir)).To(Succeed())
 
-		_, err := DirHasContent(file)
+		Expect(stateDir + ".migrated").To(BeAnExistingFile())
+		entries, err := os.ReadDir(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(entries).To(BeEmpty())
+	})
+
+	It("errors when the marker cannot be written", func() {
+		_, err := StateMigrated(filepath.Join(root, "missing", "var-log-audit.bind"))
+		Expect(err).ToNot(HaveOccurred())
+
+		err = MarkStateMigrated(filepath.Join(root, "missing", "var-log-audit.bind"))
 
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(file))
+		Expect(err.Error()).To(ContainSubstring("var-log-audit.bind.migrated"))
 	})
 })

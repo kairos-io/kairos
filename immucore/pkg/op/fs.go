@@ -122,12 +122,18 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 // the sync so that the sync is what carries the mode, the ownership and the
 // SELinux label onto a backing directory that does not exist yet.
 //
-// The sync only runs while the state directory is empty. MountBind's rsync has
-// no --delete and the mountpoint it copies from can itself be persistent
-// storage - /var/log/audit sits under the /var/log bind - so repeating it every
-// boot would copy a stale snapshot back over the live data: a log file the
-// daemon rotated away reappears on the next boot, forever. Once is what
-// migrates an existing directory into its own bind; twice is a bug.
+// The sync runs on every boot until one of them returns no error, which a
+// marker next to the state directory then records for good. MountBind's rsync
+// has no --delete and the mountpoint it copies from can itself be persistent
+// storage - /var/log/audit sits under the /var/log bind - so repeating it
+// after it succeeded would copy a stale snapshot back over the live data: a
+// log file the daemon rotated away reappears on the next boot, forever. Once
+// is what migrates an existing directory into its own bind; twice is a bug.
+//
+// What the state directory holds cannot stand in for that marker in either
+// direction: a sync that died partway leaves it populated with files still to
+// move, and a daemon that cleaned up after itself can leave it empty long
+// after the migration finished.
 func MountBindWithMode(mountpoint, root, stateTarget string, mode os.FileMode) MountOperation {
 	operation := MountBind(mountpoint, root, stateTarget)
 	rootMount := filepath.Join(root, strings.TrimLeft(mountpoint, "/"))
@@ -141,15 +147,20 @@ func MountBindWithMode(mountpoint, root, stateTarget string, mode os.FileMode) M
 		if err := internalUtils.EnforceRootOwnedDir(rootMount, mode); err != nil {
 			return err
 		}
-		migrated, err := internalUtils.DirHasContent(stateDir)
+		migrated, err := internalUtils.StateMigrated(stateDir)
 		if err != nil {
 			return err
 		}
 		if migrated {
 			internalUtils.KLog.Logger.Info().Str("what", rootMount).Str("to", stateDir).
 				Msg("Skipping the state sync: already migrated")
-		} else if err := sync(); err != nil {
-			return err
+		} else {
+			if err := sync(); err != nil {
+				return err
+			}
+			if err := internalUtils.MarkStateMigrated(stateDir); err != nil {
+				return err
+			}
 		}
 		if err := internalUtils.EnforceRootOwnedDir(stateDir, mode); err != nil {
 			return err

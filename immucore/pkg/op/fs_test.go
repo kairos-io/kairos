@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -92,6 +93,7 @@ var _ = Describe("MountBindWithMode", func() {
 		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
 		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
 		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
+		Expect(internalUtils.MarkStateMigrated(stateDir)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log.1"), []byte("rotated away\n"), 0o600)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("live\n"), 0o600)).To(Succeed())
 
@@ -118,9 +120,44 @@ var _ = Describe("MountBindWithMode", func() {
 		Expect(filepath.Join(stateDir, "audit.log")).To(BeAnExistingFile())
 	})
 
+	It("finishes a migration that died partway through the sync", func() {
+		// rsync ran out of space halfway: the state directory holds some of
+		// the trail and the rest is still under the /var/log bind, where the
+		// mountpoint can no longer reach it once this bind is up. Only a
+		// marker says a migration finished, so this boot retries the sync
+		// instead of reading the leftovers as a migration that is done.
+		mountpoint := filepath.Join(root, "var/log/audit")
+		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
+		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
+		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log.1"), []byte("never made it\n"), 0o600)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+
+		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		Expect(filepath.Join(stateDir, "audit.log.1")).To(BeAnExistingFile())
+	})
+
+	It("records the migration once the sync went through", func() {
+		mountpoint := filepath.Join(root, "var/log/audit")
+		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
+		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+
+		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		migrated, err := internalUtils.StateMigrated(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(migrated).To(BeTrue())
+	})
+
 	It("still pins the mode when the sync is skipped", func() {
 		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
 		Expect(os.MkdirAll(stateDir, 0o777)).To(Succeed())
+		Expect(internalUtils.MarkStateMigrated(stateDir)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("live\n"), 0o600)).To(Succeed())
 		Expect(os.Chmod(stateDir, 0o777)).To(Succeed())
 

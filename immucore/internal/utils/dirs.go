@@ -34,19 +34,44 @@ func EnforceRootOwnedDir(path string, mode os.FileMode) error {
 	return nil
 }
 
-// DirHasContent reports whether path is a directory that has at least one
-// entry in it. A path that is not there at all has no content and is not an
-// error: the callers are deciding whether there is something to keep, not
-// whether the path is valid.
-func DirHasContent(path string) (bool, error) {
-	entries, err := os.ReadDir(path)
-	if err != nil {
+// migrationMarkerSuffix names the file that records a finished migration, next
+// to the state directory it migrated into.
+//
+// Next to, and not in it: a marker inside the directory would be visible at
+// the mountpoint of every node that has the bind, and the reset flow copies
+// the contents of the directory off the persistent partition and back, which
+// would land the marker on a freshly formatted partition and skip a migration
+// that has not run there.
+const migrationMarkerSuffix = ".migrated"
+
+// StateMigrated reports whether the one-time migration into stateDir is
+// recorded as finished.
+func StateMigrated(stateDir string) (bool, error) {
+	marker := stateDir + migrationMarkerSuffix
+	if _, err := os.Stat(marker); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
 		}
-		return false, fmt.Errorf("reading %s: %w", path, err)
+		return false, fmt.Errorf("reading %s: %w", marker, err)
 	}
-	return len(entries) > 0, nil
+	return true, nil
+}
+
+// MarkStateMigrated records the one-time migration into stateDir as finished.
+//
+// Only a sync that returned no error may be recorded. What the directory holds
+// is not the same fact: rsync dying partway - ENOSPC being the realistic way
+// there, since moving a directory into its own bind doubles its footprint and
+// nothing deletes the source - leaves it populated with files still to move,
+// and once the bind is up those files are no longer reachable through the
+// mountpoint. A marker written over that copy would skip the sync that is the
+// only thing left to finish the job.
+func MarkStateMigrated(stateDir string) error {
+	marker := stateDir + migrationMarkerSuffix
+	if err := os.WriteFile(marker, nil, 0o600); err != nil {
+		return fmt.Errorf("writing %s: %w", marker, err)
+	}
+	return nil
 }
 
 // ReadSELinuxLabel returns the SELinux label of a path, or the empty string
