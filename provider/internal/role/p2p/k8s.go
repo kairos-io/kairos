@@ -80,17 +80,17 @@ func NewK8sNodeWithDetector(c *providerConfig.Config, detector BinaryDetector) (
 		return nil, errors.New("no k8s configuration found. To enable k8s, either: 1) explicitly enable k3s, k3s-agent, k0s, or k0s-worker or 2) configure p2p with a network token")
 	}
 
-	if c.P2P.Role != "" {
-		if c.P2P.Role != RoleMaster && c.P2P.Role != RoleWorker {
+	if pinnedRole := c.P2P.HardcodedRole(); pinnedRole != "" {
+		if pinnedRole != RoleMaster && pinnedRole != RoleWorker {
 			return nil, errors.New("invalid p2p.role specified, must be 'master' or 'worker'")
 		}
 
 		if k3sBinAvailable {
-			return &K3sNode{providerConfig: c, role: c.P2P.Role}, nil
+			return &K3sNode{providerConfig: c, role: pinnedRole}, nil
 		}
 
 		if k0sBinAvailable {
-			return &K0sNode{providerConfig: c, role: c.P2P.Role}, nil
+			return &K0sNode{providerConfig: c, role: pinnedRole}, nil
 		}
 	}
 

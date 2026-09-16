@@ -149,3 +149,48 @@ var _ = Describe("NewK8sNode", func() {
 		})
 	})
 })
+
+var _ = Describe("NewK8sNode with an unpinned role", func() {
+	// `none` was the p2p.role default the Kairos schema advertised, so it
+	// reaches the provider from real cloud-configs. It has no role handler,
+	// and before it was normalised it failed the master/worker check here
+	// and stopped the bootstrap - on the auto path too, because Master()
+	// and Worker() both come back through NewK8sNode.
+	DescribeTable("takes the role from the p2p ledger",
+		func(role string) {
+			enabled := true
+			config := &providerConfig.Config{
+				P2P: &providerConfig.P2P{
+					NetworkToken: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg==",
+					Role:         role,
+					Auto:         providerConfig.Auto{Enable: &enabled},
+				},
+			}
+
+			mock := &MockBinaryDetector{k3sBin: "/usr/bin/k3s", k0sBin: ""}
+			node, err := NewK8sNodeWithDetector(config, mock)
+			Expect(err).ToNot(HaveOccurred())
+			// The role is left for the ledger to assign, so the node is
+			// built without one.
+			Expect(node.(*K3sNode).role).To(BeEmpty())
+		},
+		Entry("with the role unset", ""),
+		Entry("with the role set to none", "none"),
+	)
+
+	It("still rejects a role no handler implements", func() {
+		enabled := true
+		config := &providerConfig.Config{
+			P2P: &providerConfig.P2P{
+				NetworkToken: "b3RwOgogIGRoYWdlX3NpemU6IDIwOTcxNTIwCg==",
+				Role:         "leader",
+				Auto:         providerConfig.Auto{Enable: &enabled},
+			},
+		}
+
+		mock := &MockBinaryDetector{k3sBin: "/usr/bin/k3s", k0sBin: ""}
+		_, err := NewK8sNodeWithDetector(config, mock)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("must be 'master' or 'worker'"))
+	})
+})
