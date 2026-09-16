@@ -1,6 +1,7 @@
 package action
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -16,23 +17,31 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// auditStashPrefix is the prefix of the staging directory the audit trail is
-// held in while the persistent partition is being formatted.
-const auditStashPrefix = "kairos-audit-"
+const (
+	// auditStashPrefix is the prefix of the staging directory the audit trail
+	// is held in while the persistent partition is being formatted.
+	auditStashPrefix = "kairos-audit-"
+	// auditStashRoot is where that staging directory is made. /run is a tmpfs
+	// on every boot, including a recovery boot, which the default temp dir is
+	// not: recovery sets no RW_PATHS, so immucore falls back to a list that
+	// does not have /tmp on it and /tmp is then whatever the image left there,
+	// read-only root included.
+	auditStashRoot = "/run"
+)
 
 // StashAuditLog copies the audit trail off the persistent partition into a
-// staging directory on the recovery root, and returns that directory. It
-// returns an empty string when there is nothing to preserve.
+// staging directory under /run, and returns that directory. It returns an
+// empty string when there is nothing to preserve.
 //
 // A reset formats COS_PERSISTENT, which takes the backing directory of the
 // /var/log/audit bind with it. Copying it out and back is the only way to keep
 // it: there is no partition a reset leaves alone that is both writable and
-// sized for log data (OEM defaults to 64MiB and can be formatted too), so the
-// staging directory lands on the recovery root, which is a tmpfs. That is what
-// bounds this mechanism, and why the copy is skipped when the audit trail
-// would not comfortably fit in the memory that is left. Skipping is not fatal:
-// a reset that keeps going without the audit trail is the behaviour we have
-// today, while a reset that dies halfway leaves an unbootable machine.
+// sized for log data (OEM defaults to 64MiB and can be formatted too). The
+// staging directory is therefore on a tmpfs, which is what bounds this
+// mechanism and why the copy is skipped when the audit trail would not
+// comfortably fit in the memory that is left. Skipping is not fatal: a reset
+// that keeps going without the audit trail is the behaviour we have today,
+// while a reset that dies halfway leaves an unbootable machine.
 func StashAuditLog(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition) (string, error) {
 	if persistent == nil {
 		return "", nil
@@ -42,8 +51,16 @@ func StashAuditLog(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition) (
 	err := withPersistentMounted(cfg, persistent, func(root string) error {
 		src := filepath.Join(root, cnst.AuditLogStatePath)
 		exists, err := fsutils.Exists(cfg.Fs, src)
-		if err != nil || !exists {
+		if err != nil {
 			return err
+		}
+		if !exists {
+			// Named, because this is also what an install that moved
+			// PERSISTENT_STATE_TARGET looks like from here: the trail is on
+			// the partition, under a path this one does not point at. See
+			// cnst.AuditLogStatePath.
+			cfg.Logger.Infof("No audit trail at %s, nothing to preserve across the reset", src)
+			return nil
 		}
 
 		size, err := fsutils.DirSize(cfg.Fs, src)
@@ -55,7 +72,7 @@ func StashAuditLog(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition) (
 			return nil
 		}
 
-		stash, err = fsutils.TempDir(cfg.Fs, "", auditStashPrefix)
+		stash, err = fsutils.TempDir(cfg.Fs, auditStashRoot, auditStashPrefix)
 		if err != nil {
 			return err
 		}
@@ -109,13 +126,21 @@ func RestoreAuditLog(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition,
 }
 
 // withPersistentMounted runs f with the persistent partition mounted and its
-// mount point as the argument, and leaves the mount state as it found it.
+// mount point as the argument, and puts the mount state back the way it found
+// it.
 //
 // Reset runs from the recovery system, which boots without the persistent
 // volume on purpose, so the partition is usually neither mounted nor carrying
 // a mount point at all. MountPartition reads the mount point off the partition
 // struct, hence the temporary write here rather than a parameter.
-func withPersistentMounted(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition, f func(root string) error) error {
+//
+// A failed unmount travels back to the caller and leaves the mount point on
+// the partition. Both matter to what runs next: the format is only safe on a
+// device nothing holds, and utils.IsMounted and elemental.UnmountPartition
+// both read the mount point off the struct and treat an empty one as "not
+// mounted", so putting it back while the device is still mounted would hide a
+// live filesystem from the code that has to unmount it.
+func withPersistentMounted(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition, f func(root string) error) (err error) {
 	if mounted, _ := utils.IsMounted(cfg, persistent); mounted {
 		return f(persistent.MountPoint)
 	}
@@ -125,14 +150,15 @@ func withPersistentMounted(cfg *sdkConfig.Config, persistent *sdkPartitions.Part
 	if persistent.MountPoint == "" {
 		persistent.MountPoint = cnst.PersistentDir
 	}
-	if err := e.MountPartition(persistent); err != nil {
+	if mErr := e.MountPartition(persistent); mErr != nil {
 		persistent.MountPoint = was
-		return err
+		return mErr
 	}
 	mountPoint := persistent.MountPoint
 	defer func() {
-		if err := e.UnmountPartition(persistent); err != nil {
-			cfg.Logger.Warnf("could not unmount the persistent partition: %s", err)
+		if uErr := e.UnmountPartition(persistent); uErr != nil {
+			err = errors.Join(err, fmt.Errorf("unmounting the persistent partition from %s: %w", mountPoint, uErr))
+			return
 		}
 		persistent.MountPoint = was
 	}()
@@ -191,9 +217,8 @@ func pinRootOnly(cfg *sdkConfig.Config, path string) error {
 }
 
 // roomFor reports whether size bytes can be staged under dir, leaving as much
-// free again for whatever else the reset needs. The staging area is a tmpfs on
-// the recovery root, so filling it is a way to take the machine down in the
-// middle of a reset.
+// free again for whatever else the reset needs. The staging area is a tmpfs,
+// so filling it is a way to take the machine down in the middle of a reset.
 func roomFor(vfs sdkFS.KairosFS, dir string, size int64) error {
 	raw, err := vfs.RawPath(dir)
 	if err != nil {

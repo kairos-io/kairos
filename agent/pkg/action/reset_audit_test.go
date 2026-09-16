@@ -26,6 +26,7 @@ var _ = Describe("The audit trail across a reset", Label("reset"), func() {
 	var cleanup func()
 	var persistent *sdkPartitions.Partition
 	var memLog *bytes.Buffer
+	var mounter *v1mock.ErrorMounter
 
 	// auditDir is the backing directory of the /var/log/audit bind on the
 	// persistent partition, as immucore lays it out.
@@ -38,11 +39,12 @@ var _ = Describe("The audit trail across a reset", Label("reset"), func() {
 		fs, cleanup, err = vfst.NewTestFS(map[string]interface{}{})
 		Expect(err).ShouldNot(HaveOccurred())
 		memLog = &bytes.Buffer{}
+		mounter = v1mock.NewErrorMounter()
 		config = agentConfig.NewConfig(
 			agentConfig.WithFs(fs),
 			agentConfig.WithRunner(v1mock.NewFakeRunner()),
 			agentConfig.WithLogger(sdkLogger.NewBufferLogger(memLog)),
-			agentConfig.WithMounter(v1mock.NewErrorMounter()),
+			agentConfig.WithMounter(mounter),
 			agentConfig.WithSyscall(&v1mock.FakeSyscall{}),
 		)
 		// Reset runs from the recovery system, which boots without the
@@ -110,6 +112,46 @@ var _ = Describe("The audit trail across a reset", Label("reset"), func() {
 		exists, err := fsutils.Exists(fs, stash)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(exists).To(BeFalse())
+	})
+
+	It("stages the trail on /run", func() {
+		// /run is a tmpfs on every boot. The default temp dir is not: a
+		// recovery boot sets no RW_PATHS, /tmp is not on the list immucore
+		// falls back to, and staging there fails on a read-only root.
+		Expect(fsutils.MkdirAll(fs, auditDir(), constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(auditDir(), "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+
+		stash, err := action.StashAuditLog(config, persistent)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(stash).To(HavePrefix("/run/"))
+	})
+
+	It("reports the failure to unmount the persistent partition", func() {
+		Expect(fsutils.MkdirAll(fs, auditDir(), constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(filepath.Join(auditDir(), "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+		mounter.ErrorOnUnmount = true
+
+		_, err := action.StashAuditLog(config, persistent)
+
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("unmounting the persistent partition"))
+		// And the mount point stays on the partition, because the device is
+		// still mounted: utils.IsMounted and elemental.UnmountPartition both
+		// read "not mounted" off an empty mount point, so the unmount the
+		// reset does before the format would no-op and mkfs would get a live
+		// filesystem.
+		Expect(persistent.MountPoint).To(Equal(constants.PersistentDir))
+	})
+
+	It("names the path it looked at when there is no trail", func() {
+		// PERSISTENT_STATE_TARGET is configurable and a reset cannot read the
+		// booted system's cos-layout.env, so "no trail" and "wrong path" look
+		// the same from here unless the path is logged.
+		_, err := action.StashAuditLog(config, persistent)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(memLog.String()).To(ContainSubstring(auditDir()))
 	})
 
 	It("has nothing to preserve on a node that never ran auditd", func() {

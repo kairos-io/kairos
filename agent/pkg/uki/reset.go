@@ -52,6 +52,16 @@ func (r *ResetAction) Run() (err error) {
 				r.cfg.Logger.Warnf("could not preserve %s across the reset: %s", constants.AuditLogPath, sErr)
 			}
 
+			// Nothing mounts the persistent partition on a UKI recovery boot,
+			// but the stash above does while it reads, so the format needs the
+			// same unmount the GRUB path does. It is a no-op on a partition
+			// that is not mounted.
+			err = e.UnmountPartition(persistent)
+			if err != nil {
+				r.cfg.Logger.Errorf("unmounting persistent partition: %s", err.Error())
+				return err
+			}
+
 			err = e.FormatPartition(persistent)
 			if err != nil {
 				r.cfg.Logger.Errorf("formatting persistent partition: %s", err.Error())

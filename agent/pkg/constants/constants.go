@@ -90,6 +90,14 @@ const (
 	// /var/log/audit bind, relative to the root of the persistent partition.
 	// A reset formats that partition, so the audit trail has to be carried
 	// over it by hand.
+	//
+	// The .state part is the default value of PERSISTENT_STATE_TARGET, which
+	// immucore reads out of the booted system's cos-layout.env. A reset runs
+	// from recovery and never mounts the partition that file lives on, so an
+	// installation that overrides the target puts its audit trail somewhere
+	// this path does not reach. That is why StashAuditLog logs the path it
+	// looked at when it finds nothing: "no trail" and "wrong path" read the
+	// same from here otherwise.
 	AuditLogStatePath = ".state/var-log-audit.bind"
 	// AuditLogPath is the path the directory above is bound onto, used for
 	// logging.
