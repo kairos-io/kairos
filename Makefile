@@ -22,8 +22,19 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(VERSION)
 
 .PHONY: test
-test: kairos-init-embed-stubs
+test: kairos-init-embed-stubs test-actions
 	$(GO) test ./...
+
+# Nested go modules under .github/actions/ have their own go.mod, so the
+# root `go test ./...` above never descends into them -- discovered when
+# the ghcr-cleanup action landed with tests nothing was running. Iterate
+# explicitly; add any future action module here.
+.PHONY: test-actions
+test-actions:
+	@for m in .github/actions/ghcr-cleanup; do \
+	    echo "=== go test $$m/..."; \
+	    (cd $$m && $(GO) test ./...) || exit $$?; \
+	done
 
 # kairos-init/pkg/bundled/bundled.go uses //go:embed binaries/*, and
 # bundled_fips.go uses //go:embed binaries/fips/* (excluded on riscv64).
