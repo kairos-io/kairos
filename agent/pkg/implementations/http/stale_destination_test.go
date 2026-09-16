@@ -71,7 +71,7 @@ var _ = Describe("GetURL over an existing destination", Label("http"), func() {
 		Expect(os.ReadFile(dest)).To(Equal(remote))
 	})
 
-	It("replaces a stale file when the destination is a directory", func() {
+	It("does not append to a stale file when the destination is a directory", func() {
 		remote := []byte("NEW-CONTENT-THAT-IS-LONGER-THAN-THE-OLD-ONE")
 		Expect(os.WriteFile(dest, []byte("OLD-CONTENT"), 0644)).To(Succeed())
 
@@ -79,6 +79,30 @@ var _ = Describe("GetURL over an existing destination", Label("http"), func() {
 		defer srv.Close()
 
 		Expect(client.GetURL(log, srv.URL+"/artifact.raw", destDir)).To(Succeed())
+		Expect(os.ReadFile(dest)).To(Equal(remote))
+	})
+
+	// A directory destination never reaches grab's own truncate: it takes the
+	// file name from the response and never stats it, so NoResume alone leaves
+	// the stale tail in place when the remote body is the shorter of the two.
+	It("truncates a longer stale file when the destination is a directory", func() {
+		remote := []byte("SHORT")
+		Expect(os.WriteFile(dest, []byte("A-MUCH-LONGER-STALE-FILE-LEFT-BEHIND"), 0644)).To(Succeed())
+
+		srv := serveArtifact(remote)
+		defer srv.Close()
+
+		Expect(client.GetURL(log, srv.URL+"/artifact.raw", destDir)).To(Succeed())
+		Expect(os.ReadFile(dest)).To(Equal(remote))
+	})
+
+	It("writes a file that does not exist yet", func() {
+		remote := []byte("FRESH")
+
+		srv := serveArtifact(remote)
+		defer srv.Close()
+
+		Expect(client.GetURL(log, srv.URL+"/artifact.raw", dest)).To(Succeed())
 		Expect(os.ReadFile(dest)).To(Equal(remote))
 	})
 })

@@ -18,6 +18,7 @@ package http
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/cavaliergopher/grab/v3"
@@ -49,6 +50,19 @@ func (c Client) GetURL(log logger.KairosLogger, url string, destination string) 
 	// keeps a same-sized one. Every caller here wants the remote body, not a
 	// resume, so restart the transfer instead.
 	req.NoResume = true
+
+	// NoResume alone only covers a destination grab could stat up front. When
+	// the destination is a directory, grab takes the file name from the
+	// response and never stats it, so its own truncate is skipped and a
+	// shorter remote body leaves the stale file's tail in place. Truncate the
+	// resolved file ourselves, once grab knows its name and has it open.
+	req.BeforeCopy = func(resp *grab.Response) error {
+		if resp.Filename == "" {
+			return nil
+		}
+
+		return os.Truncate(resp.Filename, 0)
+	}
 
 	// start download
 	log.Infof("Downloading %v...", req.URL())
