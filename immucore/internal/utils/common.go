@@ -190,6 +190,7 @@ func RebootOrWait(msg string, err error) {
 	syscall.Sync()
 	if len(ReadCMDLineArg("rd.immucore.rebootonfailure")) > 0 {
 		KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Rebooting in 10 seconds", msg))
+		announceOnConsoles(ConsoleDevices(), failureLine(msg, err, "Rebooting in 10 seconds"))
 		time.Sleep(10 * time.Second)
 		if rerr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART); rerr != nil {
 			KLog.Logger.Err(rerr).Msg("reboot syscall failed; blocking to avoid boot continuation")
@@ -197,10 +198,44 @@ func RebootOrWait(msg string, err error) {
 		}
 	}
 	KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Halting boot", msg))
+	announceOnConsoles(ConsoleDevices(), failureLine(msg, err, "Halting boot"))
 	if herr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_HALT); herr != nil {
 		KLog.Logger.Err(herr).Msg("halt syscall failed; blocking to avoid boot continuation")
 		select {}
 	}
+}
+
+// failureLine is the operator-facing one-liner for a RebootOrWait failure.
+// err is included because on a headless boot it is the only diagnostic there
+// is: the structured log goes to the journal, which nobody can read from a
+// machine that is about to halt.
+func failureLine(msg string, err error, action string) string {
+	if err != nil {
+		return fmt.Sprintf("%s: %s - %s", msg, err, action)
+	}
+	return fmt.Sprintf("%s - %s", msg, action)
+}
+
+// announceOnConsoles writes text to every console in paths, then closes them.
+//
+// This exists because the logger alone does not reach serial. immucore logs to
+// stderr, systemd routes that to /dev/console, and /dev/console aliases only
+// the *last* console= stanza on the cmdline. On the usual
+// `console=ttyS0 console=tty1` that is tty1, so everything RebootOrWait says
+// lands on the framebuffer and a headless or remote machine gets a silent
+// halt with no reason given (kairos-io/kairos#4618).
+//
+// Unlike HaltWithBanner these fds are closed on return: RebootOrWait paints
+// once and then hands control to the reboot syscall, so there is no repaint
+// loop to keep them open for.
+func announceOnConsoles(paths []string, text string) {
+	consoles := openConsolesForWriting(paths...)
+	defer func() {
+		for _, f := range consoles {
+			_ = f.Close()
+		}
+	}()
+	paintBanner(consoles, text+"\n")
 }
 
 // SystemdBooted reports whether systemd is PID 1, using the same check as

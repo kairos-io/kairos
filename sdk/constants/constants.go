@@ -76,3 +76,10 @@ const (
 	AgentDefaultPath = "/usr/bin/kairos-agent"
 	AgentEnvVar      = "KAIROS_AGENT_BIN" // Env var override for dev/tests; must point at an existing binary
 )
+
+// Web UI install frontend. The address the installer's web UI listens on,
+// and which kairos-agent prints on the live console so a user knows where to
+// reach it. Shared so the two cannot drift.
+const (
+	DefaultWebUIListenAddress = ":8080"
+)
