@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/pterm/pterm"
 
 	"github.com/kairos-io/kairos/v4/provider/internal/provider/assets"
 
@@ -191,7 +192,12 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 		vpnOpts["DNSADDRESS"] = "127.0.0.1:53"
 		vpnOpts["DNSFORWARD"] = enabledValue
 
-		_ = machine.ExecuteInlineCloudConfig(assets.LocalDNS, "initramfs")
+		// Best effort: the same config is persisted below and applied on the
+		// next boot anyway. Say so, rather than leaving a node that resolves
+		// through the wrong server until then look like a success.
+		if err := machine.ExecuteInlineCloudConfig(assets.LocalDNS, "initramfs"); err != nil {
+			pterm.Warning.Printfln("could not point the resolver at the VPN now, it will apply on the next boot: %s", err)
+		}
 		if !utils.IsOpenRCBased() {
 			svc, err := systemd.NewService(
 				systemd.WithName("systemd-resolved"),
