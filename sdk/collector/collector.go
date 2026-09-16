@@ -37,20 +37,21 @@ func warnf(format string, args ...interface{}) {
 	fmt.Fprintf(warnOut, format, args...)
 }
 
-// redactURL strips the query string from a URL so a config_url carrying a
-// token or a machine identifier can be named in a warning without printing
-// the secret to the console and the journal.
+// redactURL strips the query string from a URL and masks the userinfo
+// password, so a config_url carrying a token, a machine identifier or basic
+// auth credentials can be named in a warning without printing the secret to
+// the console and the journal.
 func redactURL(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return "<unparseable url>"
 	}
-	if u.RawQuery == "" {
-		return u.String()
+	if u.RawQuery != "" {
+		u.RawQuery = "<redacted>"
 	}
-	u.RawQuery = "<redacted>"
 
-	return u.String()
+	// Redacted rewrites a userinfo password to xxxxx; String prints it.
+	return u.Redacted()
 }
 
 // redactErrURL removes rawURL's query string from an error message. http.Get

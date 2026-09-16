@@ -367,6 +367,26 @@ info:
 				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
 				Expect(warnings.String()).ToNot(ContainSubstring("abc123"))
 			})
+
+			It("masks a basic auth password carried in the config_url userinfo", func() {
+				// net/http lifts URL.User into an Authorization header, so
+				// user:pass@host in config_url is a working setup and the password
+				// must not reach the console.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				host := strings.TrimPrefix(server.URL, "http://")
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": "http://user:hunter2@" + host + "/config.yaml",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				// Pin what the warning does say, so this does not pass vacuously
+				// if the URL stops being named at all.
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring("http://user:xxxxx@" + host + "/config.yaml"))
+				Expect(warnings.String()).ToNot(ContainSubstring("hunter2"))
+			})
 		})
 
 		Context("when config_url contains template markers", func() {
