@@ -103,7 +103,7 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 				return err
 			}
 
-			if err := internalUtils.CreateIfNotExists(stateDir); err != nil {
+			if err := internalUtils.CreateBindStateDir(rootMount, stateDir); err != nil {
 				return err
 			}
 			return internalUtils.SyncState(internalUtils.AppendSlash(rootMount), internalUtils.AppendSlash(stateDir))

@@ -213,6 +213,43 @@ func getXattr(path, name string) ([]byte, error) {
 	return buf[:size], nil
 }
 
+// CreateBindStateDir creates the directory that backs a bind mount, with the
+// mode and the ownership of the directory it is going to be bound onto.
+//
+// A bind mount shows the inode of the backing directory, so the mode and the
+// owner that end up visible at the mountpoint are the ones of that directory
+// and not the ones the image shipped. Creating it with os.ModePerm instead
+// hands back a laxer mode on every boot after the first, which for a path the
+// image keeps at 0700 root:root (/var/log/audit) is a downgrade nobody asked
+// for. The contents are SyncState's job, this is only about the directory.
+func CreateBindStateDir(mountpoint, stateDir string) error {
+	if _, err := os.Stat(stateDir); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	info, err := os.Stat(mountpoint)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(stateDir, info.Mode().Perm()); err != nil {
+		return err
+	}
+	// MkdirAll applies the umask, so the mode has to be set again to get the
+	// group and other bits the mountpoint has.
+	if err := os.Chmod(stateDir, info.Mode().Perm()); err != nil {
+		return err
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil
+	}
+	return os.Chown(stateDir, int(stat.Uid), int(stat.Gid))
+}
+
 // AppendSlash it's in the name. Appends a slash.
 func AppendSlash(path string) string {
 	if !strings.HasSuffix(path, "/") {
