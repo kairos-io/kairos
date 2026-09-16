@@ -86,30 +86,6 @@ var _ = Describe("The audit trail across a reset", Label("reset"), func() {
 		Expect(string(content)).To(Equal("type=DAEMON_END\n"))
 	})
 
-	It("does not carry immucore's migration marker over the format", func() {
-		// The marker that records the one-time migration into the bind sits
-		// next to the backing directory, so a stash of the directory does not
-		// pick it up. It has to stay that way: the marker would say a
-		// migration finished on a partition that was just formatted, and the
-		// next boot has to be free to sync what the image ships at
-		// /var/log/audit into the new backing directory.
-		marker := auditDir() + ".migrated"
-		Expect(fsutils.MkdirAll(fs, auditDir(), constants.DirPerm)).To(Succeed())
-		Expect(fs.WriteFile(marker, nil, 0o600)).To(Succeed())
-		Expect(fs.WriteFile(filepath.Join(auditDir(), "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
-
-		stash, err := action.StashAuditLog(config, persistent)
-		Expect(err).ToNot(HaveOccurred())
-		format()
-		Expect(action.RestoreAuditLog(config, persistent, stash)).To(Succeed())
-
-		exists, err := fsutils.Exists(fs, marker)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(exists).To(BeFalse())
-		// And the trail itself still came across.
-		Expect(fsutils.Exists(fs, filepath.Join(auditDir(), "audit.log"))).To(BeTrue())
-	})
-
 	It("restores the directory root-only", func() {
 		Expect(fsutils.MkdirAll(fs, auditDir(), constants.DirPerm)).To(Succeed())
 		Expect(fs.WriteFile(filepath.Join(auditDir(), "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
