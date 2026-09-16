@@ -58,13 +58,10 @@ on:
           The `install-upgrade` test uses this image via UPGRADE_IMAGE
           inside the VM, which pulls it over the network, so the target
           repository must be readable without credentials (public
-          package on GHCR). No cleanup runs against this package: GHCR
-          offers no TTL-label equivalent to quay's expires-after, and
-          this repo runs no scheduled prune, so every install-upgrade
-          run leaves a fresh uniquely-tagged version behind for GitHub
-          to hold. If storage ever becomes a concern the versions can
-          be bulk-deleted from the package settings page or via the
-          org container-packages REST API.
+          package on GHCR). The nightly ghcr-prune workflow deletes
+          these tags after their retention (6h, matching the quay
+          expires-after we used before switching to GHCR); this
+          workflow itself no longer runs a per-job cleanup step.
         type: string
         default: 'ghcr.io/kairos-io/kairos/kairos-uki'
 
