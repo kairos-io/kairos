@@ -26,6 +26,7 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/cloudinit"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -320,6 +321,64 @@ var _ = Describe("run stage", Label("RunStage"), func() {
 
 		Expect(utils.RunStageAnalyze(config, "anakin")).To(BeNil())
 		Expect(memLog.String()).To(ContainSubstring("Analyze mode, showing DAG"))
+		Expect(mock.ExecStages).To(BeEmpty())
+	})
+
+	// #4665: --override-cloud-init-paths promised "removing defaults" but
+	// runstage prepended constants.GetCloudInitPaths() to whatever it was
+	// given, so both flags meant "defaults plus these" and there was no way
+	// to run a single cloud-config on its own. For a stage like initramfs
+	// that meant the machine's whole /oem was re-applied as well.
+	It("runs only the paths it is handed, without the defaults", func() {
+		mock := &argsRecordingCIRunner{}
+		config.CloudInitRunner = mock
+		config.CloudInitPaths = []string{"/from/config"}
+		Expect(writeCmdline("root=LABEL=X quiet", fs)).To(Succeed())
+
+		Expect(utils.RunStageWithPaths(config, "obiwan", false, []string{"/only/this/path"})).To(BeNil())
+
+		flat := []string{}
+		for _, tuple := range mock.Args {
+			flat = append(flat, tuple...)
+		}
+		Expect(mock.ExecStages).To(ConsistOf("obiwan.before", "obiwan", "obiwan.after",
+			"obiwan.before", "obiwan", "obiwan.after"))
+		Expect(flat).To(ContainElement("/only/this/path"))
+		Expect(flat).ToNot(ContainElement("/from/config"))
+		for _, def := range constants.GetCloudInitPaths() {
+			Expect(flat).ToNot(ContainElement(def))
+		}
+	})
+
+	// Control for the spec above: the paths RunStage composes on its own are
+	// still the defaults plus the config's, so no other caller changed.
+	It("keeps prepending the defaults on a plain RunStage", func() {
+		mock := &argsRecordingCIRunner{}
+		config.CloudInitRunner = mock
+		config.CloudInitPaths = []string{"/from/config"}
+		Expect(writeCmdline("root=LABEL=X quiet", fs)).To(Succeed())
+
+		Expect(utils.RunStage(config, "obiwan")).To(BeNil())
+
+		flat := []string{}
+		for _, tuple := range mock.Args {
+			flat = append(flat, tuple...)
+		}
+		Expect(flat).To(ContainElement("/from/config"))
+		for _, def := range constants.GetCloudInitPaths() {
+			Expect(flat).To(ContainElement(def))
+		}
+	})
+
+	It("analyzes only the paths it is handed", func() {
+		config.Logger.SetLevel("debug")
+		mock := &v1mock.FakeCloudInitRunner{}
+		config.CloudInitRunner = mock
+
+		Expect(utils.RunStageWithPaths(config, "obiwan", true, []string{"/only/this/path"})).To(BeNil())
+		Expect(memLog.String()).To(ContainSubstring("Analyze mode, showing DAG"))
+		Expect(memLog.String()).To(ContainSubstring("/only/this/path"))
+		Expect(memLog.String()).ToNot(ContainSubstring("/usr/local/cloud-config/"))
 		Expect(mock.ExecStages).To(BeEmpty())
 	})
 })
