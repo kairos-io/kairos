@@ -299,10 +299,18 @@ func generateToken() string {
 	return node.GenerateNewConnectionData(l).Base64()
 }
 
+// registerTimeout bounds the pairing wait in register. nodepair.Send blocks
+// until its context ends, so with context.Background() a node that never joins
+// the pairing network keeps the spec running until the ginkgo suite timeout
+// fires. That is the worst way for this to fail: the suite timeout ends the
+// whole run, so every remaining spec is skipped and the leg reports no signal
+// at all. A green pairing costs 191s, so ten minutes leaves 3x headroom.
+const registerTimeout = 10 * time.Minute
+
 // register registers a node with a qrfile
 func register(loglevel, qrfile, configFile, device string, reboot bool) error {
 	b, _ := os.ReadFile(configFile)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), registerTimeout)
 	defer cancel()
 
 	if qrfile != "" {
@@ -339,6 +347,12 @@ func register(loglevel, qrfile, configFile, device string, reboot bool) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	// nodepair.Send returns nil when the context ends, so an expired deadline
+	// looks exactly like a delivered payload unless the context is examined.
+	if ctx.Err() != nil {
+		return fmt.Errorf("the node did not pair within %s: %w", registerTimeout, ctx.Err())
 	}
 
 	GinkgoLogr.Info("Registration payload successfully sent")
