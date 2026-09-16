@@ -267,7 +267,7 @@ func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
 	// guaranteed, so we assert as a set.
 	expected := [][]string{
 		{"init"},
-		{cnst.OpSentinel, cnst.OpWaitForSysroot, cnst.OpMountTmpfs, cnst.OpAuditdMountRequirement},
+		{cnst.OpSentinel, cnst.OpWaitForSysroot, cnst.OpMountTmpfs},
 		{cnst.OpEnsurePartitions},
 		{cnst.OpKcryptUpgrade, cnst.OpMountOEM},
 		{cnst.OpKcryptUnlock, cnst.OpRootfsHook},
@@ -275,8 +275,7 @@ func checkInRAMDag(dag [][]herd.GraphEntry, actualDag string) {
 		{cnst.OpMountBaseOverlay, cnst.OpCustomMounts},
 		{cnst.OpOverlayMount},
 		{cnst.OpMountBind},
-		{cnst.OpUkiCopySysExtensions, cnst.OpQuarantineStaleUnits, cnst.OpMountAuditLog},
-		{cnst.OpWriteFstab},
+		{cnst.OpWriteFstab, cnst.OpUkiCopySysExtensions, cnst.OpQuarantineStaleUnits},
 		{cnst.OpInitramfsHook},
 	}
 	Expect(len(dag)).To(Equal(len(expected)), actualDag)

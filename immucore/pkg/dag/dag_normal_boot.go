@@ -91,15 +91,6 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 	// Depends on mount binds as that usually mounts COS_PERSISTENT
 	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")
 
-	// Keep auditd from starting before the audit log mount exists. Written
-	// independently of the mount below, so that a failed mount makes auditd
-	// fail rather than log to the ephemeral directory underneath.
-	s.LogIfError(s.AuditdMountRequirementDagStep(g), "auditd mount requirement")
-
-	// Bind /var/log/audit from the persistent state target. Ordered after the
-	// generic binds inside the step, since /var/log is one of them.
-	s.LogIfError(s.MountAuditLogDagStep(g), "audit log bind mount")
-
 	// Move unit symlinks an earlier image left in the persistent /etc/systemd
 	// bind out of the unit load path, before the initramfs stage and switch_root.
 	s.LogIfError(s.QuarantineStaleUnitsDagStep(g, herd.WithWeakDeps(cnst.OpMountBind)), "quarantine stale systemd units")
@@ -107,18 +98,15 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 	//
 	s.LogIfError(s.EnableSysAndConfExtensions(g, herd.WithWeakDeps(cnst.OpMountBind)), "enable sysext and confexts")
 
-	// Write fstab file. The audit log mount is a weak dep: the entry has to be
-	// in the file systemd-fstab-generator reads, since that is where the mount
-	// unit auditd depends on comes from, but a failed audit mount must not
-	// leave the system with no fstab at all.
+	// Write fstab file
 	s.LogIfError(s.WriteFstabDagStep(g,
 		herd.WithDeps(cnst.OpMountRoot, cnst.OpDiscoverState, cnst.OpLoadConfig),
-		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpMountAuditLog, cnst.OpOverlayMount)), "write fstab")
+		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount)), "write fstab")
 
 	// do it after fstab is created
 	s.LogIfError(s.InitramfsStageDagStep(g,
 		herd.WithDeps(cnst.OpMountRoot, cnst.OpDiscoverState, cnst.OpLoadConfig, cnst.OpWriteFstab),
-		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpMountAuditLog, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpQuarantineStaleUnits),
+		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpQuarantineStaleUnits),
 	), "initramfs stage")
 	return err
 }

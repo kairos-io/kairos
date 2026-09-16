@@ -102,8 +102,9 @@ const (
 	// AuditLogPath is the path the directory above is bound onto, used for
 	// logging.
 	AuditLogPath = "/var/log/audit"
-	// AuditLogDirPerm is the mode the restored directory gets, matching the
-	// one immucore pins the bind to.
+	// AuditLogDirPerm is the mode the restored directory gets, which is the
+	// mode the bind then exposes at AuditLogPath. auditd keeps its trail
+	// readable by root only.
 	AuditLogDirPerm = 0o700
 
 	// SELinux targeted policy paths.

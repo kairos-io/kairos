@@ -193,6 +193,12 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					s.BindMounts = append(s.BindMounts, internalUtils.CleanupSlice(strings.Split(specificEnv["PERSISTENT_STATE_PATHS"], " "))...)
 				}
 
+				// The audit trail has to be on the persistent partition on
+				// every install, not only on the ones whose cloud-config
+				// happens to name it, so the path is always on the list. An
+				// installation that also lists it is deduplicated below.
+				s.BindMounts = append(s.BindMounts, cnst.AuditLogPath)
+
 				// Remove any duplicates
 				s.BindMounts = internalUtils.UniqueSlice(internalUtils.CleanupSlice(s.BindMounts))
 
@@ -471,142 +477,6 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 					return err.ErrorOrNil()
 				},
 			),
-		)...)
-}
-
-// auditLogPersistExpected reports whether a boot state keeps persistent state
-// for the audit log to be bound to.
-//
-// Recovery and autoreset are NOT covered, and kairos-io/kairos#4629 asks for
-// the mount on "every boot including recovery mode", so that is a requirement
-// this does not meet. Spelling out why, since the answer is not in this
-// function:
-//
-// Those two boot states come up with no persistent volume at all: kairos-init's
-// 00_rootfs.yaml sets only OVERLAY on the recovery/autoreset branch and no
-// VOLUMES, so COS_PERSISTENT is never mounted under /usr/local and the state
-// target resolves onto the read-only recovery image. Covering them therefore
-// means mounting COS_PERSISTENT in recovery, which is a change to the recovery
-// layout and not to this step.
-//
-// That change works against what recovery mode is for. A bind mount of a
-// subdirectory of the persistent filesystem holds its own reference to that
-// filesystem, so it keeps the device mounted after the volume itself has been
-// unmounted: the device stays in /proc/mounts under the bind's mount point,
-// and the mkfs in kairos-agent reset then either refuses to run or runs on a
-// live filesystem. Reset is the operation recovery mode exists to run, and
-// autoreset - which does nothing but reset - shares the same layout branch.
-// The shape that is safe for reaching the persistent partition from recovery
-// is the transient mount action.StashAuditLog takes around the format, which a
-// mount that lives for the whole boot cannot be.
-//
-// So the recovery half of the requirement is left open for the maintainer to
-// decide on, rather than decided here. Live media has no persistent partition
-// to begin with. In-RAM boots report Active, so they do keep the mount: their
-// COS_PERSISTENT is on local disk.
-func auditLogPersistExpected(b state.Boot) bool {
-	switch b {
-	case state.Active, state.Passive:
-		return true
-	case state.Recovery, state.AutoReset, state.LiveCD, state.Unknown:
-		return false
-	default:
-		return false
-	}
-}
-
-// logAuditLogSkip puts the reason the audit log mount is absent on the boot
-// log. Recovery and autoreset are logged at info rather than debug: that is
-// the coverage gap auditLogPersistExpected describes, and an operator looking
-// for the audit trail on a recovery boot should find the answer in the journal
-// instead of in the source.
-func logAuditLogSkip(b state.Boot) {
-	const msg = "Audit log mount skipped: this boot state comes up with no persistent volume"
-	if b == state.Recovery || b == state.AutoReset {
-		internalUtils.KLog.Logger.Info().Str("bootstate", string(b)).
-			Str("what", cnst.AuditLogPath).Msg(msg)
-		return
-	}
-	internalUtils.KLog.Logger.Debug().Str("bootstate", string(b)).
-		Str("what", cnst.AuditLogPath).Msg(msg)
-}
-
-// AuditdMountRequirementDagStep writes the drop-in that keeps auditd from
-// starting before the audit log mount is in place.
-//
-// No auditd.service ships from this repo, it comes from the distro package, so
-// the ordering cannot be expressed in the unit and is expressed from the
-// outside instead. See internalUtils.WriteMountRequirementDropIn for why the
-// drop-in goes to a volatile unit directory and what Requires= on the mount
-// unit buys us.
-//
-// It is a step of its own rather than part of MountAuditLogDagStep because it
-// has to run even when the mount does not: a boot where the bind failed is
-// exactly the boot where auditd must refuse to start instead of logging to the
-// ephemeral directory underneath.
-func (s *State) AuditdMountRequirementDagStep(g *herd.Graph, opts ...herd.OpOption) error {
-	return g.Add(cnst.OpAuditdMountRequirement, append(opts,
-		TimedCallback(cnst.OpAuditdMountRequirement, func(_ context.Context) error {
-			// BootState is read off /proc/cmdline before the block device
-			// scan whose failure the error reports, so a scan that comes up
-			// empty in layer 1 of the boot must not cost us the drop-in. Same
-			// as MountOemDagStep.
-			runtime, _ := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
-			if !auditLogPersistExpected(runtime.BootState) {
-				logAuditLogSkip(runtime.BootState)
-				return nil
-			}
-			file, err := internalUtils.WriteMountRequirementDropIn(cnst.RunSystemdUnitDir, cnst.AuditdUnit, cnst.AuditLogPath)
-			if err != nil {
-				return err
-			}
-			internalUtils.KLog.Logger.Info().Str("file", file).Str("unit", cnst.AuditdUnit).
-				Str("mount", cnst.AuditLogPath).Msg("Wrote the audit log mount requirement")
-			return nil
-		}),
-	)...)
-}
-
-// MountAuditLogDagStep binds cnst.AuditLogPath from the persistent state
-// target.
-//
-// This is not an entry of the PERSISTENT_STATE_PATHS list that OpMountBind
-// walks. That list arrives from a cloud-config at rootfs stage time, so
-// anything on it is only as persistent as the cloud-config that names it,
-// while the audit trail has to survive an A/B upgrade on every install
-// (kairos-io/kairos#4629). A dedicated step also gives auditd a mount to
-// depend on by name.
-//
-// It runs after OpMountBind because /var/log is itself one of the generic
-// binds: mounting the parent afterwards would shadow this mount and the audit
-// trail would go back to being ephemeral without anything saying so.
-func (s *State) MountAuditLogDagStep(g *herd.Graph, opts ...herd.OpOption) error {
-	return g.Add(cnst.OpMountAuditLog,
-		append(opts, herd.WithDeps(cnst.OpLoadConfig, cnst.OpMountBind),
-			TimedCallback(cnst.OpMountAuditLog, func(_ context.Context) error {
-				// Same as in AuditdMountRequirementDagStep: the error is from
-				// the block device scan, BootState is not.
-				runtime, _ := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
-				if !auditLogPersistExpected(runtime.BootState) {
-					logAuditLogSkip(runtime.BootState)
-					return nil
-				}
-
-				operation := op.MountBindWithMode(cnst.AuditLogPath, s.Rootdir, s.StateDir, cnst.AuditLogDirMode)
-				err := operation.Run()
-				// An installation that also lists the path in
-				// PERSISTENT_STATE_PATHS has it mounted by OpMountBind
-				// already, which is the same mount from the same backing
-				// directory. AddToFstab drops the duplicate entry.
-				if err != nil && !errors.Is(err, cnst.ErrAlreadyMounted) {
-					return err
-				}
-				s.AddToFstab(&operation.FstabEntry)
-				internalUtils.KLog.Logger.Info().Str("what", cnst.AuditLogPath).
-					Str("from", op.BindStateDir(cnst.AuditLogPath, s.Rootdir, s.StateDir)).
-					Msg("Audit log bind mount done")
-				return nil
-			}),
 		)...)
 }
 

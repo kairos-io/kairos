@@ -97,8 +97,9 @@ func StashAuditLog(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition) (
 
 // RestoreAuditLog copies a staging directory made by StashAuditLog back onto
 // the freshly formatted persistent partition and removes the staging
-// directory. The restored directory is pinned to root-only, the same mode
-// immucore pins the bind to on the next boot.
+// directory. The restored directory is pinned to root-only: the bind mount
+// exposes the inode of that directory, so its mode is the one /var/log/audit
+// comes back with on the next boot.
 func RestoreAuditLog(cfg *sdkConfig.Config, persistent *sdkPartitions.Partition, stash string) error {
 	if persistent == nil || stash == "" {
 		return nil

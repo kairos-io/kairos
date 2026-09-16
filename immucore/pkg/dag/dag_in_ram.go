@@ -79,12 +79,6 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 	// Bind mounts backed by the persistent-state target (COS_PERSISTENT).
 	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")
 
-	// An in-RAM node keeps COS_PERSISTENT on local disk, so the audit trail
-	// persists there exactly like it does on a disk install. Same split as in
-	// the normal boot: the requirement is written even when the mount fails.
-	s.LogIfError(s.AuditdMountRequirementDagStep(g), "auditd mount requirement")
-	s.LogIfError(s.MountAuditLogDagStep(g), "audit log bind mount")
-
 	// Move unit symlinks an earlier image left in the persistent /etc/systemd
 	// bind out of the unit load path. An in-RAM node keeps COS_PERSISTENT on
 	// local disk, so it carries the same stale symlinks across an image change
@@ -96,11 +90,11 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 	// Write fstab. Same deps as normal boot minus the mount-root chain.
 	s.LogIfError(s.WriteFstabDagStep(g,
 		herd.WithDeps(cnst.OpWaitForSysroot, cnst.OpLoadConfig),
-		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpMountAuditLog, cnst.OpOverlayMount)), "write fstab")
+		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount)), "write fstab")
 
 	s.LogIfError(s.InitramfsStageDagStep(g,
 		herd.WithDeps(cnst.OpWaitForSysroot, cnst.OpLoadConfig, cnst.OpWriteFstab),
-		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpMountAuditLog, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpQuarantineStaleUnits),
+		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpQuarantineStaleUnits),
 	), "initramfs stage")
 	return err
 }

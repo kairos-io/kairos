@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
-	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -25,7 +24,7 @@ var _ = Describe("BindStateDir", func() {
 	})
 })
 
-var _ = Describe("MountBindWithMode", func() {
+var _ = Describe("MountBind", func() {
 	var root string
 
 	BeforeEach(func() {
@@ -36,27 +35,44 @@ var _ = Describe("MountBindWithMode", func() {
 	})
 
 	It("mounts the state directory over the path", func() {
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		operation := op.MountBind("/var/log/audit", root, "/usr/local/.state")
 
 		Expect(operation.Target).To(Equal(filepath.Join(root, "var/log/audit")))
 		Expect(operation.MountOption.Source).To(Equal(op.BindStateDir("/var/log/audit", root, "/usr/local/.state")))
 		Expect(operation.MountOption.Options).To(ContainElement("bind"))
 	})
 
-	It("pins the mode of both sides of the bind", func() {
-		// The mountpoint is what an image with a looser /var/log/audit gives
-		// us, and the state directory is the inode the bind actually exposes.
+	It("gives the state directory the mode of the path it backs", func() {
+		// The bind exposes the inode of the state directory, so a path the
+		// image keeps at 0700 (/var/log/audit) has to find the same mode there
+		// or the mount is what loosened it.
 		mountpoint := filepath.Join(root, "var/log/audit")
-		Expect(os.MkdirAll(mountpoint, 0o777)).To(Succeed())
+		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
+		Expect(os.Chmod(mountpoint, 0o700)).To(Succeed())
 
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		operation := op.MountBind("/var/log/audit", root, "/usr/local/.state")
 		Expect(operation.PrepareCallback()).To(Succeed())
 
-		for _, dir := range []string{mountpoint, op.BindStateDir("/var/log/audit", root, "/usr/local/.state")} {
-			info, err := os.Stat(dir)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)), dir)
-		}
+		info, err := os.Stat(op.BindStateDir("/var/log/audit", root, "/usr/local/.state"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+	})
+
+	It("leaves the mode of a state directory that is already there alone", func() {
+		// Every boot after the first one. The mode of the state directory is
+		// the mode of the mountpoint by then, and the data in it is live.
+		mountpoint := filepath.Join(root, "var/log/audit")
+		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
+		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
+		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
+		Expect(os.Chmod(stateDir, 0o700)).To(Succeed())
+
+		operation := op.MountBind("/var/log/audit", root, "/usr/local/.state")
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		info, err := os.Stat(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
 	})
 
 	It("carries the contents of the path into the state directory", func() {
@@ -64,7 +80,7 @@ var _ = Describe("MountBindWithMode", func() {
 		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
 
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		operation := op.MountBind("/var/log/audit", root, "/usr/local/.state")
 		Expect(operation.PrepareCallback()).To(Succeed())
 
 		synced := filepath.Join(op.BindStateDir("/var/log/audit", root, "/usr/local/.state"), "audit.log")
@@ -74,99 +90,12 @@ var _ = Describe("MountBindWithMode", func() {
 	})
 
 	It("creates a path that the image does not ship", func() {
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		operation := op.MountBind("/var/log/audit", root, "/usr/local/.state")
 
 		Expect(operation.PrepareCallback()).To(Succeed())
 
 		Expect(filepath.Join(root, "var/log/audit")).To(BeADirectory())
 		Expect(op.BindStateDir("/var/log/audit", root, "/usr/local/.state")).To(BeADirectory())
-	})
-
-	It("does not bring a file back that was removed from the state directory", func() {
-		// The second boot of a machine that migrated: the mountpoint the
-		// rsync reads from is itself persistent storage (/var/log/audit sits
-		// under the /var/log bind), so a snapshot of the trail is still
-		// sitting there while the live copy is in the state directory. rsync
-		// has no --delete, so repeating the sync would put the rotated away
-		// file back on every boot.
-		mountpoint := filepath.Join(root, "var/log/audit")
-		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
-		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
-		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
-		Expect(internalUtils.MarkStateMigrated(stateDir)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log.1"), []byte("rotated away\n"), 0o600)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("live\n"), 0o600)).To(Succeed())
-
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
-		Expect(operation.PrepareCallback()).To(Succeed())
-
-		Expect(filepath.Join(stateDir, "audit.log.1")).ToNot(BeAnExistingFile())
-		Expect(filepath.Join(stateDir, "audit.log")).To(BeAnExistingFile())
-	})
-
-	It("migrates into a state directory that exists but is empty", func() {
-		// A fresh install, or an upgrade to the first image that has this
-		// mount: the bind directory can already be there from the mount that
-		// failed halfway, and the trail still has to move.
-		mountpoint := filepath.Join(root, "var/log/audit")
-		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
-		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
-		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
-
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
-		Expect(operation.PrepareCallback()).To(Succeed())
-
-		Expect(filepath.Join(stateDir, "audit.log")).To(BeAnExistingFile())
-	})
-
-	It("finishes a migration that died partway through the sync", func() {
-		// rsync ran out of space halfway: the state directory holds some of
-		// the trail and the rest is still under the /var/log bind, where the
-		// mountpoint can no longer reach it once this bind is up. Only a
-		// marker says a migration finished, so this boot retries the sync
-		// instead of reading the leftovers as a migration that is done.
-		mountpoint := filepath.Join(root, "var/log/audit")
-		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
-		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
-		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log.1"), []byte("never made it\n"), 0o600)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
-
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
-		Expect(operation.PrepareCallback()).To(Succeed())
-
-		Expect(filepath.Join(stateDir, "audit.log.1")).To(BeAnExistingFile())
-	})
-
-	It("records the migration once the sync went through", func() {
-		mountpoint := filepath.Join(root, "var/log/audit")
-		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
-		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
-
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
-		Expect(operation.PrepareCallback()).To(Succeed())
-
-		migrated, err := internalUtils.StateMigrated(stateDir)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(migrated).To(BeTrue())
-	})
-
-	It("still pins the mode when the sync is skipped", func() {
-		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
-		Expect(os.MkdirAll(stateDir, 0o777)).To(Succeed())
-		Expect(internalUtils.MarkStateMigrated(stateDir)).To(Succeed())
-		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("live\n"), 0o600)).To(Succeed())
-		Expect(os.Chmod(stateDir, 0o777)).To(Succeed())
-
-		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
-		Expect(operation.PrepareCallback()).To(Succeed())
-
-		info, err := os.Stat(stateDir)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
 	})
 })
 
