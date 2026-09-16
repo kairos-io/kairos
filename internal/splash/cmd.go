@@ -27,6 +27,8 @@ func Main() int {
 	ttyPath := fs.String("tty", "",
 		"console device to draw on; empty uses stdout and stdin")
 	frame := fs.Duration("frame", DefaultFrame, "time between frames")
+	duration := fs.Duration("duration", 0,
+		"stop after this long; zero animates until SIGTERM")
 	once := fs.Bool("once", false,
 		"draw a single frame and exit, for a smoke test on a built image")
 	noToggle := fs.Bool("no-toggle", false,
@@ -76,6 +78,7 @@ func Main() int {
 		Branding:  branding,
 		Version:   ReadOSVersion(*osRelease),
 		Frame:     *frame,
+		Duration:  *duration,
 		MaxFrames: 0,
 	}
 	if *once {

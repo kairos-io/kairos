@@ -412,3 +412,74 @@ func itoa(n int) string {
 	}
 	return itoa(n/10) + string(rune('0'+n%10))
 }
+
+// countingClock is fixedClock with the call count exposed. Run calls Now once
+// for the start instant and once per frame, so the count is the only
+// deterministic frame counter available: grid.Flush buffers, so the number of
+// writes on Out says nothing about how many frames were painted.
+func countingClock(step time.Duration, calls *int) func() time.Time {
+	base := time.Unix(1700000000, 0)
+	return func() time.Time {
+		t := base.Add(time.Duration(*calls) * step)
+		*calls++
+		return t
+	}
+}
+
+// The booted-system unit is a oneshot ordered before getty.target, so getty
+// waits for it: the animation has to end on its own there or the login prompt
+// never arrives. Done is nil and MaxFrames is unset here, which is exactly how
+// that unit runs, so a Duration that does not stop the loop hangs this test
+// rather than failing it.
+func TestRunStopsAfterTheDuration(t *testing.T) {
+	var out bytes.Buffer
+	b := DefaultBranding()
+	calls := 0
+	err := Run(Options{
+		Out:      &out,
+		Rows:     b.Height() + 8,
+		Cols:     b.Width() + 10,
+		IsTTY:    true,
+		Branding: b,
+		Frame:    time.Millisecond,
+		Duration: 5 * time.Millisecond,
+		Now:      countingClock(time.Millisecond, &calls),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	// One call for the start instant, then one per frame. The fifth frame
+	// reads 5ms of elapsed time, which is the whole budget, and returns
+	// before painting: the deadline is inclusive so a Duration shorter than
+	// one frame cannot still paint a frame.
+	if calls != 6 {
+		t.Errorf("Now called %d times, want 6 (start + 5 frames)", calls)
+	}
+	if !strings.Contains(out.String(), seqLeave) {
+		t.Error("the console was not restored on the way out")
+	}
+}
+
+// Zero is the initramfs unit: it animates until switch-root sends SIGTERM, so
+// a zero Duration must not be read as "stop immediately".
+func TestRunTreatsAZeroDurationAsUnlimited(t *testing.T) {
+	var out bytes.Buffer
+	b := DefaultBranding()
+	calls := 0
+	err := Run(Options{
+		Out:       &out,
+		Rows:      b.Height() + 8,
+		Cols:      b.Width() + 10,
+		IsTTY:     true,
+		Branding:  b,
+		Frame:     time.Millisecond,
+		MaxFrames: 3,
+		Now:       countingClock(time.Hour, &calls),
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if calls != 4 {
+		t.Errorf("Now called %d times, want 4 (start + 3 frames)", calls)
+	}
+}

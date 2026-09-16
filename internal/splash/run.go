@@ -60,6 +60,12 @@ type Options struct {
 	// MaxFrames stops after that many frames. Zero means unlimited. Only
 	// tests set this.
 	MaxFrames int
+	// Duration stops the animation after that much elapsed time. Zero means
+	// unlimited, which is what the initramfs unit wants: it animates until
+	// switch-root sends SIGTERM. The booted-system unit is a oneshot ordered
+	// before getty.target, so there it has to end on its own or the login
+	// prompt never arrives.
+	Duration time.Duration
 	// Seed makes the particle orbits reproducible. Zero derives one from
 	// the clock.
 	Seed uint32
@@ -69,8 +75,8 @@ type Options struct {
 // distribution opts out of the splash.
 var ErrNoBranding = errors.New("splash: no branding directory")
 
-// Run paints the splash until Done fires, MaxFrames is reached, or the console
-// turns out not to be usable.
+// Run paints the splash until Done fires, Duration elapses, MaxFrames is
+// reached, or the console turns out not to be usable.
 //
 // It never returns an error for a console it cannot animate on. A boot splash
 // that fails loudly is worse than no splash: the unit is wanted rather than
@@ -120,6 +126,9 @@ func Run(o Options) error {
 	prev := start
 	for frame := 0; o.MaxFrames == 0 || frame < o.MaxFrames; frame++ {
 		now := o.Now()
+		if o.Duration > 0 && now.Sub(start) >= o.Duration {
+			return nil
+		}
 		dt := now.Sub(prev).Seconds()
 		prev = now
 

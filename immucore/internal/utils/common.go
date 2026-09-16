@@ -265,23 +265,11 @@ func HaltWithBanner(banner, logMsg string, err error) {
 		}
 	}
 
-	// Best-effort silencing stack. Failure of any single step is fine — this
-	// is UX polish, not a correctness step.
-	//
-	//  1. Kernel console loglevel → EMERG-only. Kills `dmesg`-style noise.
-	//  2. systemd's own logging → target null. Kills its journal-to-console
-	//     bridge.
-	//  3. systemd's PID 1 ShowStatus → off via SIGRTMIN+21 (the show-status
-	//     OVERRIDE; the cylon job ticker re-enables the plain state on every
-	//     tick so only the override sticks; D-Bus is not reachable from the
-	//     initrd). See signalShowStatusOff for the musl/glibc signal-number
-	//     dance.
-	//  4. plymouth (if installed) re-enables status output on its own.
-	//     Quit it defensively.
-	_ = os.WriteFile("/proc/sys/kernel/printk", []byte("1 4 1 7\n"), 0o644)
-	_ = exec.Command("systemctl", "log-target", "null").Run()
-	signalShowStatusOff()
-	_ = exec.Command("plymouth", "quit", "--retain-splash").Run()
+	silenceConsole(
+		func(argv ...string) { _ = exec.Command(argv[0], argv[1:]...).Run() }, //nolint:gosec // fixed argv, see silenceConsole
+		func(level string) { _ = os.WriteFile("/proc/sys/kernel/printk", []byte(level), 0o644) },
+		signalShowStatusOff,
+	)
 
 	// Paint once after a short settle delay: the silencing calls above race
 	// any status line systemd already has in flight, so give those a moment
@@ -760,3 +748,46 @@ func Copy(src, dst string) error {
 	}
 	return nil
 }
+
+// silenceConsole is the best-effort stack that gets the console to itself
+// before HaltWithBanner paints the failure screen. Failure of any single step
+// is fine, this is UX polish and not a correctness step, which is why nothing
+// here returns an error.
+//
+// The steps, in the order they have to happen:
+//
+//  1. The boot splash animates on /dev/tty1 until something stops it, and it
+//     repaints every frame, so it would scroll the banner straight off the
+//     screen. Its unit conflicts with emergency.target, but this screen does
+//     not go through emergency.target, so stop it by name.
+//
+//     First, and the order is load-bearing: the splash quiets the kernel
+//     loglevel itself while it draws and restores the old value on the way
+//     out, so stopping it after step 2 would undo step 2.
+//
+//  2. Kernel console loglevel → EMERG-only. Kills `dmesg`-style noise.
+//
+//  3. systemd's own logging → target null. Kills its journal-to-console
+//     bridge.
+//
+//  4. systemd's PID 1 ShowStatus → off via SIGRTMIN+21 (the show-status
+//     OVERRIDE; the cylon job ticker re-enables the plain state on every tick
+//     so only the override sticks; D-Bus is not reachable from the initrd).
+//     See signalShowStatusOff for the musl/glibc signal-number dance.
+//
+//  5. plymouth (if installed) re-enables status output on its own. Quit it
+//     defensively.
+//
+// run, writePrintk and showStatusOff are injected so a test can assert the
+// order without signalling PID 1 or writing to /proc.
+func silenceConsole(run func(argv ...string), writePrintk func(level string), showStatusOff func()) {
+	run("systemctl", "stop", splashUnitName)
+	writePrintk("1 4 1 7\n")
+	run("systemctl", "log-target", "null")
+	showStatusOff()
+	run("plymouth", "quit", "--retain-splash")
+}
+
+// splashUnitName is the boot splash unit, named identically in the initramfs
+// (kairos-init's 50kairos-splash dracut module) and in the booted system.
+const splashUnitName = "kairos-splash.service"
