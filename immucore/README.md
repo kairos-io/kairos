@@ -309,9 +309,11 @@ You can also see the default config that we provide in https://github.com/kairos
 
 ----
 
-It starts pretty early in the boot process, just after `systemd-udev-settle.service` and before `dracut-initqueue.service`.
-The settle unit is ordered before Immucore but only pulled in with `Wants=`, so Immucore still starts when that unit is
-absent or times out. See [#1378](https://github.com/kairos-io/kairos/issues/1378).
+It starts pretty early in the boot process, just after `systemd-udev-trigger.service` and before `dracut-initqueue.service`.
+That ordering only guarantees the coldplug trigger has been issued, not that enumeration has finished, so on the
+active/passive/recovery path Immucore waits for the partition holding its images to appear before it reads any block
+device. The wait is bounded (30s) and a timeout is not fatal. Immucore used to order itself after the deprecated
+`systemd-udev-settle.service` instead. See [#1378](https://github.com/kairos-io/kairos/issues/1378).
 To see the full bootup process from dracut you can check [here](https://man7.org/linux/man-pages/man7/dracut.bootup.7.html).
 
 Just after starting, Immucore mounts `/proc` if it's not mounted, it does so in order to read the `/proc/cmdline` and obtains the different stanzas in order to configure itself.
