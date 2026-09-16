@@ -21,7 +21,7 @@ type RootSchema struct {
 	GrubOptionsSchema         `json:"grub_options,omitempty"`
 	Install                   InstallSchema            `json:"install,omitempty"`
 	Kcrypt                    KcryptSchema             `json:"kcrypt,omitempty"`
-	Options                   []interface{}            `json:"options,omitempty" description:"Various options."`
+	Options                   map[string]string        `json:"options,omitempty" description:"Various options, as key/value pairs."`
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1" required:"true"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
 	Debug                     bool                     `json:"debug,omitempty" mapstructure:"debug"`
@@ -36,12 +36,23 @@ type RootSchema struct {
 	SquashFsNoCompression     bool                     `json:"squash-no-compression,omitempty" mapstructure:"squash-no-compression"`
 	UkiMaxEntries             int                      `json:"uki-max-entries,omitempty" mapstructure:"uki-max-entries"`
 	Stages                    map[string][]StageSchema `json:"stages,omitempty" description:"Cloud-init stages to execute"`
+	Logs                      LogsSchema               `json:"logs,omitempty" description:"Extra journal units and files to collect in a support bundle"`
+	BindPCRs                  []string                 `json:"bind-pcrs,omitempty" mapstructure:"bind-pcrs" description:"TPM PCRs to bind an encrypted partition to."`
+	BindPublicPCRs            []string                 `json:"bind-public-pcrs,omitempty" mapstructure:"bind-public-pcrs" description:"TPM PCRs to bind an encrypted partition to, using the public key policy."`
 }
 
 // StageSchema defines the stage fields validated by the Kairos configuration schema.
 // Other yip stage fields remain accepted as additional properties.
 type StageSchema struct {
 	Commands []string `json:"commands,omitempty" description:"Commands to execute"`
+}
+
+// LogsSchema describes the extra sources `kairos-agent logs` collects on top of
+// the built-in ones. Mirrors sdk/types/logs.LogsConfig, which is what
+// agent/internal/agent/logs.go reads.
+type LogsSchema struct {
+	Journal []string `json:"journal,omitempty" description:"Extra systemd units to read the journal of"`
+	Files   []string `json:"files,omitempty" description:"Extra files to include verbatim"`
 }
 
 // KConfig is used to parse and validate Kairos configuration files.
