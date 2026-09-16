@@ -22,33 +22,33 @@ type InstallSchema struct {
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
 	SkipEncryptCopyPlugins bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
-	Partitions             ElementalPartitions `json:"partitions,omitempty" mapstructure:"partitions"`
-	GrubDefEntry           string              `json:"grub-entry-name,omitempty" mapstructure:"grub-entry-name"`
-	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty" mapstructure:"extra-partitions"`
-	Force                  bool                `json:"force,omitempty" mapstructure:"force"`
-	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty" mapstructure:"extra-dirs-rootfs"`
-	SSHHardening           bool                `json:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
-	Active                 Image               `json:"system,omitempty" mapstructure:"system"`
-	Recovery               Image               `json:"recovery-system,omitempty" mapstructure:"recovery-system"`
-	Passive                Image               `json:"passive,omitempty" mapstructure:"passive"`
+	Partitions             ElementalPartitions `json:"partitions,omitempty"`
+	GrubDefEntry           string              `json:"grub-entry-name,omitempty"`
+	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty"`
+	Force                  bool                `json:"force,omitempty"`
+	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty"`
+	SSHHardening           bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	Active                 Image               `json:"system,omitempty"`
+	Recovery               Image               `json:"recovery-system,omitempty"`
+	Passive                Image               `json:"passive,omitempty"`
 }
 
 type Image struct {
-	Size   uint   `json:"size,omitempty" mapstructure:"size"`
-	Source string `json:"uri,omitempty" mapstructure:"uri"`
+	Size   uint   `json:"size,omitempty"`
+	Source string `json:"uri,omitempty"`
 }
 
 type Partition struct {
 	Name string `json:"name,omitempty"`
-	Size uint   `json:"size,omitempty" mapstructure:"size"`
-	FS   string `json:"fs,omitempty" mapstructure:"fs"`
+	Size uint   `json:"size,omitempty"`
+	FS   string `json:"fs,omitempty"`
 }
 
 type ElementalPartitions struct {
-	OEM        *Partition `json:"oem,omitempty" mapstructure:"oem"`
-	Recovery   *Partition `json:"recovery,omitempty" mapstructure:"recovery"`
-	State      *Partition `json:"state,omitempty" mapstructure:"state"`
-	Persistent *Partition `json:"persistent,omitempty" mapstructure:"persistent"`
+	OEM        *Partition `json:"oem,omitempty"`
+	Recovery   *Partition `json:"recovery,omitempty"`
+	State      *Partition `json:"state,omitempty"`
+	Persistent *Partition `json:"persistent,omitempty"`
 }
 
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
