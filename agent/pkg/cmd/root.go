@@ -672,6 +672,8 @@ This command is meant to be used from the boot GRUB menu, but can likely be used
 Starts kairos reset mode, it will nuke completely the node data and restart fresh.
 Attention ! this will delete any persistent data on the node. It is equivalent to re-init the node right after the installation.
 
+Note: The audit log trail in /var/log/audit is preserved across reset (if it fits in available memory), to maintain continuity of security audit records through system reset operations.
+
 In reset mode a the node will automatically reset
 
 See also https://kairos.io/after_install/reset_mode/ for documentation.
