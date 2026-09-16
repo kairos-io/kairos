@@ -475,12 +475,35 @@ func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) er
 }
 
 // auditLogPersistExpected reports whether a boot state keeps persistent state
-// for the audit log to be bound to. Recovery and autoreset deliberately boot
-// without the persistent volume (kairos-init's 00_rootfs.yaml sets no VOLUMES
-// on those branches, so there is no COS_PERSISTENT under /usr/local and the
-// state target would resolve to the read-only recovery image), and live media
-// has no persistent partition at all. In-RAM boots report Active, so they do
-// keep the mount: their COS_PERSISTENT is on local disk.
+// for the audit log to be bound to.
+//
+// Recovery and autoreset are NOT covered, and kairos-io/kairos#4629 asks for
+// the mount on "every boot including recovery mode", so that is a requirement
+// this does not meet. Spelling out why, since the answer is not in this
+// function:
+//
+// Those two boot states come up with no persistent volume at all: kairos-init's
+// 00_rootfs.yaml sets only OVERLAY on the recovery/autoreset branch and no
+// VOLUMES, so COS_PERSISTENT is never mounted under /usr/local and the state
+// target resolves onto the read-only recovery image. Covering them therefore
+// means mounting COS_PERSISTENT in recovery, which is a change to the recovery
+// layout and not to this step.
+//
+// That change works against what recovery mode is for. A bind mount of a
+// subdirectory of the persistent filesystem holds its own reference to that
+// filesystem, so it keeps the device mounted after the volume itself has been
+// unmounted: the device stays in /proc/mounts under the bind's mount point,
+// and the mkfs in kairos-agent reset then either refuses to run or runs on a
+// live filesystem. Reset is the operation recovery mode exists to run, and
+// autoreset - which does nothing but reset - shares the same layout branch.
+// The shape that is safe for reaching the persistent partition from recovery
+// is the transient mount action.StashAuditLog takes around the format, which a
+// mount that lives for the whole boot cannot be.
+//
+// So the recovery half of the requirement is left open for the maintainer to
+// decide on, rather than decided here. Live media has no persistent partition
+// to begin with. In-RAM boots report Active, so they do keep the mount: their
+// COS_PERSISTENT is on local disk.
 func auditLogPersistExpected(b state.Boot) bool {
 	switch b {
 	case state.Active, state.Passive:
@@ -490,6 +513,22 @@ func auditLogPersistExpected(b state.Boot) bool {
 	default:
 		return false
 	}
+}
+
+// logAuditLogSkip puts the reason the audit log mount is absent on the boot
+// log. Recovery and autoreset are logged at info rather than debug: that is
+// the coverage gap auditLogPersistExpected describes, and an operator looking
+// for the audit trail on a recovery boot should find the answer in the journal
+// instead of in the source.
+func logAuditLogSkip(b state.Boot) {
+	const msg = "Audit log mount skipped: this boot state comes up with no persistent volume"
+	if b == state.Recovery || b == state.AutoReset {
+		internalUtils.KLog.Logger.Info().Str("bootstate", string(b)).
+			Str("what", cnst.AuditLogPath).Msg(msg)
+		return
+	}
+	internalUtils.KLog.Logger.Debug().Str("bootstate", string(b)).
+		Str("what", cnst.AuditLogPath).Msg(msg)
 }
 
 // AuditdMountRequirementDagStep writes the drop-in that keeps auditd from
@@ -508,13 +547,13 @@ func auditLogPersistExpected(b state.Boot) bool {
 func (s *State) AuditdMountRequirementDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpAuditdMountRequirement, append(opts,
 		TimedCallback(cnst.OpAuditdMountRequirement, func(_ context.Context) error {
-			runtime, err := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
-			if err != nil {
-				return err
-			}
+			// BootState is read off /proc/cmdline before the block device
+			// scan whose failure the error reports, so a scan that comes up
+			// empty in layer 1 of the boot must not cost us the drop-in. Same
+			// as MountOemDagStep.
+			runtime, _ := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
 			if !auditLogPersistExpected(runtime.BootState) {
-				internalUtils.KLog.Logger.Debug().Str("bootstate", string(runtime.BootState)).
-					Msg("Not requiring the audit log mount: this boot keeps no persistent state")
+				logAuditLogSkip(runtime.BootState)
 				return nil
 			}
 			file, err := internalUtils.WriteMountRequirementDropIn(cnst.RunSystemdUnitDir, cnst.AuditdUnit, cnst.AuditLogPath)
@@ -545,18 +584,16 @@ func (s *State) MountAuditLogDagStep(g *herd.Graph, opts ...herd.OpOption) error
 	return g.Add(cnst.OpMountAuditLog,
 		append(opts, herd.WithDeps(cnst.OpLoadConfig, cnst.OpMountBind),
 			TimedCallback(cnst.OpMountAuditLog, func(_ context.Context) error {
-				runtime, err := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
-				if err != nil {
-					return err
-				}
+				// Same as in AuditdMountRequirementDagStep: the error is from
+				// the block device scan, BootState is not.
+				runtime, _ := state.NewRuntimeWithLogger(internalUtils.KLog.Logger)
 				if !auditLogPersistExpected(runtime.BootState) {
-					internalUtils.KLog.Logger.Debug().Str("bootstate", string(runtime.BootState)).
-						Msg("Not binding the audit log: this boot keeps no persistent state")
+					logAuditLogSkip(runtime.BootState)
 					return nil
 				}
 
 				operation := op.MountBindWithMode(cnst.AuditLogPath, s.Rootdir, s.StateDir, cnst.AuditLogDirMode)
-				err = operation.Run()
+				err := operation.Run()
 				// An installation that also lists the path in
 				// PERSISTENT_STATE_PATHS has it mounted by OpMountBind
 				// already, which is the same mount from the same backing
