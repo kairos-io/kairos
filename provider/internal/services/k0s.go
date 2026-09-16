@@ -107,8 +107,15 @@ depend() {
 
 // K0s Services end here
 
+const (
+	// K0sControllerServiceName and K0sWorkerServiceName are the names of the
+	// two k0s services, as the init system sees them.
+	K0sControllerServiceName = "k0scontroller"
+	K0sWorkerServiceName     = "k0sworker"
+)
+
 // K0sServiceNames are the two k0s services, in the order they are installed.
-var K0sServiceNames = []string{"k0scontroller", "k0sworker"}
+var K0sServiceNames = []string{K0sControllerServiceName, K0sWorkerServiceName}
 
 // K0sEnvFile is the file a k0s openrc script sources for its environment and
 // for the arguments the provider writes at bootstrap.
@@ -121,20 +128,38 @@ func K0sEnvFile(unit string) string {
 	return fmt.Sprintf("/etc/k0s/%s.env", unit)
 }
 
+// K0sSysconfigFile is where the systemd side writes the environment of a k0s
+// service. Kairos writes the unit, so it also decides this path.
+func K0sSysconfigFile(unit string) string {
+	return fmt.Sprintf("/etc/sysconfig/%s", unit)
+}
+
+// k0sUnits maps each k0s service name to the unit body every init system needs
+// for it. A name that is not in here is not a k0s service, and K0sSpec answers
+// with a Spec carrying no unit at all, so WriteUnit fails instead of quietly
+// installing the controller under the wrong name.
+var k0sUnits = map[string]map[service.Flavor]string{
+	K0sControllerServiceName: {
+		service.OpenRC:  K0sControllerOpenrc,
+		service.Systemd: K0sControllerSystemd,
+	},
+	K0sWorkerServiceName: {
+		service.OpenRC:  K0sWorkerOpenrc,
+		service.Systemd: K0sWorkerSystemd,
+	},
+}
+
 // K0sSpec describes a k0s service without naming an init system. It is the one
 // place that knows which unit body and which env file each init system needs;
 // callers just say which of the two services they want.
 func K0sSpec(name string) service.Spec {
-	openrcUnit, systemdUnit := K0sControllerOpenrc, K0sControllerSystemd
-	if name == "k0sworker" {
-		openrcUnit, systemdUnit = K0sWorkerOpenrc, K0sWorkerSystemd
-	}
+	units := k0sUnits[name]
 
 	return service.Spec{
 		Name: name,
 		Init: map[service.Flavor]service.InitSpec{
-			service.OpenRC:  {Unit: openrcUnit, EnvFile: K0sEnvFile(name)},
-			service.Systemd: {Unit: systemdUnit},
+			service.OpenRC:  {Unit: units[service.OpenRC], EnvFile: K0sEnvFile(name)},
+			service.Systemd: {Unit: units[service.Systemd], EnvFile: K0sSysconfigFile(name)},
 		},
 	}
 }

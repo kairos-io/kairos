@@ -93,10 +93,6 @@ func (k *K3sNode) AppendArgs(other []string) []string {
 	return append(other, c.K3s.Args...)
 }
 
-func (k *K3sNode) EnvUnit() string {
-	return envFileOf(services.K3sSpec(K3sMasterServiceName))
-}
-
 func (k *K3sNode) Service() (machine.Service, error) {
 	return machinesvc.New(services.K3sSpec(k.ServiceName()))
 }
@@ -295,10 +291,6 @@ func (k *K3sNode) Args() []string {
 	}
 
 	return args
-}
-
-func (k *K3sNode) EnvFile() string {
-	return envFileOf(services.K3sSpec(k.ServiceName()))
 }
 
 func (k *K3sNode) SetRole(role string) {

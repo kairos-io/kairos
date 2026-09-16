@@ -60,15 +60,61 @@ func TestSystemdOverrideCmdWritesAReadableDropIn(t *testing.T) {
 	}
 }
 
-// systemd passes arguments in the unit, so the env file is only environment and
-// defaults to where systemd distributions keep it.
-func TestSystemdEnvFileDefault(t *testing.T) {
-	svc, err := NewFor(Systemd, Spec{Name: "k3s"})
+// The systemd backend must not invent an env file path. Writing to a path no
+// unit names reports success for environment the service never reads, and the
+// openrc backend already refuses to do it.
+func TestSystemdEnvFileHasNoDefault(t *testing.T) {
+	svc, err := NewFor(Systemd, Spec{Name: "edgevpn", Root: t.TempDir()})
+	if err != nil {
+		t.Fatalf("NewFor: %s", err)
+	}
+	if got := svc.EnvFile(); got != "" {
+		t.Errorf("EnvFile() = %q, want an empty string: nothing in the Spec names one", got)
+	}
+	if err := svc.SetEnv(map[string]string{"FOO": "bar"}); err == nil {
+		t.Error("SetEnv succeeded with no env file configured, so the caller thinks environment was written")
+	}
+}
+
+// A Spec that names one is used as given.
+func TestSystemdEnvFileFromTheSpec(t *testing.T) {
+	root := t.TempDir()
+	svc, err := NewFor(Systemd, Spec{
+		Name: "k3s",
+		Root: root,
+		Init: map[Flavor]InitSpec{Systemd: {EnvFile: "/etc/sysconfig/k3s"}},
+	})
 	if err != nil {
 		t.Fatalf("NewFor: %s", err)
 	}
 	if got, want := svc.EnvFile(), "/etc/sysconfig/k3s"; got != want {
 		t.Errorf("EnvFile() = %q, want %q", got, want)
+	}
+	if err := svc.SetEnv(map[string]string{"FOO": "bar"}); err != nil {
+		t.Fatalf("SetEnv: %s", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "etc/sysconfig/k3s")); err != nil {
+		t.Errorf("SetEnv wrote nothing to the configured env file: %s", err)
+	}
+}
+
+// The drop-in has to land where systemd looks for it, which for a templated
+// unit is <name>@<instance>.service.d, not <name>.service.d.
+func TestSystemdOverrideCmdDropInFollowsTheInstance(t *testing.T) {
+	root := t.TempDir()
+	svc, err := NewFor(Systemd, Spec{Name: "getty", Instance: "tty2", Root: root})
+	if err != nil {
+		t.Fatalf("NewFor: %s", err)
+	}
+	if err := svc.OverrideCmd("/sbin/agetty tty2"); err != nil {
+		t.Fatalf("OverrideCmd: %s", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "etc/systemd/system/getty@tty2.service.d/override.conf")); err != nil {
+		t.Errorf("the drop-in is not where systemd reads it for getty@tty2.service: %s", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "etc/systemd/system/getty.service.d/override.conf")); err == nil {
+		t.Error("the drop-in went to getty.service.d, which the running unit never reads")
 	}
 }
 

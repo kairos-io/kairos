@@ -46,14 +46,11 @@ func (s systemdService) fileName() string {
 	return fmt.Sprintf("%s@", s.spec.Name)
 }
 
-// EnvFile defaults to /etc/sysconfig/<name>, which is where systemd
-// distributions keep the EnvironmentFile of a packaged unit.
-func (s systemdService) EnvFile() string {
-	if s.init.EnvFile != "" {
-		return s.init.EnvFile
-	}
-	return filepath.Join("/etc/sysconfig", s.spec.Name)
-}
+// EnvFile has no default, as on openrc: a fabricated path is a path no unit
+// reads, and writing to it reports success for environment the service never
+// sees. A service whose unit names an EnvironmentFile states that path in its
+// Spec.
+func (s systemdService) EnvFile() string { return s.init.EnvFile }
 
 func (s systemdService) WriteUnit() error {
 	unit, err := unitToWrite(s.spec.Name, s.init, s.EnvFile())
@@ -83,11 +80,15 @@ func (s systemdService) OverrideCmd(cmd string) error {
 		return fmt.Errorf("no command to override for service %s", s.spec.Name)
 	}
 
-	dir := filepath.Join(s.spec.Root, "/etc/systemd/system", s.spec.Name+".service.d")
+	dir := filepath.Join(s.spec.Root, "/etc/systemd/system", s.unitName()+".service.d")
 	return writeFile(filepath.Join(dir, "override.conf"), fmt.Sprintf(overrideCmdTemplate, cmd), 0600)
 }
 
 func (s systemdService) SetEnv(env map[string]string) error {
+	if s.EnvFile() == "" {
+		return fmt.Errorf("no env file configured for service %s", s.spec.Name)
+	}
+
 	return setEnv(filepath.Join(s.spec.Root, s.EnvFile()), env)
 }
 

@@ -19,8 +19,8 @@ const (
 	K0sDistroName        = "k0s"
 	K0sMasterName        = "controller"
 	K0sWorkerName        = "worker"
-	K0sMasterServiceName = "k0scontroller"
-	K0sWorkerServiceName = "k0sworker"
+	K0sMasterServiceName = services.K0sControllerServiceName
+	K0sWorkerServiceName = services.K0sWorkerServiceName
 )
 
 type K0sNode struct {
@@ -144,10 +144,6 @@ func (k *K0sNode) GenArgs() ([]string, error) {
 	// function understands if it needs to append or replace the args
 
 	return args, nil
-}
-
-func (k *K0sNode) EnvUnit() string {
-	return envFileOf(services.K0sSpec(K0sMasterServiceName))
 }
 
 func (k *K0sNode) Service() (machine.Service, error) {
@@ -310,10 +306,6 @@ func (k *K0sNode) Args() []string {
 	}
 
 	return c.K0s.Args
-}
-
-func (k *K0sNode) EnvFile() string {
-	return envFileOf(services.K0sSpec(k.ServiceName()))
 }
 
 func (k *K0sNode) SetRole(role string) {

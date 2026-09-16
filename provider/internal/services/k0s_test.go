@@ -63,6 +63,19 @@ func TestK0sSpecUnitSourcesItsOwnEnvFile(t *testing.T) {
 				t.Fatalf("the unit does not source %q:\n%s", envFile, unit)
 			}
 
+			// And it has to source it *after* the command_args default, because
+			// openrc runs the script top to bottom and last assignment wins. A
+			// last sourcing block that every command_args default precedes would leave
+			// k0s running as a bare controller with none of the provider's arguments.
+			srcIdx := strings.LastIndex(string(unit), "[ -f "+envFile+" ]")
+			argsIdx := strings.LastIndex(string(unit), "command_args=")
+			if argsIdx == -1 {
+				t.Fatalf("the unit sets no command_args default:\n%s", unit)
+			}
+			if srcIdx < argsIdx {
+				t.Fatalf("the unit sources %q before its command_args default, so the default overwrites the sourced arguments:\n%s", envFile, unit)
+			}
+
 			// And what OverrideCmd writes has to land in that same file.
 			if err := svc.OverrideCmd("/usr/bin/k0s controller --config /etc/k0s/k0s.yaml"); err != nil {
 				t.Fatalf("overriding the command: %v", err)
@@ -103,5 +116,30 @@ func TestK0sSpecOnSystemd(t *testing.T) {
 	}
 	if got, want := svc.EnvFile(), "/etc/sysconfig/k0scontroller"; got != want {
 		t.Fatalf("env file is %q, want %q", got, want)
+	}
+}
+
+// A name that is not one of the two k0s services must fail loudly. Before
+// K0sSpec was driven off a map, anything other than "k0sworker" fell through to
+// the controller, so K0sSpec("k0s-worker") -- the spelling of the cloud-config
+// key -- installed the controller unit under the worker's name and the node
+// came up as a controller with no error anywhere.
+func TestK0sSpecRejectsAnUnknownServiceName(t *testing.T) {
+	for _, name := range []string{"k0s-worker", "nonsense"} {
+		t.Run(name, func(t *testing.T) {
+			spec := K0sSpec(name)
+			spec.Root = t.TempDir()
+			spec.NoReload = true
+
+			for _, flavor := range []service.Flavor{service.OpenRC, service.Systemd} {
+				svc, err := service.NewFor(flavor, spec)
+				if err != nil {
+					t.Fatalf("building the service: %v", err)
+				}
+				if err := svc.WriteUnit(); err == nil {
+					t.Errorf("%s: WriteUnit succeeded for an unknown k0s service, so a misspelled name installs a unit", flavor)
+				}
+			}
+		})
 	}
 }

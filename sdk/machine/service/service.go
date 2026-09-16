@@ -76,8 +76,9 @@ type InitSpec struct {
 
 	// EnvFile is the path the unit sources for its environment, and for the
 	// arguments OverrideCmd writes on init systems that pass them that way.
-	// Leave it empty to take the backend's default, which is the convention of
-	// that init system rather than of any one service.
+	// No backend supplies a default: a path nothing named is a path no unit
+	// reads, so leaving this empty means the service has no env file and
+	// SetEnv fails rather than writing where nobody looks.
 	EnvFile string
 }
 

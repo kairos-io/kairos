@@ -134,12 +134,11 @@ func Master(cc *sdkConfig.Config, pconfig *providerConfig.Config, roleName strin
 			return fmt.Errorf("failed to get %s service: %w", node.Distro(), err)
 		}
 
-		c.Logger.Info("Writing service Env %s")
-		envUnit := node.EnvUnit()
-		if err := utils.WriteEnv(envUnit,
-			env,
-		); err != nil {
-			return fmt.Errorf("failed to write the %s service: %w", node.Distro(), err)
+		c.Logger.Info("Writing service Env")
+		// Ask the service where its env goes, rather than deriving the path
+		// here: the two cannot then point at different files (#2149).
+		if err := svc.SetEnv(env); err != nil {
+			return fmt.Errorf("failed to write the %s service env: %w", node.Distro(), err)
 		}
 
 		c.Logger.Info("Generating args")
