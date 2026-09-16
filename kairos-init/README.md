@@ -46,6 +46,28 @@ The output is a full `schema.YipConfig` (commands, files, packages,
 services, etc.). Nothing is written to `/etc/kairos` and no binary copy,
 `yip` execution, or provider hook runs during a dry run.
 
+## CIS L1 Hardening
+
+kairos-init applies a subset of the CIS Distribution Independent Linux
+v2.0.0 L1 controls to every image it builds. This is not full L1 coverage —
+SELinux enforcing mode, sysctl hardening, auditd, the PAM/login.defs controls
+and the local `/etc/issue` banner are not touched:
+
+- `/etc/modprobe.d/cis-blocklist.conf` gets an `install <mod> /bin/false` line
+  for cramfs, freevxfs, jffs2, hfs, hfsplus and udf (sections 1.1.1.1-1.1.1.6).
+  `modprobe` of those filesystems fails, so volumes that need them no longer
+  mount.
+- `/etc/issue.net` is replaced with a generic pre-authentication warning that
+  names no distribution, release or kernel (section 1.7). Wiring sshd to print
+  it (`Banner /etc/issue.net`) is not done here — set that yourself if you want
+  the banner on ssh logins.
+- `/etc/passwd`, `/etc/group`, `/etc/shadow`, `/etc/gshadow` and their `-`
+  backups have their modes tightened (section 6.1). Only the shadow files and
+  the backups lose read access; `/etc/passwd` and `/etc/group` stay
+  world-readable, and ownership is left as the base image shipped it.
+
+Pass `--skip-step cisHardening` to turn the whole set off.
+
 ## NVIDIA / Jetson
 
 ### Jetson AGX Thor QSPI firmware
