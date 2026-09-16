@@ -299,6 +299,97 @@ info:
 			})
 		})
 
+		Context("when the config_url cannot be used", func() {
+			var warnings *bytes.Buffer
+
+			BeforeEach(func() {
+				warnings = &bytes.Buffer{}
+				DeferCleanup(SetWarnOutForTest(warnings))
+			})
+
+			It("warns and keeps booting when every fetch attempt fails", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml",
+					"name":       "Mario",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
+			})
+
+			It("warns when the remote config has no valid header", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte("just_a_key: not_a_cloud_config\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/config.yaml"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("has no valid header"))
+			})
+
+			It("keeps the query string out of the warning so tokens are not leaked", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml?token=supersecret",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).To(ContainSubstring("<redacted>"))
+			})
+
+			It("keeps the query string out of the wrapped transport error too", func() {
+				// A transport failure, unlike a bad status code, is a *url.Error that
+				// stringifies the whole URL. Closing the server first gives a
+				// connection refused on a port nothing is listening on.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				unreachable := server.URL
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": unreachable + "/config.yaml?token=supersecret&machine=abc123",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).ToNot(ContainSubstring("abc123"))
+			})
+
+			It("masks a basic auth password carried in the config_url userinfo", func() {
+				// net/http lifts URL.User into an Authorization header, so
+				// user:pass@host in config_url is a working setup and the password
+				// must not reach the console.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				host := strings.TrimPrefix(server.URL, "http://")
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": "http://user:hunter2@" + host + "/config.yaml",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				// Pin what the warning does say, so this does not pass vacuously
+				// if the URL stops being named at all.
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring("http://user:xxxxx@" + host + "/config.yaml"))
+				Expect(warnings.String()).ToNot(ContainSubstring("hunter2"))
+			})
+		})
+
 		Context("when config_url contains template markers", func() {
 			It("renders {{ .Values.* }} before the HTTP fetch", func() {
 				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
