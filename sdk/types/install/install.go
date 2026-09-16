@@ -2,6 +2,7 @@ package install
 
 import (
 	"github.com/kairos-io/kairos/v4/sdk/types/bundles"
+	"github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	"github.com/kairos-io/kairos/v4/sdk/types/images"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 )
@@ -21,6 +22,7 @@ type Install struct {
 	GrubOptions            map[string]string              `yaml:"grub_options,omitempty" mapstructure:"grub_options" json:"grub_options,omitempty"`
 	Selinux                SelinuxOptions                 `yaml:"selinux,omitempty" mapstructure:"selinux" json:"selinux,omitempty"`
 	Bundles                bundles.Bundles                `yaml:"bundles,omitempty" mapstructure:"bundles" json:"bundles,omitempty"`
+	Extensions             extensions.Extensions          `yaml:"extensions,omitempty" mapstructure:"extensions" json:"extensions,omitempty" description:"System extensions to install onto the node. A catalog name, optionally with a version, or a URI or absolute path to an extension image."`
 	Encrypt                []string                       `yaml:"encrypted_partitions,omitempty" mapstructure:"encrypted_partitions" json:"encrypted_partitions,omitempty"`
 	SkipEncryptCopyPlugins bool                           `yaml:"skip_copy_kcrypt_plugin,omitempty" mapstructure:"skip_copy_kcrypt_plugin" json:"skip_copy_kcrypt_plugin,omitempty"`
 	Env                    []string                       `yaml:"env,omitempty" mapstructure:"env" json:"env,omitempty"`
