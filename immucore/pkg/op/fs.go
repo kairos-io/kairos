@@ -112,7 +112,8 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 }
 
 // MountBindWithMode is MountBind with the mode and the ownership of both sides
-// of the bind pinned to mode and root:root.
+// of the bind pinned to mode and root:root, and with the state sync reduced to
+// a one-time migration.
 //
 // A bind mount shows the inode of the backing directory, so the mode that ends
 // up visible on the mountpoint is the one of the state directory. Pinning it
@@ -120,6 +121,13 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 // the directory in the image happened to have. The mountpoint is pinned before
 // the sync so that the sync is what carries the mode, the ownership and the
 // SELinux label onto a backing directory that does not exist yet.
+//
+// The sync only runs while the state directory is empty. MountBind's rsync has
+// no --delete and the mountpoint it copies from can itself be persistent
+// storage - /var/log/audit sits under the /var/log bind - so repeating it every
+// boot would copy a stale snapshot back over the live data: a log file the
+// daemon rotated away reappears on the next boot, forever. Once is what
+// migrates an existing directory into its own bind; twice is a bug.
 func MountBindWithMode(mountpoint, root, stateTarget string, mode os.FileMode) MountOperation {
 	operation := MountBind(mountpoint, root, stateTarget)
 	rootMount := filepath.Join(root, strings.TrimLeft(mountpoint, "/"))
@@ -133,7 +141,14 @@ func MountBindWithMode(mountpoint, root, stateTarget string, mode os.FileMode) M
 		if err := internalUtils.EnforceRootOwnedDir(rootMount, mode); err != nil {
 			return err
 		}
-		if err := sync(); err != nil {
+		migrated, err := internalUtils.DirHasContent(stateDir)
+		if err != nil {
+			return err
+		}
+		if migrated {
+			internalUtils.KLog.Logger.Info().Str("what", rootMount).Str("to", stateDir).
+				Msg("Skipping the state sync: already migrated")
+		} else if err := sync(); err != nil {
 			return err
 		}
 		if err := internalUtils.EnforceRootOwnedDir(stateDir, mode); err != nil {

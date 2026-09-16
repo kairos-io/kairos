@@ -80,6 +80,57 @@ var _ = Describe("MountBindWithMode", func() {
 		Expect(filepath.Join(root, "var/log/audit")).To(BeADirectory())
 		Expect(op.BindStateDir("/var/log/audit", root, "/usr/local/.state")).To(BeADirectory())
 	})
+
+	It("does not bring a file back that was removed from the state directory", func() {
+		// The second boot of a machine that migrated: the mountpoint the
+		// rsync reads from is itself persistent storage (/var/log/audit sits
+		// under the /var/log bind), so a snapshot of the trail is still
+		// sitting there while the live copy is in the state directory. rsync
+		// has no --delete, so repeating the sync would put the rotated away
+		// file back on every boot.
+		mountpoint := filepath.Join(root, "var/log/audit")
+		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
+		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
+		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log.1"), []byte("rotated away\n"), 0o600)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("live\n"), 0o600)).To(Succeed())
+
+		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		Expect(filepath.Join(stateDir, "audit.log.1")).ToNot(BeAnExistingFile())
+		Expect(filepath.Join(stateDir, "audit.log")).To(BeAnExistingFile())
+	})
+
+	It("migrates into a state directory that exists but is empty", func() {
+		// A fresh install, or an upgrade to the first image that has this
+		// mount: the bind directory can already be there from the mount that
+		// failed halfway, and the trail still has to move.
+		mountpoint := filepath.Join(root, "var/log/audit")
+		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
+		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
+		Expect(os.MkdirAll(stateDir, 0o700)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(mountpoint, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+
+		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		Expect(filepath.Join(stateDir, "audit.log")).To(BeAnExistingFile())
+	})
+
+	It("still pins the mode when the sync is skipped", func() {
+		stateDir := op.BindStateDir("/var/log/audit", root, "/usr/local/.state")
+		Expect(os.MkdirAll(stateDir, 0o777)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(stateDir, "audit.log"), []byte("live\n"), 0o600)).To(Succeed())
+		Expect(os.Chmod(stateDir, 0o777)).To(Succeed())
+
+		operation := op.MountBindWithMode("/var/log/audit", root, "/usr/local/.state", 0o700)
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		info, err := os.Stat(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+	})
 })
 
 var _ = Describe("MountWithBaseOverlay", func() {

@@ -34,6 +34,21 @@ func EnforceRootOwnedDir(path string, mode os.FileMode) error {
 	return nil
 }
 
+// DirHasContent reports whether path is a directory that has at least one
+// entry in it. A path that is not there at all has no content and is not an
+// error: the callers are deciding whether there is something to keep, not
+// whether the path is valid.
+func DirHasContent(path string) (bool, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("reading %s: %w", path, err)
+	}
+	return len(entries) > 0, nil
+}
+
 // ReadSELinuxLabel returns the SELinux label of a path, or the empty string
 // when the path carries none or the filesystem does not support labels.
 func ReadSELinuxLabel(path string) (string, error) {

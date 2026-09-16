@@ -66,3 +66,53 @@ var _ = Describe("CopySELinuxLabel", func() {
 		Expect(label).To(Equal(want))
 	})
 })
+
+var _ = Describe("DirHasContent", func() {
+	var root string
+
+	BeforeEach(func() {
+		root = GinkgoT().TempDir()
+	})
+
+	It("reports no content for a directory that is not there", func() {
+		has, err := DirHasContent(filepath.Join(root, "missing"))
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(has).To(BeFalse())
+	})
+
+	It("reports no content for an empty directory", func() {
+		has, err := DirHasContent(root)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(has).To(BeFalse())
+	})
+
+	It("reports content for a directory with an entry in it", func() {
+		Expect(os.WriteFile(filepath.Join(root, "audit.log"), []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+
+		has, err := DirHasContent(root)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(has).To(BeTrue())
+	})
+
+	It("reports content for a directory that only holds a subdirectory", func() {
+		Expect(os.Mkdir(filepath.Join(root, "old"), 0o700)).To(Succeed())
+
+		has, err := DirHasContent(root)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(has).To(BeTrue())
+	})
+
+	It("errors on a path that is not a directory", func() {
+		file := filepath.Join(root, "audit.log")
+		Expect(os.WriteFile(file, []byte("type=DAEMON_START\n"), 0o600)).To(Succeed())
+
+		_, err := DirHasContent(file)
+
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(file))
+	})
+})
