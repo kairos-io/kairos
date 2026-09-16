@@ -99,6 +99,17 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 		FstabEntry:  *tmpFstab,
 		Target:      rootMount,
 		PrepareCallback: func() error {
+			// The state directory takes the mode of the mountpoint, and a
+			// mountpoint the image does not ship is created by the call below
+			// with a default of its own. That default would then be the mode
+			// the bind exposes for the life of the machine, so a path that
+			// needs a mode of its own has to be created before that happens.
+			if mode, ok := constants.BindMountMode(mountpoint); ok {
+				if err := internalUtils.CreateDirIfNotExists(rootMount, mode); err != nil {
+					return err
+				}
+			}
+
 			if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
 				return err
 			}

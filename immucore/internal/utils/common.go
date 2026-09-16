@@ -127,6 +127,26 @@ func CreateIfNotExists(path string) error {
 	return nil
 }
 
+// CreateDirIfNotExists is CreateIfNotExists for a caller that knows which mode
+// the directory has to have. A path that is already there is left alone, mode
+// included: whoever created it had a reason and it is not this function's to
+// override. Parents that have to be created along the way get the same mode
+// as os.MkdirAll gives them, only the last element is set to exactly mode.
+func CreateDirIfNotExists(path string, mode os.FileMode) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.MkdirAll(path, mode); err != nil {
+		return err
+	}
+	// MkdirAll applies the umask to the mode it is given, so it has to be set
+	// again to get the group and the other bits through.
+	return os.Chmod(path, mode)
+}
+
 // CleanupSlice will clean a slice of strings of empty items
 // Typos can be made on writing the cos-layout.env file and that could introduce empty items
 // In the lists that we need to go over, which causes bad stuff.

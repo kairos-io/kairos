@@ -2,6 +2,8 @@ package constants
 
 import (
 	"errors"
+	"os"
+	"path"
 )
 
 func DefaultRWPaths() []string {
@@ -86,6 +88,31 @@ func GenericKernelDrivers() []string {
 		"phy-tegra194-p2u",   // For Thor
 		"pcie-tegra264",      // For Thor
 	}
+}
+
+// bindMountModes holds the mode the mountpoint of a bind mount has to be
+// created with when nothing on the machine has created it yet.
+//
+// A bind mount exposes the inode of the directory that backs it, so the mode
+// visible at the mountpoint once it is mounted is the one that directory
+// carries, and that one is taken from the mountpoint at the moment the pair is
+// first created. Where the image ships the mountpoint, its mode is the answer
+// and this is not consulted. Where the image ships nothing, the mode is the
+// default of whoever creates the directory first, and the machine then keeps
+// it for as long as it lives, so a path whose consumer refuses a laxer mode
+// has to say which mode it needs here.
+var bindMountModes = map[string]os.FileMode{
+	// auditd refuses a trail directory that anyone other than root can read,
+	// and no image ships /var/log/audit yet.
+	AuditLogPath: 0o700,
+}
+
+// BindMountMode returns the mode a bind mountpoint has to be created with, and
+// whether the path asks for a particular one at all. A leading slash is
+// optional, the bind mount code strips it off the paths it handles.
+func BindMountMode(mountpoint string) (os.FileMode, bool) {
+	mode, ok := bindMountModes[path.Join("/", mountpoint)]
+	return mode, ok
 }
 
 var ErrAlreadyMounted = errors.New("already mounted")

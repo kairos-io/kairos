@@ -97,6 +97,68 @@ var _ = Describe("MountBind", func() {
 		Expect(filepath.Join(root, "var/log/audit")).To(BeADirectory())
 		Expect(op.BindStateDir("/var/log/audit", root, "/usr/local/.state")).To(BeADirectory())
 	})
+
+	It("gives the state directory of a path the image does not ship the mode the path asks for", func() {
+		// The case on every fresh install: nothing has created the mountpoint,
+		// so there is no mode to read off it and the directory that ends up
+		// backing the bind would take whatever default created it first. What
+		// the path declares is the only thing that knows the mode it needs.
+		mode, ok := constants.BindMountMode("/var/log/audit")
+		Expect(ok).To(BeTrue())
+		Expect(mode).To(Equal(os.FileMode(0o700)))
+
+		Expect(filepath.Join(root, "var/log/audit")).ToNot(BeADirectory())
+
+		operation := op.MountBind("/var/log/audit", root, "/usr/local/.state")
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		// The mountpoint, which is what the state directory copies from.
+		info, err := os.Stat(filepath.Join(root, "var/log/audit"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+
+		// The state directory, whose inode is the one the bind exposes.
+		info, err = os.Stat(op.BindStateDir("/var/log/audit", root, "/usr/local/.state"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
+	})
+
+	It("keeps the mode the image ships over the one the path asks for", func() {
+		// An image that grew its own /var/log/audit is the authority on the
+		// mode of it, the declared one is only there for the images that do
+		// not ship the path at all.
+		mountpoint := filepath.Join(root, "var/log/audit")
+		Expect(os.MkdirAll(mountpoint, 0o750)).To(Succeed())
+		Expect(os.Chmod(mountpoint, 0o750)).To(Succeed())
+
+		operation := op.MountBind("/var/log/audit", root, "/usr/local/.state")
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		info, err := os.Stat(op.BindStateDir("/var/log/audit", root, "/usr/local/.state"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o750)))
+	})
+
+	It("does not tighten a path that asks for no mode of its own", func() {
+		// Every other entry of the bind list. Nothing declares a mode for it,
+		// so the directories keep the mode they have always been created with.
+		_, ok := constants.BindMountMode("/var/lib/rancher")
+		Expect(ok).To(BeFalse())
+
+		// What a directory created with no mode in mind looks like here, so
+		// that the umask of whoever runs the suite does not decide the result.
+		reference := filepath.Join(root, "reference")
+		Expect(os.MkdirAll(reference, os.ModePerm)).To(Succeed())
+		referenceInfo, err := os.Stat(reference)
+		Expect(err).ToNot(HaveOccurred())
+
+		operation := op.MountBind("/var/lib/rancher", root, "/usr/local/.state")
+		Expect(operation.PrepareCallback()).To(Succeed())
+
+		info, err := os.Stat(op.BindStateDir("/var/lib/rancher", root, "/usr/local/.state"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(referenceInfo.Mode().Perm()))
+	})
 })
 
 var _ = Describe("MountWithBaseOverlay", func() {
