@@ -177,6 +177,20 @@ var _ = Describe("Uki reset action", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("does not format the persistent partition while it is still mounted", func() {
+		// mkfs on a mounted device either refuses or corrupts, and the audit
+		// trail stash reads the persistent partition just before this, so the
+		// format has to be preceded by the unmount the non-UKI reset does.
+		spec.FormatPersistent = true
+		Expect(mounter.Mount("/dev/device3", "/usr/local", "ext4", []string{"rw"})).To(Succeed())
+		mounter.ErrorOnUnmount = true
+
+		err := reset.Run()
+		Expect(err).To(HaveOccurred())
+		Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(HaveOccurred(),
+			"the persistent partition was formatted although it could not be unmounted")
+	})
+
 	It("fails when copying recovery artifacts to active fails", func() {
 		// a recovery prefixed conf file is parsed with an os based reader
 		// which does not see the test fs, so the copy fails

@@ -67,13 +67,21 @@ func BaseOverlay(overlay schema.Overlay) (MountOperation, error) {
 	}
 }
 
+// BindStateDir returns the directory under the persistent state target that
+// backs the bind mount of mountpoint, e.g. /var/log/audit is backed by
+// <root>/<stateTarget>/var-log-audit.bind.
+func BindStateDir(mountpoint, root, stateTarget string) string {
+	mountpoint = strings.TrimLeft(mountpoint, "/")
+	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
+	return filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", bindMountPath))
+}
+
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L183
 func MountBind(mountpoint, root, stateTarget string) MountOperation {
 	mountpoint = strings.TrimLeft(mountpoint, "/") // normalize, remove / upfront as we are going to re-use it in subdirs
 	rootMount := filepath.Join(root, mountpoint)
-	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
 
-	stateDir := filepath.Join(root, stateTarget, fmt.Sprintf("%s.bind", bindMountPath))
+	stateDir := BindStateDir(mountpoint, root, stateTarget)
 
 	tmpMount := mount.Mount{
 		Type:   "overlay",
@@ -91,13 +99,31 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 		FstabEntry:  *tmpFstab,
 		Target:      rootMount,
 		PrepareCallback: func() error {
+			// The state directory takes the mode of the mountpoint, and a
+			// mountpoint the image does not ship is created by the call below
+			// with a default of its own. That default would then be the mode
+			// the bind exposes for the life of the machine, so a path that
+			// needs a mode of its own has to be created before that happens.
+			if mode, ok := constants.BindMountMode(mountpoint); ok {
+				if err := internalUtils.CreateDirIfNotExists(rootMount, mode); err != nil {
+					return err
+				}
+			}
+
 			if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
 				return err
 			}
 
-			if err := internalUtils.CreateIfNotExists(stateDir); err != nil {
+			if err := internalUtils.CreateBindStateDir(rootMount, stateDir); err != nil {
 				return err
 			}
+			// The sync has no --delete and no one-time guard, so it re-runs on
+			// every boot. A machine that upgraded from an image without a
+			// dedicated entry for a path keeps the snapshot it left under the
+			// shared bind that sorts ahead of it -- /var/log/audit inherits
+			// var-log.bind/audit -- and nothing ever empties that directory, so
+			// a file deleted from the new backing directory reappears from the
+			// old one on the next boot. Fresh installs never see it.
 			return internalUtils.SyncState(internalUtils.AppendSlash(rootMount), internalUtils.AppendSlash(stateDir))
 		},
 	}

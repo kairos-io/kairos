@@ -88,6 +88,27 @@ const (
 	BootEntryRecovery            = "recovery"
 	BootEntryActive              = "cos"
 
+	// AuditLogStatePath is where immucore keeps the backing directory of the
+	// /var/log/audit bind, relative to the root of the persistent partition.
+	// A reset formats that partition, so the audit trail has to be carried
+	// over it by hand.
+	//
+	// The .state part is the default value of PERSISTENT_STATE_TARGET, which
+	// immucore reads out of the booted system's cos-layout.env. A reset runs
+	// from recovery and never mounts the partition that file lives on, so an
+	// installation that overrides the target puts its audit trail somewhere
+	// this path does not reach. That is why StashAuditLog logs the path it
+	// looked at when it finds nothing: "no trail" and "wrong path" read the
+	// same from here otherwise.
+	AuditLogStatePath = ".state/var-log-audit.bind"
+	// AuditLogPath is the path the directory above is bound onto, used for
+	// logging.
+	AuditLogPath = "/var/log/audit"
+	// AuditLogDirPerm is the mode the restored directory gets, which is the
+	// mode the bind then exposes at AuditLogPath. auditd keeps its trail
+	// readable by root only.
+	AuditLogDirPerm = 0o700
+
 	// SELinux targeted policy paths.
 	SELinuxTargetedPath        = "/etc/selinux/targeted"
 	SELinuxTargetedContextFile = SELinuxTargetedPath + "/contexts/files/file_contexts"

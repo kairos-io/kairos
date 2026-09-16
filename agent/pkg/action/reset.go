@@ -89,6 +89,16 @@ func (r ResetAction) Run() (err error) {
 	if r.spec.FormatPersistent {
 		persistent := r.spec.Partitions.Persistent
 		if persistent != nil {
+			// The audit trail is the one thing on the persistent partition a
+			// reset is not meant to destroy, so carry it over the format.
+			// Failing to preserve it does not fail the reset: that is the
+			// behaviour we have today, while a reset that stops halfway
+			// leaves an unbootable machine.
+			stash, sErr := StashAuditLog(r.cfg, persistent)
+			if sErr != nil {
+				r.cfg.Logger.Warnf("could not preserve %s across the reset: %s", cnst.AuditLogPath, sErr)
+			}
+
 			err = e.UnmountPartition(persistent)
 			if err != nil {
 				return err
@@ -96,6 +106,10 @@ func (r ResetAction) Run() (err error) {
 			err = e.FormatPartition(persistent)
 			if err != nil {
 				return err
+			}
+
+			if rErr := RestoreAuditLog(r.cfg, persistent, stash); rErr != nil {
+				r.cfg.Logger.Warnf("could not restore %s after the reset: %s", cnst.AuditLogPath, rErr)
 			}
 		}
 	}
