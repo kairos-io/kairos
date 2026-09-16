@@ -147,6 +147,12 @@ var _ = Describe("SplashDracutConfig", func() {
 		Expect(bundled.SplashDracutConfig).ToNot(ContainSubstring("force_add_dracutmodules"))
 	})
 
+	// plymouth activates on the same `splash` token, so leaving it in would
+	// give /dev/tty1 two owners on a base image that ships it.
+	It("keeps plymouth out of the initramfs", func() {
+		Expect(bundled.SplashDracutConfig).To(ContainSubstring(`omit_dracutmodules+=" plymouth "`))
+	})
+
 	It("names the module the module-setup directory provides", func() {
 		Expect(bundled.DracutSplashModuleSetupPath).
 			To(Equal("/usr/lib/dracut/modules.d/50kairos-splash/module-setup.sh"))

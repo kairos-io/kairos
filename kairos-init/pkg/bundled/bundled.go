@@ -307,7 +307,15 @@ const (
 // module's check(), which is what keeps an image built without
 // /usr/bin/kairos (every binary pinned through VersionOverrides, so the
 // multi-call binary is never written) from getting a unit that cannot exec.
-const SplashDracutConfig = `add_dracutmodules+=" kairos-splash "`
+//
+// plymouth is omitted in the same breath. It claims the console on the same
+// `splash` token this feature puts on the command line, so a base image that
+// happens to ship it would put two things on /dev/tty1 at once. Nothing in
+// Kairos drives plymouth: an encrypted boot asks for its passphrase on the
+// console through kcrypt, and immucore's failure screen paints there too, so
+// both are better off with plymouth out of the picture.
+const SplashDracutConfig = `add_dracutmodules+=" kairos-splash "
+omit_dracutmodules+=" plymouth "`
 
 // SplashServiceDracut is the initramfs half of the splash.
 //
@@ -376,6 +384,7 @@ depends() {
 }
 
 install() {
+    declare initdir=${initdir}
     declare moddir=${moddir}
     declare systemdsystemunitdir=${systemdsystemunitdir}
 
