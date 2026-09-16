@@ -135,7 +135,7 @@ func keepXattrs(path string) func() {
 				continue
 			}
 			if err := syscall.Setxattr(path, name, value, 0); err != nil {
-				KLog.Logger.Debug().Str("path", path).Str("attr", name).Err(err).Msg("Could not restore extended attribute")
+				KLog.Logger.Warn().Str("path", path).Str("attr", name).Err(err).Msg("Could not restore extended attribute")
 			}
 		}
 	}

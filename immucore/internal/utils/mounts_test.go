@@ -18,10 +18,11 @@ func getxattr(path, name string) ([]byte, error) {
 		return nil, err
 	}
 	buf := make([]byte, size)
-	if _, err := syscall.Getxattr(path, name, buf); err != nil {
+	size, err = syscall.Getxattr(path, name, buf)
+	if err != nil {
 		return nil, err
 	}
-	return buf, nil
+	return buf[:size], nil
 }
 
 var _ = Describe("SyncState", func() {
