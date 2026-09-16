@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
@@ -86,7 +87,20 @@ func runAgent(log *progressLog, agentBin, cfgPath, source, finish string) {
 				log.publish(Message{Type: MessageError, Message: ev.Message})
 			}
 		},
+		// Only this callback needs stripping. Step and error messages are
+		// fields of a JSON object the agent printed, and the exit error
+		// below comes from os/exec, so none of them carry escape codes;
+		// this one is a raw stdout line from a coloured console writer.
+		// The transcript above keeps the bytes as the agent wrote them.
 		func(line string) {
+			line = stripANSI(line)
+			// A line that was nothing but a colour reset is now empty, and
+			// an install produces enough of those to space the log out with
+			// blank rows. Drop them, as the HTML-rendering path it replaced
+			// did.
+			if strings.TrimSpace(line) == "" {
+				return
+			}
 			log.publish(Message{Type: MessageLog, Message: line})
 		},
 		transcript,

@@ -248,6 +248,38 @@ exit 0
 		Expect(err).ToNot(HaveOccurred())
 		Expect(left).To(BeEmpty())
 	})
+
+	It("publishes the agent's coloured output as plain text", func() {
+		// The agent logs through zerolog's console writer, so its stdout is
+		// wrapped in SGR codes. The page writes each line with textContent,
+		// which renders a code as its literal characters, so no frame may
+		// carry one.
+		log := newProgressLog()
+		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent(
+			"printf '\\033[90m2026-09-16T15:21:51Z\\033[0m \\033[32mINF\\033[0m \\033[1mKairos Agent\\033[0m\\n'\n"+
+				"printf '\\033[0m\\n'\n"+
+				"printf 'plain line\\n'\n"+
+				"exit 0\n"))
+
+		Expect(startInstall(log, "", "#cloud-config\n", "/dev/sda", "")).To(Succeed())
+
+		var logs []string
+		for _, m := range drain(log) {
+			if m.Type == MessageLog {
+				logs = append(logs, m.Message)
+			}
+		}
+
+		// The bare reset produced no frame at all, so the log pane does not
+		// gain a blank row per reset.
+		Expect(logs).To(Equal([]string{
+			"2026-09-16T15:21:51Z INF Kairos Agent",
+			"plain line",
+		}))
+		for _, l := range logs {
+			Expect(l).NotTo(ContainSubstring("\x1b"), "frame %q carries an escape code", l)
+		}
+	})
 })
 
 // stubAgent writes a shell script standing in for kairos-agent and returns its
