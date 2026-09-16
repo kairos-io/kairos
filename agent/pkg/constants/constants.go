@@ -86,6 +86,18 @@ const (
 	BootEntryRecovery            = "recovery"
 	BootEntryActive              = "cos"
 
+	// AuditLogStatePath is where immucore keeps the backing directory of the
+	// /var/log/audit bind, relative to the root of the persistent partition.
+	// A reset formats that partition, so the audit trail has to be carried
+	// over it by hand.
+	AuditLogStatePath = ".state/var-log-audit.bind"
+	// AuditLogPath is the path the directory above is bound onto, used for
+	// logging.
+	AuditLogPath = "/var/log/audit"
+	// AuditLogDirPerm is the mode the restored directory gets, matching the
+	// one immucore pins the bind to.
+	AuditLogDirPerm = 0o700
+
 	// SELinux targeted policy paths.
 	SELinuxTargetedPath        = "/etc/selinux/targeted"
 	SELinuxTargetedContextFile = SELinuxTargetedPath + "/contexts/files/file_contexts"
