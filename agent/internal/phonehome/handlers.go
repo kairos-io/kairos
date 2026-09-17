@@ -241,8 +241,11 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 }
 
 func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
-	imageURL := fmt.Sprintf("%s/api/v1/artifacts/%s/image?token=%s",
-		strings.TrimRight(serverURL, "/"), artifactID, apiKey)
+	// The node API key travels in the Authorization header, never in the query
+	// string: the server accepts a node credential from the header only, since a
+	// key in a URL leaks through access logs, proxies and Referer headers.
+	imageURL := fmt.Sprintf("%s/api/v1/artifacts/%s/image",
+		strings.TrimRight(serverURL, "/"), artifactID)
 	attempts := retries + 1
 	if attempts < 1 {
 		attempts = 1
@@ -251,7 +254,7 @@ func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string,
 	var finalErr error
 	backoff := retryInterval
 	for attempt := 1; attempt <= attempts; attempt++ {
-		tarPath, transient, err := downloadArtifactAttempt(ctx, imageURL, artifactID, systemConfig)
+		tarPath, transient, err := downloadArtifactAttempt(ctx, imageURL, apiKey, artifactID, systemConfig)
 		if err == nil {
 			return tarPath, nil
 		}
@@ -283,11 +286,14 @@ func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string,
 	return "", fmt.Errorf("downloading artifact image after %d attempts: %w", attempts, finalErr)
 }
 
-func downloadArtifactAttempt(ctx context.Context, imageURL, artifactID string, systemConfig *sdkConfig.Config) (string, bool, error) {
+func downloadArtifactAttempt(ctx context.Context, imageURL, apiKey, artifactID string, systemConfig *sdkConfig.Config) (string, bool, error) {
 	// serverURL is operator-configured via cloud-config, not user input.
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil) //nosec G107 -- URL derived from operator cloud-config
 	if err != nil {
 		return "", false, fmt.Errorf("building request: %w", err)
+	}
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
