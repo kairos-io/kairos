@@ -113,6 +113,7 @@ stages:
       only_service_manager: "systemd"
       directories:
         - path: /var/log/journal
+          permissions: 0755
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /usr/local/etc/machine-id ]'
       name: "Restore /etc/machine-id for systemd systems"
       commands:

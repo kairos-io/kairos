@@ -4,15 +4,26 @@ stages:
     - name: "Default sysext/confext extensions dirs"
       only_service_manager: "systemd"
       directories:
+        # permissions is required: yip chmods a directory that already exists
+        # to whatever Permissions holds, and an omitted key leaves it at 0.
         - path: /etc/extensions
+          permissions: 0755
         - path: /run/confexts
+          permissions: 0755
         - path: /run/extensions
+          permissions: 0755
         - path: /var/lib/extensions
+          permissions: 0755
         - path: /var/lib/confexts
+          permissions: 0755
         - path: /usr/lib/extensions
+          permissions: 0755
         - path: /usr/lib/confexts
+          permissions: 0755
         - path: /usr/local/lib/extensions
+          permissions: 0755
         - path: /usr/local/lib/confexts
+          permissions: 0755
   initramfs:
     - name: "systemd-sysext/confext uki config"
       if: '[ -e "/run/cos/uki_boot_mode" ] && [ ! -e "/run/cos/recovery_mode" ] && [ ! -e "/run/cos/autoreset_mode" ]'
