@@ -250,5 +250,15 @@ users:
 			Entry("bind-public-pcrs", "bind-public-pcrs:\n  - \"7\"\n", "bind-public-pcrs: 7\n"),
 			Entry("options", "options:\n  foo: bar\n", "options: 5\n"),
 		)
+
+		// `logs: 5` is rejected by an empty struct type too, so it does not
+		// prove the two fields under `logs` are declared. This does.
+		It("declares the fields under logs, not just the block", func() {
+			ok, _ := validates("logs:\n  journal: kairos-agent\n")
+			Expect(ok).To(BeFalse(), "a scalar journal was accepted, so LogsSchema.Journal is not declared")
+
+			ok, _ = validates("logs:\n  files: /var/log/foo\n")
+			Expect(ok).To(BeFalse(), "a scalar files was accepted, so LogsSchema.Files is not declared")
+		})
 	})
 })
