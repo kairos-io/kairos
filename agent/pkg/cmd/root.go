@@ -542,6 +542,11 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 			&cli.BoolFlag{
 				Name: "shell",
 			},
+			&cli.BoolFlag{
+				Name:    skipAutoInstallFlag,
+				Usage:   "Open the installer even when the config sets install.auto, instead of installing unattended. Also settable on the boot cmdline as " + skipAutoInstallCmdline + ", which is how to reach it from a booted ISO.",
+				EnvVars: []string{"KAIROS_SKIP_AUTO_INSTALL"},
+			},
 			&sourceFlag,
 		},
 		Usage: "Starts interactive installation",
@@ -559,7 +564,27 @@ This command is meant to be used from the boot GRUB menu, but can be also starte
 				log.SetLevel("debug")
 			}
 
-			return agent.InteractiveInstall(c.Bool("shell"), c.String("source"), log)
+			source := c.String("source")
+
+			// install.auto wins over the UX: an unattended config leaves
+			// nothing to ask, so no installer is launched. Same call, same
+			// answer, as the install-mode entry. Unless the operator asked to
+			// skip it, which is the one way to get the installer on a node
+			// whose datasource says "install me".
+			if skipAutoInstall(c) {
+				log.Infof("--%s was given, so install.auto is ignored and the installer runs", skipAutoInstallFlag)
+			} else if installed, _, err := autoInstallFn(source, false, constants.GetUserConfigDirs()...); installed || err != nil {
+				// --shell asks for a shell instead of the installer TUI. No
+				// installer was launched here, so say so rather than dropping
+				// the flag without a word.
+				if err == nil && c.Bool("shell") {
+					log.Warnf("--shell was ignored: install.auto installed this node unattended, so no installer was launched")
+				}
+
+				return err
+			}
+
+			return agent.InteractiveInstall(c.Bool("shell"), source, log)
 		},
 	},
 	{
@@ -630,8 +655,18 @@ This command is meant to be used from the boot GRUB menu, but can be started man
 		},
 		Action: func(c *cli.Context) error {
 			source := c.String("source")
+			insecure := c.Bool("allow-insecure-registries")
 
-			return agent.Install(source, c.Bool("allow-insecure-registries"), constants.GetUserConfigDirs()...)
+			// An unattended config installs and returns; only when there is a
+			// decision left for a human does the provider flow run.
+			installed, cc, err := agent.AutoInstall(source, insecure, constants.GetUserConfigDirs()...)
+			if installed || err != nil {
+				return err
+			}
+
+			// cc is the config AutoInstall already scanned; handing it over
+			// keeps a remote config_url from being fetched twice per boot.
+			return agent.Install(cc, source, insecure, constants.GetUserConfigDirs()...)
 		},
 	},
 	{
@@ -1691,6 +1726,54 @@ func checkRoot() error {
 	}
 
 	return nil
+}
+
+// autoInstallFn is a seam so a spec can assert whether interactive-install
+// consulted install.auto, without running a real installation.
+var autoInstallFn = agent.AutoInstall
+
+const (
+	// skipAutoInstallFlag opts interactive-install out of the install.auto
+	// check, so the installer runs even on a node whose datasource asks for an
+	// unattended install. Off by default: unattended still wins.
+	skipAutoInstallFlag = "skip-auto-install"
+
+	// skipAutoInstallCmdline is the boot-cmdline spelling of that flag. The
+	// kairos-interactive unit's ExecStart is fixed, so an operator who booted
+	// an ISO to look around cannot pass the flag itself; editing the GRUB
+	// entry is what they can do.
+	skipAutoInstallCmdline = "kairos.skip-auto-install"
+)
+
+// cmdlineEnables reports whether a kernel command line turns flag on, either
+// bare or as flag=true / flag=1. Whole fields are compared so a longer token
+// that merely starts with flag does not enable it.
+func cmdlineEnables(cmdline, flag string) bool {
+	for _, field := range strings.Fields(cmdline) {
+		switch field {
+		case flag, flag + "=true", flag + "=1":
+			return true
+		}
+	}
+
+	return false
+}
+
+// skipAutoInstall reports whether the operator asked interactive-install to
+// ignore install.auto. Three ways in, none of them the default: the flag, the
+// KAIROS_SKIP_AUTO_INSTALL env var (both handled by the flag itself), and the
+// boot cmdline.
+func skipAutoInstall(c *cli.Context) bool {
+	if c.Bool(skipAutoInstallFlag) {
+		return true
+	}
+
+	cmdline, err := os.ReadFile("/proc/cmdline")
+	if err != nil {
+		return false
+	}
+
+	return cmdlineEnables(string(cmdline), skipAutoInstallCmdline)
 }
 
 func validateSource(source string) error {
