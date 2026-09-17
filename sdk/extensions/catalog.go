@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -57,85 +59,188 @@ func Parse(reader io.Reader) (Catalog, error) {
 
 // Resolve finds an immutable system extension artifact.
 //
-// An empty version means the newest version the layer publishes. A version
-// that matches a published tag exactly selects that tag, so tags that are not
-// valid semver still work. Anything else is read as a semver constraint (see
+// An empty version means the newest version that publishes an extension image
+// for this architecture, which is the layer's own `latest` whenever that one
+// does. A version that matches a published tag exactly selects that tag, so
+// tags that are not valid semver still work. Anything else is read as a semver
+// constraint (see
 // https://github.com/Masterminds/semver#checking-version-constraints) and the
-// highest published version satisfying it wins.
+// highest published version that both satisfies it and publishes for this
+// architecture wins.
+//
+// An index lists a layer's image tags whether or not an extension image was
+// built for them: the tags come from the layer's own container package and the
+// artifacts from a separate one. A tag with no artifact is therefore normal,
+// and it must not hide the versions that do have one.
 func (catalog Catalog) Resolve(name, version, architecture string) (Resolved, error) {
 	for _, layer := range catalog.Layers {
 		if layer.Name != name {
 			continue
 		}
 
-		resolvedVersion, err := layer.resolveVersion(version)
+		tag, err := layer.selectTag(version, architecture)
 		if err != nil {
 			return Resolved{}, err
 		}
-		for _, tag := range layer.Tags {
-			if tag.Version != resolvedVersion {
-				continue
+		artifact, found := tag.Sysext[architecture]
+		if !found {
+			published := tag.architectures()
+			if len(published) == 0 {
+				return Resolved{}, fmt.Errorf("layer %q version %q publishes no system extension image for any architecture", name, tag.Version)
 			}
-
-			artifact, found := tag.Sysext[architecture]
-			if !found {
-				return Resolved{}, fmt.Errorf("architecture %q is not available for layer %q version %q", architecture, name, resolvedVersion)
-			}
-			if !immutableOCIReference.MatchString(artifact.OCI) {
-				return Resolved{}, fmt.Errorf("OCI reference for layer %q version %q architecture %q must end with @sha256: and 64 hexadecimal characters", name, resolvedVersion, architecture)
-			}
-
-			return Resolved{
-				Repository:   catalog.Repository,
-				Name:         name,
-				Version:      resolvedVersion,
-				Architecture: architecture,
-				OCI:          artifact.OCI,
-			}, nil
+			return Resolved{}, fmt.Errorf("architecture %q is not available for layer %q version %q, which publishes %s",
+				architecture, name, tag.Version, strings.Join(published, ", "))
 		}
-		return Resolved{}, fmt.Errorf("version %q is not available for layer %q", resolvedVersion, name)
+		if !immutableOCIReference.MatchString(artifact.OCI) {
+			return Resolved{}, fmt.Errorf("OCI reference for layer %q version %q architecture %q must end with @sha256: and 64 hexadecimal characters", name, tag.Version, architecture)
+		}
+
+		return Resolved{
+			Repository:   catalog.Repository,
+			Name:         name,
+			Version:      tag.Version,
+			Architecture: architecture,
+			OCI:          artifact.OCI,
+		}, nil
 	}
 
 	return Resolved{}, fmt.Errorf("layer %q is not available", name)
 }
 
-// resolveVersion turns a requested version into one published tag.
-func (layer Layer) resolveVersion(requested string) (string, error) {
-	if requested == "" {
-		return layer.Latest, nil
-	}
-	for _, tag := range layer.Tags {
-		if tag.Version == requested {
-			return requested, nil
+// selectTag turns a requested version into the published tag to install.
+//
+// An explicit version that names a published tag is taken as it is, even when
+// that tag publishes no image: the caller asked for that version, so saying
+// the version is not installable is more useful than quietly installing a
+// different one.
+func (layer Layer) selectTag(requested, architecture string) (Tag, error) {
+	if requested != "" {
+		if tag, found := layer.tag(requested); found {
+			return tag, nil
 		}
+
+		constraint, err := semver.NewConstraint(requested)
+		if err != nil {
+			// Not a published tag and not a constraint either: report the
+			// request as the missing version rather than as a syntax error,
+			// which is what it is from the caller's point of view.
+			return Tag{}, fmt.Errorf("version %q is not available for layer %q", requested, layer.Name)
+		}
+		return layer.highestPublishing(architecture, constraint, requested)
 	}
 
-	constraint, err := semver.NewConstraint(requested)
-	if err != nil {
-		// Not a published tag and not a constraint either: report the request
-		// as the missing version rather than as a syntax error, which is what
-		// it is from the caller's point of view.
-		return requested, nil
+	if tag, found := layer.tag(layer.Latest); found && tag.publishes(architecture) {
+		return tag, nil
 	}
+	return layer.highestPublishing(architecture, nil, "")
+}
 
-	var best *semver.Version
-	var bestTag string
+// highestPublishing picks the highest version that publishes an image for
+// architecture, out of those satisfying constraint when there is one.
+//
+// Versions are ordered by semver. A layer whose tags are not semver at all
+// keeps working: the first tag that publishes wins, and an index lists the
+// newest tag first.
+func (layer Layer) highestPublishing(architecture string, constraint *semver.Constraints, requested string) (Tag, error) {
+	var (
+		best      *semver.Version
+		bestTag   Tag
+		found     bool
+		satisfied bool
+	)
 	for _, tag := range layer.Tags {
 		candidate, err := semver.NewVersion(tag.Version)
-		if err != nil {
+		if constraint != nil {
+			if err != nil || !constraint.Check(candidate) {
+				continue
+			}
+			satisfied = true
+		}
+		if !tag.publishes(architecture) {
 			continue
 		}
-		if !constraint.Check(candidate) {
+		if err != nil {
+			// Not semver, so it can only be taken in index order.
+			if !found {
+				bestTag, found = tag, true
+			}
 			continue
 		}
 		if best == nil || candidate.GreaterThan(best) {
-			best, bestTag = candidate, tag.Version
+			best, bestTag, found = candidate, tag, true
 		}
 	}
-	if best == nil {
-		return "", fmt.Errorf("no version of layer %q satisfies %q", layer.Name, requested)
+	if found {
+		return bestTag, nil
 	}
-	return bestTag, nil
+
+	published := layer.architectures()
+	if constraint != nil {
+		if !satisfied {
+			return Tag{}, fmt.Errorf("no version of layer %q satisfies %q", layer.Name, requested)
+		}
+		if len(published) == 0 {
+			return Tag{}, fmt.Errorf("no version of layer %q satisfying %q publishes a system extension image for any architecture", layer.Name, requested)
+		}
+		return Tag{}, fmt.Errorf("no version of layer %q satisfying %q publishes a system extension image for architecture %q; the layer publishes %s",
+			layer.Name, requested, architecture, strings.Join(published, ", "))
+	}
+	if len(published) == 0 {
+		return Tag{}, fmt.Errorf("layer %q publishes no system extension image for any architecture", layer.Name)
+	}
+	return Tag{}, fmt.Errorf("layer %q publishes no system extension image for architecture %q; it publishes %s",
+		layer.Name, architecture, strings.Join(published, ", "))
+}
+
+// tag returns the published tag with this version.
+func (layer Layer) tag(version string) (Tag, bool) {
+	if version == "" {
+		return Tag{}, false
+	}
+	for _, tag := range layer.Tags {
+		if tag.Version == version {
+			return tag, true
+		}
+	}
+	return Tag{}, false
+}
+
+// architectures lists every architecture the layer publishes an image for, at
+// any version.
+func (layer Layer) architectures() []string {
+	seen := map[string]struct{}{}
+	for _, tag := range layer.Tags {
+		for _, architecture := range tag.architectures() {
+			seen[architecture] = struct{}{}
+		}
+	}
+	return sorted(seen)
+}
+
+// architectures lists every architecture this version publishes an image for.
+func (tag Tag) architectures() []string {
+	seen := map[string]struct{}{}
+	for architecture := range tag.Sysext {
+		seen[architecture] = struct{}{}
+	}
+	return sorted(seen)
+}
+
+// publishes reports whether this version has an image for architecture. An
+// entry that is present but malformed still counts, so a broken OCI reference
+// is reported instead of being skipped over silently.
+func (tag Tag) publishes(architecture string) bool {
+	_, found := tag.Sysext[architecture]
+	return found
+}
+
+func sorted(set map[string]struct{}) []string {
+	list := make([]string, 0, len(set))
+	for item := range set {
+		list = append(list, item)
+	}
+	sort.Strings(list)
+	return list
 }
 
 // Catalogs is an ordered list of catalogs searched as one. Order is

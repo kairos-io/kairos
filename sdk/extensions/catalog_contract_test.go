@@ -2,6 +2,7 @@ package extensions
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -61,15 +62,70 @@ func TestPublishedCatalogResolvesToADigestPinnedArtifact(t *testing.T) {
 func TestPublishedCatalogRejectsLayersWithNoArtifacts(t *testing.T) {
 	catalog := loadPublishedCatalog(t)
 
-	// A layer is published as an image even when the sysext build is skipped,
-	// so the index carries entries with an empty `sysext` object. Asking for
-	// one has to fail with the architecture named, not resolve to nothing.
-	if _, err := catalog.Resolve("git", "", "amd64"); err == nil {
+	// A layer is published as an image even when the sysext build is skipped
+	// (hadron-layers skips `git` in publishing.yaml), so the index carries
+	// entries with an empty `sysext` object. Asking for one has to fail, and
+	// say that no architecture publishes it rather than blaming this node's.
+	_, err := catalog.Resolve("git", "", "amd64")
+	if err == nil {
 		t.Fatal("Resolve(git) succeeded, want an error: the layer publishes no sysext artifact")
+	}
+	if !strings.Contains(err.Error(), "any architecture") {
+		t.Errorf("Resolve(git) error = %q, want it to say no architecture publishes the layer", err)
 	}
 
 	// Same for an older version of a layer whose newest version does publish.
 	if _, err := catalog.Resolve("fwupd", "2.1.6", "amd64"); err == nil {
 		t.Fatal("Resolve(fwupd, 2.1.6) succeeded, want an error: that version publishes no sysext artifact")
 	}
+}
+
+// The index's `latest` is the newest tag of the layer's own container package,
+// which says nothing about whether an extension image was built for it: the
+// artifacts live in a separate package, pushed by a later step of the same
+// build. So a bare name has to resolve to the newest version that publishes,
+// and the published index has an artifactless tag to check that against.
+func TestPublishedCatalogResolvesPastAnArtifactlessTag(t *testing.T) {
+	catalog := loadPublishedCatalog(t)
+
+	layer, found := publishedLayer(catalog, "fwupd")
+	if !found {
+		t.Fatal("the published index no longer carries the fwupd layer")
+	}
+	artifactless, found := publishedTag(layer, "2.1.6")
+	if !found || len(artifactless.Sysext) != 0 {
+		t.Fatalf("fwupd 2.1.6 = %#v, want the fixture's artifactless tag", artifactless)
+	}
+
+	// Pretend the artifact for the newest version has not been pushed yet,
+	// which is the window between the image push and the artifact push.
+	layer.Latest = "2.1.7"
+	layer.Tags = []Tag{{Version: "2.1.7"}, artifactless, {Version: "2.1.5", Sysext: layer.Tags[0].Sysext}}
+	stalled := Catalog{Repository: catalog.Repository, Layers: []Layer{layer}}
+
+	got, err := stalled.Resolve("fwupd", "", "amd64")
+	if err != nil {
+		t.Fatalf("Resolve(fwupd, latest, amd64) with no artifact for 2.1.7: %v", err)
+	}
+	if got.Version != "2.1.5" {
+		t.Fatalf("Resolve(fwupd, latest) = %q, want 2.1.5: 2.1.7 and 2.1.6 publish no image", got.Version)
+	}
+}
+
+func publishedLayer(catalog Catalog, name string) (Layer, bool) {
+	for _, layer := range catalog.Layers {
+		if layer.Name == name {
+			return layer, true
+		}
+	}
+	return Layer{}, false
+}
+
+func publishedTag(layer Layer, version string) (Tag, bool) {
+	for _, tag := range layer.Tags {
+		if tag.Version == version {
+			return tag, true
+		}
+	}
+	return Tag{}, false
 }

@@ -72,7 +72,8 @@ type Extension struct {
 
 	// Version is an exact catalog version or a semver constraint. It is only
 	// meaningful for a catalog name; the empty string means the newest
-	// version the catalog publishes.
+	// version the catalog publishes an extension image for, which is not
+	// always the newest version it lists.
 	Version string `yaml:"version,omitempty" mapstructure:"version" json:"version,omitempty"`
 }
 
