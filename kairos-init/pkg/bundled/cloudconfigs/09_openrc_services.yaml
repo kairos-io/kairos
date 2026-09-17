@@ -4,6 +4,23 @@ stages:
     - name: "Create OpenRC services"
       only_service_manager: "openrc"
       files:
+      - path: /etc/init.d/cos-setup-fs
+        permissions: 0755
+        owner: 0
+        group: 0
+        content: |
+          #!/sbin/openrc-run
+
+          depend() {
+            after localmount
+            before cos-setup-boot
+            provide cos-setup-fs
+          }
+
+          start() {
+            kairos-agent run-stage fs
+            eend 0
+          }
       - path: /etc/init.d/cos-setup-boot
         permissions: 0755
         owner: 0
@@ -131,6 +148,10 @@ stages:
       only_service_manager: "openrc"
       commands:
         - mkdir -p /etc/runlevels/default
+        - mkdir -p /etc/runlevels/boot
+        # The fs stage has to run before the boot stage, matching
+        # cos-setup-fs.service Before=sysinit.target on systemd.
+        - ln -sf ../../init.d/cos-setup-fs /etc/runlevels/boot/cos-setup-fs
         - ln -sf ../../init.d/cos-setup-boot /etc/runlevels/default/cos-setup-boot
         - ln -sf ../../init.d/cos-setup-network /etc/runlevels/default/cos-setup-network
         - ln -sf ../../init.d/cos-setup-reconcile /etc/runlevels/default/cos-setup-reconcile
