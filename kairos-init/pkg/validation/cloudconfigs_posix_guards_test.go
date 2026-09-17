@@ -29,6 +29,40 @@ var (
 	bracketTest = regexp.MustCompile(`\[([^\[\]]*)]`)
 	// equalEqual matches `==` used as a test operator.
 	equalEqual = regexp.MustCompile(`(^|\s)==(\s|$)`)
+
+	// shellOSProbe matches a guard that decides the OS from a shell. yip
+	// answers that itself with only_os / only_os_version, so a guard that
+	// shells out for it is both slower and a shell-portability hazard.
+	shellOSProbe = regexp.MustCompile(`kairos\.flavor|/etc/os-release`)
+
+	// alpinePrettyNames and otherPrettyNames are PRETTY_NAME values read out
+	// of real published images. only_os is matched against PRETTY_NAME, not
+	// against the os-release ID (sysinfo maps ID to OS.Vendor and PRETTY_NAME
+	// to OS.Name), so a lowercase `alpine` would match nothing. Kairos appends
+	// its KAIROS_* keys to os-release and leaves PRETTY_NAME alone, which is
+	// why the distro's own value is what a guard sees on a booted node.
+	alpinePrettyNames = []string{
+		// quay.io/kairos/core-alpine:latest, layer sha256:45fc9ad4
+		"Alpine Linux v3.18",
+		"Alpine Linux v3.21",
+	}
+	otherPrettyNames = []string{
+		// ghcr.io/kairos-io/hadron:latest, layer sha256:0471079b. Hadron is
+		// Alpine-derived, so this is the value the guard must not match.
+		"Hadron Linux",
+		// The families kairos-init already selects on by PRETTY_NAME, see
+		// kairos-init/pkg/stages/steps_init.go.
+		"Ubuntu 24.04.1 LTS",
+		"Debian GNU/Linux 12 (bookworm)",
+		"Fedora Linux 40 (Container Image)",
+		"CentOS Stream 9",
+		"Red Hat Enterprise Linux 9.4 (Plow)",
+		"Rocky Linux 9.4 (Blue Onyx)",
+		"AlmaLinux 9.4 (Seafoam Ocelot)",
+		"Oracle Linux Server 9.4",
+		"SUSE Linux Enterprise Server 15 SP6",
+		"openSUSE Leap 15.6",
+	}
 )
 
 // bundledGuard is one `if:` expression and where it came from.
@@ -179,6 +213,17 @@ var _ = Describe("Bundled cloudconfig guards", func() {
 		}
 	})
 
+	It("leaves OS detection to yip", func() {
+		// only_os / only_os_version read /etc/os-release in-process, so a
+		// shell guard that asks kairos-agent for the flavor spends a
+		// subprocess per stage per boot to reach the same answer, and has to
+		// be portable across dash, bash and busybox ash to do it.
+		for _, guard := range bundledGuards() {
+			Expect(shellOSProbe.MatchString(guard.expr)).To(BeFalse(),
+				"%s detects the OS from a shell; use only_os instead", guard)
+		}
+	})
+
 	It("finds the guards in embedded cloud-configs too", func() {
 		var files []string
 		for _, guard := range bundledGuards() {
@@ -215,44 +260,54 @@ var _ = Describe("Bundled cloudconfig guards", func() {
 	})
 
 	Describe("00_rootfs.yaml", func() {
-		// Two boot.before stages mount tmp and bpffs on Alpine only. They ran
-		// under busybox ash and bash but printed "[[: not found" under dash on
-		// every boot of every Debian-family image.
-		var guards []string
+		// Two boot.before stages mount tmp and bpffs on Alpine only. They used
+		// to ask `kairos-agent state get kairos.flavor` from a shell guard,
+		// which cost a subprocess on every boot of every image and printed
+		// "[[: not found" under dash. yip answers the same question itself with
+		// only_os, so there is no shell to get wrong.
+		var stages []guardStage
 
 		BeforeEach(func() {
-			guards = nil
+			stages = nil
 			for _, stage := range readStage("00_rootfs.yaml", "boot.before") {
 				if strings.Contains(strings.ToLower(stage.Name), "alpine") {
-					guards = append(guards, stage.If)
+					stages = append(stages, stage)
 				}
 			}
-			Expect(guards).To(HaveLen(2))
+			Expect(stages).To(HaveLen(2))
 		})
 
-		It("fires on an Alpine flavor", func() {
-			for _, guard := range guards {
-				for _, flavor := range []string{"alpine", "alpine-3.21"} {
-					for shell, fired := range evalUnder(guard, map[string]string{"kairos.flavor": flavor}) {
-						Expect(fired).To(BeTrue(), "%s did not match flavor %q for %q", shell, flavor, guard)
-					}
-				}
+		It("selects Alpine with only_os, not with a shell guard", func() {
+			for _, stage := range stages {
+				Expect(stage.OnlyOs).NotTo(BeEmpty(), "%q has no only_os", stage.Name)
+				Expect(stage.If).To(BeEmpty(),
+					"%q still carries a shell guard alongside only_os", stage.Name)
 			}
 		})
 
-		It("does not fire on any other flavor", func() {
-			for _, guard := range guards {
-				for _, flavor := range []string{"ubuntu-24.04", "rocky-9", "opensuse-leap-15.6", ""} {
-					for shell, fired := range evalUnder(guard, map[string]string{"kairos.flavor": flavor}) {
-						Expect(fired).To(BeFalse(), "%s matched flavor %q for %q", shell, flavor, guard)
-					}
+		It("matches the PRETTY_NAME an Alpine image really ships", func() {
+			for _, stage := range stages {
+				matcher := regexp.MustCompile(stage.OnlyOs)
+				for _, prettyName := range alpinePrettyNames {
+					Expect(matcher.MatchString(prettyName)).To(BeTrue(),
+						"%q does not match %q", stage.OnlyOs, prettyName)
+				}
+			}
+		})
+
+		It("does not match any other flavor, Hadron included", func() {
+			for _, stage := range stages {
+				matcher := regexp.MustCompile(stage.OnlyOs)
+				for _, prettyName := range otherPrettyNames {
+					Expect(matcher.MatchString(prettyName)).To(BeFalse(),
+						"%q matches %q", stage.OnlyOs, prettyName)
 				}
 			}
 		})
 	})
 
 	It("runs the matrix against more than one shell", func() {
-		// Otherwise the two Describes above pass by testing nothing.
+		// Otherwise the kcrypt matrix above passes by testing nothing.
 		Expect(len(posixShells())).To(BeNumerically(">=", 2), "found %v", posixShells())
 	})
 })
