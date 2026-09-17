@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/pterm/pterm"
 
 	"github.com/kairos-io/kairos/v4/provider/internal/provider/assets"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
@@ -161,7 +161,30 @@ func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) 
 	return nil
 }
 
-func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
+// executeLocalDNSConfig runs the local-resolver cloud-config against the
+// running system. It is a variable so a spec can exercise applyLocalDNS's
+// failure branch without rewriting the host's /etc/systemd/resolved.conf.
+var executeLocalDNSConfig = func() error {
+	return machine.ExecuteInlineCloudConfig(assets.LocalDNS, "initramfs")
+}
+
+// applyLocalDNS points the running system's resolver at the VPN's local
+// forwarder, and says so when it cannot.
+//
+// Best effort: SetupVPN persists the same config, so a failure here only
+// costs the operator until the next boot. The notice goes through the logger
+// and never through the process's stdout, because in plugin mode stdout
+// carries go-pluggable's JSON response: anything printed in front of it makes
+// kairos-agent's Unmarshal fail, which would turn this notice into a failed
+// bootstrap. pterm is the specific trap, it binds its writer to os.Stdout at
+// package init and so escapes go-pluggable's capture.
+func applyLocalDNS(logger loggerpkg.KairosLogger) {
+	if err := executeLocalDNSConfig(); err != nil {
+		logger.Warnf("could not point the resolver at the VPN now, it will apply on the next boot: %s", err)
+	}
+}
+
+func SetupVPN(logger loggerpkg.KairosLogger, instance, apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
 	token := ""
 	if c.P2P != nil && c.P2P.NetworkToken != "" {
 		token = c.P2P.NetworkToken
@@ -192,12 +215,7 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 		vpnOpts["DNSADDRESS"] = "127.0.0.1:53"
 		vpnOpts["DNSFORWARD"] = enabledValue
 
-		// Best effort: the same config is persisted below and applied on the
-		// next boot anyway. Say so, rather than leaving a node that resolves
-		// through the wrong server until then look like a success.
-		if err := machine.ExecuteInlineCloudConfig(assets.LocalDNS, "initramfs"); err != nil {
-			pterm.Warning.Printfln("could not point the resolver at the VPN now, it will apply on the next boot: %s", err)
-		}
+		applyLocalDNS(logger)
 		if !utils.IsOpenRCBased() {
 			svc, err := systemd.NewService(
 				systemd.WithName("systemd-resolved"),
