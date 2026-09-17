@@ -54,15 +54,35 @@ stages:
 
             STAMP=/usr/local/.state/selinux/.kairos-selinux-relabeled
             POLICY_DIR=/etc/selinux/targeted/policy
+            STATE=/usr/local/.state
 
             CUR=$(ls "$POLICY_DIR"/policy.[0-9]* 2>/dev/null | sed 's/.*policy\.//' | sort -n | tail -n1)
             [ -n "$CUR" ] || exit 0
-            [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$CUR" ] || exit 0
+
+            # On-disk truth, not the /oem config: immucore has created each
+            # top-level <path>.bind dir by this unit's time (After=cos-setup-fs)
+            # so this set is exactly what the walk below covers.
+            CUR_SET=$( { find "$STATE" -mindepth 1 -maxdepth 1 -type d -name '*.bind' -printf '%f\n' 2>/dev/null || true; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1)
+
+            if [ -f "$STAMP" ]; then
+              STAMP_POL=$(grep -m1 '^policy=' "$STAMP" | cut -d'=' -f2 | tr -d '[:space:]')
+              STAMP_SET=$(grep -m1 '^bindset=' "$STAMP" | cut -d'=' -f2 | tr -d '[:space:]')
+              # A missing, empty, or legacy one-line stamp (no key=value) mismatches
+              # and triggers one relabel, then is rewritten in the new format.
+              if [ "$STAMP_POL" = "$CUR" ] && [ -n "$STAMP_SET" ] && [ "$STAMP_SET" = "$CUR_SET" ]; then
+                exit 0
+              fi
+            fi
 
             /usr/sbin/restorecon -Riv /usr/local /etc /var /home /oem /root /opt /srv
 
+            # Stamp after success, written atomically: a failed relabel (set -eu)
+            # leaves no stamp and retries next boot, so setenforce is never reached
+            # with half-labeled state.
             mkdir -p "$(dirname "$STAMP")"
-            echo "$CUR" > "$STAMP"
+            TMP=$(mktemp "$(dirname "$STAMP")/.stamp.XXXXXX")
+            printf 'policy=%s\nbindset=%s\n' "$CUR" "$CUR_SET" > "$TMP"
+            mv "$TMP" "$STAMP"
       commands:
         - /usr/local/bin/setup-selinux-relabel-unit
         - systemctl enable kairos-selinux-relabel
