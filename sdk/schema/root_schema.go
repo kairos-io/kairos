@@ -36,6 +36,9 @@ type RootSchema struct {
 	SquashFsCompressionConfig []string                 `json:"squash-compression,omitempty" mapstructure:"squash-compression"`
 	SquashFsNoCompression     bool                     `json:"squash-no-compression,omitempty" mapstructure:"squash-no-compression"`
 	UkiMaxEntries             int                      `json:"uki-max-entries,omitempty" mapstructure:"uki-max-entries"`
+	BindPCRs                  []string                 `json:"bind-pcrs,omitempty" description:"Trusted Boot only: TPM PCRs to bind the encrypted partitions to, as systemd-cryptenroll --tpm2-pcrs. Empty by default."`
+	BindPublicPCRs            []string                 `json:"bind-public-pcrs,omitempty" description:"Trusted Boot only: TPM PCRs to bind under the signed public-key policy, as systemd-cryptenroll --tpm2-public-key-pcrs. Defaults to 11."`
+	Logs                      LogsSchema               `json:"logs,omitempty" description:"Extra logs for kairos-agent logs to collect, on top of the built-in set."`
 	Stages                    map[string][]StageSchema `json:"stages,omitempty" description:"Cloud-init stages to execute"`
 }
 
@@ -43,6 +46,13 @@ type RootSchema struct {
 // Other yip stage fields remain accepted as additional properties.
 type StageSchema struct {
 	Commands []string `json:"commands,omitempty" description:"Commands to execute"`
+}
+
+// LogsSchema defines the extra journal units and files that `kairos-agent logs`
+// collects in addition to the built-in set.
+type LogsSchema struct {
+	Journal []string `json:"journal,omitempty" description:"Extra systemd units to read the journal of"`
+	Files   []string `json:"files,omitempty" description:"Extra files to include verbatim"`
 }
 
 type PlatformSchema struct {
