@@ -19,7 +19,9 @@ type InstallSchema struct {
 	Extensions          []ExtensionSchema `json:"extensions,omitempty" description:"System extensions to install onto the node."`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
 	SelinuxOptions      `json:"selinux,omitempty"`
-	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
+	Source              string `json:"source,omitempty" description:"Container image to install the system from, e.g. oci://quay.io/kairos/opensuse:latest. This is the key the installer reads."`
+	ImageDeprecated     string `json:"image,omitempty" deprecated:"true" description:"Deprecated and ignored: it was never read by the installer. Use source instead"`
+	NoUsers             bool   `json:"nousers,omitempty" description:"Skip the check that the config declares at least one administrative user. Intended for images that provision users by other means."`
 	PowerManagement
 	SkipEncryptCopyPlugins bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
 	Partitions             ElementalPartitions `json:"partitions,omitempty"`
@@ -33,9 +35,14 @@ type InstallSchema struct {
 	Passive                Image               `json:"passive,omitempty"`
 }
 
+// Image describes one of the install block's image slots (system,
+// recovery-system, passive). Mirrors sdk/types/images.Image, which is what the
+// runtime decodes these into: there, URI is marked "deprecated, use Source
+// instead", so `source` is the key to offer and `uri` the one to retire.
 type Image struct {
-	Size   uint   `json:"size,omitempty"`
-	Source string `json:"uri,omitempty"`
+	Size          uint   `json:"size,omitempty"`
+	Source        string `json:"source,omitempty" description:"Container image to install this slot from, e.g. oci://quay.io/kairos/opensuse:latest"`
+	URIDeprecated string `json:"uri,omitempty" deprecated:"true" description:"Deprecated: superseded by source, which is what the installer prefers. Still honoured for now"`
 }
 
 type Partition struct {

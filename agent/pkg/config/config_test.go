@@ -89,7 +89,7 @@ func structFieldsContainedInOtherStruct(left, right interface{}) {
 		leftFieldName := leftTypes.Field(i).Name
 		if leftTypes.Field(i).IsExported() {
 			It(fmt.Sprintf("Checks that the new schema contains the field %s", leftFieldName), func() {
-				if leftFieldName == "Source" || leftFieldName == "NoUsers" || leftFieldName == "BindPublicPCRs" || leftFieldName == "BindPCRs" || leftFieldName == "Logs" {
+				if leftFieldName == "BindPublicPCRs" || leftFieldName == "BindPCRs" || leftFieldName == "Logs" {
 					Skip("Schema not updated yet")
 				}
 				Expect(
