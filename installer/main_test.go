@@ -1,11 +1,19 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"flag"
+	"io"
+	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/webui"
 )
@@ -131,4 +139,109 @@ func TestFlagWasPassed(t *testing.T) {
 			}
 		})
 	}
+}
+
+// freeLoopbackAddress returns a loopback address nothing is listening on, by
+// binding one and letting it go. A test that asserts something bound this
+// address has to name the address up front, which ListenAndServe does not
+// report back.
+func freeLoopbackAddress(t *testing.T) string {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserving an address: %v", err)
+	}
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("releasing the reserved address: %v", err)
+	}
+
+	return addr
+}
+
+// dialUntilListening reports whether addr accepts a connection within the
+// timeout. The server it waits for starts in a goroutine, so "not yet" and
+// "never" are only distinguishable by waiting.
+func dialUntilListening(addr string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return true
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	return false
+}
+
+// --no-tui is the mode with no console session to install from, so it is the
+// one that most needs an agent to be able to drive it. It used to return
+// before the MCP server was started, leaving that boot with the web UI alone.
+func TestWebUIOnlyModeServesMCPAlongsideTheWebUI(t *testing.T) {
+	mcpAddr := freeLoopbackAddress(t)
+	webAddr := freeLoopbackAddress(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	opts := noTUIWebUIOptions("")
+	opts.Listen = webAddr
+	opts.Logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	served := make(chan error, 1)
+	go func() {
+		served <- serveWebUIOnly(ctx, testLogger(), mcpAddr, opts)
+	}()
+
+	if !dialUntilListening(webAddr, 5*time.Second) {
+		t.Fatalf("the web UI never listened on %s", webAddr)
+	}
+	if !dialUntilListening(mcpAddr, 5*time.Second) {
+		t.Fatalf("the web UI ran without MCP: nothing listened on %s", mcpAddr)
+	}
+
+	cancel()
+	select {
+	case err := <-served:
+		if err != nil {
+			t.Fatalf("serving the web UI: %v", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("serveWebUIOnly did not return after its context was cancelled")
+	}
+}
+
+// An empty address is how the MCP listener is switched off, and it is what an
+// operator gets when the agent config says nothing. The positive half is the
+// control: without it, "nothing bound this address" would pass for a startMCP
+// that never binds anything at all.
+func TestStartMCPBindsOnlyWhenAnAddressIsConfigured(t *testing.T) {
+	addr := freeLoopbackAddress(t)
+
+	off, cancelOff := context.WithCancel(context.Background())
+	defer cancelOff()
+
+	startMCP(off, testLogger(), "")
+	if dialUntilListening(addr, 300*time.Millisecond) {
+		t.Fatalf("an empty address bound %s, so there is no off switch", addr)
+	}
+	cancelOff()
+
+	on, cancelOn := context.WithCancel(context.Background())
+	defer cancelOn()
+
+	startMCP(on, testLogger(), addr)
+	if !dialUntilListening(addr, 5*time.Second) {
+		t.Fatalf("startMCP never bound %s, so the half of this test above proves nothing", addr)
+	}
+}
+
+// testLogger keeps the MCP server's own output out of the test log. The sdk
+// logger otherwise writes to journald or /var/log/kairos, neither of which a
+// test should depend on being writable.
+func testLogger() sdkLogger.KairosLogger {
+	return sdkLogger.NewBufferLogger(&bytes.Buffer{})
 }

@@ -90,10 +90,15 @@ The full, authoritative contract is documented in kairos-agent:
 
 ## Driving an install with an agent (MCP)
 
-Alongside the TUI, `kairos-installer` serves the same install contract over the
-[Model Context Protocol](https://modelcontextprotocol.io), so an AI agent can do
-what a person does on the screen. The transport is streamable HTTP on
-**`http://127.0.0.1:8090/mcp`**, on loopback only unless an operator opens it up.
+Alongside its other two frontends, `kairos-installer` serves the same install
+contract over the [Model Context Protocol](https://modelcontextprotocol.io), so
+an AI agent can do what a person does on the screen. The transport is streamable
+HTTP on **`http://127.0.0.1:8090/mcp`**, on loopback only unless an operator
+opens it up.
+
+It runs in both modes, including `--no-tui`. That mode is the one with no
+console session to install from, so it is the one that most needs an agent to be
+able to drive it.
 
 | Tool | What it does | Writes anything? |
 | --- | --- | --- |
@@ -136,7 +141,8 @@ overrides the config:
 ```sh
 kairos-installer                              # TUI, MCP on 127.0.0.1:8090
 kairos-installer --mcp-address=:8090          # TUI, MCP on every interface
-kairos-installer --mcp-address=               # TUI only
+kairos-installer --mcp-address=               # TUI and web UI only
+kairos-installer --no-tui                     # web UI, MCP on 127.0.0.1:8090
 ```
 
 ---

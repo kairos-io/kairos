@@ -75,7 +75,12 @@ func main() {
 		ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 		defer stop()
 
-		if err := webui.StartConfigured(ctx, noTUIWebUIOptions(*source)); err != nil {
+		// Nothing owns the terminal in this mode, so the logger keeps its
+		// console writer and the MCP server's output lands in the journal
+		// next to the web UI's.
+		logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", false, "/var/log/kairos/")
+
+		if err := serveWebUIOnly(ctx, logger, *mcpAddress, noTUIWebUIOptions(*source)); err != nil {
 			fmt.Fprintln(os.Stderr, "web UI:", err)
 			os.Exit(1)
 		}
@@ -84,18 +89,9 @@ func main() {
 
 	logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", true, "/var/log/kairos/")
 
-	// The MCP server is a frontend on the same install contract as the TUI, and
-	// runs alongside it the way the web UI does. It must never write to the
-	// terminal the TUI is drawing on, which is why it logs to the installer log.
-	if *mcpAddress != "" {
-		go func() {
-			if err := mcp.ListenAndServe(ctx, logger, *mcpAddress); err != nil {
-				// A port that will not bind leaves the TUI perfectly usable, so
-				// this is logged rather than taken as a reason to give up.
-				logger.Logger.Error().Err(err).Str("address", *mcpAddress).Msg("MCP server stopped")
-			}
-		}()
-	}
+	// The MCP server must never write to the terminal the TUI is drawing on,
+	// which is why it is handed the installer log rather than stdout.
+	startMCP(ctx, logger, *mcpAddress)
 
 	// The web UI runs alongside the TUI so a user can install from either.
 	// It gets a file-backed logger because echo writes JSON to stdout by
@@ -131,6 +127,36 @@ func main() {
 		logger.Infof("terminal UI exited while an install started from the web UI is running: serving the web UI until it finishes")
 		activity.WaitForInstall()
 	}
+}
+
+// serveWebUIOnly is --no-tui: the web UI is the whole frontend for that boot,
+// and the MCP server runs next to it. It blocks until ctx is cancelled or the
+// web UI listener errors.
+//
+// The MCP server belongs in this mode as much as in the interactive one. Both
+// are frontends on the same install contract, and a boot that brings up only
+// the HTTP installer is precisely the boot an agent has to drive, since there
+// is no console session to drive it from.
+func serveWebUIOnly(ctx context.Context, logger sdkLogger.KairosLogger, mcpAddress string, o webui.Options) error {
+	startMCP(ctx, logger, mcpAddress)
+
+	return webui.StartConfigured(ctx, o)
+}
+
+// startMCP serves MCP in the background when an address is configured, and
+// does nothing when it is empty, which is how the listener is switched off.
+func startMCP(ctx context.Context, logger sdkLogger.KairosLogger, address string) {
+	if address == "" {
+		return
+	}
+
+	go func() {
+		if err := mcp.ListenAndServe(ctx, logger, address); err != nil {
+			// A port that will not bind leaves the other frontends perfectly
+			// usable, so this is logged rather than taken as a reason to give up.
+			logger.Logger.Error().Err(err).Str("address", address).Msg("MCP server stopped")
+		}
+	}()
 }
 
 // noTUIWebUIOptions is what --no-tui hands the web UI. Nothing owns the
