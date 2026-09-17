@@ -48,10 +48,19 @@ stages:
 
           supervisor=supervise-daemon
           name="cos-setup-reconcile"
-          command="cos-setup-reconcile"
+          # supervise-daemon resolves $command before it forks and refuses to
+          # start if it is not on $PATH, so this has to name the binary that
+          # exists. The systemd side runs the same stage from
+          # cos-setup-reconcile.service.
+          command="/usr/bin/kairos-agent"
+          command_args="run-stage reconcile"
           supervise_daemon_args="--stdout /var/log/cos-setup-reconcile.log --stderr /var/log/cos-setup-reconcile.log"
           pidfile="/run/cos-setup-reconcile.pid"
-          respawn_delay=360
+          # run-stage exits when the stage is done and supervise-daemon
+          # respawns it after this delay, so the delay is the interval
+          # between passes. 3600 matches cos-setup-reconcile.timer's
+          # OnUnitActiveSec=60min.
+          respawn_delay=3600
           set -o allexport
           if [ -f /etc/environment ]; then . /etc/environment; fi
           set +o allexport
@@ -88,7 +97,11 @@ stages:
 
           supervisor=supervise-daemon
           name="kairos-webui"
-          command="kairos-agent webui"
+          # Two words in $command only worked because supervise-daemon.sh
+          # word-splits it and getopt permutes the leftovers into the
+          # child argv. Say it explicitly.
+          command="/usr/bin/kairos-agent"
+          command_args="webui"
           supervise_daemon_args="--stdout /var/log/kairos/webui.log --stderr /var/log/kairos/webui.log"
           pidfile="/run/${RC_SVCNAME}.pid"
           respawn_delay=5
