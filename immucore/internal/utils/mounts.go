@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/deniswernert/go-fstab"
@@ -61,18 +62,50 @@ func IsMounted(dev string) bool {
 	return err == nil
 }
 
+// blkid runs blkid with the given arguments. It is a var so that a test can
+// answer for it without a blkid binary on the machine running the test.
+var blkid = func(args string) (string, error) {
+	return CommandWithPath("blkid " + args)
+}
+
+// blkidIsBusyBox reports whether blkid here comes from BusyBox, which prints
+// the whole tag list where util-linux prints only the value that was asked
+// for.
+//
+// The answer cannot change while immucore runs, and it is asked once. It used
+// to be asked from DiskFSType, which runs once per mount attempt inside a
+// retry loop, so every attempt forked a second blkid to learn something the
+// first attempt already knew.
+//
+// It is a var, and not a bare call to sync.OnceValue, so that a test can
+// answer for it.
+var blkidIsBusyBox = sync.OnceValue(detectBlkidIsBusyBox)
+
+// detectBlkidIsBusyBox asks blkid which blkid it is. It is named, rather than
+// inlined into the sync.OnceValue above, so a test resetting the cached answer
+// re-arms this same body instead of a copy of it.
+func detectBlkidIsBusyBox() bool {
+	out, err := blkid("--help")
+	if err != nil {
+		// blkid --help exits non-zero on some builds, and the output is
+		// what matters, not the status.
+		KLog.Logger.Debug().Err(err).Str("out", out).Msg("blkid --help")
+	}
+
+	return strings.Contains(out, "BusyBox")
+}
+
 // DiskFSType will return the FS type for a given disk
 // Does NOT need to be mounted
 // Needs full path so either /dev/sda1 or /dev/disk/by-{label,uuid}/{label,uuid} .
 func DiskFSType(s string) string {
 	KLog.Logger.Debug().Str("device", s).Msg("Getting disk type for device")
-	out, e := CommandWithPath(fmt.Sprintf("blkid %s -s TYPE -o value", s))
+	out, e := blkid(fmt.Sprintf("%s -s TYPE -o value", s))
 	if e != nil {
 		KLog.Logger.Debug().Err(e).Msg("blkid")
 	}
 	out = strings.Trim(strings.Trim(out, " "), "\n")
-	blkidVersion, _ := CommandWithPath("blkid --help")
-	if strings.Contains(blkidVersion, "BusyBox") {
+	if blkidIsBusyBox() {
 		// BusyBox blkid returns the whole thing ¬_¬
 		splitted := strings.Fields(out)
 		if len(splitted) == 0 {
@@ -81,7 +114,10 @@ func DiskFSType(s string) string {
 		}
 		typeFs := splitted[len(splitted)-1]
 		typeFsSplitted := strings.Split(typeFs, "=")
-		if len(typeFsSplitted) < 1 {
+		// strings.Split never answers with fewer than one element, so the
+		// guard here has to be two: a last field with no "=" in it reaches
+		// index 1 and panics.
+		if len(typeFsSplitted) < 2 {
 			KLog.Logger.Debug().Str("what", typeFs).Msg("typeFs split")
 			return "ext4"
 		}
@@ -94,6 +130,18 @@ func DiskFSType(s string) string {
 
 // SyncState will rsync source into destination. Useful for Bind mounts.
 func SyncState(src, dst string) error {
+	// -X makes dst's extended attributes match src's, which deletes the ones src
+	// does not carry. MountBind creates src itself when the image does not ship
+	// the path, in the initramfs and so with no SELinux label, while dst is the
+	// persistent state dir and does have one. Without this the label comes off on
+	// every boot. Only the two roots can disagree that way: everything below src
+	// comes from the image and was labelled at build time, so -X keeps propagating
+	// those correctly.
+	// Snapshot now, put back on the way out. A failed sync can have stripped
+	// them already, so the restore runs either way.
+	restore := keepXattrs(dst)
+	defer restore()
+
 	// This has the --update flag to avoid overwriting newer files in dst.
 	// This also has a weird bug in which if the source is a file and destination is a symlink.
 	// According to docs it should overwrite the symlink as its of a different type but it does not.
@@ -103,6 +151,103 @@ func SyncState(src, dst string) error {
 	// https://github.com/RsyncProject/rsync/issues/827
 	_, err := CommandWithPath(fmt.Sprintf("rsync -aquAX %s %s", src, dst))
 	return err
+}
+
+// keepXattrs reads path's extended attributes and returns a function that puts
+// back the ones that have gone missing since. An attribute the sync gave a new
+// value is left alone: the source is entitled to an opinion, it is only removal
+// that is never wanted.
+func keepXattrs(path string) func() {
+	saved := map[string][]byte{}
+	for _, name := range listXattrs(path) {
+		if value, err := getXattr(path, name); err == nil {
+			saved[name] = value
+		}
+	}
+
+	return func() {
+		for name, value := range saved {
+			if _, err := getXattr(path, name); err == nil {
+				continue
+			}
+			if err := syscall.Setxattr(path, name, value, 0); err != nil {
+				KLog.Logger.Warn().Str("path", path).Str("attr", name).Err(err).Msg("Could not restore extended attribute")
+			}
+		}
+	}
+}
+
+// listXattrs returns the names of path's extended attributes, or nothing if
+// they cannot be read. The filesystem may not support them at all.
+func listXattrs(path string) []string {
+	size, err := syscall.Listxattr(path, nil)
+	if err != nil || size == 0 {
+		return nil
+	}
+	buf := make([]byte, size)
+	size, err = syscall.Listxattr(path, buf)
+	if err != nil {
+		return nil
+	}
+
+	var names []string
+	for _, name := range strings.Split(string(buf[:size]), "\x00") {
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+// getXattr reads one extended attribute. The error tells absent apart from empty.
+func getXattr(path, name string) ([]byte, error) {
+	size, err := syscall.Getxattr(path, name, nil)
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, size)
+	size, err = syscall.Getxattr(path, name, buf)
+	if err != nil {
+		return nil, err
+	}
+	return buf[:size], nil
+}
+
+// CreateBindStateDir creates the directory that backs a bind mount, with the
+// mode and the ownership of the directory it is going to be bound onto.
+//
+// A bind mount shows the inode of the backing directory, so the mode and the
+// owner that end up visible at the mountpoint are the ones of that directory
+// and not the ones the image shipped. Creating it with os.ModePerm instead
+// hands back a laxer mode on every boot after the first, which for a path the
+// image keeps at 0700 root:root (/var/log/audit) is a downgrade nobody asked
+// for. The contents are SyncState's job, this is only about the directory.
+func CreateBindStateDir(mountpoint, stateDir string) error {
+	if _, err := os.Stat(stateDir); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	info, err := os.Stat(mountpoint)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(stateDir, info.Mode().Perm()); err != nil {
+		return err
+	}
+	// MkdirAll applies the umask, so the mode has to be set again to get the
+	// group and other bits the mountpoint has.
+	if err := os.Chmod(stateDir, info.Mode().Perm()); err != nil {
+		return err
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil
+	}
+	return os.Chown(stateDir, int(stat.Uid), int(stat.Gid))
 }
 
 // AppendSlash it's in the name. Appends a slash.

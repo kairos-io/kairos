@@ -6,7 +6,7 @@
 # workflow, which sets TARGETARCH per platform and picks up the right
 # binary from the build context.
 # nonroot, resolved 2026-09-04
-FROM gcr.io/distroless/static:nonroot@sha256:1c2c046bc09ed40fad370b599a0b1ae7987f55b01e247cf27a7c27cd97e5bbc7
+FROM gcr.io/distroless/static:nonroot@sha256:e2e927ec666bae08560abb3c55d0659eceabb657f56b6782ab500a9fc7f555e3
 WORKDIR /
 ARG TARGETARCH
 COPY dist/linux-${TARGETARCH}/kcrypt-challenger /manager

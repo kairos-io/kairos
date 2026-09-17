@@ -299,6 +299,97 @@ info:
 			})
 		})
 
+		Context("when the config_url cannot be used", func() {
+			var warnings *bytes.Buffer
+
+			BeforeEach(func() {
+				warnings = &bytes.Buffer{}
+				DeferCleanup(SetWarnOutForTest(warnings))
+			})
+
+			It("warns and keeps booting when every fetch attempt fails", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml",
+					"name":       "Mario",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring(server.URL + "/config.yaml"))
+			})
+
+			It("warns when the remote config has no valid header", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = w.Write([]byte("just_a_key: not_a_cloud_config\n"))
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{"config_url": server.URL + "/config.yaml"}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("has no valid header"))
+			})
+
+			It("keeps the query string out of the warning so tokens are not leaked", func() {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				}))
+				DeferCleanup(server.Close)
+
+				c := &Config{Values: ConfigValues{
+					"config_url": server.URL + "/config.yaml?token=supersecret",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).To(ContainSubstring("<redacted>"))
+			})
+
+			It("keeps the query string out of the wrapped transport error too", func() {
+				// A transport failure, unlike a bad status code, is a *url.Error that
+				// stringifies the whole URL. Closing the server first gives a
+				// connection refused on a port nothing is listening on.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				unreachable := server.URL
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": unreachable + "/config.yaml?token=supersecret&machine=abc123",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).ToNot(ContainSubstring("supersecret"))
+				Expect(warnings.String()).ToNot(ContainSubstring("abc123"))
+			})
+
+			It("masks a basic auth password carried in the config_url userinfo", func() {
+				// net/http lifts URL.User into an Authorization header, so
+				// user:pass@host in config_url is a working setup and the password
+				// must not reach the console.
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+				host := strings.TrimPrefix(server.URL, "http://")
+				server.Close()
+
+				c := &Config{Values: ConfigValues{
+					"config_url": "http://user:hunter2@" + host + "/config.yaml",
+				}}
+				Expect(c.MergeConfigURL()).To(Succeed())
+
+				// Pin what the warning does say, so this does not pass vacuously
+				// if the URL stops being named at all.
+				Expect(warnings.String()).To(ContainSubstring("could not fetch config_url"))
+				Expect(warnings.String()).To(ContainSubstring("http://user:xxxxx@" + host + "/config.yaml"))
+				Expect(warnings.String()).ToNot(ContainSubstring("hunter2"))
+			})
+		})
+
 		Context("when config_url contains template markers", func() {
 			It("renders {{ .Values.* }} before the HTTP fetch", func() {
 				DeferCleanup(SetBuildContextForTest(func() (map[string]interface{}, error) {
@@ -1442,6 +1533,51 @@ local_key_2: local_value_2
 				c, err := Scan(o, FilterKeysTest)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(c.Values["under_key"]).ToNot(BeNil())
+			})
+		})
+
+		Context("when the scanned directory holds non-yaml files (issue kairos-io/kairos#2064)", func() {
+			var tmpDir string
+
+			BeforeEach(func() {
+				var err error
+				tmpDir, err = os.MkdirTemp("", "config_mixed")
+				Expect(err).ToNot(HaveOccurred())
+				DeferCleanup(func() { _ = os.RemoveAll(tmpDir) })
+
+				Expect(os.WriteFile(path.Join(tmpDir, "local_config.yaml"), []byte(`#cloud-config
+name: Mario
+`), os.ModePerm)).To(Succeed())
+
+				Expect(os.WriteFile(path.Join(tmpDir, "no_header.yaml"), []byte(`name: Luigi
+`), os.ModePerm)).To(Succeed())
+
+				for _, name := range []string{"grub.cfg", "bootx64.efi", "unicode.pf2", "acpi.mod"} {
+					Expect(os.WriteFile(path.Join(tmpDir, name), []byte("x"), os.ModePerm)).To(Succeed())
+				}
+			})
+
+			It("silently skips non-yaml files and keeps the header warning for yaml siblings", func() {
+				origStdout := os.Stdout
+				r, w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				os.Stdout = w
+				defer func() { os.Stdout = origStdout }()
+
+				o := &Options{}
+				Expect(o.Apply(Directories(tmpDir))).To(Succeed())
+
+				c, scanErr := Scan(o, FilterKeysTest)
+
+				Expect(w.Close()).To(Succeed())
+				out, readErr := io.ReadAll(r)
+				Expect(readErr).ToNot(HaveOccurred())
+
+				Expect(scanErr).ToNot(HaveOccurred())
+				Expect(c.Values).To(HaveKeyWithValue("name", "Mario"))
+
+				Expect(string(out)).ToNot(ContainSubstring("(extension)"))
+				Expect(string(out)).To(ContainSubstring("no_header.yaml because it has no valid header"))
 			})
 		})
 	})

@@ -29,6 +29,7 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -242,6 +243,54 @@ var _ = Describe("Upgrade Actions test", func() {
 				Expect(err).To(HaveOccurred())
 				// Make sure is a cloud init error!
 				Expect(err.Error()).To(ContainSubstring("cloud init"))
+			})
+			It("Refreshes the shim, grub and grub.cfg on the ESP", Label("docker"), func() {
+				// The ESP is not mounted on a running GRUB system, which is
+				// what the ghw mock above reproduces: COS_GRUB has no
+				// mountpoint. The refresh has to mount it itself, so this
+				// covers the whole path from spec to written bytes.
+				espDir := filepath.Join(sdkConstants.EfiDirTransient, "EFI", "boot")
+				Expect(fsutils.MkdirAll(fs, espDir, constants.DirPerm)).ToNot(HaveOccurred())
+				for _, f := range []string{"shim.efi", "bootx64.efi", "grubx64.efi", "grub.cfg"} {
+					Expect(fs.WriteFile(filepath.Join(espDir, f), []byte("stale"), constants.FilePerm)).ToNot(HaveOccurred())
+				}
+
+				// Shim and grub as the newly deployed image ships them.
+				sourceShim := filepath.Join(spec.Active.MountPoint, "usr/share/efi/x86_64/shim.efi")
+				sourceGrub := filepath.Join(spec.Active.MountPoint, "usr/lib/grub/x86_64-efi/grubx64.efi")
+				for path, content := range map[string]string{sourceShim: "new shim", sourceGrub: "new grub"} {
+					Expect(fsutils.MkdirAll(fs, filepath.Dir(path), constants.DirPerm)).ToNot(HaveOccurred())
+					Expect(fs.WriteFile(path, []byte(content), constants.FilePerm)).ToNot(HaveOccurred())
+				}
+
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				Expect(upgrade.Run()).ToNot(HaveOccurred())
+
+				By("writing the new shim, under its own name and the fallback one")
+				Expect(fs.ReadFile(filepath.Join(espDir, "shim.efi"))).To(Equal([]byte("new shim")))
+				Expect(fs.ReadFile(filepath.Join(espDir, "bootx64.efi"))).To(Equal([]byte("new shim")))
+
+				By("writing the new grub")
+				Expect(fs.ReadFile(filepath.Join(espDir, "grubx64.efi"))).To(Equal([]byte("new grub")))
+
+				By("rewriting grub.cfg to chainload the state partition")
+				Expect(fs.ReadFile(filepath.Join(espDir, "grub.cfg"))).To(ContainSubstring(spec.Partitions.State.FilesystemLabel))
+
+				By("unmounting the ESP afterwards")
+				Expect(memLog).ToNot(ContainSubstring("Skipping ESP refresh"), memLog.String())
+				mnt, err := fs.Stat(sdkConstants.EfiDirTransient)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(mnt.IsDir()).To(BeTrue())
+			})
+			It("Skips the ESP refresh when the image ships no shim or grub", Label("docker"), func() {
+				// A missing shim must not turn a working upgrade into a
+				// failed one, since the pre-existing upgrade contract never
+				// touched the ESP at all.
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				Expect(upgrade.Run()).ToNot(HaveOccurred())
+				Expect(memLog).To(ContainSubstring("Skipping ESP refresh: no shim found under"), memLog.String())
 			})
 			It("Successfully upgrades from docker image", Label("docker"), func() {
 				spec.Active.Source = sdkImages.NewDockerSrc("alpine")

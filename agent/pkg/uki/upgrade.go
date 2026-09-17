@@ -46,10 +46,9 @@ func (i *UpgradeAction) Run() (err error) {
 	}
 	cleanup.Push(umount)
 
-	// TODO: Get the size of the efi partition and decide if the images can fit
-	// before trying the upgrade.
-	// If we decide to first copy and then rotate, we need ~4 times the size of
-	// the artifact set [TBD]
+	// We copy first and then rotate, so the sizes that matter are only known
+	// once the new set is on disk. The check runs after the dump below and
+	// before the rotation, in checkSpaceForUpgradeRotation.
 
 	// When upgrading recovery or single entries, we don't want to replace loader.conf or any other
 	// files, thus we take a simpler approach and only install the new efi file
@@ -82,6 +81,18 @@ func (i *UpgradeAction) Run() (err error) {
 		})
 		i.cfg.Logger.Logger.Warn().Msg("Upgrade artifact signature does not match, upgrading to this source would result in an unbootable active system.\n" +
 			"Check the upgrade source and confirm that its signed with a valid key, that key is in the machine DB and it has not been blacklisted.")
+		return err
+	}
+
+	// The rotation deletes passive and then active before it writes anything in
+	// their place, so a copy that runs out of room part way leaves nothing to
+	// boot. Check that both copies fit while both sets are still on disk.
+	if err = checkSpaceForUpgradeRotation(i.cfg.Fs, constants.UkiEfiDir, i.cfg.Logger); err != nil {
+		i.cfg.Logger.Errorf("checking space on the EFI partition: %s", err.Error())
+		// Drop the set we just dumped, it is no use to anyone now
+		cleanup.Push(func() error {
+			return removeArtifactSetWithRole(i.cfg.Fs, constants.UkiEfiDir, UnassignedArtifactRole)
+		})
 		return err
 	}
 

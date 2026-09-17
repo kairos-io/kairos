@@ -6,16 +6,18 @@ import (
 
 // InstallSchema represents the install block in the Kairos configuration. It is used to drive automatic installations without user interaction.
 type InstallSchema struct {
-	_                   struct{}       `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
-	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
-	BindMounts          []string       `json:"bind_mounts,omitempty"`
-	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	NoFormat            bool           `json:"no_format,omitempty"`
-	Device              string         `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
-	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
-	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
-	Env                 []interface{}  `json:"env,omitempty"`
+	_                   struct{}          `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
+	Auto                bool              `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
+	BindMounts          []string          `json:"bind_mounts,omitempty"`
+	Bundles             []BundleSchema    `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	NoFormat            bool              `json:"no_format,omitempty"`
+	Device              string            `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
+	EphemeralMounts     []string          `json:"ephemeral_mounts,omitempty"`
+	EncryptedPartitions []string          `json:"encrypted_partitions,omitempty"`
+	Env                 []interface{}     `json:"env,omitempty"`
+	Extensions          []ExtensionSchema `json:"extensions,omitempty" description:"System extensions to install onto the node."`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
+	SelinuxOptions      `json:"selinux,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
 	SkipEncryptCopyPlugins bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
@@ -69,9 +71,16 @@ type GrubOptionsSchema struct {
 	SavedEntry           string `json:"saved_entry,omitempty" description:"Set the default boot entry."`
 }
 
-// PowerManagement is a meta structure to hold the different rules for managing power, which are not compatible between each other.
-type PowerManagement struct {
+// SelinuxOptions controls SELinux on the installed system (RHEL and SUSE
+// families). When enabled, the system boots with selinux=1
+// and the kairos-selinux-relabel unit runs on every non-recovery boot.
+type SelinuxOptions struct {
+	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). GRUB-only: not supported under UKI"`
+	Mode    string `json:"mode,omitempty" enum:"[\"enforcing\",\"permissive\"]" description:"SELinux mode: enforcing or permissive (default permissive). Enforcing is applied after the post-boot relabel, not from early boot"`
 }
+
+// PowerManagement is a meta structure to hold the different rules for managing power, which are not compatible between each other.
+type PowerManagement struct{}
 
 // NoPowerManagement is a meta structure used when the user does not define any power management options or when the user does not want to reboot or poweroff the machine.
 type NoPowerManagement struct {

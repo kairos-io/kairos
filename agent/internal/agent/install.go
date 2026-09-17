@@ -22,8 +22,10 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/uki"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -32,7 +34,7 @@ import (
 	"github.com/sanity-io/litter"
 )
 
-func displayInfo(agentConfig *Config) {
+func displayInfo(agentConfig *branding.Config) {
 	if !agentConfig.WebUI.Disable {
 		ifaces := machine.Interfaces()
 		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
@@ -45,7 +47,7 @@ func displayInfo(agentConfig *Config) {
 					if strings.Contains("127.0.0.1", ip) || strings.Contains("::1", ip) {
 						continue
 					}
-					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, constants.DefaultWebUIListenAddress)
+					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, sdkConstants.DefaultWebUIListenAddress)
 				}
 				message = message + messageIps
 			}
@@ -146,7 +148,7 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 	if err != nil {
 		fmt.Printf("- config not found in the system: %s", err.Error())
 	}
-	agentConfig, err := LoadConfig()
+	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
 	}

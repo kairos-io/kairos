@@ -109,8 +109,9 @@ func (i *InstallAction) Run() (err error) {
 		return err
 	}
 
-	// TODO: Check if the size of the files we are going to copy, will fit in the
-	// partition. If not stop here.
+	// The partition has to hold the source once plus a copy per role. The
+	// source size is only known once it is on disk, so the check runs after the
+	// dump below and before the copies, in checkSpaceForInstall.
 
 	// Copy the efi file into the proper dir
 	_, err = e.DumpSource(i.spec.Partitions.EFI.MountPoint, i.spec.Active.Source)
@@ -166,7 +167,16 @@ func (i *InstallAction) Run() (err error) {
 		return err
 	}
 
-	for _, role := range []string{"active", "passive", "recovery", "statereset"} {
+	roles := []string{"active", "passive", "recovery", "statereset"}
+
+	// Refuse to start copying unless every role fits, so a partition that is
+	// too small fails here with a size rather than part way through with ENOSPC.
+	if err = checkSpaceForInstall(i.cfg.Fs, i.spec.Partitions.EFI.MountPoint, len(roles), i.cfg.Logger); err != nil {
+		i.cfg.Logger.Errorf("checking space on the EFI partition: %s", err.Error())
+		return err
+	}
+
+	for _, role := range roles {
 		if err = copyArtifactSetRole(i.cfg.Fs, i.spec.Partitions.EFI.MountPoint, UnassignedArtifactRole, role, i.cfg.Logger); err != nil {
 			i.cfg.Logger.Errorf("installing the new artifact set as %s: %s", role, err.Error())
 			return fmt.Errorf("installing the new artifact set as %s: %w", role, err)

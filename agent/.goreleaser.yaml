@@ -23,7 +23,7 @@ builds:
       - -l
     env:
       - CGO_ENABLED=0
-      - GOEXPERIMENT=boringcrypto
+      - GOFIPS140=v1.0.0
     goos:
       - linux
     goarch:
@@ -34,15 +34,14 @@ builds:
     id: fips-amd64
     hooks:
       post:
-        - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+        - bash -c 'set -e; go version -m {{.Path}} | grep -F "GOFIPS140=v1.0.0" || (echo "GOFIPS140=v1.0.0 not baked in" && exit 1)'
   - ldflags:
       - -w -s -X "github.com/kairos-io/kairos-agent/v2/internal/common.VERSION={{.Tag}}" -X "github.com/kairos-io/kairos-agent/v2/internal/common.gitCommit={{.Commit}}"
     gcflags:
       - -l
     env:
       - CGO_ENABLED=0
-      - GOEXPERIMENT=boringcrypto
-      - CC=aarch64-linux-gnu-gcc
+      - GOFIPS140=v1.0.0
     goos:
       - linux
     goarch:
@@ -53,7 +52,7 @@ builds:
     id: fips-arm64
     hooks:
       post:
-        - bash -c 'set -e; go version {{.Path}} | grep boringcrypto || (echo "boringcrypto not found" && exit 1)'
+        - bash -c 'set -e; go version -m {{.Path}} | grep -F "GOFIPS140=v1.0.0" || (echo "GOFIPS140=v1.0.0 not baked in" && exit 1)'
 source:
   enabled: true
   name_template: '{{ .ProjectName }}-{{ .Tag }}-source'

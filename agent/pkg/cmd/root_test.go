@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/twpayne/go-vfs/v5/vfst"
 	"github.com/urfave/cli/v2"
@@ -21,8 +22,33 @@ type failingCatalogClient struct {
 func TestSysextInstallUsesDefaultCatalog(t *testing.T) {
 	command := sysextInstallCommand(t)
 	ctx := commandContext(t, command, "sysext", "git")
-	if got := extensionCatalogURL(ctx, "sysext"); got != defaultExtensionCatalogURL {
-		t.Fatalf("catalog default = %q, want %q", got, defaultExtensionCatalogURL)
+	cfg := agentConfig.NewConfig()
+
+	got := extensionCatalogURLs(ctx, cfg, "sysext")
+	if len(got) != 1 || got[0] != extensiontypes.DefaultCatalogURL {
+		t.Fatalf("catalog default = %q, want [%q]", got, extensiontypes.DefaultCatalogURL)
+	}
+	if got := extensionCatalogURLs(ctx, cfg, "confext"); got != nil {
+		t.Fatalf("confext catalogs = %q, want none", got)
+	}
+}
+
+func TestSysextInstallCatalogsComeFromTheConfig(t *testing.T) {
+	command := sysextInstallCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.Extensions.Catalogs = []string{"https://example.test/one.json", "https://example.test/two.json"}
+
+	// With no flag, the cloud config decides, replacing the default.
+	got := extensionCatalogURLs(commandContext(t, command, "sysext", "git"), cfg, "sysext")
+	if len(got) != 2 || got[0] != "https://example.test/one.json" || got[1] != "https://example.test/two.json" {
+		t.Fatalf("catalogs = %q, want the two configured ones in order", got)
+	}
+
+	// Repeated flags override the config, in the order they were given.
+	ctx := commandContext(t, command, "sysext", "--catalog", "https://example.test/flag-a.json", "--catalog", "https://example.test/flag-b.json", "git")
+	got = extensionCatalogURLs(ctx, cfg, "sysext")
+	if len(got) != 2 || got[0] != "https://example.test/flag-a.json" || got[1] != "https://example.test/flag-b.json" {
+		t.Fatalf("catalogs = %q, want the two flagged ones in order", got)
 	}
 }
 
@@ -35,7 +61,7 @@ func TestCatalogMissPreservesErrorForNonURI(t *testing.T) {
 	client := &failingCatalogClient{}
 	cfg := agentConfig.NewConfig(agentConfig.WithFs(fs), agentConfig.WithClient(client))
 
-	err = installCatalogOrURIExtension(cfg, defaultExtensionCatalogURL, "not-a-source", "", "sysext")
+	err = installCatalogOrURIExtension(cfg, []string{extensiontypes.DefaultCatalogURL}, "not-a-source", "", "sysext")
 	if err == nil || !strings.Contains(err.Error(), "download failed") {
 		t.Fatalf("expected catalog error for a non-URI request, got %v", err)
 	}
@@ -97,8 +123,8 @@ func TestCatalogDownloadFailureDoesNotLeaveTemporaryFile(t *testing.T) {
 	client := &failingCatalogClient{}
 	cfg := agentConfig.NewConfig(agentConfig.WithFs(fs), agentConfig.WithClient(client))
 
-	_, err = installCatalogExtension(cfg, "https://example.test/catalog.json", "git", "")
-	if err == nil || err.Error() != "download failed" {
+	err = installCatalogExtension(cfg, []string{"https://example.test/catalog.json"}, "git", "")
+	if err == nil || !strings.Contains(err.Error(), "download failed") {
 		t.Fatalf("expected download failure, got %v", err)
 	}
 	if client.destination == "" {
@@ -142,5 +168,39 @@ func TestStartAPIFlagHasNoDefault(t *testing.T) {
 
 	if api.Value != "" {
 		t.Fatalf("start --api default = %q, want %q so the provider picks the address", api.Value, "")
+	}
+}
+
+// The web UI passes --source straight through to `manual-install`, so a bad
+// one has to be rejected by the process the operator invoked. Without a Before
+// the rejection only surfaces in the browser's progress stream, after the user
+// has typed a whole cloud-config.
+func TestWebUIRejectsABadSourceAtParseTime(t *testing.T) {
+	var webui *cli.Command
+	for _, c := range cmds {
+		if c.Name == "webui" {
+			webui = c
+			break
+		}
+	}
+	if webui == nil {
+		t.Fatal("no webui command registered")
+	}
+	if webui.Before == nil {
+		t.Fatal("webui has no Before, so --source is never validated")
+	}
+
+	set := flag.NewFlagSet("webui", flag.ContinueOnError)
+	set.String("source", "not-a-uri", "")
+	err := webui.Before(cli.NewContext(nil, set, nil))
+	if err == nil || !strings.Contains(err.Error(), "not-a-uri") {
+		t.Fatalf("webui --source not-a-uri = %v, want an error naming the source", err)
+	}
+
+	// The kairos-webui service passes no --source, so it must still start.
+	empty := flag.NewFlagSet("webui", flag.ContinueOnError)
+	empty.String("source", "", "")
+	if err := webui.Before(cli.NewContext(nil, empty, nil)); err != nil {
+		t.Fatalf("webui with no --source = %v, want nil", err)
 	}
 }

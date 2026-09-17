@@ -127,6 +127,29 @@ func CreateIfNotExists(path string) error {
 	return nil
 }
 
+// CreateDirIfNotExists is CreateIfNotExists for a caller that knows which mode
+// the directory has to have. A path that is already there is left alone, mode
+// included: whoever created it had a reason and it is not this function's to
+// override. Parents that have to be created along the way get mode too, minus
+// the umask, because that is what os.MkdirAll does with its mode argument;
+// only the last element is then set to exactly mode. A path whose parents may
+// be absent has to be checked against that before it goes in bindMountModes,
+// or a restrictive leaf mode silently applies to the parent as well.
+func CreateDirIfNotExists(path string, mode os.FileMode) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if err := os.MkdirAll(path, mode); err != nil {
+		return err
+	}
+	// MkdirAll applies the umask to the mode it is given, so it has to be set
+	// again to get the group and the other bits through.
+	return os.Chmod(path, mode)
+}
+
 // CleanupSlice will clean a slice of strings of empty items
 // Typos can be made on writing the cos-layout.env file and that could introduce empty items
 // In the lists that we need to go over, which causes bad stuff.
@@ -190,6 +213,7 @@ func RebootOrWait(msg string, err error) {
 	syscall.Sync()
 	if len(ReadCMDLineArg("rd.immucore.rebootonfailure")) > 0 {
 		KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Rebooting in 10 seconds", msg))
+		announceOnConsoles(ConsoleDevices(), failureLine(msg, err, "Rebooting in 10 seconds"))
 		time.Sleep(10 * time.Second)
 		if rerr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_RESTART); rerr != nil {
 			KLog.Logger.Err(rerr).Msg("reboot syscall failed; blocking to avoid boot continuation")
@@ -197,10 +221,44 @@ func RebootOrWait(msg string, err error) {
 		}
 	}
 	KLog.Logger.Warn().Msg(fmt.Sprintf("%s - Halting boot", msg))
+	announceOnConsoles(ConsoleDevices(), failureLine(msg, err, "Halting boot"))
 	if herr := syscall.Reboot(syscall.LINUX_REBOOT_CMD_HALT); herr != nil {
 		KLog.Logger.Err(herr).Msg("halt syscall failed; blocking to avoid boot continuation")
 		select {}
 	}
+}
+
+// failureLine is the operator-facing one-liner for a RebootOrWait failure.
+// err is included because on a headless boot it is the only diagnostic there
+// is: the structured log goes to the journal, which nobody can read from a
+// machine that is about to halt.
+func failureLine(msg string, err error, action string) string {
+	if err != nil {
+		return fmt.Sprintf("%s: %s - %s", msg, err, action)
+	}
+	return fmt.Sprintf("%s - %s", msg, action)
+}
+
+// announceOnConsoles writes text to every console in paths, then closes them.
+//
+// This exists because the logger alone does not reach serial. immucore logs to
+// stderr, systemd routes that to /dev/console, and /dev/console aliases only
+// the *last* console= stanza on the cmdline. On the usual
+// `console=ttyS0 console=tty1` that is tty1, so everything RebootOrWait says
+// lands on the framebuffer and a headless or remote machine gets a silent
+// halt with no reason given (kairos-io/kairos#4618).
+//
+// Unlike HaltWithBanner these fds are closed on return: RebootOrWait paints
+// once and then hands control to the reboot syscall, so there is no repaint
+// loop to keep them open for.
+func announceOnConsoles(paths []string, text string) {
+	consoles := openConsolesForWriting(paths...)
+	defer func() {
+		for _, f := range consoles {
+			_ = f.Close()
+		}
+	}()
+	paintBanner(consoles, text+"\n")
 }
 
 // SystemdBooted reports whether systemd is PID 1, using the same check as
@@ -667,7 +725,9 @@ func DropToEmergencyShellWithError(reason string) {
 	DropToEmergencyShell()
 }
 
-func DropToEmergencyShell() {
+// shellEnvWithPath returns the environment for a shell we hand the console to,
+// with the usual PATH appended: under UKI there is nothing else setting one.
+func shellEnvWithPath() []string {
 	env := os.Environ()
 	// try to extract any existing path from the environment
 	pathAppend := constants.PathAppend
@@ -677,7 +737,11 @@ func DropToEmergencyShell() {
 			pathAppend = fmt.Sprintf("%s:%s", pathAppend, splitted[1])
 		}
 	}
-	env = append(env, fmt.Sprintf("%s=%s", constants.PATH, pathAppend))
+	return append(env, fmt.Sprintf("%s=%s", constants.PATH, pathAppend))
+}
+
+func DropToEmergencyShell() {
+	env := shellEnvWithPath()
 	if err := syscall.Exec("/bin/bash", []string{"/bin/bash"}, env); err != nil {
 		if err := syscall.Exec("/bin/sh", []string{"/bin/sh"}, env); err != nil {
 			if err := syscall.Exec("/sysroot/bin/bash", []string{"/sysroot/bin/bash"}, env); err != nil {
