@@ -177,12 +177,14 @@ jobs:
       registry_login: quay
     secrets: inherit
 
-  # Only the Hadron core cell here. amd64-standard (unpinned k3s),
-  # amd64-core-fips, both UKI cells, and amd64-core-ubuntu-20.04 all
-  # exist in master.yaml/pr.yaml to feed qemu tests and are omitted
-  # from the release matrix -- v4.2.0 released none of them. Kept as a
-  # single-cell matrix so the shape mirrors build-iso-arm below and
-  # future variants slot in cleanly.
+  # Hadron core plus the new UKI+FIPS cell. amd64-standard (unpinned
+  # k3s), amd64-core-fips, the no-fips UKI cells, and
+  # amd64-core-ubuntu-20.04 all exist in master.yaml/pr.yaml to feed
+  # qemu tests and are omitted from the release matrix -- v4.2.0
+  # released none of them. amd64-core-fips-uki is shipped because
+  # hadron v0.5.3 is the first tag to publish hadron-fips-trusted, so
+  # this is the release cut that first exposes a signed FIPS UKI to
+  # downstream consumers.
   build-iso:
     needs: [build-image-kairos-init, vulnerability-scan]
     strategy:
@@ -190,6 +192,7 @@ jobs:
       matrix:
         include:
           - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-core-fips-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips-trusted:v0.5.3', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: true}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
     permissions:
