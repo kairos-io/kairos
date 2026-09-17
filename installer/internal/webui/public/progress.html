@@ -88,6 +88,47 @@
       width: auto;
     }
     
+    .steps {
+      list-style: none;
+      background-color: #fff;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .steps li {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.2rem 0;
+      color: #999;
+    }
+
+    .steps li .marker {
+      font-family: 'Courier New', monospace;
+      width: 1.5rem;
+      text-align: center;
+    }
+
+    .steps li.active {
+      color: #333;
+      font-weight: 600;
+    }
+
+    .steps li.done {
+      color: #2e7d32;
+    }
+
+    .steps li.failed {
+      color: #c62828;
+      font-weight: 600;
+    }
+
+    .output-box .error {
+      color: #ff6e6e;
+    }
+
     .output-box {
       background-color: #1e1e1e;
       color: #d4d4d4;
@@ -182,6 +223,8 @@
 
   <div class="container">
     <div id="status" class="status connecting">Connecting...</div>
+    <ul class="steps" id="steps"></ul>
+
     
     <div class="controls">
       <div class="checkbox-group">
@@ -205,21 +248,87 @@
   </footer>
 
   <script>
+    // The installer streams sdk/agentrun progress messages as JSON, one per
+    // websocket frame: {"type":"step"|"log"|"error"|"done", ...}. "step"
+    // carries the agent's own step id, which is what drives the checklist
+    // below; the terminal transcript is only the log box.
+    const STEPS = [
+      ['partition',      'Partitioning disk'],
+      ['before-install', 'Running before-install'],
+      ['active',         'Installing active system'],
+      ['bootloader',     'Configuring bootloader'],
+      ['recovery',       'Creating recovery image'],
+      ['passive',        'Creating passive image'],
+      ['after-install',  'Running after-install'],
+      ['done',           'Installation complete!'],
+    ];
+
     const outputContent = document.getElementById('output-content');
     const outputBox = document.getElementById('output');
     const autoscrollSwitch = document.getElementById('autoscroll-switch');
     const statusDiv = document.getElementById('status');
+    const stepsList = document.getElementById('steps');
     let autoscroll = true;
+
+    const stepRows = new Map();
+    STEPS.forEach(function([id, label]) {
+      const li = document.createElement('li');
+      const marker = document.createElement('span');
+      marker.className = 'marker';
+      marker.textContent = '○';
+      const text = document.createElement('span');
+      text.textContent = label;
+      li.appendChild(marker);
+      li.appendChild(text);
+      stepsList.appendChild(li);
+      stepRows.set(id, li);
+    });
 
     function updateStatus(status, message) {
       statusDiv.className = 'status ' + status;
       statusDiv.textContent = message;
     }
 
-    function appendOutput(text) {
-      // Use innerHTML to support HTML formatting from ANSI colors
+    // markStep marks a step as reached. Steps the agent skips (partitioning
+    // on a no-format install, for instance) are simply absent from the
+    // stream, so everything before the one that arrived is done too.
+    function markStep(id) {
+      // A step this page does not know about leaves the list alone.
+      // Marking every row done because the id did not match would
+      // report an install as further along than it is.
+      if (!stepRows.has(id)) { return; }
+      let seen = false;
+      for (const [stepId, label] of STEPS) {
+        const li = stepRows.get(stepId);
+        if (seen) { break; }
+        if (stepId === id) {
+          seen = true;
+          li.className = stepId === 'done' ? 'done' : 'active';
+          li.firstChild.textContent = stepId === 'done' ? '✓' : '▶';
+        } else {
+          li.className = 'done';
+          li.firstChild.textContent = '✓';
+        }
+      }
+    }
+
+    function markCurrentStepFailed() {
+      for (const [stepId] of STEPS) {
+        const li = stepRows.get(stepId);
+        if (li.className === 'active') {
+          li.className = 'failed';
+          li.firstChild.textContent = '✗';
+          return;
+        }
+      }
+    }
+
+    // appendOutput writes text, never markup. The agent's output is not
+    // trusted to be HTML and is not rendered as any.
+    function appendOutput(text, className) {
       const div = document.createElement('div');
-      div.innerHTML = text;
+      if (className) { div.className = className; }
+      div.textContent = text;
       outputContent.appendChild(div);
       if (autoscroll) {
         outputBox.scrollTop = outputBox.scrollHeight;
@@ -227,30 +336,19 @@
     }
 
     function downloadLogs() {
-      // Extract all text content from the log viewer (strip HTML but keep text)
-      const allDivs = outputContent.querySelectorAll('div');
       let logText = '';
-      
-      allDivs.forEach(div => {
-        // Get text content (strips HTML but preserves text)
-        const text = div.textContent || div.innerText || '';
+      outputContent.querySelectorAll('div').forEach(function(div) {
+        const text = div.textContent || '';
         if (text.trim()) {
           logText += text + '\n';
         }
       });
-      
-      // Also include the initial connection message if present
-      const initialText = outputContent.textContent || outputContent.innerText || '';
-      if (initialText && !logText.includes(initialText)) {
-        logText = initialText + '\n' + logText;
-      }
-      
+
       if (!logText.trim()) {
         alert('No logs available to download');
         return;
       }
-      
-      // Create a blob and trigger download
+
       const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -269,7 +367,6 @@
       }
     });
 
-    // WebSocket connection
     const loc = window.location;
     let uri = 'ws:';
     if (loc.protocol === 'https:') {
@@ -278,46 +375,63 @@
     uri += '//' + loc.host + '/ws';
 
     const ws = new WebSocket(uri);
+    let finished = false;
 
     ws.onopen = function() {
       updateStatus('connected', 'Connected - Installation in progress...');
-      appendOutput('Connected to installation process...\n');
+      appendOutput('Connected to installation process...');
     };
 
     ws.onmessage = function(evt) {
-      const data = evt.data;
-      appendOutput(data);
-      
-      // Check if installation is complete
-      if (data.includes('[COMPLETE]')) {
-        updateStatus('connected', 'Installation completed!');
-        showDownloadButton();
+      let msg;
+      try {
+        msg = JSON.parse(evt.data);
+      } catch (e) {
+        appendOutput(evt.data);
+        return;
+      }
+
+      switch (msg.type) {
+        case 'step':
+          markStep(msg.step);
+          break;
+        case 'log':
+          appendOutput(msg.message);
+          break;
+        case 'error':
+          markCurrentStepFailed();
+          appendOutput('[ERROR] ' + msg.message, 'error');
+          break;
+        case 'done':
+          finished = true;
+          if (msg.ok) {
+            updateStatus('connected', 'Installation completed!');
+          } else {
+            updateStatus('disconnected', 'Installation failed');
+          }
+          showDownloadButton();
+          break;
       }
     };
 
-    ws.onerror = function(error) {
+    ws.onerror = function() {
       updateStatus('disconnected', 'Connection error');
-      appendOutput('\n[ERROR] WebSocket connection error\n');
-      // Show download button even on error - logs are already in browser
+      appendOutput('[ERROR] WebSocket connection error', 'error');
       showDownloadButton();
     };
 
     ws.onclose = function() {
-      updateStatus('disconnected', 'Connection closed');
-      appendOutput('\n[INFO] Connection closed. Installation may have completed.\n');
-      // Show download button when connection closes - logs are already in browser
+      if (!finished) {
+        updateStatus('disconnected', 'Connection closed');
+        appendOutput('[INFO] Connection closed. Installation may have completed.');
+      }
       showDownloadButton();
     };
 
     function showDownloadButton() {
       const downloadBtn = document.getElementById('download-btn');
-      if (downloadBtn) {
-        // Only show if we have logs
-        const hasLogs = outputContent.querySelectorAll('div').length > 0 || 
-                       (outputContent.textContent && outputContent.textContent.trim().length > 0);
-        if (hasLogs) {
-          downloadBtn.style.display = 'inline-block';
-        }
+      if (downloadBtn && outputContent.querySelectorAll('div').length > 0) {
+        downloadBtn.style.display = 'inline-block';
       }
     }
   </script>
