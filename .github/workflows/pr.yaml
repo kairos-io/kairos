@@ -353,6 +353,13 @@ jobs:
           - {test: 'acceptance'}
     name: test-core-fips / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # reusable-qemu-test.yaml's own permissions block requests packages:
+    # write unconditionally (its bundles-test push step needs it), so
+    # every caller must grant it too, regardless of which test value it
+    # passes -- same reason test-core has it below.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1'
@@ -376,6 +383,10 @@ jobs:
           - {test: 'acceptance'}
     name: test-core-ubuntu-20 / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ubuntu:20.04'
@@ -397,6 +408,10 @@ jobs:
           - {test: 'selinux'}
     name: test-core-rocky-9 / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'rockylinux/rockylinux:9'
@@ -418,6 +433,10 @@ jobs:
           - {test: 'selinux'}
     name: test-core-leap / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'opensuse/leap:16.0'
@@ -443,6 +462,10 @@ jobs:
           - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
     name: test-standard / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
@@ -479,6 +502,10 @@ jobs:
           - {test: 'encryption-kcrypt-cli'}
     name: test-standard-encryption / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
