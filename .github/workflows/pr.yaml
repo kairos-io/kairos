@@ -536,7 +536,10 @@ jobs:
     uses: ./.github/workflows/_uki-test.yaml
     permissions:
       contents: read
-      packages: read
+      # _uki-test.yaml pushes the dynamically-built UKI upgrade image
+      # from the install-upgrade cell, so the callee declares
+      # packages: write and this caller has to cover it.
+      packages: write
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}
