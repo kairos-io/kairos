@@ -134,6 +134,36 @@ const (
 	UkiEfiDir     = "/efi"
 	UkiMaxEntries = 3
 
+	// Upgrade-finalize handoff constants. See the block comment on
+	// UpgradeAction.handoffFinalizeToTarget for the shape of the handoff.
+
+	// TargetKairosAgentPath is the path of the kairos-agent binary inside
+	// the deployed target rootfs. The host uses it as the exec target for
+	// the upgrade-finalize handoff after chrooting into the target.
+	TargetKairosAgentPath = "/usr/bin/kairos-agent"
+
+	// UpgradeFinalizeCapabilityMarker is an empty file the target's
+	// kairos-agent ships alongside itself to advertise support for the
+	// upgrade-finalize subcommand. The host probes for this file (relative
+	// to the deployed target rootfs) before attempting the chroot handoff;
+	// if it is absent, the host runs the same finalize steps inline as it
+	// did before the handoff existed, so upgrades to older images keep
+	// working.
+	UpgradeFinalizeCapabilityMarker = "/etc/kairos/capabilities/upgrade-finalize"
+
+	// UpgradeFinalizeContextPath is the path inside the target rootfs at
+	// which the host writes the JSON-serialized FinalizeContext for the
+	// target agent's upgrade-finalize subcommand to read back. The file is
+	// written on the mounted transition image and does not persist past
+	// the transition-to-active rename.
+	UpgradeFinalizeContextPath = "/tmp/kairos-upgrade-finalize.json"
+
+	// HandoffHostPrefix is where the host filesystem is bind-mounted inside
+	// the target chroot for the upgrade-finalize handoff. Mirrors the /host
+	// convention system-upgrade-controller uses under Kubernetes so the
+	// target agent's --host-dir plumbing works the same in both settings.
+	HandoffHostPrefix = "/host"
+
 	// Boot labeling.
 	PassiveBootSuffix    = " (fallback)"
 	RecoveryBootSuffix   = " recovery"
