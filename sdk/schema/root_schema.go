@@ -37,8 +37,8 @@ type RootSchema struct {
 	UkiMaxEntries             int                      `json:"uki-max-entries,omitempty" mapstructure:"uki-max-entries"`
 	Stages                    map[string][]StageSchema `json:"stages,omitempty" description:"Cloud-init stages to execute"`
 	Logs                      LogsSchema               `json:"logs,omitempty" description:"Extra journal units and files to collect in a support bundle"`
-	BindPCRs                  []string                 `json:"bind-pcrs,omitempty" mapstructure:"bind-pcrs" description:"TPM PCRs to bind an encrypted partition to."`
-	BindPublicPCRs            []string                 `json:"bind-public-pcrs,omitempty" mapstructure:"bind-public-pcrs" description:"TPM PCRs to bind an encrypted partition to, using the public key policy."`
+	BindPCRs                  []string                 `json:"bind-pcrs,omitempty" description:"Trusted Boot only: TPM PCRs to bind an encrypted partition to, as systemd-cryptenroll --tpm2-pcrs. Empty by default."`
+	BindPublicPCRs            []string                 `json:"bind-public-pcrs,omitempty" description:"Trusted Boot only: TPM PCRs to bind an encrypted partition to under the signed public-key policy, as systemd-cryptenroll --tpm2-public-key-pcrs. Defaults to 11."`
 }
 
 // StageSchema defines the stage fields validated by the Kairos configuration schema.
