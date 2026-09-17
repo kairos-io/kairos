@@ -315,6 +315,14 @@ jobs:
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # The 'bundles' matrix entry above needs packages: write -- it logs in
+    # to ghcr.io and pushes a bundles-test image (reusable-qemu-test.yaml's
+    # "Login to GitHub Container Registry" step, gated on that one test).
+    # A matrix job shares one permissions block across every entry, so the
+    # whole job needs it even though the other ten entries don't use it.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
