@@ -3,15 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
-	"flag"
 	"io"
 	"log/slog"
-	"net"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
@@ -62,10 +62,10 @@ func TestWebUILoggerDiscardsWhenItsFileIsUnwritable(t *testing.T) {
 func TestWebUICarriesTheInstallSourceInBothModes(t *testing.T) {
 	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
-	if got := noTUIWebUIOptions("oci://foo:bar").Source; got != "oci://foo:bar" {
+	if got := noTUIWebUIOptions("oci://foo:bar", testLogger()).Source; got != "oci://foo:bar" {
 		t.Errorf("--no-tui dropped the source: %q", got)
 	}
-	if got := tuiWebUIOptions("oci://foo:bar", nil).Source; got != "oci://foo:bar" {
+	if got := tuiWebUIOptions("oci://foo:bar", nil, testLogger()).Source; got != "oci://foo:bar" {
 		t.Errorf("the TUI's web UI dropped the source: %q", got)
 	}
 }
@@ -75,10 +75,10 @@ func TestWebUICarriesTheInstallSourceInBothModes(t *testing.T) {
 func TestWebUILoggerIsSetOnlyForTheTUIMode(t *testing.T) {
 	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
-	if o := noTUIWebUIOptions(""); o.Logger != nil {
+	if o := noTUIWebUIOptions("", testLogger()); o.Logger != nil {
 		t.Error("--no-tui should leave echo on stdout, so it reaches the journal")
 	}
-	if o := tuiWebUIOptions("", nil); o.Logger == nil {
+	if o := tuiWebUIOptions("", nil, testLogger()); o.Logger == nil {
 		t.Error("the TUI mode must keep echo off stdout")
 	}
 }
@@ -90,152 +90,56 @@ func TestTUIWebUIOptionsCarryTheActivityHandle(t *testing.T) {
 	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
 	activity := &webui.Activity{}
-	if o := tuiWebUIOptions("", activity); o.Activity != activity {
+	if o := tuiWebUIOptions("", activity, testLogger()); o.Activity != activity {
 		t.Error("the TUI's web UI cannot report a browser-driven install back to main")
 	}
 	// --no-tui has no terminal UI to quit, so there is nothing to wait for.
-	if o := noTUIWebUIOptions(""); o.Activity != nil {
+	if o := noTUIWebUIOptions("", testLogger()); o.Activity != nil {
 		t.Error("--no-tui should not need an activity handle")
 	}
 }
 
-// This is what decides whether the agent config or the command line has the
-// last word on the MCP listener, so it is worth more than an eyeball.
-func TestFlagWasPassed(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		args []string
-		want bool
-	}{
-		{name: "no arguments at all", args: []string{"kairos-installer"}},
-		{name: "another flag", args: []string{"kairos-installer", "--source", "oci:x"}},
-		{
-			name: "passed with a value",
-			args: []string{"kairos-installer", "--mcp-address=127.0.0.1:8090"},
-			want: true,
-		},
-		{
-			name: "passed empty, which is how it is switched off",
-			args: []string{"kairos-installer", "--mcp-address="},
-			want: true,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			oldArgs, oldFlags := os.Args, flag.CommandLine
-			defer func() { os.Args, flag.CommandLine = oldArgs, oldFlags }()
+// The MCP endpoint is a route on the web UI's server now, so the only thing
+// main still decides about it is whether to hand the server a handler at all.
+// Both modes must, because a boot with only the HTTP installer up is precisely
+// the boot an agent has to drive, and that is the case that regressed before.
+func TestBothModesCarryTheMCPEndpoint(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
-			flag.CommandLine = flag.NewFlagSet(tc.args[0], flag.ContinueOnError)
-			flag.String("source", "", "")
-			// Mirrors main's empty default, which is what makes "passed
-			// empty" indistinguishable by value and only detectable by Visit.
-			flag.String("mcp-address", "", "")
-			os.Args = tc.args
-			if err := flag.CommandLine.Parse(tc.args[1:]); err != nil {
-				t.Fatal(err)
-			}
-
-			if got := flagWasPassed("mcp-address"); got != tc.want {
-				t.Errorf("flagWasPassed = %v, want %v for %v", got, tc.want, tc.args)
-			}
-		})
+	if o := noTUIWebUIOptions("", testLogger()); o.MCP == nil {
+		t.Error("--no-tui served the web UI without MCP, so nothing can drive that boot")
+	}
+	if o := tuiWebUIOptions("", nil, testLogger()); o.MCP == nil {
+		t.Error("the interactive installer served the web UI without MCP")
 	}
 }
 
-// freeLoopbackAddress returns a loopback address nothing is listening on, by
-// binding one and letting it go. A test that asserts something bound this
-// address has to name the address up front, which ListenAndServe does not
-// report back.
-func freeLoopbackAddress(t *testing.T) string {
-	t.Helper()
+// An agent reaching the installer has to find the endpoint on the web UI's
+// address, which is the whole point of mounting it there. This goes through a
+// real listener and a real MCP client rather than asserting on a struct field.
+func TestMCPAnswersOnTheWebUIsOwnListener(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("reserving an address: %v", err)
-	}
-	addr := ln.Addr().String()
-	if err := ln.Close(); err != nil {
-		t.Fatalf("releasing the reserved address: %v", err)
-	}
-
-	return addr
-}
-
-// dialUntilListening reports whether addr accepts a connection within the
-// timeout. The server it waits for starts in a goroutine, so "not yet" and
-// "never" are only distinguishable by waiting.
-func dialUntilListening(addr string, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return true
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-
-	return false
-}
-
-// --no-tui is the mode with no console session to install from, so it is the
-// one that most needs an agent to be able to drive it. It used to return
-// before the MCP server was started, leaving that boot with the web UI alone.
-func TestWebUIOnlyModeServesMCPAlongsideTheWebUI(t *testing.T) {
-	mcpAddr := freeLoopbackAddress(t)
-	webAddr := freeLoopbackAddress(t)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	opts := noTUIWebUIOptions("")
-	opts.Listen = webAddr
+	opts := noTUIWebUIOptions("", testLogger())
 	opts.Logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
 
-	served := make(chan error, 1)
-	go func() {
-		served <- serveWebUIOnly(ctx, testLogger(), mcpAddr, opts)
-	}()
+	srv := httptest.NewServer(webui.NewHandler(opts))
+	defer srv.Close()
 
-	if !dialUntilListening(webAddr, 5*time.Second) {
-		t.Fatalf("the web UI never listened on %s", webAddr)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v1"}, nil)
+	session, err := client.Connect(context.Background(),
+		&mcp.StreamableClientTransport{Endpoint: srv.URL + webui.MCPPath}, nil)
+	if err != nil {
+		t.Fatalf("connecting to MCP on the web UI's address: %v", err)
 	}
-	if !dialUntilListening(mcpAddr, 5*time.Second) {
-		t.Fatalf("the web UI ran without MCP: nothing listened on %s", mcpAddr)
+	defer session.Close()
+
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("listing tools: %v", err)
 	}
-
-	cancel()
-	select {
-	case err := <-served:
-		if err != nil {
-			t.Fatalf("serving the web UI: %v", err)
-		}
-	case <-time.After(15 * time.Second):
-		t.Fatal("serveWebUIOnly did not return after its context was cancelled")
-	}
-}
-
-// An empty address is how the MCP listener is switched off, and it is what an
-// operator gets when the agent config says nothing. The positive half is the
-// control: without it, "nothing bound this address" would pass for a startMCP
-// that never binds anything at all.
-func TestStartMCPBindsOnlyWhenAnAddressIsConfigured(t *testing.T) {
-	addr := freeLoopbackAddress(t)
-
-	off, cancelOff := context.WithCancel(context.Background())
-	defer cancelOff()
-
-	startMCP(off, testLogger(), "")
-	if dialUntilListening(addr, 300*time.Millisecond) {
-		t.Fatalf("an empty address bound %s, so there is no off switch", addr)
-	}
-	cancelOff()
-
-	on, cancelOn := context.WithCancel(context.Background())
-	defer cancelOn()
-
-	startMCP(on, testLogger(), addr)
-	if !dialUntilListening(addr, 5*time.Second) {
-		t.Fatalf("startMCP never bound %s, so the half of this test above proves nothing", addr)
+	if len(tools.Tools) == 0 {
+		t.Fatal("the endpoint answered but advertised no tools")
 	}
 }
 

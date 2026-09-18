@@ -9,34 +9,26 @@
 //
 // # Transport
 //
-// Streamable HTTP, served by kairos-installer alongside the TUI, so an agent
-// reaches the installer without having to spawn a process on the machine
-// first. It listens on loopback by default; see below.
-//
-// [Handler] is the server as an http.Handler so it can be mounted on the
-// installer's own mux once the web UI moves in (kairos-io/kairos#4340);
-// [ListenAndServe] is the standalone listener used until then.
+// Streamable HTTP, and not on a listener of its own: [Handler] is a route on
+// the web installer's server, mounted at /mcp by the package that owns that
+// router. One address serves the browser and the agent.
 //
 // # Who can reach it
 //
-// Nobody is authenticated. Anything that can reach the listening address can
-// call every tool, install included. The cross-origin wrapper below is a
-// browser control and nothing else: it decides on Sec-Fetch-Site and Origin,
-// which a non-browser caller does not send, so it stops a page the operator
-// opened and not a program on the network.
+// Nobody is authenticated. Anything that can reach the web installer can call
+// every tool, install included. The cross-origin wrapper below is a browser
+// control and nothing else: it decides on Sec-Fetch-Site and Origin, which a
+// non-browser caller does not send, so it stops a page the operator opened and
+// not a program on the network.
 //
-// So the default address is loopback, 127.0.0.1:8090, and reaching it from
-// another host is something an operator asks for:
+// That exposure is exactly the web installer's, which is the point of sharing
+// its listener. webui.disable is how an operator says "no unauthenticated
+// network installer on this box", and it now switches this off too, because
+// there is no server left to hang the route on. An image that wants the
+// browser installer without the agent one says so:
 //
 //	mcp:
-//	  disable: true                  # do not listen at all
-//	  listen_address: ":8090"        # or reachable from the network
-//
-// kairos-webui listens on :8080 on the same boot and can install too, but that
-// is not a reason to copy its exposure: webui.disable is how an operator says
-// "no unauthenticated network installer on this box", and this listener cannot
-// see that setting. A machine that turned webui off must not find a new door
-// open on :8090.
+//	  disable: true
 //
 // # The install tool is destructive
 //
@@ -48,13 +40,9 @@
 package mcp
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
-	stdlog "log"
 	"log/slog"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -156,46 +144,26 @@ func New(log sdkLogger.KairosLogger) *Server {
 	return s
 }
 
-// Defaults for the HTTP transport. Loopback, because a machine must not gain a
-// network-reachable install endpoint it did not already have: an operator who
-// set webui.disable turned the unauthenticated network installer off, and this
-// listener has no way to see that. Reaching it from another host is an opt-in,
-// through mcp.listen_address. The path is the one MCP clients assume.
-const (
-	DefaultListenAddress = "127.0.0.1:8090"
-	Path                 = "/mcp"
-)
-
-// ListenAddressFromConfig resolves where to listen from /etc/kairos/agent.yaml,
-// the same file and the same two knobs kairos-webui reads for itself. An empty
-// result means do not listen at all.
+// EnabledFromConfig reports whether to serve MCP at all, from
+// /etc/kairos/agent.yaml, the same file kairos-webui reads for itself. It is
+// on unless the image turned it off.
 //
 // This is the only control an operator has on a real boot: kairos-agent execs
 // the installer with a fixed argument list, so a flag never reaches it there.
-// The variadic paths are for tests; main calls this with none and gets
-// /etc/kairos/agent.yaml, the same file kairos-webui reads.
-func ListenAddressFromConfig(paths ...string) string {
+// An unreadable or missing file leaves it on, which is what an unbranded image
+// gets. The variadic paths are for tests; main calls this with none and gets
+// /etc/kairos/agent.yaml.
+func EnabledFromConfig(paths ...string) bool {
 	cfg, err := branding.LoadConfig(paths...)
 	if err != nil || cfg == nil {
-		return DefaultListenAddress
+		return true
 	}
 
-	return listenAddressFor(cfg.MCP)
-}
-
-func listenAddressFor(m branding.MCP) string {
-	switch {
-	case m.Disable:
-		return ""
-	case m.HasAddress():
-		return m.ListenAddress
-	default:
-		return DefaultListenAddress
-	}
+	return !cfg.MCP.Disable
 }
 
 // Handler returns the MCP server as an http.Handler, so it can be mounted on
-// the installer's own mux next to the web UI.
+// the web installer's router next to the browser's own routes.
 //
 // One Server backs every session. The "one install per boot" guard is held on
 // it, so reconnecting does not hand a client a second install.
@@ -219,52 +187,6 @@ func handlerFor(s *Server) http.Handler {
 	// Sec-Fetch-Site is not a browser and passes straight through, which is
 	// what the "Who can reach it" note above is about.
 	return http.NewCrossOriginProtection().Handler(h)
-}
-
-// ListenAndServe serves the installer over MCP on addr until ctx is done.
-//
-// A client hanging up is not an error: the installer keeps listening for the
-// next one. Only failing to bind, or the listener itself dying, comes back.
-func ListenAndServe(ctx context.Context, log sdkLogger.KairosLogger, addr string) error {
-	mux := http.NewServeMux()
-	mux.Handle(Path, Handler(log))
-
-	srv := &http.Server{
-		Handler:           mux,
-		ReadHeaderTimeout: 10 * time.Second,
-		// Deliberately no read or write timeout: install streams progress
-		// events for as long as the install takes, and either one would cut
-		// the stream off part-way through writing a disk.
-		ErrorLog: stdlog.New(log.Logger, "mcp: ", 0),
-	}
-
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
-	}
-
-	log.Logger.Info().Str("address", ln.Addr().String()).Str("path", Path).Msg("MCP server listening")
-
-	done := make(chan struct{})
-	defer close(done)
-
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-done:
-			return
-		}
-
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	}()
-
-	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
-
-	return nil
 }
 
 // generateBundle collects a debug bundle the way the non-interactive

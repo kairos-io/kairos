@@ -105,8 +105,8 @@ The full, authoritative contract is documented in kairos-agent:
 Alongside its other two frontends, `kairos-installer` serves the same install
 contract over the [Model Context Protocol](https://modelcontextprotocol.io), so
 an AI agent can do what a person does on the screen. The transport is streamable
-HTTP on **`http://127.0.0.1:8090/mcp`**, on loopback only unless an operator
-opens it up.
+HTTP, and it is a route on the web installer's own server rather than a second
+listener: **`/mcp`** on whatever address the web UI is on, `:8080` by default.
 
 It runs in both modes, including `--no-tui`. That mode is the one with no
 console session to install from, so it is the one that most needs an agent to be
@@ -124,37 +124,31 @@ able to drive it.
 `install` refuses to run unless `confirm=true` and the device is an
 installation candidate at the moment of the call, and it runs once per boot.
 
-### Turning it off, or moving it
+### Turning it off
 
-**Nothing on this port is authenticated.** Anything that can reach it can call
-every tool, `install` included, and a `cloud_config` passed to `install` reaches
-the installed system. So it listens on **loopback** by default: a caller has to
-already be on the machine, which is the same bar as running the TUI. Reaching it
-from another host is an opt-in, through the same two knobs in
-`/etc/kairos/agent.yaml` that `kairos-webui` takes:
+**Nothing on this endpoint is authenticated.** Anything that can reach the web
+installer can call every tool, `install` included, and a `cloud_config` passed
+to `install` reaches the installed system.
+
+That is exactly the web installer's own exposure, which is the point of sharing
+its listener: there is one address on the machine to reason about, one
+`webui.listen_address` that moves it, and `webui.disable` switches this off with
+it, because there is no server left to hang the route on. An image that wants
+the browser installer without the agent one says so in
+`/etc/kairos/agent.yaml`:
 
 ```yaml
 mcp:
-  disable: true              # do not listen at all
-  listen_address: ":8090"    # or reachable from the network
+  disable: true
 ```
-
-`kairos-webui` does listen on `:8080` on the same boot and can install too, but
-that is not a reason to copy its exposure: `webui.disable` is how an operator
-says "no unauthenticated network installer on this box", and this listener
-cannot see that setting. A machine that turned the web UI off must not find a
-new door open on `:8090`.
 
 That block is what an operator has on a real boot, because `kairos-agent
 interactive-install` execs the installer with a fixed argument list and no flag
-of yours ever reaches it. Running the installer by hand, `--mcp-address`
-overrides the config:
+of yours ever reaches it.
 
 ```sh
-kairos-installer                              # TUI, MCP on 127.0.0.1:8090
-kairos-installer --mcp-address=:8090          # TUI, MCP on every interface
-kairos-installer --mcp-address=               # TUI and web UI only
-kairos-installer --no-tui                     # web UI, MCP on 127.0.0.1:8090
+kairos-installer            # TUI and web UI, MCP at :8080/mcp
+kairos-installer --no-tui   # web UI, MCP at :8080/mcp
 ```
 
 ---
@@ -244,18 +238,19 @@ To customize the UX itself, fork or vendor this repo:
 ## Architecture
 
 ```
-main.go               flags (--source, --no-tui, --mcp-address,
-                      --collect-debug-bundle), starts the MCP server when it has
-                      an address, serves the web UI, and unless --no-tui runs the
-                      bubbletea program alongside it
+main.go               flags (--source, --no-tui, --collect-debug-bundle),
+                      serves the web UI with the MCP endpoint mounted on it,
+                      and unless --no-tui runs the bubbletea program alongside
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
                       the install page calls kairos-sdk/agentrun and renders progress
 internal/webui/       the web frontend: embedded assets, cloud-config
                       validation, and the install/progress websocket. It calls
                       kairos-sdk/agentrun too, so /ws carries the same typed
-                      progress events the TUI renders
+                      progress events the TUI renders. It owns the router, so
+                      the MCP route hangs off it
 internal/mcp/         the same install contract exposed as MCP tools an agent
-                      can call, sharing the cloud-config shaping with the TUI
+                      can call, sharing the cloud-config shaping with the TUI.
+                      An http.Handler, not a server
 internal/checks/      gathers provider prerequisite checks over the bus and
                       applies the answers the user gave
 internal/disks/       block-device discovery for the disk-selection page
