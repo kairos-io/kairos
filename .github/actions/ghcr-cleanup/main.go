@@ -28,6 +28,13 @@
 //
 // GHCR exposes only per-version DELETE (no bulk endpoint, no tag-scoped
 // delete), so both subcommands walk versions one at a time.
+//
+// One API rule shapes both: a DELETE that would leave a package with no
+// tagged version is refused with 400 "You cannot delete the last tagged
+// version of a package. You must delete the package instead." It counts
+// tagged versions only, so an untagged version is always deletable.
+// Neither subcommand issues such a request; each keeps one tagged
+// version back and reports it as "retained".
 package main
 
 import (
@@ -85,11 +92,12 @@ type report struct {
 	NotFound   int // ref parsed and scope resolved, but no version carried the tag
 	Unresolved int // neither /orgs/<owner> nor /users/<owner> lists the package
 	Skipped    int // ref malformed (non-ghcr.io, missing tag, ...)
+	Retained   int // aged out, but held back as the package's last tagged version
 }
 
 func (r report) String() string {
-	return fmt.Sprintf("deleted=%d failed=%d not-found=%d unresolved=%d skipped=%d",
-		r.Deleted, r.Failed, r.NotFound, r.Unresolved, r.Skipped)
+	return fmt.Sprintf("deleted=%d failed=%d not-found=%d unresolved=%d skipped=%d retained=%d",
+		r.Deleted, r.Failed, r.NotFound, r.Unresolved, r.Skipped, r.Retained)
 }
 
 func main() {
@@ -283,10 +291,11 @@ func deleteRefs(ctx context.Context, c *client, refs []string) (report, error) {
 			rpt.Unresolved++
 			continue
 		}
-		hits, delErrs := c.deleteMatchingVersions(ctx, scope, owner, pkg, tag, ref)
+		hits, delErrs, held := c.deleteMatchingVersions(ctx, scope, owner, pkg, tag, ref)
 		rpt.Deleted += hits
 		rpt.Failed += delErrs
-		if hits == 0 && delErrs == 0 {
+		rpt.Retained += held
+		if hits == 0 && delErrs == 0 && held == 0 {
 			fmt.Printf("::warning::no matching version for %s (already deleted?)\n", ref)
 			rpt.NotFound++
 		}
@@ -319,7 +328,8 @@ func (c *client) resolveScope(ctx context.Context, owner, encodedPkg string) (st
 }
 
 // deleteMatchingVersions paginates versions and issues DELETE for every
-// hit. Returns (deleted, failed) counts.
+// hit. Returns (deleted, failed, retained) counts, where retained is
+// the last-tagged-version hold-back described below.
 //
 // Collect-then-delete: walk every page accumulating matching IDs, then
 // issue DELETEs. Deleting while paginating would shrink the list under
@@ -329,9 +339,10 @@ func (c *client) resolveScope(ctx context.Context, owner, encodedPkg string) (st
 // A shared-tag ref straddling the page boundary would then survive and
 // the tally would still read "matched" for the earlier hits, so the
 // miss goes unreported.
-func (c *client) deleteMatchingVersions(ctx context.Context, scope, owner, encodedPkg, tag, ref string) (int, int) {
-	deleted, failed := 0, 0
+func (c *client) deleteMatchingVersions(ctx context.Context, scope, owner, encodedPkg, tag, ref string) (int, int, int) {
+	deleted, failed, retained := 0, 0, 0
 	var toDelete []int
+	taggedTotal := 0
 	page := 1
 	for {
 		listURL := fmt.Sprintf("%s/%s/%s/packages/container/%s/versions?per_page=%d&page=%d",
@@ -340,12 +351,15 @@ func (c *client) deleteMatchingVersions(ctx context.Context, scope, owner, encod
 		if err != nil {
 			fmt.Printf("::warning::failed to list versions (page %d) for %s: %v\n", page, ref, err)
 			failed++
-			return deleted, failed
+			return deleted, failed, retained
 		}
 		if len(versions) == 0 {
 			break
 		}
 		for _, v := range versions {
+			if len(v.Metadata.Container.Tags) > 0 {
+				taggedTotal++
+			}
 			if hasTag(v.Metadata.Container.Tags, tag) {
 				toDelete = append(toDelete, v.ID)
 			}
@@ -355,6 +369,22 @@ func (c *client) deleteMatchingVersions(ctx context.Context, scope, owner, encod
 		}
 		page++
 	}
+
+	// The same rule prune has to respect: GHCR answers 400 when a
+	// DELETE would leave the package with no tagged version, so a tag
+	// that is the only tagged thing in its package cannot be removed
+	// on its own. Keep the first of them (the API lists newest first)
+	// and name the one action that does work, rather than send a
+	// request that can only come back as "400 Bad Request" and take
+	// the exit code with it.
+	if taggedTotal > 0 && len(toDelete) == taggedTotal {
+		held := toDelete[0]
+		toDelete = toDelete[1:]
+		fmt.Printf("::warning::keeping %s (version %d): it is the package's last tagged version, which GHCR refuses to delete. Delete the package itself to remove it.\n",
+			ref, held)
+		retained++
+	}
+
 	for _, id := range toDelete {
 		fmt.Printf("deleting %s (version id %d under /%s/%s)\n", ref, id, scope, owner)
 		delURL := fmt.Sprintf("%s/%s/%s/packages/container/%s/versions/%d",
@@ -366,7 +396,7 @@ func (c *client) deleteMatchingVersions(ctx context.Context, scope, owner, encod
 		}
 		deleted++
 	}
-	return deleted, failed
+	return deleted, failed, retained
 }
 
 func hasTag(tags []string, want string) bool {
@@ -440,14 +470,37 @@ func (c *client) deleteVersion(ctx context.Context, url string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, errBodyLimit))
 	if err := checkRateLimit(resp); err != nil {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("DELETE %s: %s", url, resp.Status)
+		return fmt.Errorf("DELETE %s: %s%s", url, resp.Status, apiMessage(body))
 	}
 	return nil
+}
+
+// errBodyLimit caps how much of an error response is read. The
+// packages API explains a failure in one short sentence; the cap is
+// only there so a proxy returning an HTML page cannot be logged whole.
+const errBodyLimit = 2048
+
+// apiMessage renders the "message" field of a GitHub error body as a
+// suffix for the status line, and "" when there is nothing to add.
+// Without it a rejected DELETE logs only "400 Bad Request", which
+// says nothing about which rule was broken or whether a retry could
+// ever pass.
+func apiMessage(body []byte) string {
+	var e struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &e); err != nil {
+		return ""
+	}
+	if msg := strings.TrimSpace(e.Message); msg != "" {
+		return ": " + msg
+	}
+	return ""
 }
 
 func (c *client) newRequest(ctx context.Context, method, url string, body io.Reader) (*http.Request, error) {
@@ -621,6 +674,58 @@ func tagMatchesProtected(tag string, protected []string) bool {
 	return false
 }
 
+// holdBackLastTagged keeps the prune walk from proposing a DELETE that
+// GHCR will always refuse:
+//
+//	400 "You cannot delete the last tagged version of a package.
+//	     You must delete the package instead."
+//
+// The rule counts TAGGED versions only. An untagged version deletes
+// fine even when it is the only one left, which is why a package with
+// a protected tag never meets this. kairos-uki and bundles-test do: no
+// tag of theirs is protected and their retention is 6h, so once the
+// last per-run tag ages out every tagged version is a candidate, one
+// DELETE can never succeed, and FAIL_ON_ERROR reds the whole scheduled
+// run. It stays red forever, because the version it trips on is the one
+// version the sweep can never remove.
+//
+// So when cands covers every tagged version of the package, drop the
+// newest from the list and report it as held back. Deleting the package
+// outright is the other half of GitHub's advice and is not worth
+// taking: a re-created package does not inherit the visibility of the
+// one it replaced, and these are public so that this pruner's own
+// manifest reads and the UKI upgrade test can pull them anonymously.
+// The held-back version is pruned by the first run after a newer tag
+// arrives.
+func holdBackLastTagged(ref string, cands []pruneCandidate, taggedTotal int) ([]pruneCandidate, int) {
+	if taggedTotal == 0 || len(cands) != taggedTotal {
+		return cands, 0
+	}
+	newest := 0
+	for i, c := range cands {
+		if c.age < cands[newest].age {
+			newest = i
+		}
+	}
+	held := cands[newest]
+	fmt.Printf("  keeping %s (id %d, age %s, tags %v): GHCR cannot delete a package's last tagged version\n",
+		ref, held.id, held.age.Truncate(time.Hour), held.tags)
+	return append(cands[:newest], cands[newest+1:]...), 1
+}
+
+// countTagged reports how many of the versions carry at least one tag.
+// The last-tagged-version rule GHCR enforces on DELETE counts versions,
+// not distinct tags, so this counts versions too.
+func countTagged(versions []pkgVersion) int {
+	n := 0
+	for _, v := range versions {
+		if len(v.Metadata.Container.Tags) > 0 {
+			n++
+		}
+	}
+	return n
+}
+
 // manifestFetcher is the small subset of the OCI distribution API this
 // tool uses. Extracted as an interface so tests can plug in an
 // httptest-backed stub without spinning up a real registry.
@@ -657,7 +762,8 @@ func pruneAged(ctx context.Context, c *client, mf manifestFetcher, specs []packa
 			rpt.Unresolved++
 			continue
 		}
-		toDelete, err := c.collectPrunableVersions(ctx, scope, mf, spec, protected, now)
+		toDelete, retained, err := c.collectPrunableVersions(ctx, scope, mf, spec, protected, now)
+		rpt.Retained += retained
 		if err != nil {
 			if errors.Is(err, errRateLimited) {
 				fmt.Printf("::warning::rate-limited while listing %s; stopping this run so the next daily prune can pick up.\n", spec.Ref)
@@ -724,7 +830,7 @@ type pruneCandidate struct {
 // pruning then behaves as if every untagged version is prunable when
 // aged out. That mode exists only so unit tests that do not care
 // about multi-arch semantics can pass a nil fetcher.
-func (c *client) collectPrunableVersions(ctx context.Context, scope string, mf manifestFetcher, spec packageSpec, protected []string, now time.Time) ([]pruneCandidate, error) {
+func (c *client) collectPrunableVersions(ctx context.Context, scope string, mf manifestFetcher, spec packageSpec, protected []string, now time.Time) (out []pruneCandidate, retained int, err error) {
 	var all []pkgVersion
 	page := 1
 	for {
@@ -732,7 +838,7 @@ func (c *client) collectPrunableVersions(ctx context.Context, scope string, mf m
 			c.apiBase, scope, spec.Owner, spec.EncPkg, pageSize, page)
 		versions, err := c.listVersions(ctx, listURL)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if len(versions) == 0 {
 			break
@@ -750,8 +856,6 @@ func (c *client) collectPrunableVersions(ctx context.Context, scope string, mf m
 		}
 	}
 	fmt.Printf("  listed %d versions total\n", len(all))
-
-	var out []pruneCandidate
 
 	// Collect every tagged version's digest so we can fetch each
 	// version's manifest (by digest -- fetching by tag can return
@@ -857,6 +961,8 @@ func (c *client) collectPrunableVersions(ctx context.Context, scope string, mf m
 		})
 	}
 
+	out, retained = holdBackLastTagged(spec.Ref, out, countTagged(all))
+
 	// Untagged versions: prune only if aged AND not referenced.
 	// Skip entirely if any manifest fetch above failed (fail closed).
 	if manifestFetchFailed {
@@ -882,7 +988,7 @@ func (c *client) collectPrunableVersions(ctx context.Context, scope string, mf m
 			})
 		}
 	}
-	return out, nil
+	return out, retained, nil
 }
 
 // ghcrManifestClient fetches manifests from GHCR via the OCI
