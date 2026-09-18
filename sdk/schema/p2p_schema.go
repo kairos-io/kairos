@@ -11,6 +11,11 @@ type P2PSchema struct {
 	NetworkID  string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
 	DNS        bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
 	DisableDHT bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
+	// LogLevel, MinimumNodes and DynamicRoles are read from the p2p block by
+	// the provider (provider/internal/provider/config).
+	LogLevel     string `json:"loglevel,omitempty" description:"Log level of the p2p network stack" enum:"[\"trace\",\"debug\",\"info\",\"warn\",\"error\",\"fatal\"]"`
+	MinimumNodes int    `json:"minimum_nodes,omitempty" minimum:"0" description:"Number of nodes that have to join before the cluster is bootstrapped"`
+	DynamicRoles bool   `json:"dynamic_roles,omitempty" description:"Assign roles from the p2p ledger instead of from the role key"`
 	P2PNetworkExtended
 	VPN `json:"vpn,omitempty"`
 }
@@ -21,7 +26,10 @@ type KubeVIPSchema struct {
 	EIP         string   `json:"eip,omitempty" example:"192.168.1.110"`
 	ManifestURL string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
 	Enable      bool     `json:"enable,omitempty" description:"Enables KubeVIP"`
-	Interface   bool     `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+	Interface   string   `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+	StaticPod   bool     `json:"static_pod,omitempty" description:"Deploy KubeVIP as a static pod instead of a daemonset"`
+	Version     string   `json:"version,omitempty" description:"KubeVIP version to deploy" example:"v1.2.3"`
+	Image       string   `json:"image,omitempty" description:"KubeVIP image to deploy" example:"ghcr.io/kube-vip/kube-vip"`
 }
 
 // P2PNetworkExtended is a meta structure to hold the different rules for managing the P2P network, which are not compatible between each other.
@@ -45,8 +53,9 @@ type P2PAutoEnabled struct {
 	Auto         struct {
 		Enable bool `json:"enable,omitempty" const:"true"`
 		Ha     struct {
-			Enable      bool `json:"enable" const:"true"`
-			MasterNodes int  `json:"master_nodes,omitempty" minimum:"1" description:"Number of HA additional master nodes. A master node is always required for creating the cluster and is implied."`
+			Enable      bool   `json:"enable" const:"true"`
+			MasterNodes int    `json:"master_nodes,omitempty" minimum:"1" description:"Number of HA additional master nodes. A master node is always required for creating the cluster and is implied."`
+			ExternalDB  string `json:"external_db,omitempty" description:"Datastore endpoint to use instead of embedded etcd."`
 		} `json:"ha"`
 	} `json:"auto,omitempty"`
 }
@@ -62,7 +71,7 @@ func (P2PNetworkExtended) JSONSchemaOneOf() []interface{} {
 
 // VPN represents the vpn block in the Kairos configuration.
 type VPN struct {
-	Create bool                   `json:"vpn,omitempty" default:"true"`
+	Create bool                   `json:"create,omitempty" default:"true" description:"Create the VPN interface. Set to false to use the p2p network for co-ordination only."`
 	Use    bool                   `json:"use,omitempty" default:"true"`
 	Envs   map[string]interface{} `json:"env,omitempty"`
 }

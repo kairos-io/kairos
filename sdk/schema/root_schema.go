@@ -23,6 +23,7 @@ type RootSchema struct {
 	Options                   []interface{}            `json:"options,omitempty" description:"Various options."`
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1" required:"true"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
+	KubeVIP                   KubeVIPSchema            `json:"kubevip,omitempty"`
 	Debug                     bool                     `json:"debug,omitempty" mapstructure:"debug"`
 	Strict                    bool                     `json:"strict,omitempty" mapstructure:"strict"`
 	CloudInitPaths            []string                 `json:"cloud-init-paths,omitempty" mapstructure:"cloud-init-paths"`
