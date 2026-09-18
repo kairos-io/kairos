@@ -596,7 +596,29 @@ func GetInstallKairosBinaries(sis values.System, l logger.KairosLogger) error {
 		return err
 	}
 
+	if err := installUpgradeFinalizeCapabilityMarker(l); err != nil {
+		l.Logger.Error().Err(err).Msg("Failed to install upgrade-finalize capability marker")
+		return err
+	}
+
 	return nil
+}
+
+// installUpgradeFinalizeCapabilityMarker writes the empty file that
+// advertises support for the kairos-agent upgrade-finalize subcommand. The
+// host agent probes for this file (relative to the deployed target rootfs)
+// before attempting the chroot handoff introduced in
+// https://github.com/kairos-io/kairos/issues/4456; without it, the host
+// falls back to running the finalize inline. Marker path is defined in
+// agent/pkg/constants.UpgradeFinalizeCapabilityMarker; kept as a string
+// literal here so kairos-init does not take a dependency on the agent
+// module for a single filename.
+func installUpgradeFinalizeCapabilityMarker(l logger.KairosLogger) error {
+	const marker = "/etc/kairos/capabilities/upgrade-finalize"
+	if err := os.MkdirAll(filepath.Dir(marker), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(marker, nil, 0o644)
 }
 
 // GetInstallProviderBinaries installs the provider and edgevpn binaries
