@@ -144,7 +144,7 @@ require (
 	github.com/multiformats/go-multistream v0.6.1 // indirect
 	github.com/multiformats/go-varint v0.1.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/osrg/gobgp/v4 v4.8.0 // indirect
+	github.com/osrg/gobgp/v4 v4.9.0 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
@@ -287,7 +287,7 @@ require (
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/klauspost/compress v1.19.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
-	github.com/kube-vip/kube-vip v1.2.3
+	github.com/kube-vip/kube-vip v1.2.4
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
