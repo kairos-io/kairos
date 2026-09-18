@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/mcp"
 	"github.com/kairos-io/kairos/v4/installer/internal/tui"
 	"github.com/kairos-io/kairos/v4/installer/internal/webui"
 )
@@ -56,7 +58,11 @@ func main() {
 		ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
 		defer stop()
 
-		if err := webui.StartConfigured(ctx, noTUIWebUIOptions(*source)); err != nil {
+		// Nothing owns the terminal in this mode, so the logger keeps its
+		// console writer and the server's output lands in the journal.
+		logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", false, "/var/log/kairos/")
+
+		if err := webui.StartConfigured(ctx, noTUIWebUIOptions(*source, logger)); err != nil {
 			fmt.Fprintln(os.Stderr, "web UI:", err)
 			os.Exit(1)
 		}
@@ -70,7 +76,7 @@ func main() {
 	// default, which would land on top of the TUI's alt screen.
 	activity := &webui.Activity{}
 	go func() {
-		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity)); err != nil {
+		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity, logger)); err != nil {
 			logger.Warnf("web UI stopped: %s", err.Error())
 		}
 	}()
@@ -104,8 +110,8 @@ func main() {
 // noTUIWebUIOptions is what --no-tui hands the web UI. Nothing owns the
 // terminal in that mode, so echo keeps its default stdout logger and its
 // output lands in the journal.
-func noTUIWebUIOptions(source string) webui.Options {
-	return webui.Options{Source: source}
+func noTUIWebUIOptions(source string, logger sdkLogger.KairosLogger) webui.Options {
+	return webui.Options{Source: source, MCP: mcpHandler(logger)}
 }
 
 // tuiWebUIOptions is what the interactive installer hands the web UI it runs
@@ -113,12 +119,32 @@ func noTUIWebUIOptions(source string) webui.Options {
 // writes JSON to stdout and the TUI owns that terminal.
 //
 // Both carry the install source, so an install driven from the browser pulls
-// the same image the terminal installer would.
+// the same image the terminal installer would, and both carry the MCP
+// endpoint, because a boot with only the HTTP installer up is precisely the
+// boot an agent has to drive.
 //
 // activity is how main learns that the browser started an install, so quitting
 // the TUI does not cut it short.
-func tuiWebUIOptions(source string, activity *webui.Activity) webui.Options {
-	return webui.Options{Source: source, Logger: webUILogger(), Activity: activity}
+func tuiWebUIOptions(source string, activity *webui.Activity, logger sdkLogger.KairosLogger) webui.Options {
+	return webui.Options{
+		Source:   source,
+		Logger:   webUILogger(),
+		Activity: activity,
+		MCP:      mcpHandler(logger),
+	}
+}
+
+// mcpHandler is the MCP endpoint to hang off the web UI's router, or nil when
+// the image asked for the browser installer without the agent one.
+//
+// It takes the installer's own logger rather than echo's: the MCP server must
+// never write to the terminal the TUI is drawing on.
+func mcpHandler(logger sdkLogger.KairosLogger) http.Handler {
+	if !mcp.EnabledFromConfig() {
+		return nil
+	}
+
+	return mcp.Handler(logger)
 }
 
 // webUILogger returns a logger writing to webUILogPath, or one writing nowhere

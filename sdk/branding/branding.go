@@ -61,10 +61,22 @@ func (w WebUI) HasAddress() bool {
 	return w.ListenAddress != ""
 }
 
+// MCP configures the Model Context Protocol endpoint the installer serves, so
+// an agent can drive an install.
+//
+// There is no address here on purpose: the endpoint is a route on the web
+// installer's own server, so where it listens is webui.listen_address and
+// nothing else. Disable only decides whether the route is registered at all,
+// for an image that wants the browser installer without the agent one.
+type MCP struct {
+	Disable bool `yaml:"disable"`
+}
+
 // Config is the content of /etc/kairos/agent.yaml.
 type Config struct {
 	Fast     bool  `yaml:"fast,omitempty"`
 	WebUI    WebUI `yaml:"webui"`
+	MCP      MCP   `yaml:"mcp"`
 	Branding Text  `yaml:"branding"`
 }
 

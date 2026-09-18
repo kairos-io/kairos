@@ -88,6 +88,59 @@ The full, authoritative contract is documented in kairos-agent:
 
 ---
 
+## Driving an install with an agent (MCP)
+
+Alongside its other two frontends, `kairos-installer` serves the same install
+contract over the [Model Context Protocol](https://modelcontextprotocol.io), so
+an AI agent can do what a person does on the screen. The transport is streamable
+HTTP, and it is a route on the web installer's own server rather than a second
+listener: **`/mcp`** on whatever address the web UI is on, `:8080` by default.
+
+It runs in both modes, including `--no-tui`. That mode is the one with no
+console session to install from, so it is the one that most needs an agent to be
+able to drive it.
+
+| Tool | What it does | Writes anything? |
+| --- | --- | --- |
+| `list_disks` | the disks an install can target | no |
+| `list_prerequisites` | run the provider `tui-check-*` plugins | no |
+| `apply_prerequisites` | act on those checks | yes, whatever the plugin does |
+| `get_install_options` | agent binary, disks, finish actions, progress steps | no |
+| `install` | perform the install | **repartitions a disk** |
+| `collect_debug_bundle` | write a debug bundle | writes the bundle |
+
+`install` refuses to run unless `confirm=true` and the device is an
+installation candidate at the moment of the call, and it runs once per boot.
+
+### Turning it off
+
+**Nothing on this endpoint is authenticated.** Anything that can reach the web
+installer can call every tool, `install` included, and a `cloud_config` passed
+to `install` reaches the installed system.
+
+That is exactly the web installer's own exposure, which is the point of sharing
+its listener: there is one address on the machine to reason about, one
+`webui.listen_address` that moves it, and `webui.disable` switches this off with
+it, because there is no server left to hang the route on. An image that wants
+the browser installer without the agent one says so in
+`/etc/kairos/agent.yaml`:
+
+```yaml
+mcp:
+  disable: true
+```
+
+That block is what an operator has on a real boot, because `kairos-agent
+interactive-install` execs the installer with a fixed argument list and no flag
+of yours ever reaches it.
+
+```sh
+kairos-installer            # TUI and web UI, MCP at :8080/mcp
+kairos-installer --no-tui   # web UI, MCP at :8080/mcp
+```
+
+---
+
 ## Overriding with your own installer
 
 You do **not** need to fork this project to ship a different installer. There
@@ -173,14 +226,24 @@ To customize the UX itself, fork or vendor this repo:
 ## Architecture
 
 ```
-main.go               flags(--source, --no-tui) → serve the web UI, and unless
-                      --no-tui, launch the bubbletea program alongside it
+main.go               flags (--source, --no-tui, --collect-debug-bundle),
+                      serves the web UI with the MCP endpoint mounted on it,
+                      and unless --no-tui runs the bubbletea program alongside
 internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
                       the install page calls kairos-sdk/agentrun and renders progress
 internal/webui/       the web frontend: embedded assets, cloud-config
                       validation, and the install/progress websocket. It calls
                       kairos-sdk/agentrun too, so /ws carries the same typed
-                      progress events the TUI renders
+                      progress events the TUI renders. It owns the router, so
+                      the MCP route hangs off it
+internal/mcp/         the same install contract exposed as MCP tools an agent
+                      can call, sharing the cloud-config shaping with the TUI.
+                      An http.Handler, not a server
+internal/checks/      gathers provider prerequisite checks over the bus and
+                      applies the answers the user gave
+internal/disks/       block-device discovery for the disk-selection page
+internal/debugbundle/ collects, serves and copies out a debug bundle
+prereqs/              the Check and prompt types providers and the TUI share
 ```
 
 Echo writes its own log to a file (`/var/log/kairos/webui.log`) whenever the TUI
@@ -188,14 +251,14 @@ is running, because its default handler writes JSON to stdout and that would
 land on top of the alt screen. With `--no-tui` it logs to stdout, so it ends up
 in the journal.
 
-`--source` reaches both frontends: the web UI passes it to `manual-install` the
-same way `agentrun.Command` does for the TUI, so an install driven from the
-browser pulls the image the boot asked for.
+`--source` reaches both interactive frontends: the web UI passes it to
+`manual-install` the same way `agentrun.Command` does for the TUI, so an install
+driven from the browser pulls the image the boot asked for.
 
-The reusable pieces live in **kairos-sdk**: `kairos-sdk/agentrun` drives
-`kairos-agent manual-install` and parses its JSON-Lines progress, and
-`kairos-sdk/bus` is the provider plugin bus (`agent.interactive-install →
-[]YAMLPrompt`). This project is mostly the bubbletea UI on top of those.
+The reusable pieces live in the **SDK**: `sdk/agentrun` drives
+`kairos-agent manual-install` and parses its JSON-Lines progress, and `sdk/bus`
+is the provider plugin bus (`agent.interactive-install → []YAMLPrompt`). This
+package is the three frontends (TUI, web UI and MCP) on top of those.
 
 Decoupling: this module depends only on `kairos-sdk`, the charmbracelet TUI
 libraries, and `go-pluggable`. It never imports `kairos-agent` — the only
