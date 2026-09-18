@@ -120,29 +120,29 @@ fi`
 // userland whose binds and overlays were never established. Before= pins the
 // order: immucore finishes, then the switch runs.
 //
-// systemd-udev-settle.service is pulled in with Wants=, not Requires=, on
-// purpose. immucore does need device enumeration to have happened before it
-// resolves partition labels, which is what the After= gives us, but it must
-// not become unstartable when the settle unit misbehaves or is missing:
+// The ordering is on systemd-udev-trigger.service, not on
+// systemd-udev-settle.service. immucore does need device enumeration to have
+// started before it resolves partition labels, but the settle unit is the
+// wrong way to ask for it (kairos-io/kairos#1378):
 //
-//   - dracut installs the unit optionally (inst_multiple -o in its
-//     systemd-udevd module), and nothing else in the initramfs pulls it in.
-//     With Requires=, an image built where systemd no longer ships the unit
-//     gets an immucore.service that fails to load, so the mount layout is
-//     never built and the machine does not boot. The unit is deprecated
-//     upstream (kairos-io/kairos#1378), so that day is a question of when.
-//   - the unit carries TimeoutSec=180. With Requires=, a host whose udev
-//     never settles turns three minutes of waiting into immucore not running
-//     at all, which is the failure bootfailure.go exists to report.
+//   - it is deprecated upstream, and dracut installs it optionally
+//     (inst_multiple -o in its systemd-udevd module) with nothing else in the
+//     initramfs pulling it in. An image built where the unit is absent gets
+//     the ordering silently dropped, so the guarantee disappears without
+//     anything in Kairos changing.
+//   - it carries TimeoutSec=180, so a host whose udev never settles pays
+//     three minutes before immucore even starts.
 //
-// Wants= behaves identically whenever the unit is present and succeeds.
-// Removing the ordering altogether needs immucore to wait for its own
-// labelled devices first; see kairos-io/kairos#1378.
+// systemd-udev-trigger.service is not deprecated and dracut always links it
+// into sysinit.target.wants, so ordering after it is a guarantee that
+// actually holds: the coldplug trigger has been issued by the time immucore
+// runs. Waiting for enumeration to *finish* is immucore's own job now, bounded
+// and per label, in utils.WaitForBootDevices.
 const ImmucoreServiceDracut = `[Unit]
 Description=immucore
 DefaultDependencies=no
-After=systemd-udev-settle.service
-Wants=systemd-udev-settle.service
+After=systemd-udev-trigger.service
+Wants=systemd-udev-trigger.service
 Before=initrd-fs.target
 Before=initrd-switch-root.target
 Conflicts=initrd-switch-root.target
