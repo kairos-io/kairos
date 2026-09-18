@@ -7,7 +7,7 @@ import (
 // P2PSchema represents the P2P block in the Kairos configuration. It is used to enables and configure the p2p full-mesh functionalities.
 type P2PSchema struct {
 	_          struct{} `title:"Kairos Schema: P2P block" description:"The p2p block enables the p2p full-mesh functionalities."`
-	Role       string   `json:"role,omitempty" default:"none" enum:"[\"master\",\"worker\",\"none\"]"`
+	Role       string   `json:"role,omitempty" default:"" enum:"[\"\",\"master\",\"worker\",\"none\"]" description:"Pin this node to a role. Leave unset (or \"none\") to take the role from the p2p ledger."`
 	NetworkID  string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
 	DNS        bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
 	DisableDHT bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
