@@ -516,6 +516,24 @@ var BasePackages = PackageMap{
 				"zerofree",
 			},
 		},
+		// qemu-guest-agent is what 26_vm.yaml starts once DMI says the machine
+		// is a QEMU or KVM guest, and the Alpine, SUSE and Red Hat families
+		// already install it. Without it the hypervisor gets no guest shutdown,
+		// no reported addresses and no filesystem freeze for snapshots.
+		//
+		// Listed per architecture rather than under ArchCommon because Debian
+		// bookworm has no qemu-guest-agent for riscv64, the same reason
+		// open-vm-tools is split this way for the SUSE family below.
+		ArchAMD64: {
+			Common: {
+				"qemu-guest-agent",
+			},
+		},
+		ArchARM64: {
+			Common: {
+				"qemu-guest-agent",
+			},
+		},
 	},
 	SUSEFamily: {
 		ArchCommon: {
