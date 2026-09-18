@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -33,25 +34,7 @@ func main() {
 		"collect a debug bundle non-interactively (no TUI), print its path, and exit")
 	noTUI := flag.Bool("no-tui", false,
 		"serve only the web UI, without the terminal installer, for boots that ask for an unattended install")
-	// The default is deliberately the empty string and not
-	// mcp.DefaultListenAddress: this value is never read, because it is
-	// replaced below whenever the flag was not passed, and flag.PrintDefaults
-	// only stays quiet about a zero value. Any other default would print a
-	// "(default ...)" note contradicting the help text.
-	mcpAddress := flag.String("mcp-address", "",
-		"address the Model Context Protocol server listens on, so an agent can drive the installation; "+
-			"nothing on it is authenticated, so an empty value switches it off and \":8090\" makes it "+
-			"reachable from the network. Defaults to what /etc/kairos/agent.yaml says under mcp:, "+
-			"or 127.0.0.1:8090")
 	flag.Parse()
-
-	// kairos-agent execs this binary with a fixed argument list, so on a real
-	// boot no flag ever arrives and the agent config is the only say an operator
-	// gets. Someone running the installer by hand has said what they want, so
-	// the flag wins when it is actually passed.
-	if !flagWasPassed("mcp-address") {
-		*mcpAddress = mcp.ListenAddressFromConfig()
-	}
 
 	if *collect {
 		os.Exit(collectDebugBundle())
@@ -76,11 +59,10 @@ func main() {
 		defer stop()
 
 		// Nothing owns the terminal in this mode, so the logger keeps its
-		// console writer and the MCP server's output lands in the journal
-		// next to the web UI's.
+		// console writer and the server's output lands in the journal.
 		logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", false, "/var/log/kairos/")
 
-		if err := serveWebUIOnly(ctx, logger, *mcpAddress, noTUIWebUIOptions(*source)); err != nil {
+		if err := webui.StartConfigured(ctx, noTUIWebUIOptions(*source, logger)); err != nil {
 			fmt.Fprintln(os.Stderr, "web UI:", err)
 			os.Exit(1)
 		}
@@ -89,16 +71,12 @@ func main() {
 
 	logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", true, "/var/log/kairos/")
 
-	// The MCP server must never write to the terminal the TUI is drawing on,
-	// which is why it is handed the installer log rather than stdout.
-	startMCP(ctx, logger, *mcpAddress)
-
 	// The web UI runs alongside the TUI so a user can install from either.
 	// It gets a file-backed logger because echo writes JSON to stdout by
 	// default, which would land on top of the TUI's alt screen.
 	activity := &webui.Activity{}
 	go func() {
-		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity)); err != nil {
+		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity, logger)); err != nil {
 			logger.Warnf("web UI stopped: %s", err.Error())
 		}
 	}()
@@ -129,41 +107,11 @@ func main() {
 	}
 }
 
-// serveWebUIOnly is --no-tui: the web UI is the whole frontend for that boot,
-// and the MCP server runs next to it. It blocks until ctx is cancelled or the
-// web UI listener errors.
-//
-// The MCP server belongs in this mode as much as in the interactive one. Both
-// are frontends on the same install contract, and a boot that brings up only
-// the HTTP installer is precisely the boot an agent has to drive, since there
-// is no console session to drive it from.
-func serveWebUIOnly(ctx context.Context, logger sdkLogger.KairosLogger, mcpAddress string, o webui.Options) error {
-	startMCP(ctx, logger, mcpAddress)
-
-	return webui.StartConfigured(ctx, o)
-}
-
-// startMCP serves MCP in the background when an address is configured, and
-// does nothing when it is empty, which is how the listener is switched off.
-func startMCP(ctx context.Context, logger sdkLogger.KairosLogger, address string) {
-	if address == "" {
-		return
-	}
-
-	go func() {
-		if err := mcp.ListenAndServe(ctx, logger, address); err != nil {
-			// A port that will not bind leaves the other frontends perfectly
-			// usable, so this is logged rather than taken as a reason to give up.
-			logger.Logger.Error().Err(err).Str("address", address).Msg("MCP server stopped")
-		}
-	}()
-}
-
 // noTUIWebUIOptions is what --no-tui hands the web UI. Nothing owns the
 // terminal in that mode, so echo keeps its default stdout logger and its
 // output lands in the journal.
-func noTUIWebUIOptions(source string) webui.Options {
-	return webui.Options{Source: source}
+func noTUIWebUIOptions(source string, logger sdkLogger.KairosLogger) webui.Options {
+	return webui.Options{Source: source, MCP: mcpHandler(logger)}
 }
 
 // tuiWebUIOptions is what the interactive installer hands the web UI it runs
@@ -171,12 +119,32 @@ func noTUIWebUIOptions(source string) webui.Options {
 // writes JSON to stdout and the TUI owns that terminal.
 //
 // Both carry the install source, so an install driven from the browser pulls
-// the same image the terminal installer would.
+// the same image the terminal installer would, and both carry the MCP
+// endpoint, because a boot with only the HTTP installer up is precisely the
+// boot an agent has to drive.
 //
 // activity is how main learns that the browser started an install, so quitting
 // the TUI does not cut it short.
-func tuiWebUIOptions(source string, activity *webui.Activity) webui.Options {
-	return webui.Options{Source: source, Logger: webUILogger(), Activity: activity}
+func tuiWebUIOptions(source string, activity *webui.Activity, logger sdkLogger.KairosLogger) webui.Options {
+	return webui.Options{
+		Source:   source,
+		Logger:   webUILogger(),
+		Activity: activity,
+		MCP:      mcpHandler(logger),
+	}
+}
+
+// mcpHandler is the MCP endpoint to hang off the web UI's router, or nil when
+// the image asked for the browser installer without the agent one.
+//
+// It takes the installer's own logger rather than echo's: the MCP server must
+// never write to the terminal the TUI is drawing on.
+func mcpHandler(logger sdkLogger.KairosLogger) http.Handler {
+	if !mcp.EnabledFromConfig() {
+		return nil
+	}
+
+	return mcp.Handler(logger)
 }
 
 // webUILogger returns a logger writing to webUILogPath, or one writing nowhere
@@ -191,19 +159,6 @@ func webUILogger() *slog.Logger {
 		}
 	}
 	return slog.New(slog.NewJSONHandler(io.Discard, nil))
-}
-
-// flagWasPassed reports whether the named flag appeared on the command line, as
-// opposed to holding its default. flag.Visit walks only the flags that were set.
-func flagWasPassed(name string) bool {
-	passed := false
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			passed = true
-		}
-	})
-
-	return passed
 }
 
 // collectDebugBundle generates a debug bundle without starting the TUI, for use
