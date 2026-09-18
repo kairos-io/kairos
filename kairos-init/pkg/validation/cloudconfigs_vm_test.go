@@ -136,3 +136,81 @@ var _ = Describe("Bundled VM cloudconfig packages", func() {
 		}
 	})
 })
+
+// vmwareSystems are the systems whose images install open-vm-tools. It is a
+// subset of vmSystems: the Red Hat family is left out because it installs no
+// open-vm-tools either, which is the other half of the same bug and is tracked
+// separately in #4737. Add the Red Hat entries here together with the package.
+var vmwareSystems = []values.System{
+	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchAMD64},
+	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchARM64},
+	{Distro: values.Debian, Family: values.DebianFamily, Version: "12", Arch: values.ArchAMD64},
+	{Distro: values.Debian, Family: values.DebianFamily, Version: "12", Arch: values.ArchARM64},
+	{Distro: values.OpenSUSELeap, Family: values.SUSEFamily, Version: "15.6", Arch: values.ArchAMD64},
+	{Distro: values.Alpine, Family: values.AlpineFamily, Version: "3.21", Arch: values.ArchAMD64},
+	{Distro: values.Alpine, Family: values.AlpineFamily, Version: "3.21", Arch: values.ArchARM64},
+}
+
+// vmwarePackage provides both names the VMware stages start. OpenRC names the
+// service after the package, systemd names it after the daemon the package
+// runs, and on the Debian family vmtoolsd.service is an Install alias of
+// open-vm-tools.service that the package's own enable step creates.
+const vmwarePackage = "open-vm-tools"
+
+var vmwareServiceToPackage = map[string]string{
+	"open-vm-tools": vmwarePackage,
+	"vmtoolsd":      vmwarePackage,
+}
+
+var _ = Describe("Bundled VM cloudconfig VMware packages", func() {
+	// The same rule as the QEMU spec above, for the other hypervisor 26_vm.yaml
+	// detects. On vSphere the consequence is larger than a missing shutdown
+	// hook: vCenter learns a guest's addresses only from the in-guest vmtoolsd,
+	// so without the package VSphereMachine.status.addresses stays empty and a
+	// Cluster API machine never reaches Ready. That is the failure #4092 was
+	// filed for, and it was fixed for Hadron only.
+	It("installs open-vm-tools on every family whose images can run the stage", func() {
+		content, err := os.ReadFile(filepath.Join("..", "bundled", "cloudconfigs", "26_vm.yaml"))
+		Expect(err).NotTo(HaveOccurred())
+
+		var cfg guardConfig
+		Expect(yaml.Unmarshal(content, &cfg)).To(Succeed())
+
+		// Read the service each VMware stage starts, keyed by service manager,
+		// out of the cloud-config rather than retyping it, so a rename in
+		// 26_vm.yaml reaches this spec.
+		services := map[string]string{}
+		for _, stage := range cfg.Stages["boot"] {
+			if !strings.Contains(stage.If, `grep -iE "VMware" /sys/class/dmi/id/product_name`) {
+				continue
+			}
+			Expect(stage.OnlyServiceManager).NotTo(BeEmpty(),
+				"VMware stage %q must pick a service manager", stage.Name)
+			Expect(stage.Commands).To(HaveLen(1), "VMware stage %q should start one service", stage.Name)
+			m := qemuStartRe.FindStringSubmatch(strings.TrimSpace(stage.Commands[0]))
+			Expect(m).NotTo(BeNil(), "cannot read a service name out of %q", stage.Commands[0])
+			services[stage.OnlyServiceManager] = m[1]
+		}
+		Expect(services).To(HaveLen(2), "VMware needs an OpenRC stage and a systemd stage")
+
+		// Unlike the QEMU agent the two managers start different names, so map
+		// each to the package that provides it instead of requiring them equal.
+		packages := map[string]bool{}
+		for manager, service := range services {
+			pkg, known := vmwareServiceToPackage[service]
+			Expect(known).To(BeTrue(),
+				"%s starts %q, which no known package provides", manager, service)
+			packages[pkg] = true
+		}
+		Expect(packages).To(HaveLen(1), "both stages must come from one package")
+
+		l := logger.NewKairosLogger("validation", "error", true)
+		for _, sys := range vmwareSystems {
+			installed, err := values.GetPackages(sys, l)
+			Expect(err).NotTo(HaveOccurred(), "%s/%s", sys.Distro, sys.Arch)
+			Expect(installed).To(ContainElement(vmwarePackage),
+				"%s/%s installs no %s, but 26_vm.yaml starts it on every VMware guest",
+				sys.Distro, sys.Arch, vmwarePackage)
+		}
+	})
+})
