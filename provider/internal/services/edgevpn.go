@@ -2,9 +2,7 @@ package services
 
 import (
 	"github.com/kairos-io/kairos/v4/sdk/machine"
-	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
-	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
-	"github.com/kairos-io/kairos/v4/sdk/utils"
+	"github.com/kairos-io/kairos/v4/sdk/machine/service"
 )
 
 const edgevpnOpenRC string = `#!/sbin/openrc-run
@@ -69,34 +67,24 @@ WantedBy=multi-user.target`
 const EdgeVPNDefaultInstance string = "kairos"
 
 func EdgeVPN(instance, rootDir string) (machine.Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("edgevpn"),
-			openrc.WithUnitContent(edgevpnOpenRC),
-			openrc.WithRoot(rootDir),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("edgevpn"),
-		systemd.WithInstance(instance),
-		systemd.WithUnitContent(edgevpnSystemd),
-		systemd.WithRoot(rootDir),
-	)
+	return service.New(service.Spec{
+		Name:     "edgevpn",
+		Instance: instance,
+		Root:     rootDir,
+		Init: map[service.Flavor]service.InitSpec{
+			service.OpenRC:  {Unit: edgevpnOpenRC},
+			service.Systemd: {Unit: edgevpnSystemd},
+		},
+	})
 }
 
 func P2PAPI(rootDir string) (machine.Service, error) {
-	if utils.IsOpenRCBased() {
-		return openrc.NewService(
-			openrc.WithName("edgevpn"),
-			openrc.WithUnitContent(edgevpnAPIOpenRC),
-			openrc.WithRoot(rootDir),
-		)
-	}
-
-	return systemd.NewService(
-		systemd.WithName("edgevpn"),
-		systemd.WithUnitContent(edgevpnAPISystemd),
-		systemd.WithRoot(rootDir),
-	)
+	return service.New(service.Spec{
+		Name: "edgevpn",
+		Root: rootDir,
+		Init: map[service.Flavor]service.InitSpec{
+			service.OpenRC:  {Unit: edgevpnAPIOpenRC},
+			service.Systemd: {Unit: edgevpnAPISystemd},
+		},
+	})
 }
