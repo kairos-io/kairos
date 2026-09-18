@@ -16,8 +16,8 @@ import (
 	"unicode"
 
 	"github.com/kairos-io/kairos/v4/sdk/machine"
+	"github.com/kairos-io/kairos/v4/sdk/retry"
 
-	"github.com/avast/retry-go"
 	"github.com/itchyny/gojq"
 	"gopkg.in/yaml.v3"
 )
@@ -575,7 +575,8 @@ func fetchRemoteConfig(url string) (*Config, error) {
 			}
 
 			return nil
-		}, retry.Delay(time.Second), retry.Attempts(configURLAttempts),
+		},
+		retry.Config{Attempts: configURLAttempts, Delay: retry.Fixed(time.Second)},
 	)
 
 	if err != nil {
