@@ -26,6 +26,12 @@ const (
 	// daemon's settings for its systemd unit. It is the only place that
 	// knows which address the daemon was actually told to listen on.
 	EdgeVPNEnvFile = "/etc/systemd/system.conf.d/edgevpn-kairos.env"
+
+	// DefaultBridgeAPIListen is the address the bridge command serves its own
+	// API on. A bridge runs on an operator's machine, where it is the only
+	// edgevpn API there is, so it is also what a client on that machine has to
+	// dial.
+	DefaultBridgeAPIListen = "127.0.0.1:8080"
 )
 
 // ResolveAPIAddress returns the address a client should use to reach the local
@@ -38,20 +44,49 @@ const (
 // than a failure. Reading back what the daemon was given keeps both ends on one
 // address instead of two that have to agree by coincidence.
 //
-// Falls back to DefaultEdgeVPNAPIAddress when the file is missing or carries no
-// APILISTEN, which is the state of a node that has not bootstrapped yet.
+// With no daemon to follow, the address depends on where the command is being
+// run. On a node the answer is the local socket. On an operator's machine, where
+// these commands are used after "bridge" has built a tunnel, the only edgevpn
+// API in reach is the one bridge serves on DefaultBridgeAPIListen, and defaulting
+// to a socket that machine will never have is what made role and get-kubeconfig
+// unusable there without an explicit --api.
 func ResolveAPIAddress(envFile string) string {
+	return resolveAPIAddress(envFile, socketPathFor(DefaultEdgeVPNAPIAddress))
+}
+
+// resolveAPIAddress takes the local socket's path so a test does not depend on
+// whether the machine running it happens to have a daemon.
+func resolveAPIAddress(envFile, localSocket string) string {
 	env, err := godotenv.Read(envFile)
-	if err != nil {
+	if err == nil {
+		if listen := strings.TrimSpace(env["APILISTEN"]); listen != "" {
+			return clientAddressForListener(listen)
+		}
+	}
+
+	// No daemon was ever configured here. A socket still on disk means one runs
+	// anyway; anything else means this is not a node, so the bridge's API is the
+	// one to reach for.
+	if localSocket != "" && socketExists(localSocket) {
 		return DefaultEdgeVPNAPIAddress
 	}
 
-	listen := strings.TrimSpace(env["APILISTEN"])
-	if listen == "" {
-		return DefaultEdgeVPNAPIAddress
+	return clientAddressForListener(DefaultBridgeAPIListen)
+}
+
+// socketPathFor returns the filesystem path inside a unix:// address, and an
+// empty string for any address that is not one.
+func socketPathFor(address string) string {
+	if !strings.HasPrefix(address, "unix://") {
+		return ""
 	}
 
-	return clientAddressForListener(listen)
+	return strings.TrimPrefix(address, "unix://")
+}
+
+func socketExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // clientAddressForListener turns an APILISTEN value into something the API
