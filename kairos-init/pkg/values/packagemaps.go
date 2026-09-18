@@ -516,6 +516,31 @@ var BasePackages = PackageMap{
 				"zerofree",
 			},
 		},
+		// qemu-guest-agent is what 26_vm.yaml starts once DMI says the machine
+		// is a QEMU or KVM guest, and open-vm-tools is what it starts on a
+		// VMware guest. The Alpine and SUSE families already install both, and
+		// the Red Hat family installs the QEMU one. Without them the hypervisor
+		// gets no guest shutdown, no reported addresses and no filesystem
+		// freeze for snapshots; on vSphere that also leaves
+		// VSphereMachine.status.addresses empty, which is what blocked Cluster
+		// API in #4092. See #4737.
+		//
+		// Listed per architecture rather than under ArchCommon because neither
+		// package is published for riscv64 on Debian bookworm, trixie, or
+		// Ubuntu jammy and noble. That is the same reason open-vm-tools is
+		// split this way for the SUSE family below.
+		ArchAMD64: {
+			Common: {
+				"open-vm-tools",
+				"qemu-guest-agent",
+			},
+		},
+		ArchARM64: {
+			Common: {
+				"open-vm-tools",
+				"qemu-guest-agent",
+			},
+		},
 	},
 	SUSEFamily: {
 		ArchCommon: {
