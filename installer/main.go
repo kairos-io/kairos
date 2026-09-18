@@ -1,9 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,24 +18,121 @@ import (
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
 	"github.com/kairos-io/kairos/v4/installer/internal/tui"
+	"github.com/kairos-io/kairos/v4/installer/internal/webui"
 )
+
+// webUILogPath is where echo's own output goes while the TUI owns the
+// terminal. It matches the path the openrc kairos-webui service already uses.
+// It is a var so a test can point it at a writable directory.
+var webUILogPath = "/var/log/kairos/webui.log"
 
 func main() {
 	source := flag.String("source", "", "installation source (passed through to kairos-agent)")
 	collect := flag.Bool("collect-debug-bundle", false,
 		"collect a debug bundle non-interactively (no TUI), print its path, and exit")
+	noTUI := flag.Bool("no-tui", false,
+		"serve only the web UI, without the terminal installer, for boots that ask for an unattended install")
 	flag.Parse()
 
 	if *collect {
 		os.Exit(collectDebugBundle())
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Web-UI-only mode has no terminal UI to protect, so echo logs to stdout
+	// and lands in the journal, and serving it is the whole job.
+	//
+	// It is also the only mode a supervisor stops directly, so it is the only
+	// one that needs its own handler: `rc-service kairos-webui stop` and
+	// `systemctl stop kairos-webui` both send SIGTERM, and left at its
+	// default disposition that kills the process mid-response. Cancelling ctx
+	// instead lets echo drain within its GracefulTimeout and exit 0. The
+	// interactive mode below needs nothing: bubbletea installs its own
+	// SIGINT/SIGTERM handler and quits the program, and signal delivery fans
+	// out to every registered channel.
+	if *noTUI {
+		ctx, stop := signal.NotifyContext(ctx, syscall.SIGTERM, syscall.SIGINT)
+		defer stop()
+
+		if err := webui.StartConfigured(ctx, noTUIWebUIOptions(*source)); err != nil {
+			fmt.Fprintln(os.Stderr, "web UI:", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	logger := sdkLogger.NewKairosLoggerWithExtraDirs("installer", "info", true, "/var/log/kairos/")
+
+	// The web UI runs alongside the TUI so a user can install from either.
+	// It gets a file-backed logger because echo writes JSON to stdout by
+	// default, which would land on top of the TUI's alt screen.
+	activity := &webui.Activity{}
+	go func() {
+		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity)); err != nil {
+			logger.Warnf("web UI stopped: %s", err.Error())
+		}
+	}()
+
 	p := tea.NewProgram(tui.InitialModel(&logger, *source), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error: %v\n", err)
 		os.Exit(1)
 	}
+
+	// An install driven from the browser outlives the terminal UI. `q` on any
+	// TUI page returns from p.Run(), and returning from main runs the
+	// deferred cancel() that stops echo, so without this wait someone at the
+	// console ends a remote operator's install and takes the progress page's
+	// /ws stream with it. Nothing on an interactive boot re-execs the
+	// installer, so there would be no way back for that boot.
+	if activity.InstallInFlight() {
+		// On the console too, not just the log. logger is built with
+		// quiet=true and so has no console writer, and without this the
+		// terminal sits with no output and no shell for the rest of the
+		// install, which is indistinguishable from a hang: someone would
+		// Ctrl-C it and take the remote operator's install with it. Safe
+		// here because p.Run() has returned, so bubbletea has left the alt
+		// screen and released the terminal.
+		fmt.Println("An install started from the web installer is still running. Keeping the web UI up until it finishes.")
+		logger.Infof("terminal UI exited while an install started from the web UI is running: serving the web UI until it finishes")
+		activity.WaitForInstall()
+	}
+}
+
+// noTUIWebUIOptions is what --no-tui hands the web UI. Nothing owns the
+// terminal in that mode, so echo keeps its default stdout logger and its
+// output lands in the journal.
+func noTUIWebUIOptions(source string) webui.Options {
+	return webui.Options{Source: source}
+}
+
+// tuiWebUIOptions is what the interactive installer hands the web UI it runs
+// alongside the TUI. It differs only in the logger, because echo's default
+// writes JSON to stdout and the TUI owns that terminal.
+//
+// Both carry the install source, so an install driven from the browser pulls
+// the same image the terminal installer would.
+//
+// activity is how main learns that the browser started an install, so quitting
+// the TUI does not cut it short.
+func tuiWebUIOptions(source string, activity *webui.Activity) webui.Options {
+	return webui.Options{Source: source, Logger: webUILogger(), Activity: activity}
+}
+
+// webUILogger returns a logger writing to webUILogPath, or one writing nowhere
+// if that file cannot be opened. It deliberately never falls back to stdout:
+// the TUI owns the terminal, and losing the web UI's log is better than
+// scribbling over the screen the user is installing from.
+func webUILogger() *slog.Logger {
+	if err := os.MkdirAll(filepath.Dir(webUILogPath), 0755); err == nil {
+		f, err := os.OpenFile(webUILogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err == nil {
+			return slog.New(slog.NewJSONHandler(f, nil))
+		}
+	}
+	return slog.New(slog.NewJSONHandler(io.Discard, nil))
 }
 
 // collectDebugBundle generates a debug bundle without starting the TUI, for use

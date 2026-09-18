@@ -6,46 +6,49 @@ import (
 
 // InstallSchema represents the install block in the Kairos configuration. It is used to drive automatic installations without user interaction.
 type InstallSchema struct {
-	_                   struct{}       `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
-	Auto                bool           `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
-	BindMounts          []string       `json:"bind_mounts,omitempty"`
-	Bundles             []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	NoFormat            bool           `json:"no_format,omitempty"`
-	Device              string         `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
-	EphemeralMounts     []string       `json:"ephemeral_mounts,omitempty"`
-	EncryptedPartitions []string       `json:"encrypted_partitions,omitempty"`
-	Env                 []interface{}  `json:"env,omitempty"`
+	_                   struct{}          `title:"Kairos Schema: Install block" description:"The install block is to drive automatic installations without user interaction."`
+	Auto                bool              `json:"auto,omitempty" description:"Set to true when installing without Pairing"`
+	BindMounts          []string          `json:"bind_mounts,omitempty"`
+	Bundles             []BundleSchema    `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	NoFormat            bool              `json:"no-format,omitempty" description:"Skip formatting the partitions and reuse the existing layout"`
+	NoFormatDeprecated  bool              `json:"no_format,omitempty" deprecated:"true" description:"Deprecated and ignored: it was never read by the installer. Use no-format instead"`
+	Device              string            `json:"device,omitempty" pattern:"^(auto|/dev/.+|script://.+)$" description:"Device for automated installs" examples:"[\"auto\",\"/dev/sda\",\"script:///usr/local/bin/pick-disk.sh\"]"`
+	EphemeralMounts     []string          `json:"ephemeral_mounts,omitempty"`
+	EncryptedPartitions []string          `json:"encrypted_partitions,omitempty"`
+	Env                 []interface{}     `json:"env,omitempty"`
+	Extensions          []ExtensionSchema `json:"extensions,omitempty" description:"System extensions to install onto the node."`
 	GrubOptionsSchema   `json:"grub_options,omitempty"`
+	SelinuxOptions      `json:"selinux,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
 	SkipEncryptCopyPlugins bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
-	Partitions             ElementalPartitions `json:"partitions,omitempty" mapstructure:"partitions"`
-	GrubDefEntry           string              `json:"grub-entry-name,omitempty" mapstructure:"grub-entry-name"`
-	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty" mapstructure:"extra-partitions"`
-	Force                  bool                `json:"force,omitempty" mapstructure:"force"`
-	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty" mapstructure:"extra-dirs-rootfs"`
-	SSHHardening           bool                `json:"ssh_hardening,omitempty" mapstructure:"ssh_hardening" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
-	Active                 Image               `json:"system,omitempty" mapstructure:"system"`
-	Recovery               Image               `json:"recovery-system,omitempty" mapstructure:"recovery-system"`
-	Passive                Image               `json:"passive,omitempty" mapstructure:"recovery-system"`
+	Partitions             ElementalPartitions `json:"partitions,omitempty"`
+	GrubDefEntry           string              `json:"grub-entry-name,omitempty"`
+	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty"`
+	Force                  bool                `json:"force,omitempty"`
+	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty"`
+	SSHHardening           bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	Active                 Image               `json:"system,omitempty"`
+	Recovery               Image               `json:"recovery-system,omitempty"`
+	Passive                Image               `json:"passive,omitempty"`
 }
 
 type Image struct {
-	Size   uint   `json:"size,omitempty" mapstructure:"size"`
-	Source string `json:"uri,omitempty" mapstructure:"uri"`
+	Size   uint   `json:"size,omitempty"`
+	Source string `json:"uri,omitempty"`
 }
 
 type Partition struct {
 	Name string `json:"name,omitempty"`
-	Size uint   `json:"size,omitempty" mapstructure:"size"`
-	FS   string `json:"fs,omitempty" mapstrcuture:"fs"`
+	Size uint   `json:"size,omitempty"`
+	FS   string `json:"fs,omitempty"`
 }
 
 type ElementalPartitions struct {
-	OEM        *Partition `json:"oem,omitempty" mapstructure:"oem"`
-	Recovery   *Partition `json:"recovery,omitempty" mapstructure:"recovery"`
-	State      *Partition `json:"state,omitempty" mapstructure:"state"`
-	Persistent *Partition `json:"persistent,omitempty" mapstructure:"persistent"`
+	OEM        *Partition `json:"oem,omitempty"`
+	Recovery   *Partition `json:"recovery,omitempty"`
+	State      *Partition `json:"state,omitempty"`
+	Persistent *Partition `json:"persistent,omitempty"`
 }
 
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
@@ -69,9 +72,16 @@ type GrubOptionsSchema struct {
 	SavedEntry           string `json:"saved_entry,omitempty" description:"Set the default boot entry."`
 }
 
-// PowerManagement is a meta structure to hold the different rules for managing power, which are not compatible between each other.
-type PowerManagement struct {
+// SelinuxOptions controls SELinux on the installed system (RHEL and SUSE
+// families). When enabled, the system boots with selinux=1
+// and the kairos-selinux-relabel unit runs on every non-recovery boot.
+type SelinuxOptions struct {
+	Enabled bool   `json:"enabled,omitempty" description:"Install SELinux packages and boot with SELinux active (RHEL and SUSE families, incl. openSUSE Tumbleweed). GRUB-only: not supported under UKI"`
+	Mode    string `json:"mode,omitempty" enum:"[\"enforcing\",\"permissive\"]" description:"SELinux mode: enforcing or permissive (default permissive). Enforcing is applied after the post-boot relabel, not from early boot"`
 }
+
+// PowerManagement is a meta structure to hold the different rules for managing power, which are not compatible between each other.
+type PowerManagement struct{}
 
 // NoPowerManagement is a meta structure used when the user does not define any power management options or when the user does not want to reboot or poweroff the machine.
 type NoPowerManagement struct {

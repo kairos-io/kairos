@@ -28,7 +28,7 @@ stages:
       - path: "/etc/sudoers"
         owner: 0
         group: 0
-        permsisions: 0600
+        permissions: 0600
         content: |
            Defaults always_set_home
            Defaults secure_path="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/bin:/usr/local/sbin"

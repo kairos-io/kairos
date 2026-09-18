@@ -44,6 +44,11 @@ on:
         type: boolean
         default: false
 
+# Every job here only checks out code and runs a linter in a local
+# docker container. No GITHUB_TOKEN write use anywhere in this file.
+permissions:
+  contents: read
+
 jobs:
   golangci_lint:
     runs-on: ubuntu-latest

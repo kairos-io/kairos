@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/kairos-io/kairos/v4/internal/version"
+	"github.com/kairos-io/kairos/v4/provider/internal/cli/token"
 	"github.com/kairos-io/kairos/v4/provider/internal/provider"
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 
@@ -15,6 +16,13 @@ import (
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )
+
+// defaultRotateConfigDirs is where the rotate-token command looks for the
+// user's persistent config by default. It mirrors the writable subset of
+// constants.GetUserConfigDirs: read-only overlays like /run/initramfs/live
+// and baked-in /system/oem are left out because a rotation has to end up in
+// files the node itself can rewrite.
+var defaultRotateConfigDirs = []string{"/etc/kairos", "/oem"}
 
 var Author = "Ettore Di Giacinto"
 
@@ -127,6 +135,61 @@ var GenerateTokenCMD = cli.Command{
 	},
 }
 
+var RotateTokenCMD = cli.Command{
+	Name:      "rotate-token",
+	UsageText: "rotate-token [--config-dir DIR ...] [--api URL] [--root-dir DIR] [--restart] NEW_TOKEN",
+	Usage:     "Rewrites the network token in the node's config and reconfigures edgevpn",
+	Description: `
+		Rewrites p2p.network_token in every config file under the given
+		directories that already has one, regenerates the edgevpn service
+		configuration against the merged config, and optionally restarts
+		the edgevpn service so the change takes effect immediately.
+
+		The token can also be supplied via the TOKEN environment variable.
+
+		By default it looks at /etc/kairos and /oem, which are the writable
+		locations the agent reads from. Pass --config-dir to override.
+		`,
+	ArgsUsage: "NEW_TOKEN (the base64 token to install; overrides --token/TOKEN)",
+	Flags: append([]cli.Flag{
+		&cli.StringSliceFlag{
+			Name:  "config-dir",
+			Usage: "Directory to scan for config files. May be repeated.",
+			Value: cli.NewStringSlice(defaultRotateConfigDirs...),
+		},
+		&cli.StringFlag{
+			Name:    "token",
+			Usage:   "New network token. Overridden by a positional argument.",
+			EnvVars: []string{"TOKEN"},
+		},
+		&cli.StringFlag{
+			Name:  "root-dir",
+			Usage: "Root directory the edgevpn service files are written under.",
+			Value: "/",
+		},
+		&cli.BoolFlag{
+			Name:  "restart",
+			Usage: "Restart the edgevpn service after writing the new config.",
+		},
+	}, networkAPI...),
+	Action: func(c *cli.Context) error {
+		newToken := c.String("token")
+		if c.Args().Present() {
+			newToken = c.Args().First()
+		}
+		if newToken == "" {
+			return fmt.Errorf("a new token is required (positional argument, --token or TOKEN)")
+		}
+		return token.RotateToken(
+			c.StringSlice("config-dir"),
+			newToken,
+			c.String(apiFlagName),
+			c.String("root-dir"),
+			c.Bool("restart"),
+		)
+	},
+}
+
 var ValidateSchemaCMD = cli.Command{
 	Name: "validate",
 	Action: func(c *cli.Context) error {
@@ -230,6 +293,7 @@ For all the example cases, see: https://kairos.io/docs/
 			&RoleCMD,
 			&CreateConfigCMD,
 			&GenerateTokenCMD,
+			&RotateTokenCMD,
 			&ValidateSchemaCMD,
 			&VersionCMD,
 		},

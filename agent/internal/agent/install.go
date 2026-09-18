@@ -22,8 +22,10 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/uki"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -32,7 +34,7 @@ import (
 	"github.com/sanity-io/litter"
 )
 
-func displayInfo(agentConfig *Config) {
+func displayInfo(agentConfig *branding.Config) {
 	if !agentConfig.WebUI.Disable {
 		ifaces := machine.Interfaces()
 		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
@@ -45,7 +47,7 @@ func displayInfo(agentConfig *Config) {
 					if strings.Contains("127.0.0.1", ip) || strings.Contains("::1", ip) {
 						continue
 					}
-					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, constants.DefaultWebUIListenAddress)
+					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, sdkConstants.DefaultWebUIListenAddress)
 				}
 				message = message + messageIps
 			}
@@ -84,16 +86,84 @@ func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValid
 	return RunInstall(cc)
 }
 
-func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
-	var cc *sdkConfig.Config
-	var err error
+// autoInstallRequested reports whether the config asks to be installed without
+// being asked anything, so there is no UX to show.
+func autoInstallRequested(cc *sdkConfig.Config) bool {
+	return cc != nil && cc.Install != nil && cc.Install.Auto
+}
 
+// runInstallFn is a seam so a spec can assert AutoInstall took the unattended
+// branch without running a real installation against a real disk.
+var runInstallFn = RunInstall
+
+// startGetty puts a login back on tty1, which is what both install
+// entrypoints do when they are done drawing on the console.
+func startGetty() {
+	svc, err := machine.Getty(1)
+	if err == nil {
+		_ = svc.Start() //nolint:errcheck
+	}
+}
+
+// AutoInstall performs the unattended installation a config asks for with
+// install.auto, and reports whether it did.
+//
+// Both live boot entrypoints call it before they show anything: a config that
+// says "install me without asking" leaves nothing to ask, and a live CD that
+// boots with an autoinstall datasource must install rather than stop at a
+// prompt with nobody there to answer it. When it reports false there is still
+// a decision left for a human, and the caller runs its own UX.
+//
+// A config that cannot be read is not an error here, only the absence of an
+// unattended install; the failure is printed and the caller carries on. The
+// config it did read is returned so the caller does not have to scan again:
+// config.Scan follows config_url over HTTP, so a second scan refetches the
+// remote config.
+func AutoInstall(sourceImgURL string, allowInsecureRegistries bool, dir ...string) (bool, *sdkConfig.Config, error) {
+	// Without the wait, a config still being written by the datasource reads
+	// as absent, which is the race this function exists to close.
+	ensureDataSourceReady()
+
+	cc, err := config.Scan(collector.Directories(dir...),
+		collector.Readers(strings.NewReader(generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries))),
+		collector.MergeBootLine)
+	if err != nil {
+		// This is where the scan happens now, so it is where the failure has
+		// to be reported: Install used to print it and no longer scans.
+		fmt.Printf("- config not found in the system: %s\n", err.Error())
+	}
+
+	if err != nil || !autoInstallRequested(cc) {
+		return false, cc, nil
+	}
+
+	// Only the branch that installs captures SIGINT and SIGTERM. Registering
+	// it earlier left interactive-install with the default kill disabled and a
+	// handler whose only act is to start a getty on the console the installer
+	// TUI is drawing on.
+	utils.OnSignal(func() {
+		startGetty()
+	}, syscall.SIGINT, syscall.SIGTERM)
+
+	if err := runInstallFn(cc); err != nil {
+		return true, cc, err
+	}
+
+	if !cc.Install.Reboot && !cc.Install.Poweroff {
+		_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
+		startGetty()
+	}
+
+	return true, cc, nil
+}
+
+// Install runs the provider flow for a config that still needs a human
+// decision. cc is the config AutoInstall already scanned; scanning it again
+// here would refetch a remote config_url once more per boot.
+func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries bool, dir ...string) error {
 	bus.Manager.Initialize()
 	utils.OnSignal(func() {
-		svc, err := machine.Getty(1)
-		if err == nil {
-			_ = svc.Start() //nolint:errcheck
-		}
+		startGetty()
 	}, syscall.SIGINT, syscall.SIGTERM)
 
 	tk := ""
@@ -118,35 +188,7 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 		}
 	})
 
-	ensureDataSourceReady()
-
-	cliConf := generateInstallConfForCLIArgs(sourceImgURL, allowInsecureRegistries)
-
-	// Reads config, and if present and offline is defined, runs the installation
-	cc, err = config.Scan(collector.Directories(dir...),
-		collector.Readers(strings.NewReader(cliConf)),
-		collector.MergeBootLine)
-
-	if err == nil && cc.Install != nil && cc.Install.Auto {
-		err = RunInstall(cc)
-		if err != nil {
-			return err
-		}
-
-		if !cc.Install.Reboot && !cc.Install.Poweroff {
-			_, _ = pterm.DefaultInteractiveContinue.Show("Installation completed, press enter to go back to the shell.")
-			svc, err := machine.Getty(1)
-			if err == nil {
-				_ = svc.Start() //nolint:errcheck
-			}
-		}
-
-		return nil
-	}
-	if err != nil {
-		fmt.Printf("- config not found in the system: %s", err.Error())
-	}
-	agentConfig, err := LoadConfig()
+	agentConfig, err := branding.LoadConfig()
 	if err != nil {
 		return err
 	}
@@ -161,6 +203,13 @@ func Install(sourceImgURL string, allowInsecureRegistries bool, dir ...string) e
 		displayInfo(agentConfig)
 		fmt.Println("No providers found, dropping to a shell. \n -- For instructions on how to install manually, see: https://kairos.io/docs/installation/manual/")
 		return utils.Shell().Run()
+	}
+
+	// config.Scan hands back a usable config on every failure it reports, so
+	// nil here means it could not even build one (an arch it does not know).
+	// Say so instead of dereferencing it.
+	if cc == nil {
+		return errors.New("no configuration could be read, stopping installation")
 	}
 
 	configStr, err := cc.Collector.String()

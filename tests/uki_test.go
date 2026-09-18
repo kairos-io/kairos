@@ -39,6 +39,10 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
+	// Every reconnect below is capped at 10 minutes: the suite budget is 60
+	// minutes, and three 20-minute ceilings plus the BeforeEach overran it, so a
+	// slow reboot hit the suite timeout before its own assertion (#4489). The
+	// measured green run of this spec is 453s end to end.
 	Describe("Uki install + upgrade tests", Label("uki", "install-upgrade"), func() {
 		BeforeEach(func() {
 			datasource = CreateDatasource("assets/uki-install.yaml")
@@ -83,7 +87,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			out, err := vm.Sudo("kairos-agent bootentry --select recovery")
 			Expect(err).ToNot(HaveOccurred(), out)
 			vm.Reboot()
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 
 			By("Checking the boot mode (recovery)", func() {
 				out, err := vm.Sudo("stat /run/cos/recovery_mode")
@@ -99,7 +103,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			out, err = vm.Sudo("kairos-agent --debug reset --unattended")
 			Expect(err).ToNot(HaveOccurred(), out)
 			vm.Reboot()
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 
 			By("checking if after-reset was run")
 			out, err = vm.Sudo("ls /usr/local/after-reset-file")
@@ -113,7 +117,7 @@ var _ = Describe("kairos UKI test", Label("uki"), Ordered, func() {
 			out, err = vm.Sudo(fmt.Sprintf("kairos-agent --debug bootentry --select %s", os.Getenv("EXPECTED_SINGLE_ENTRY")))
 			Expect(err).ToNot(HaveOccurred(), out)
 			vm.Reboot()
-			vm.EventuallyConnects(1200)
+			vm.EventuallyConnects(600)
 
 			By("checking if upgrade worked")
 			out, err = vm.Sudo("cat /etc/kairos-release")

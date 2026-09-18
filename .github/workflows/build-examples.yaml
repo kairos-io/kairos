@@ -5,6 +5,12 @@ on:
     paths:
       - 'examples/builds/**'
 
+# This workflow only checks out code and builds a Dockerfile locally
+# (push: is not set on docker/build-push-action, so nothing is
+# pushed). It needs no write scope at all.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: ${{ matrix.example-dir }}

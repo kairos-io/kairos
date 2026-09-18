@@ -375,6 +375,12 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 		// Add the default mountpoint for it in case the chroot stages want to bind mount it
 		ep.OEM.MountPoint = constants.OEMPath
 	}
+	// On a GRUB system the ESP is not mounted while the system runs, so ghw
+	// reports it with no mountpoint. Give it the same transient mountpoint
+	// reset uses, so the ESP refresh has somewhere to mount it.
+	if ep.EFI != nil && ep.EFI.MountPoint == "" {
+		ep.EFI.MountPoint = sdkConstants.EfiDirTransient
+	}
 	// This is needed if we want to use the persistent as tmpdir for the upgrade images
 	// as tmpfs is 25% of the total RAM, we cannot rely on the tmp dir having enough space for our image
 	// This enables upgrades on low ram devices
@@ -1089,6 +1095,8 @@ func unmarshallFullSpec(r *sdkConfig.Config, subkey string, sp sdkSpec.Spec) err
 		vp = viper.New()
 	}
 
+	warnDeprecatedKeys(r.Logger, subkey, vp)
+
 	err = vp.Unmarshal(sp, setDecoder, decodeHook)
 	if err != nil {
 		return fmt.Errorf("error unmarshalling %s Spec: %w", subkey, err)
@@ -1210,4 +1218,22 @@ func DetectPreConfiguredDevice(logger sdkLogger.KairosLogger) (string, error) {
 	}
 
 	return "", nil
+}
+
+// deprecatedKeys lists, per cloud-config block, the keys that no spec has ever
+// read, mapped to the key that actually drives the behaviour. They are not
+// aliased on purpose: a user who wrote the old key got nothing, and quietly
+// turning it on now would change what an existing config does.
+var deprecatedKeys = map[string]map[string]string{
+	"install": {"no_format": "no-format"},
+}
+
+// warnDeprecatedKeys tells the user when a block carries a key that is parsed
+// by nothing, instead of letting it be dropped in silence.
+func warnDeprecatedKeys(logger sdkLogger.KairosLogger, subkey string, vp *viper.Viper) {
+	for old, replacement := range deprecatedKeys[subkey] {
+		if vp.IsSet(old) {
+			logger.Warnf("%[1]s.%[2]s is not read by Kairos and is ignored, use %[1]s.%[3]s instead", subkey, old, replacement)
+		}
+	}
 }

@@ -22,6 +22,8 @@ import (
 	"strings"
 
 	"github.com/gofrs/uuid"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 const (
@@ -72,6 +74,7 @@ const (
 	AfterUpgradeChrootHook       = "after-upgrade-chroot"
 	AfterUpgradeHook             = "after-upgrade"
 	BeforeUpgradeHook            = "before-upgrade"
+	FirstBootHook                = "first-boot"
 	TransitionImgFile            = "transition.img"
 	RunningStateDir              = "/run/initramfs/cos-state" // TODO: converge this constant with StateDir/RecoveryDir in dracut module from cos-toolkit
 	RunningRecoveryStateDir      = "/run/initramfs/isoscan"   // TODO: converge this constant with StateDir/RecoveryDir in dracut module from cos-toolkit
@@ -84,6 +87,27 @@ const (
 	OEMPath                      = "/oem"
 	BootEntryRecovery            = "recovery"
 	BootEntryActive              = "cos"
+
+	// AuditLogStatePath is where immucore keeps the backing directory of the
+	// /var/log/audit bind, relative to the root of the persistent partition.
+	// A reset formats that partition, so the audit trail has to be carried
+	// over it by hand.
+	//
+	// The .state part is the default value of PERSISTENT_STATE_TARGET, which
+	// immucore reads out of the booted system's cos-layout.env. A reset runs
+	// from recovery and never mounts the partition that file lives on, so an
+	// installation that overrides the target puts its audit trail somewhere
+	// this path does not reach. That is why StashAuditLog logs the path it
+	// looked at when it finds nothing: "no trail" and "wrong path" read the
+	// same from here otherwise.
+	AuditLogStatePath = ".state/var-log-audit.bind"
+	// AuditLogPath is the path the directory above is bound onto, used for
+	// logging.
+	AuditLogPath = "/var/log/audit"
+	// AuditLogDirPerm is the mode the restored directory gets, which is the
+	// mode the bind then exposes at AuditLogPath. auditd keeps its trail
+	// readable by root only.
+	AuditLogDirPerm = 0o700
 
 	// SELinux targeted policy paths.
 	SELinuxTargetedPath        = "/etc/selinux/targeted"
@@ -129,9 +153,13 @@ const (
 	UpgradeRecoveryNoSourceError   = "could not find a proper source for the recovery upgrade.\nThis can be configured in the cloud config files under the 'upgrade.recovery-system.uri' key or via cmdline using the '--source' flag"
 	MultipleEntriesAssessmentError = "multiple boot entries found for %s"
 	NoBootAssessmentWarning        = "No boot assessment found in current boot entry config file"
-
-	DefaultWebUIListenAddress = ":8080"
 )
+
+// Deprecated: use sdkConstants.DefaultWebUIListenAddress. This package is
+// importable outside the repo, so the constant stays as an alias rather than
+// breaking an out-of-tree build. Remove it together with the
+// `kairos-agent webui` subcommand.
+const DefaultWebUIListenAddress = sdkConstants.DefaultWebUIListenAddress
 
 func UkiDefaultMenuEntries() []string {
 	return []string{"cos", "fallback", "recovery", "statereset"}

@@ -173,6 +173,11 @@ func allReleases(registry string) (versioneer.TagList, error) {
 	return tagList.OtherAnyVersion().RSorted(), nil
 }
 
+// newerReleases lists the releases a node can upgrade to. It uses
+// NewerAllVersions rather than NewerAnyVersion so that a newer Kairos version
+// built against an older Kubernetes version is left out: Kubernetes does not
+// support downgrades, so those tags are not upgrade candidates
+// (kairos-io/kairos#3382). `list-releases --all` still shows every other tag.
 func newerReleases(registry string) (versioneer.TagList, error) {
 	artifact, err := versioneer.NewArtifactFromOSRelease()
 	if err != nil {
@@ -183,7 +188,7 @@ func newerReleases(registry string) (versioneer.TagList, error) {
 	if err != nil {
 		return tagList, err
 	}
-	return tagList.NewerAnyVersion().RSorted(), nil
+	return tagList.NewerAllVersions().RSorted(), nil
 }
 
 // generateUpgradeConfForCLIArgs creates a kairos configuration for `--source` and `--recovery` and `--excluded-paths`

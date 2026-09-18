@@ -565,7 +565,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 			It("should install a extension", func() {
 				err = action.InstallExtension(config, "docker://quay.io/valid:v1.0.0", "sysext")
 				Expect(err).ToNot(HaveOccurred(), memLog.String())
-				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/valid:v1.0.0", Destination: "/var/lib/kairos/extensions/", PlatformRef: ""}
+				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/valid:v1.0.0", Destination: "/var/lib/kairos/extensions", PlatformRef: ""}
 				Expect(extractor.WasCalledWithExtractCall(expectedCall)).To(BeTrue())
 			})
 			It("should fail to install a missing extension", func() {
@@ -574,7 +574,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 				}
 				err = action.InstallExtension(config, "docker://quay.io/invalid:v1.0.0", "sysext")
 				Expect(err).To(HaveOccurred(), memLog.String())
-				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/invalid:v1.0.0", Destination: "/var/lib/kairos/extensions/", PlatformRef: ""}
+				expectedCall := v1mock.ExtractCall{ImageRef: "quay.io/invalid:v1.0.0", Destination: "/var/lib/kairos/extensions", PlatformRef: ""}
 				Expect(extractor.WasCalledWithExtractCall(expectedCall)).To(BeTrue())
 			})
 		})
@@ -905,7 +905,7 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 		It("should append the latest tag to name-only image references", func() {
 			err = action.InstallExtension(config, "oci://test/valid", "sysext")
 			Expect(err).ToNot(HaveOccurred())
-			expectedCall := v1mock.ExtractCall{ImageRef: "test/valid:latest", Destination: "/var/lib/kairos/extensions/", PlatformRef: ""}
+			expectedCall := v1mock.ExtractCall{ImageRef: "test/valid:latest", Destination: "/var/lib/kairos/extensions", PlatformRef: ""}
 			Expect(extractor.WasCalledWithExtractCall(expectedCall)).To(BeTrue())
 		})
 		It("should create the target dir if it does not exist", func() {
@@ -999,6 +999,48 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 			err = action.EnableExtension(config, "valid.raw", "active", "sysext", true)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("failed to create symlink"))
+		})
+	})
+	Describe("Installing extensions on a node that has none yet", func() {
+		BeforeEach(func() {
+			// A node that has never had an extension installed has no
+			// /var/lib/kairos/extensions directory at all.
+			Expect(config.Fs.RemoveAll("/var/lib/kairos")).ToNot(HaveOccurred())
+			Expect(config.Fs.WriteFile("/first.raw", []byte("valid"), 0644)).ToNot(HaveOccurred())
+		})
+
+		It("creates the sysext dir on the first install", func() {
+			Expect(action.InstallExtension(config, "file:///first.raw", "sysext")).To(Succeed(), memLog.String())
+			extensions, err := action.ListExtensions(config, "", "sysext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(extensions).To(Equal([]action.Extension{
+				{Name: "first.raw", Location: "/var/lib/kairos/extensions/first.raw"},
+			}))
+		})
+
+		It("creates the confext dir on the first install", func() {
+			Expect(action.InstallExtension(config, "file:///first.raw", "confext")).To(Succeed(), memLog.String())
+			extensions, err := action.ListExtensions(config, "", "confext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(extensions).To(Equal([]action.Extension{
+				{Name: "first.raw", Location: "/var/lib/kairos/confexts/first.raw"},
+			}))
+		})
+
+		It("creates the boot-state dir on the first install", func() {
+			Expect(action.InstallExtension(config, "file:///first.raw", "sysext")).To(Succeed(), memLog.String())
+			Expect(action.EnableExtension(config, "first.raw", "active", "sysext", false)).To(Succeed(), memLog.String())
+			extensions, err := action.ListExtensions(config, "active", "sysext")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(extensions).To(Equal([]action.Extension{
+				{Name: "first.raw", Location: "/var/lib/kairos/extensions/active/first.raw"},
+			}))
+		})
+
+		It("lists no extensions rather than failing", func() {
+			extensions, err := action.ListExtensions(config, "", "sysext")
+			Expect(err).ToNot(HaveOccurred(), memLog.String())
+			Expect(extensions).To(BeEmpty())
 		})
 	})
 })
