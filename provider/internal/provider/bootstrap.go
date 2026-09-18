@@ -91,7 +91,7 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	// full automated setup. Otherwise, they must be explicitly enabled.
 	if (tokenNotDefined && prvConfig.IsKubernetesConfigured()) || skipAuto {
 		err := oneTimeBootstrap(logger, prvConfig, func() error {
-			return SetupVPN(services.EdgeVPNDefaultInstance, apiAddress, "/", true, prvConfig)
+			return SetupVPN(logger, services.EdgeVPNDefaultInstance, apiAddress, "/", true, prvConfig)
 		})
 		if err != nil {
 			return ErrorEvent("Failed setup: %s", err.Error())
@@ -106,7 +106,7 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	// We might still want a VPN, but not to route traffic into
 	if prvConfig.P2P.VPNNeedsCreation() {
 		logger.Info("Configuring VPN")
-		if err := SetupVPN(services.EdgeVPNDefaultInstance, apiAddress, "/", true, prvConfig); err != nil {
+		if err := SetupVPN(logger, services.EdgeVPNDefaultInstance, apiAddress, "/", true, prvConfig); err != nil {
 			return ErrorEvent("Failed setup VPN: %s", err.Error())
 		}
 	} else { // We need at least the API to co-ordinate

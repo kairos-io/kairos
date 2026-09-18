@@ -1,6 +1,11 @@
 package utils
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestGetEfiGrubFiles(t *testing.T) {
 	tests := []struct {
@@ -157,5 +162,42 @@ func TestPoweroffCommand(t *testing.T) {
 				t.Fatalf("poweroffCommand(%v) = %q, want %q", tt.openRC, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestShellSTDIN(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "marker")
+
+	out, err := ShellSTDIN("hello\n", "cat > "+marker+"; echo done")
+	if err != nil {
+		t.Fatalf("ShellSTDIN returned an error: %v (output %q)", err, out)
+	}
+
+	// The command has to have run at all: CombinedOutput refuses to start a
+	// command whose Stdout is set, which silently made this a no-op.
+	got, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("the command did not run, %s was not written: %v", marker, err)
+	}
+	if string(got) != "hello\n" {
+		t.Errorf("stdin was not passed through, got %q want %q", string(got), "hello\n")
+	}
+
+	if !strings.Contains(out, "done") {
+		t.Errorf("output was not captured, got %q", out)
+	}
+}
+
+func TestShellSTDINCapturesStderrOnFailure(t *testing.T) {
+	out, err := ShellSTDIN("", "echo boom >&2; exit 3")
+	if err == nil {
+		t.Fatal("expected an error for a command exiting 3")
+	}
+	if !strings.Contains(err.Error(), "exit status 3") {
+		t.Errorf("expected the exit status in the error, got %v", err)
+	}
+	if !strings.Contains(out, "boom") {
+		t.Errorf("expected stderr in the returned output, got %q", out)
 	}
 }

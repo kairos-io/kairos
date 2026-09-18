@@ -9,6 +9,9 @@ import (
 	"github.com/denisbrodbeck/machineid"
 	"github.com/kairos-io/kairos/v4/sdk/machine/openrc"
 	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	"github.com/mudler/yip/pkg/console"
+	"github.com/mudler/yip/pkg/executor"
+	"github.com/twpayne/go-vfs/v4"
 
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
@@ -158,14 +161,31 @@ func SentinelExist(f string) bool {
 	return false
 }
 
+// ExecuteInlineCloudConfig runs one stage of the given cloud-config, and of no
+// other cloud-config on the system.
 func ExecuteInlineCloudConfig(cloudConfig, stage string) error {
-	_, err := utils.ShellSTDIN(cloudConfig, fmt.Sprintf("elemental run-stage -s %s -", stage))
-	return err
+	return runStage(cloudConfig, stage)
 }
 
+// ExecuteCloudConfig runs one stage of the cloud-config in file, and of no
+// other cloud-config on the system.
 func ExecuteCloudConfig(file, stage string) error {
-	_, err := utils.SH(fmt.Sprintf("elemental run-stage -s %s %s", stage, file))
-	return err
+	return runStage(file, stage)
+}
+
+// runStage runs one stage from a single yip source, which is either a whole
+// cloud-config document or a path to one.
+//
+// yip is driven in process rather than through a `kairos-agent run-stage`
+// command line: run-stage always adds the system's cloud-init directories to
+// whatever it is given, and both callers here mean "this config and nothing
+// else". immucore does the same for its own one-shot stages.
+func runStage(source, stage string) error {
+	if err := executor.NewExecutor().Run(stage, vfs.OSFS, console.NewStandardConsole(), source); err != nil {
+		return fmt.Errorf("running stage %s: %w", stage, err)
+	}
+
+	return nil
 }
 
 func FindCommand(def string, options []string) string {

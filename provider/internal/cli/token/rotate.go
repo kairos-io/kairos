@@ -11,6 +11,7 @@ import (
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/unstructured"
 	"gopkg.in/yaml.v3"
 )
@@ -37,7 +38,12 @@ func RotateToken(configDir []string, newToken, apiAddress, rootDir string, resta
 		return err
 	}
 
-	err = provider.SetupVPN(services.EdgeVPNDefaultInstance, apiAddress, rootDir, false, providerCfg)
+	// SetupVPN reports a best-effort failure (the local DNS apply) through
+	// this logger rather than stdout, so the plugin path cannot corrupt its
+	// JSON response. On this CLI path stdout is free, so leave it unquiet.
+	logger := loggerpkg.NewKairosLogger("provider", "info", false)
+
+	err = provider.SetupVPN(logger, services.EdgeVPNDefaultInstance, apiAddress, rootDir, false, providerCfg)
 	if err != nil {
 		return err
 	}
