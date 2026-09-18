@@ -19,6 +19,7 @@ type guardStage struct {
 	Name               string      `yaml:"name"`
 	If                 string      `yaml:"if"`
 	OnlyServiceManager string      `yaml:"only_service_manager"`
+	OnlyOs             string      `yaml:"only_os"`
 	Commands           []string    `yaml:"commands"`
 	Files              []guardFile `yaml:"files"`
 }
