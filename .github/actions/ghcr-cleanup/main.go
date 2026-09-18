@@ -92,7 +92,7 @@ type report struct {
 	NotFound   int // ref parsed and scope resolved, but no version carried the tag
 	Unresolved int // neither /orgs/<owner> nor /users/<owner> lists the package
 	Skipped    int // ref malformed (non-ghcr.io, missing tag, ...)
-	Retained   int // aged out, but held back as the package's last tagged version
+	Retained   int // held back as the package's last tagged version (cannot be deleted individually)
 }
 
 func (r report) String() string {
