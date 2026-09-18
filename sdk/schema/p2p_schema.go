@@ -21,7 +21,10 @@ type KubeVIPSchema struct {
 	EIP         string   `json:"eip,omitempty" example:"192.168.1.110"`
 	ManifestURL string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
 	Enable      bool     `json:"enable,omitempty" description:"Enables KubeVIP"`
-	Interface   bool     `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+	Interface   string   `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+	StaticPod   bool     `json:"static_pod,omitempty" description:"Deploy KubeVIP as a static pod instead of a DaemonSet."`
+	Version     string   `json:"version,omitempty" description:"KubeVIP version to deploy."`
+	Image       string   `json:"image,omitempty" description:"KubeVIP container image to deploy."`
 }
 
 // P2PNetworkExtended is a meta structure to hold the different rules for managing the P2P network, which are not compatible between each other.
