@@ -455,6 +455,31 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 				},
 			},
 		},
+		// The booted-system half of `kairos splash`: it covers switch-root to
+		// login prompt, where the initramfs unit has already been killed.
+		// Enabled unconditionally because the unit's own conditions decide
+		// whether it draws, and every one of them is evaluated per boot:
+		// removing `splash` from the command line, or adding kairos.splash=0
+		// at the boot menu, is enough to turn it off on a machine that is
+		// already installed.
+		{
+			Name:                 "Install the boot splash service",
+			OnlyIfServiceManager: serviceManagerSystemd,
+			Files: []schema.File{
+				{
+					Path:        bundled.SplashServicePath,
+					Owner:       0,
+					Group:       0,
+					Permissions: 0644,
+					Content:     fmt.Sprintf(bundled.SplashService, bundled.SplashDuration),
+				},
+			},
+			Systemctl: schema.Systemctl{
+				Enable: []string{
+					"kairos-splash",
+				},
+			},
+		},
 		{
 			Name:                 "Enable timesyncd service",
 			OnlyIfServiceManager: serviceManagerSystemd,
@@ -1064,6 +1089,46 @@ func GetKairosInitramfsFilesStage(sis values.System, l logger.KairosLogger) ([]s
 						Group:       0,
 						Permissions: 0644,
 						Content:     bundled.ImmucoreServiceDracut,
+					},
+				},
+			},
+			// The splash is the initramfs half of `kairos splash`; the
+			// booted-system half is installed by GetServicesStage. Both are
+			// inert unless `splash` is on the kernel command line, which
+			// BootArgsCfg puts there for the grub entries. A trusted-boot
+			// image never reaches this function, so a UKI initrd has no
+			// splash: it is not built with dracut at all.
+			{
+				Name:     "Add splash module to initramfs",
+				OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|CentOS.*|Red\\sHat.*|Rocky.*|AlmaLinux.*|Oracle\\sLinux.*|[Oo]penSUSE.*|SUSE.*|Hadron.*",
+				Files: []schema.File{
+					{
+						Path:        bundled.DracutSplashPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashDracutConfig,
+					},
+					{
+						Path:        bundled.DracutSplashModuleSetupPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0755,
+						Content:     bundled.SplashModuleSetupDracut,
+					},
+					{
+						Path:        bundled.DracutSplashServicePath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashServiceDracut,
+					},
+					{
+						Path:        bundled.DracutSplashImmucoreQuietPath,
+						Owner:       0,
+						Group:       0,
+						Permissions: 0644,
+						Content:     bundled.SplashImmucoreQuietDracut,
 					},
 				},
 			},
