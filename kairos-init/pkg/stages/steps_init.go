@@ -448,7 +448,10 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable fail2ban service",
 			OnlyIfServiceManager: serviceManagerSystemd,
-			OnlyIfOs:             "Ubuntu.*|Debian.*|SLES.*|[Oo]penSUSE.*|Fedora.*", // RHEL family has it optionally installed
+			// os-release on SLES sets NAME="SLES" but PRETTY_NAME="SUSE Linux
+			// Enterprise Server 15 SP6", and the filter matches PRETTY_NAME, so a
+			// bare "SLES.*" never selects SLES.
+			OnlyIfOs: "Ubuntu.*|Debian.*|Fedora.*|" + values.AllSuseButMicroRegex, // RHEL family has it optionally installed
 			Systemctl: schema.Systemctl{
 				Enable: []string{
 					"fail2ban",
@@ -458,7 +461,7 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 		{
 			Name:                 "Enable timesyncd service",
 			OnlyIfServiceManager: serviceManagerSystemd,
-			OnlyIfOs:             "Ubuntu.*|Debian.*|SLES.*|[Oo]penSUSE.*|Hadron.*", // RHEL family and Fedora use chronyd instead
+			OnlyIfOs:             "Ubuntu.*|Debian.*|Hadron.*|" + values.AllSuseButMicroRegex, // RHEL family and Fedora use chronyd instead
 			Systemctl: schema.Systemctl{
 				Enable: []string{
 					"systemd-timesyncd",
