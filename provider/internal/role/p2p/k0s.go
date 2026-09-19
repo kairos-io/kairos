@@ -254,10 +254,20 @@ func (k *K0sNode) PropagateData() error {
 	return nil
 }
 
+// k0sTokenPath is where the worker keeps the token it joins the cluster with.
+// A var, not a const, so the tests can point it at a temp dir.
+var k0sTokenPath = "/etc/k0s/token"
+
+// k0sTokenMode is the mode that file gets. The token is the whole credential
+// for joining the cluster, k0s reads it back as root through --token-file, and
+// nobody else on the node needs the bytes. Same reasoning as the service
+// environment files, which carry K3S_TOKEN and EDGEVPNTOKEN at the same mode.
+const k0sTokenMode = 0600
+
 func (k *K0sNode) WorkerArgs() ([]string, error) {
 	pconfig := k.ProviderConfig()
 	k0sConfig := pconfig.K0sWorker
-	args := []string{"--token-file /etc/k0s/token"}
+	args := []string{"--token-file " + k0sTokenPath}
 
 	if k0sConfig.ReplaceArgs {
 		args = k0sConfig.Args
@@ -269,11 +279,20 @@ func (k *K0sNode) WorkerArgs() ([]string, error) {
 }
 
 func (k *K0sNode) SetupWorker(_, nodeToken string) error {
-	if err := os.WriteFile("/etc/k0s/token", []byte(nodeToken), 0644); err != nil {
+	// Tighten an existing file before writing into it. A node that joined
+	// before this was fixed has a 0644 token on disk, and os.WriteFile keeps
+	// the mode of a file it truncates, so the mode argument below would not
+	// reach it. Doing it first also means the new token is never on disk at a
+	// wider mode, even for an instant.
+	if _, err := os.Stat(k0sTokenPath); err == nil {
+		if err := os.Chmod(k0sTokenPath, k0sTokenMode); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
 		return err
 	}
 
-	return nil
+	return os.WriteFile(k0sTokenPath, []byte(nodeToken), k0sTokenMode)
 }
 
 func (k *K0sNode) Role() string {
