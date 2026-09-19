@@ -70,3 +70,30 @@ var _ = Describe("RootfsLayout", func() {
 		Expect(persistentStatePaths()).To(ContainElements("/home", "/root", "/opt", "/var/log"))
 	})
 })
+
+var _ = Describe("RootfsLayout CA anchors", func() {
+	// An operator installs a CA into the anchor directory their distribution
+	// documents. On the Red Hat family nothing in that chain used to be
+	// persisted, so the certificate was gone on the next boot
+	// (kairos-io/kairos#4755). Both directories ship empty in the published
+	// images, so they are machine-owned and pass the /usr rule above.
+	It("persists the anchor directory of every family that has one", func() {
+		Expect(persistentStatePaths()).To(ContainElements(
+			"/etc/pki/ca-trust/source/anchors",
+			"/etc/pki/trust/anchors",
+		))
+	})
+
+	// The generated bundle is image content. SyncState runs rsync with no
+	// --delete, so persisting it would keep a root CA the image later
+	// distrusts alive for the life of the machine. 01_ca_anchors.yaml
+	// regenerates it at boot instead.
+	It("persists no generated trust bundle", func() {
+		for _, path := range persistentStatePaths() {
+			Expect(path).ToNot(HavePrefix("/etc/pki/ca-trust/extracted"),
+				"%s is generated from the anchors, regenerate it instead of persisting it", path)
+			Expect(path).ToNot(Equal("/etc/pki/tls/certs"),
+				"%s holds symlinks into the generated bundle", path)
+		}
+	})
+})
