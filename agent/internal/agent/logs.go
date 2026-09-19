@@ -39,10 +39,21 @@ func NewLogsCollector(cfg *sdkConfig.Config) *LogsCollector {
 
 func defaultLogsConfig() *sdkLogs.LogsConfig {
 	return &sdkLogs.LogsConfig{
+		// Every unit the bundled cloud-configs write and enable, plus the
+		// Kubernetes ones the providers install. A unit that did not run this
+		// boot costs nothing: Collect drops an empty journal below.
 		Journal: []string{
 			"kairos-agent",
 			"kairos-installer",
+			// The interactive installer is a separate unit, and the
+			// interactive stage in 52_installer.yaml stops and disables
+			// kairos-installer, so without this a failed interactive install
+			// leaves no installer journal in the bundle at all.
+			"kairos-interactive",
 			"kairos-webui",
+			"kairos-reset",
+			"kairos-recovery",
+			"kairos-selinux-relabel",
 			"cos-setup-boot",
 			"cos-setup-fs",
 			"cos-setup-network",
