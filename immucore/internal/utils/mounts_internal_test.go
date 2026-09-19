@@ -137,7 +137,7 @@ var _ = Describe("DiskFSType", func() {
 	})
 })
 
-var _ = Describe("CreateBindStateDir", func() {
+var _ = Describe("CreateDirLike", func() {
 	var root string
 
 	BeforeEach(func() {
@@ -150,7 +150,7 @@ var _ = Describe("CreateBindStateDir", func() {
 		Expect(os.MkdirAll(mountpoint, 0o700)).To(Succeed())
 		Expect(os.Chmod(mountpoint, 0o700)).To(Succeed())
 
-		Expect(CreateBindStateDir(mountpoint, stateDir)).To(Succeed())
+		Expect(CreateDirLike(mountpoint, stateDir)).To(Succeed())
 
 		info, err := os.Stat(stateDir)
 		Expect(err).ToNot(HaveOccurred())
@@ -162,7 +162,7 @@ var _ = Describe("CreateBindStateDir", func() {
 		stateDir := filepath.Join(root, "usr/local/.state", "var-log-audit.bind")
 		Expect(os.MkdirAll(mountpoint, 0o750)).To(Succeed())
 
-		Expect(CreateBindStateDir(mountpoint, stateDir)).To(Succeed())
+		Expect(CreateDirLike(mountpoint, stateDir)).To(Succeed())
 		Expect(stateDir).To(BeADirectory())
 	})
 
@@ -174,7 +174,7 @@ var _ = Describe("CreateBindStateDir", func() {
 		Expect(os.Chmod(mountpoint, 0o777)).To(Succeed())
 		Expect(os.Chmod(stateDir, 0o700)).To(Succeed())
 
-		Expect(CreateBindStateDir(mountpoint, stateDir)).To(Succeed())
+		Expect(CreateDirLike(mountpoint, stateDir)).To(Succeed())
 
 		info, err := os.Stat(stateDir)
 		Expect(err).ToNot(HaveOccurred())
@@ -182,7 +182,7 @@ var _ = Describe("CreateBindStateDir", func() {
 	})
 
 	It("fails when there is no path to take the mode from", func() {
-		err := CreateBindStateDir(filepath.Join(root, "missing"), filepath.Join(root, "var-log-audit.bind"))
+		err := CreateDirLike(filepath.Join(root, "missing"), filepath.Join(root, "var-log-audit.bind"))
 		Expect(err).To(HaveOccurred())
 	})
 })
