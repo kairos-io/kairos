@@ -10,6 +10,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/schema"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkFs "github.com/kairos-io/kairos/v4/sdk/types/fs"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/sanity-io/litter"
 	"github.com/spf13/viper"
@@ -124,27 +125,10 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	result.Logger.Logger.Info().Str("version", version.Version).Msg("Kairos Agent")
 	result.Logger.Logger.Debug().Str("version", version.Version).Str("go", runtime.Version()).Msg("Kairos Agent")
 
-	// Try to load the kairos version from the kairos-release file
-	// Best effort, if it fails, we just ignore it
-	f, err := result.Fs.Open("/etc/os-release")
-	defer func() { _ = f.Close() }()
-	osRelease, err := godotenv.Parse(f)
-	if err == nil {
-		v := osRelease["KAIROS_VERSION"]
-		if v != "" {
-			result.Logger.Logger.Info().Str("version", v).Msg("Kairos System")
-		} else {
-			// Fallback into os-release
-			f, err = result.Fs.Open("/etc/os-release")
-			defer func() { _ = f.Close() }()
-			osRelease, err = godotenv.Parse(f)
-			if err == nil {
-				v = osRelease["KAIROS_VERSION"]
-				if v != "" {
-					result.Logger.Logger.Info().Str("version", v).Msg("Kairos System")
-				}
-			}
-		}
+	// Try to load the kairos version from the kairos-release file, falling
+	// back to os-release. Best effort, if it fails, we just ignore it.
+	if v := kairosVersion(result.Fs, kairosReleaseFile, osReleaseFile); v != "" {
+		result.Logger.Logger.Info().Str("version", v).Msg("Kairos System")
 	}
 
 	// Log the boot mode
@@ -163,4 +147,42 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	result.Logger.Debugf("Loaded config: %s", litter.Sdump(result))
 
 	return result, nil
+}
+
+const (
+	// kairosReleaseFile is where kairos-init writes KAIROS_VERSION and the
+	// rest of the KAIROS_ keys. It is the file to read the running system's
+	// version from.
+	kairosReleaseFile = "/etc/kairos-release"
+	// osReleaseFile is the distribution's own file. Images built before
+	// kairos-init carried the KAIROS_ keys here, so it stays as a fallback.
+	// sdk/utils.OSRelease reads the same pair in the same order.
+	osReleaseFile = "/etc/os-release"
+)
+
+// kairosVersion returns KAIROS_VERSION from the first of paths that carries a
+// non-empty one, and an empty string when none does.
+//
+// Best effort: this only feeds a log line, so a path that cannot be opened or
+// parsed is skipped rather than reported. Each file is closed as soon as it
+// has been parsed, so a caller can call this without leaking a descriptor.
+func kairosVersion(fs sdkFs.KairosFS, paths ...string) string {
+	for _, path := range paths {
+		f, err := fs.Open(path)
+		if err != nil {
+			continue
+		}
+
+		release, err := godotenv.Parse(f)
+		_ = f.Close()
+		if err != nil {
+			continue
+		}
+
+		if v := release["KAIROS_VERSION"]; v != "" {
+			return v
+		}
+	}
+
+	return ""
 }
