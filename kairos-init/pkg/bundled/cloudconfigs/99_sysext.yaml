@@ -106,9 +106,21 @@ stages:
           group: 0
           content: |
             export SYSTEMD_SYSEXT_HIERARCHIES="/usr/local/bin:/usr/local/sbin:/usr/local/include:/usr/local/lib:/usr/local/share:/usr/local/src:/usr/bin:/usr/share:/usr/lib:/usr/include:/usr/src:/usr/sbin"
-    - name: "systemd-sysext/confext initramfs settings"
+    # systemd ships systemd-sysext.service from v248 and
+    # systemd-confext.service from v254, so an older image has one of them or
+    # neither: Ubuntu 22.04, Debian 12 and the Red Hat 9 family have sysext but
+    # no confext, and Ubuntu 20.04 has neither. Enabling a unit that is not
+    # there fails and makes this stage report an error on every boot, so ask
+    # for each one only where the image has it.
+    - name: "systemd-sysext initramfs settings"
       only_service_manager: "systemd"
+      if: '[ -e /usr/lib/systemd/system/systemd-sysext.service ] || [ -e /lib/systemd/system/systemd-sysext.service ]'
       systemctl:
         enable:
           - systemd-sysext
+    - name: "systemd-confext initramfs settings"
+      only_service_manager: "systemd"
+      if: '[ -e /usr/lib/systemd/system/systemd-confext.service ] || [ -e /lib/systemd/system/systemd-confext.service ]'
+      systemctl:
+        enable:
           - systemd-confext
