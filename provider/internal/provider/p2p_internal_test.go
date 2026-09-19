@@ -6,6 +6,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 func listenerOptionsForTest(apiAddress string, userEnv map[string]string) map[string]string {
@@ -122,5 +124,20 @@ var _ = Describe("Writing the daemon's env file", func() {
 	It("writes something ResolveAPIAddress can read back", func() {
 		Expect(writeEdgeVPNEnv(rootDir, map[string]string{"APILISTEN": "127.0.0.1:8080"})).To(Succeed())
 		Expect(ResolveAPIAddress(filepath.Join(rootDir, EdgeVPNEnvFile))).To(Equal("http://127.0.0.1:8080"))
+	})
+
+	// The file holds EDGEVPNTOKEN, which is the whole mesh credential: anyone
+	// who reads it can join the network. It must not be readable by the
+	// unprivileged accounts a cloud-config creates on the node.
+	It("keeps the token readable by root only", func() {
+		Expect(writeEdgeVPNEnv(rootDir, map[string]string{
+			"EDGEVPNTOKEN": "a-join-token",
+			"APILISTEN":    "127.0.0.1:8080",
+		})).To(Succeed())
+
+		info, err := os.Stat(filepath.Join(rootDir, EdgeVPNEnvFile))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(utils.EnvFileMode)),
+			"env file mode %04o exposes the network token", info.Mode().Perm())
 	})
 })
