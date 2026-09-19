@@ -21,10 +21,14 @@ func Apply(opts ...Option) error {
 		}
 	}
 
-	var err error
+	// Collect every failure rather than keeping only the last one, and hand
+	// back a plain nil when nothing failed. multierror.Append always returns
+	// a non-nil *multierror.Error, so assigning it straight to an error
+	// interface reports failure even for an empty list.
+	var errs *multierror.Error
 	for _, f := range *c {
-		err = multierror.Append(f())
+		errs = multierror.Append(errs, f())
 	}
 
-	return err
+	return errs.ErrorOrNil()
 }
