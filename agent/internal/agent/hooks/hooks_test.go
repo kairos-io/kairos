@@ -14,6 +14,7 @@ import (
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
+	sdkBundles "github.com/kairos-io/kairos/v4/sdk/types/bundles"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -289,6 +290,66 @@ var _ = Describe("Hooks", func() {
 
 		It("names the stage first-boot", func() {
 			Expect(cnst.FirstBootHook).To(Equal("first-boot"))
+		})
+	})
+
+	Context("BundleFirstBoot", func() {
+		var bundleRoot string
+
+		// A container bundle read from a local tarball that is not there
+		// fails inside tarball.ImageFromPath, so these specs exercise the
+		// hook's error handling without reaching a registry.
+		missingBundles := func(root string, names ...string) sdkBundles.Bundles {
+			b := sdkBundles.Bundle{Rootfs: root, LocalFile: true}
+			for _, n := range names {
+				b.Targets = append(b.Targets, "container://"+filepath.Join(root, n))
+			}
+			return sdkBundles.Bundles{b}
+		}
+
+		BeforeEach(func() {
+			bundleRoot = GinkgoT().TempDir()
+			memLog = &bytes.Buffer{}
+			logger = sdkLogger.NewBufferLogger(memLog)
+			logger.SetLevel("debug")
+			cfg = config.NewConfig(config.WithLogger(logger))
+		})
+
+		It("does nothing when no bundles are configured", func() {
+			Expect(hook.BundleFirstBoot{}.Run(*cfg, nil)).To(Succeed())
+			Expect(memLog.String()).ToNot(ContainSubstring("could not install the bundles"))
+		})
+
+		It("logs the failure even though it does not fail the hook", func() {
+			// fail_on_bundles_errors decides whether the install aborts, not
+			// whether the operator is told. Without the log line a bundle that
+			// cannot be pulled left no trace anywhere.
+			cfg.Bundles = missingBundles(bundleRoot, "missing.tar")
+			cfg.FailOnBundleErrors = false
+
+			Expect(hook.BundleFirstBoot{}.Run(*cfg, nil)).To(Succeed())
+			Expect(memLog.String()).To(ContainSubstring("could not install the bundles"))
+			Expect(memLog.String()).To(ContainSubstring("missing.tar"))
+			Expect(memLog.String()).To(ContainSubstring("Finish BundleFirstBoot hook"))
+		})
+
+		It("fails the hook when fail_on_bundles_errors is set", func() {
+			cfg.Bundles = missingBundles(bundleRoot, "missing.tar")
+			cfg.FailOnBundleErrors = true
+
+			err = hook.BundleFirstBoot{}.Run(*cfg, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing.tar"))
+		})
+
+		It("names every bundle that failed, not only the last one", func() {
+			cfg.Bundles = missingBundles(bundleRoot, "first.tar", "second.tar")
+			cfg.FailOnBundleErrors = true
+
+			err = hook.BundleFirstBoot{}.Run(*cfg, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("first.tar"))
+			Expect(err.Error()).To(ContainSubstring("second.tar"))
 		})
 	})
 })
