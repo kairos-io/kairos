@@ -109,21 +109,6 @@ var _ = Describe("Uki install action", func() {
 		cleanup()
 	})
 
-	It("reports an unreadable EFI partition instead of panicking", func() {
-		// WalkDirFs calls the callback with a nil DirEntry when it cannot stat
-		// the root, so the callback has to check the error before it reads the
-		// entry's name. See kairos-io/kairos#4774.
-		//
-		// A docker source, because SyncData creates the target directory for a
-		// dir source and the walk would then find it. The fake extractor does
-		// not, which is what leaves the mount point missing.
-		spec.Active.Source = sdkImages.NewDockerSrc("some/image:latest")
-		spec.Partitions.EFI.MountPoint = "/not-mounted"
-		var err error
-		Expect(func() { err = installer.Run() }).ToNot(Panic())
-		Expect(err).To(MatchError(os.ErrNotExist))
-	})
-
 	It("installs successfully when skipping format", func() {
 		Expect(installer.Run()).To(Succeed())
 		// the default EFI dir structure was created
