@@ -63,8 +63,13 @@ func (k *K3sNode) GenArgs() ([]string, error) {
 		args = append(args, "--embedded-registry")
 	}
 
+	// Append, do not replace. An external datastore does not conflict with the
+	// flags computed above: the VPN interface flannel runs on, the kube-vip
+	// node IP and TLS SAN, and the embedded registry are all still needed.
+	// The one flag it does conflict with, --cluster-init, is excluded by its
+	// own condition below.
 	if pconfig.P2P.Auto.HA.ExternalDB != "" {
-		args = []string{fmt.Sprintf("--datastore-endpoint=%s", pconfig.P2P.Auto.HA.ExternalDB)}
+		args = append(args, fmt.Sprintf("--datastore-endpoint=%s", pconfig.P2P.Auto.HA.ExternalDB))
 	}
 
 	if k.HA() && !k.ClusterInit() {
