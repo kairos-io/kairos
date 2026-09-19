@@ -29,6 +29,103 @@ func UKIExtendPCR(extension string) error {
 
 }
 
+// ukiBaseMount is one entry of the mount table UKIMountBaseSystem applies.
+type ukiBaseMount struct {
+	where string
+	what  string
+	fs    string
+	flags uintptr
+	data  string
+}
+
+// ukiBaseMounts is the mount table of the UKI initramfs. UkiPivotToSysroot
+// moves these mounts into the new root with MS_MOVE, which keeps their flags,
+// so what is set here is what the booted system runs with for the rest of its
+// life. The flags follow systemd's own mount_table in
+// src/shared/mount-setup.c, which is what every non-UKI Kairos image gets from
+// systemd.
+func ukiBaseMounts() []ukiBaseMount {
+	return []ukiBaseMount{
+		{
+			"/sys",
+			"sysfs",
+			"sysfs",
+			syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_RELATIME,
+			"",
+		},
+		{
+			"/sys",
+			"",
+			"",
+			syscall.MS_SHARED,
+			"",
+		},
+		{
+			"/sys/kernel/security",
+			"securityfs",
+			"securityfs",
+			0,
+			"",
+		},
+		{
+			"/sys/kernel/debug",
+			"debugfs",
+			"debugfs",
+			0,
+			"",
+		},
+		{
+			"/sys/firmware/efi/efivars",
+			"efivarfs",
+			"efivarfs",
+			syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_RELATIME,
+			"",
+		},
+		{
+			"/dev",
+			"devtmpfs",
+			"devtmpfs",
+			syscall.MS_NOSUID,
+			"mode=755",
+		},
+		{
+			"/dev",
+			"",
+			"",
+			syscall.MS_SHARED,
+			"",
+		},
+		{
+			"/dev/pts",
+			"devpts",
+			"devpts",
+			syscall.MS_NOSUID | syscall.MS_NOEXEC,
+			"ptmxmode=000,gid=5,mode=620",
+		},
+		{
+			"/dev/shm",
+			"tmpfs",
+			"tmpfs",
+			syscall.MS_NOSUID | syscall.MS_NODEV,
+			"",
+		},
+		{
+			"/tmp",
+			"tmpfs",
+			"tmpfs",
+			syscall.MS_NOSUID | syscall.MS_NODEV,
+			"",
+		},
+		{
+			"/tmp",
+			"",
+			"",
+			syscall.MS_SHARED,
+			"",
+		},
+	}
+}
+
 // UKIMountBaseSystem mounts the base system for the UKI boot system
 // as when booting in UKI mode we have a blank slate and we need to mount everything
 // Make sure we set the directories as MS_SHARED
@@ -36,99 +133,13 @@ func UKIExtendPCR(extension string) error {
 // And can lead to rootfs out of boundaries issues for them
 // also it doesnt help when mounting the final rootfs as we want to broke the mounts into it and any submounts.
 func (s *State) UKIMountBaseSystem(g *herd.Graph) error {
-	type mount struct {
-		where string
-		what  string
-		fs    string
-		flags uintptr
-		data  string
-	}
-
 	return g.Add(
 		cnst.OpUkiBaseMounts,
 		TimedCallback(cnst.OpUkiBaseMounts,
 			func(_ context.Context) error {
 				var err error
 				// Mount base mounts
-				mounts := []mount{
-					{
-						"/sys",
-						"sysfs",
-						"sysfs",
-						syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_RELATIME,
-						"",
-					},
-					{
-						"/sys",
-						"",
-						"",
-						syscall.MS_SHARED,
-						"",
-					},
-					{
-						"/sys/kernel/security",
-						"securityfs",
-						"securityfs",
-						0,
-						"",
-					},
-					{
-						"/sys/kernel/debug",
-						"debugfs",
-						"debugfs",
-						0,
-						"",
-					},
-					{
-						"/sys/firmware/efi/efivars",
-						"efivarfs",
-						"efivarfs",
-						syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_RELATIME,
-						"",
-					},
-					{
-						"/dev",
-						"devtmpfs",
-						"devtmpfs",
-						syscall.MS_NOSUID,
-						"mode=755",
-					},
-					{
-						"/dev",
-						"",
-						"",
-						syscall.MS_SHARED,
-						"",
-					},
-					{
-						"/dev/pts",
-						"devpts",
-						"devpts",
-						syscall.MS_NOSUID | syscall.MS_NOEXEC,
-						"ptmxmode=000,gid=5,mode=620",
-					},
-					{
-						"/dev/shm",
-						"tmpfs",
-						"tmpfs",
-						0,
-						"",
-					},
-					{
-						"/tmp",
-						"tmpfs",
-						"tmpfs",
-						syscall.MS_NOSUID | syscall.MS_NODEV,
-						"",
-					},
-					{
-						"/tmp",
-						"",
-						"",
-						syscall.MS_SHARED,
-						"",
-					},
-				}
+				mounts := ukiBaseMounts()
 
 				for dir, perm := range map[string]os.FileMode{
 					"/proc":    0o555,
