@@ -596,11 +596,14 @@ func NewResetSpec(cfg *sdkConfig.Config) (*spec.ResetSpec, error) {
 	// If we mount partitions by the /dev/disk/by-label stanza, their mountpoints wont show up due to ghw not
 	// accounting for them. Normally this is not an issue but in this case, if we are formatting a given partition we
 	// want to unmount it first. Thus we need to make sure that if its mounted we have the mountpoint info
-	if ep.Persistent.MountPoint == "" {
+	//
+	// Both are optional, as the warnings above already state, so guard the
+	// lookup the same way NewUpgradeSpec does.
+	if ep.Persistent != nil && ep.Persistent.MountPoint == "" {
 		ep.Persistent.MountPoint = partitions.GetMountPointByLabel(ep.Persistent.FilesystemLabel)
 	}
 
-	if ep.OEM.MountPoint == "" {
+	if ep.OEM != nil && ep.OEM.MountPoint == "" {
 		ep.OEM.MountPoint = partitions.GetMountPointByLabel(ep.OEM.FilesystemLabel)
 	}
 
