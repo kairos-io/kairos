@@ -81,9 +81,9 @@ func (s *State) EnsurePartitionsDagStep(g *herd.Graph, deps ...string) error {
 			// system) — requires the operator to opt in with kairos.ram.wipe.
 			// A disk already carrying one of our labels is exempt: appending
 			// the missing sibling next to it is the expected recovery path.
-			if internalUtils.DiskHasPartitions(target) &&
-				!internalUtils.DiskHasKairosPartitions(target) &&
-				!internalUtils.AutoCreateWipeEnabled() {
+			if diskHasPartitionsFn(target) &&
+				!diskHasKairosPartitionsFn(target) &&
+				!autoCreateWipeEnabledFn() {
 				internalUtils.HaltWithBanner(
 					internalUtils.RenderWipeRequiredMessage(target),
 					fmt.Sprintf("target disk %s has existing partitions; add %s to overwrite",
@@ -205,23 +205,46 @@ var encryptPartitionFn = func(label string) error {
 	return encryptor.Encrypt([]string{label})
 }
 
+// candidateDisksFn, diskHasPartitionsFn, diskHasKairosPartitionsFn,
+// autoCreateWipeEnabledFn and diskExistsFn are package variables so a test can
+// answer for them: the functions underneath read the real block devices
+// through ghw and there is no seam inside them.
+var (
+	candidateDisksFn          = internalUtils.CandidateDisks
+	diskHasPartitionsFn       = internalUtils.DiskHasPartitions
+	diskHasKairosPartitionsFn = internalUtils.DiskHasKairosPartitions
+	autoCreateWipeEnabledFn   = internalUtils.AutoCreateWipeEnabled
+	diskExistsFn              = internalUtils.DiskExists
+)
+
 // selectTargetDisk resolves the effective target disk. explicit wins when
-// non-empty (operator gave us a path). Otherwise, prefer the largest EMPTY
-// candidate disk: a disk that already carries a partition table is most
-// likely in use by another system, and grabbing it just because it is the
-// biggest would either halt on the wipe guard or, with kairos.ram.wipe set,
-// destroy the wrong disk. Only when no empty disk exists do we fall back to
-// the largest disk overall, letting the wipe guard downstream explain the
-// situation. The largest-first ordering matches kairos-agent's
-// `device: auto` install rule so RAM mode and a regular install land on the
-// same disk. Only "no candidates at all" halts boot via HaltWithBanner —
-// same reasoning as the missing-flag branch: returning an error would let
-// systemd proceed into a broken userland.
+// non-empty (operator gave us a path). Otherwise the order is:
+//
+//  1. A candidate that already carries COS_OEM or COS_PERSISTENT. We only get
+//     this far when one of the two is missing, so such a disk is a partially
+//     partitioned Kairos disk and the missing sibling belongs next to it. It
+//     is also the only choice that keeps init_disk correct: the caller sends
+//     init_disk: false in that case, and a disk with no partition table has
+//     nothing for yip to append to.
+//  2. Without kairos.ram.wipe, the largest EMPTY disk: a disk that already
+//     carries a partition table is most likely in use by another system, and
+//     grabbing it just because it is the biggest would either halt on the
+//     wipe guard or, with kairos.ram.wipe set, destroy the wrong disk. With
+//     the wipe flag the operator already declared "destroy whatever is on the
+//     target", so this preference is skipped.
+//  3. The largest disk overall, letting the wipe guard downstream explain the
+//     situation.
+//
+// The largest-first ordering matches kairos-agent's `device: auto` install
+// rule so RAM mode and a regular install land on the same disk. Only "no
+// candidates at all" halts boot via HaltWithBanner, same reasoning as the
+// missing-flag branch: returning an error would let systemd proceed into a
+// broken userland.
 func selectTargetDisk(explicit string) (string, error) {
 	if explicit != "" {
-		if !internalUtils.DiskExists(explicit) {
+		if !diskExistsFn(explicit) {
 			internalUtils.HaltWithBanner(
-				internalUtils.RenderDiskNotFoundMessage(explicit, internalUtils.CandidateDisks()),
+				internalUtils.RenderDiskNotFoundMessage(explicit, candidateDisksFn()),
 				fmt.Sprintf("requested disk %s does not exist", explicit),
 				errors.New("requested disk not found"),
 			)
@@ -232,20 +255,24 @@ func selectTargetDisk(explicit string) (string, error) {
 		}
 		return explicit, nil
 	}
-	candidates := internalUtils.CandidateDisks()
+	candidates := candidateDisksFn()
 	if len(candidates) > 0 {
 		selected := candidates[0]
-		// With kairos.ram.wipe the operator already declared "destroy whatever
-		// is on the target" — the empty-disk preference would only second-guess
-		// that, so the largest disk wins no matter its state. Without wipe,
-		// prefer the largest EMPTY disk and fall back to the largest overall
-		// (which then halts at the wipe guard with instructions).
-		if !internalUtils.AutoCreateWipeEnabled() {
+		if !autoCreateWipeEnabledFn() {
 			for _, c := range candidates {
-				if !internalUtils.DiskHasPartitions(c) {
+				if !diskHasPartitionsFn(c) {
 					selected = c
 					break
 				}
+			}
+		}
+		// Last so it wins over both fallbacks, the wipe flag included:
+		// appending the missing partition next to its sibling destroys
+		// nothing, whatever the operator consented to.
+		for _, c := range candidates {
+			if diskHasKairosPartitionsFn(c) {
+				selected = c
+				break
 			}
 		}
 		if len(candidates) > 1 {
