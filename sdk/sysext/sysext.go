@@ -40,6 +40,18 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 	defer func(layerReader io.ReadCloser) {
 		_ = layerReader.Close()
 	}(layerReader)
+
+	// Every write goes through the root handle rather than through a path
+	// built with filepath.Join, so an entry can never land outside dst. The
+	// image is untrusted input: it can ship a symlink under /usr that points
+	// somewhere else on the build host and then a file "inside" that symlink,
+	// which a plain os.OpenFile would follow.
+	root, err := os.OpenRoot(dst)
+	if err != nil {
+		return fmt.Errorf("open destination %s: %w", dst, err)
+	}
+	defer root.Close()
+
 	tr := tar.NewReader(layerReader)
 	// TODO: Support whiteout? https://github.com/opencontainers/image-spec/blob/79b036d80240ae530a8de15e1d21c7ab9292c693/layer.md#whiteouts
 	for {
@@ -53,7 +65,6 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 
 		header.Name = filepath.Clean(header.Name)
 
-		path := filepath.Join(dst, header.Name)
 		fi := header.FileInfo()
 		mask := fi.Mode()
 		if !allowList.MatchString(header.Name) {
@@ -61,33 +72,46 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 			continue
 		}
 
+		// The allowList accepts both usr/foo and /usr/foo, and the root handle
+		// wants a path relative to dst.
+		name := strings.TrimPrefix(header.Name, "/")
+		if name == "" || name == "." {
+			continue
+		}
+
 		switch header.Typeflag {
 		case tar.TypeDir:
 			log.Debugf("%s is a directory", header.Name)
-			if fi, err := os.Lstat(path); err != nil || !fi.IsDir() {
-				if err := os.MkdirAll(path, mask); err != nil {
-					return fmt.Errorf("mkdir: %w", err)
+			if fi, err := root.Lstat(name); err != nil || !fi.IsDir() {
+				if err := root.MkdirAll(name, mask.Perm()); err != nil {
+					return fmt.Errorf("mkdir %s: %w", name, err)
 				}
 			}
 		case tar.TypeReg:
 			log.Debugf("%s is a file", header.Name)
-			file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, mask)
+			// O_TRUNC because the same path can appear twice in one layer, and
+			// without it the tail of the first copy survives under the second.
+			file, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mask)
 			if err != nil {
-				return fmt.Errorf("open: %w", err)
+				return fmt.Errorf("open %s: %w", name, err)
 			}
 			if _, err := io.Copy(file, tr); err != nil {
 				file.Close()
-				return fmt.Errorf("copy: %w", err)
+				return fmt.Errorf("copy %s: %w", name, err)
 			}
 			file.Close()
 		case tar.TypeSymlink:
 			log.Debugf("%s is a symlink", header.Name)
-			targetPath := filepath.Join(filepath.Dir(path), header.Linkname)
-			if !strings.HasPrefix(targetPath, dst) {
-				return fmt.Errorf("symlink: %w", err)
+			// An absolute target is kept as it is: a system extension is
+			// merged onto /, so /usr/bin/vi -> /usr/bin/vim has to stay
+			// absolute. A relative target that climbs above the extension
+			// root is rejected, it can only be a mistake or an attack.
+			if !filepath.IsAbs(header.Linkname) &&
+				!filepath.IsLocal(filepath.Join(filepath.Dir(name), header.Linkname)) {
+				return fmt.Errorf("symlink %s points outside the extension root: %s", name, header.Linkname)
 			}
-			if err := os.Symlink(header.Linkname, path); err != nil {
-				return fmt.Errorf("symlink: %w", err)
+			if err := root.Symlink(header.Linkname, name); err != nil {
+				return fmt.Errorf("symlink %s: %w", name, err)
 			}
 		default:
 			return fmt.Errorf("unsupported type: %d", header.Typeflag)
