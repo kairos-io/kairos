@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"testing"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
@@ -217,3 +218,44 @@ var _ = Describe("RunInstall", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 })
+
+func TestIsUsableWebUIAddress(t *testing.T) {
+	tests := []struct {
+		address string
+		want    bool
+	}{
+		{address: "192.0.2.1", want: true},
+		{address: "fd00::1", want: true},
+		{address: "127.0.0.1", want: false},
+		{address: "::1", want: false},
+		{address: "169.254.1.1", want: false},
+		{address: "fe80::1", want: false},
+		{address: "not-an-ip", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.address, func(t *testing.T) {
+			if got := isUsableWebUIAddress(tt.address); got != tt.want {
+				t.Fatalf("isUsableWebUIAddress(%q) = %v, want %v", tt.address, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatWebUIAddress(t *testing.T) {
+	tests := []struct {
+		ip   string
+		want string
+	}{
+		{ip: "192.0.2.1", want: "192.0.2.1:8080"},
+		{ip: "fd00::1", want: "[fd00::1]:8080"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ip, func(t *testing.T) {
+			if got := formatWebUIAddress(tt.ip); got != tt.want {
+				t.Fatalf("formatWebUIAddress(%q) = %q, want %q", tt.ip, got, tt.want)
+			}
+		})
+	}
+}

@@ -10,7 +10,7 @@ func Interfaces() (in []string) {
 		return
 	}
 	for _, i := range ifaces {
-		if i.Flags == net.FlagLoopback {
+		if isLoopbackInterface(i.Flags) {
 			continue
 		}
 		in = append(in, i.Name)
@@ -24,7 +24,7 @@ func LocalIPs() (ips []string) {
 		return
 	}
 	for _, i := range ifaces {
-		if i.Flags == net.FlagLoopback {
+		if isLoopbackInterface(i.Flags) {
 			continue
 		}
 		addrs, err := i.Addrs()
@@ -37,8 +37,19 @@ func LocalIPs() (ips []string) {
 				continue
 			}
 
+			if !isAdvertisableIP(ip) {
+				continue
+			}
 			ips = append(ips, ip.String())
 		}
 	}
 	return
+}
+
+func isLoopbackInterface(flags net.Flags) bool {
+	return flags&net.FlagLoopback != 0
+}
+
+func isAdvertisableIP(ip net.IP) bool {
+	return ip != nil && ip.IsGlobalUnicast() && !ip.IsLinkLocalUnicast()
 }

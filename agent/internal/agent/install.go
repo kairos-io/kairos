@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -43,11 +44,10 @@ func displayInfo(agentConfig *branding.Config) {
 			if len(ips) > 0 {
 				messageIps := " - WebUI installer: "
 				for _, ip := range ips {
-					// Skip printing local ips, makes no sense
-					if strings.Contains("127.0.0.1", ip) || strings.Contains("::1", ip) {
+					if !isUsableWebUIAddress(ip) {
 						continue
 					}
-					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, sdkConstants.DefaultWebUIListenAddress)
+					messageIps = messageIps + formatWebUIAddress(ip) + " "
 				}
 				message = message + messageIps
 			}
@@ -56,6 +56,19 @@ func displayInfo(agentConfig *branding.Config) {
 		}
 		fmt.Println(message)
 	}
+}
+
+func isUsableWebUIAddress(ip string) bool {
+	parsed := net.ParseIP(ip)
+	return parsed != nil && parsed.IsGlobalUnicast() && !parsed.IsLinkLocalUnicast()
+}
+
+func formatWebUIAddress(ip string) string {
+	_, port, err := net.SplitHostPort(sdkConstants.DefaultWebUIListenAddress)
+	if err != nil {
+		return ip + sdkConstants.DefaultWebUIListenAddress
+	}
+	return net.JoinHostPort(ip, port)
 }
 
 func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValidations, useDefaultDirs, allowInsecureRegistries bool) error {
