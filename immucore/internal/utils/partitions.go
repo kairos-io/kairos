@@ -17,32 +17,57 @@ import (
 )
 
 // KairosPartitionsPresent scans block devices via ghw and reports whether the
-// COS_OEM and COS_PERSISTENT filesystem labels are present on an eligible
-// disk. The scan applies the same candidate criteria as auto-selection
-// (non-removable, non-virtual): a label sitting on a USB stick or loop device
-// must not suppress auto-creation, nor should RAM mode end up treating
-// removable media as its persistent storage. It never talks to /dev directly
-// — a partition is considered present only when udev has populated its
-// ID_FS_LABEL.
+// COS_OEM and COS_PERSISTENT partitions are present on an eligible disk. The
+// scan applies the same candidate criteria as auto-selection (non-removable,
+// non-virtual): a label sitting on a USB stick or loop device must not
+// suppress auto-creation, nor should RAM mode end up treating removable media
+// as its persistent storage. It never talks to /dev directly - a partition is
+// considered present only when udev has populated its ID_FS_LABEL.
 func KairosPartitionsPresent() (oem, persistent bool, err error) {
 	block, berr := ghw.Block()
 	if berr != nil {
 		return false, false, fmt.Errorf("reading block info: %w", berr)
 	}
+	var labels []string
 	for _, disk := range block.Disks {
 		if !isCandidateDisk(disk.Name, disk.IsRemovable) {
 			continue
 		}
 		for _, part := range disk.Partitions {
-			switch part.FilesystemLabel {
-			case sdkConstants.OEMLabel:
-				oem = true
-			case sdkConstants.PersistentLabel:
-				persistent = true
-			}
+			labels = append(labels, part.FilesystemLabel)
 		}
 	}
+	oem, persistent = kairosPartitionsIn(labels)
 	return oem, persistent, nil
+}
+
+// kairosPartitionsIn folds a set of filesystem labels into "is COS_OEM
+// present" and "is COS_PERSISTENT present".
+func kairosPartitionsIn(labels []string) (oem, persistent bool) {
+	for _, label := range labels {
+		labelOem, labelPersistent := kairosLabel(label)
+		oem = oem || labelOem
+		persistent = persistent || labelPersistent
+	}
+	return oem, persistent
+}
+
+// kairosLabel reports which Kairos partition a filesystem label identifies.
+//
+// Both spellings count. On an unencrypted install the partition carries the
+// plaintext label; on an encrypted one the partition is a LUKS container
+// labelled COS_OEM_LUKS / COS_PERSISTENT_LUKS and the plaintext label lives
+// on the mapper device that only exists after unlock (kairos-io/kairos#4403).
+// Every caller here runs before unlock, so reading only the plaintext label
+// would report an encrypted disk as having no Kairos partitions at all.
+func kairosLabel(label string) (oem, persistent bool) {
+	switch label {
+	case sdkConstants.OEMLabel, sdkConstants.OEMLUKSLabel:
+		return true, false
+	case sdkConstants.PersistentLabel, sdkConstants.PersistentLUKSLabel:
+		return false, true
+	}
+	return false, false
 }
 
 // CandidateDisks returns the list of disks that are eligible to receive the
@@ -155,13 +180,12 @@ func DiskHasKairosPartitions(devPath string) bool {
 			continue
 		}
 		for _, p := range d.Partitions {
-			// Match both the plaintext label (unencrypted install, or
-			// pre-#4403 encrypted install where the LUKS shared the
-			// plaintext label) and the LUKS-container label
-			// (post-#4403 encrypted install).
-			switch p.FilesystemLabel {
-			case sdkConstants.OEMLabel, sdkConstants.OEMLUKSLabel,
-				sdkConstants.PersistentLabel, sdkConstants.PersistentLUKSLabel:
+			// kairosLabel matches the plaintext label (unencrypted
+			// install, or pre-#4403 encrypted install where the LUKS
+			// shared the plaintext label) and the LUKS-container label
+			// (post-#4403 encrypted install) alike, so this answer and
+			// KairosPartitionsPresent cannot drift apart.
+			if oem, persistent := kairosLabel(p.FilesystemLabel); oem || persistent {
 				return true
 			}
 		}
