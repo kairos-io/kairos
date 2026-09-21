@@ -68,7 +68,25 @@ no emojis, plain words rather than jargon and acronyms.
 Tested procedures for the hard parts live in
 [kairos-io/skills](https://github.com/kairos-io/skills): driving QEMU
 headlessly, testing immucore in a real boot, testing the installer on a Hadron
-image, cutting a backport release. Prefer one over improvising.
+image, performing QA on a ticket, cutting a backport release. Prefer one over
+improvising.
+
+## QA
+
+QA is requested by moving an issue into the QA column of
+[project 1](https://github.com/orgs/kairos-io/projects/1/views/1). An issue
+sitting there is a live request, including one that was tested before and sent
+back.
+
+A verdict is a comment on the issue that starts `### QA Result:` and says PASS,
+FAIL or BLOCKED, with the evidence behind it. Read those before you work on the
+issue. A `QA: fail` verdict names a real reproduction that somebody still has to
+fix, and it does not reach you any other way.
+
+A passing issue is labelled `QA: pass` and moves to `QA OK`. A failing one is
+labelled `QA: fail` and stays in QA.
+
+The `performing-kairos-qa` skill has the procedure for producing a verdict.
 
 ## Go
 
