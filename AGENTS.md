@@ -31,6 +31,20 @@ locally because you assume the real fix will be slow to merge.
 - Disclose in the pull request body that AI was used, and say whether a human
   read the code before it was opened.
 - Conventional Commits for the subject line: `fix(iso): ...`, `docs: ...`.
+- Every pull request that changes behaviour must reference an issue. Write
+  `Fixes kairos-io/kairos#NNNN` when the pull request completes the issue, or
+  `Part of kairos-io/kairos#NNNN` when it is one step of a larger piece of
+  work. Use `Part of` when you are not sure, so that merging one slice does not
+  close a parent issue that is still open.
+- Search the open issues for the area you are touching before you file a new
+  one, and search by the area rather than by your own wording for the problem.
+  Most work already has an issue. Parent issues often have child issues that
+  are a closer match to your change than the parent is.
+- File the issue in `kairos-io/kairos`. Most of the other repositories have
+  their issue tracker turned off on purpose, so that the project has one
+  Issues tab.
+- Dependency bumps, version bumps, CI plumbing and changes to documentation
+  only do not need an issue.
 - Open a pull request for every change. Push the branch to a fork if you do not
   have write access to the repository, otherwise to the repository. Never push
   to the default branch.
@@ -39,6 +53,12 @@ locally because you assume the real fix will be slow to merge.
 - Never force-push or rebase someone else's branch.
 - Never enable GPG signing, `-S`. It blocks on a passphrase nobody will type.
   That is a different flag from `-s`.
+
+## The project board
+
+The issue tracking board holds issues only. Do not add a pull request to it. A
+pull request reaches the board through the issue it references, which is why
+the reference is required.
 
 ## Writing
 
