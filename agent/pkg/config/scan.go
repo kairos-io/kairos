@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
@@ -160,7 +162,63 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	}
 
 	litter.Config.HideZeroValues = true
-	result.Logger.Debugf("Loaded config: %s", litter.Sdump(result))
+	result.Logger.Debugf("Loaded config: %s", RedactedConfigDump(result))
 
 	return result, nil
+}
+
+// RedactedConfigDump returns a diagnostic representation without registry
+// credentials. It clones the collector values and extractor so logging cannot
+// mutate the operational configuration.
+func RedactedConfigDump(result *sdkConfig.Config) string {
+	debugResult := *result
+	if values, ok := redactConfigValues(result.Collector.Values).(collector.ConfigValues); ok {
+		debugResult.Collector.Values = values
+	}
+	switch extractor := result.ImageExtractor.(type) {
+	case imageextractor.OCIImageExtractor:
+		extractor.Auth = nil
+		debugResult.ImageExtractor = extractor
+	case *imageextractor.OCIImageExtractor:
+		if extractor == nil {
+			break
+		}
+		copyExtractor := *extractor
+		copyExtractor.Auth = nil
+		debugResult.ImageExtractor = &copyExtractor
+	}
+	return litter.Sdump(&debugResult)
+}
+
+func redactConfigValues(value interface{}) interface{} {
+	switch typed := value.(type) {
+	case collector.ConfigValues:
+		out := collector.ConfigValues{}
+		for key, child := range typed {
+			if strings.EqualFold(strings.ReplaceAll(key, "_", "-"), "registry-auth") {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case map[string]interface{}:
+		out := map[string]interface{}{}
+		for key, child := range typed {
+			if strings.EqualFold(strings.ReplaceAll(key, "_", "-"), "registry-auth") {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case []interface{}:
+		out := make([]interface{}, len(typed))
+		for i, child := range typed {
+			out[i] = redactConfigValues(child)
+		}
+		return out
+	default:
+		return value
+	}
 }

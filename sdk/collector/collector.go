@@ -428,7 +428,7 @@ func parseReaders(readers []io.Reader, nologs bool) Configs {
 			err = json.Unmarshal(read, &newConfig.Values)
 			if err != nil {
 				if !nologs {
-					fmt.Printf("Error unmarshalling config(error: %s): %s", err.Error(), string(read))
+					fmt.Printf("Error unmarshalling config: %s", err.Error())
 				}
 				continue
 			}
