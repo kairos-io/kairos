@@ -31,7 +31,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 	"github.com/mudler/go-pluggable"
 	"github.com/pterm/pterm"
-	"github.com/sanity-io/litter"
 )
 
 func displayInfo(agentConfig *branding.Config) {
@@ -242,7 +241,7 @@ func Install(cc *sdkConfig.Config, sourceImgURL string, allowInsecureRegistries 
 	}
 	pterm.Info.Println("Starting installation")
 
-	cc.Logger.Debugf("Runinstall with cc: %s\n", litter.Sdump(cc))
+	cc.Logger.Debugf("Runinstall with cc: %s\n", config.RedactedConfigDump(cc))
 	if err := RunInstall(cc); err != nil {
 		return err
 	}

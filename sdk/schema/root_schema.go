@@ -20,6 +20,7 @@ type RootSchema struct {
 	FailOnBundleErrors        bool             `json:"fail_on_bundles_errors,omitempty"`
 	GrubOptionsSchema         `json:"grub_options,omitempty"`
 	Install                   InstallSchema            `json:"install,omitempty"`
+	Upgrade                   UpgradeSchema            `json:"upgrade,omitempty" description:"Upgrade settings consumed by the agent."`
 	Options                   []interface{}            `json:"options,omitempty" description:"Various options."`
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1" required:"true"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
