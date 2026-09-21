@@ -1,0 +1,219 @@
+name: Build flavors (kairos-init base-image smoke matrix)
+
+# Reusable step: run kairos-init inside every base OS image the
+# archived kairos-init repo's test.yml used to cover, as a build-only
+# smoke test. No ISO, no upload, no qemu. Each cell just verifies:
+#   1. kairos-init succeeds against BASE_IMAGE with the given
+#      MODEL / TRUSTED_BOOT / PROVIDER / FIPS knobs, and
+#   2. `kairos-init validate` passes on the produced rootfs.
+#
+# The kairos-init binary comes from the per-arch tarball artifact
+# _build-kairos-init.yaml already uploaded ("kairos-init-linux-<arch>"),
+# so this reusable requires that workflow to have run first. Callers
+# should place this job in parallel with _build-image-kairos-init /
+# _build-iso / test-*: a flavor breakage should not block the release
+# path, and vice versa.
+#
+# matrix_scope semantics match the sibling _build-kairos-init.yaml:
+#   "ci"   -> amd64 + arm64 cells (what pr.yaml wires)
+#   "full" -> also include riscv64 cells (master.yaml). Requires
+#             _build-kairos-init.yaml to have been called with
+#             matrix_scope: full so the riscv64 tarball exists.
+
+on:
+  workflow_call:
+    inputs:
+      matrix_scope:
+        description: |
+          "ci"   -> amd64 + arm64 flavor cells.
+          "full" -> amd64 + arm64 + riscv64.
+        type: string
+        required: true
+
+      ref:
+        description: 'git ref to check out (defaults to the trigger event ref)'
+        type: string
+        required: false
+        default: ''
+      caller-vetted-ref:
+        description: |
+          Caller assertion required to unlock actions/checkout's
+          `allow-unsafe-pr-checkout` opt-in. Set to `true` ONLY if
+          the caller has its own authorization gate in front of
+          this workflow -- e.g. a `pull_request_target` pipeline
+          whose `authorize` job pins the run to a GitHub
+          Environment that requires maintainer review before the
+          fork's `ref` is fetched. Without such a gate, leaving
+          this false keeps the `pull_request_target` + fork-ref
+          combination blocked at checkout time (the guard
+          described at https://gh.io/securely-using-pull_request_target).
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Compute the flavor matrix. riscv64 cells are gated on scope=full
+  # because their kairos-init tarball only exists when
+  # _build-kairos-init.yaml was called with the same scope.
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        env:
+          SCOPE: ${{ inputs.matrix_scope }}
+        run: |
+          set -euo pipefail
+          # Base OS grid, cross-producted with amd64 + arm64. Mirrors
+          # the archived kairos-init test.yml `platform x base_image`
+          # section verbatim.
+          base_images=(
+            "ubuntu:20.04"
+            "ubuntu:24.04"
+            "ubuntu:25.10"
+            "ubuntu:26.04"
+            "debian:12"
+            "debian:13"
+            "fedora:42"
+            "fedora:43"
+            "alpine:3.21"
+            "alpine:3.23"
+            "opensuse/leap:16.0"
+            "rockylinux/rockylinux:9"
+            "rockylinux/rockylinux:10"
+            "almalinux:9"
+            "almalinux:10"
+            "oraclelinux:9"
+            "oraclelinux:10"
+            "quay.io/centos/centos:stream9"
+            "quay.io/centos/centos:stream10"
+          )
+          cells="[]"
+          for arch in amd64 arm64; do
+            for img in "${base_images[@]}"; do
+              cells=$(jq -c --arg a "$arch" --arg b "$img" \
+                '. + [{"platform":$a,"base_image":$b}]' <<<"$cells")
+            done
+          done
+          # Variant cells (verbatim mirror of the archived test.yml's
+          # `include:` section). Each object here becomes one job.
+          extras='[
+            {"platform":"amd64","base_image":"ubuntu:22.04","kubernetes_provider":"k3s","kubernetes_version":"v1.32.1+k3s1"},
+            {"platform":"amd64","base_image":"ubuntu:22.04","kubernetes_provider":"k0s","kubernetes_version":"v1.32.1+k0s.0"},
+            {"platform":"amd64","base_image":"fedora:41","fips":true},
+            {"platform":"amd64","base_image":"ubuntu:24.04","trusted_boot":"true"},
+            {"platform":"amd64","base_image":"ubuntu:25.10","trusted_boot":"true"},
+            {"platform":"amd64","base_image":"ubuntu:26.04","trusted_boot":"true"},
+            {"platform":"amd64","base_image":"fedora:41","trusted_boot":"true","fips":false},
+            {"platform":"arm64","base_image":"ubuntu:22.04","model":"nvidia-jetson-agx-orin","fips":false},
+            {"platform":"arm64","base_image":"ubuntu:22.04","model":"nvidia-jetson-orin-nx","fips":false},
+            {"platform":"arm64","base_image":"ubuntu:22.04","model":"rpi4","fips":false},
+            {"platform":"amd64","base_image":"ghcr.io/kairos-io/hadron:v0.5.1"},
+            {"platform":"amd64","base_image":"ghcr.io/kairos-io/hadron:main"},
+            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.5.1"},
+            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main"},
+            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:v0.5.1","model":"rpi4","fips":false},
+            {"platform":"arm64","base_image":"ghcr.io/kairos-io/hadron:main","model":"rpi4","fips":false}
+          ]'
+          cells=$(jq -c --argjson e "$extras" '. + $e' <<<"$cells")
+          if [[ "$SCOPE" == "full" ]]; then
+            riscv_extras='[
+              {"platform":"riscv64","base_image":"ubuntu:24.04","model":"generic","fips":false},
+              {"platform":"riscv64","base_image":"debian:13","model":"generic","fips":false},
+              {"platform":"riscv64","base_image":"fedorariscv/base:42","model":"generic","fips":false}
+            ]'
+            cells=$(jq -c --argjson e "$riscv_extras" '. + $e' <<<"$cells")
+          fi
+          printf 'matrix={"include":%s}\n' "$cells" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
+    # Native runner per arch when available; riscv64 falls back to
+    # amd64 with QEMU because kairos-io does not have a hosted
+    # riscv64 runner today (the multi-call kairos build already goes
+    # through binfmt for the same reason -- see master.yaml's
+    # matrix_scope: full comment).
+    runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    # Base image leads (it is what each cell is really testing);
+    # arch in parens; variant tags (model / k8s provider / uki / fips)
+    # appended with a leading "+" so a cell reads as "what's being
+    # tested on top of base". The literal "generic" model is dropped
+    # because it names the absence of a special model.
+    name: >-
+      ${{ matrix.base_image }} (${{ matrix.platform }})${{
+        matrix.model && matrix.model != 'generic' && format(' +{0}', matrix.model) || ''
+      }}${{
+        matrix.kubernetes_provider && format(' +{0}', matrix.kubernetes_provider) || ''
+      }}${{
+        matrix.trusted_boot == 'true' && ' +uki' || ''
+      }}${{
+        matrix.fips == true && ' +fips' || ''
+      }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
+
+      - name: Get VERSION for docker build
+        # Mirrors the archived kairos-init test.yml (git describe on
+        # the checked-out ref); kairos-init writes VERSION into the
+        # produced rootfs's os-release.
+        run: echo "VERSION=$(git describe --tags --dirty)" >> "$GITHUB_ENV"
+
+      - name: Download kairos-init tarball for ${{ matrix.platform }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+        with:
+          name: kairos-init-linux-${{ matrix.platform }}
+          path: dist/download
+
+      - name: Reassemble dist/linux-${{ matrix.platform }}/kairos-init
+        # Dockerfile.test consumes dist/linux-${TARGETARCH}/kairos-init;
+        # unpack the tarball artifact into that layout.
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/linux-${{ matrix.platform }}"
+          for tarball in dist/download/*.tar.gz; do
+            [ -f "$tarball" ] || continue
+            tar -xzf "$tarball" -C "dist/linux-${{ matrix.platform }}"
+          done
+          ls -l "dist/linux-${{ matrix.platform }}"
+
+      - name: Set up QEMU
+        # Needed on riscv64 (no native runner). Also cheap enough to
+        # unconditionally register so arm64 cross-build sanity is one
+        # less runner-arch assumption.
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a  # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4
+
+      - name: Build flavor image (${{ matrix.platform }} / ${{ matrix.base_image }})
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        with:
+          context: .
+          file: kairos-init/Dockerfile.test
+          platforms: linux/${{ matrix.platform }}
+          push: false
+          # Local-only tag; nothing consumes this image, the RUN steps
+          # in Dockerfile.test are the whole test. Slashes in
+          # base_image ('opensuse/leap:16.0') would break docker's
+          # `image:tag` grammar, hence the tr.
+          tags: kairos-flavor-test:${{ matrix.platform }}
+          build-args: |
+            BASE_IMAGE=${{ matrix.base_image }}
+            PROVIDER_NAME=${{ matrix.kubernetes_provider || '' }}
+            PROVIDER_VERSION=${{ matrix.kubernetes_version || '' }}
+            VERSION=${{ env.VERSION }}
+            FIPS=${{ matrix.fips || false }}
+            TRUSTED_BOOT=${{ matrix.trusted_boot || 'false' }}
+            MODEL=${{ matrix.model || 'generic' }}
