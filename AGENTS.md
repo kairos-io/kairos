@@ -107,6 +107,11 @@ image, cutting a backport release. Prefer one over improvising.
   and in the pull request, and write the upstream report so that a maintainer
   only has to send it. A patch that nobody reported is carried for ever by
   whoever inherits it.
+- Disclose AI use in the upstream report too, the same way you disclose it
+  here, and say how the patch was verified: which target it was built on, which
+  test failed before and passes after. Many projects now reject an undisclosed
+  AI patch on sight, and an unverified one wastes a maintainer's time. State
+  plainly when the fix was not built or run on the affected target.
 
 ## This repository, specifically
 
