@@ -73,6 +73,11 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err := disk.Close(); err != nil {
+			e.config.Logger.Errorf("Close disk: %s", err)
+		}
+	}()
 
 	e.config.Logger.Infof("Partitioning device...")
 	parts := i.GetPartitions()
@@ -106,10 +111,6 @@ func (e *Elemental) PartitionAndFormatDevice(i sdkSpec.SharedInstallSpec) error 
 	if err != nil {
 		e.config.Logger.Errorf("table: %s", err)
 		return err
-	}
-	err = disk.Close()
-	if err != nil {
-		e.config.Logger.Errorf("Close disk: %s", err)
 	}
 	// Sync changes
 	syscall.Sync()

@@ -70,7 +70,15 @@ func main() {
 	// default, which would land on top of the TUI's alt screen.
 	activity := &webui.Activity{}
 	go func() {
-		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity)); err != nil {
+		webLogger, logFile := webUILogger()
+		if logFile != nil {
+			defer func() {
+				if err := logFile.Close(); err != nil {
+					logger.Warnf("failed to close web UI log: %s", err.Error())
+				}
+			}()
+		}
+		if err := webui.StartConfigured(ctx, tuiWebUIOptions(*source, activity, webLogger)); err != nil {
 			logger.Warnf("web UI stopped: %s", err.Error())
 		}
 	}()
@@ -117,22 +125,23 @@ func noTUIWebUIOptions(source string) webui.Options {
 //
 // activity is how main learns that the browser started an install, so quitting
 // the TUI does not cut it short.
-func tuiWebUIOptions(source string, activity *webui.Activity) webui.Options {
-	return webui.Options{Source: source, Logger: webUILogger(), Activity: activity}
+func tuiWebUIOptions(source string, activity *webui.Activity, logger *slog.Logger) webui.Options {
+	return webui.Options{Source: source, Logger: logger, Activity: activity}
 }
 
-// webUILogger returns a logger writing to webUILogPath, or one writing nowhere
-// if that file cannot be opened. It deliberately never falls back to stdout:
-// the TUI owns the terminal, and losing the web UI's log is better than
-// scribbling over the screen the user is installing from.
-func webUILogger() *slog.Logger {
+// webUILogger returns a logger writing to webUILogPath and the file its caller
+// must close, or a logger writing nowhere and a nil file if the path cannot be
+// opened. It deliberately never falls back to stdout: the TUI owns the
+// terminal, and losing the web UI's log is better than scribbling over the
+// screen the user is installing from.
+func webUILogger() (*slog.Logger, *os.File) {
 	if err := os.MkdirAll(filepath.Dir(webUILogPath), 0755); err == nil {
 		f, err := os.OpenFile(webUILogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err == nil {
-			return slog.New(slog.NewJSONHandler(f, nil))
+			return slog.New(slog.NewJSONHandler(f, nil)), f
 		}
 	}
-	return slog.New(slog.NewJSONHandler(io.Discard, nil))
+	return slog.New(slog.NewJSONHandler(io.Discard, nil)), nil
 }
 
 // collectDebugBundle generates a debug bundle without starting the TUI, for use
