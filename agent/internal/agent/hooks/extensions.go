@@ -9,7 +9,6 @@ import (
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
-	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
@@ -39,16 +38,12 @@ const permissiveImagePolicy = "root=verity+signed+encrypted+unprotected+absent:u
 // install.extensions, plus the ones shipped on the live media, onto the system
 // being installed.
 //
-// It only covers the non-UKI layout. Under UKI, extensions live in the EFI
-// partition rather than in the persistent one, and SysExtPostInstall already
-// owns that mount window, so it installs them there.
+// It writes the non-UKI layout, so only the GRUB install runs it. Under UKI
+// extensions live in the EFI partition instead, and SysExtPostInstall writes
+// them there from FinishUKIInstall.
 type ExtensionsPostInstall struct{}
 
 func (ExtensionsPostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
-	if internalutils.IsUki() {
-		return nil
-	}
-
 	var declared extensiontypes.Extensions
 	if c.Install != nil {
 		declared = c.Install.Extensions
