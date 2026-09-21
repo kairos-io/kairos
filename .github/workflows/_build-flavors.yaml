@@ -1,22 +1,19 @@
 name: Build flavors (kairos-init base-image smoke matrix)
 
-# Reusable step: run kairos-init inside every base OS image the
-# archived kairos-init repo's test.yml used to cover, as a build-only
-# smoke test. No ISO, no upload, no qemu. Each cell just verifies:
+# Reusable step: run kairos-init inside every supported base OS image
+# as a build-only smoke test. No ISO, no upload, no qemu. Each cell
+# verifies:
 #   1. kairos-init succeeds against BASE_IMAGE with the given
 #      MODEL / TRUSTED_BOOT / PROVIDER / FIPS knobs, and
 #   2. `kairos-init validate` passes on the produced rootfs.
 #
 # The kairos-init binary comes from the per-arch tarball artifact
-# _build-kairos-init.yaml already uploaded ("kairos-init-linux-<arch>"),
-# so this reusable requires that workflow to have run first. Callers
-# should place this job in parallel with _build-image-kairos-init /
-# _build-iso / test-*: a flavor breakage should not block the release
-# path, and vice versa.
+# _build-kairos-init.yaml uploads ("kairos-init-linux-<arch>"), so
+# this reusable requires that workflow to have run first.
 #
 # matrix_scope semantics match the sibling _build-kairos-init.yaml:
-#   "ci"   -> amd64 + arm64 cells (what pr.yaml wires)
-#   "full" -> also include riscv64 cells (master.yaml). Requires
+#   "ci"   -> amd64 + arm64 cells.
+#   "full" -> also include riscv64 cells. Requires
 #             _build-kairos-init.yaml to have been called with
 #             matrix_scope: full so the riscv64 tarball exists.
 
@@ -68,9 +65,7 @@ jobs:
           SCOPE: ${{ inputs.matrix_scope }}
         run: |
           set -euo pipefail
-          # Base OS grid, cross-producted with amd64 + arm64. Mirrors
-          # the archived kairos-init test.yml `platform x base_image`
-          # section verbatim.
+          # Base OS grid, cross-producted with amd64 + arm64.
           base_images=(
             "ubuntu:20.04"
             "ubuntu:24.04"
@@ -99,8 +94,9 @@ jobs:
                 '. + [{"platform":$a,"base_image":$b}]' <<<"$cells")
             done
           done
-          # Variant cells (verbatim mirror of the archived test.yml's
-          # `include:` section). Each object here becomes one job.
+          # Variant cells (k3s/k0s providers, FIPS, trusted-boot,
+          # nvidia jetson, rpi4, hadron main/v0.5.1). Each object
+          # here becomes one job.
           extras='[
             {"platform":"amd64","base_image":"ubuntu:22.04","kubernetes_provider":"k3s","kubernetes_version":"v1.32.1+k3s1"},
             {"platform":"amd64","base_image":"ubuntu:22.04","kubernetes_provider":"k0s","kubernetes_version":"v1.32.1+k0s.0"},
@@ -136,10 +132,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
     # Native runner per arch when available; riscv64 falls back to
-    # amd64 with QEMU because kairos-io does not have a hosted
-    # riscv64 runner today (the multi-call kairos build already goes
-    # through binfmt for the same reason -- see master.yaml's
-    # matrix_scope: full comment).
+    # amd64 with QEMU because there is no hosted riscv64 runner.
     runs-on: ${{ matrix.platform == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     # Base image leads (it is what each cell is really testing);
     # arch in parens; variant tags (model / k8s provider / uki / fips)
@@ -165,9 +158,10 @@ jobs:
           allow-unsafe-pr-checkout: ${{ inputs.caller-vetted-ref }}
 
       - name: Get VERSION for docker build
-        # Mirrors the archived kairos-init test.yml (git describe on
-        # the checked-out ref); kairos-init writes VERSION into the
-        # produced rootfs's os-release.
+        # kairos-init writes VERSION into the produced rootfs's
+        # os-release; take it from `git describe` on the checked-out
+        # ref so cells running against different refs stamp
+        # distinguishable versions.
         run: echo "VERSION=$(git describe --tags --dirty)" >> "$GITHUB_ENV"
 
       - name: Download kairos-init tarball for ${{ matrix.platform }}

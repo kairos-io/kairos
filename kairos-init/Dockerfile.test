@@ -1,18 +1,15 @@
 # Flavor smoke test image for kairos-init.
 #
-# Consumed by .github/workflows/_build-flavors.yaml, which mirrors the
-# base-image matrix the archived kairos-init repo's test.yml used to
-# run before the monorepo merge. Each cell just verifies that
-# kairos-init can convert the given BASE_IMAGE into a bootable Kairos
-# rootfs (with the requested MODEL / TRUSTED_BOOT / PROVIDER / FIPS
-# knobs) and that `kairos-init validate` passes on the result. No ISO,
-# no push.
+# Consumed by .github/workflows/_build-flavors.yaml. Each cell
+# verifies that kairos-init can convert the given BASE_IMAGE into a
+# bootable Kairos rootfs (with the requested MODEL / TRUSTED_BOOT /
+# PROVIDER / FIPS knobs) and that `kairos-init validate` passes on
+# the result. No ISO, no push.
 #
-# The kairos-init binary itself is not built here; it comes from the
-# per-arch dist/linux-<TARGETARCH>/kairos-init tarball that
-# _build-kairos-init.yaml uploaded and the caller workflow unpacked
-# into the build context, matching the consumer shape used by the
-# production kairos-init/Dockerfile.
+# The kairos-init binary itself is not built here; it is copied from
+# the per-arch dist/linux-<TARGETARCH>/ directory the caller workflow
+# unpacks into the build context, matching the consumer shape used
+# by the production kairos-init/Dockerfile.
 
 ARG BASE_IMAGE=ubuntu:24.04
 

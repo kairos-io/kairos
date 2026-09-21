@@ -148,17 +148,16 @@ jobs:
       caller-vetted-ref: true
     secrets: inherit
 
-  # Flavor smoke matrix. Restores the base-image coverage the archived
-  # kairos-init repo's test.yml ran on every PR: for every supported
-  # base OS (ubuntu 24.04/25.10/26.04, debian 12/13, fedora 42/43,
-  # alpine, opensuse leap/tumbleweed, rockylinux/almalinux/oracle 9+10,
-  # centos stream, sle-micro) plus variant cells (k3s/k0s, FIPS,
-  # trusted-boot, nvidia jetson, rpi4, hadron main/v0.5.1), run
-  # kairos-init against the base image as a build-only smoke. No ISO,
-  # no qemu. Splits after build-kairos-init and runs in parallel with
-  # build-image-kairos-init / build-iso / test-*: a flavor breakage
-  # does not gate the release path, and a bug on the release path
-  # does not mask a flavor regression.
+  # Flavor smoke matrix. For every supported base OS (ubuntu
+  # 24.04/25.10/26.04, debian 12/13, fedora 42/43, alpine, opensuse
+  # leap/tumbleweed, rockylinux/almalinux/oracle 9+10, centos stream,
+  # sle-micro) plus variant cells (k3s/k0s, FIPS, trusted-boot, nvidia
+  # jetson, rpi4, hadron main/v0.5.1), run kairos-init against the
+  # base image as a build-only smoke. No ISO, no qemu. Splits after
+  # build-kairos-init and runs in parallel with build-image-kairos-init
+  # / build-iso / test-* so a flavor breakage does not gate the
+  # release path and a bug on the release path does not mask a
+  # flavor regression.
   build-flavors:
     needs: [build-kairos-init, changes]
     if: needs.changes.outputs.flavor == 'true'
