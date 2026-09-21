@@ -826,15 +826,10 @@ func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger)
 				networkModule = "network"
 			}
 		}
-		constraint, _ = semver.NewConstraint(">=24.04")
-		// If its >= 24.04 we need to append resolved to the network module
-		if constraint.Check(ver) {
-			networkModule += " systemd-resolved"
-		}
 		constraint, _ = semver.NewConstraint(">=26.04")
 		if constraint.Check(ver) {
 			// For 26.04+, network-legacy is merged into systemd-networkd and removed
-			networkModule = "systemd-networkd systemd-resolved"
+			networkModule = dracutModSystemdNetworkd
 		}
 	}
 
@@ -893,7 +888,7 @@ func dracutNetworkModules(root string, sis values.System, l logger.KairosLogger)
 
 	// Hadron uses the full systemd network stuff
 	if sis.Distro == values.Hadron {
-		networkModule = "systemd-networkd systemd-resolved"
+		networkModule = dracutModSystemdNetworkd
 	}
 
 	// Systemd resolved modules only make sense if networkd is used alongside.
