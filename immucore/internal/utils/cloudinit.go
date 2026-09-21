@@ -43,8 +43,8 @@ func RunStage(stage string) error {
 	// discovery URL. On template error we append to allErrors and SKIP the
 	// fetch loop for this URI: silently fetching an unintended endpoint is
 	// worse than skipping. Note that RunStage itself always returns nil
-	// today (see the tail comment), so allErrors currently lives only as an
-	// accumulated debug trail. See kairos-sdk PR #820.
+	// today (see the tail comment); allErrors is logged there, not
+	// returned. See kairos-sdk PR #820.
 	if uri := KairosConfigURIFromCmdline(); uri != "" {
 		var rendered string
 		rendered, err = collector.RenderConfigURL(uri)
@@ -82,7 +82,12 @@ func RunStage(stage string) error {
 	// Set back the modifier to nil
 	yip.Modifier(nil)
 
-	// Not doing anything with the errors yet, need to know which ones are permissible (no metadata, marshall errors, etc..)
+	// Not returning the errors yet, need to know which ones are permissible (no metadata, marshall errors, etc..)
+	// but at least log them, so a failed stage leaves a trace instead of vanishing silently.
+	if allErrors != nil {
+		KLog.Logger.Warn().Err(allErrors).Str("stage", stage).Msg("stage completed with errors")
+	}
+
 	return nil
 }
 
