@@ -38,6 +38,7 @@ type InstallSchema struct {
 // RegistryAuthSchema describes one explicit registry credential form. Exactly
 // one form is accepted by the agent at runtime.
 type RegistryAuthSchema struct {
+	File          string `json:"file,omitempty" description:"Path to a YAML credential object available before the operation starts. Cannot be combined with inline credentials."`
 	Username      string `json:"username,omitempty" description:"Registry username. Must be provided with password."`
 	Password      string `json:"password,omitempty" description:"Registry password."`
 	Auth          string `json:"auth,omitempty" description:"Base64 encoded username:password."`

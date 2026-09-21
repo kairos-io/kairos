@@ -32,6 +32,37 @@ operation. An explicit credential is used for that operation and a failed
 login does not fall back to the host keychain. Set `registry-auth: {}` or
 `registry-auth: null` to use the default keychain behavior.
 
+To read credentials from a file, set `file` under `registry-auth` instead of
+providing credentials directly:
+
+```yaml
+install:
+  registry-auth:
+    file: "/run/secrets/registry-auth.yaml"
+
+upgrade:
+  registry-auth:
+    file: "/run/secrets/registry-auth.yaml"
+```
+
+The file contains one YAML object with any of the supported credential forms:
+
+```yaml
+username: "REGISTRY_USERNAME"
+password: "REGISTRY_PASSWORD"
+```
+
+Use `file` on its own. Other fields alongside it, file references inside the
+credential file, and multiple YAML documents are rejected. Missing, unreadable,
+empty, or invalid files fail the operation without falling back to the keychain.
+
+The file must be readable by the agent before install or upgrade starts.
+The `before-install` and `before-upgrade` hooks run after image sizing and are
+therefore too late to create it. Use restricted permissions such as `0600`.
+Only the path is kept in cloud-config; this option does not copy the file or
+its contents to the installed system. Supply it again for later upgrades if
+it was temporary. File credentials have the same scope as direct credentials.
+
 For a registry with a self-signed certificate, combine authentication with
 `allow-insecure-registries` in the same operation block:
 

@@ -4,17 +4,26 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"github.com/kairos-io/kairos/v4/sdk/types/fs"
 	"github.com/kairos-io/kairos/v4/sdk/types/logger"
 	registrytypes "github.com/moby/moby/api/types/registry"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/twpayne/go-vfs/v5/vfst"
 )
+
+type unreadableRegistryFS struct{ fs.KairosFS }
+
+func (unreadableRegistryFS) ReadFile(string) ([]byte, error) {
+	return nil, os.ErrPermission
+}
 
 func registryConfig(operation string, auth interface{}) *sdkConfig.Config {
 	return &sdkConfig.Config{Collector: collector.Config{Values: collector.ConfigValues{
@@ -95,6 +104,7 @@ var _ = Describe("registry auth", func() {
 			want *registrytypes.AuthConfig
 		}{
 			{collector.ConfigValues{"username": "user", "password": "pass"}, &registrytypes.AuthConfig{Username: "user", Password: "pass"}},
+			{collector.ConfigValues{"username": "user", "password": ""}, &registrytypes.AuthConfig{Username: "user", Password: ""}},
 			{collector.ConfigValues{"auth": encoded}, &registrytypes.AuthConfig{Username: "encoded-user", Password: "encoded-pass"}},
 			{collector.ConfigValues{"identity-token": "identity-sentinel-unique"}, &registrytypes.AuthConfig{IdentityToken: "identity-sentinel-unique"}},
 			{collector.ConfigValues{"registry-token": "registry-sentinel-unique"}, &registrytypes.AuthConfig{RegistryToken: "registry-sentinel-unique"}},
@@ -115,6 +125,107 @@ var _ = Describe("registry auth", func() {
 			Expect(got).To(BeNil())
 		}
 	})
+
+	It("rejects non-string and empty credential fields", func() {
+		for _, key := range []string{"username", "password", "auth", "identity-token", "registry-token"} {
+			for _, value := range []interface{}{42, nil, ""} {
+				if key == "password" && value == "" {
+					continue
+				}
+				fields := map[string]interface{}{key: value}
+				if key == "username" {
+					fields["password"] = "secret"
+				}
+				if key == "password" {
+					fields["username"] = "user"
+				}
+				_, err := parseRegistryAuth(fields, "install")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).ToNot(ContainSubstring("secret"))
+			}
+		}
+	})
+
+	It("reads credential files without copying secrets into config or diagnostics", func() {
+		fileSystem, cleanup, err := vfst.NewTestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(cleanup)
+		for _, operation := range []string{"install", "upgrade"} {
+			for _, body := range []string{
+				"username: file-user\npassword: file-secret-sentinel\n",
+				"auth: " + base64.StdEncoding.EncodeToString([]byte("file-user:file-secret-sentinel")),
+				"identity-token: file-secret-sentinel",
+				"registry-token: file-secret-sentinel",
+			} {
+				Expect(fileSystem.WriteFile("/credentials.yaml", []byte(body), 0600)).To(Succeed())
+				cfg := registryConfig(operation, collector.ConfigValues{"file": "/credentials.yaml"})
+				cfg.Fs = fileSystem
+				cfg.ImageExtractor = imageextractor.OCIImageExtractor{}
+				before, err := cfg.Collector.String()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(applyRegistryOptions(cfg, operation)).To(Succeed())
+				auth := imageExtractorAuth(cfg.ImageExtractor)
+				Expect(auth).ToNot(BeNil())
+				Expect([]string{auth.Password, auth.IdentityToken, auth.RegistryToken}).To(ContainElement("file-secret-sentinel"))
+				after, err := cfg.Collector.String()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(after).To(Equal(before))
+				Expect(RedactedConfigDump(cfg)).ToNot(ContainSubstring("file-secret-sentinel"))
+			}
+		}
+	})
+
+	It("rejects invalid file references before reading them", func() {
+		for _, value := range []collector.ConfigValues{
+			{"file": ""}, {"file": 42}, {"file": nil},
+			{"file": "/credentials.yaml", "username": "file-secret-sentinel", "password": "pass"},
+			{"file": "/credentials.yaml", "registry-token": "file-secret-sentinel"},
+		} {
+			_, _, err := readRegistryOptions(registryConfig("install", value), "install")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).ToNot(ContainSubstring("file-secret-sentinel"))
+		}
+	})
+
+	It("fails on missing or unreadable files without changing existing auth", func() {
+		fileSystem, cleanup, err := vfst.NewTestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(cleanup)
+		for _, fileSystem := range []fs.KairosFS{fileSystem, unreadableRegistryFS{}} {
+			cfg := registryConfig("upgrade", collector.ConfigValues{"file": "/missing.yaml"})
+			cfg.Fs = fileSystem
+			extractor := imageextractor.OCIImageExtractor{Auth: &registrytypes.AuthConfig{Username: "existing", Password: "existing"}}
+			cfg.ImageExtractor = extractor
+			Expect(applyRegistryOptions(cfg, "upgrade")).To(MatchError(ContainSubstring("registry-auth.file cannot be read")))
+			Expect(cfg.ImageExtractor).To(Equal(extractor))
+		}
+	})
+
+	DescribeTable("rejects invalid credential files without exposing contents",
+		func(body string) {
+			fileSystem, cleanup, err := vfst.NewTestFS(nil)
+			Expect(err).ToNot(HaveOccurred())
+			DeferCleanup(cleanup)
+			Expect(fileSystem.WriteFile("/credentials.yaml", []byte(body), 0600)).To(Succeed())
+			cfg := registryConfig("install", collector.ConfigValues{"file": "/credentials.yaml"})
+			cfg.Fs = fileSystem
+			_, auth, err := readRegistryOptions(cfg, "install")
+			Expect(err).To(HaveOccurred())
+			Expect(auth).To(BeNil())
+			Expect(err.Error()).ToNot(ContainSubstring("file-secret-sentinel"))
+		},
+		Entry("empty", ""),
+		Entry("null", "null"),
+		Entry("empty object", "{}"),
+		Entry("scalar", "file-secret-sentinel"),
+		Entry("invalid YAML", "password: [file-secret-sentinel"),
+		Entry("duplicate fields", "username: file-secret-sentinel\nusername: duplicate\npassword: pass"),
+		Entry("multiple documents", "registry-token: file-secret-sentinel\n---\nregistry-token: another"),
+		Entry("nested file", "file: file-secret-sentinel"),
+		Entry("unknown field", "file-secret-sentinel: value"),
+		Entry("incomplete credentials", "username: file-secret-sentinel"),
+		Entry("mixed credentials", "identity-token: file-secret-sentinel\nregistry-token: token"),
+	)
 
 	It("rejects malformed forms without echoing values", func() {
 		cases := []struct {

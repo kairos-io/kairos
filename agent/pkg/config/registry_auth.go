@@ -1,8 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
@@ -10,6 +12,7 @@ import (
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	registrytypes "github.com/moby/moby/api/types/registry"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 // applyRegistryOptions runs before image sizing and extraction. Update the
@@ -49,8 +52,42 @@ func readRegistryOptions(cfg *sdkConfig.Config, subkey string) (bool, *registryt
 	if sub == nil {
 		return false, nil, nil
 	}
-	auth, err := parseRegistryAuth(sub.Get("registry-auth"), subkey)
+	auth, err := readRegistryAuth(cfg, sub.Get("registry-auth"), subkey)
 	return sub.GetBool("allow-insecure-registries"), auth, err
+}
+
+func readRegistryAuth(cfg *sdkConfig.Config, raw interface{}, subkey string) (*registrytypes.AuthConfig, error) {
+	values, _ := raw.(map[string]interface{})
+	file, hasFile := values["file"]
+	if !hasFile {
+		return parseRegistryAuth(raw, subkey)
+	}
+	path, ok := file.(string)
+	if !ok || path == "" || len(values) != 1 {
+		return nil, fmt.Errorf("%s.registry-auth.file must be a non-empty path and cannot be combined with other fields", subkey)
+	}
+	return readRegistryAuthFile(cfg, path, subkey)
+}
+
+func readRegistryAuthFile(cfg *sdkConfig.Config, path, subkey string) (*registrytypes.AuthConfig, error) {
+	data, err := cfg.Fs.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("%s.registry-auth.file cannot be read: %w", subkey, err)
+	}
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	var credentials, extra interface{}
+	if decoder.Decode(&credentials) != nil || decoder.Decode(&extra) != io.EOF {
+		return nil, fmt.Errorf("%s.registry-auth.file must contain one valid YAML credential object", subkey)
+	}
+	// Parse only credential fields, so files cannot reference another file.
+	auth, err := parseRegistryAuth(credentials, subkey)
+	if err != nil {
+		return nil, err
+	}
+	if auth == nil {
+		return nil, fmt.Errorf("%s.registry-auth.file must contain credentials", subkey)
+	}
+	return auth, nil
 }
 
 // validateRegistryAuthKeys rejects authentication-looking keys at the direct
@@ -96,73 +133,54 @@ func parseRegistryAuth(raw interface{}, subkey string) (*registrytypes.AuthConfi
 	if len(values) == 0 {
 		return nil, nil
 	}
-	for key := range values {
-		switch key {
-		case "username", "password", "auth", "identity-token", "registry-token":
-		default:
-			return nil, fmt.Errorf("%s.registry-auth contains an unsupported field", subkey)
-		}
-	}
-	username, hasUsername, err := authString(values, "username", subkey)
+	fields, err := registryAuthFields(values, subkey)
 	if err != nil {
 		return nil, err
 	}
-	password, hasPassword, err := authString(values, "password", subkey)
-	if err != nil {
-		return nil, err
-	}
-	auth, hasAuth, err := authString(values, "auth", subkey)
-	if err != nil {
-		return nil, err
-	}
-	identity, hasIdentity, err := authString(values, "identity-token", subkey)
-	if err != nil {
-		return nil, err
-	}
-	token, hasToken, err := authString(values, "registry-token", subkey)
-	if err != nil {
-		return nil, err
-	}
+	username, hasUsername := fields["username"]
+	password, hasPassword := fields["password"]
+	auth, hasAuth := fields["auth"]
+	identity, hasIdentity := fields["identity-token"]
+	token, hasToken := fields["registry-token"]
 	if hasUsername != hasPassword {
 		return nil, fmt.Errorf("%s.registry-auth requires both username and password", subkey)
 	}
 	if countTrue(hasUsername, hasAuth, hasIdentity, hasToken) > 1 {
 		return nil, fmt.Errorf("%s.registry-auth accepts exactly one credential form: username/password, auth, identity-token, or registry-token", subkey)
 	}
-	if hasUsername {
-		if username == "" {
-			return nil, fmt.Errorf("%s.registry-auth.username must not be empty", subkey)
-		}
+	switch {
+	case hasUsername:
 		return &registrytypes.AuthConfig{Username: username, Password: password}, nil
-	}
-	if hasAuth {
+	case hasAuth:
 		return decodeBasicAuth(auth, subkey)
-	}
-	if hasIdentity {
-		if identity == "" {
-			return nil, fmt.Errorf("%s.registry-auth.identity-token must not be empty", subkey)
-		}
+	case hasIdentity:
 		return &registrytypes.AuthConfig{IdentityToken: identity}, nil
-	}
-	if hasToken {
-		if token == "" {
-			return nil, fmt.Errorf("%s.registry-auth.registry-token must not be empty", subkey)
-		}
+	case hasToken:
 		return &registrytypes.AuthConfig{RegistryToken: token}, nil
+	default:
+		return nil, fmt.Errorf("%s.registry-auth must contain a supported credential form", subkey)
 	}
-	return nil, fmt.Errorf("%s.registry-auth must contain a supported credential form", subkey)
 }
 
-func authString(values map[string]interface{}, name, subkey string) (string, bool, error) {
-	value, exists := values[name]
-	if !exists {
-		return "", false, nil
+// registryAuthFields validates field names and values without echoing secrets.
+func registryAuthFields(values map[string]interface{}, subkey string) (map[string]string, error) {
+	fields := make(map[string]string, len(values))
+	for key, value := range values {
+		switch key {
+		case "username", "password", "auth", "identity-token", "registry-token":
+		default:
+			return nil, fmt.Errorf("%s.registry-auth contains an unsupported field", subkey)
+		}
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s.registry-auth.%s must be a string", subkey, key)
+		}
+		if text == "" && key != "password" && key != "auth" {
+			return nil, fmt.Errorf("%s.registry-auth.%s must not be empty", subkey, key)
+		}
+		fields[key] = text
 	}
-	text, ok := value.(string)
-	if !ok {
-		return "", true, fmt.Errorf("%s.registry-auth.%s must be a string", subkey, name)
-	}
-	return text, true, nil
+	return fields, nil
 }
 
 func countTrue(values ...bool) int {

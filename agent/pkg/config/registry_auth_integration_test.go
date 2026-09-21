@@ -28,7 +28,7 @@ import (
 
 var _ = Describe("registry authentication during image sizing", func() {
 	DescribeTable("applies cloud-config before the first manifest request",
-		func(operation string, uki bool) {
+		func(operation string, uki, fromFile bool) {
 			DeferCleanup(viper.Reset)
 			// Never consult the developer's daemon or registry credential files.
 			home := GinkgoT().TempDir()
@@ -78,6 +78,10 @@ var _ = Describe("registry authentication during image sizing", func() {
 				WithRunner(v1mock.NewFakeRunner()), WithMounter(v1mock.NewErrorMounter()), WithPlatform("linux/amd64"))
 			cfg.Install = &install.Install{Source: "oci:" + imageRef}
 			body := fmt.Sprintf("#cloud-config\n%s:\n  allow-insecure-registries: true\n  registry-auth:\n    username: registry-user\n    password: registry-password\n  system:\n    source: oci:%s\n", operation, imageRef)
+			if fromFile {
+				Expect(fs.WriteFile("/registry-auth.yaml", []byte("username: registry-user\npassword: registry-password\n"), 0600)).To(Succeed())
+				body = strings.Replace(body, "    username: registry-user\n    password: registry-password\n", "    file: /registry-auth.yaml\n", 1)
+			}
 			opts := &collector.Options{}
 			Expect(opts.Apply(collector.Readers(strings.NewReader(body)), collector.NoLogs)).To(Succeed())
 			collected, err := collector.Scan(opts, FilterKeys)
@@ -101,9 +105,13 @@ var _ = Describe("registry authentication during image sizing", func() {
 			Expect(extractor.Auth).ToNot(BeNil())
 			Expect(extractor.Auth.Username).To(Equal("registry-user"))
 		},
-		Entry("install", "install", false),
-		Entry("UKI install", "install", true),
-		Entry("upgrade", "upgrade", false),
-		Entry("UKI upgrade", "upgrade", true),
+		Entry("install", "install", false, false),
+		Entry("UKI install", "install", true, false),
+		Entry("upgrade", "upgrade", false, false),
+		Entry("UKI upgrade", "upgrade", true, false),
+		Entry("install from file", "install", false, true),
+		Entry("UKI install from file", "install", true, true),
+		Entry("upgrade from file", "upgrade", false, true),
+		Entry("UKI upgrade from file", "upgrade", true, true),
 	)
 })
