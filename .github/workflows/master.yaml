@@ -80,13 +80,11 @@ jobs:
       matrix_scope: full
     secrets: inherit
 
-  # Flavor smoke matrix. Same idea as in pr.yaml: mirrors the
-  # base-image coverage the archived kairos-init repo's test.yml used
-  # to run. On master we pass matrix_scope: full so the riscv64 cells
-  # (ubuntu:24.04, debian:13, fedorariscv:42) also run -- their
-  # kairos-init tarball only exists at this scope. Runs in parallel
-  # with build-image-kairos-init / build-iso / test-* for the same
-  # reason as in pr.yaml.
+  # Flavor smoke matrix. Same shape as pr.yaml's build-flavors, with
+  # matrix_scope: full so the riscv64 cells (ubuntu:24.04, debian:13,
+  # fedorariscv:42) also run -- their kairos-init tarball only exists
+  # at this scope. Runs in parallel with build-image-kairos-init /
+  # build-iso / test-* for the same reason as in pr.yaml.
   build-flavors:
     needs: build-kairos-init
     uses: ./.github/workflows/_build-flavors.yaml
