@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"runtime"
-	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
@@ -68,6 +67,9 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	}
 
 	result.Collector = *genericConfig
+	if err := validateRegistryAuthKeys(result.Collector.Values); err != nil {
+		return result, err
+	}
 	configStr, err := genericConfig.String()
 	if err != nil {
 		return result, err
@@ -171,6 +173,9 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 // credentials. It clones the collector values and extractor so logging cannot
 // mutate the operational configuration.
 func RedactedConfigDump(result *sdkConfig.Config) string {
+	if err := validateRegistryAuthKeys(result.Collector.Values); err != nil {
+		return err.Error()
+	}
 	debugResult := *result
 	if values, ok := redactConfigValues(result.Collector.Values).(collector.ConfigValues); ok {
 		debugResult.Collector.Values = values
@@ -195,7 +200,7 @@ func redactConfigValues(value interface{}) interface{} {
 	case collector.ConfigValues:
 		out := collector.ConfigValues{}
 		for key, child := range typed {
-			if strings.EqualFold(strings.ReplaceAll(key, "_", "-"), "registry-auth") {
+			if key == "registry-auth" {
 				out[key] = "[REDACTED]"
 			} else {
 				out[key] = redactConfigValues(child)
@@ -205,7 +210,7 @@ func redactConfigValues(value interface{}) interface{} {
 	case map[string]interface{}:
 		out := map[string]interface{}{}
 		for key, child := range typed {
-			if strings.EqualFold(strings.ReplaceAll(key, "_", "-"), "registry-auth") {
+			if key == "registry-auth" {
 				out[key] = "[REDACTED]"
 			} else {
 				out[key] = redactConfigValues(child)

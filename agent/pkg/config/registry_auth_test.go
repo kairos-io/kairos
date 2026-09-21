@@ -1,7 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"encoding/base64"
+	"fmt"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
@@ -32,6 +35,59 @@ func imageExtractorAuth(value interface{}) *registrytypes.AuthConfig {
 }
 
 var _ = Describe("registry auth", func() {
+	It("rejects misspelled authentication blocks without exposing their contents", func() {
+		for _, operation := range []string{"install", "upgrade", "INSTALL"} {
+			for _, key := range []string{"registry_auth", "registy-auth", "REGISTRY-AUTH", "auth-secret-key-sentinel"} {
+				for _, plainMap := range []bool{false, true} {
+					cfg := registryConfig(operation, nil)
+					values := collector.ConfigValues{key: collector.ConfigValues{"password": "typo-secret-sentinel"}}
+					cfg.Collector.Values[operation] = values
+					if plainMap {
+						cfg.Collector.Values[operation] = map[string]interface{}(values)
+					}
+					extractor := imageextractor.OCIImageExtractor{Insecure: true}
+					cfg.ImageExtractor = extractor
+					err := applyRegistryOptions(cfg, strings.ToLower(operation))
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(strings.ToLower(operation)))
+					Expect(err.Error()).To(ContainSubstring("registry-auth"))
+					Expect(err.Error()).ToNot(ContainSubstring("typo-secret-sentinel"))
+					Expect(err.Error()).ToNot(ContainSubstring("auth-secret-key-sentinel"))
+					Expect(cfg.ImageExtractor).To(Equal(extractor))
+					dump := RedactedConfigDump(cfg)
+					Expect(dump).To(ContainSubstring("registry-auth"))
+					Expect(dump).ToNot(ContainSubstring("typo-secret-sentinel"))
+					Expect(dump).ToNot(ContainSubstring("[REDACTED]"))
+					Expect(values).To(HaveKey(key))
+				}
+			}
+		}
+	})
+
+	It("rejects misspelled blocks during scanning before diagnostics", func() {
+		for _, operation := range []string{"install", "upgrade"} {
+			for _, key := range []string{"registry_auth", "registy-auth"} {
+				var logs bytes.Buffer
+				cfg := &sdkConfig.Config{Logger: logger.NewBufferLogger(&logs)}
+				input := fmt.Sprintf("debug: true\n%s:\n  %s:\n    password: scan-secret-sentinel\n", operation, key)
+				_, err := scan(cfg, collector.Readers(strings.NewReader(input)))
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("registry-auth"))
+				Expect(err.Error()).ToNot(ContainSubstring("scan-secret-sentinel"))
+				Expect(logs.String()).To(BeEmpty())
+			}
+		}
+	})
+
+	It("preserves unrelated extension settings outside operation authentication keys", func() {
+		cfg := registryConfig("install", collector.ConfigValues{"username": "user", "password": "pass"})
+		cfg.Collector.Values["custom"] = collector.ConfigValues{"auth": "extension-setting"}
+		cfg.Collector.Values["install"].(collector.ConfigValues)["custom"] = collector.ConfigValues{"auth": "nested-setting"}
+		_, auth, err := readRegistryOptions(cfg, "install")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(auth.Username).To(Equal("user"))
+	})
+
 	It("parses supported credential forms", func() {
 		encoded := base64.StdEncoding.EncodeToString([]byte("encoded-user:encoded-pass"))
 		cases := []struct {

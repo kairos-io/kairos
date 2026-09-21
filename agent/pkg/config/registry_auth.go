@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
+	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	registrytypes "github.com/moby/moby/api/types/registry"
 	"github.com/spf13/viper"
@@ -32,6 +33,9 @@ func applyRegistryOptions(cfg *sdkConfig.Config, subkey string) error {
 }
 
 func readRegistryOptions(cfg *sdkConfig.Config, subkey string) (bool, *registrytypes.AuthConfig, error) {
+	if err := validateRegistryAuthKeys(cfg.Collector.Values); err != nil {
+		return false, nil, err
+	}
 	ccString, err := cfg.Collector.String()
 	if err != nil {
 		return false, nil, err
@@ -47,6 +51,38 @@ func readRegistryOptions(cfg *sdkConfig.Config, subkey string) (bool, *registryt
 	}
 	auth, err := parseRegistryAuth(sub.Get("registry-auth"), subkey)
 	return sub.GetBool("allow-insecure-registries"), auth, err
+}
+
+// validateRegistryAuthKeys rejects authentication-looking keys at the direct
+// operation level unless they use the canonical registry-auth spelling.
+func validateRegistryAuthKeys(values collector.ConfigValues) error {
+	for operation, raw := range values {
+		canonicalOperation := ""
+		switch {
+		case strings.EqualFold(operation, "install"):
+			canonicalOperation = "install"
+		case strings.EqualFold(operation, "upgrade"):
+			canonicalOperation = "upgrade"
+		default:
+			continue
+		}
+
+		var operationValues map[string]interface{}
+		switch typed := raw.(type) {
+		case collector.ConfigValues:
+			operationValues = map[string]interface{}(typed)
+		case map[string]interface{}:
+			operationValues = typed
+		default:
+			continue
+		}
+		for key := range operationValues {
+			if strings.Contains(strings.ToLower(key), "auth") && key != "registry-auth" {
+				return fmt.Errorf("%s operation contains an unsupported authentication key; use registry-auth", canonicalOperation)
+			}
+		}
+	}
+	return nil
 }
 
 func parseRegistryAuth(raw interface{}, subkey string) (*registrytypes.AuthConfig, error) {

@@ -3,6 +3,8 @@
 Install and upgrade image pulls use the host's existing Docker or Podman
 credential configuration by default. To provide credentials for one operation,
 set `registry-auth` under `install` or `upgrade` in cloud-config.
+The spelling is canonical and case-sensitive. Unknown keys containing `auth`
+directly under either operation are rejected; use `registry-auth`.
 
 The existing [Docker and Podman credential-file configuration](https://kairos.io/docs/v4.1.2/advanced/private_registry_auth/)
 continues to work when `registry-auth` is omitted. Kairos does not run a login
@@ -52,4 +54,6 @@ credential storage.
 Each operation block supplies one set of credentials to its image extractor.
 It is not a map of credentials by registry. Use the existing keychain when
 different image registries need separate credentials. Install and upgrade
-blocks can supply different credentials.
+blocks can supply different credentials. Credentials remain on the shared image
+extractor for the rest of the process, so later system extension pulls reuse
+them even when the extension comes from a different registry.
