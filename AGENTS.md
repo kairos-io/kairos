@@ -111,6 +111,29 @@ image, cutting a backport release. Prefer one over improvising.
   `hadron`, as above.
 - `hadolint` runs in CI. Run it locally before pushing.
 
+## Patching third-party source
+
+- A build failure in a third-party package is usually a bug in that package.
+  Fix it upstream first. Carry a patch here only to unblock the build while
+  upstream reviews the fix.
+- Put the patch in `patches/` in `hadron`, as a file. Do not edit third-party
+  source with a `sed` in a Dockerfile. A `sed` has no header to read, no name
+  that says what it repairs, and nothing that tells the next person when to
+  remove it.
+- Give every patch a header that says what breaks, why it breaks on this target
+  and not on the others, where the fix went upstream, and the condition for
+  dropping the patch. `patches/0001-audit-syslog-plugin-include-unistd.patch`
+  is the model to copy.
+- Where you cannot send the fix upstream yourself, say so in the patch header
+  and in the pull request, and write the upstream report so that a maintainer
+  only has to send it. A patch that nobody reported is carried for ever by
+  whoever inherits it.
+- Disclose AI use in the upstream report too, the same way you disclose it
+  here, and say how the patch was verified: which target it was built on, which
+  test failed before and passes after. Many projects now reject an undisclosed
+  AI patch on sight, and an unverified one wastes a maintainer's time. State
+  plainly when the fix was not built or run on the affected target.
+
 ## This repository, specifically
 
 - `go build ./...` and `go test ./...` fail on a fresh clone with
