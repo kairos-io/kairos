@@ -156,6 +156,51 @@ func TestOemFileName(t *testing.T) {
 			input:   "/etc/passwd",
 			wantErr: true,
 		},
+		{
+			name:    "the launch cloud-config's 90_custom.yaml is rejected",
+			input:   "90_custom",
+			wantErr: true,
+		},
+		{
+			name:    "the launch cloud-config's 90_custom.yaml is rejected with an explicit extension",
+			input:   "90_custom.yaml",
+			wantErr: true,
+		},
+		{
+			name:    "a higher-numbered launch cloud-config slot is rejected too",
+			input:   "97_custom",
+			wantErr: true,
+		},
+		{
+			name:    "SSHHardening's own file is rejected",
+			input:   "10_ssh_hardening",
+			wantErr: true,
+		},
+		{
+			name:    "CustomMounts' own file is rejected",
+			input:   "10_user_custom_mounts",
+			wantErr: true,
+		},
+		{
+			name:     "the same name with a .yml extension does not collide, since the reserved file is .yaml",
+			input:    "10_user_custom_mounts.yml",
+			expected: "10_user_custom_mounts.yml",
+		},
+		{
+			name:    "ExtensionSignaturePolicy's own file is rejected",
+			input:   "10_extensions_ignore_signatures",
+			wantErr: true,
+		},
+		{
+			name:    "phonehome's own file is rejected",
+			input:   "99_phonehome_remote",
+			wantErr: true,
+		},
+		{
+			name:     "a name that merely looks similar to a reserved one is accepted",
+			input:    "10_ssh_hardening_backup",
+			expected: "10_ssh_hardening_backup.yaml",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

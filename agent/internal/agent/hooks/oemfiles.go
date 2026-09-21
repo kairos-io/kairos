@@ -3,6 +3,7 @@ package hook
 import (
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
@@ -10,6 +11,22 @@ import (
 	sdkPartitions "github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 )
+
+// reservedOEMFileName matches names the installer or the running system
+// already writes into the OEM partition on its own. Accepting one of these
+// from install.oem_files would let the entry silently overwrite that file
+// instead of erroring, taking whatever it held (the launch cloud-config's
+// users and ssh_authorized_keys among them) with it.
+var reservedOEMFileName = regexp.MustCompile(`^9[0-9]_custom\.yaml$`)
+
+// reservedOEMFileNames are the other fixed names Kairos itself writes to the
+// OEM partition, one per hook, that do not fit the 9[0-9]_custom.yaml pattern.
+var reservedOEMFileNames = map[string]bool{
+	"10_ssh_hardening.yaml":                true,
+	"10_user_custom_mounts.yaml":           true,
+	"10_extensions_ignore_signatures.yaml": true,
+	"99_phonehome_remote.yaml":             true,
+}
 
 // OEMFiles drops the cloud-config files listed under install.oem_files into
 // the OEM partition of the freshly installed system, so they are applied on
@@ -94,8 +111,12 @@ func oemFileName(name string) (string, error) {
 	if name == "." || name == ".." || strings.ContainsRune(name, filepath.Separator) {
 		return "", fmt.Errorf("install.oem_files: %q is not a file name", name)
 	}
-	if ext := filepath.Ext(name); ext == ".yaml" || ext == ".yml" {
-		return name, nil
+	resolved := name
+	if ext := filepath.Ext(name); ext != ".yaml" && ext != ".yml" {
+		resolved = name + ".yaml"
 	}
-	return name + ".yaml", nil
+	if reservedOEMFileName.MatchString(resolved) || reservedOEMFileNames[resolved] {
+		return "", fmt.Errorf("install.oem_files: %q resolves to %q, which Kairos writes to the OEM partition itself; pick a different name", name, resolved)
+	}
+	return resolved, nil
 }
