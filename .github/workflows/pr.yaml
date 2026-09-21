@@ -67,6 +67,51 @@ jobs:
     steps:
       - run: 'true'
 
+  # Cheap change detector for the flavor pipe. The wide base-image
+  # matrix in build-flavors is expensive per PR and only meaningful
+  # when a PR touches the kairos-init binary, the provider binary it
+  # invokes during standard-variant cells, the sdk/bus contract they
+  # exchange, its build machinery, or the workflow files that drive
+  # its build. This job outputs a single boolean the flavor pipe
+  # gates on; everything else is unaffected.
+  changes:
+    needs: authorize
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      flavor: ${{ steps.filter.outputs.flavor }}
+    steps:
+      - name: Detect flavor-relevant paths
+        id: filter
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          changed=$(gh pr diff --repo "$GITHUB_REPOSITORY" "$PR_NUMBER" --name-only)
+          echo "Changed files:"
+          echo "$changed"
+          # Paths whose diff can plausibly change what the flavor
+          # matrix builds:
+          #   - kairos-init/ : the binary being tested;
+          #   - provider/    : agent-provider-kairos is invoked
+          #                    over the go-pluggable bus for
+          #                    standard-variant (k3s/k0s) cells
+          #                    during kairos-init's build run;
+          #   - sdk/         : the bus event payloads the provider
+          #                    and kairos-init exchange;
+          #   - scripts/, Makefile, go.mod, go.sum : root build
+          #                    machinery and Go module state;
+          #   - the flavor / kairos / kairos-init reusable
+          #     workflows themselves.
+          if echo "$changed" | grep -qE '^(kairos-init/|provider/|sdk/|scripts/|Makefile$|go\.(mod|sum)$|\.github/workflows/_build-(flavors|kairos|kairos-init)\.yaml$)'; then
+            echo "flavor=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flavor=false" >> "$GITHUB_OUTPUT"
+          fi
+
   unit-tests:
     needs: authorize
     uses: ./.github/workflows/_unit-tests.yaml
@@ -97,6 +142,27 @@ jobs:
   build-kairos-init:
     needs: build-kairos
     uses: ./.github/workflows/_build-kairos-init.yaml
+    with:
+      matrix_scope: ci
+      ref: refs/pull/${{ github.event.pull_request.number }}/head
+      caller-vetted-ref: true
+    secrets: inherit
+
+  # Flavor smoke matrix. Restores the base-image coverage the archived
+  # kairos-init repo's test.yml ran on every PR: for every supported
+  # base OS (ubuntu 24.04/25.10/26.04, debian 12/13, fedora 42/43,
+  # alpine, opensuse leap/tumbleweed, rockylinux/almalinux/oracle 9+10,
+  # centos stream, sle-micro) plus variant cells (k3s/k0s, FIPS,
+  # trusted-boot, nvidia jetson, rpi4, hadron main/v0.5.1), run
+  # kairos-init against the base image as a build-only smoke. No ISO,
+  # no qemu. Splits after build-kairos-init and runs in parallel with
+  # build-image-kairos-init / build-iso / test-*: a flavor breakage
+  # does not gate the release path, and a bug on the release path
+  # does not mask a flavor regression.
+  build-flavors:
+    needs: [build-kairos-init, changes]
+    if: needs.changes.outputs.flavor == 'true'
+    uses: ./.github/workflows/_build-flavors.yaml
     with:
       matrix_scope: ci
       ref: refs/pull/${{ github.event.pull_request.number }}/head
