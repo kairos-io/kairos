@@ -18,10 +18,10 @@ import (
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
-// The specs below used to retype the default journal list once per assertion,
-// so adding a unit to defaultLogsConfig broke six of them for no reason.
-// Derive it instead: what these specs are about is the merge with the user's
-// config and the skipping of empty journals, not the contents of the default.
+// The specs below are about the merge with the user's config and the skipping
+// of empty journals, not about the contents of the default journal list, so
+// the helpers here derive that list rather than restate it. What the default
+// list holds is asserted in logs_journal_units_test.go.
 
 // defaultJournalUnits is what the collector asks journald for before the cloud
 // config adds anything.

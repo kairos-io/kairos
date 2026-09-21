@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -76,5 +77,18 @@ var _ = Describe("Default logs journal list", Label("logs", "cmd"), func() {
 	It("still covers the units the Kubernetes providers install", func() {
 		Expect(defaultLogsConfig().Journal).To(ContainElements(
 			"k3s", "k3s-agent", "k0scontroller", "k0sworker"))
+	})
+
+	// The sweep above reads the cloud-configs, so it is blind to a unit the
+	// agent writes under /etc/systemd/system itself. phone-home is the one
+	// such unit today: enablePhoneHome writes phonehome.ServicePath and runs
+	// systemctl enable on it whenever the merged config carries a url. The
+	// name is derived from the constant the writer uses rather than spelled
+	// out, so renaming the unit without touching this list fails here.
+	It("asks journald for the units the agent writes itself", func() {
+		unit := strings.TrimSuffix(filepath.Base(phonehome.ServicePath), ".service")
+		Expect(unit).NotTo(Equal(filepath.Base(phonehome.ServicePath)),
+			"expected %s to name a systemd service", phonehome.ServicePath)
+		Expect(defaultLogsConfig().Journal).To(ContainElement(unit))
 	})
 })
