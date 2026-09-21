@@ -32,7 +32,7 @@ func BuildFlavor(flavor string, profileFile string, directory string) error {
 
 	profiles, ok := prof.Flavors[flavor]
 	if !ok {
-		return fmt.Errorf("No profile found")
+		return fmt.Errorf("no profile found")
 	}
 
 	allPackages := []string{}

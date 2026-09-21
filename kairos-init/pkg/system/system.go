@@ -14,7 +14,7 @@ import (
 // DetectSystem detects the system based on the os-release file
 // and returns a values.System struct
 // This could probably be implemented in a different way, or use a lib but its helpful
-// in conjunction with the values packagemaps to determine the packages to install
+// in conjunction with the values packagemaps to determine the packages to install.
 func DetectSystem(l logger.KairosLogger) values.System {
 	// Detects the system
 	s := values.System{

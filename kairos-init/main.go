@@ -70,7 +70,7 @@ var stepsInfo = &cobra.Command{
 		stepsInfo := values.StepsInfo()
 		logger.Infof("Step name & Description")
 		logger.Infof("--------------------------------------------------------")
-		for step, _ := range stepsInfo {
+		for step := range stepsInfo {
 			logger.Infof("\"%s\": %s", stepsInfo[step].Key, stepsInfo[step].Value)
 		}
 		logger.Infof("--------------------------------------------------------")
@@ -86,7 +86,7 @@ var versionCmd = &cobra.Command{
 		logger.Infof("kairos-init version %s", values.GetVersion())
 		logger.Debug(litter.Sdump(values.GetFullVersion()))
 
-		// parse embeded version info for binaries
+		// parse embedded version info for binaries
 		versionInfo := map[string]string{}
 		err := yaml.Unmarshal(bundled.EmbeddedVersionInfo, &versionInfo)
 		if err != nil {
@@ -126,6 +126,9 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("FIPS is not supported on riscv64")
 		}
 		preRun(cmd, args)
+		if config.DefaultConfig.DryRun {
+			return nil
+		}
 		if required := values.Model(config.DefaultConfig.Model).RequiredArch(); required != "" && required.String() != runtime.GOARCH {
 			return fmt.Errorf(
 				"model %q requires architecture %q but kairos-init is running on %q. "+
@@ -136,7 +139,9 @@ var rootCmd = &cobra.Command{
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
-		logger := logger.NewKairosLogger("kairos-init", loglevelFlag.Value, false)
+		// In dry-run, silence the console logger so stdout stays machine-readable.
+		// Logs still land in journald / /var/log/kairos/kairos-init.log.
+		logger := logger.NewKairosLogger("kairos-init", loglevelFlag.Value, config.DefaultConfig.DryRun)
 		logger.Infof("Starting kairos-init version %s", values.GetVersion())
 		logger.Debug(litter.Sdump(values.GetFullVersion()))
 
@@ -172,6 +177,12 @@ var rootCmd = &cobra.Command{
 
 		litter.Config.HideZeroValues = true
 		litter.Config.HidePrivateFields = true
+
+		if config.DefaultConfig.DryRun {
+			_, err = os.Stdout.WriteString(runStages.ToString())
+			return err
+		}
+
 		// Save the stages to a file for debugging and future use
 		if stageFlag.Value == "all" {
 			_ = os.WriteFile("/etc/kairos/kairos-init-all-stage.yaml", []byte(runStages.ToString()), 0644)
@@ -220,11 +231,12 @@ func init() {
 	rootCmd.Flags().VarP(loglevelFlag, "level", "l", fmt.Sprintf("set the log level (%s)", strings.Join(loglevelFlag.Allowed, ", ")))
 	// rest of the flags
 	rootCmd.Flags().VarP(modelFlag, "model", "m", fmt.Sprintf("model to build for (%s)", strings.Join(modelFlag.Allowed, ", ")))
-	rootCmd.Flags().StringSliceVarP(&providers, "provider", "p", []string{}, fmt.Sprintf("Provider plugin (repeatable)"))
+	rootCmd.Flags().StringSliceVarP(&providers, "provider", "p", []string{}, "Provider plugin (repeatable)")
 	rootCmd.Flags().BoolVar(&config.DefaultConfig.Fips, "fips", false, "use fips kairos binary versions. For FIPS 140-2 compliance images")
 	rootCmd.Flags().StringVarP(&version, "version", "v", "", "set a version number to use for the generated system. Its used to identify this system for upgrades and such. Required.")
 	rootCmd.Flags().BoolVarP(&config.DefaultConfig.Extensions, "stage-extensions", "x", false, "enable stage extensions mode")
 	rootCmd.Flags().Var(skipStepsFlag, "skip-step", "Skip one or more steps. Valid values are: "+strings.Join(skipStepsFlag.Allowed, ", ")+". You can pass multiple values separated by commas, for example: --skip-step initrd,workarounds")
+	rootCmd.Flags().BoolVar(&config.DefaultConfig.DryRun, "dry-run", false, "print the resolved yip stages to stdout and exit without running yip stages, copying configs/binaries, or invoking provider hooks (logs may still be written)")
 	// Mark required flags
 	_ = rootCmd.MarkFlagRequired("version")
 

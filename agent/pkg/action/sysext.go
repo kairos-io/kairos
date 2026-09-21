@@ -3,15 +3,14 @@ package action
 import (
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 
-	"github.com/distribution/reference"
+	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
+	installer "github.com/kairos-io/kairos/v4/agent/pkg/extensions"
 	"github.com/kairos-io/kairos/v4/sdk/extensions"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
-	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/twpayne/go-vfs/v5"
 )
 
@@ -37,18 +36,18 @@ import (
 const (
 	sysext             = "sysext"
 	confext            = "confext"
-	sysextDir          = "/var/lib/kairos/extensions/"
-	confExtDir         = "/var/lib/kairos/confexts/"
-	sysextDirActive    = sysextDir + "active"
-	sysextDirPassive   = sysextDir + "passive"
-	sysextDirRecovery  = sysextDir + "recovery"
-	sysextDirCommon    = sysextDir + "common"
-	confExtDirActive   = confExtDir + "active"
-	confExtDirPassive  = confExtDir + "passive"
-	confExtDirRecovery = confExtDir + "recovery"
-	confExtDirCommon   = confExtDir + "common"
-	sysextRunDir       = "/run/extensions/"
-	confExtRunDir      = "/run/confexts/"
+	sysextDir          = "/var/lib/kairos/extensions"
+	confExtDir         = "/var/lib/kairos/confexts"
+	sysextDirActive    = sysextDir + "/" + cnst.BootActive
+	sysextDirPassive   = sysextDir + "/" + cnst.BootPassive
+	sysextDirRecovery  = sysextDir + "/" + cnst.BootRecovery
+	sysextDirCommon    = sysextDir + "/" + cnst.BootCommon
+	confExtDirActive   = confExtDir + "/" + cnst.BootActive
+	confExtDirPassive  = confExtDir + "/" + cnst.BootPassive
+	confExtDirRecovery = confExtDir + "/" + cnst.BootRecovery
+	confExtDirCommon   = confExtDir + "/" + cnst.BootCommon
+	sysextRunDir       = "/run/extensions"
+	confExtRunDir      = "/run/confexts"
 	sysextCommand      = "systemd-sysext"
 	confextCommand     = "systemd-confext"
 )
@@ -63,30 +62,50 @@ func (s *Extension) String() string {
 	return s.Name
 }
 
+// ensureDir creates dir and any missing parent, and does nothing if it is
+// already there.
+//
+// It cleans the path first because vfs.MkdirAll is not safe against a trailing
+// slash: filepath.Dir strips the slash, so the recursion creates the leaf and
+// the outer call then tries to create it a second time and returns a bare
+// "file exists". A caller that passes "/var/lib/kairos/extensions/" would fail
+// on the first install and only succeed on the second, once the directory was
+// already there.
+func ensureDir(cfg *sdkConfig.Config, dir string) error {
+	dir = filepath.Clean(dir)
+	if _, err := cfg.Fs.Stat(dir); !os.IsNotExist(err) {
+		return nil
+	}
+	if err := vfs.MkdirAll(cfg.Fs, dir, 0755); err != nil {
+		return fmt.Errorf("failed to create target dir %s: %w", dir, err)
+	}
+	return nil
+}
+
 func dirFromBootState(bootState, extType string) string {
 	switch extType {
 	case sysext:
 		switch bootState {
-		case "active":
+		case cnst.BootActive:
 			return sysextDirActive
-		case "passive":
+		case cnst.BootPassive:
 			return sysextDirPassive
-		case "recovery":
+		case cnst.BootRecovery:
 			return sysextDirRecovery
-		case "common":
+		case cnst.BootCommon:
 			return sysextDirCommon
 		default:
 			return sysextDir
 		}
 	case confext:
 		switch bootState {
-		case "active":
+		case cnst.BootActive:
 			return confExtDirActive
-		case "passive":
+		case cnst.BootPassive:
 			return confExtDirPassive
-		case "recovery":
+		case cnst.BootRecovery:
 			return confExtDirRecovery
-		case "common":
+		case cnst.BootCommon:
 			return confExtDirCommon
 		default:
 			return confExtDir
@@ -94,6 +113,15 @@ func dirFromBootState(bootState, extType string) string {
 	default:
 		return ""
 	}
+}
+
+// ExtensionDirFromBootState returns the persistent directory that holds the
+// extensions of the given type for the given boot state. Callers outside this
+// package (the phonehome command handlers) need it so they do not have to
+// repeat the /var/lib/kairos paths. An unknown bootState yields the type's
+// base directory, and an unknown extType yields the empty string.
+func ExtensionDirFromBootState(bootState, extType string) string {
+	return dirFromBootState(bootState, extType)
 }
 
 // ListExtensions lists the system extensions in the given directory
@@ -107,10 +135,8 @@ func getDirExtensions(cfg *sdkConfig.Config, dir string) ([]Extension, error) {
 	var out []Extension
 	// get all the extensions in the sysextDir
 	// Try to create the dir if it does not exist
-	if _, err := cfg.Fs.Stat(dir); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, dir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create target dir %s: %w", dir, err)
-		}
+	if err := ensureDir(cfg, dir); err != nil {
+		return nil, err
 	}
 	entries, err := cfg.Fs.ReadDir(dir)
 	// We don't care if the dir does not exist, we just return an empty list
@@ -163,10 +189,8 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 	targetDir := dirFromBootState(bootState, extType)
 
 	// Check if the target dir exists and create it if it doesn't
-	if _, err := cfg.Fs.Stat(targetDir); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, targetDir, 0755); err != nil {
-			return fmt.Errorf("failed to create target dir %s: %w", targetDir, err)
-		}
+	if err := ensureDir(cfg, targetDir); err != nil {
+		return err
 	}
 
 	// Check if the extension is already enabled
@@ -191,7 +215,7 @@ func EnableExtension(cfg *sdkConfig.Config, ext, bootState, extType string, now 
 		_, stateMatches := cfg.Fs.Stat(fmt.Sprintf("/run/cos/%s_mode", bootState))
 		// TODO: Check in UKI?
 		cfg.Logger.Logger.Debug().Str("boot_state", bootState).Str("filecheck", fmt.Sprintf("/run/cos/%s_state", bootState)).Msg("Checking boot state")
-		if stateMatches == nil || bootState == "common" {
+		if stateMatches == nil || bootState == cnst.BootCommon {
 			linkTarget := sysextRunDir
 			reloadTarget := sysextCommand
 			if extType == confext {
@@ -245,7 +269,7 @@ func DisableExtension(cfg *sdkConfig.Config, ext string, bootState, extType stri
 		// This is to avoid disabling the extension in the wrong boot state
 		_, stateMatches := cfg.Fs.Stat(fmt.Sprintf("/run/cos/%s_mode", bootState))
 		cfg.Logger.Logger.Debug().Str("boot_state", bootState).Str("filecheck", fmt.Sprintf("/run/cos/%s_mode", bootState)).Msg("Checking boot state")
-		if stateMatches == nil || bootState == "common" {
+		if stateMatches == nil || bootState == cnst.BootCommon {
 			linkTarget := sysextRunDir
 			reloadTarget := sysextCommand
 			if extType == confext {
@@ -283,27 +307,11 @@ func DisableExtension(cfg *sdkConfig.Config, ext string, bootState, extType stri
 // It will download the extension and extract it to the target dir
 // It will check if the extension is already installed before doing anything
 func InstallExtension(cfg *sdkConfig.Config, uri, extType string) error {
-	linkTarget := sysextDir
+	target := sysextDir
 	if extType == confext {
-		linkTarget = confExtDir
+		target = confExtDir
 	}
-	// Parse the URI
-	download, err := parseURI(cfg, uri)
-	if err != nil {
-		return fmt.Errorf("failed to parse URI %s: %w", uri, err)
-	}
-	// Check if directory exists or create it
-	if _, err := cfg.Fs.Stat(linkTarget); os.IsNotExist(err) {
-		if err := vfs.MkdirAll(cfg.Fs, linkTarget, 0755); err != nil {
-			return fmt.Errorf("failed to create target dir %s: %w", linkTarget, err)
-		}
-	}
-	// Download the extension
-	if err := download.Download(linkTarget); err != nil {
-		return err
-	}
-
-	return nil
+	return installer.Install(cfg, uri, target)
 }
 
 // InstallCatalogExtension resolves and installs a system extension from a catalog.
@@ -337,7 +345,7 @@ func RemoveExtension(cfg *sdkConfig.Config, extension, extType string, now bool)
 		return nil
 	}
 	// Check if the extension is enabled in active or passive
-	for _, state := range []string{"active", "passive", "recovery", "common"} {
+	for _, state := range []string{cnst.BootActive, cnst.BootPassive, cnst.BootRecovery, cnst.BootCommon} {
 		enabled, err := GetExtension(cfg, extension, state, extType)
 		if err == nil {
 			// Remove the symlink
@@ -381,115 +389,5 @@ func RemoveExtension(cfg *sdkConfig.Config, extension, extType string, now bool)
 	}
 
 	cfg.Logger.Infof("Extension %s removed", installed.Name)
-	return nil
-}
-
-// ParseURI parses a URI and returns a SourceDownload
-// implementation based on the scheme of the URI
-func parseURI(cfg *sdkConfig.Config, uri string) (SourceDownload, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return nil, err
-	}
-	scheme := u.Scheme
-	value := u.Opaque
-	if value == "" {
-		value = filepath.Join(u.Host, u.Path)
-	}
-	switch scheme {
-	case "oci", "docker", "container":
-		n, err := reference.ParseNormalizedNamed(value)
-		if err != nil {
-			return nil, fmt.Errorf("invalid image reference %s", value)
-		} else if reference.IsNameOnly(n) {
-			value += ":latest"
-		}
-		return &dockerSource{value, cfg}, nil
-	case "file":
-		return &fileSource{value, cfg}, nil
-	case "http", "https":
-		// Pass the full uri including the protocol
-		return &httpSource{uri, cfg}, nil
-	default:
-		return nil, fmt.Errorf("invalid URI reference %s", uri)
-	}
-}
-
-// SourceDownload is an interface for downloading system extensions
-// from different sources. It allows for different implementations
-// for different sources of system extensions, such as files, directories,
-// or docker images. The interface defines a single method, Download,
-// which takes a destination path as an argument and returns an error
-type SourceDownload interface {
-	Download(string) error
-}
-
-// fileSource is a struct that implements the SourceDownload interface
-// for downloading system extensions from a file. It has two fields,
-// uri, which is the URI of the file to be downloaded and cfg which points to the Config
-// The Download method takes a destination path as an argument and returns an error if the
-// download fails.
-type fileSource struct {
-	uri string
-	cfg *sdkConfig.Config
-}
-
-// Download streams the file to the destination with bounded memory usage
-// Uses io.Copy instead of buffering the entire file to avoid OOM on pods with limited memory
-func (f *fileSource) Download(dst string) error {
-	// Open source file for reading
-	srcFile, err := f.cfg.Fs.Open(f.uri)
-	if err != nil {
-		return fmt.Errorf("failed to open file %s: %w", f.uri, err)
-	}
-	defer srcFile.Close()
-
-	// Get file info for permissions
-	stat, err := f.cfg.Fs.Stat(f.uri)
-	if err != nil {
-		return fmt.Errorf("failed to stat file %s: %w", f.uri, err)
-	}
-
-	// Create destination file with same permissions
-	dstFile := filepath.Join(dst, filepath.Base(f.uri))
-	dstFileHandle, err := f.cfg.Fs.OpenFile(dstFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, stat.Mode())
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", dstFile, err)
-	}
-	defer dstFileHandle.Close()
-
-	// Stream copy (bounded memory usage)
-	f.cfg.Logger.Logger.Debug().Str("uri", f.uri).Str("target", dstFile).Msg("Copying system extension")
-	if _, err := io.Copy(dstFileHandle, srcFile); err != nil {
-		return fmt.Errorf("failed to copy file %s to %s: %w", f.uri, dstFile, err)
-	}
-
-	return nil
-}
-
-type httpSource struct {
-	uri string
-	cfg *sdkConfig.Config
-}
-
-func (h httpSource) Download(s string) error {
-	// Download the file from the URI
-	// and save it to the destination path
-	h.cfg.Logger.Logger.Debug().Str("uri", h.uri).Str("target", filepath.Join(s, filepath.Base(h.uri))).Msg("Downloading system extension")
-	return h.cfg.Client.GetURL(sdkLogger.NewNullLogger(), h.uri, filepath.Join(s, filepath.Base(h.uri)))
-}
-
-type dockerSource struct {
-	uri string
-	cfg *sdkConfig.Config
-}
-
-func (d dockerSource) Download(s string) error {
-	// Download the file from the URI
-	// and save it to the destination path
-	err := d.cfg.ImageExtractor.ExtractImage(d.uri, s, "")
-	if err != nil {
-		return err
-	}
 	return nil
 }

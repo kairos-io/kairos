@@ -34,7 +34,7 @@ func GetKeyDatabase(sigType string) (*signature.SignatureDatabase, error) {
 	case "DB", "db":
 		sig, err = efi.Getdb()
 	default:
-		return nil, fmt.Errorf("signature type unkown (%s). Valid signature types are PK,KEK,DB", sigType)
+		return nil, fmt.Errorf("signature type unknown (%s). Valid signature types are PK,KEK,DB", sigType)
 	}
 
 	return sig, err

@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/bus"
 	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
-	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/mudler/go-pluggable"
 )
 
@@ -110,8 +110,8 @@ func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
 		agentCmd.Env = env
 		out2, err := agentCmd.CombinedOutput()
 		if err != nil {
-			l.Logger.Error().Err(err).Msgf("Failed to run k3s agent installer script: %s", string(out))
-			returnData.Error = fmt.Sprintf("Failed to run k3s agent installer script: %s", string(out))
+			l.Logger.Error().Err(err).Msgf("Failed to run k3s agent installer script: %s", string(out2))
+			returnData.Error = fmt.Sprintf("Failed to run k3s agent installer script: %s", string(out2))
 			returnData.State = bus.EventResponseError
 			return returnData
 		}

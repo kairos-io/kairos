@@ -1,0 +1,81 @@
+version: "2"
+run:
+  timeout: 10m
+  tests: false
+linters:
+  enable:
+    - dupl
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - goconst
+    - gocyclo
+    - misspell
+    - revive
+    - zerologlint
+  # godot -- disabled for now. A codebase-wide sweep of godoc comment
+  # terminators is queued as a separate follow-up: 400+ comments across
+  # the tree lack a trailing period, and turning them all on in this
+  # lint-enable PR would drown the substantive fixes.
+  settings:
+    revive:
+      # Named parameters read as documentation on the many interface
+      # implementations (cli.Context handlers, mock methods, k8s
+      # Reconcile signatures) that ignore some of them; renaming
+      # every ignored parameter to `_` costs more than it buys, so
+      # we drop this specific rule from revive's default set. Every
+      # other revive check stays on.
+      rules:
+        - name: unused-parameter
+          disabled: true
+    goconst:
+      # Default is 3; that fires on every 3rd repetition of a two-
+      # word tag or a page ID and drowns the real "extract this
+      # magic string" cases in noise. 5 is the threshold below
+      # which we treat repetition as coincidental.
+      min-occurrences: 5
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - tests$
+    rules:
+      # kairos-init/pkg/values/packagemaps.go is a data table: distro
+      # -> arch -> version -> []packageName. Package names legitimately
+      # repeat across distros (`iptables`, `dosfstools`, ...) because
+      # every distro ships them under the same name. Turning each into
+      # a named constant would just spread a data-only file across
+      # dozens of one-liners without preventing any real bug, so
+      # goconst is silenced for this file only.
+      - path: kairos-init/pkg/values/packagemaps\.go
+        linters:
+          - goconst
+          - dupl
+      # installer/internal/tui pages share bubbletea key names
+      # ("enter", "esc", "up", "down", "j", "k") and page-id
+      # slugs ("customization", "summary", "disk_selection", ...)
+      # by design: every page has to match on the same keys and
+      # route to the same next pages. Extracting each string into
+      # a package-level constant hides that pattern behind an
+      # alias without protecting against any bug, so goconst is
+      # silenced across the tui subtree.
+      - path: installer/internal/tui/
+        linters:
+          - goconst
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+      - tests$

@@ -29,6 +29,7 @@ func NewInstallAction(cfg *sdkConfig.Config, spec *v1.InstallUkiSpec) *InstallAc
 	return &InstallAction{cfg: cfg, spec: spec}
 }
 
+// nolint:gocyclo // UKI install mirrors the same partition/mount/cloud-init/image/bootloader/cleanup pipeline as the non-UKI installer; splitting it would divorce the two paths that still need to stay side-by-side.
 func (i *InstallAction) Run() (err error) {
 	e := elemental.NewElemental(i.cfg)
 	cleanup := utils.NewCleanStack()
@@ -108,8 +109,9 @@ func (i *InstallAction) Run() (err error) {
 		return err
 	}
 
-	// TODO: Check if the size of the files we are going to copy, will fit in the
-	// partition. If not stop here.
+	// The partition has to hold the source once plus a copy per role. The
+	// source size is only known once it is on disk, so the check runs after the
+	// dump below and before the copies, in checkSpaceForInstall.
 
 	// Copy the efi file into the proper dir
 	_, err = e.DumpSource(i.spec.Partitions.EFI.MountPoint, i.spec.Active.Source)
@@ -165,7 +167,16 @@ func (i *InstallAction) Run() (err error) {
 		return err
 	}
 
-	for _, role := range []string{"active", "passive", "recovery", "statereset"} {
+	roles := []string{"active", "passive", "recovery", "statereset"}
+
+	// Refuse to start copying unless every role fits, so a partition that is
+	// too small fails here with a size rather than part way through with ENOSPC.
+	if err = checkSpaceForInstall(i.cfg.Fs, i.spec.Partitions.EFI.MountPoint, len(roles), i.cfg.Logger); err != nil {
+		i.cfg.Logger.Errorf("checking space on the EFI partition: %s", err.Error())
+		return err
+	}
+
+	for _, role := range roles {
 		if err = copyArtifactSetRole(i.cfg.Fs, i.spec.Partitions.EFI.MountPoint, UnassignedArtifactRole, role, i.cfg.Logger); err != nil {
 			i.cfg.Logger.Errorf("installing the new artifact set as %s: %s", role, err.Error())
 			return fmt.Errorf("installing the new artifact set as %s: %w", role, err)
@@ -227,25 +238,41 @@ func (i *InstallAction) Run() (err error) {
 }
 
 func (i *InstallAction) SkipEntry(path string, conf map[string]string) (err error) {
-	// If match, get the efi file and remove it
-	if conf["efi"] != "" {
-		i.cfg.Logger.Debugf("Removing efi file %s", conf["efi"])
-		// First remove the efi file
-		err = i.cfg.Fs.Remove(filepath.Join(i.spec.Partitions.EFI.MountPoint, conf["efi"]))
-		if err != nil {
-			i.cfg.Logger.Errorf("Error removing efi file %s: %s", conf["efi"], err)
-			return err
-		}
-		// Then remove the conf file
-		i.cfg.Logger.Debugf("Removing conf file %s", path)
-		err = i.cfg.Fs.Remove(path)
-		if err != nil {
-			i.cfg.Logger.Errorf("Error removing conf file %s: %s", path, err)
-			return err
-		}
-		// Do not continue checking the conf file, we already done all we needed
+	// The artifact lives under the "efi" key on systemd-boot older than 259 and
+	// under the type 2 "uki" key on newer ones, which is what AuroraBoot writes
+	// today. Read both, or the entry is never really skipped.
+	artifact := artifactFromConf(conf)
+	if artifact == "" {
+		i.cfg.Logger.Warnf("Entry %s matched the skip list but has no efi or uki key, leaving it in place", path)
+		return nil
 	}
-	return err
+
+	i.cfg.Logger.Debugf("Removing efi file %s", artifact)
+	// First remove the efi file
+	err = i.cfg.Fs.Remove(filepath.Join(i.spec.Partitions.EFI.MountPoint, artifact))
+	if err != nil {
+		i.cfg.Logger.Errorf("Error removing efi file %s: %s", artifact, err)
+		return err
+	}
+	// Then remove the conf file
+	i.cfg.Logger.Debugf("Removing conf file %s", path)
+	err = i.cfg.Fs.Remove(path)
+	if err != nil {
+		i.cfg.Logger.Errorf("Error removing conf file %s: %s", path, err)
+		return err
+	}
+
+	return nil
+}
+
+// artifactFromConf returns the artifact path a loader entry points at. The
+// "efi" key is the type 1 form and "uki" the type 2 one; a conf carries one or
+// the other, and systemd-boot reads "uki" only from version 259 on.
+func artifactFromConf(conf map[string]string) string {
+	if conf["efi"] != "" {
+		return conf["efi"]
+	}
+	return conf["uki"]
 }
 
 // Hook is RunStage wrapper that only adds logic to ignore errors

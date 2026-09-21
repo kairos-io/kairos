@@ -72,6 +72,7 @@ func NewInstallAction(cfg *sdkConfig.Config, spec *v1.InstallSpec) *InstallActio
 }
 
 // Run will install the system from a given configuration
+// nolint:gocyclo // Install is a long linear pipeline (partitions, mounts, cloud-init stages, image copy, bootloader, kcrypt, cleanup) each of which can fail; the branches follow the installer flow rather than any splittable concern.
 func (i InstallAction) Run() (err error) {
 	defer func() {
 		if err != nil {
@@ -160,6 +161,10 @@ func (i InstallAction) Run() (err error) {
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&i.spec.Active) })
 
+	// Label the image as boot_t: it was just created and does not carry a
+	// label yet, so boot-time components can access it.
+	e.LabelStateImage(i.spec.Active.File)
+
 	// Create extra dirs in rootfs as afterwards this will be impossible due to RO system
 	createExtraDirsInRootfs(i.cfg, i.spec.ExtraDirsRootfs, i.spec.Active.MountPoint)
 
@@ -231,6 +236,8 @@ func (i InstallAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	// passive.img is created after SelinuxRelabel runs, so label it here
+	e.LabelStateImage(i.spec.Passive.File)
 
 	err = hook.Run(*i.cfg, i.spec, hook.PostInstall...)
 	if err != nil {

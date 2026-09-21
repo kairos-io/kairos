@@ -89,6 +89,16 @@ func (r ResetAction) Run() (err error) {
 	if r.spec.FormatPersistent {
 		persistent := r.spec.Partitions.Persistent
 		if persistent != nil {
+			// The audit trail is the one thing on the persistent partition a
+			// reset is not meant to destroy, so carry it over the format.
+			// Failing to preserve it does not fail the reset: that is the
+			// behaviour we have today, while a reset that stops halfway
+			// leaves an unbootable machine.
+			stash, sErr := StashAuditLog(r.cfg, persistent)
+			if sErr != nil {
+				r.cfg.Logger.Warnf("could not preserve %s across the reset: %s", cnst.AuditLogPath, sErr)
+			}
+
 			err = e.UnmountPartition(persistent)
 			if err != nil {
 				return err
@@ -96,6 +106,10 @@ func (r ResetAction) Run() (err error) {
 			err = e.FormatPartition(persistent)
 			if err != nil {
 				return err
+			}
+
+			if rErr := RestoreAuditLog(r.cfg, persistent, stash); rErr != nil {
+				r.cfg.Logger.Warnf("could not restore %s after the reset: %s", cnst.AuditLogPath, rErr)
 			}
 		}
 	}
@@ -121,7 +135,7 @@ func (r ResetAction) Run() (err error) {
 		}
 	}
 
-	// Before reset hook happens once partitions are aready and before deploying the OS image
+	// Before reset hook happens once partitions are already and before deploying the OS image
 	err = r.resetHook(cnst.BeforeResetHook, false)
 	if err != nil {
 		return err
@@ -140,6 +154,10 @@ func (r ResetAction) Run() (err error) {
 		return err
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&r.spec.Active) })
+
+	// Label the image as boot_t: it was just created and does not carry a
+	// label yet, so boot-time components can access it.
+	e.LabelStateImage(r.spec.Active.File)
 
 	// Create extra dirs in rootfs as afterwards this will be impossible due to RO system
 	createExtraDirsInRootfs(r.cfg, r.spec.ExtraDirsRootfs, r.spec.Active.MountPoint)
@@ -213,6 +231,8 @@ func (r ResetAction) Run() (err error) {
 	if err != nil {
 		return err
 	}
+	// passive.img is created after SelinuxRelabel runs, so label it here
+	e.LabelStateImage(r.spec.Passive.File)
 
 	err = r.resetHook(cnst.AfterResetHook, false)
 	if err != nil {

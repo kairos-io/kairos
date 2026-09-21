@@ -25,13 +25,12 @@ on:
       - '.github/CODEOWNERS'
 
 permissions:
-  # See _build-iso.yaml for the reusable-workflow permission
-  # rationale (callers must cover callee).
-  contents: write
-  packages: write
-  id-token: write
-  security-events: write
-  actions: read
+  # Least-privilege baseline. A job that calls a reusable workflow
+  # needing more (or runs a privileged inline step) declares its own
+  # job-level `permissions:` matching exactly what that callee/step
+  # needs -- see _build-iso.yaml for the reusable-workflow rationale
+  # (callers must cover callee, never the other way round).
+  contents: read
 
 concurrency:
   group: ci-master-${{ github.ref }}-${{ github.repository }}
@@ -84,6 +83,9 @@ jobs:
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kairos-init.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: ghcr.io/kairos-io/kairos
       # Scratch tag: qemu tests consume this, promote-images copies
@@ -105,6 +107,9 @@ jobs:
   build-image-kcrypt-challenger:
     needs: [build-kcrypt-challenger, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
+    permissions:
+      contents: read
+      packages: write
     with:
       image_registry: ghcr.io/kairos-io/kairos
       image_tag: master-scratch
@@ -131,8 +136,18 @@ jobs:
           - {name: 'amd64-core-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-trusted:v0.5.1', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: false}
           # Ubuntu 20.04 smoke cell (see pr.yaml for rationale).
           - {name: 'amd64-core-ubuntu-20.04', arch: 'amd64', base_image: 'ubuntu:20.04', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          # Rocky9
+          - {name: 'amd64-core-rocky-9', arch: 'amd64', base_image: 'rockylinux/rockylinux:9', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          # openSUSE leap
+          - {name: 'amd64-core-leap', arch: 'amd64', base_image: 'opensuse/leap:16.0', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       # Consume the scratch kairos-init that build-image-kairos-init just published.
@@ -181,6 +196,12 @@ jobs:
             registry_repository: 'ci-temp-images'
     name: build-iso-arm / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      security-events: write
+      actions: read
     with:
       name: ${{ matrix.name }}
       kairos_init_image: ghcr.io/kairos-io/kairos/kairos-init:master-scratch
@@ -219,6 +240,14 @@ jobs:
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # The 'bundles' matrix entry above needs packages: write -- it logs in
+    # to ghcr.io and pushes a bundles-test image (reusable-qemu-test.yaml's
+    # "Login to GitHub Container Registry" step, gated on that one test).
+    # A matrix job shares one permissions block across every entry, so the
+    # whole job needs it even though the other ten entries don't use it.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
@@ -227,6 +256,7 @@ jobs:
       model: 'generic'
       secureboot: false
       container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+      bundle_image_tag: master-scratch
       release-matcher: ${{ matrix.release-matcher || '' }}
     secrets: inherit
 
@@ -241,6 +271,13 @@ jobs:
           - {test: 'acceptance'}
     name: test-core-fips / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # reusable-qemu-test.yaml's own permissions block requests packages:
+    # write unconditionally (its bundles-test push step needs it), so
+    # every caller must grant it too, regardless of which test value it
+    # passes -- same reason test-core has it above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1'
@@ -262,9 +299,59 @@ jobs:
           - {test: 'acceptance'}
     name: test-core-ubuntu-20 / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ubuntu:20.04'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  test-core-rocky-9:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'selinux'}
+    name: test-core-rocky-9 / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'rockylinux/rockylinux:9'
+      variant: 'core'
+      arch: 'amd64'
+      model: 'generic'
+      secureboot: false
+      container_image_prefix: 'ghcr.io/kairos-io/kairos/${flavor}'
+    secrets: inherit
+
+  test-core-leap:
+    needs: build-iso
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {test: 'selinux'}
+    name: test-core-leap / ${{ matrix.test }}
+    uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
+    with:
+      test: ${{ matrix.test }}
+      base_image: 'opensuse/leap:16.0'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
@@ -285,6 +372,10 @@ jobs:
           - {test: 'provider-upgrade-latest-k8s-with-kubernetes', release-matcher: 'kairos-hadron-*-standard-amd64-generic-*k3sv*.iso'}
     name: test-standard / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
@@ -316,6 +407,10 @@ jobs:
           - {test: 'encryption-kcrypt-cli'}
     name: test-standard-encryption / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
+    # See test-core-fips above.
+    permissions:
+      contents: read
+      packages: write
     with:
       test: ${{ matrix.test }}
       base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
@@ -337,6 +432,12 @@ jobs:
           - {test: 'boot-assessment', variant: 'core'}
     name: test-uki / ${{ matrix.test }}
     uses: ./.github/workflows/_uki-test.yaml
+    permissions:
+      contents: read
+      # _uki-test.yaml pushes the dynamically-built UKI upgrade image
+      # from the install-upgrade cell, so the callee declares
+      # packages: write and this caller has to cover it.
+      packages: write
     with:
       test: ${{ matrix.test }}
       variant: ${{ matrix.variant }}
@@ -358,9 +459,11 @@ jobs:
     # pushed to :master-scratch before this job can promote it.
     needs: [test-core, test-standard, test-standard-encryption, test-uki, build-iso-arm, build-image-kcrypt-challenger]
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
     steps:
       - name: Login to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

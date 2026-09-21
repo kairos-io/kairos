@@ -38,12 +38,7 @@ func newCloudInitConsole(l sdkLogger.KairosLogger, r sdkRunner.Runner) *cloudIni
 	return &cloudInitConsole{logger: l, runner: r}
 }
 
-// getRunner returns the internal runner used within this Console
-func (c cloudInitConsole) getRunner() sdkRunner.Runner {
-	return c.runner
-}
-
-// Run runs a command using the v1.Runner internal instance
+// Run runs a command using the v1.Runner internal instance.
 func (c cloudInitConsole) Run(command string, opts ...func(cmd *exec.Cmd)) (string, error) {
 	c.logger.Debugf("running command `%s`", command)
 	cmd := c.runner.InitCmd("sh", "-c", command)
@@ -58,7 +53,7 @@ func (c cloudInitConsole) Run(command string, opts ...func(cmd *exec.Cmd)) (stri
 	return string(out), err
 }
 
-// Start runs a non blocking command using the v1.Runner internal instance
+// Start runs a non blocking command using the v1.Runner internal instance.
 func (c cloudInitConsole) Start(cmd *exec.Cmd, opts ...func(cmd *exec.Cmd)) error {
 	c.logger.Debugf("running command `%s`", cmd)
 	for _, o := range opts {
@@ -67,7 +62,7 @@ func (c cloudInitConsole) Start(cmd *exec.Cmd, opts ...func(cmd *exec.Cmd)) erro
 	return cmd.Run()
 }
 
-// RunTemplate runs a sequence of non-blocking templated commands using the v1.Runner internal instance
+// RunTemplate runs a sequence of non-blocking templated commands using the v1.Runner internal instance.
 func (c cloudInitConsole) RunTemplate(st []string, template string) error {
 	var errs error
 

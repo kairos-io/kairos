@@ -265,7 +265,7 @@ func (c *Client) performTPMAttestation(endpoint string, additionalHeaders map[st
 	c.Logger.Debugf("Debug: Creating attestation init")
 
 	// Check if we're in livecd mode - if so, defer PCR enrollment
-	var init *attestation.AttestationInit
+	var init *attestation.Init
 	var err error
 	if isLiveCDMode(c.Logger) {
 		c.Logger.Debugf("Debug: LiveCD mode detected - deferring PCR enrollment")
@@ -285,7 +285,7 @@ func (c *Client) performTPMAttestation(endpoint string, additionalHeaders map[st
 
 	// Protocol Step 2: Receive challenge from server
 	c.Logger.Debugf("Debug: Waiting for challenge from server")
-	var challenge attestation.AttestationChallenge
+	var challenge attestation.Challenge
 	if err := conn.ReadJSON(&challenge); err != nil {
 		return "", fmt.Errorf("reading challenge from server: %w", err)
 	}
@@ -311,7 +311,7 @@ func (c *Client) performTPMAttestation(endpoint string, additionalHeaders map[st
 
 	// Protocol Step 5: Receive passphrase response from server
 	c.Logger.Debugf("Debug: Waiting for passphrase response")
-	var response attestation.AttestationResponse
+	var response attestation.Response
 	if err := conn.ReadJSON(&response); err != nil {
 		return "", fmt.Errorf("reading passphrase response: %w", err)
 	}

@@ -49,7 +49,7 @@ func (ci *YipCloudInitRunner) SetModifier(m schema.Modifier) {
 	ci.exec.Modifier(m)
 }
 
-// Useful for testing purposes
+// Useful for testing purposes.
 func (ci *YipCloudInitRunner) SetFs(fs vfs.FS) {
 	ci.fs = fs
 }

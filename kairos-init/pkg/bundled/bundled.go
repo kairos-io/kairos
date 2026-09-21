@@ -31,67 +31,6 @@ var EmbeddedConfigs embed.FS
 //go:embed alpineInit/*
 var EmbeddedAlpineInit embed.FS
 
-// SucUpgrade /usr/sbin/suc-upgrade is a script that is used to upgrade the system via k8s
-// This has to be in the rootfs, cant be generated dynamically as upgrades use this
-const SucUpgrade = `#!/bin/bash
-set -x -e
-HOST_DIR="${HOST_DIR:-/host}"
-SUC_VERSION="0.0.0"
-
-echo "SUC_VERSION: $SUC_VERSION"
-
-get_version() {
-    local file_path="$1"
-    # shellcheck disable=SC1090
-    source "$file_path"
-
-    echo "${KAIROS_VERSION}-${KAIROS_SOFTWARE_VERSION_PREFIX}${KAIROS_SOFTWARE_VERSION}"
-}
-
-if [ "$FORCE" != "true" ]; then
-    if [ -f "/etc/kairos-release" ]; then
-      UPDATE_VERSION=$(get_version "/etc/kairos-release")
-    else
-      # shellcheck disable=SC1091
-      UPDATE_VERSION=$(get_version "/etc/os-release" )
-    fi
-
-    if [ -f "${HOST_DIR}/etc/kairos-release" ]; then
-      # shellcheck disable=SC1091
-      CURRENT_VERSION=$(get_version "${HOST_DIR}/etc/kairos-release" )
-    else
-      # shellcheck disable=SC1091
-      CURRENT_VERSION=$(get_version "${HOST_DIR}/etc/os-release" )
-    fi
-
-    if [ "$CURRENT_VERSION" == "$UPDATE_VERSION" ]; then
-      echo Up to date
-      echo "Current version: ${CURRENT_VERSION}"
-      echo "Update version: ${UPDATE_VERSION}"
-      exit 0
-    fi
-fi
-
-mount --rbind "$HOST_DIR"/dev /dev
-mount --rbind "$HOST_DIR"/run /run
-
-recovery_mode=false
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --recovery) recovery_mode=true;;
-    esac
-    shift
-done
-if [ "$recovery_mode" = true ]; then
-    kairos-agent upgrade --recovery --source dir:/
-    exit 0 # no need to reboot when upgrading recovery
-else
-    kairos-agent upgrade --source dir:/
-    nsenter -i -m -t 1 -- reboot
-    exit 1
-fi
-`
-
 // ReconcileScript /usr/bin/cos-setup-reconcile is a script that is used to run the kairos-agent in a loop for the reconcile service
 // Mainly for alpine, for systemd distros we user a simple timer unit
 // TODO: Check if we can move this into a supervisord script that runs every 300 seconds???
@@ -173,13 +112,39 @@ if ! [ -L "$GENERATOR_DIR"/initrd-root-fs.target.wants/sysroot.mount ]; then
   ln -s ../sysroot.mount "$GENERATOR_DIR"/initrd-root-fs.target.wants/sysroot.mount
 fi`
 
-// ImmucoreServiceDracut is the dracut service file that is used to run immucore in the initramfs
+// ImmucoreServiceDracut is the dracut service file that is used to run immucore in the initramfs.
+//
+// Conflicts= carries no ordering of its own, so it alone lets systemd start
+// initrd-switch-root.target while immucore is still building the mount DAG
+// and stop it at an arbitrary point. The switch then continues into a
+// userland whose binds and overlays were never established. Before= pins the
+// order: immucore finishes, then the switch runs.
+//
+// systemd-udev-settle.service is pulled in with Wants=, not Requires=, on
+// purpose. immucore does need device enumeration to have happened before it
+// resolves partition labels, which is what the After= gives us, but it must
+// not become unstartable when the settle unit misbehaves or is missing:
+//
+//   - dracut installs the unit optionally (inst_multiple -o in its
+//     systemd-udevd module), and nothing else in the initramfs pulls it in.
+//     With Requires=, an image built where systemd no longer ships the unit
+//     gets an immucore.service that fails to load, so the mount layout is
+//     never built and the machine does not boot. The unit is deprecated
+//     upstream (kairos-io/kairos#1378), so that day is a question of when.
+//   - the unit carries TimeoutSec=180. With Requires=, a host whose udev
+//     never settles turns three minutes of waiting into immucore not running
+//     at all, which is the failure bootfailure.go exists to report.
+//
+// Wants= behaves identically whenever the unit is present and succeeds.
+// Removing the ordering altogether needs immucore to wait for its own
+// labelled devices first; see kairos-io/kairos#1378.
 const ImmucoreServiceDracut = `[Unit]
 Description=immucore
 DefaultDependencies=no
 After=systemd-udev-settle.service
-Requires=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
 Before=initrd-fs.target
+Before=initrd-switch-root.target
 Conflicts=initrd-switch-root.target
 
 [Service]
@@ -461,18 +426,15 @@ const BootArgsCfg = `function setSelinux {
         source (loop0)/etc/kairos-release
     fi
 
-    # Disable selinux for all distros. Supporting selinux requires more than
-    # just enabling it like this.
-    set baseSelinuxCmd="selinux=0"
-
-    #if test $KAIROS_FAMILY == "rhel" -o test $ID == "opensuse-tumbleweed" -o test $ID == "opensuse-leap"; then
-    #    set baseSelinuxCmd="selinux=0"
-    #else
-    #    # if not in recovery
-    #    if [ -z "$recoverylabel" ];then
-    #        set baseSelinuxCmd="security=selinux selinux=1"
-    #    fi
-    #fi
+    if test "${KAIROS_FAMILY}" == "redhat" -o test "${KAIROS_FAMILY}" == "suse"; then
+        if test "${label}" != "COS_SYSTEM" -a "${selinux_enabled}" == "true"; then
+            set baseSelinuxCmd="security=selinux selinux=1 enforcing=0 rd.cos.selinux=${selinux_mode}"
+        else
+            set baseSelinuxCmd="selinux=0"
+        fi
+    else
+        set baseSelinuxCmd="selinux=0"
+    fi
 }
 
 function setExtraConsole {

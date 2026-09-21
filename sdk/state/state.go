@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	goruntime "runtime"
 	"strings"
 
 	"github.com/foxboron/go-uefi/efi"
@@ -91,7 +92,7 @@ type FndMnt struct {
 	} `json:"filesystems,omitempty"`
 }
 
-// Lsblk is the struct to marshal the output of lsblk
+// Lsblk is the struct to marshal the output of lsblk.
 type Lsblk struct {
 	BlockDevices []struct {
 		Path       string `json:"path,omitempty"`
@@ -235,7 +236,7 @@ func getNonUKIBootState(cmdline string) Boot {
 	}
 }
 
-// Detects if we are on uki mode
+// Detects if we are on uki mode.
 func DetectUKIboot(cmdline string) bool {
 	Log.Info().Msg("checking cmdline for uki:" + cmdline)
 	return strings.Contains(cmdline, "rd.immucore.uki")
@@ -305,7 +306,7 @@ func EfiBootFromInstall(logger zerolog.Logger) bool {
 	return true
 }
 
-// DetectBootWithVFS will detect the boot state using a vfs so it can be used for tests as well
+// DetectBootWithVFS will detect the boot state using a vfs so it can be used for tests as well.
 func DetectBootWithVFS(fs fs.KairosFS) (Boot, error) {
 	cmdline, err := fs.ReadFile("/proc/cmdline")
 	if err != nil {
@@ -407,7 +408,27 @@ func detectSystem(r *Runtime) {
 	var si sysinfo.SysInfo
 
 	si.GetSysInfo()
+	si.OS.Architecture = resolveArch(si.OS.Architecture, goruntime.GOARCH)
 	r.System = si
+}
+
+// resolveArch fills in the OS architecture when sysinfo could not name it.
+// sysinfo reads it off the glibc loader path, so it only resolves on x86
+// glibc: it stays empty on every arm64 and riscv64 image, and on every musl
+// image whatever the arch, which includes all of Hadron. The agent is built
+// for the userland it runs in, so its own GOARCH is the answer sysinfo was
+// reaching for. "386" is spelled the way sysinfo spells it, so a machine
+// reports the same string whether or not the probe found an answer; every
+// other GOARCH keeps its Go name, which is also the one KAIROS_ARCH uses.
+func resolveArch(detected, goarch string) string {
+	if detected != "" {
+		return detected
+	}
+	if goarch == "386" {
+		return "i386"
+	}
+
+	return goarch
 }
 
 func detectKairos(r *Runtime) {

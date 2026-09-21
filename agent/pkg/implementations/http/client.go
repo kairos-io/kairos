@@ -36,7 +36,7 @@ func NewClient() *Client {
 	return &Client{client: client}
 }
 
-// GetURL attempts to download the contents of the given URL to the given destination
+// GetURL attempts to download the contents of the given URL to the given destination.
 func (c Client) GetURL(log logger.KairosLogger, url string, destination string) error { // nolint:revive
 	req, err := grab.NewRequest(destination, url)
 	if err != nil {

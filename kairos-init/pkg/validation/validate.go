@@ -34,8 +34,17 @@ func NewValidator(logger logger.KairosLogger) *Validator {
 	return &Validator{Log: logger, System: sis}
 }
 
-// TODO: Validate fips, if enabled, check go binaries for boringcrypto
+// TODO: Validate FIPS. The build-time metadata check lives in the verify-fips
+// make target; what remains here is the runtime check -- asking the installed
+// binary whether the FIPS module is actually active.
+//
+// Key it off KAIROS_FIPS in /etc/kairos-release, not config.DefaultConfig.Fips:
+// --fips is a local flag on the root command (main.go), so it is not inherited
+// by the validate subcommand, and no caller passes it to validate anyway
+// (see kairos-init/Dockerfile.test). Inside Validate() that field is always
+// false. The release file is the only source of truth available here.
 
+// nolint:gocyclo // Validate walks every distro/arch/model/version constraint and reports each independently; the shape is intentionally one branch per rule so failures point at the exact clause that tripped.
 func (v *Validator) Validate() error {
 	var multi *multierror.Error
 
@@ -122,6 +131,7 @@ func (v *Validator) Validate() error {
 		"KAIROS_NAME",
 		"KAIROS_VERSION",
 		"KAIROS_ARCH",
+		"KAIROS_FIPS",
 		"KAIROS_TARGETARCH", // Not critical, same as ARCH above
 		"KAIROS_FLAVOR",
 		"KAIROS_FLAVOR_RELEASE",
@@ -176,7 +186,13 @@ func (v *Validator) Validate() error {
 			if err != nil {
 				multi = multierror.Append(multi, fmt.Errorf("[INITRD] failed checking initrd contents: %s", err))
 			}
-			for _, binary := range []string{"immucore", "kairos-agent"} {
+			// Only immucore runs from the initrd (its immucore.service is
+			// what the 28immucore dracut module wires in). kairos-agent is a
+			// post-switch-root userland tool, driven by the cloud-config
+			// systemd units in 02_agent.yaml and 09_systemd_services.yaml,
+			// and the dracut module does not install a kairos-agent name
+			// into the initrd's PATH, so lsinitrd will never surface one.
+			for _, binary := range []string{"immucore"} {
 				if !strings.Contains(string(out), binary) {
 					multi = multierror.Append(multi, fmt.Errorf("[INITRD] did not find %s in the initrd", binary))
 				} else {

@@ -89,7 +89,7 @@ func CopyFile(fs sdkFs.KairosFS, source string, target string) (err error) {
 // TODO: Log errors, return errors, whatever but dont ignore them
 func ConcatFiles(fs sdkFs.KairosFS, sources []string, target string) (err error) {
 	if len(sources) == 0 {
-		return fmt.Errorf("Empty sources list")
+		return fmt.Errorf("empty sources list")
 	}
 	if dir, _ := fsutils.IsDir(fs, target); dir {
 		target = filepath.Join(target, filepath.Base(sources[0]))
@@ -336,7 +336,8 @@ func IsMounted(config *sdkConfig.Config, part *sdkPartitions.Partition) (bool, e
 func GetTempDir(config *sdkConfig.Config, suffix string) string {
 	// if we got a TMPDIR var, respect and use that
 	if suffix == "" {
-		random.Seed(time.Now().UnixNano())
+		// math/rand's global source has been auto-seeded since Go 1.20,
+		// so a plain Uint32() is enough for a unique-per-call suffix.
 		suffix = strconv.Itoa(int(random.Uint32()))
 	}
 	elementalTmpDir := fmt.Sprintf("elemental-%s", suffix)
@@ -484,7 +485,7 @@ func FindFileWithPrefix(fs sdkFs.KairosFS, path string, prefixes ...string) (str
 			}
 		}
 	}
-	return "", fmt.Errorf("No file found with prefixes: %v", prefixes)
+	return "", fmt.Errorf("no file found with prefixes: %v", prefixes)
 }
 
 // CalcFileChecksum opens the given file and returns the sha256 checksum of it.
@@ -536,10 +537,7 @@ func FindCommand(fs sdkFs.KairosFS, defaultPath string, options []string) string
 // IsUki returns true if the system is running in UKI mode. Checks the cmdline as UKI artifacts have the rd.immucore.uki flag
 func IsUki() bool {
 	cmdline, _ := os.ReadFile("/proc/cmdline")
-	if strings.Contains(string(cmdline), "rd.immucore.uki") {
-		return true
-	}
-	return false
+	return strings.Contains(string(cmdline), "rd.immucore.uki")
 }
 
 // IsUkiWithFs checks if the system is running in UKI mode
@@ -547,10 +545,7 @@ func IsUki() bool {
 // Uses a sdkFs.KairosFS interface to allow for testing
 func IsUkiWithFs(fs sdkFs.KairosFS) bool {
 	cmdline, _ := fs.ReadFile("/proc/cmdline")
-	if strings.Contains(string(cmdline), "rd.immucore.uki") {
-		return true
-	}
-	return false
+	return strings.Contains(string(cmdline), "rd.immucore.uki")
 }
 
 const (
@@ -617,9 +612,9 @@ func SystemdBootConfWriter(fs sdkFs.KairosFS, filePath string, conf map[string]s
 	writer := bufio.NewWriter(file)
 	for k, v := range conf {
 		if v == "" {
-			_, err = writer.WriteString(fmt.Sprintf("%s \n", k))
+			_, err = fmt.Fprintf(writer, "%s \n", k)
 		} else {
-			_, err = writer.WriteString(fmt.Sprintf("%s %s\n", k, v))
+			_, err = fmt.Fprintf(writer, "%s %s\n", k, v)
 		}
 		if err != nil {
 			return err
@@ -636,7 +631,7 @@ func CheckFailedInstallation(stateFile string) (bool, error) {
 		if err != nil {
 			return true, err
 		}
-		return true, fmt.Errorf("Installation failed: %s", string(content))
+		return true, fmt.Errorf("installation failed: %s", string(content))
 	}
 	return false, nil
 }

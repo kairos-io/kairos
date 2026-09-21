@@ -97,7 +97,7 @@ func NewArtifactFromOSRelease(file ...string) (*Artifact, error) {
 
 func (a *Artifact) Validate() error {
 	if a.Variant == "" {
-		return errors.New("Variant is empty")
+		return errors.New("variant is empty")
 	}
 
 	return a.ValidateBase()
@@ -108,10 +108,10 @@ func (a *Artifact) ValidateBase() error {
 		return errors.New("FlavorRelease is empty")
 	}
 	if a.Model == "" {
-		return errors.New("Model is empty")
+		return errors.New("model is empty")
 	}
 	if a.Arch == "" {
-		return errors.New("Arch is empty")
+		return errors.New("arch is empty")
 	}
 
 	if a.SoftwareVersion != "" && a.SoftwareVersionPrefix == "" {
@@ -127,7 +127,7 @@ func (a *Artifact) BootableName() (string, error) {
 	}
 
 	if a.Flavor == "" {
-		return "", errors.New("Flavor is empty")
+		return "", errors.New("flavor is empty")
 	}
 
 	return fmt.Sprintf("kairos-%s-%s", a.Flavor, commonName), nil
@@ -139,7 +139,7 @@ func (a *Artifact) Repository(registryAndOrg string) string {
 
 func (a *Artifact) ContainerName(registryAndOrg string) (string, error) {
 	if a.Flavor == "" {
-		return "", errors.New("Flavor is empty")
+		return "", errors.New("flavor is empty")
 	}
 
 	tag, err := a.Tag()
@@ -152,7 +152,7 @@ func (a *Artifact) ContainerName(registryAndOrg string) (string, error) {
 
 func (a *Artifact) BaseContainerName(registryAndOrg, id string) (string, error) {
 	if a.Flavor == "" {
-		return "", errors.New("Flavor is empty")
+		return "", errors.New("flavor is empty")
 	}
 
 	if id == "" {
@@ -295,7 +295,7 @@ func (a *Artifact) commonName() (string, error) {
 
 func (a *Artifact) commonVersionedName() (string, error) {
 	if a.Version == "" {
-		return "", errors.New("Version is empty")
+		return "", errors.New("version is empty")
 	}
 
 	result, err := a.commonName()

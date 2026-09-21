@@ -12,11 +12,12 @@ import (
 
 // RootSchema groups all the different schema of the Kairos configuration together.
 type RootSchema struct {
-	_                         struct{}       `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
-	Bundles                   []BundleSchema `json:"bundles,omitempty" description:"Add bundles in runtime"`
-	ConfigURL                 string         `json:"config_url,omitempty" description:"URL download configuration from."`
-	Env                       []string       `json:"env,omitempty"`
-	FailOnBundleErrors        bool           `json:"fail_on_bundles_errors,omitempty"`
+	_                         struct{}         `title:"Kairos Schema" description:"Defines all valid Kairos configuration attributes."`
+	Bundles                   []BundleSchema   `json:"bundles,omitempty" description:"Add bundles in runtime"`
+	ConfigURL                 string           `json:"config_url,omitempty" description:"URL download configuration from."`
+	Env                       []string         `json:"env,omitempty"`
+	Extensions                ExtensionsSchema `json:"extensions,omitempty"`
+	FailOnBundleErrors        bool             `json:"fail_on_bundles_errors,omitempty"`
 	GrubOptionsSchema         `json:"grub_options,omitempty"`
 	Install                   InstallSchema            `json:"install,omitempty"`
 	Options                   []interface{}            `json:"options,omitempty" description:"Various options."`
@@ -26,12 +27,10 @@ type RootSchema struct {
 	Strict                    bool                     `json:"strict,omitempty" mapstructure:"strict"`
 	CloudInitPaths            []string                 `json:"cloud-init-paths,omitempty" mapstructure:"cloud-init-paths"`
 	EjectCD                   bool                     `json:"eject-cd,omitempty" mapstructure:"eject-cd"`
-	FullCloudConfig           string                   `json:"fullcloudconfig,omitempty" mapstructure:"fullcloudconfig"`
 	Cosign                    bool                     `json:"cosign,omitempty" mapstructure:"cosign"`
 	Verify                    bool                     `json:"verify,omitempty" mapstructure:"verify"`
 	CosignPubKey              string                   `json:"cosign-key,omitempty" mapstructure:"cosign-key"`
 	Arch                      string                   `json:"arch,omitempty" mapstructure:"arch"`
-	Platform                  PlatformSchema           `json:"platform,omitempty" mapstructure:"platform"`
 	SquashFsCompressionConfig []string                 `json:"squash-compression,omitempty" mapstructure:"squash-compression"`
 	SquashFsNoCompression     bool                     `json:"squash-no-compression,omitempty" mapstructure:"squash-no-compression"`
 	UkiMaxEntries             int                      `json:"uki-max-entries,omitempty" mapstructure:"uki-max-entries"`
@@ -42,12 +41,6 @@ type RootSchema struct {
 // Other yip stage fields remain accepted as additional properties.
 type StageSchema struct {
 	Commands []string `json:"commands,omitempty" description:"Commands to execute"`
-}
-
-type PlatformSchema struct {
-	OS         string
-	Arch       string
-	GolangArch string
 }
 
 // KConfig is used to parse and validate Kairos configuration files.

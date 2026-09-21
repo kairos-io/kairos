@@ -42,9 +42,8 @@ var _ = Describe("cloudInitConsole", Label("cloudinit", "console"), func() {
 		console = newCloudInitConsole(logger, runner)
 	})
 
-	It("returns a non-nil instance and exposes the runner via getRunner", func() {
+	It("returns a non-nil instance", func() {
 		Expect(console).ToNot(BeNil())
-		Expect(console.getRunner()).To(Equal(runner))
 	})
 
 	Describe("Run", func() {

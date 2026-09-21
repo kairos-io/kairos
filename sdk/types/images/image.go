@@ -29,8 +29,8 @@ type Image struct {
 	LoopDevice string       `yaml:"-" json:"-"` // LoopDevice is not serialized
 }
 type ImageSource struct {
-	source  string `yaml:"source" json:"source"` //nolint:govet
-	srcType string `yaml:"type" json:"type"`     //nolint:govet
+	source  string `yaml:"source" json:"-"`
+	srcType string `yaml:"type" json:"-"`
 }
 
 // Implement the Imagesource methods here so everything can consume it.

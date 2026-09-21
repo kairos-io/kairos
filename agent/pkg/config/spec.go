@@ -56,9 +56,9 @@ const (
 	TiB
 )
 
-// resolveTarget will try to resovle a /dev/disk/by-X disk into the final real disk under /dev/X
+// resolveTarget will try to resolve a /dev/disk/by-X disk into the final real disk under /dev/X
 // We use it to calculate the device on the fly for the Config and the InstallSpec but we leave
-// the original value in teh config.Collector so its written down in the final cloud config in the
+// the original value in the config.Collector so its written down in the final cloud config in the
 // installed system, so users can know what parameters it was installed with in case they need to refer
 // to it down the line to know what was the original parametes
 // If the target is a normal /dev/X we dont do anything and return the original value so normal installs
@@ -374,6 +374,12 @@ func NewUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeSpec, error) {
 	if ep.OEM != nil && ep.OEM.MountPoint == "" {
 		// Add the default mountpoint for it in case the chroot stages want to bind mount it
 		ep.OEM.MountPoint = constants.OEMPath
+	}
+	// On a GRUB system the ESP is not mounted while the system runs, so ghw
+	// reports it with no mountpoint. Give it the same transient mountpoint
+	// reset uses, so the ESP refresh has somewhere to mount it.
+	if ep.EFI != nil && ep.EFI.MountPoint == "" {
+		ep.EFI.MountPoint = sdkConstants.EfiDirTransient
 	}
 	// This is needed if we want to use the persistent as tmpdir for the upgrade images
 	// as tmpfs is 25% of the total RAM, we cannot rely on the tmp dir having enough space for our image
@@ -1003,7 +1009,7 @@ func UnmarshalerHook() mapstructure.DecodeHookFunc {
 			return from.Interface(), nil
 		}
 		// If it is nil and a pointer, create and assign the target value first
-		if to.IsNil() && to.Type().Kind() == reflect.Ptr {
+		if to.IsNil() && to.Type().Kind() == reflect.Pointer {
 			to.Set(reflect.New(to.Type().Elem()))
 			u = to.Interface().(Unmarshaler)
 		}
@@ -1081,11 +1087,15 @@ func unmarshallFullSpec(r *sdkConfig.Config, subkey string, sp sdkSpec.Spec) err
 		return fmt.Errorf("failed initializing spec: %w", err)
 	}
 	viper.SetConfigType("yaml")
-	viper.ReadConfig(strings.NewReader(ccString))
+	if err := viper.ReadConfig(strings.NewReader(ccString)); err != nil {
+		return fmt.Errorf("parsing cloud-config yaml for %s spec: %w", subkey, err)
+	}
 	vp := viper.Sub(subkey)
 	if vp == nil {
 		vp = viper.New()
 	}
+
+	warnDeprecatedKeys(r.Logger, subkey, vp)
 
 	err = vp.Unmarshal(sp, setDecoder, decodeHook)
 	if err != nil {
@@ -1208,4 +1218,22 @@ func DetectPreConfiguredDevice(logger sdkLogger.KairosLogger) (string, error) {
 	}
 
 	return "", nil
+}
+
+// deprecatedKeys lists, per cloud-config block, the keys that no spec has ever
+// read, mapped to the key that actually drives the behaviour. They are not
+// aliased on purpose: a user who wrote the old key got nothing, and quietly
+// turning it on now would change what an existing config does.
+var deprecatedKeys = map[string]map[string]string{
+	"install": {"no_format": "no-format"},
+}
+
+// warnDeprecatedKeys tells the user when a block carries a key that is parsed
+// by nothing, instead of letting it be dropped in silence.
+func warnDeprecatedKeys(logger sdkLogger.KairosLogger, subkey string, vp *viper.Viper) {
+	for old, replacement := range deprecatedKeys[subkey] {
+		if vp.IsSet(old) {
+			logger.Warnf("%[1]s.%[2]s is not read by Kairos and is ignored, use %[1]s.%[3]s instead", subkey, old, replacement)
+		}
+	}
 }

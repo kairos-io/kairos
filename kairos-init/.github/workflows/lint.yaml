@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   call-workflow:
-    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@d38a45447609f936c9d519bd14ed771b7214ad42 # v0.0.10
+    uses: kairos-io/linting-composite-action/.github/workflows/reusable-linting.yaml@424114d0be41e4aa2a1ec2e6989aa66288dfc344 # v0.0.11
     with:
       yamldirs: ".github/workflows/ pkg/bundled/cloudconfigs/"
       is-go: false

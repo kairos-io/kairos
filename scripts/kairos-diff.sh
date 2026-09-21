@@ -3,33 +3,42 @@
 set -euo pipefail
 
 KAIROS_SLUG="kairos-io/kairos"
-# Archived, frozen at the monorepo migration (2026-08-19/21). Not queried
-# for changes any more (see MONOREPO_PATHS) -- kept only as a read-only
-# fallback for load_makefile_versions/load_gomod_versions when OLD_REF
-# predates the migration and neither kairos-init/Makefile nor go.mod exist
-# yet at that ref in kairos-io/kairos itself.
 KAIROS_INIT_SLUG="kairos-io/kairos-init"
 
-# Components whose source now lives inside kairos-io/kairos itself (the
-# 2026-08-19/21 monorepo migration). They have no version of their own
-# anymore -- diffed by path against the same OLD_REF/NEW_REF as "Kairos
-# changes" itself, not against a separate repo or version pin. A value may
-# hold more than one space-separated prefix, when the component's source
-# is not one contiguous directory.
-declare -A MONOREPO_PATHS=(
-  [kairos-init]="kairos-init/"
-  [kairos-agent]="agent/"
-  [immucore]="immucore/"
-  [kairos-sdk]="sdk/"
-  [kcrypt-discovery-challenger]="kcrypt/discovery/ kcrypt/cmd/discovery/ kcrypt/pkg/attestation/"
-  [provider-kairos]="provider/"
+# Components merged into the monorepo on 2026-08-19..21 (provider on 2026-08-31)
+# and their subpath(s) in this repo. Ordering here is the order they were
+# archived externally and is followed by the render loop below. A value may
+# hold more than one space-separated path when the component's source is not
+# one contiguous directory.
+#
+# kcrypt-discovery-challenger is "kcrypt/discovery kcrypt/cmd/discovery
+# kcrypt/pkg/attestation", not the whole "kcrypt" tree: kcrypt/challenger is a
+# separate, still-external component (kcrypt-challenger, see README.md), and
+# kcrypt/api, kcrypt/config and kcrypt/controllers belong to it too. The plain
+# "kcrypt" subpath used before this would have folded kcrypt-challenger's own
+# changes into this component's section.
+declare -A INTREE_SUBPATH=(
+  [kairos-init]="kairos-init"
+  [kairos-agent]="agent"
+  [immucore]="immucore"
+  [kairos-sdk]="sdk"
+  [kcrypt-discovery-challenger]="kcrypt/discovery kcrypt/cmd/discovery kcrypt/pkg/attestation"
+  [provider-kairos]="provider"
 )
 
-# External components still resolved as their own repository + version
-# pin. provider-kairos is NOT here -- it was absorbed into the monorepo
-# the same way as the other MONOREPO_PATHS components (see README.md's
-# absorbed-subdirectory list) and its own section comes from there.
+declare -A COMPONENT_SLUG_HINT=()
+
+# Every external component this script tracks by name that is NOT an
+# in-tree path. Declared here (not down in the main body) because
+# load_gomod_versions_from_content needs it, and populate_dep_versions runs
+# well before the main body would otherwise declare it.
 declare -a fixed_components=(
+  kairos-init
+  kairos-agent
+  immucore
+  kairos-sdk
+  kcrypt-discovery-challenger
+  provider-kairos
   edgevpn
   entities
   go-pluggable
@@ -37,7 +46,21 @@ declare -a fixed_components=(
   xpasswd
 )
 
-declare -A COMPONENT_SLUG_HINT=()
+# True when component is one this script already tracks by name -- either an
+# in-tree path or a fixed external component. Used to keep a brand-new,
+# purely transitive go.mod dependency out of the release notes as noise,
+# without hiding a component already reported on.
+is_known_component() {
+  local component="$1"
+  [[ -n "${INTREE_SUBPATH[$component]:-}" ]] && return 0
+  local fc
+  for fc in "${fixed_components[@]}"; do
+    [[ "$fc" == "$component" ]] && return 0
+  done
+  return 1
+}
+
+KAIROS_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
   cat <<'EOF'
@@ -72,21 +95,6 @@ is_filtered_author() {
   [[ "$author" == "renovate[bot]" || "$author" == "dependabot[bot]" ]]
 }
 
-# True when component is one this script already tracks by name -- either
-# a monorepo path or a fixed external component. Used to keep a brand-new,
-# purely transitive go.mod dependency (e.g. an "// indirect" line pulled in
-# by widening load_gomod_versions to the whole root module) out of the
-# release notes as noise, without hiding a component we already report on.
-is_known_component() {
-  local component="$1"
-  [[ -n "${MONOREPO_PATHS[$component]:-}" ]] && return 0
-  local fc
-  for fc in "${fixed_components[@]}"; do
-    [[ "$fc" == "$component" ]] && return 0
-  done
-  return 1
-}
-
 component_to_slug() {
   local component="$1"
   case "$component" in
@@ -95,8 +103,8 @@ component_to_slug() {
     kairos-agent) printf 'kairos-io/kairos-agent\n' ;;
     immucore) printf 'kairos-io/immucore\n' ;;
     kcrypt-discovery-challenger) printf 'kairos-io/kcrypt-discovery-challenger\n' ;;
-    kairos-sdk) printf 'kairos-io/kairos-sdk\n' ;;
     provider-kairos) printf 'kairos-io/provider-kairos\n' ;;
+    kairos-sdk) printf 'kairos-io/kairos-sdk\n' ;;
     edgevpn) printf 'mudler/edgevpn\n' ;;
     entities) printf 'mudler/entities\n' ;;
     go-pluggable) printf 'mudler/go-pluggable\n' ;;
@@ -145,6 +153,40 @@ get_file_content() {
   get_file_content_gh "$slug" "$ref" "$path"
 }
 
+# git-based helpers, used when reading in-tree state from the local kairos
+# checkout. Fall back to the GitHub API if git is unusable (no repo, ref
+# unfetched, etc.).
+
+git_repo_ok() {
+  command -v git >/dev/null 2>&1 && \
+    git -C "$KAIROS_REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
+# subpaths may be more than one space-separated path (see INTREE_SUBPATH);
+# true when at least one of them exists at ref.
+intree_present_at() {
+  local ref="$1"
+  local subpaths="$2"
+  local subpath
+  for subpath in $subpaths; do
+    if git_repo_ok && git -C "$KAIROS_REPO_ROOT" cat-file -e "${ref}:${subpath}" 2>/dev/null; then
+      return 0
+    fi
+    # Fall back to gh api. contents/ returns 200 on a directory too.
+    gh api "repos/${KAIROS_SLUG}/contents/${subpath}?ref=${ref}" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+get_intree_content() {
+  local ref="$1"
+  local path="$2"
+  if git_repo_ok; then
+    git -C "$KAIROS_REPO_ROOT" cat-file -p "${ref}:${path}" 2>/dev/null && return 0
+  fi
+  get_file_content_gh "$KAIROS_SLUG" "$ref" "$path"
+}
+
 normalize_ref_gh() {
   local slug="$1"
   local ref="$2"
@@ -162,66 +204,25 @@ normalize_ref_gh() {
   return 1
 }
 
-# Pre-migration fallback only: kairos-init/Makefile and go.mod did not
-# exist in kairos-io/kairos before the 2026-08-19/21 merge, so a ref from
-# before it has to read them from the archived kairos-io/kairos-init repo
-# instead, the same way this script always did pre-migration. Resolves via
-# the Dockerfile's KAIROS_INIT= pin, which is the one thing that was
-# already accurate for pre-migration refs and still is.
-resolve_pre_migration_init_ref() {
+extract_kairos_init_version() {
   local kairos_ref="$1"
-  local dockerfile init_version
+  local dockerfile
   dockerfile="$(get_file_content "$KAIROS_SLUG" "$kairos_ref" "images/Dockerfile")" || return 1
 
   local line
   while IFS= read -r line; do
     if [[ "$line" =~ ^ARG[[:space:]]+KAIROS_INIT=([^[:space:]]+) ]]; then
-      init_version="${BASH_REMATCH[1]}"
-      break
+      printf '%s\n' "${BASH_REMATCH[1]}"
+      return 0
     fi
   done <<<"$dockerfile"
-  [[ -n "${init_version:-}" ]] || return 1
 
-  ensure_ref_exists_gh "$KAIROS_INIT_SLUG" "$init_version" || return 1
-  printf '%s\n' "$init_version"
+  return 1
 }
 
-# Reads kairos-agent/immucore/kcrypt-discovery-challenger/provider-kairos/
-# edgevpn pins from kairos-init/Makefile. The first four stay pinned there
-# even post-migration (kairos-init still downloads their prebuilt release
-# binaries by that pin -- see images/Dockerfile and kairos-init/Makefile's
-# URL_TEMPLATE calls), so they are read unconditionally: post-migration the
-# pin is frozen at the version the archived repo shipped its last release
-# at, which is exactly the "final archived tag" a pre-migration OLD_REF
-# needs to compare against (see the OLD_PRE_MIGRATION handling below).
-#
-# EDGEVPN_VERSION is the one exception, kept pre-migration-only: pre-
-# migration, edgevpn's pin lived ONLY in this Makefile, never in
-# kairos-init's go.mod, so the fallback branch still needs it. Post-
-# migration, edgevpn genuinely is a go.mod dependency of the root module,
-# and this Makefile variable has already been observed drifted from it
-# (v0.35.4 here vs. v0.35.3 actually resolved in go.mod) -- so
-# load_gomod_versions's root-go.mod read is kept authoritative post-
-# migration instead.
-#
-# pre_migration_var, if given, is set to 1 when kairos_ref predates the
-# migration (kairos-init/Makefile does not exist yet in kairos-io/kairos at
-# that ref) and to 0 otherwise, so the caller can tell which side of the
-# migration a ref falls on without re-deriving it.
-load_makefile_versions() {
-  local kairos_ref="$1"
+load_makefile_versions_from_content() {
+  local content="$1"
   local map_name="$2"
-  local pre_migration_var="${3:-}"
-  local content
-  local pre_migration=0
-  content="$(get_file_content "$KAIROS_SLUG" "$kairos_ref" "kairos-init/Makefile")" || {
-    local init_ref
-    init_ref="$(resolve_pre_migration_init_ref "$kairos_ref")" || return 1
-    content="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ref" "Makefile")" || return 1
-    pre_migration=1
-  }
-  [[ -n "$pre_migration_var" ]] && printf -v "$pre_migration_var" '%s' "$pre_migration"
-
   local line value
   while IFS= read -r line; do
     case "$line" in
@@ -229,32 +230,14 @@ load_makefile_versions() {
       "IMMUCORE_VERSION :="*) value="${line#IMMUCORE_VERSION := }"; set_assoc_entry "$map_name" "immucore" "$value" ;;
       "KCRYPT_DISCOVERY_CHALLENGER_VERSION :="*) value="${line#KCRYPT_DISCOVERY_CHALLENGER_VERSION := }"; set_assoc_entry "$map_name" "kcrypt-discovery-challenger" "$value" ;;
       "PROVIDER_KAIROS_VERSION :="*) value="${line#PROVIDER_KAIROS_VERSION := }"; set_assoc_entry "$map_name" "provider-kairos" "$value" ;;
-      "EDGEVPN_VERSION :="*)
-        if [[ "$pre_migration" -eq 1 ]]; then
-          value="${line#EDGEVPN_VERSION := }"; set_assoc_entry "$map_name" "edgevpn" "$value"
-        fi
-        ;;
+      "EDGEVPN_VERSION :="*) value="${line#EDGEVPN_VERSION := }"; set_assoc_entry "$map_name" "edgevpn" "$value" ;;
     esac
   done <<<"$content"
 }
 
-load_gomod_versions() {
-  # Reads the monorepo's own root go.mod post-migration (there is no more
-  # separate kairos-init go.mod -- it was folded into this one module).
-  # This is also now the live source for edgevpn's pin, which used to be
-  # read from kairos-init's Makefile and had already drifted from go.mod's
-  # actual resolved version by the time this was fixed. Falls back to the
-  # archived kairos-init repo's go.mod for a pre-migration ref, same as
-  # load_makefile_versions above.
-  local kairos_ref="$1"
+load_gomod_versions_from_content() {
+  local content="$1"
   local map_name="$2"
-  local content
-  content="$(get_file_content "$KAIROS_SLUG" "$kairos_ref" "go.mod")" || {
-    local init_ref
-    init_ref="$(resolve_pre_migration_init_ref "$kairos_ref")" || return 1
-    content="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ref" "go.mod")" || return 1
-  }
-
   local line module owner version rest component
   while IFS= read -r line; do
     if [[ "$line" =~ ^[[:space:]]*(github\.com/(kairos-io|mudler|mauromorales)/[^[:space:]]+)[[:space:]]+([^[:space:]]+) ]]; then
@@ -263,12 +246,12 @@ load_gomod_versions() {
       version="${BASH_REMATCH[3]}"
       rest="${module#github.com/*/}"
       component="${rest%%/*}"
-      # The root go.mod lists every dependency, not just the ones this
-      # script already tracks. A "// indirect" line is a transitive
-      # dependency of a dependency (e.g. edgevpn pulling in mudler/water);
-      # only report one for a component we don't already know about when
-      # it is not marked indirect, so a new transitive dependency several
-      # levels removed does not show up as a new release-notes section.
+      # go.mod lists every dependency, not just the ones this script already
+      # tracks. A "// indirect" line is a transitive dependency of a
+      # dependency (e.g. edgevpn pulling in mudler/water); only report one
+      # for a component we don't already know about when it is not marked
+      # indirect, so a new transitive dependency several levels removed does
+      # not show up as its own release-notes section.
       if [[ "$line" == *"// indirect"* ]] && ! is_known_component "$component"; then
         continue
       fi
@@ -282,13 +265,56 @@ load_gomod_versions() {
   done <<<"$content"
 }
 
-collect_changes_gh() {
-  local slug="$1"
-  local from_ref="$2"
-  local to_ref="$3"
+# For a given kairos_ref, populate <map_name> with the versions of every
+# component this repo currently pins (via kairos-init's Makefile plus the
+# go.mod for github.com/{kairos-io,mudler,mauromorales}/*). When kairos-init
+# is in-tree at kairos_ref, both files are read from the monorepo at that
+# ref (kairos-init/Makefile and the top-level go.mod). When it is not,
+# they are read from the archived kairos-io/kairos-init at the version
+# pinned in images/Dockerfile's ARG KAIROS_INIT.
+populate_dep_versions() {
+  local kairos_ref="$1"
+  local map_name="$2"
 
-  local commit_lines
-  commit_lines="$(gh api "repos/${slug}/compare/${from_ref}...${to_ref}" --paginate --jq '.commits[]? | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
+  local makefile gomod intree=0
+  if intree_present_at "$kairos_ref" "kairos-init"; then
+    intree=1
+    makefile="$(get_intree_content "$kairos_ref" "kairos-init/Makefile")" || return 1
+    gomod="$(get_intree_content "$kairos_ref" "go.mod")" || return 1
+  else
+    local init_ver
+    init_ver="$(extract_kairos_init_version "$kairos_ref")" || return 1
+    [[ -n "$init_ver" ]] || return 1
+    ensure_ref_exists_gh "$KAIROS_INIT_SLUG" "$init_ver" || return 1
+    makefile="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ver" "Makefile")" || return 1
+    gomod="$(get_file_content "$KAIROS_INIT_SLUG" "$init_ver" "go.mod")" || return 1
+  fi
+
+  load_makefile_versions_from_content "$makefile" "$map_name"
+  load_gomod_versions_from_content "$gomod" "$map_name"
+
+  # Post-migration Makefile writes EDGEVPN_VERSION := $(shell cat EDGEVPN_VERSION),
+  # which is only meaningful at make-time. The truth is in the sidecar file.
+  if [[ "$intree" == "1" ]]; then
+    local current
+    current="$(get_assoc_entry "$map_name" "edgevpn")"
+    # shellcheck disable=SC2016 # literal '$(shell' match, not command substitution
+    if [[ -z "$current" || "$current" == *'$(shell'* ]]; then
+      local edgevpn_file
+      edgevpn_file="$(get_intree_content "$kairos_ref" "kairos-init/EDGEVPN_VERSION" 2>/dev/null | head -n 1 | tr -d '[:space:]')"
+      [[ -n "$edgevpn_file" ]] && set_assoc_entry "$map_name" "edgevpn" "$edgevpn_file"
+    fi
+  fi
+}
+
+# Render pipe-separated commit lines as bullet items. Each line is
+#   <sha>|<subject>|<author_name>|<author_login>|<author_email>
+# author_login may be empty (e.g. when the caller has no cheap way to get it,
+# such as git log against local history); the PR lookup fills it in when the
+# commit has a merged PR on the same slug.
+_format_commit_lines() {
+  local slug="$1"
+  local commit_lines="$2"
   [[ -z "$commit_lines" ]] && return 0
 
   declare -A seen_pr=()
@@ -331,104 +357,96 @@ collect_changes_gh() {
   done <<<"$commit_lines"
 }
 
+collect_changes_gh() {
+  local slug="$1"
+  local from_ref="$2"
+  local to_ref="$3"
+
+  local commit_lines
+  commit_lines="$(gh api "repos/${slug}/compare/${from_ref}...${to_ref}" --paginate --jq '.commits[]? | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
+  _format_commit_lines "$slug" "$commit_lines"
+}
+
+# Commits touching <subpaths> (one or more space-separated paths, see
+# INTREE_SUBPATH) in the from..to range on this repo. Uses git log on the
+# local checkout when available (fast, no rate limit) and falls back to
+# paging repos/kairos-io/kairos/commits?path=... otherwise.
+collect_intree_changes() {
+  local subpaths="$1"
+  local from_ref="$2"
+  local to_ref="$3"
+
+  local commit_lines=""
+  if git_repo_ok && \
+     git -C "$KAIROS_REPO_ROOT" rev-parse --verify --quiet "$from_ref" >/dev/null && \
+     git -C "$KAIROS_REPO_ROOT" rev-parse --verify --quiet "$to_ref" >/dev/null; then
+    # git log accepts multiple pathspecs directly and unions them, so the
+    # unquoted expansion below (one word per path) is deliberate.
+    # shellcheck disable=SC2086
+    commit_lines="$(git -C "$KAIROS_REPO_ROOT" log --no-merges \
+      --format='%H|%s|%an||%ae' "${from_ref}..${to_ref}" -- $subpaths 2>/dev/null || true)"
+  else
+    # Paged fallback: the GitHub API's commits?path= takes one path per call,
+    # so a multi-path component needs one paginated walk per path, deduped by
+    # sha (a commit can touch more than one of them). Bounded to commits newer
+    # than from_ref's committer timestamp; from_ref itself may not touch the
+    # path, so a SHA sentinel is not reliable.
+    local from_date
+    from_date="$(gh api "repos/${KAIROS_SLUG}/commits/${from_ref}" --jq '.commit.committer.date' 2>/dev/null || true)"
+    local since_arg=""
+    [[ -n "$from_date" ]] && since_arg="&since=${from_date}"
+    declare -A seen_sha=()
+    local subpath page raw sha rest
+    for subpath in $subpaths; do
+      page=1
+      while [[ "$page" -le 20 ]]; do
+        raw="$(gh api "repos/${KAIROS_SLUG}/commits?sha=${to_ref}&path=${subpath}${since_arg}&per_page=100&page=${page}" --jq '.[] | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>/dev/null || true)"
+        [[ -z "$raw" ]] && break
+        while IFS= read -r line; do
+          [[ -z "$line" ]] && continue
+          sha="${line%%|*}"
+          rest="${line#*|}"
+          [[ -n "${seen_sha[$sha]:-}" ]] && continue
+          seen_sha["$sha"]=1
+          commit_lines+="${sha}|${rest}"$'\n'
+        done <<<"$raw"
+        page=$((page + 1))
+      done
+    done
+  fi
+
+  _format_commit_lines "$KAIROS_SLUG" "$commit_lines"
+}
+
+# Regime of a component across an OLD_REF -> NEW_REF compare:
+#   intree      subpath present at both refs
+#   bridging    subpath present at NEW_REF only (imported between old and new)
+#   external    subpath present at neither
+#   removed     subpath present at OLD_REF only (unlikely; treated as external)
+component_regime() {
+  local subpath="$1"
+  local old_ref="$2"
+  local new_ref="$3"
+  local at_old="no" at_new="no"
+  intree_present_at "$old_ref" "$subpath" && at_old="yes"
+  intree_present_at "$new_ref" "$subpath" && at_new="yes"
+  if [[ "$at_old" == "yes" && "$at_new" == "yes" ]]; then
+    printf 'intree\n'
+  elif [[ "$at_old" == "no" && "$at_new" == "yes" ]]; then
+    printf 'bridging\n'
+  elif [[ "$at_old" == "yes" && "$at_new" == "no" ]]; then
+    printf 'removed\n'
+  else
+    printf 'external\n'
+  fi
+}
+
 section_title_for_component() {
   local component="$1"
   case "$component" in
     immucore) printf 'Immucore' ;;
     *) printf '%s' "$component" ;;
   esac
-}
-
-# Walks OLD_REF..NEW_REF against kairos-io/kairos exactly once and buckets
-# each change against every MONOREPO_PATHS component it touches, instead of
-# one full walk per component. Each commit/PR's file list is fetched once
-# and matched against every component's prefixes, rather than once per
-# component per commit -- a 5-6x reduction in GitHub API calls on a range
-# with many commits, which is also the difference between staying inside
-# the workflow's GH_TOKEN rate limit and exhausting it.
-#
-# result_map (a nameref) accumulates markdown lines per component, so the
-# caller renders each component's section from result_map[component].
-#
-# Unlike the per-component version this replaces, a failed GitHub API call
-# is fatal (die), not swallowed into "no changes": a rate-limited or
-# otherwise failed call must not silently degrade to an empty, passing
-# section, since that would also under-report the CVE section the
-# release-notes-diff workflow's `Security fixes` step derives from this
-# script's output.
-collect_path_diff_sections() {
-  local from_ref="$1"
-  local to_ref="$2"
-  local -n result_map="$3"
-
-  local compare_out
-  if ! compare_out="$(gh api "repos/${KAIROS_SLUG}/compare/${from_ref}...${to_ref}" --paginate --jq '.commits[]? | "\(.sha)|\(.commit.message|split("\n")[0])|\(.commit.author.name // "")|\(.author.login // "")|\(.commit.author.email // "")"' 2>&1)"; then
-    die "Unable to list commits in ${KAIROS_SLUG} between ${from_ref} and ${to_ref}: ${compare_out}"
-  fi
-  [[ -z "$compare_out" ]] && return 0
-
-  declare -A seen_pr=()
-  local line sha subject author_name author_login author_email
-  local pr_line pr_number pr_title pr_author commit_author short_sha pr_ref
-  local files component regex matched
-
-  while IFS= read -r line; do
-    [[ -z "$line" ]] && continue
-    IFS='|' read -r sha subject author_name author_login author_email <<<"$line"
-
-    if ! pr_line="$(gh api -H 'Accept: application/vnd.github+json' "repos/${KAIROS_SLUG}/commits/${sha}/pulls" --jq '.[0] | select(.) | "\(.number)|\(.title)|\(.user.login)"' 2>&1)"; then
-      die "Unable to resolve the pull request for commit ${sha}: ${pr_line}"
-    fi
-
-    if [[ -n "$pr_line" ]]; then
-      IFS='|' read -r pr_number pr_title pr_author <<<"$pr_line"
-      is_filtered_author "$pr_author" && continue
-      [[ -z "$pr_number" || -n "${seen_pr[$pr_number]:-}" ]] && continue
-      seen_pr["$pr_number"]=1
-
-      if ! files="$(gh api "repos/${KAIROS_SLUG}/pulls/${pr_number}/files" --paginate --jq '.[].filename' 2>&1)"; then
-        die "Unable to list files for pull request #${pr_number}: ${files}"
-      fi
-
-      pr_ref="[#${pr_number}](https://github.com/${KAIROS_SLUG}/pull/${pr_number})"
-      for component in "${!MONOREPO_PATHS[@]}"; do
-        regex="^(${MONOREPO_PATHS[$component]// /|})"
-        if grep -qE "$regex" <<<"$files"; then
-          result_map["$component"]+="- ${pr_title} by @${pr_author} in ${pr_ref}"$'\n'
-        fi
-      done
-      continue
-    fi
-
-    if ! files="$(gh api "repos/${KAIROS_SLUG}/commits/${sha}" --jq '.files[]?.filename' 2>&1)"; then
-      die "Unable to list files for commit ${sha}: ${files}"
-    fi
-
-    matched=0
-    for component in "${!MONOREPO_PATHS[@]}"; do
-      regex="^(${MONOREPO_PATHS[$component]// /|})"
-      grep -qE "$regex" <<<"$files" && matched=1 && break
-    done
-    [[ "$matched" -eq 0 ]] && continue
-
-    commit_author="$author_login"
-    if [[ -z "$commit_author" || "$commit_author" == "null" ]]; then
-      if [[ "$author_email" =~ ^([0-9]+\+)?([^@]+)@users\.noreply\.github\.com$ ]]; then
-        commit_author="${BASH_REMATCH[2]}"
-      else
-        commit_author="$(sanitize_author "$author_name")"
-      fi
-    fi
-    is_filtered_author "$commit_author" && continue
-
-    short_sha="${sha:0:7}"
-    for component in "${!MONOREPO_PATHS[@]}"; do
-      regex="^(${MONOREPO_PATHS[$component]// /|})"
-      if grep -qE "$regex" <<<"$files"; then
-        result_map["$component"]+="- ${subject} by @${commit_author} in ${short_sha}"$'\n'
-      fi
-    done
-  done <<<"$compare_out"
 }
 
 append_section_changes() {
@@ -446,42 +464,76 @@ append_section_changes() {
   } >>"$out_file"
 }
 
-# Renders one monorepo-path component's section: the post-migration path
-# diff, plus -- only when OLD_REF predates the migration -- the component's
-# pre-migration history in its own archived repository, from the old pin up
-# to the version it was frozen at when absorbed. Both halves share one
-# heading, so a release that straddles the migration reads as one
-# continuous history instead of two disconnected sections (or, as before
-# this function existed, losing the pre-migration half outright).
-append_monorepo_path_section() {
+_archival_ref_for_slug() {
+  local slug="$1"
+  local branch head
+  branch="$(gh api "repos/${slug}" --jq '.default_branch' 2>/dev/null || true)"
+  [[ -z "$branch" ]] && return 1
+  head="$(gh api "repos/${slug}/branches/${branch}" --jq '.commit.sha' 2>/dev/null || true)"
+  [[ -z "$head" ]] && return 1
+  printf '%s\n' "$head"
+}
+
+append_intree_component_section() {
   local out_file="$1"
   local component="$2"
-  local -n path_map="$3"
+  local old_ref="$3"
+  local new_ref="$4"
+  local old_ext_version="$5"
 
+  local subpath="${INTREE_SUBPATH[$component]}"
   local heading
   heading="$(section_title_for_component "$component") changes"
 
-  local body=""
-  if [[ "${OLD_PRE_MIGRATION:-0}" -eq 1 && -n "${old_deps[$component]:-}" && -n "${new_deps[$component]:-}" && "${old_deps[$component]}" != "${new_deps[$component]}" ]]; then
-    local slug old_ref new_ref pre_changes
-    slug="$(component_to_slug "$component" || true)"
-    if [[ -n "$slug" ]]; then
-      old_ref="$(normalize_ref_gh "$slug" "${old_deps[$component]}" || true)"
-      new_ref="$(normalize_ref_gh "$slug" "${new_deps[$component]}" || true)"
-      if [[ -n "$old_ref" && -n "$new_ref" ]]; then
-        pre_changes="$(collect_changes_gh "$slug" "$old_ref" "$new_ref")"
-        body+="- Version (pre-migration, ${slug}): ${old_deps[$component]} -> ${new_deps[$component]}"$'\n'
-        [[ -n "$pre_changes" ]] && body+="$pre_changes"$'\n'
+  local regime
+  regime="$(component_regime "$subpath" "$old_ref" "$new_ref")"
+
+  local body="" changes external_slug archival_ref ext_changes
+  case "$regime" in
+    intree)
+      changes="$(collect_intree_changes "$subpath" "$old_ref" "$new_ref")"
+      if [[ -n "$changes" ]]; then
+        body="$changes"
+      else
+        body="- No changes"
       fi
-    fi
-  fi
-  # Each line collect_path_diff_sections appended carries its own trailing
-  # newline, including the last one -- trim it so append_section_changes
-  # (which adds its own) doesn't leave a blank line before the next heading.
-  local path_changes="${path_map[$component]:-}"
-  body+="${path_changes%$'\n'}"
+      ;;
+    bridging)
+      # First half: everything the archived external repo received from the
+      # old pinned version up to its final commit. Second half: everything
+      # this repo has recorded on the subpath since it was imported.
+      external_slug="$(component_to_slug "$component" || true)"
+      if [[ -n "$old_ext_version" && -n "$external_slug" ]]; then
+        archival_ref="$(_archival_ref_for_slug "$external_slug" || true)"
+        if [[ -n "$archival_ref" ]] && ensure_ref_exists_gh "$external_slug" "$old_ext_version"; then
+          body="- Version: ${old_ext_version} -> merged in-tree at kairos ${new_ref}"
+          ext_changes="$(collect_changes_gh "$external_slug" "$old_ext_version" "$archival_ref")"
+          [[ -n "$ext_changes" ]] && { body+=$'\n'; body+="$ext_changes"; }
+        else
+          body="- Version: ${old_ext_version} -> merged in-tree at kairos ${new_ref}"
+          body+=$'\n- Unable to resolve archived repository history'
+        fi
+      else
+        body="- Merged in-tree at kairos ${new_ref}"
+      fi
+      changes="$(collect_intree_changes "$subpath" "$old_ref" "$new_ref")"
+      if [[ -n "$changes" ]]; then
+        [[ -n "$body" ]] && body+=$'\n'
+        body+="$changes"
+      fi
+      ;;
+    removed)
+      body="- Version: ${old_ext_version:-n/a} -> component no longer present"
+      ;;
+    external|*)
+      # Delegate to the external path below by returning non-zero, so the
+      # caller falls back to append_component_section for external components.
+      return 2
+      ;;
+  esac
 
   append_section_changes "$out_file" "$heading" "$body"
+  return 0
 }
 
 append_component_section() {
@@ -577,34 +629,23 @@ ensure_ref_exists_gh "$KAIROS_SLUG" "$NEW_REF" || die "Ref not found in ${KAIROS
 
 declare -A old_deps=()
 declare -A new_deps=()
-# Only OLD_REF's migration side matters: it decides whether a monorepo-path
-# component needs its pre-migration history rendered too (see
-# append_monorepo_path_section). NEW_REF is expected to always be
-# post-migration for any range this script runs against today.
-OLD_PRE_MIGRATION=0
 
-load_makefile_versions "$OLD_REF" old_deps OLD_PRE_MIGRATION || die "Unable to read kairos-init/Makefile (post- or pre-migration) for ${KAIROS_SLUG}@${OLD_REF}"
-load_makefile_versions "$NEW_REF" new_deps || die "Unable to read kairos-init/Makefile (post- or pre-migration) for ${KAIROS_SLUG}@${NEW_REF}"
-load_gomod_versions "$OLD_REF" old_deps || die "Unable to read go.mod (post- or pre-migration) for ${KAIROS_SLUG}@${OLD_REF}"
-load_gomod_versions "$NEW_REF" new_deps || die "Unable to read go.mod (post- or pre-migration) for ${KAIROS_SLUG}@${NEW_REF}"
+populate_dep_versions "$OLD_REF" old_deps || die "Unable to load dependency versions for $OLD_REF"
+populate_dep_versions "$NEW_REF" new_deps || die "Unable to load dependency versions for $NEW_REF"
+
+# kairos-init's version lives in images/Dockerfile (ARG KAIROS_INIT), not in
+# the Makefile/go.mod that populate_dep_versions reads. Record it in the same
+# maps so the external-regime fallback and the bridging label find it there.
+_old_init="$(extract_kairos_init_version "$OLD_REF" 2>/dev/null || true)"
+_new_init="$(extract_kairos_init_version "$NEW_REF" 2>/dev/null || true)"
+[[ -n "$_old_init" ]] && old_deps[kairos-init]="$_old_init"
+[[ -n "$_new_init" ]] && new_deps[kairos-init]="$_new_init"
 
 declare -A component_seen=()
 declare -a all_components=()
 
 for c in "${fixed_components[@]}"; do
   all_components+=("$c")
-  component_seen["$c"]=1
-done
-
-# A MONOREPO_PATHS component gets its own path-diff section below, so it is
-# marked seen here to keep the generic old_deps/new_deps sweep after this
-# loop from adding a second, redundant section for it -- except when
-# OLD_REF predates the migration and we have a real pre-migration pin for
-# it. In that one case append_monorepo_path_section (not this loop) renders
-# the pre-migration version history too, folded into the same section as
-# the path diff -- see the function's own comment for why that must be one
-# section, not two.
-for c in "${!MONOREPO_PATHS[@]}"; do
   component_seen["$c"]=1
 done
 
@@ -620,21 +661,13 @@ trap 'rm -f "$output_tmp"' EXIT
 
 append_section_changes "$output_tmp" "Kairos changes" "$(collect_changes_gh "$KAIROS_SLUG" "$OLD_REF" "$NEW_REF")"
 
-# One pass over the compare range covers every monorepo-path component at
-# once (see collect_path_diff_sections). Order matches the pre-migration
-# output: kairos-init first, same as before, provider-kairos last since it
-# is the newest addition to this list.
-# shellcheck disable=SC2034 # only read through the `local -n` aliases in
-# collect_path_diff_sections/append_monorepo_path_section; shellcheck's
-# data-flow analysis does not follow a nameref passed by name like this.
-declare -A monorepo_path_changes=()
-collect_path_diff_sections "$OLD_REF" "$NEW_REF" monorepo_path_changes
-
-for component in kairos-init kairos-agent immucore kairos-sdk kcrypt-discovery-challenger provider-kairos; do
-  append_monorepo_path_section "$output_tmp" "$component" monorepo_path_changes
-done
-
 for component in "${all_components[@]}"; do
+  if [[ -n "${INTREE_SUBPATH[$component]:-}" ]]; then
+    if append_intree_component_section "$output_tmp" "$component" "$OLD_REF" "$NEW_REF" "${old_deps[$component]:-}"; then
+      continue
+    fi
+    # Regime came back "external" (both refs pre-migration): fall through.
+  fi
   append_component_section "$output_tmp" "$component" "${old_deps[$component]:-}" "${new_deps[$component]:-}"
 done
 

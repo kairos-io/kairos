@@ -54,7 +54,7 @@ var _ = Describe("BootableName", func() {
 		})
 		It("returns an error", func() {
 			_, err := artifact.BootableName()
-			Expect(err).To(MatchError("Version is empty"))
+			Expect(err).To(MatchError("version is empty"))
 		})
 	})
 })

@@ -159,7 +159,7 @@ func (p *prerequisitesPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	// In a failure state, 'r' retries the apply (re-runs every decision) —
 	// but not while a text field is focused, where 'r' is a literal character.
 	if p.failure != failNone && (km.String() == "r" || km.String() == "R") &&
-		!(cur != nil && cur.kind == "text") {
+		(cur == nil || cur.kind != "text") {
 		return p.proceed()
 	}
 
@@ -244,11 +244,12 @@ func (p *prerequisitesPage) control(cur *prereqField, dir int) {
 		// ← deselects, space toggles — independently per option, so any
 		// number of options can be selected at once.
 		id := c.Options[cur.optIdx].ID
-		if dir == 1 {
+		switch dir {
+		case 1:
 			a.Selected = addUnique(a.Selected, id)
-		} else if dir == -1 {
+		case -1:
 			a.Selected = remove(a.Selected, id)
-		} else { // toggle
+		default: // toggle
 			if contains(a.Selected, id) {
 				a.Selected = remove(a.Selected, id)
 			} else {

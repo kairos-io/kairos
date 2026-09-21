@@ -66,9 +66,9 @@ type Model string              // Model is the type of the system
 func (m Model) String() string { return string(m) }
 
 const (
-	Generic Model = "generic"
-	Rpi3    Model = "rpi3"
-	Rpi4    Model = "rpi4"
+	Generic  Model = "generic"
+	Rpi3     Model = "rpi3"
+	Rpi4     Model = "rpi4"
 	AgxOrin  Model = "nvidia-jetson-agx-orin"
 	OrinNX   Model = "nvidia-jetson-orin-nx"
 	Thor     Model = "nvidia-jetson-thor"
@@ -145,13 +145,14 @@ const (
 	BuildProviderStep    = "buildProvider"    // Builds the provider binaries
 	InitramfsConfigsStep = "initramfsConfigs" // Configures the initramfs for the system
 	MiscellaneousStep    = "miscellaneous"    // Applies miscellaneous configurations
-	SshHardeningStep     = "sshHardening"     // Installs the sshd hardening drop-in and filters weak Diffie-Hellman moduli
+	SSHHardeningStep     = "sshHardening"     // Installs the sshd hardening drop-in and filters weak Diffie-Hellman moduli
+	CISHardeningStep     = "cisHardening"     // Applies the CIS Distribution Independent Linux L1 initial setup controls
 )
 
 // StepsInfo returns a slice of StepInfo containing the steps and their descriptions
 func StepsInfo() []StepInfo {
 	steps := map[string]string{
-		InitStage:            "The full init stage, which includes kairosRelease, kubernetes, initrd, services, sshHardening, workarounds and cleanup steps",
+		InitStage:            "The full init stage, which includes kairosRelease, kubernetes, initrd, services, sshHardening, workarounds, cleanup and cisHardening steps",
 		InstallStage:         "The full install stage, which includes installPackages, kubernetes, cloudconfigs, branding, grub, services, kairosBinaries, providerBinaries, initramfsConfigs and miscellaneous steps",
 		InstallPackagesStep:  "installs the base system packages",
 		InstallKernelStep:    "installs the kernel packages",
@@ -170,7 +171,8 @@ func StepsInfo() []StepInfo {
 		BuildProviderStep:    "builds the provider binaries",
 		InitramfsConfigsStep: "configures the initramfs for the system",
 		MiscellaneousStep:    "applies miscellaneous configurations",
-		SshHardeningStep:     "installs the sshd hardening drop-in",
+		SSHHardeningStep:     "installs the sshd hardening drop-in",
+		CISHardeningStep:     "applies the CIS Distribution Independent Linux L1 initial setup controls",
 	}
 	keys := make([]string, 0, len(steps))
 	for k := range steps {

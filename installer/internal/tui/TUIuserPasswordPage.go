@@ -13,7 +13,7 @@ type userPasswordPage struct {
 	usernameInput textinput.Model
 	passwordInput textinput.Model
 	username      string
-	password      string
+	errorMsg      string
 }
 
 func newUserPasswordPage() *userPasswordPage {
@@ -58,10 +58,16 @@ func (p *userPasswordPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			}
 		case "enter":
 			if p.usernameInput.Value() != "" && p.passwordInput.Value() != "" {
+				hash, err := passwordHasher(p.passwordInput.Value())
+				if err != nil {
+					p.errorMsg = "Could not hash password. Please try again."
+					return p, nil
+				}
 				p.username = p.usernameInput.Value()
 				mainModel.username = p.username
-				p.password = p.passwordInput.Value()
-				mainModel.password = p.password
+				mainModel.passwordHash = hash
+				p.passwordInput.SetValue("")
+				p.errorMsg = ""
 				// Save and go back to customization
 				return p, func() tea.Msg { return GoToPageMsg{PageID: "customization"} }
 			}
@@ -89,6 +95,9 @@ func (p *userPasswordPage) View() string {
 
 	if p.username != "" {
 		s += fmt.Sprintf("✓ User configured: %s\n", p.username)
+	}
+	if p.errorMsg != "" {
+		s += "\n" + p.errorMsg
 	}
 
 	if p.usernameInput.Value() == "" || p.passwordInput.Value() == "" {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -22,6 +23,50 @@ import (
 )
 
 const DefaultHeader = "#cloud-config"
+
+// configURLAttempts is how many times a config_url fetch is tried before the
+// node gives up and boots without the remote config.
+const configURLAttempts = 3
+
+// warnOut is where the collector writes its non-fatal warnings. It is stderr
+// rather than stdout because the kcrypt discovery plugin speaks JSON over
+// stdout, and it is a package var so tests can capture what was written.
+var warnOut io.Writer = os.Stderr
+
+func warnf(format string, args ...interface{}) {
+	fmt.Fprintf(warnOut, format, args...)
+}
+
+// redactURL strips the query string from a URL and masks the userinfo
+// password, so a config_url carrying a token, a machine identifier or basic
+// auth credentials can be named in a warning without printing the secret to
+// the console and the journal.
+func redactURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "<unparseable url>"
+	}
+	if u.RawQuery != "" {
+		u.RawQuery = "<redacted>"
+	}
+
+	// Redacted rewrites a userinfo password to xxxxx; String prints it.
+	return u.Redacted()
+}
+
+// redactErrURL removes rawURL's query string from an error message. http.Get
+// wraps every transport failure in a *url.Error that stringifies the URL it
+// was handed, so printing the error next to a redacted URL would reprint the
+// token the redaction just removed.
+func redactErrURL(err error, rawURL string) string {
+	msg := err.Error()
+	msg = strings.ReplaceAll(msg, rawURL, redactURL(rawURL))
+	if u, perr := url.Parse(rawURL); perr == nil && u.RawQuery != "" {
+		msg = strings.ReplaceAll(msg, u.RawQuery, "<redacted>")
+	}
+
+	return msg
+}
 
 var ValidFileHeaders = []string{
 	"#cloud-config",
@@ -46,6 +91,9 @@ type Config struct {
 // recursively until a remote config no longer defines a config_url.
 // NOTE: The "config_url" value of the final result is the value of the last
 // config file in the chain because we replace values when we merge.
+// NOTE: a remote body without one of ValidFileHeaders, and a fetch that fails
+// after its retries, are both silently dropped: fetchRemoteConfig returns an
+// empty config and a nil error. Both are marked TODO there.
 func (c *Config) MergeConfigURL() error {
 	// If there is no config_url, just return (do nothing)
 	configURL := c.ConfigURL()
@@ -295,46 +343,67 @@ func allFiles(dir []string) []string {
 	return files
 }
 
+// maxConfigFileSize is the size at which a candidate config file is skipped
+// rather than parsed. It is the threshold the collector has enforced since
+// the check was written: the original code compared truncating integer
+// megabytes against 1.0, so it skipped a file only from 2MiB up, despite
+// saying "1MB". Stating it in bytes makes the number honest without changing
+// which files load; moving the threshold itself is a separate decision.
+const maxConfigFileSize = 2 * 1024 * 1024
+
 // parseFiles returns a list of Configs parsed from files.
 func parseFiles(dir []string, nologs bool) Configs {
 	result := Configs{}
 	files := allFiles(dir)
 	for _, f := range files {
-		if fileSize(f) > 1.0 {
+		// Check the extension before the size. A scanned directory holds far
+		// more than configs (kairos-io/kairos#2064: EFI binaries, grub
+		// modules, kernels), and reporting those as oversized configs buries
+		// the one report that matters below.
+		//
+		// Skip them silently. A non-yaml file in a scanned directory is never
+		// actionable for the user, so a warning per file is pure noise: an
+		// upgrade on live media printed hundreds of them, one for every grub
+		// module and EFI binary under /run/initramfs/live.
+		if ext := filepath.Ext(f); ext != ".yml" && ext != ".yaml" {
+			continue
+		}
+
+		// A file the user named like a config and put in a scanned directory,
+		// dropped for its size, is silent data loss: the machine comes up with
+		// none of those settings and nothing on the console says why. Report
+		// it whatever nologs says (kairos-io/kairos#1275). It goes to stderr
+		// so `kairos-agent config` and `config get` stay pipeable.
+		if size, err := fileSize(f); err == nil && size >= maxConfigFileSize {
+			fmt.Fprintf(os.Stderr,
+				"warning: skipping %s: it is %d bytes and the limit for a single config file is %d bytes, so none of its settings were applied. Split it up, or serve it with config_url.\n",
+				f, size, maxConfigFileSize)
+			continue
+		}
+
+		b, err := os.ReadFile(f)
+		if err != nil {
 			if !nologs {
-				fmt.Printf("warning: skipping %s. too big (>1MB)\n", f)
+				fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
 			}
 			continue
 		}
-		if filepath.Ext(f) == ".yml" || filepath.Ext(f) == ".yaml" {
-			b, err := os.ReadFile(f)
-			if err != nil {
-				if !nologs {
-					fmt.Printf("warning: skipping %s. %s\n", f, err.Error())
-				}
-				continue
-			}
 
-			if !HasValidHeader(string(b)) {
-				if !nologs {
-					fmt.Printf("warning: skipping %s because it has no valid header\n", f)
-				}
-				continue
-			}
-
-			var newConfig Config
-			err = yaml.Unmarshal(b, &newConfig.Values)
-			if err != nil && !nologs {
-				fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
-			}
-			newConfig.Sources = []string{f}
-
-			result = append(result, &newConfig)
-		} else {
+		if !HasValidHeader(string(b)) {
 			if !nologs {
-				fmt.Printf("warning: skipping %s (extension).\n", f)
+				fmt.Printf("warning: skipping %s because it has no valid header\n", f)
 			}
+			continue
 		}
+
+		var newConfig Config
+		err = yaml.Unmarshal(b, &newConfig.Values)
+		if err != nil && !nologs {
+			fmt.Printf("warning: failed to parse config:\n%s\n", err.Error())
+		}
+		newConfig.Sources = []string{f}
+
+		result = append(result, &newConfig)
 	}
 
 	return result
@@ -371,23 +440,17 @@ func parseReaders(readers []io.Reader, nologs bool) Configs {
 	return result
 }
 
-func fileSize(f string) float64 {
-	file, err := os.Open(f)
+// fileSize returns the size of f in bytes. An error means the caller could not
+// learn the size, which is not the same as the file being empty: it must fall
+// through and let the read report the real problem, rather than treat an
+// unreadable file as one that fits.
+func fileSize(f string) (int64, error) {
+	stat, err := os.Stat(f)
 	if err != nil {
-		return 0
-	}
-	defer file.Close()
-
-	stat, err := file.Stat()
-	if err != nil {
-		return 0
+		return 0, err
 	}
 
-	bytes := stat.Size()
-	kilobytes := (bytes / 1024)
-	megabytes := (float64)(kilobytes / 1024) // cast to type float64
-
-	return megabytes
+	return stat.Size(), nil
 }
 
 func listFiles(dir string) ([]string, error) {
@@ -512,16 +575,20 @@ func fetchRemoteConfig(url string) (*Config, error) {
 			}
 
 			return nil
-		}, retry.Delay(time.Second), retry.Attempts(3),
+		}, retry.Delay(time.Second), retry.Attempts(configURLAttempts),
 	)
 
 	if err != nil {
 		// TODO: This keeps the old behaviour but IMHO we should return an error here
+		warnf("warning: could not fetch config_url %s after %d attempts: %s. Booting without it\n",
+			redactURL(url), configURLAttempts, redactErrURL(err, url))
 		return result, nil
 	}
 
 	if !HasValidHeader(string(body)) {
 		// TODO: This keeps the old behaviour but IMHO we should return an error here
+		warnf("warning: ignoring config_url %s because it has no valid header. Booting without it\n",
+			redactURL(url))
 		return result, nil
 	}
 

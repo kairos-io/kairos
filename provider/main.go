@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/provider/internal/cli"
 	"github.com/kairos-io/kairos/v4/provider/internal/provider"
+	"github.com/kairos-io/kairos/v4/sdk/bus"
 )
 
 // checkErr reports err on stderr, never on stdout, because stdout carries data

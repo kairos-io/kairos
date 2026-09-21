@@ -1,0 +1,52 @@
+{
+  "generated": "2026-09-01T08:24:03Z",
+  "repo": "kairos-io/hadron-layers",
+  "toolchain": "v0.5.1",
+  "layers": [
+    {
+      "name": "fwupd",
+      "title": "fwupd",
+      "description": "Firmware update daemon",
+      "image": "ghcr.io/kairos-io/hadron-layers/fwupd",
+      "source": "https://github.com/kairos-io/hadron-layers",
+      "latest": "2.1.7",
+      "tags": [
+        {
+          "tag": "2.1.7",
+          "digest": "sha256:3036654f3d3baa7e18facac14d04224a5365d4397cf180636f25a65786406020",
+          "created": "2026-09-01T08:22:48Z",
+          "sysext": {
+            "amd64": {
+              "oci": "ghcr.io/kairos-io/hadron-layers/sysext/fwupd@sha256:41767043b6016c222174722e70d84ea8b2402a50464543851b74b3e6c2941a05"
+            },
+            "arm64": {
+              "oci": "ghcr.io/kairos-io/hadron-layers/sysext/fwupd@sha256:5e5b921d964de524f25a2eb90793b2ab5b7b125b4cf810280e4b467e2172c282"
+            }
+          }
+        },
+        {
+          "tag": "2.1.6",
+          "digest": "sha256:48381dcaa9fc8f3b07abfec77b4c6fa0688378da0900b08e38d52a77ab1db2a4",
+          "created": "2026-08-20T09:11:02Z",
+          "sysext": {}
+        }
+      ]
+    },
+    {
+      "name": "git",
+      "title": "git",
+      "description": "Git version control system",
+      "image": "ghcr.io/kairos-io/hadron-layers/git",
+      "source": "https://github.com/kairos-io/hadron-layers",
+      "latest": "2.55.0",
+      "tags": [
+        {
+          "tag": "2.55.0",
+          "digest": "sha256:d5be0ee56662fcffdefcbc38f48d30448dfa0e51be23e38a90258595c3e2d6b6",
+          "created": "2026-08-28T10:04:31Z",
+          "sysext": {}
+        }
+      ]
+    }
+  ]
+}

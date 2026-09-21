@@ -100,7 +100,3 @@ type SealedVolumeList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []SealedVolume `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&SealedVolume{}, &SealedVolumeList{})
-}

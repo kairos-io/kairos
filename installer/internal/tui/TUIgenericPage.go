@@ -70,7 +70,7 @@ func (g genericQuestionPage) ID() string {
 func idFromSection(section sdk.YAMLPrompt) string {
 	// Generate a unique ID based on the section's YAMLSection.
 	// This could be a simple hash or just the section name.
-	return strings.Replace(section.YAMLSection, ".", "_", -1)
+	return strings.ReplaceAll(section.YAMLSection, ".", "_")
 }
 
 func (g genericQuestionPage) Configured() bool {
@@ -176,11 +176,12 @@ func setValueForSectionInMainModel(value string, section string) {
 	currentMap := mainModel.extraFields
 	for i, key := range sections {
 		if i == len(sections)-1 {
-			if value == "Yes" || value == "yes" || value == "true" || value == "True" {
+			switch value {
+			case "Yes", "yes", "true", "True":
 				currentMap[key] = true
-			} else if value == "No" || value == "no" || value == "false" || value == "False" {
+			case "No", "no", "false", "False":
 				currentMap[key] = false
-			} else {
+			default:
 				currentMap[key] = value
 			}
 		} else {

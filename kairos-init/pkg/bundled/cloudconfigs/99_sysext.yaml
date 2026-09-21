@@ -28,9 +28,9 @@ stages:
             TimeoutStartSec=10
             # override exec and reload to set the image policy
             ExecStart=
-            ExecStart=systemd-sysext refresh --image-policy="root=verity+signed+absent:usr=verity+signed+absent"
+            ExecStart=systemd-sysext refresh --image-policy="root=signed+absent:usr=signed+absent"
             ExecReload=
-            ExecReload=systemd-sysext refresh --image-policy="root=verity+signed+absent:usr=verity+signed+absent"
+            ExecReload=systemd-sysext refresh --image-policy="root=signed+absent:usr=signed+absent"
             # set the sysext hierarchies so we dont overwrite our mount at /usr/local
             # set them very specifically instead of a generic /usr/local as systemd <= 255 mounts the overlay as RO
             # and we dont want the full /usr/local to be RO as we store state in there
@@ -49,9 +49,9 @@ stages:
             TimeoutStartSec=10
             # override exec and reload to set the image policy
             ExecStart=
-            ExecStart=systemd-confext refresh --image-policy="root=verity+signed+absent:usr=verity+signed+absent"
+            ExecStart=systemd-confext refresh --image-policy="root=signed+absent:usr=signed+absent"
             ExecReload=
-            ExecReload=systemd-confext refresh --image-policy="root=verity+signed+absent:usr=verity+signed+absent"
+            ExecReload=systemd-confext refresh --image-policy="root=signed+absent:usr=signed+absent"
             [Unit]
             # Make it timeout early to avoid blocking boot if keys are not in there to unlock sysext
             JobRunningTimeoutSec=5

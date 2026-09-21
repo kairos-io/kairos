@@ -320,6 +320,127 @@ var _ = Describe("TagList", func() {
 		})
 	})
 
+	Describe("NewerAllVersions", func() {
+		When("artifact has SoftwareVersion", func() {
+			BeforeEach(func() {
+				tagList.Artifact = &versioneer.Artifact{
+					Flavor:                "opensuse",
+					FlavorRelease:         "leap-15.5",
+					Variant:               "standard",
+					Model:                 "generic",
+					Arch:                  "amd64",
+					Version:               "v2.4.2-rc1",
+					SoftwareVersion:       "v1.27.6+k3s1",
+					SoftwareVersionPrefix: "k3s",
+				}
+			})
+
+			It("returns tags with a newer Version and/or SoftwareVersion", func() {
+				tags := tagList.NewerAllVersions().Tags
+
+				Expect(tags).To(HaveExactElements(
+					"leap-15.5-standard-amd64-generic-v2.4.2-rc1-k3sv1.28.2-k3s1",
+					"leap-15.5-standard-amd64-generic-v2.4.2-rc2-k3sv1.28.2-k3s1",
+					"leap-15.5-standard-amd64-generic-v2.4.2-rc2-k3sv1.27.6-k3s1",
+					"leap-15.5-standard-amd64-generic-v2.4.2-k3sv1.27.6-k3s1",
+					"leap-15.5-standard-amd64-generic-v2.4.2-k3sv1.28.2-k3s1"))
+			})
+
+			// This is the difference with NewerAnyVersion, and the bug this
+			// method exists for: kairos-io/kairos#3382
+			It("leaves out a newer Version built on an older SoftwareVersion", func() {
+				tags := tagList.NewerAllVersions().Tags
+
+				Expect(tags).NotTo(ContainElement(
+					"leap-15.5-standard-amd64-generic-v2.4.2-rc2-k3sv1.26.9-k3s1"))
+				Expect(tags).NotTo(ContainElement(
+					"leap-15.5-standard-amd64-generic-v2.4.2-k3sv1.26.9-k3s1"))
+			})
+
+			It("does not return the tag of the current artifact", func() {
+				tags := tagList.NewerAllVersions().Tags
+
+				Expect(tags).NotTo(ContainElement(
+					"leap-15.5-standard-amd64-generic-v2.4.2-rc1-k3sv1.27.6-k3s1"))
+			})
+
+			It("returns a TagList that has the same RegistryAndOrg", func() {
+				newTagList := tagList.NewerAllVersions()
+
+				Expect(newTagList.RegistryAndOrg).To(Equal("quay.io/kairos"))
+			})
+		})
+
+		When("artifact has no SoftwareVersion", func() {
+			BeforeEach(func() {
+				tagList.Artifact = &versioneer.Artifact{
+					Flavor:                "opensuse",
+					FlavorRelease:         "leap-15.5",
+					Variant:               "core",
+					Model:                 "generic",
+					Arch:                  "amd64",
+					Version:               "v2.4.2-rc1",
+					SoftwareVersion:       "",
+					SoftwareVersionPrefix: "k3s",
+				}
+			})
+
+			It("returns only tags with newer Versions", func() {
+				tags := tagList.NewerAllVersions().Tags
+
+				Expect(tags).To(HaveExactElements(
+					"leap-15.5-core-amd64-generic-v2.4.2-rc2",
+					"leap-15.5-core-amd64-generic-v2.4.2"))
+			})
+		})
+
+		// The tags and the artifact reported in kairos-io/kairos#3382. The
+		// expectation is the "Expected behavior" block of that issue.
+		When("given the tags from the report in kairos-io/kairos#3382", func() {
+			BeforeEach(func() {
+				tagList.Artifact = &versioneer.Artifact{
+					Flavor:                "alpine",
+					FlavorRelease:         "3.19",
+					Variant:               "standard",
+					Model:                 "generic",
+					Arch:                  "amd64",
+					Version:               "v3.3.3",
+					SoftwareVersion:       "v1.32.2+k3s1",
+					SoftwareVersionPrefix: "k3s",
+				}
+				tagList.Tags = []string{
+					"3.19-standard-amd64-generic-v3.3.3-k3sv1.32.2-k3s1",
+					"3.19-standard-amd64-generic-v3.3.6-k3sv1.32.2-k3s1",
+					"3.19-standard-amd64-generic-v3.3.6-k3sv1.31.4-k3s1",
+					"3.19-standard-amd64-generic-v3.3.6-k3sv1.30.8-k3s1",
+					"3.19-standard-amd64-generic-v3.3.5-k3sv1.32.2-k3s1",
+					"3.19-standard-amd64-generic-v3.3.5-k3sv1.31.4-k3s1",
+					"3.19-standard-amd64-generic-v3.3.5-k3sv1.30.8-k3s1",
+					"3.19-standard-amd64-generic-v3.3.4-k3sv1.32.2-k3s1",
+					"3.19-standard-amd64-generic-v3.3.4-k3sv1.31.4-k3s1",
+					"3.19-standard-amd64-generic-v3.3.4-k3sv1.30.8-k3s1",
+				}
+			})
+
+			It("offers no kubernetes downgrade", func() {
+				tags := tagList.NewerAllVersions().RSorted().Tags
+
+				Expect(tags).To(HaveExactElements(
+					"3.19-standard-amd64-generic-v3.3.6-k3sv1.32.2-k3s1",
+					"3.19-standard-amd64-generic-v3.3.5-k3sv1.32.2-k3s1",
+					"3.19-standard-amd64-generic-v3.3.4-k3sv1.32.2-k3s1"))
+			})
+
+			It("is the only difference with NewerAnyVersion", func() {
+				anyTags := tagList.NewerAnyVersion().RSorted().Tags
+				allTags := tagList.NewerAllVersions().RSorted().Tags
+
+				Expect(anyTags).To(HaveLen(9))
+				Expect(anyTags).To(ContainElements(allTags))
+			})
+		})
+	})
+
 	Describe("NoPrereleases", func() {
 		When("Artifact doesn't have a SoftwareVersion", func() {
 			BeforeEach(func() {

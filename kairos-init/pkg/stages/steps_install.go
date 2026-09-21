@@ -39,7 +39,7 @@ func GetInstallStage(sis values.System, logger logger.KairosLogger) ([]schema.St
 	// Fips + ubuntu fails early and redirect to our Example
 	if sis.Distro == values.Ubuntu && config.DefaultConfig.Fips {
 		return nil, fmt.Errorf("FIPS is not supported on Ubuntu without a PRO account and extra packages.\n" +
-			"See https://github.com/kairos-io/kairos/blob/master/examples/builds/ubuntu-fips/Dockerfile for an example on how to build it")
+			"See https://github.com/kairos-io/kairos/blob/master/examples/builds/ubuntu-24.04-fips/Dockerfile for an example on how to build it (examples/builds/ubuntu-20.04-fips/Dockerfile and examples/builds/ubuntu-22.04-fips/Dockerfile cover the older releases)")
 	}
 	// Get the packages
 	packages, err := values.GetPackages(sis, logger)
@@ -718,18 +718,6 @@ func GetKairosMiscellaneousFilesStage(sis values.System, l logger.KairosLogger) 
 					Owner:       0,
 					Group:       0,
 					Content:     bundled.MOTD,
-				},
-			},
-		},
-		{
-			Name: "Install suc-upgrade script",
-			Files: []schema.File{
-				{
-					Path:        "/usr/sbin/suc-upgrade",
-					Permissions: 0755,
-					Owner:       0,
-					Group:       0,
-					Content:     bundled.SucUpgrade,
 				},
 			},
 		},

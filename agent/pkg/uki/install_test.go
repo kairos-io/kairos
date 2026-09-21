@@ -270,6 +270,45 @@ var _ = Describe("Uki install action", func() {
 			}
 		})
 
+		It("skips entries whose conf uses the type 2 uki key", func() {
+			// AuroraBoot has written "uki" instead of "efi" since go-ukify
+			// v0.5.0, and the efi->uki migration only runs on upgrade, so an
+			// install only ever sees this form.
+			spec.SkipEntries = []string{"install-mode-interactive"}
+			writeBoth(efiDir+"/loader/entries/interactive.conf",
+				"title Kairos\nsort-key interactive-0\nuki /EFI/kairos/interactive.efi\nprofile 0\ncmdline install-mode-interactive\n")
+			// referenced by the conf above, only needs to exist in the test fs
+			Expect(fs.WriteFile(efiDir+"/EFI/kairos/interactive.efi", []byte("data"), os.ModePerm)).To(Succeed())
+			// unassigned artifact, present in both so the rotation works end to end
+			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
+
+			Expect(installer.Run()).To(Succeed())
+
+			exists, _ := fsutils.Exists(fs, efiDir+"/loader/entries/interactive.conf")
+			Expect(exists).To(BeFalse(), "conf of the skipped entry")
+			exists, _ = fsutils.Exists(fs, efiDir+"/EFI/kairos/interactive.efi")
+			Expect(exists).To(BeFalse(), "efi of the skipped entry")
+		})
+
+		It("refuses to install when the EFI partition can not hold a copy per role", func() {
+			// An unassigned set that does not fit in the free space, so the four
+			// role copies cannot fit either. Sparse, so it costs nothing to
+			// create.
+			writeBoth(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", "artifact")
+			Expect(fs.Truncate(efiDir+"/EFI/kairos/"+UnassignedArtifactRole+".efi", tooBigFor(fs, efiDir))).To(Succeed())
+
+			err := installer.Run()
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not enough space on the EFI partition"))
+
+			// no role was written, so the partition is not left holding half
+			// an install
+			for _, role := range []string{"active", "passive", "recovery", "statereset"} {
+				exists, _ := fsutils.Exists(fs, efiDir+"/EFI/kairos/"+role+".efi")
+				Expect(exists).To(BeFalse(), role)
+			}
+		})
+
 		It("fails when the artifact set conf can not be rewritten for a role", func() {
 			// the copied conf only exists in the test fs, so rewriting its
 			// keys through the os based reader fails
@@ -315,8 +354,46 @@ var _ = Describe("Uki install action", func() {
 			Expect(installer.SkipEntry("/efi/loader/entries/missing.conf", conf)).ToNot(Succeed())
 		})
 
-		It("does nothing when the conf has no efi key", func() {
-			Expect(installer.SkipEntry("/whatever", map[string]string{})).To(Succeed())
+		It("removes the uki file and its conf", func() {
+			Expect(fs.WriteFile("/efi/EFI/kairos/interactive.efi", []byte("data"), os.ModePerm)).To(Succeed())
+			Expect(fs.WriteFile("/efi/loader/entries/interactive.conf", []byte("data"), os.ModePerm)).To(Succeed())
+
+			conf := map[string]string{"uki": "/EFI/kairos/interactive.efi"}
+			Expect(installer.SkipEntry("/efi/loader/entries/interactive.conf", conf)).To(Succeed())
+
+			exists, _ := fsutils.Exists(fs, "/efi/EFI/kairos/interactive.efi")
+			Expect(exists).To(BeFalse())
+			exists, _ = fsutils.Exists(fs, "/efi/loader/entries/interactive.conf")
+			Expect(exists).To(BeFalse())
+		})
+
+		It("prefers the efi key when a conf carries both", func() {
+			Expect(fs.WriteFile("/efi/EFI/kairos/type1.efi", []byte("data"), os.ModePerm)).To(Succeed())
+			Expect(fs.WriteFile("/efi/EFI/kairos/type2.efi", []byte("data"), os.ModePerm)).To(Succeed())
+			Expect(fs.WriteFile("/efi/loader/entries/interactive.conf", []byte("data"), os.ModePerm)).To(Succeed())
+
+			conf := map[string]string{"efi": "/EFI/kairos/type1.efi", "uki": "/EFI/kairos/type2.efi"}
+			Expect(installer.SkipEntry("/efi/loader/entries/interactive.conf", conf)).To(Succeed())
+
+			exists, _ := fsutils.Exists(fs, "/efi/EFI/kairos/type1.efi")
+			Expect(exists).To(BeFalse())
+			exists, _ = fsutils.Exists(fs, "/efi/EFI/kairos/type2.efi")
+			Expect(exists).To(BeTrue())
+		})
+
+		It("fails when the uki file does not exist", func() {
+			conf := map[string]string{"uki": "/EFI/kairos/missing.efi"}
+			Expect(installer.SkipEntry("/efi/loader/entries/missing.conf", conf)).ToNot(Succeed())
+		})
+
+		It("does nothing when the conf has neither an efi nor a uki key", func() {
+			Expect(fs.WriteFile("/efi/loader/entries/nokey.conf", []byte("data"), os.ModePerm)).To(Succeed())
+
+			Expect(installer.SkipEntry("/efi/loader/entries/nokey.conf", map[string]string{})).To(Succeed())
+
+			// nothing to remove the artifact for, so the conf stays too
+			exists, _ := fsutils.Exists(fs, "/efi/loader/entries/nokey.conf")
+			Expect(exists).To(BeTrue())
 		})
 	})
 
