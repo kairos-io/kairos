@@ -153,9 +153,11 @@ func getDirExtensions(cfg *sdkConfig.Config, dir string) ([]Extension, error) {
 
 // GetExtension returns the system extension for a given name.
 //
-// The name is matched exactly, either against the image filename
-// ("tailscale.raw") or against the filename with its suffix stripped
-// ("tailscale"). It used to be compiled as a regular expression and matched
+// The name is matched against the whole image filename ("tailscale.raw"), or
+// against the part of it that ends on a dot, so that the bare name "fwupd"
+// resolves the catalog's two-part "fwupd.sysext.raw".
+//
+// It used to be compiled as a regular expression and matched
 // unanchored, which meant the first image merely *containing* the name won: with
 // tailscale.raw and tailscale-agent.raw both installed, `sysext remove
 // tailscale` deleted tailscale-agent.raw, because ReadDir is sorted and "-"
@@ -170,7 +172,7 @@ func GetExtension(cfg *sdkConfig.Config, name, bootState, extType string) (Exten
 		return Extension{}, err
 	}
 	for _, ext := range installed {
-		if ext.Name == name || strings.TrimSuffix(ext.Name, filepath.Ext(ext.Name)) == name {
+		if ext.Name == name || strings.HasPrefix(ext.Name, name+".") {
 			return ext, nil
 		}
 	}

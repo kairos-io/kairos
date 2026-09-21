@@ -162,6 +162,35 @@ var _ = Describe("Sysext Actions test", Label("sysext"), func() {
 			_, err := action.GetExtension(config, "scale", "", "sysext")
 			Expect(err).To(MatchError("extension scale not found"))
 		})
+
+		// The catalog and `auroraboot sysext` name their images
+		// "<name>.sysext.raw", which is what `sysext install` writes and
+		// what the fleet server then asks to enable by its bare name.
+		Describe("On an image with the two-part catalog suffix", func() {
+			BeforeEach(func() {
+				Expect(config.Fs.WriteFile("/var/lib/kairos/extensions/fwupd.sysext.raw", []byte("x"), 0644)).To(Succeed())
+			})
+
+			It("resolves the bare name", func() {
+				ext, err := action.GetExtension(config, "fwupd", "", "sysext")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ext.Name).To(Equal("fwupd.sysext.raw"))
+			})
+
+			It("enables the bare name the fleet server sends", func() {
+				Expect(action.EnableExtension(config, "fwupd", "active", "sysext", false)).To(Succeed())
+				target, err := config.Fs.Readlink("/var/lib/kairos/extensions/active/fwupd.sysext.raw")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(target).To(ContainSubstring("fwupd.sysext.raw"))
+			})
+
+			It("does not resolve a name that does not end on a dot boundary", func() {
+				_, err := action.GetExtension(config, "wupd", "", "sysext")
+				Expect(err).To(MatchError("extension wupd not found"))
+				_, err = action.GetExtension(config, "fwupd.sys", "", "sysext")
+				Expect(err).To(MatchError("extension fwupd.sys not found"))
+			})
+		})
 	})
 
 	Describe("Listing extensions", func() {
