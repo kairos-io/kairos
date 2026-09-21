@@ -40,15 +40,21 @@ stages:
            #includedir /etc/sudoers.d
       commands:
         - passwd -l root
+    # Both guards ask for a real directory and reject a symlink. chmod on Linux
+    # has no -h, so on a symlink it changes the mode of the target: with
+    # /usr/local/cloud-config replaced by a link to /etc, this stage made /etc
+    # 0770 on every boot and locked every non-root user out of the node.
+    # chown -h keeps the recursive walk off the targets of any symlink inside
+    # the directory.
     - name: "Ensure runtime permission"
-      if: '[ -e "/oem" ]'
+      if: '[ -d "/oem" ] && [ ! -L "/oem" ]'
       commands:
-        - chown -R root:admin /oem
+        - chown -h -R root:admin /oem
         - chmod 770 /oem
     - name: "Ensure runtime permission"
-      if: '[ -e "/usr/local/cloud-config" ]'
+      if: '[ -d "/usr/local/cloud-config" ] && [ ! -L "/usr/local/cloud-config" ]'
       commands:
-        - chown -R root:admin /usr/local/cloud-config
+        - chown -h -R root:admin /usr/local/cloud-config
         - chmod 770 /usr/local/cloud-config
   initramfs.after:
     # Run this in the after stage so it doesnt collide with other initramfs changes to the /etc/inittab
