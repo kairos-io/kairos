@@ -169,10 +169,26 @@ func TestDracutNetworkModules(t *testing.T) {
 			wantSysext: true,
 		},
 		{
+			// 24.04 ships resolved, but a build root that lost the dracut
+			// module still cannot be asked for it.
+			name:       "ubuntu 24.04 without the resolved dracut module",
+			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04"},
+			files:      []string{fixtureResolved, fixtureResolvectl},
+			wantModule: "systemd-networkd network-legacy",
+			wantSysext: true,
+		},
+		{
 			name:       "ubuntu 26.04 drops network-legacy",
 			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "26.04"},
 			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd systemd-resolved",
+			wantSysext: true,
+		},
+		{
+			name:       "ubuntu 26.04 without resolvectl",
+			sis:        values.System{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "26.04"},
+			files:      []string{fixtureResolved, fixtureResolvedModule},
+			wantModule: "systemd-networkd",
 			wantSysext: true,
 		},
 		{
@@ -247,7 +263,15 @@ func TestDracutNetworkModules(t *testing.T) {
 		{
 			name:       "hadron uses networkd and resolved",
 			sis:        values.System{Distro: values.Hadron, Family: values.HadronFamily, Version: "1.0"},
+			files:      []string{fixtureResolved, fixtureResolvectl, fixtureResolvedModule},
 			wantModule: "systemd-networkd systemd-resolved",
+			wantSysext: true,
+		},
+		{
+			name:       "hadron without the resolved dracut module",
+			sis:        values.System{Distro: values.Hadron, Family: values.HadronFamily, Version: "1.0"},
+			files:      []string{fixtureResolved, fixtureResolvectl},
+			wantModule: "systemd-networkd",
 			wantSysext: true,
 		},
 	}
