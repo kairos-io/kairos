@@ -1,34 +1,24 @@
+# Flavor smoke test image for kairos-init.
+#
+# Consumed by .github/workflows/_build-flavors.yaml, which mirrors the
+# base-image matrix the archived kairos-init repo's test.yml used to
+# run before the monorepo merge. Each cell just verifies that
+# kairos-init can convert the given BASE_IMAGE into a bootable Kairos
+# rootfs (with the requested MODEL / TRUSTED_BOOT / PROVIDER / FIPS
+# knobs) and that `kairos-init validate` passes on the result. No ISO,
+# no push.
+#
+# The kairos-init binary itself is not built here; it comes from the
+# per-arch dist/linux-<TARGETARCH>/kairos-init tarball that
+# _build-kairos-init.yaml uploaded and the caller workflow unpacked
+# into the build context, matching the consumer shape used by the
+# production kairos-init/Dockerfile.
+
 ARG BASE_IMAGE=ubuntu:24.04
-ARG VALIDATE_IMAGE=ubuntu:24.04
-ARG VALIDATE=true
 
-# Build stage runs on host's native platform to avoid QEMU emulation overhead.
-# BUILDPLATFORM = machine running docker buildx, TARGETARCH = arch we're producing for.
-FROM --platform=$BUILDPLATFORM golang AS build
+FROM scratch AS kairos-init-bin
 ARG TARGETARCH
-# BUILDARCH unused here (no UPX in test builds) but kept for clarity
-ARG BUILDARCH
-ENV SKIP_UPX=true
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-WORKDIR /app
-COPY Makefile .
-# Pass TARGETARCH explicitly — uname -m would return BUILDARCH, not TARGETARCH
-RUN ARCH=${TARGETARCH} make all
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-ENV CGO_ENABLED=0
-# Cross-compile for TARGETARCH — runs natively on BUILDARCH, no emulation needed
-RUN GOOS=linux GOARCH=${TARGETARCH} go build -o /app/kairos-init .
-
-
-FROM scratch AS kairos-init
-COPY --from=build /app/kairos-init /kairos-init
-
-# Target to use the validator directly inside a generated image with kairos-init
-FROM ${VALIDATE_IMAGE} AS validate
-COPY --from=build /app/kairos-init /kairos-init
-RUN /kairos-init validate
+COPY dist/linux-${TARGETARCH}/kairos-init /kairos-init
 
 FROM ${BASE_IMAGE} AS default
 ARG MODEL=generic
@@ -37,9 +27,13 @@ ARG PROVIDER_NAME
 ARG PROVIDER_VERSION
 ARG VERSION=v0.0.1
 ARG FIPS=false
-ARG VALIDATE
+ARG VALIDATE=true
 
-COPY --from=kairos-init /kairos-init /kairos-init
-RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --provider "${PROVIDER_NAME}" --provider-"${PROVIDER_NAME}"-version "${PROVIDER_VERSION}" --version "${VERSION}" "$(if [ "${FIPS}" = "true" ]; then echo "--fips"; fi)"
-RUN if [ "${VALIDATE}" = 'true' ];then /kairos-init validate -t "${TRUSTED_BOOT}"; fi
+COPY --from=kairos-init-bin /kairos-init /kairos-init
+RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" \
+      --provider "${PROVIDER_NAME}" \
+      --provider-"${PROVIDER_NAME}"-version "${PROVIDER_VERSION}" \
+      --version "${VERSION}" \
+      "$(if [ "${FIPS}" = "true" ]; then echo "--fips"; fi)"
+RUN if [ "${VALIDATE}" = 'true' ]; then /kairos-init validate -t "${TRUSTED_BOOT}"; fi
 RUN rm /kairos-init
