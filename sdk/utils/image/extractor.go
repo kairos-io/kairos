@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/logs"
+	registrytypes "github.com/moby/moby/api/types/registry"
 
 	imagetypes "github.com/kairos-io/kairos/v4/sdk/types/images"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -14,20 +15,28 @@ import (
 // OCIImageExtractor is the default implementation of imagetypes.ImageExtractor:
 // it pulls an OCI image with GetImage and unpacks it with ExtractOCIImage.
 //
+// When Auth is nil, registry credentials are resolved with the default
+// container keychain. AuthRegistry limits Auth to that registry host; other
+// registries use the default keychain. An empty AuthRegistry preserves the
+// unscoped behavior for callers that supply Auth directly.
+//
 // Set Insecure to allow pulling from registries served over plain HTTP or
 // presenting an untrusted/self-signed TLS certificate (see WithInsecureRegistry).
 type OCIImageExtractor struct {
-	Insecure bool
+	Insecure     bool
+	Auth         *registrytypes.AuthConfig
+	AuthRegistry string
 }
 
 var _ imagetypes.ImageExtractor = OCIImageExtractor{}
 
 // pullOptions translates the extractor's configuration into GetImage options.
 func (e OCIImageExtractor) pullOptions() []GetOption {
+	opts := []GetOption{WithAuthRegistry(e.AuthRegistry)}
 	if e.Insecure {
-		return []GetOption{WithInsecureRegistry()}
+		opts = append(opts, WithInsecureRegistry())
 	}
-	return nil
+	return opts
 }
 
 // resolvePlatform defaults to the current host platform only when no platform
@@ -83,7 +92,7 @@ func (e OCIImageExtractor) ExtractImage(imageRef, destination, platformRef strin
 }
 
 func (e OCIImageExtractor) extract(imageRef, destination, platformRef string, excludes ...string) error {
-	img, err := GetImage(imageRef, resolvePlatform(platformRef), nil, nil, e.pullOptions()...)
+	img, err := GetImage(imageRef, resolvePlatform(platformRef), e.Auth, nil, e.pullOptions()...)
 	if err != nil {
 		return err
 	}
@@ -100,5 +109,5 @@ func (e OCIImageExtractor) extract(imageRef, destination, platformRef string, ex
 }
 
 func (e OCIImageExtractor) GetOCIImageSize(imageRef, platformRef string) (int64, error) {
-	return GetOCIImageSize(imageRef, resolvePlatform(platformRef), nil, nil, e.pullOptions()...)
+	return GetOCIImageSize(imageRef, resolvePlatform(platformRef), e.Auth, nil, e.pullOptions()...)
 }
