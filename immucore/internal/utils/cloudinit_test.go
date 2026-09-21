@@ -215,7 +215,7 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 			Expect(utils.RunStage("initramfs")).To(BeNil())
 
 			Expect(logBuf.String()).To(ContainSubstring("stage completed with errors"))
-			Expect(logBuf.String()).To(ContainSubstring("initramfs"))
+			Expect(logBuf.String()).To(ContainSubstring(`"stage":"initramfs"`))
 		})
 	})
 
