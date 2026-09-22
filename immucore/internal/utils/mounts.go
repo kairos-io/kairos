@@ -246,8 +246,13 @@ func CreateDirLike(mountpoint, dir string) error {
 		return err
 	}
 	// MkdirAll applies the umask, so the mode has to be set again to get the
-	// group and other bits the mountpoint has.
-	if err := os.Chmod(dir, info.Mode().Perm()); err != nil {
+	// group and other bits the mountpoint has. Perm() keeps the low nine bits
+	// only, so the setuid, setgid and sticky bits are carried over here too:
+	// an overlay on a sticky 1777 directory such as /var/tmp would otherwise
+	// publish it at 0777, and any user could delete another user's files in
+	// it. Only the final directory gets them, not the parents MkdirAll made
+	// on the way.
+	if err := os.Chmod(dir, info.Mode().Perm()|info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky)); err != nil {
 		return err
 	}
 
