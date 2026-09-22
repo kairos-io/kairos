@@ -3,7 +3,7 @@
 Install and upgrade image pulls use the host's existing Docker or Podman
 credential configuration by default. To provide credentials for one operation,
 set `registry-auth` under `install` or `upgrade` in cloud-config.
-The spelling is canonical and case-sensitive. Unknown keys containing `auth`
+The inline key is matched case-insensitively. Unknown keys containing `auth`
 directly under either operation are rejected; use `registry-auth`.
 
 The existing [Docker and Podman credential-file configuration](https://kairos.io/docs/v4.1.2/advanced/private_registry_auth/)
@@ -45,7 +45,9 @@ upgrade:
     file: "/run/secrets/registry-auth.yaml"
 ```
 
-The file contains one YAML object with any of the supported credential forms:
+The file contains one YAML object with lowercase field names from the supported
+credential forms. Inline credential field names are case-insensitive; file
+field names must use their documented lowercase spelling.
 
 ```yaml
 username: "REGISTRY_USERNAME"
@@ -81,6 +83,9 @@ Cloud-config can be copied to the installed system by the installer. Treat
 these values as plaintext credentials wherever that copy is enabled. Base64
 encoding does not encrypt a password. The new option does not add encrypted
 credential storage.
+
+Debug configuration output contains configuration data only. It redacts keys
+containing `auth`, `passwd`, `password`, `token`, or `secret`.
 
 Each operation block supplies one set of credentials to its image extractor.
 It is not a map of credentials by registry. Use the existing keychain when

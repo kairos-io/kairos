@@ -3,9 +3,9 @@ package config
 import (
 	"fmt"
 	"runtime"
+	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/kairos-io/kairos/v4/agent/pkg/implementations/imageextractor"
 	"github.com/kairos-io/kairos/v4/internal/version"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
@@ -169,30 +169,34 @@ func scan(result *sdkConfig.Config, opts ...collector.Option) (c *sdkConfig.Conf
 	return result, nil
 }
 
-// RedactedConfigDump returns a diagnostic representation without registry
-// credentials. It clones the collector values and extractor so logging cannot
-// mutate the operational configuration.
+// RedactedConfigDump returns a redacted snapshot of configuration data only.
+// Runtime services and providers are excluded from the diagnostic output.
 func RedactedConfigDump(result *sdkConfig.Config) string {
 	if err := validateRegistryAuthKeys(result.Collector.Values); err != nil {
 		return err.Error()
 	}
-	debugResult := *result
-	if values, ok := redactConfigValues(result.Collector.Values).(collector.ConfigValues); ok {
-		debugResult.Collector.Values = values
+	data, err := yaml.Marshal(map[string]interface{}{
+		"config":    result,
+		"collector": result.Collector.Values,
+	})
+	if err != nil {
+		return "configuration diagnostic unavailable"
 	}
-	switch extractor := result.ImageExtractor.(type) {
-	case imageextractor.OCIImageExtractor:
-		extractor.Auth = nil
-		debugResult.ImageExtractor = extractor
-	case *imageextractor.OCIImageExtractor:
-		if extractor == nil {
-			break
+	var snapshot map[string]interface{}
+	if err := yaml.Unmarshal(data, &snapshot); err != nil {
+		return "configuration diagnostic unavailable"
+	}
+	return litter.Sdump(redactConfigValues(snapshot))
+}
+
+func isSensitiveConfigKey(key string) bool {
+	key = strings.ToLower(key)
+	for _, part := range []string{"auth", "passwd", "password", "token", "secret"} {
+		if strings.Contains(key, part) {
+			return true
 		}
-		copyExtractor := *extractor
-		copyExtractor.Auth = nil
-		debugResult.ImageExtractor = &copyExtractor
 	}
-	return litter.Sdump(&debugResult)
+	return false
 }
 
 func redactConfigValues(value interface{}) interface{} {
@@ -200,7 +204,7 @@ func redactConfigValues(value interface{}) interface{} {
 	case collector.ConfigValues:
 		out := collector.ConfigValues{}
 		for key, child := range typed {
-			if key == "registry-auth" {
+			if isSensitiveConfigKey(key) {
 				out[key] = "[REDACTED]"
 			} else {
 				out[key] = redactConfigValues(child)
@@ -210,7 +214,17 @@ func redactConfigValues(value interface{}) interface{} {
 	case map[string]interface{}:
 		out := map[string]interface{}{}
 		for key, child := range typed {
-			if key == "registry-auth" {
+			if isSensitiveConfigKey(key) {
+				out[key] = "[REDACTED]"
+			} else {
+				out[key] = redactConfigValues(child)
+			}
+		}
+		return out
+	case map[interface{}]interface{}:
+		out := map[interface{}]interface{}{}
+		for key, child := range typed {
+			if text, ok := key.(string); ok && isSensitiveConfigKey(text) {
 				out[key] = "[REDACTED]"
 			} else {
 				out[key] = redactConfigValues(child)

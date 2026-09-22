@@ -72,7 +72,7 @@ func readRegistryAuth(cfg *sdkConfig.Config, raw interface{}, subkey string) (*r
 func readRegistryAuthFile(cfg *sdkConfig.Config, path, subkey string) (*registrytypes.AuthConfig, error) {
 	data, err := cfg.Fs.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("%s.registry-auth.file cannot be read: %w", subkey, err)
+		return nil, fmt.Errorf("%s.registry-auth.file cannot be read", subkey)
 	}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	var credentials, extra interface{}
@@ -114,7 +114,7 @@ func validateRegistryAuthKeys(values collector.ConfigValues) error {
 			continue
 		}
 		for key := range operationValues {
-			if strings.Contains(strings.ToLower(key), "auth") && key != "registry-auth" {
+			if strings.Contains(strings.ToLower(key), "auth") && !strings.EqualFold(key, "registry-auth") {
 				return fmt.Errorf("%s operation contains an unsupported authentication key; use registry-auth", canonicalOperation)
 			}
 		}
@@ -169,6 +169,10 @@ func registryAuthFields(values map[string]interface{}, subkey string) (map[strin
 		switch key {
 		case "username", "password", "auth", "identity-token", "registry-token":
 		default:
+			switch strings.ToLower(key) {
+			case "username", "password", "auth", "identity-token", "registry-token":
+				return nil, fmt.Errorf("%s.registry-auth field %q must be spelled %q", subkey, key, strings.ToLower(key))
+			}
 			return nil, fmt.Errorf("%s.registry-auth contains an unsupported field", subkey)
 		}
 		text, ok := value.(string)

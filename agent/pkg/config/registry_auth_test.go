@@ -16,10 +16,20 @@ import (
 	registrytypes "github.com/moby/moby/api/types/registry"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/spf13/viper"
 	"github.com/twpayne/go-vfs/v5/vfst"
 )
 
 type unreadableRegistryFS struct{ fs.KairosFS }
+
+type secretDiagnosticFS struct {
+	fs.KairosFS
+	Contents string
+}
+
+func (f secretDiagnosticFS) ReadFile(string) ([]byte, error) {
+	return nil, fmt.Errorf("read failed: %s", f.Contents)
+}
 
 func (unreadableRegistryFS) ReadFile(string) ([]byte, error) {
 	return nil, os.ErrPermission
@@ -44,9 +54,114 @@ func imageExtractorAuth(value interface{}) *registrytypes.AuthConfig {
 }
 
 var _ = Describe("registry auth", func() {
+	It("accepts case variants supported by viper and still hides credentials", func() {
+		for _, operation := range []string{"install", "upgrade"} {
+			for _, key := range []string{"registry-auth", "registry-Auth", "REGISTRY-AUTH"} {
+				cfg := registryConfig(operation, nil)
+				cfg.Collector.Values[operation] = collector.ConfigValues{key: collector.ConfigValues{"Username": "case-user", "PASSWORD": "case-secret-sentinel"}}
+				_, auth, err := readRegistryOptions(cfg, operation)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(auth).To(Equal(&registrytypes.AuthConfig{Username: "case-user", Password: "case-secret-sentinel"}))
+				Expect(RedactedConfigDump(cfg)).ToNot(ContainSubstring("case-secret-sentinel"))
+			}
+		}
+	})
+
+	It("hides nested secrets even when the auth block spelling is not recognized", func() {
+		for _, operation := range []string{"install", "upgrade"} {
+			for _, key := range []string{"registry-auht", "registry-atuh"} {
+				cfg := registryConfig(operation, nil)
+				cfg.Collector.Values[operation] = collector.ConfigValues{key: map[string]interface{}{"password": "transposed-secret-sentinel"}}
+				_, auth, err := readRegistryOptions(cfg, operation)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(auth).To(BeNil())
+				Expect(RedactedConfigDump(cfg)).ToNot(ContainSubstring("transposed-secret-sentinel"))
+				Expect(RedactedConfigDump(cfg)).To(ContainSubstring("[REDACTED]"))
+			}
+		}
+	})
+
+	It("redacts sensitive keys throughout arrays and maps without modifying the source", func() {
+		for _, key := range []string{"AUTH", "passwd", "PassWord", "access-token", "client_secret"} {
+			cfg := registryConfig("install", nil)
+			child := map[string]interface{}{key: "nested-secret-sentinel", "name": "visible-user"}
+			cfg.Collector.Values["users"] = []interface{}{child, collector.ConfigValues{key: []interface{}{"nested-secret-sentinel"}}}
+			before, err := cfg.Collector.String()
+			Expect(err).ToNot(HaveOccurred())
+			dump := RedactedConfigDump(cfg)
+			Expect(dump).ToNot(ContainSubstring("nested-secret-sentinel"))
+			Expect(dump).To(ContainSubstring("visible-user"))
+			after, err := cfg.Collector.String()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(after).To(Equal(before))
+		}
+	})
+
+	It("redacts typed config fields and excludes runtime dependencies from diagnostics", func() {
+		cfg := registryConfig("install", nil)
+		cfg.Options = map[string]string{"token": "typed-secret-sentinel", "visible": "diagnostic-value"}
+		cfg.Fs = secretDiagnosticFS{Contents: "filesystem-secret-sentinel"}
+		cfg.Collector.Values["typed-users"] = []collector.ConfigValues{{"passwd": "typed-array-secret-sentinel"}}
+		cfg.Collector.Values["mixed-map"] = map[interface{}]interface{}{42: "visible-number", "password": "mixed-map-secret-sentinel"}
+		for _, extractor := range []interface{}{
+			imageextractor.OCIImageExtractor{Auth: &registrytypes.AuthConfig{Password: "extractor-secret-sentinel"}},
+			&imageextractor.OCIImageExtractor{Auth: &registrytypes.AuthConfig{Password: "extractor-secret-sentinel"}},
+		} {
+			switch e := extractor.(type) {
+			case imageextractor.OCIImageExtractor:
+				cfg.ImageExtractor = e
+			case *imageextractor.OCIImageExtractor:
+				cfg.ImageExtractor = e
+			}
+			dump := RedactedConfigDump(cfg)
+			Expect(dump).ToNot(ContainSubstring("secret-sentinel"))
+			Expect(dump).To(ContainSubstring("diagnostic-value"))
+			Expect(cfg.Options["token"]).To(Equal("typed-secret-sentinel"))
+			Expect(imageExtractorAuth(cfg.ImageExtractor).Password).To(Equal("extractor-secret-sentinel"))
+		}
+	})
+
+	It("keeps secrets out of the actual loaded-config debug log", func() {
+		DeferCleanup(viper.Reset)
+		fileSystem, cleanup, err := vfst.NewTestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(cleanup)
+		Expect(fileSystem.Mkdir("/etc", 0755)).To(Succeed())
+		Expect(fileSystem.WriteFile("/etc/os-release", []byte("KAIROS_VERSION=test\n"), 0644)).To(Succeed())
+		var logs bytes.Buffer
+		cfg := &sdkConfig.Config{Fs: fileSystem, Logger: logger.NewBufferLogger(&logs)}
+		input := "debug: true\nusers:\n- name: kairos\n  passwd: user-log-secret-sentinel\noptions:\n  token: option-log-secret-sentinel\nupgrade:\n  registry-auht:\n    password: typo-log-secret-sentinel\n"
+		_, err = scan(cfg, collector.Readers(strings.NewReader(input)))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(logs.String()).To(ContainSubstring("Loaded config:"))
+		Expect(logs.String()).ToNot(ContainSubstring("secret-sentinel"))
+		Expect(cfg.Options["token"]).To(Equal("option-log-secret-sentinel"))
+	})
+
+	It("explains case-sensitive file fields without exposing credential values", func() {
+		fileSystem, cleanup, err := vfst.NewTestFS(nil)
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(cleanup)
+		Expect(fileSystem.WriteFile("/credentials.yaml", []byte("Username: casing-secret-sentinel\npassword: casing-secret-sentinel\n"), 0600)).To(Succeed())
+		cfg := registryConfig("install", collector.ConfigValues{"file": "/credentials.yaml"})
+		cfg.Fs = fileSystem
+		_, _, err = readRegistryOptions(cfg, "install")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("Username"))
+		Expect(err.Error()).To(ContainSubstring("username"))
+		Expect(err.Error()).ToNot(ContainSubstring("casing-secret-sentinel"))
+	})
+
+	It("does not expose credential file contents through filesystem errors", func() {
+		cfg := registryConfig("install", collector.ConfigValues{"file": "/credentials.yaml"})
+		cfg.Fs = secretDiagnosticFS{Contents: "filesystem-secret-sentinel"}
+		_, _, err := readRegistryOptions(cfg, "install")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).ToNot(ContainSubstring("filesystem-secret-sentinel"))
+	})
 	It("rejects misspelled authentication blocks without exposing their contents", func() {
 		for _, operation := range []string{"install", "upgrade", "INSTALL"} {
-			for _, key := range []string{"registry_auth", "registy-auth", "REGISTRY-AUTH", "auth-secret-key-sentinel"} {
+			for _, key := range []string{"registry_auth", "registy-auth", "auth-secret-key-sentinel"} {
 				for _, plainMap := range []bool{false, true} {
 					cfg := registryConfig(operation, nil)
 					values := collector.ConfigValues{key: collector.ConfigValues{"password": "typo-secret-sentinel"}}
