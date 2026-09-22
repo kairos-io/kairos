@@ -720,18 +720,27 @@ var BasePackages = PackageMap{
 		// iSCSI backed storage such as Longhorn or Portworx cannot attach a
 		// volume, even though 00_rootfs.yaml persists /etc/iscsi for it.
 		//
-		// Listed per architecture rather than under ArchCommon because the
-		// package cannot be confirmed for Fedora riscv64, the same reason
-		// open-vm-tools is split this way for the SUSE family above. These two
-		// arches cover every published Red Hat family Kairos image.
+		// open-vm-tools is what 26_vm.yaml starts on a VMware guest, as vmtoolsd
+		// on systemd. The Red Hat family already installs the QEMU agent above but
+		// never installed this one, so the stage started a unit that was not
+		// there. See #4737.
+		//
+		// Both are listed per architecture rather than under ArchCommon because
+		// the flavor matrix also builds a riscv64 Fedora cell: the iSCSI package
+		// cannot be confirmed there, and open-vm-tools is a VMware guest agent
+		// that upstream builds for x86_64 and aarch64 only. These two arches cover
+		// every published Red Hat family Kairos image. Same split the Debian and
+		// SUSE families use.
 		ArchAMD64: {
 			Common: {
 				"iscsi-initiator-utils",
+				"open-vm-tools",
 			},
 		},
 		ArchARM64: {
 			Common: {
 				"iscsi-initiator-utils",
+				"open-vm-tools",
 			},
 		},
 	},

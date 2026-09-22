@@ -72,9 +72,10 @@ var _ = Describe("Bundled VM cloudconfig", func() {
 var qemuStartRe = regexp.MustCompile(`^(?:systemctl start|rc-service) ([\w.@-]+)(?: start)?$`)
 
 // vmSystems are the distro, family and architecture triples kairos-init builds
-// and that can boot as a QEMU or KVM guest. Debian riscv64 is left out on
-// purpose: bookworm publishes no qemu-guest-agent for it, which is why
-// BasePackages lists the package per architecture.
+// that can boot as a guest of a hypervisor 26_vm.yaml detects. riscv64 is left
+// out on purpose: neither guest agent is published for it (Debian bookworm
+// ships no qemu-guest-agent, and open-vm-tools is built for x86_64 and aarch64
+// only), which is why BasePackages lists both packages per architecture.
 var vmSystems = []values.System{
 	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchAMD64},
 	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchARM64},
@@ -137,20 +138,6 @@ var _ = Describe("Bundled VM cloudconfig packages", func() {
 	})
 })
 
-// vmwareSystems are the systems whose images install open-vm-tools. It is a
-// subset of vmSystems: the Red Hat family is left out because it installs no
-// open-vm-tools either, which is the other half of the same bug and is tracked
-// separately in #4737. Add the Red Hat entries here together with the package.
-var vmwareSystems = []values.System{
-	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchAMD64},
-	{Distro: values.Ubuntu, Family: values.DebianFamily, Version: "24.04", Arch: values.ArchARM64},
-	{Distro: values.Debian, Family: values.DebianFamily, Version: "12", Arch: values.ArchAMD64},
-	{Distro: values.Debian, Family: values.DebianFamily, Version: "12", Arch: values.ArchARM64},
-	{Distro: values.OpenSUSELeap, Family: values.SUSEFamily, Version: "15.6", Arch: values.ArchAMD64},
-	{Distro: values.Alpine, Family: values.AlpineFamily, Version: "3.21", Arch: values.ArchAMD64},
-	{Distro: values.Alpine, Family: values.AlpineFamily, Version: "3.21", Arch: values.ArchARM64},
-}
-
 // vmwarePackage provides both names the VMware stages start. OpenRC names the
 // service after the package, systemd names it after the daemon the package
 // runs, and on the Debian family vmtoolsd.service is an Install alias of
@@ -168,7 +155,9 @@ var _ = Describe("Bundled VM cloudconfig VMware packages", func() {
 	// hook: vCenter learns a guest's addresses only from the in-guest vmtoolsd,
 	// so without the package VSphereMachine.status.addresses stays empty and a
 	// Cluster API machine never reaches Ready. That is the failure #4092 was
-	// filed for, and it was fixed for Hadron only.
+	// filed for, and it was fixed for Hadron only. The Debian family and the
+	// Red Hat family both started the daemon without installing it, so this
+	// runs over the same list as the QEMU spec rather than a subset.
 	It("installs open-vm-tools on every family whose images can run the stage", func() {
 		content, err := os.ReadFile(filepath.Join("..", "bundled", "cloudconfigs", "26_vm.yaml"))
 		Expect(err).NotTo(HaveOccurred())
@@ -205,7 +194,7 @@ var _ = Describe("Bundled VM cloudconfig VMware packages", func() {
 		Expect(packages).To(HaveLen(1), "both stages must come from one package")
 
 		l := logger.NewKairosLogger("validation", "error", true)
-		for _, sys := range vmwareSystems {
+		for _, sys := range vmSystems {
 			installed, err := values.GetPackages(sys, l)
 			Expect(err).NotTo(HaveOccurred(), "%s/%s", sys.Distro, sys.Arch)
 			Expect(installed).To(ContainElement(vmwarePackage),
