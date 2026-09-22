@@ -27,10 +27,18 @@ ARG FIPS=false
 ARG VALIDATE=true
 
 COPY --from=kairos-init-bin /kairos-init /kairos-init
-RUN /kairos-init -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" \
-      --provider "${PROVIDER_NAME}" \
-      --provider-"${PROVIDER_NAME}"-version "${PROVIDER_VERSION}" \
-      --version "${VERSION}" \
-      "$(if [ "${FIPS}" = "true" ]; then echo "--fips"; fi)"
+# Build the flag list so cells without a provider don't pass
+# `--provider ""` (which kairos-init reads as StandardVariant with an
+# empty provider name, only tolerated by accident downstream), and
+# cells without FIPS don't get a trailing empty positional arg.
+RUN set -- -l debug -m "${MODEL}" -t "${TRUSTED_BOOT}" --version "${VERSION}"; \
+    if [ -n "${PROVIDER_NAME}" ]; then \
+      set -- "$@" --provider "${PROVIDER_NAME}" \
+                  "--provider-${PROVIDER_NAME}-version" "${PROVIDER_VERSION}"; \
+    fi; \
+    if [ "${FIPS}" = "true" ]; then \
+      set -- "$@" --fips; \
+    fi; \
+    /kairos-init "$@"
 RUN if [ "${VALIDATE}" = 'true' ]; then /kairos-init validate -t "${TRUSTED_BOOT}"; fi
 RUN rm /kairos-init
