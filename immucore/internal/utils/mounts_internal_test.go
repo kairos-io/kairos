@@ -181,6 +181,39 @@ var _ = Describe("CreateDirLike", func() {
 		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o700)))
 	})
 
+	It("keeps the sticky bit of a world writable path such as /var/tmp", func() {
+		mountpoint := filepath.Join(root, "tmp")
+		stateDir := filepath.Join(root, "usr/local/.state", "var-tmp.bind")
+		Expect(os.MkdirAll(mountpoint, 0o777)).To(Succeed())
+		Expect(os.Chmod(mountpoint, os.ModeSticky|0o777)).To(Succeed())
+
+		Expect(CreateDirLike(mountpoint, stateDir)).To(Succeed())
+
+		info, err := os.Stat(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode() & os.ModeSticky).ToNot(BeZero())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o777)))
+
+		// The parents MkdirAll made on the way have no business being sticky.
+		parent, err := os.Stat(filepath.Dir(stateDir))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(parent.Mode() & os.ModeSticky).To(BeZero())
+	})
+
+	It("keeps the setgid bit of a shared group directory", func() {
+		mountpoint := filepath.Join(root, "shared")
+		stateDir := filepath.Join(root, "shared.bind")
+		Expect(os.MkdirAll(mountpoint, 0o775)).To(Succeed())
+		Expect(os.Chmod(mountpoint, os.ModeSetgid|0o775)).To(Succeed())
+
+		Expect(CreateDirLike(mountpoint, stateDir)).To(Succeed())
+
+		info, err := os.Stat(stateDir)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info.Mode() & os.ModeSetgid).ToNot(BeZero())
+		Expect(info.Mode().Perm()).To(Equal(os.FileMode(0o775)))
+	})
+
 	It("fails when there is no path to take the mode from", func() {
 		err := CreateDirLike(filepath.Join(root, "missing"), filepath.Join(root, "var-log-audit.bind"))
 		Expect(err).To(HaveOccurred())
