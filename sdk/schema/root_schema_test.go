@@ -114,7 +114,7 @@ kubevip:
 
 			It("fails, because the provider reads interface as an interface name string", func() {
 				Expect(config.IsValid()).NotTo(BeTrue())
-				Expect(config.ValidationError.Error()).To(MatchRegexp("interface"))
+				Expect(config.ValidationError.Error()).To(MatchRegexp("/kubevip/interface"))
 			})
 		})
 	})

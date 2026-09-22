@@ -10,7 +10,7 @@ import (
 )
 
 // schemaProps generates the P2PSchema and walks it down to the "properties"
-// object at the given definition name, or the top-level one when name is "".
+// object at the given definition name.
 // Tests use it to assert on the shape of the generated JSON schema itself,
 // for cases (like an unused/renamed key) that additionalProperties-permissive
 // validation cannot tell apart from a typo.
@@ -21,12 +21,6 @@ func schemaProps(definition string) map[string]interface{} {
 	var doc map[string]interface{}
 	ExpectWithOffset(1, json.Unmarshal([]byte(raw), &doc)).To(Succeed())
 
-	if definition == "" {
-		props, ok := doc["properties"].(map[string]interface{})
-		ExpectWithOffset(1, ok).To(BeTrue(), "generated schema has no top-level properties object")
-		return props
-	}
-
 	definitions, ok := doc["definitions"].(map[string]interface{})
 	ExpectWithOffset(1, ok).To(BeTrue(), "generated schema has no definitions object")
 	def, ok := definitions[definition].(map[string]interface{})
@@ -34,6 +28,20 @@ func schemaProps(definition string) map[string]interface{} {
 	props, ok := def["properties"].(map[string]interface{})
 	ExpectWithOffset(1, ok).To(BeTrue(), "definition %q has no properties object", definition)
 	return props
+}
+
+// nestedProps walks props down the given chain of nested object properties,
+// checking every level, so a schema that stops nesting a block inline fails
+// naming the level that broke instead of panicking on a nil conversion.
+func nestedProps(props map[string]interface{}, path ...string) map[string]interface{} {
+	current := props
+	for _, key := range path {
+		object, ok := current[key].(map[string]interface{})
+		ExpectWithOffset(1, ok).To(BeTrue(), "no object at %q", key)
+		current, ok = object["properties"].(map[string]interface{})
+		ExpectWithOffset(1, ok).To(BeTrue(), "no properties under %q", key)
+	}
+	return current
 }
 
 var _ = Describe("P2P Schema", func() {
@@ -297,14 +305,10 @@ auto:
 		})
 
 		It("is only declared on the auto-enabled branch of the oneOf", func() {
-			enabled := schemaProps("SchemaP2PAutoEnabled")
-			ha, ok := enabled["auto"].(map[string]interface{})["properties"].(map[string]interface{})["ha"].(map[string]interface{})["properties"].(map[string]interface{})
-			Expect(ok).To(BeTrue())
+			ha := nestedProps(schemaProps("SchemaP2PAutoEnabled"), "auto", "ha")
 			Expect(ha).To(HaveKey("external_db"))
 
-			disabled := schemaProps("SchemaP2PAutoDisabled")
-			haDisabled, ok := disabled["auto"].(map[string]interface{})["properties"].(map[string]interface{})["ha"].(map[string]interface{})["properties"].(map[string]interface{})
-			Expect(ok).To(BeTrue())
+			haDisabled := nestedProps(schemaProps("SchemaP2PAutoDisabled"), "auto", "ha")
 			Expect(haDisabled).NotTo(HaveKey("external_db"))
 		})
 	})
