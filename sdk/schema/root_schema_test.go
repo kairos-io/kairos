@@ -73,6 +73,52 @@ users:
 		})
 	})
 
+	Context("kubevip", func() {
+		var config *KConfig
+		var err error
+		var yaml string
+
+		JustBeforeEach(func() {
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Context("with a valid kubevip block", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+kubevip:
+  enable: true
+  interface: ens18
+  static_pod: true
+  version: v0.8.0
+  image: ghcr.io/kube-vip/kube-vip`
+			})
+
+			It("validates", func() {
+				Expect(config.IsValid()).To(BeTrue())
+			})
+		})
+
+		Context("with a boolean interface, the pre-fix type", func() {
+			BeforeEach(func() {
+				yaml = `#cloud-config
+users:
+  - name: kairos
+    passwd: kairos
+kubevip:
+  interface: true`
+			})
+
+			It("fails, because the provider reads interface as an interface name string", func() {
+				Expect(config.IsValid()).NotTo(BeTrue())
+				Expect(config.ValidationError.Error()).To(MatchRegexp("interface"))
+			})
+		})
+	})
+
 	Context("ValidateSemantics", func() {
 		var kc *KConfig
 
