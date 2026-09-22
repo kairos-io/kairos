@@ -16,9 +16,10 @@ import (
 // than sdk/types/config.Config, with the reader, so a key can only be here on
 // purpose.
 var readOutsideConfig = map[string]string{
-	"p2p":    "provider-kairos, provider/internal/role",
-	"stages": "yip, through the cloud-init runner",
-	"users":  "the yip users plugin, run from the initramfs stage",
+	"kubevip": "provider-kairos, provider/internal/role/p2p",
+	"p2p":     "provider-kairos, provider/internal/role",
+	"stages":  "yip, through the cloud-init runner",
+	"users":   "the yip users plugin, run from the initramfs stage",
 }
 
 // The parity check in agent/pkg/config guards one direction: every field of
