@@ -628,15 +628,26 @@ func NewUkiResetSpec(cfg *sdkConfig.Config) (*spec.ResetUkiSpec, error) {
 		return sp, fmt.Errorf("uki reset can only be called from the recovery installed system")
 	}
 
-	// Fill persistent partition
-	sp.Partitions.Persistent = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.PersistentLabel)
-	sp.Partitions.OEM = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.OEMLabel)
-
-	// Get EFI partition
 	parts, err := partitions.GetAllPartitions(&cfg.Logger)
 	if err != nil {
 		return sp, fmt.Errorf("could not read host partitions")
 	}
+	ep := spec.NewElementalPartitionsFromList(parts)
+
+	// A UKI install encrypts OEM and persistent by default, and an encrypted
+	// partition only shows up as its device-mapper node. install.encrypted_partitions
+	// can name a subset though, so either of the two can also be a plain
+	// partition, which only shows up in the ghw list. Look in both places.
+	sp.Partitions.Persistent = ep.Persistent
+	if sp.Partitions.Persistent == nil {
+		sp.Partitions.Persistent = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.PersistentLabel)
+	}
+	sp.Partitions.OEM = ep.OEM
+	if sp.Partitions.OEM == nil {
+		sp.Partitions.OEM = partitions.GetPartitionViaDM(cfg.Fs, sdkConstants.OEMLabel)
+	}
+
+	// Get EFI partition
 	for _, p := range parts {
 		if p.FilesystemLabel == sdkConstants.EfiLabel {
 			sp.Partitions.EFI = p
