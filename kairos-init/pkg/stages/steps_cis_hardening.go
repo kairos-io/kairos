@@ -47,13 +47,15 @@ var cisAccountFiles = []cisAccountFile{
 // GetCISHardeningStage applies the CIS Distribution Independent Linux v2.0.0
 // Level 1 controls that can be baked into the image: the section 1 "Initial
 // Setup" ones - the filesystem module blocklist (1.1.1.1-1.1.1.6) and the
-// remote login warning banner (1.7) - plus the section 6.1 "System File
-// Permissions" modes on the account databases.
+// remote login warning banner (1.7) - the section 3 kernel and network
+// sysctl hardening, the section 4.1 baseline audit rules and auditd enable,
+// plus the section 6.1 "System File Permissions" modes on the account
+// databases.
 //
-// The rest of the benchmark - SELinux enforcing, sysctl, auditd, PAM, time
-// sync - needs either runtime state or decisions that change how a node boots,
-// and is not covered here.
-func GetCISHardeningStage(_ values.System, l logger.KairosLogger) []schema.Stage {
+// The rest of the benchmark - SELinux enforcing, PAM, time sync - needs
+// either runtime state or decisions that change how a node boots, and is not
+// covered here.
+func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Stage {
 	if config.ContainsSkipStep(values.CISHardeningStep) {
 		l.Logger.Warn().Msg("Skipping CIS hardening stage")
 		return []schema.Stage{}
@@ -85,6 +87,38 @@ func GetCISHardeningStage(_ values.System, l logger.KairosLogger) []schema.Stage
 					Group:       0,
 					Content:     bundled.IssueNetBanner,
 				},
+			},
+		},
+		{
+			Name: "Install CIS kernel and network sysctl hardening",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISSysctlPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISSysctl,
+				},
+			},
+		},
+		{
+			Name: "Install CIS baseline audit rules",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISAuditRulesPath,
+					Permissions: 0640,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISAuditRules,
+				},
+			},
+		},
+		{
+			Name:                 "Enable auditd service",
+			OnlyIfServiceManager: serviceManagerSystemd,
+			If:                   "test -f /usr/lib/systemd/system/auditd.service -o -f /lib/systemd/system/auditd.service",
+			Systemctl: schema.Systemctl{
+				Enable: []string{"auditd"},
 			},
 		},
 	}
