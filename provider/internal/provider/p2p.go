@@ -33,6 +33,11 @@ const (
 	// edgevpn API there is, so it is also what a client on that machine has to
 	// dial.
 	DefaultBridgeAPIListen = "127.0.0.1:8080"
+
+	// CloudConfigDir is where SaveCloudConfig leaves the configs this
+	// package generates. It is one of the writable directories the config
+	// scan reads, so what lands there is still in effect after a reboot.
+	CloudConfigDir = "/oem"
 )
 
 // ResolveAPIAddress returns the address a client should use to reach the local
@@ -151,8 +156,25 @@ func applyAPIListenerEnv(opts, userEnv map[string]string) {
 	}
 }
 
-func SaveCloudConfig(name string, c []byte) error {
-	return os.WriteFile(filepath.Join("oem", fmt.Sprintf("%s.yaml", name)), c, 0700)
+// cloudConfigDirMode is the mode for the directory the generated configs go
+// in. Like the drop-in directory above it is a shared system location, so it
+// takes the usual 0755; the file itself stays private.
+const cloudConfigDirMode = 0755
+
+// SaveCloudConfig writes a generated cloud config where the config scan will
+// pick it up, creating the directory if it is not there yet.
+//
+// Both the directory and the file hang off rootDir, the same way
+// writeEdgeVPNEnv does it, so the caller's working directory has no say in
+// where the file ends up and a staging root stays a staging root.
+func SaveCloudConfig(rootDir, name string, c []byte) error {
+	dir := filepath.Join(rootDir, CloudConfigDir)
+
+	if err := os.MkdirAll(dir, cloudConfigDirMode); err != nil {
+		return fmt.Errorf("could not create %s: %w", dir, err)
+	}
+
+	return os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s.yaml", name)), c, 0700)
 }
 
 func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
@@ -262,7 +284,7 @@ func SetupVPN(logger loggerpkg.KairosLogger, instance, apiAddress, rootDir strin
 			}
 		}
 
-		if err := SaveCloudConfig("vpn_dns", []byte(assets.LocalDNS)); err != nil {
+		if err := SaveCloudConfig(rootDir, "vpn_dns", []byte(assets.LocalDNS)); err != nil {
 			return fmt.Errorf("could not create dns config: %w", err)
 		}
 	}
