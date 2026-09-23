@@ -207,11 +207,6 @@ var _ = Describe("P2P Schema role", func() {
 	// (provider/internal/role/p2p/k8s.go), and it accepts the empty string,
 	// "master" and "worker". Anything else stops the bootstrap, so what the
 	// schema declares has to line up with that set.
-	JustBeforeEach(func() {
-		config, err = NewConfigFromYAML(yaml, RootSchema{})
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	DescribeTable("accepts the values the provider reads",
 		func(role string) {
 			yaml = `#cloud-config
@@ -223,9 +218,8 @@ p2p:
   auto:
     enable: true`
 
-			var e error
-			config, e = NewConfigFromYAML(yaml, RootSchema{})
-			Expect(e).ToNot(HaveOccurred())
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
 			Expect(config.IsValid()).To(BeTrue(), func() string {
 				if config.ValidationError == nil {
 					return ""
@@ -252,6 +246,11 @@ p2p:
   role: "leader"
   auto:
     enable: true`
+		})
+
+		JustBeforeEach(func() {
+			config, err = NewConfigFromYAML(yaml, RootSchema{})
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("errors", func() {
