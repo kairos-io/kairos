@@ -69,7 +69,11 @@ func (s *State) EnsurePartitionsDagStep(g *herd.Graph, deps ...string) error {
 				return errors.New("missing kairos partitions; see console for details")
 			}
 
-			target, err := selectTargetDisk(explicit)
+			// Exactly one of the two labels is present: we are completing a
+			// partially partitioned Kairos disk, not building a new one.
+			partial := oemFound != persistentFound
+
+			target, err := selectTargetDisk(explicit, partial)
 			if err != nil {
 				return err
 			}
@@ -96,12 +100,8 @@ func (s *State) EnsurePartitionsDagStep(g *herd.Graph, deps ...string) error {
 				return errors.New("refusing to touch non-empty disk; see console for details")
 			}
 
-			// If we are creating BOTH partitions we init a fresh GPT (either
-			// the disk is empty or the operator consented to the wipe above).
-			// When one of our labels is already present on the disk, append
-			// only — the existing table is preserved.
 			bothMissing := !oemFound && !persistentFound
-			initDisk := bothMissing
+			initDisk := resolveInitDisk(bothMissing, target)
 
 			oemSize, oemErr := internalUtils.ParseAutoCreateSize(cnst.CmdlineAutoCreateOemSize, uint64(sdkConstants.OEMSize))
 			persistentSize, persistentErr := internalUtils.ParseAutoCreateSize(cnst.CmdlineAutoCreatePersistentSize, uint64(sdkConstants.PersistentSize))
@@ -220,18 +220,26 @@ var (
 // selectTargetDisk resolves the effective target disk. explicit wins when
 // non-empty (operator gave us a path). Otherwise the order is:
 //
-//  1. A candidate that already carries COS_OEM or COS_PERSISTENT. We only get
-//     this far when one of the two is missing, so such a disk is a partially
-//     partitioned Kairos disk and the missing sibling belongs next to it. It
-//     is also the only choice that keeps init_disk correct: the caller sends
-//     init_disk: false in that case, and a disk with no partition table has
-//     nothing for yip to append to.
+//  1. Only when partial is true (exactly one of COS_OEM and COS_PERSISTENT
+//     is present on the machine): a candidate that already carries one of
+//     our labels. Such a disk is a partially partitioned Kairos disk and the
+//     missing sibling belongs next to it.
+//
+//     The preference is deliberately NOT applied when both labels are
+//     missing. diskHasKairosPartitionsFn also matches the LUKS container
+//     labels, which KairosPartitionsPresent cannot see, so on an encrypted
+//     post-#4403 host booted before kcrypt unlock a live install looks like
+//     "not ours" to the caller and "ours" to this loop. Running the loop
+//     there would steer a both-missing boot onto the encrypted disk and past
+//     the wipe guard, where it used to land harmlessly on the empty one.
+//
 //  2. Without kairos.ram.wipe, the largest EMPTY disk: a disk that already
 //     carries a partition table is most likely in use by another system, and
 //     grabbing it just because it is the biggest would either halt on the
 //     wipe guard or, with kairos.ram.wipe set, destroy the wrong disk. With
 //     the wipe flag the operator already declared "destroy whatever is on the
 //     target", so this preference is skipped.
+//
 //  3. The largest disk overall, letting the wipe guard downstream explain the
 //     situation.
 //
@@ -240,7 +248,7 @@ var (
 // candidates at all" halts boot via HaltWithBanner, same reasoning as the
 // missing-flag branch: returning an error would let systemd proceed into a
 // broken userland.
-func selectTargetDisk(explicit string) (string, error) {
+func selectTargetDisk(explicit string, partial bool) (string, error) {
 	if explicit != "" {
 		if !diskExistsFn(explicit) {
 			internalUtils.HaltWithBanner(
@@ -268,11 +276,15 @@ func selectTargetDisk(explicit string) (string, error) {
 		}
 		// Last so it wins over both fallbacks, the wipe flag included:
 		// appending the missing partition next to its sibling destroys
-		// nothing, whatever the operator consented to.
-		for _, c := range candidates {
-			if diskHasKairosPartitionsFn(c) {
-				selected = c
-				break
+		// nothing, whatever the operator consented to. Gated on partial so
+		// it can never fire on a both-missing boot, where the disk it picks
+		// is one the caller does not recognize as ours.
+		if partial {
+			for _, c := range candidates {
+				if diskHasKairosPartitionsFn(c) {
+					selected = c
+					break
+				}
 			}
 		}
 		if len(candidates) > 1 {
@@ -292,4 +304,23 @@ func selectTargetDisk(explicit string) (string, error) {
 	// Reached only on non-systemd hosts (Alpine/openrc), where HaltWithBanner
 	// paints the screen and returns so we can fail the step normally.
 	return "", errors.New("could not resolve a target disk; see console for details")
+}
+
+// resolveInitDisk decides whether yip writes a fresh GPT on target.
+//
+// A fresh GPT is only correct when we are creating BOTH partitions AND the
+// resolved disk is safe to reinitialize: it has no partition table at all, or
+// the operator set kairos.ram.wipe. Deriving this from the whole-machine scan
+// alone was wrong, because that scan reports "both labels missing" for disks
+// it cannot read. An encrypted post-#4403 install shows only COS_OEM_LUKS and
+// COS_PERSISTENT_LUKS before kcrypt unlock. It was also wrong because an
+// explicitly named disk bypasses selectTargetDisk's preferences altogether,
+// so the scan says nothing about the disk we ended up with. Appending to an
+// existing table destroys nothing, so that is the safe answer whenever the
+// target already has one and nobody consented to a wipe.
+func resolveInitDisk(bothMissing bool, target string) bool {
+	if !bothMissing {
+		return false
+	}
+	return !diskHasPartitionsFn(target) || autoCreateWipeEnabledFn()
 }
