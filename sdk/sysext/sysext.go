@@ -33,6 +33,27 @@ func ExtractFilesFromLastLayer(image v1.Image, dst string, log sdkLogger.KairosL
 	return extractFilesFromLayer(image, dst, log, allowList, numLayers-1)
 }
 
+// highBits are the mode bits os.Root.OpenFile and os.Root.MkdirAll refuse to
+// take: both reject anything outside the 0o777 permission bits. An image that
+// installs sudo, util-linux or passwd ships files that carry them, so they
+// have to be applied after the entry exists rather than dropped.
+const highBits = os.ModeSetuid | os.ModeSetgid | os.ModeSticky
+
+// restoreHighBits puts setuid, setgid and sticky back on an entry that was
+// created with its permission bits only. os.Root.Chmod races with a symlink
+// swap on the path, so it is used only for directories, which this function
+// has just created itself; a regular file is chmodded through its own open
+// handle instead.
+func restoreHighBits(root *os.Root, name string, mask os.FileMode) error {
+	if mask&highBits == 0 {
+		return nil
+	}
+	if err := root.Chmod(name, mask.Perm()|mask&highBits); err != nil {
+		return fmt.Errorf("chmod %s: %w", name, err)
+	}
+	return nil
+}
+
 func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogger, allowList *regexp.Regexp, layerNumber int) error {
 	layers, _ := image.Layers()
 	layerToExtract := layers[layerNumber]
@@ -87,17 +108,31 @@ func extractFilesFromLayer(image v1.Image, dst string, log sdkLogger.KairosLogge
 					return fmt.Errorf("mkdir %s: %w", name, err)
 				}
 			}
+			// Set setgid or sticky on the directory itself. It also covers a
+			// directory MkdirAll created implicitly for an earlier entry,
+			// which never saw this header's mode.
+			if err := restoreHighBits(root, name, mask); err != nil {
+				return err
+			}
 		case tar.TypeReg:
 			log.Debugf("%s is a file", header.Name)
 			// O_TRUNC because the same path can appear twice in one layer, and
 			// without it the tail of the first copy survives under the second.
-			file, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mask)
+			file, err := root.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mask.Perm())
 			if err != nil {
 				return fmt.Errorf("open %s: %w", name, err)
 			}
 			if _, err := io.Copy(file, tr); err != nil {
 				file.Close()
 				return fmt.Errorf("copy %s: %w", name, err)
+			}
+			// Through the handle we already hold, so there is no window in
+			// which the path could become a symlink to somewhere else.
+			if mask&highBits != 0 {
+				if err := file.Chmod(mask.Perm() | mask&highBits); err != nil {
+					file.Close()
+					return fmt.Errorf("chmod %s: %w", name, err)
+				}
 			}
 			file.Close()
 		case tar.TypeSymlink:

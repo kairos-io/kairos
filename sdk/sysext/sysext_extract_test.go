@@ -34,14 +34,22 @@ func imageWithLayer(write func(tw *tar.Writer)) v1.Image {
 }
 
 func writeDir(tw *tar.Writer, name string) {
-	Expect(tw.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: name, Mode: 0755})).To(Succeed())
+	writeDirMode(tw, name, 0755)
+}
+
+func writeDirMode(tw *tar.Writer, name string, mode int64) {
+	Expect(tw.WriteHeader(&tar.Header{Typeflag: tar.TypeDir, Name: name, Mode: mode})).To(Succeed())
 }
 
 func writeFile(tw *tar.Writer, name, content string) {
+	writeFileMode(tw, name, content, 0644)
+}
+
+func writeFileMode(tw *tar.Writer, name, content string, mode int64) {
 	Expect(tw.WriteHeader(&tar.Header{
 		Typeflag: tar.TypeReg,
 		Name:     name,
-		Mode:     0644,
+		Mode:     mode,
 		Size:     int64(len(content)),
 	})).To(Succeed())
 	_, err := tw.Write([]byte(content))
@@ -137,5 +145,40 @@ var _ = Describe("extracting a layer", Label("sysext"), func() {
 
 		_, err := os.Stat(filepath.Join(dst, "var", "nope"))
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("keeps the setuid, setgid and sticky bits the layer ships", func() {
+		// Every image that installs sudo, util-linux or passwd carries a
+		// setuid or setgid binary, so an extraction that cannot write one is
+		// broken for most real images.
+		image := imageWithLayer(func(tw *tar.Writer) {
+			writeDir(tw, "usr/")
+			writeDir(tw, "usr/bin/")
+			writeFileMode(tw, "usr/bin/sudo", "binary", 0o4755)
+			writeFileMode(tw, "usr/bin/write", "binary", 0o2755)
+			writeDirMode(tw, "usr/lib/shared/", 0o2775)
+			writeDirMode(tw, "usr/tmp/", 0o1777)
+		})
+
+		Expect(ExtractFilesFromLastLayer(image, dst, log, DefaultAllowListRegex)).To(Succeed())
+
+		sudo, err := os.Stat(filepath.Join(dst, "usr", "bin", "sudo"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sudo.Mode() & os.ModeSetuid).ToNot(BeZero())
+		Expect(sudo.Mode().Perm()).To(Equal(os.FileMode(0o755)))
+
+		write, err := os.Stat(filepath.Join(dst, "usr", "bin", "write"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(write.Mode() & os.ModeSetgid).ToNot(BeZero())
+
+		shared, err := os.Stat(filepath.Join(dst, "usr", "lib", "shared"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(shared.Mode() & os.ModeSetgid).ToNot(BeZero())
+		Expect(shared.Mode().Perm()).To(Equal(os.FileMode(0o775)))
+
+		tmp, err := os.Stat(filepath.Join(dst, "usr", "tmp"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(tmp.Mode() & os.ModeSticky).ToNot(BeZero())
+		Expect(tmp.Mode().Perm()).To(Equal(os.FileMode(0o777)))
 	})
 })
