@@ -103,9 +103,14 @@ func FindByLabel(partitionLabel string) (*partitions.Partition, error) {
 // container even when the outer LUKS and its inner ext4 share the same label
 // (pre-fix installs, kairos-io/kairos#4403).
 func FindLUKSContainerByLabel(partitionLabel string) (*partitions.Partition, error) {
-	return findByLabelFiltered(partitionLabel, func(p *partitions.Partition) bool {
-		return p.FS == constants.LUKSFs
-	})
+	return findByLabelFiltered(partitionLabel, luksContainerFilter)
+}
+
+// FindLUKSContainerOnDisks is FindLUKSContainerByLabel against an
+// already-scanned disk list, for callers resolving many labels on one
+// ScanBlockDevices walk.
+func FindLUKSContainerOnDisks(disks []*partitions.Disk, partitionLabel string) (*partitions.Partition, error) {
+	return findOnDisks(disks, partitionLabel, luksContainerFilter)
 }
 
 // FindMapperByLabel returns the plaintext filesystem carrying the given
@@ -117,9 +122,21 @@ func FindLUKSContainerByLabel(partitionLabel string) (*partitions.Partition, err
 // setups typically appear as a whole-disk device), the caller can compose
 // the mapper path from FindLUKSContainerByLabel's Name via MountSourceForLabel.
 func FindMapperByLabel(partitionLabel string) (*partitions.Partition, error) {
-	return findByLabelFiltered(partitionLabel, func(p *partitions.Partition) bool {
-		return p.FS != constants.LUKSFs
-	})
+	return findByLabelFiltered(partitionLabel, mapperFilter)
+}
+
+// FindMapperOnDisks is FindMapperByLabel against an already-scanned disk
+// list, for callers resolving many labels on one ScanBlockDevices walk.
+func FindMapperOnDisks(disks []*partitions.Disk, partitionLabel string) (*partitions.Partition, error) {
+	return findOnDisks(disks, partitionLabel, mapperFilter)
+}
+
+func luksContainerFilter(p *partitions.Partition) bool {
+	return p.FS == constants.LUKSFs
+}
+
+func mapperFilter(p *partitions.Partition) bool {
+	return p.FS != constants.LUKSFs
 }
 
 // MountSourceForLabel returns the concrete device path to hand to mount(2)
@@ -148,15 +165,43 @@ func MountSourceForLabel(partitionLabel string) (string, error) {
 	return filepath.Join("/dev", p.Name), nil
 }
 
-func findByLabelFiltered(partitionLabel string, filter func(*partitions.Partition) bool) (*partitions.Partition, error) {
-	outerLabel := OuterLUKSLabel(partitionLabel)
-	legacyName := LegacyPartitionName(partitionLabel)
-
+// ScanBlockDevices performs the one ghw walk the by-label helpers share. The
+// Find*OnDisks variants match against its result, so a caller classifying
+// many labels pays for one scan instead of one per lookup.
+func ScanBlockDevices() ([]*partitions.Disk, error) {
 	logger := sdkLogger.NewNullLogger()
 	disks := ghw.GetDisks(ghw.NewPaths(""), &logger)
 	if disks == nil {
 		return nil, fmt.Errorf("failed to scan block devices")
 	}
+	return disks, nil
+}
+
+func findByLabelFiltered(partitionLabel string, filter func(*partitions.Partition) bool) (*partitions.Partition, error) {
+	disks, err := ScanBlockDevices()
+	if err != nil {
+		return nil, err
+	}
+
+	if p, err := findOnDisks(disks, partitionLabel, filter); err == nil {
+		return p, nil
+	}
+
+	// blkid fallbacks for installs where ghw doesn't surface the partition,
+	// primarily older installs with no FS label at all
+	// (kairos-sdk#822 / kairos-io/kairos#4276) whose LUKS container is
+	// discoverable only via GPT PARTLABEL. blkid can't filter by FS type, so
+	// this branch is intentionally reached only when the ghw scan already
+	// failed to satisfy the (typed) match.
+	if filter == nil {
+		return FindByBlkid(partitionLabel)
+	}
+	return nil, fmt.Errorf("partition not found")
+}
+
+func findOnDisks(disks []*partitions.Disk, partitionLabel string, filter func(*partitions.Partition) bool) (*partitions.Partition, error) {
+	outerLabel := OuterLUKSLabel(partitionLabel)
+	legacyName := LegacyPartitionName(partitionLabel)
 
 	labelMatches := func(p *partitions.Partition) bool {
 		return p.FilesystemLabel == partitionLabel ||
@@ -181,17 +226,26 @@ func findByLabelFiltered(partitionLabel string, filter func(*partitions.Partitio
 			return p, nil
 		}
 	}
-
-	// blkid fallbacks for installs where ghw doesn't surface the partition,
-	// primarily older installs with no FS label at all
-	// (kairos-sdk#822 / kairos-io/kairos#4276) whose LUKS container is
-	// discoverable only via GPT PARTLABEL. blkid can't filter by FS type, so
-	// this branch is intentionally reached only when the ghw scan already
-	// failed to satisfy the (typed) match.
-	if filter == nil {
-		return findByBlkid(partitionLabel, outerLabel, legacyName)
-	}
 	return nil, fmt.Errorf("partition not found")
+}
+
+// FindByBlkid resolves a label straight through blkid (-L for the label and
+// its _LUKS outer form, PARTLABEL for the pre kairos-sdk#822 GPT name), for
+// installs whose partition ghw does not surface at all. The result carries
+// only Path and Name: blkid's by-label output says nothing about the
+// filesystem type, so a caller that needs it must probe with FilesystemType.
+func FindByBlkid(partitionLabel string) (*partitions.Partition, error) {
+	return findByBlkid(partitionLabel, OuterLUKSLabel(partitionLabel), LegacyPartitionName(partitionLabel))
+}
+
+// FilesystemType probes the filesystem type on a device with blkid
+// ("crypto_LUKS" for a LUKS container, "" when blkid cannot tell). ghw's FS
+// field mirrors the udev database, which can lag behind the device or omit
+// the type entirely; blkid reads the device itself, so this is the answer a
+// destructive decision must consult before treating a partition as
+// plaintext.
+func FilesystemType(devicePath string) (string, error) {
+	return blkid("-s", "TYPE", "-o", "value", devicePath)
 }
 
 func findByBlkid(partitionLabel, outerLabel, legacyName string) (*partitions.Partition, error) {
