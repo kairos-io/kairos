@@ -9,6 +9,7 @@ import (
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -266,13 +267,13 @@ func labelIsEncrypted(disks []*partitions.Disk, label string) (bool, error) {
 	}
 
 	fs := part.FS
-	if fs == "" {
+	if fs == "" || fs == ghw.UNKNOWN {
 		fs, _ = filesystemProbeFn(part.Path)
 	}
 	switch fs {
 	case sdkConstants.LUKSFs:
 		return true, nil
-	case "":
+	case "", ghw.UNKNOWN:
 		return false, fmt.Errorf("the filesystem on partition %s (%s) could not be determined; refusing to treat it as plaintext", label, part.Path)
 	}
 	return false, nil
