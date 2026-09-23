@@ -370,7 +370,7 @@ jobs:
         env:
           MEMORY: 5000
           DRIVE_SIZE: 50000
-          CPUS: 4
+          CPUS: 2
           CONTAINER_IMAGE: ${{ env.IMAGE_NAME }}
           USE_BRIDGE_NETWORK: ${{ inputs.use_bridge_network && '1' || '' }}
         run: |
