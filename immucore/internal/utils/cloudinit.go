@@ -25,9 +25,20 @@ func RunStage(stage string) error {
 	stageBefore := fmt.Sprintf("%s.before", stage)
 	stageAfter := fmt.Sprintf("%s.after", stage)
 
-	// Run all stages for each of the default cloud config paths + extra cloud config paths
+	// Run all stages for each of the default cloud config paths + extra cloud config paths.
+	// Only pass paths that actually exist: yip's own path resolution falls back to treating
+	// a missing path as literal YAML when it isn't a directory, an existing file or a URL, so
+	// a path that simply hasn't been created yet (e.g. /usr/local/cloud-config/ before the
+	// rootfs stage creates it) would otherwise surface as a spurious unmarshal error on every
+	// boot instead of a real stage failure.
+	var cloudInitPaths []string
+	for _, p := range constants.GetCloudInitPaths() {
+		if _, statErr := os.Stat(p); statErr == nil {
+			cloudInitPaths = append(cloudInitPaths, p)
+		}
+	}
 	for _, s := range []string{stageBefore, stage, stageAfter} {
-		err = yip.Run(s, vfs.OSFS, c, constants.GetCloudInitPaths()...)
+		err = yip.Run(s, vfs.OSFS, c, cloudInitPaths...)
 		if err != nil {
 			allErrors = multierror.Append(allErrors, err)
 		}
