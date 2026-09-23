@@ -217,6 +217,26 @@ var _ = Describe("Kairos cmdline parsing (kairos-sdk integration)", func() {
 			Expect(logBuf.String()).To(ContainSubstring("stage completed with errors"))
 			Expect(logBuf.String()).To(ContainSubstring(`"stage":"initramfs"`))
 		})
+
+		It("does not log spurious errors for cloud-init paths that don't exist yet", func() {
+			// constants.GetCloudInitPaths() lists /system/oem, /oem/ and
+			// /usr/local/cloud-config/, none of which exist in this test
+			// environment (the last one is itself created by a bundled
+			// cloud-config stage, so it never exists on a fresh boot either).
+			// yip treats a missing, non-URL path as literal YAML to parse,
+			// which fails to unmarshal. RunStage must skip those paths before
+			// handing them to yip, or this case alone would log a warning on
+			// every boot even though nothing actually failed.
+			var logBuf bytes.Buffer
+			oldLogger := utils.KLog
+			utils.KLog = logger.NewBufferLogger(&logBuf)
+			defer func() { utils.KLog = oldLogger }()
+
+			writeCmdline("root=LABEL=X quiet")
+			Expect(utils.RunStage("initramfs")).To(BeNil())
+
+			Expect(logBuf.String()).ToNot(ContainSubstring("stage completed with errors"))
+		})
 	})
 
 	Context("SDKDotNotationModifier", func() {
