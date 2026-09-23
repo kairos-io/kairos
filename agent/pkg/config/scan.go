@@ -191,6 +191,9 @@ func RedactedConfigDump(result *sdkConfig.Config) string {
 
 func isSensitiveConfigKey(key string) bool {
 	key = strings.ToLower(key)
+	if key == "ssh_authorized_keys" {
+		return false
+	}
 	for _, part := range []string{"auth", "passwd", "password", "token", "secret"} {
 		if strings.Contains(key, part) {
 			return true

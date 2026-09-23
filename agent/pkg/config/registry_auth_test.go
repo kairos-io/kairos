@@ -97,6 +97,32 @@ var _ = Describe("registry auth", func() {
 		}
 	})
 
+	It("keeps SSH public keys visible while redacting secrets", func() {
+		for _, key := range []string{"ssh_authorized_keys", "SSH_AUTHORIZED_KEYS", "Ssh_Authorized_Keys"} {
+			cfg := registryConfig("install", nil)
+			cfg.Collector.Values["users"] = []interface{}{collector.ConfigValues{
+				key:                          []interface{}{"ssh-ed25519 public-key-sentinel"},
+				"passwd":                     "password-secret-sentinel",
+				"authorized_token":           "authorized-secret-sentinel",
+				"ssh_authorized_keys_secret": "key-secret-sentinel",
+			}}
+			cfg.Collector.Values["p2p"] = collector.ConfigValues{"network_token": "network-secret-sentinel"}
+			// Exempting the key must not skip redaction inside a malformed value.
+			cfg.Collector.Values["custom"] = map[string]interface{}{
+				key: map[string]interface{}{"password": "nested-secret-sentinel"},
+			}
+			before, err := cfg.Collector.String()
+			Expect(err).ToNot(HaveOccurred())
+			dump := RedactedConfigDump(cfg)
+			Expect(dump).To(ContainSubstring("ssh-ed25519 public-key-sentinel"))
+			Expect(dump).To(ContainSubstring("[REDACTED]"))
+			Expect(dump).ToNot(ContainSubstring("secret-sentinel"))
+			after, err := cfg.Collector.String()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(after).To(Equal(before))
+		}
+	})
+
 	It("redacts typed config fields and excludes runtime dependencies from diagnostics", func() {
 		cfg := registryConfig("install", nil)
 		cfg.Options = map[string]string{"token": "typed-secret-sentinel", "visible": "diagnostic-value"}
@@ -130,10 +156,11 @@ var _ = Describe("registry auth", func() {
 		Expect(fileSystem.WriteFile("/etc/os-release", []byte("KAIROS_VERSION=test\n"), 0644)).To(Succeed())
 		var logs bytes.Buffer
 		cfg := &sdkConfig.Config{Fs: fileSystem, Logger: logger.NewBufferLogger(&logs)}
-		input := "debug: true\nusers:\n- name: kairos\n  passwd: user-log-secret-sentinel\noptions:\n  token: option-log-secret-sentinel\nupgrade:\n  registry-auht:\n    password: typo-log-secret-sentinel\n"
+		input := "debug: true\nusers:\n- name: kairos\n  passwd: user-log-secret-sentinel\n  ssh_authorized_keys:\n  - ssh-ed25519 log-public-key-sentinel\noptions:\n  token: option-log-secret-sentinel\nupgrade:\n  registry-auht:\n    password: typo-log-secret-sentinel\n"
 		_, err = scan(cfg, collector.Readers(strings.NewReader(input)))
 		Expect(err).ToNot(HaveOccurred())
 		Expect(logs.String()).To(ContainSubstring("Loaded config:"))
+		Expect(logs.String()).To(ContainSubstring("ssh-ed25519 log-public-key-sentinel"))
 		Expect(logs.String()).ToNot(ContainSubstring("secret-sentinel"))
 		Expect(cfg.Options["token"]).To(Equal("option-log-secret-sentinel"))
 	})
