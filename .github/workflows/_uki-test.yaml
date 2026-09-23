@@ -4,10 +4,9 @@ name: UKI qemu test
 # swtpm and run the ginkgo suite filtered by a UKI-specific label.
 # Split out from reusable-qemu-test.yaml because the UKI flow is
 # materially different: the artifact name has an -uki suffix, the
-# runner needs OVMF secure-boot firmware, the install-upgrade spec expects
-# a dynamically-built and pushed upgrade image plus a couple of
-# EXPECTED_* env vars, and the whole thing runs on the `kvm`
-# self-hosted label (not `fast`).
+# runner needs OVMF secure-boot firmware, and the install-upgrade
+# spec expects a dynamically-built and pushed upgrade image plus a
+# couple of EXPECTED_* env vars.
 #
 # Mirrors the old uki.yaml's test_generic (variant=standard, test=install-upgrade, was test=
 # generic, upgrade image required) and test_boot_assessment
@@ -105,7 +104,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: kvm
+    runs-on: ubuntu-24.04
     name: ${{ inputs.test }}
     # Backstop only. ginkgo's own --timeout below should always fire first,
     # because it stops the suite with a progress report naming the step,
