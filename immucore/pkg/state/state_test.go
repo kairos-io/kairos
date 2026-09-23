@@ -73,13 +73,15 @@ var _ = Describe("mounting immutable setup", func() {
 		})
 	})
 
-	Context("OpMountBind hard dependency on OpOverlayMount/OpCustomMounts (kairos-io/kairos#4782)", func() {
-		It("never runs the persistent-state bind mounts when one overlay or custom-mount entry fails, yet the DAG still reports success", func() {
+	Context("OpMountBind dependencies on OpOverlayMount/OpCustomMounts (kairos-io/kairos#4782)", func() {
+		It("still mounts the persistent-state binds when one overlay or custom-mount entry fails", func() {
 			internalUtils.KLog = logger.NewNullLogger()
 
+			root := GinkgoT().TempDir()
+			binds := []string{"/etc/ssh", "/etc/systemd", "/home"}
 			s := &state.State{
-				Rootdir:    GinkgoT().TempDir(),
-				BindMounts: []string{"/etc/ssh", "/etc/systemd", "/home"},
+				Rootdir:    root,
+				BindMounts: binds,
 			}
 
 			// Stand-ins for OpLoadConfig and for what
@@ -102,7 +104,8 @@ var _ = Describe("mounting immutable setup", func() {
 
 			// The real production wiring under test: MountCustomBindsDagStep
 			// (steps_shared.go) takes OpOverlayMount and OpCustomMounts as
-			// hard herd.WithDeps, not herd.WithWeakDeps.
+			// weak dependencies, so they order the step without being able to
+			// cancel it, and only OpLoadConfig is a hard one.
 			Expect(s.MountCustomBindsDagStep(g)).To(Succeed())
 
 			Expect(g.Run(context.Background())).To(Succeed(),
@@ -118,15 +121,24 @@ var _ = Describe("mounting immutable setup", func() {
 			}
 			Expect(bindEntry).ToNot(BeNil())
 
-			// This is the bug: because OpOverlayMount failed and OpMountBind
-			// depends on it via a hard dependency, herd's DAG runner marks
-			// OpMountBind failed and skips its callback entirely (dag.go's
-			// `continue LAYER`). Every entry in PERSISTENT_STATE_PATHS
-			// (/etc/ssh, /etc/systemd, /home, ...) is silently left
-			// unmounted, with nothing reported anywhere.
-			Expect(bindEntry.Executed).To(BeFalse(),
-				"OpMountBind must not run at all once a hard dependency fails - this is the defect, not the fix")
-			Expect(bindEntry.Error).To(HaveOccurred())
+			// A hard dependency on the failed OpOverlayMount would make herd
+			// mark OpMountBind failed and skip its callback (dag.go's
+			// `continue LAYER`), leaving every entry of PERSISTENT_STATE_PATHS
+			// unmounted while the boot reports success.
+			Expect(bindEntry.Executed).To(BeTrue(),
+				"OpMountBind must still run when a weak dependency fails")
+			if bindEntry.Error != nil {
+				Expect(bindEntry.Error.Error()).ToNot(ContainSubstring("deps"),
+					"the failure has to come from the binds themselves, not from a cancelled dependency")
+			}
+
+			// Each bind was attempted on its own: MountBind's prepare step
+			// creates the mountpoint and its backing state directory before
+			// mounting, and the mount itself needs privileges the test does
+			// not have, so the directories are the evidence the loop ran.
+			for _, p := range binds {
+				Expect(filepath.Join(root, p)).To(BeADirectory())
+			}
 		})
 	})
 
