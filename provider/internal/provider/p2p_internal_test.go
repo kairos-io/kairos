@@ -152,6 +152,8 @@ var _ = Describe("Saving a generated cloud config", func() {
 		info, err := os.Stat(filepath.Join(rootDir, CloudConfigDir))
 		Expect(err).NotTo(HaveOccurred())
 		Expect(info.IsDir()).To(BeTrue())
+		Expect(info.Mode().Perm()&0007).To(BeZero(),
+			"directory mode %v is readable by other, and it holds the configs the network token is written into", info.Mode().Perm())
 	})
 
 	// The operator runs rotate-token from wherever they happen to be standing

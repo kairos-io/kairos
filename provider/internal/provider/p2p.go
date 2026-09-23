@@ -121,9 +121,11 @@ func applyAPIListenerEnv(opts, userEnv map[string]string) {
 }
 
 // cloudConfigDirMode is the mode for the directory the generated configs go
-// in. Like the drop-in directory above it is a shared system location, so it
-// takes the usual 0755; the file itself stays private.
-const cloudConfigDirMode = 0755
+// in. That directory is the writable config location, holding the network
+// token among the rest, so it takes the same 770 the installer gives it and
+// nothing outside the owner group gets to list it. MkdirAll passes the mode
+// through the process umask, so the concrete result is narrower still.
+const cloudConfigDirMode = 0770
 
 // SaveCloudConfig writes a generated cloud config where the config scan will
 // pick it up, creating the directory if it is not there yet.
