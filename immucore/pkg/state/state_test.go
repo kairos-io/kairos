@@ -140,6 +140,59 @@ var _ = Describe("mounting immutable setup", func() {
 				Expect(filepath.Join(root, p)).To(BeADirectory())
 			}
 		})
+
+		It("still treats OpLoadConfig as a hard dependency", func() {
+			internalUtils.KLog = logger.NewNullLogger()
+
+			root := GinkgoT().TempDir()
+			binds := []string{"/etc/ssh"}
+			s := &state.State{
+				Rootdir:    root,
+				BindMounts: binds,
+			}
+
+			// OpLoadConfig fails outright this time. Unlike OpOverlayMount and
+			// OpCustomMounts, this one must still be able to cancel
+			// OpMountBind: without it there is no bind list to mount at all.
+			// This is the negative control for the fix above, to make sure it
+			// only loosened the two deps the ticket names and did not widen
+			// into the same global herd.WeakDeps mistake that already makes
+			// the whole step a no-op on the UKI boot path
+			// (dag_uki_boot.go:83).
+			Expect(g.Add(cnst.OpLoadConfig, herd.WithCallback(func(context.Context) error {
+				return errors.New("no cloud-config found")
+			}))).To(Succeed())
+			Expect(g.Add(cnst.OpOverlayMount, herd.WithDeps(cnst.OpLoadConfig),
+				herd.WithCallback(func(context.Context) error {
+					return nil
+				}))).To(Succeed())
+			Expect(g.Add(cnst.OpCustomMounts, herd.WithDeps(cnst.OpLoadConfig),
+				herd.WithCallback(func(context.Context) error {
+					return nil
+				}))).To(Succeed())
+
+			Expect(s.MountCustomBindsDagStep(g)).To(Succeed())
+
+			// None of these ops carry herd.FatalOp, so g.Run itself still
+			// reports success even here; the DAG-level "success" is not what
+			// this spec is about. What matters is whether OpMountBind's own
+			// callback got to run at all.
+			Expect(g.Run(context.Background())).To(Succeed())
+
+			var bindEntry *herd.GraphEntry
+			for _, layer := range g.Analyze() {
+				for i, e := range layer {
+					if e.Name == cnst.OpMountBind {
+						bindEntry = &layer[i]
+					}
+				}
+			}
+			Expect(bindEntry).ToNot(BeNil())
+			Expect(bindEntry.Executed).To(BeFalse(),
+				"OpMountBind must not run when its one remaining hard dependency, OpLoadConfig, fails")
+			Expect(filepath.Join(root, "etc", "ssh")).ToNot(BeADirectory(),
+				"nothing should have been mounted, since the bind list itself never loaded")
+		})
 	})
 
 	Context("simple invocation", func() {
