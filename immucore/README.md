@@ -278,6 +278,11 @@ In the environment file, a few options are available:
   The dracut module will attempt to create non-existant directories,
   but might fail if the mountpoint where they are located is read-only.
 
+  **Note**: A path that is a symlink is refused, and the error names the path
+  and its target. `mount(2)` follows the link, so the bind would land on the
+  target and not on the path that was asked for. To persist the target, name
+  the target. `/etc/ssl/certs` is a symlink on the Red Hat and SUSE families.
+
 * `PERSISTENT_STATE_BIND="true|false"`: When this variable is set to true
   the persistent state paths are bind mounted (instead of using overlayfs)
   after being mirrored with the original content. By default, this variable is
