@@ -22,7 +22,10 @@ import (
 // non-virtual): a label sitting on a USB stick or loop device must not
 // suppress auto-creation, nor should RAM mode end up treating removable media
 // as its persistent storage. It never talks to /dev directly - a partition is
-// considered present only when udev has populated its ID_FS_LABEL.
+// considered present only when udev has populated its ID_FS_LABEL. On an
+// encrypted install the LUKS container labels COS_OEM_LUKS and
+// COS_PERSISTENT_LUKS count as present, so "present" here means the partition
+// exists, not that it is mounted or even unlocked yet.
 func KairosPartitionsPresent() (oem, persistent bool, err error) {
 	block, berr := ghw.Block()
 	if berr != nil {
