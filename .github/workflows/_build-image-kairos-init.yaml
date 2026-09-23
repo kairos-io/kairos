@@ -117,15 +117,18 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
 
       - name: Build & (optionally) push kairos-init
-        env:
-          REGISTRY: ${{ inputs.image_registry }}
-          TAG: ${{ inputs.image_tag }}
-          EXTRA_TAG: ${{ inputs.image_extra_tag }}
-          PUSH: ${{ inputs.push }}
-        run: |
-          set -euo pipefail
-          args=(--platform "linux/amd64,linux/arm64" -f kairos-init/Dockerfile
-                -t "$REGISTRY/kairos-init:$TAG")
-          [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kairos-init:$EXTRA_TAG")
-          [ "$PUSH" = "true" ] && args+=(--push)
-          docker buildx build "${args[@]}" .
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        with:
+          context: .
+          file: kairos-init/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ inputs.push }}
+          tags: |
+            ${{ inputs.image_registry }}/kairos-init:${{ inputs.image_tag }}
+            ${{ inputs.image_extra_tag && format('{0}/kairos-init:{1}', inputs.image_registry, inputs.image_extra_tag) || '' }}
+          # Per-PR (falls back to per-ref) buildx GHA cache. Keeps branches
+          # from cross-contaminating each other's kairos-init image layers.
+          cache-from: |
+            type=gha,scope=kairos-init-${{ github.event.pull_request.number || github.ref_name }}
+          cache-to: |
+            type=gha,mode=max,scope=kairos-init-${{ github.event.pull_request.number || github.ref_name }}

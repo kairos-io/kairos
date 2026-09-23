@@ -82,8 +82,16 @@ jobs:
       pull-requests: read
     outputs:
       flavor: ${{ steps.filter.outputs.flavor }}
+      kcrypt: ${{ steps.filter.outputs.kcrypt }}
+      uki: ${{ steps.filter.outputs.uki }}
+      standard: ${{ steps.filter.outputs.standard }}
+      flavor_only: ${{ steps.filter.outputs.flavor_only }}
+      arm: ${{ steps.filter.outputs.arm }}
+      iso: ${{ steps.filter.outputs.iso }}
+      size_diff: ${{ steps.filter.outputs.size_diff }}
+      docs_only: ${{ steps.filter.outputs.docs_only }}
     steps:
-      - name: Detect flavor-relevant paths
+      - name: Detect per-lane relevant paths
         id: filter
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -93,27 +101,100 @@ jobs:
           changed=$(gh pr diff --repo "$GITHUB_REPOSITORY" "$PR_NUMBER" --name-only)
           echo "Changed files:"
           echo "$changed"
-          # Paths whose diff can plausibly change what the flavor
-          # matrix builds:
-          #   - kairos-init/ : the binary being tested;
-          #   - provider/    : agent-provider-kairos is invoked
-          #                    over the go-pluggable bus for
-          #                    standard-variant (k3s/k0s) cells
-          #                    during kairos-init's build run;
-          #   - sdk/         : the bus event payloads the provider
-          #                    and kairos-init exchange;
-          #   - scripts/, Makefile, go.mod, go.sum : root build
-          #                    machinery and Go module state;
-          #   - the flavor / kairos / kairos-init reusable
-          #     workflows themselves.
+
+          # docs_only: EVERY changed path matches a docs-ish pattern.
+          # When true, the pipeline downgrades to authorize + a no-op
+          # summary; nothing else needs to run. Empty diff -> false so
+          # a weird empty case still fails safe into the full pipeline.
+          if [ -n "$changed" ] && ! echo "$changed" | grep -vE '^(docs/|.*\.md$|LICENSE$|\.github/ISSUE_TEMPLATE/|\.github/CODEOWNERS$)' | grep -q .; then
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # flavor: paths whose diff can change what the flavor
+          # matrix builds -- kairos-init, provider, sdk (bus contract),
+          # root build machinery, and the flavor/kairos/kairos-init
+          # reusable workflows themselves.
           if echo "$changed" | grep -qE '^(kairos-init/|provider/|sdk/|scripts/|Makefile$|go\.(mod|sum)$|\.github/workflows/_build-(flavors|kairos|kairos-init)\.yaml$)'; then
             echo "flavor=true" >> "$GITHUB_OUTPUT"
           else
             echo "flavor=false" >> "$GITHUB_OUTPUT"
           fi
 
+          # kcrypt: paths that can change the kcrypt-challenger
+          # binary/image or the standard-encryption qemu suite.
+          if echo "$changed" | grep -qE '^(kcrypt/|provider/|\.github/workflows/_build-kcrypt-challenger\.yaml$|\.github/workflows/_build-image-kcrypt-challenger\.yaml$)'; then
+            echo "kcrypt=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "kcrypt=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # uki: paths that can change the UKI boot flow (agent uki
+          # pkg, uki_ actions, installer, immucore mounts, sysext, and
+          # the UKI test reusable itself).
+          if echo "$changed" | grep -qE '^(agent/pkg/uki/|agent/pkg/action/uki_|installer/|immucore/pkg/mounts/|sysext/|\.github/workflows/_uki-test\.yaml$)'; then
+            echo "uki=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "uki=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # standard: paths that can change the standard (k3s/k0s)
+          # provider variant behaviour under qemu.
+          if echo "$changed" | grep -qE '^(provider/|agent/provider-|sdk/bus/)'; then
+            echo "standard=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "standard=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # flavor_only: kairos-init stages / images Dockerfile, i.e.
+          # the surface that the per-flavor smoke cells (rocky, leap,
+          # ubuntu-20) actually exercise.
+          if echo "$changed" | grep -qE '^(kairos-init/pkg/|images/Dockerfile$)'; then
+            echo "flavor_only=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "flavor_only=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # arm: paths that meaningfully affect the arm64 ISO / rpi /
+          # nvidia jetson cells. Also fires on any file whose path
+          # contains "arm64" or "arm-".
+          if echo "$changed" | grep -qE '^(kairos-init/pkg/stages/|images/Dockerfile$|sdk/mounts/)|^\.github/workflows/_build-iso.*\.yaml$|arm64|arm-'; then
+            echo "arm=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "arm=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # iso: paths that plausibly change any ISO artifact.
+          if echo "$changed" | grep -qE '^(agent/|kairos-init/|sdk/|immucore/|installer/|provider/|images/|sysext/)|^\.github/workflows/_build-iso.*\.yaml$'; then
+            echo "iso=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "iso=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # size_diff: same set as iso -- an ISO whose bits could not
+          # change is not worth diffing against master.
+          if echo "$changed" | grep -qE '^(agent/|kairos-init/|sdk/|immucore/|installer/|provider/|images/|sysext/)|^\.github/workflows/_build-iso.*\.yaml$'; then
+            echo "size_diff=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "size_diff=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Docs-only PRs hit this instead of the full pipeline. Purely
+  # informational; keeps a status check present on the PR so branch
+  # protection required-checks lists resolve.
+  docs-only-summary:
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'true'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Report docs-only skip
+        run: echo "All changed paths are docs/markdown; skipping lint, build and test."
+
   unit-tests:
-    needs: authorize
+    needs: [authorize, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_unit-tests.yaml
     with:
       ref: refs/pull/${{ github.event.pull_request.number }}/head
@@ -121,7 +202,8 @@ jobs:
     secrets: inherit
 
   lint:
-    needs: authorize
+    needs: [authorize, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_lint.yaml
     with:
       ref: refs/pull/${{ github.event.pull_request.number }}/head
@@ -131,7 +213,8 @@ jobs:
   # The kairos-init pipe (multi-call kairos -> kairos-init -> image ->
   # iso -> qemu). This is the critical path for the qemu suites below.
   build-kairos:
-    needs: authorize
+    needs: [authorize, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_build-kairos.yaml
     with:
       matrix_scope: ci
@@ -140,7 +223,8 @@ jobs:
     secrets: inherit
 
   build-kairos-init:
-    needs: build-kairos
+    needs: [build-kairos, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_build-kairos-init.yaml
     with:
       matrix_scope: ci
@@ -160,7 +244,7 @@ jobs:
   # flavor regression.
   build-flavors:
     needs: [build-kairos-init, changes]
-    if: needs.changes.outputs.flavor == 'true'
+    if: needs.changes.outputs.flavor == 'true' && needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_build-flavors.yaml
     with:
       matrix_scope: ci
@@ -171,7 +255,8 @@ jobs:
   # unit-tests + lint gate any image push (visible outside the run).
   # The kairos-init image is what build-iso consumes.
   build-image-kairos-init:
-    needs: [build-kairos-init, unit-tests, lint]
+    needs: [build-kairos-init, unit-tests, lint, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_build-image-kairos-init.yaml
     permissions:
       contents: read
@@ -190,7 +275,8 @@ jobs:
   # encryption tests today pin a published kcrypt-challenger tag, not
   # the just-built one -- so it only gates promote / upload-release.
   build-kcrypt-challenger:
-    needs: authorize
+    needs: [authorize, changes]
+    if: needs.changes.outputs.kcrypt == 'true' && needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_build-kcrypt-challenger.yaml
     with:
       matrix_scope: ci
@@ -199,7 +285,8 @@ jobs:
     secrets: inherit
 
   build-image-kcrypt-challenger:
-    needs: [build-kcrypt-challenger, unit-tests, lint]
+    needs: [build-kcrypt-challenger, unit-tests, lint, changes]
+    if: needs.changes.outputs.kcrypt == 'true' && needs.changes.outputs.docs_only != 'true'
     uses: ./.github/workflows/_build-image-kcrypt-challenger.yaml
     permissions:
       contents: read
@@ -226,7 +313,8 @@ jobs:
   # still fails the whole PR, but qemu proceeds in parallel.
 
   build-iso:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -285,7 +373,8 @@ jobs:
     secrets: inherit
 
   build-iso-arm:
-    needs: build-image-kairos-init
+    needs: [build-image-kairos-init, changes]
+    if: needs.changes.outputs.arm == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -362,7 +451,8 @@ jobs:
   # match the ginkgo labels in tests/.
 
   test-core:
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -409,7 +499,8 @@ jobs:
   # Consumes pr-amd64-core-fips's ISO artifact (base_image = hadron-fips,
   # variant computed as core because kubernetes_distro is empty).
   test-core-fips:
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -439,7 +530,8 @@ jobs:
 
   # Same smoke shape as test-core-fips.
   test-core-ubuntu-20:
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.flavor_only == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -465,7 +557,8 @@ jobs:
     secrets: inherit
 
   test-core-rocky-9:
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.flavor_only == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -490,7 +583,8 @@ jobs:
     secrets: inherit
 
   test-core-leap:
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.flavor_only == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -515,7 +609,8 @@ jobs:
     secrets: inherit
 
   test-standard:
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.standard == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -549,7 +644,8 @@ jobs:
   # built. Split out from test-standard so only these cells gate
   # on build-image-kcrypt-challenger.
   test-standard-encryption:
-    needs: [build-iso, build-image-kcrypt-challenger]
+    needs: [build-iso, build-image-kcrypt-challenger, changes]
+    if: needs.changes.outputs.kcrypt == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -590,7 +686,8 @@ jobs:
   # _uki-test.yaml since their shape diverges from the regular
   # reusable-qemu-test.yaml.
   test-uki:
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.uki == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -627,7 +724,8 @@ jobs:
   # separately in #3816 and will land as its own follow-up.
   size-diff:
     name: iso-size-diff
-    needs: build-iso
+    needs: [build-iso, changes]
+    if: needs.changes.outputs.size_diff == 'true' && needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read

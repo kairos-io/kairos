@@ -117,15 +117,19 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
 
       - name: Build & (optionally) push kcrypt-challenger
-        env:
-          REGISTRY: ${{ inputs.image_registry }}
-          TAG: ${{ inputs.image_tag }}
-          EXTRA_TAG: ${{ inputs.image_extra_tag }}
-          PUSH: ${{ inputs.push }}
-        run: |
-          set -euo pipefail
-          args=(--platform "linux/amd64,linux/arm64" -f cmd/kcrypt-challenger/Dockerfile
-                -t "$REGISTRY/kcrypt-challenger:$TAG")
-          [ -n "$EXTRA_TAG" ] && args+=(-t "$REGISTRY/kcrypt-challenger:$EXTRA_TAG")
-          [ "$PUSH" = "true" ] && args+=(--push)
-          docker buildx build "${args[@]}" .
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7
+        with:
+          context: .
+          file: cmd/kcrypt-challenger/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ inputs.push }}
+          tags: |
+            ${{ inputs.image_registry }}/kcrypt-challenger:${{ inputs.image_tag }}
+            ${{ inputs.image_extra_tag && format('{0}/kcrypt-challenger:{1}', inputs.image_registry, inputs.image_extra_tag) || '' }}
+          # Per-PR (falls back to per-ref) buildx GHA cache. Keeps branches
+          # from cross-contaminating each other's kcrypt-challenger image
+          # layers.
+          cache-from: |
+            type=gha,scope=kcrypt-${{ github.event.pull_request.number || github.ref_name }}
+          cache-to: |
+            type=gha,mode=max,scope=kcrypt-${{ github.event.pull_request.number || github.ref_name }}

@@ -51,6 +51,19 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # setup-go caches the module download tree (~/go/pkg/mod); the
+      # compile cache (~/.cache/go-build) is separate and dominates
+      # `go test ./...` on a warm run. Key on go.sum so a dependency
+      # bump invalidates cleanly; the fallback restore-key lets a
+      # bump-day PR still start from the previous compile cache.
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-build-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
       - name: Unit tests
         env:
           # agent/pkg/github/releases_test.go probes the live GitHub API.

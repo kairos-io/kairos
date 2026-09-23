@@ -228,7 +228,12 @@ jobs:
       arch: ${{ inputs.arch }}
       model: ${{ inputs.model }}
       version: 'auto'
-      no_cache: true
+      # Was `no_cache: true` (see workflow header) to keep a stale
+      # kairos-init from being embedded across branches. reusable-factory
+      # now scopes buildx cache-to/from per PR (or per ref on master),
+      # which gives the same isolation without paying the full-build cost
+      # on every push.
+      no_cache: false
       registry_domain: ${{ inputs.registry_domain }}
       registry_namespace: ${{ inputs.registry_namespace }}
       registry_repository: ${{ inputs.registry_repository }}
