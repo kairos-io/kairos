@@ -2,6 +2,8 @@ package kcrypt
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/sdk/collector"
@@ -283,45 +285,96 @@ func extractKcryptConfigFromCollector(collectorConfig collector.Config, log sdkL
 	return config
 }
 
-// extractPCRBindingsFromCollector extracts bind-pcrs and bind-public-pcrs from collector config
-// Returns the PCR bindings, with defaults if not found.
-func extractPCRBindingsFromCollector(collectorConfig collector.Config, log sdkLogger.KairosLogger) (bindPCRs []string, bindPublicPCRs []string) {
+// extractPCRBindingsFromCollector extracts bind-pcrs and bind-public-pcrs from
+// collector config.
+//
+// The same two keys are also decoded into Config.BindPCRs and
+// Config.BindPublicPCRs (sdk/types/config), which accepts a sequence whose
+// elements are strings or numbers and turns every element into a string. PCR
+// indices are numbers, so `bind-pcrs: [7]` is the natural spelling and the one
+// the agent accepts. This reader has to agree with that one: it is the reader
+// that reaches systemd-cryptenroll, and bind-pcrs has no default there, so a
+// dropped value enrolls the partition with no PCR binding at all.
+//
+// A value that cannot be read as a list of PCR indices is an error rather than
+// an empty list, for the same reason.
+func extractPCRBindingsFromCollector(collectorConfig collector.Config, log sdkLogger.KairosLogger) (bindPCRs []string, bindPublicPCRs []string, err error) {
 	if collectorConfig.Values == nil {
 		log.Debugf("ExtractPCRBindings: no config values")
+		return nil, nil, nil
+	}
+
+	bindPCRs, err = pcrList(collectorConfig.Values, "bind-pcrs", log)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	bindPublicPCRs, err = pcrList(collectorConfig.Values, "bind-public-pcrs", log)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return bindPCRs, bindPublicPCRs, nil
+}
+
+// pcrList reads one PCR binding key out of the raw collector values.
+func pcrList(values collector.ConfigValues, key string, log sdkLogger.KairosLogger) ([]string, error) {
+	raw, ok := values[key]
+	if !ok {
 		return nil, nil
 	}
+	log.Debugf("ExtractPCRBindings: found %s, type=%T", key, raw)
 
-	if bindPCRsVal, ok := collectorConfig.Values["bind-pcrs"]; ok {
-		log.Debugf("ExtractPCRBindings: found bind-pcrs, type=%T", bindPCRsVal)
-		// Handle both []string and []interface{} (from YAML unmarshaling).
-		switch v := bindPCRsVal.(type) {
-		case []string:
-			bindPCRs = v
-		case []interface{}:
-			for _, item := range v {
-				if str, ok := item.(string); ok {
-					bindPCRs = append(bindPCRs, str)
-				}
-			}
-		}
-		log.Debugf("ExtractPCRBindings: extracted bind-pcrs=%v", bindPCRs)
+	var items []interface{}
+	switch v := raw.(type) {
+	case nil:
+		return nil, nil
+	case []string:
+		return v, nil
+	case []interface{}:
+		items = v
+	default:
+		return nil, fmt.Errorf("%s must be a list of PCR indices, got %T", key, raw)
 	}
 
-	if bindPublicPCRsVal, ok := collectorConfig.Values["bind-public-pcrs"]; ok {
-		log.Debugf("ExtractPCRBindings: found bind-public-pcrs, type=%T", bindPublicPCRsVal)
-		// Handle both []string and []interface{} (from YAML unmarshaling).
-		switch v := bindPublicPCRsVal.(type) {
-		case []string:
-			bindPublicPCRs = v
-		case []interface{}:
-			for _, item := range v {
-				if str, ok := item.(string); ok {
-					bindPublicPCRs = append(bindPublicPCRs, str)
-				}
-			}
+	pcrs := make([]string, 0, len(items))
+	for i, item := range items {
+		pcr, err := pcrIndex(item)
+		if err != nil {
+			return nil, fmt.Errorf("%s[%d]: %w", key, i, err)
 		}
-		log.Debugf("ExtractPCRBindings: extracted bind-public-pcrs=%v", bindPublicPCRs)
+		pcrs = append(pcrs, pcr)
 	}
 
-	return bindPCRs, bindPublicPCRs
+	log.Debugf("ExtractPCRBindings: extracted %s=%v", key, pcrs)
+	return pcrs, nil
+}
+
+// pcrIndex turns one element of a PCR binding list into the string
+// systemd-cryptenroll expects. YAML gives a bare number as an int, so accept
+// every integer kind, and a float only when it holds an integer value.
+func pcrIndex(item interface{}) (string, error) {
+	switch v := item.(type) {
+	case string:
+		return v, nil
+	case int:
+		return strconv.Itoa(v), nil
+	case int8, int16, int32, int64:
+		return fmt.Sprintf("%d", v), nil
+	case uint, uint8, uint16, uint32, uint64:
+		return fmt.Sprintf("%d", v), nil
+	case float32:
+		return floatPCRIndex(float64(v))
+	case float64:
+		return floatPCRIndex(v)
+	default:
+		return "", fmt.Errorf("cannot read %v (%T) as a PCR index", item, item)
+	}
+}
+
+func floatPCRIndex(f float64) (string, error) {
+	if f != math.Trunc(f) {
+		return "", fmt.Errorf("cannot read %v as a PCR index, it is not a whole number", f)
+	}
+	return strconv.FormatInt(int64(f), 10), nil
 }

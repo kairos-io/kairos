@@ -569,7 +569,14 @@ func GetEncryptorFromConfig(logger sdkLogger.KairosLogger, collectorConfig *coll
 
 	var bindPCRs, bindPublicPCRs []string
 	if isUKI && collectorConfig != nil {
-		bindPCRs, bindPublicPCRs = extractPCRBindingsFromCollector(*collectorConfig, logger)
+		var err error
+		bindPCRs, bindPublicPCRs, err = extractPCRBindingsFromCollector(*collectorConfig, logger)
+		if err != nil {
+			// Carrying on would enroll the partition with whatever is left
+			// of the bindings the user asked for, which for bind-pcrs is
+			// nothing at all. Refuse instead.
+			return nil, fmt.Errorf("reading the PCR bindings: %w", err)
+		}
 	}
 
 	useRemoteKMS := kcryptConfig != nil && (kcryptConfig.ChallengerServer != "" || kcryptConfig.MDNS)
