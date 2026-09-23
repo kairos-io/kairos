@@ -187,8 +187,8 @@ var _ = Describe("GetCISHardeningStage", func() {
 			It("sets every key the issue enumerates", func() {
 				for _, kv := range []string{
 					"kernel.randomize_va_space = 2",
-					"net.ipv4.conf.all.rp_filter = 1",
-					"net.ipv4.conf.default.rp_filter = 1",
+					"net.ipv4.conf.all.rp_filter = 2",
+					"net.ipv4.conf.default.rp_filter = 2",
 					"net.ipv4.tcp_syncookies = 1",
 					"net.ipv4.conf.all.accept_source_route = 0",
 					"net.ipv4.conf.all.accept_redirects = 0",
