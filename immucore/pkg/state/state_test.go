@@ -154,11 +154,11 @@ var _ = Describe("mounting immutable setup", func() {
 			// OpLoadConfig fails outright this time. Unlike OpOverlayMount and
 			// OpCustomMounts, this one must still be able to cancel
 			// OpMountBind: without it there is no bind list to mount at all.
-			// This is the negative control for the fix above, to make sure it
-			// only loosened the two deps the ticket names and did not widen
-			// into the same global herd.WeakDeps mistake that already makes
-			// the whole step a no-op on the UKI boot path
-			// (dag_uki_boot.go:83).
+			// This is the negative control for the fix above: it has to
+			// stay a hard dependency, so the fix must not turn into a
+			// blanket herd.WeakDeps on this op the way the UKI boot DAG
+			// passes it (pkg/dag/dag_uki_boot.go), which makes every
+			// dependency of the op weak, OpLoadConfig included.
 			Expect(g.Add(cnst.OpLoadConfig, herd.WithCallback(func(context.Context) error {
 				return errors.New("no cloud-config found")
 			}))).To(Succeed())
