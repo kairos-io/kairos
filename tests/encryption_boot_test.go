@@ -165,7 +165,11 @@ var _ = Describe("kcrypt encrypt on boot", func() {
 
 		It("halts the boot with the failure screen and leaves the partition plaintext", func() {
 			By("Rebooting into the installed system")
-			bootVM.Reboot()
+			// peg's Reboot() asserts the machine becomes reachable again,
+			// which is exactly what must not happen here: the halt screen
+			// keeps the boot stopped. Issue the reboot and watch the serial
+			// console instead.
+			bootVM.Sudo("reboot") //nolint:errcheck
 
 			By("Waiting for the fail closed halt screen on the serial console")
 			serialLog := filepath.Join(bootVM.StateDir, "serial.log")
