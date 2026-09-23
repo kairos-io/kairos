@@ -3,6 +3,7 @@ package mos_test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -20,13 +21,15 @@ import (
 // first boot that can reach a TPM, before they are mounted. Without a TPM the
 // boot halts; there is no plaintext fallback.
 
-// installConfigNoEncryption deliberately omits install.encrypted_partitions:
-// the golden install must stay plaintext so the boot time step has work to do.
-const installConfigNoEncryption = `#cloud-config
+// installConfigNoEncryptionFmt deliberately omits
+// install.encrypted_partitions: the golden install must stay plaintext so the
+// boot time step has work to do. The verb takes the extra cmdline, because
+// the challenger variant needs rd.neednet=1 baked into the installed grub.
+const installConfigNoEncryptionFmt = `#cloud-config
 
 install:
   grub_options:
-    extra_cmdline: "rd.immucore.debug"
+    extra_cmdline: "%s"
   reboot: false # we will reboot manually
 
 stages:
@@ -40,17 +43,36 @@ stages:
       hostname: kairos-{{ trunc 4 .Random }}
 `
 
+// encryptOnBootLocalPolicy is the policy the golden image flow bakes into
+// OEM when the passphrase lives in the local TPM.
+const encryptOnBootLocalPolicy = `#cloud-config
+
+install:
+  encrypted_partitions:
+    - COS_PERSISTENT
+
+kcrypt:
+  encrypt_on_boot: true
+`
+
 // writeEncryptOnBootPolicy drops the boot time encryption policy into the
 // installed system's OEM partition, next to the 90_custom.yaml the installer
 // wrote. This is the template finalization step of the golden image flow: the
 // policy is plain text, carries no key material, and is what the first boot's
 // encrypt-pending step acts on.
-func writeEncryptOnBootPolicy(vm VM) {
+func writeEncryptOnBootPolicy(vm VM, policy string) {
 	GinkgoHelper()
 	By("Writing the encrypt_on_boot policy into COS_OEM")
+
+	policyFile, err := os.CreateTemp("", "")
+	Expect(err).ToNot(HaveOccurred())
+	defer os.Remove(policyFile.Name())
+	Expect(os.WriteFile(policyFile.Name(), []byte(policy), 0644)).To(Succeed())
+	Expect(vm.Scp(policyFile.Name(), "/tmp/91_encrypt_on_boot.yaml", "0644")).To(Succeed())
+
 	out, err := vm.Sudo(`mkdir -p /tmp/oem && ` +
 		`mount /dev/disk/by-label/COS_OEM /tmp/oem && ` +
-		`printf '#cloud-config\ninstall:\n  encrypted_partitions:\n    - COS_PERSISTENT\nkcrypt:\n  encrypt_on_boot: true\n' > /tmp/oem/91_encrypt_on_boot.yaml && ` +
+		`cp /tmp/91_encrypt_on_boot.yaml /tmp/oem/91_encrypt_on_boot.yaml && ` +
 		`umount /tmp/oem && sync && echo POLICY_WRITTEN`)
 	Expect(err).ToNot(HaveOccurred(), out)
 	Expect(out).To(ContainSubstring("POLICY_WRITTEN"), out)
@@ -61,12 +83,12 @@ var _ = Describe("kcrypt encrypt on boot", func() {
 	var bootInstallOutput string
 	var bootInstallError error
 
-	installPlaintext := func(vm VM) {
+	installPlaintext := func(vm VM, extraCmdline, policy string) {
 		configFile, err := os.CreateTemp("", "")
 		Expect(err).ToNot(HaveOccurred())
 		defer os.Remove(configFile.Name())
 
-		err = os.WriteFile(configFile.Name(), []byte(installConfigNoEncryption), 0744)
+		err = os.WriteFile(configFile.Name(), []byte(fmt.Sprintf(installConfigNoEncryptionFmt, extraCmdline)), 0744)
 		Expect(err).ToNot(HaveOccurred())
 
 		err = vm.Scp(configFile.Name(), "/tmp/config.yaml", "0744")
@@ -80,7 +102,7 @@ var _ = Describe("kcrypt encrypt on boot", func() {
 		Expect(err).ToNot(HaveOccurred(), out)
 		Expect(out).ToNot(MatchRegexp("crypto_LUKS"), out)
 
-		writeEncryptOnBootPolicy(vm)
+		writeEncryptOnBootPolicy(vm, policy)
 	}
 
 	gatherFailureEvidence := func(vm VM) {
@@ -96,7 +118,7 @@ var _ = Describe("kcrypt encrypt on boot", func() {
 		BeforeEach(func() {
 			_, bootVM = startVM()
 			bootVM.EventuallyConnects(1200)
-			installPlaintext(bootVM)
+			installPlaintext(bootVM, "rd.immucore.debug", encryptOnBootLocalPolicy)
 		})
 
 		AfterEach(func() {
@@ -153,7 +175,7 @@ var _ = Describe("kcrypt encrypt on boot", func() {
 		BeforeEach(func() {
 			_, bootVM = startVMNoTPM()
 			bootVM.EventuallyConnects(1200)
-			installPlaintext(bootVM)
+			installPlaintext(bootVM, "rd.immucore.debug", encryptOnBootLocalPolicy)
 		})
 
 		AfterEach(func() {
@@ -186,6 +208,96 @@ var _ = Describe("kcrypt encrypt on boot", func() {
 			By("Confirming the halt happened before any write to the partition")
 			b, _ := os.ReadFile(serialLog)
 			Expect(string(b)).ToNot(ContainSubstring("Creating LUKS container"), string(b))
+		})
+	})
+
+	// The challenger variant of the golden image flow: the policy baked into
+	// OEM carries a kcrypt.challenger block, so the first boot fetches its
+	// passphrase from the KMS (TOFU enrollment) instead of sealing it in the
+	// local TPM NV index. Runs against the same challenger cluster as the
+	// encryption-remote-* suites, hence the separate label; rd.neednet=1 is
+	// baked into the installed grub so the initramfs has network by the time
+	// the encrypt-pending step needs the KMS.
+	When("a remote key management server manages the passphrase", Label("encryption-on-boot-remote"), func() {
+		var tpmHash string
+
+		BeforeEach(func() {
+			tpmHash = ""
+			_, bootVM = startVM()
+			bootVM.EventuallyConnects(1200)
+			policy := fmt.Sprintf(`#cloud-config
+
+install:
+  encrypted_partitions:
+    - COS_PERSISTENT
+
+kcrypt:
+  encrypt_on_boot: true
+  challenger:
+    challenger_server: "http://%s"
+    nv_index: ""
+    c_index: ""
+    tpm_device: ""
+`, os.Getenv("KMS_ADDRESS"))
+			installPlaintext(bootVM, "rd.immucore.debug rd.neednet=1", policy)
+		})
+
+		AfterEach(func() {
+			if CurrentSpecReport().Failed() {
+				gatherLogs(bootVM)
+			}
+			gatherFailureEvidence(bootVM)
+			if tpmHash != "" {
+				// Clean up the TOFU-created SealedVolume, same shape as the
+				// encryption-remote-auto suite.
+				cmd := exec.Command("kubectl", "delete", "sealedvolume",
+					fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8]), "--ignore-not-found")
+				out, err := cmd.CombinedOutput()
+				Expect(err).ToNot(HaveOccurred(), string(out))
+			}
+			err := bootVM.Destroy(func(vm VM) {
+				tpmPID, err := os.ReadFile(path.Join(vm.StateDir, "tpm", "pid"))
+				Expect(err).ToNot(HaveOccurred())
+				if len(tpmPID) != 0 {
+					pid, err := strconv.Atoi(string(tpmPID))
+					Expect(err).ToNot(HaveOccurred())
+					syscall.Kill(pid, syscall.SIGKILL)
+				}
+			})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("fetches the passphrase from the challenger and encrypts on first boot", func() {
+			By("Rebooting into the installed system")
+			bootVM.Reboot(750)
+			bootVM.EventuallyConnects(1200)
+
+			By("Checking the partition was encrypted on boot")
+			out, err := bootVM.Sudo("blkid")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			Expect(out).To(MatchRegexp("/dev/(mapper|dm).*LABEL=\"COS_PERSISTENT\""), out)
+			verifyPersistentFstabUsesMapper(bootVM)
+
+			By("Expecting the TOFU secret to exist on the cluster")
+			tpmHash = getTPMHash(bootVM)
+			cmd := exec.Command("kubectl", "get", "secrets",
+				fmt.Sprintf("tofu-%s-cos-persistent-luks", tpmHash[:8]))
+			secretOut, err := cmd.CombinedOutput()
+			Expect(err).ToNot(HaveOccurred(), string(secretOut))
+
+			By("Rebooting a second time")
+			bootVM.Reboot(750)
+			bootVM.EventuallyConnects(1200)
+
+			By("Checking the second boot was a clean no-op unlocked via the KMS")
+			out, err = bootVM.Sudo("cat /run/immucore/immucore.log")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(ContainSubstring("already LUKS; encrypt-pending is a no-op"), out)
+			out, err = bootVM.Sudo("blkid")
+			Expect(err).ToNot(HaveOccurred(), out)
+			Expect(out).To(MatchRegexp("TYPE=\"crypto_LUKS\" PARTLABEL=\"persistent\""), out)
+			verifyPersistentFstabUsesMapper(bootVM)
 		})
 	})
 })
