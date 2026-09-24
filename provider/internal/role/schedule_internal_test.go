@@ -20,6 +20,22 @@ import (
 
 const testNetworkID = "role-scheduling"
 
+// A write to the ledger is only announced, never committed synchronously: the
+// API's PUT handler calls ledger.Persist and answers {"State":"Announcing"},
+// and Persist adds the entry from a goroutine driven by a backoff ticker.
+// Nothing orders a write before a later read, so every read this file depends
+// on has to be an Eventually.
+//
+// ledgerSettle stays well under the second tick of a Persist that has not
+// reconciled yet (the backoff starts at 5s with a 0.5 randomization factor,
+// so the earliest retry is around 2.5s). Confirming a seed inside that window
+// means the scheduler's own write cannot be undone by the seed re-announcing
+// its old value on top of it.
+const (
+	ledgerSettle = 2 * time.Second
+	ledgerPoll   = 20 * time.Millisecond
+)
+
 // startLedger brings up a real edgevpn API over a unix socket, backed by an
 // in-memory ledger. The scheduler reads and writes roles through the same
 // client the provider uses at runtime, so the encoding of a ledger entry is
@@ -55,6 +71,24 @@ func roleOf(client *service.Client, uuid string) string {
 	return role
 }
 
+// seedRole writes a role and does not return until it is in the ledger. A
+// scheduler run started on an uncommitted seed reads "" for that node and
+// schedules against a ledger that does not exist yet.
+func seedRole(client *service.Client, uuid, role string) {
+	GinkgoHelper()
+	Expect(client.Set("role", uuid, role)).To(Succeed())
+	Eventually(func() string { return roleOf(client, uuid) }, ledgerSettle, ledgerPoll).
+		Should(Equal(role), "the %q seed for %s never committed", role, uuid)
+}
+
+// expectRole waits for a node to hold the given role. Used after
+// scheduleRoles, whose writes go through the same announcing PUT.
+func expectRole(client *service.Client, uuid, role string, description string) {
+	GinkgoHelper()
+	Eventually(func() string { return roleOf(client, uuid) }, ledgerSettle, ledgerPoll).
+		Should(Equal(role), description)
+}
+
 var _ = Describe("Role scheduling", func() {
 	var (
 		client  *service.Client
@@ -81,45 +115,49 @@ var _ = Describe("Role scheduling", func() {
 	// leader reads them as unassigned, upgrading the binary is not enough:
 	// nothing ever writes a real role over them and the node stays wedged.
 	It("assigns a real role over a stale none left by an older binary", func() {
-		Expect(client.Set("role", "stuck-uuid", providerConfig.RoleNone)).To(Succeed())
-		Expect(roleOf(client, "stuck-uuid")).To(Equal(providerConfig.RoleNone))
+		seedRole(client, "stuck-uuid", providerConfig.RoleNone)
 
 		Expect(scheduleRoles([]string{"stuck-uuid"}, leader, cc, pconfig)).To(Succeed())
 
-		Expect(roleOf(client, "stuck-uuid")).To(Equal("master"),
+		expectRole(client, "stuck-uuid", "master",
 			"the only unassigned node has to become the master")
 	})
 
 	It("gives a second stale-none node a worker role once a master exists", func() {
-		Expect(client.Set("role", "master-uuid", "master")).To(Succeed())
-		Expect(client.Set("role", "stuck-uuid", providerConfig.RoleNone)).To(Succeed())
+		seedRole(client, "master-uuid", "master")
+		seedRole(client, "stuck-uuid", providerConfig.RoleNone)
 
 		Expect(scheduleRoles([]string{"master-uuid", "stuck-uuid"}, leader, cc, pconfig)).To(Succeed())
 
-		Expect(roleOf(client, "master-uuid")).To(Equal("master"))
-		Expect(roleOf(client, "stuck-uuid")).To(Equal("worker"))
+		expectRole(client, "stuck-uuid", "worker",
+			"the stale-none node has to take the free worker slot")
+		expectRole(client, "master-uuid", "master",
+			"the existing master has to be left where it is")
 	})
 
 	It("leaves an already-assigned worker alone", func() {
-		Expect(client.Set("role", "master-uuid", "master")).To(Succeed())
-		Expect(client.Set("role", "worker-uuid", "worker")).To(Succeed())
+		seedRole(client, "master-uuid", "master")
+		seedRole(client, "worker-uuid", "worker")
 
 		Expect(scheduleRoles([]string{"master-uuid", "worker-uuid"}, leader, cc, pconfig)).To(Succeed())
 
-		Expect(roleOf(client, "master-uuid")).To(Equal("master"))
-		Expect(roleOf(client, "worker-uuid")).To(Equal("worker"))
+		expectRole(client, "master-uuid", "master", "")
+		expectRole(client, "worker-uuid", "worker", "")
 	})
 
 	It("never re-publishes none back into the ledger", func() {
 		// The re-publish loop exists so a lost gossipsub message cannot strand
 		// a worker. It must not keep a pre-#4670 value alive: whatever a tick
 		// leaves behind for a stale-none node, it cannot be `none`.
-		Expect(client.Set("role", "master-uuid", "master")).To(Succeed())
-		Expect(client.Set("role", "stuck-uuid", providerConfig.RoleNone)).To(Succeed())
+		seedRole(client, "master-uuid", "master")
+		seedRole(client, "stuck-uuid", providerConfig.RoleNone)
 
 		for i := 0; i < 3; i++ {
 			Expect(scheduleRoles([]string{"master-uuid", "stuck-uuid"}, leader, cc, pconfig)).To(Succeed())
-			Expect(roleOf(client, "stuck-uuid")).NotTo(Equal(providerConfig.RoleNone))
+			// Asserting only "not none" would pass on an empty read, which is
+			// what an uncommitted write looks like. Pin the role instead.
+			expectRole(client, "stuck-uuid", "worker",
+				"a re-publish tick must leave a real role behind, never none")
 		}
 	})
 
