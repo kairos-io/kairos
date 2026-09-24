@@ -750,8 +750,8 @@ github.com/mudler/go-processmanager v0.1.1 h1:c/1NRZOZpW8HuFv9RhBG57nQu1oDMRomEH
 github.com/mudler/go-processmanager v0.1.1/go.mod h1:h6kmHUZeafr+k5hRYpGLMzJFH4hItHffgpRo2QIkP+o=
 github.com/mudler/water v0.0.0-20250808092830-dd90dcf09025 h1:WFLP5FHInarYGXi6B/Ze204x7Xy6q/I4nCZnWEyPHK0=
 github.com/mudler/water v0.0.0-20250808092830-dd90dcf09025/go.mod h1:QuIFdRstyGJt+MTTkWY+mtD7U6xwjOR6SwKUjmLZtR4=
-github.com/mudler/yip v1.26.3 h1:eEjtU0UYXHDteqaJzWhWmxDlDGwdfDCKFhwAt4qnqbc=
-github.com/mudler/yip v1.26.3/go.mod h1:nwV/hboHZzzgCe1Qjy5hUujhAsBkYqTIe2xxmvi/J+g=
+github.com/mudler/yip v1.26.4 h1:DOwHYhg+inCzRtLtui5is/eTY4aVQyvopAaz1z0no44=
+github.com/mudler/yip v1.26.4/go.mod h1:nwV/hboHZzzgCe1Qjy5hUujhAsBkYqTIe2xxmvi/J+g=
 github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 h1:ZK8zHtRHOkbHy6Mmr5D264iyp3TiX5OmNcI5cIARiQI=
 github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6/go.mod h1:CJlz5H+gyd6CUWT45Oy4q24RdLyn7Md9Vj2/ldJBSIo=
 github.com/muesli/cancelreader v0.2.2 h1:3I4Kt4BQjOR54NavqnDogx/MIoWBFa0StPA8ELUXHmA=
