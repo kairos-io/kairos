@@ -20,6 +20,7 @@ type RootSchema struct {
 	FailOnBundleErrors        bool             `json:"fail_on_bundles_errors,omitempty"`
 	GrubOptionsSchema         `json:"grub_options,omitempty"`
 	Install                   InstallSchema            `json:"install,omitempty"`
+	Kcrypt                    KcryptSchema             `json:"kcrypt,omitempty"`
 	Options                   []interface{}            `json:"options,omitempty" description:"Various options."`
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1" required:"true"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
