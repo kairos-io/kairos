@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 )
@@ -16,13 +17,21 @@ const (
 	// that follow report a far better error than a silent three-minute stall.
 	DefaultDeviceEnumerationTimeout = 30 * time.Second
 
+	// DefaultOEMEnumerationTimeout bounds the second leg of the wait, the one
+	// that covers OEM detection. It is much shorter than the images budget
+	// because an installation is allowed to carry no OEM partition at all,
+	// and such a boot must not pay the full budget for a partition that is
+	// never going to appear. By the time this leg starts, the images
+	// partition is already enumerated, so the disk is awake.
+	DefaultOEMEnumerationTimeout = 5 * time.Second
+
 	// deviceEnumerationPollInterval is how often the scan is repeated while
 	// waiting. GetState() already polls labels at 1s, so match it.
 	deviceEnumerationPollInterval = 1 * time.Second
 )
 
-// WaitForBootDevices blocks until the partition that holds this boot's images
-// is visible to a block device scan, or until timeout elapses.
+// WaitForBootDevices blocks until the partitions this boot has to see are
+// visible to a block device scan, or until the budgets below elapse.
 //
 // immucore used to get this guarantee from the initramfs, by ordering itself
 // after systemd-udev-settle.service. That unit is deprecated upstream and
@@ -40,57 +49,84 @@ const (
 // error reporting, and those messages name the device and the operation;
 // aborting the boot here would replace them with a worse one.
 func WaitForBootDevices(timeout time.Duration) error {
-	runtime, err := state.NewRuntimeWithLogger(KLog.Logger)
-	if err != nil {
-		KLog.Logger.Debug().Err(err).Msg("Could not read the runtime, not waiting for device enumeration")
-		return nil
-	}
-	label := bootStateToImagesLabel(runtime.BootState)
+	return waitForBootDevices(
+		state.DetectBoot(KLog.Logger),
+		timeout, DefaultOEMEnumerationTimeout, deviceEnumerationPollInterval,
+		labelsEnumerated,
+	)
+}
+
+// waitForBootDevices is the testable core of WaitForBootDevices. It takes the
+// boot state rather than detecting it, because detection reads the real
+// /proc/cmdline and cannot be mocked.
+func waitForBootDevices(boot state.Boot, imagesTimeout, oemTimeout, interval time.Duration, present func(...string) bool) error {
+	label := bootStateToImagesLabel(boot)
 	if label == "" {
 		// LiveCD and Unknown have no images partition to wait for.
 		return nil
 	}
-	return WaitForLabel(label, timeout)
+	if err := waitForLabels([]string{label}, imagesTimeout, interval, present); err != nil {
+		return err
+	}
+	// The images partition is up, so udev has processed this disk. Give OEM
+	// its own short budget: it is the detection that fails open, and nothing
+	// above makes it visible. An installation with no OEM partition reaches
+	// the timeout, which is why this leg is not an error.
+	if err := waitForLabels(oemLabelsToWaitFor(), oemTimeout, interval, present); err != nil {
+		KLog.Logger.Debug().Err(err).
+			Msg("No OEM partition was enumerated; continuing as an installation without one")
+	}
+	return nil
 }
 
-// WaitForLabel blocks until a partition carrying the given filesystem or
-// partition label is visible to a block device scan, or until timeout elapses.
-func WaitForLabel(label string, timeout time.Duration) error {
-	return waitForLabel(label, timeout, deviceEnumerationPollInterval, labelEnumerated)
+// oemLabelsToWaitFor returns the labels whose appearance settles OEM
+// detection for this boot: the one the cmdline names, or every label
+// GetOemLabel falls back to scanning for.
+func oemLabelsToWaitFor() []string {
+	if label := oemLabelFromCmdline(); label != "" {
+		return []string{label}
+	}
+	return []string{constants.OEMLabel, constants.OEMLUKSLabel, constants.OEMPartName}
 }
 
-// labelEnumerated reports whether any partition currently carries label as its
-// filesystem label or its GPT partition label. It uses the kairos-sdk ghw for
-// the same reason GetOemLabel does: it honors GHW_CHROOT, so tests can mock the
-// device tree.
-func labelEnumerated(label string) bool {
+// labelsEnumerated reports whether any partition currently carries one of the
+// given labels as its filesystem label or its GPT partition label. It scans
+// once for the whole set, so waiting on three OEM labels costs one scan per
+// poll and not three. It uses the kairos-sdk ghw for the same reason
+// GetOemLabel does: it honors GHW_CHROOT, so tests can mock the device tree.
+func labelsEnumerated(labels ...string) bool {
 	for _, disk := range ghw.GetDisks(ghw.NewPaths(""), &KLog) {
 		for _, p := range disk.Partitions {
-			if p.FilesystemLabel == label || p.PartitionLabel == label {
-				return true
+			for _, label := range labels {
+				if p.FilesystemLabel == label || p.PartitionLabel == label {
+					return true
+				}
 			}
 		}
 	}
 	return false
 }
 
-// waitForLabel is the testable core of WaitForLabel. The device scan is always
-// attempted once before the deadline is consulted, so a zero timeout still
-// answers correctly for a device that is already there.
-func waitForLabel(label string, timeout, interval time.Duration, present func(string) bool) error {
+// waitForLabels is the testable core of WaitForLabel. The device scan is
+// always attempted once before the deadline is consulted, so a zero timeout
+// still answers correctly for a device that is already there.
+func waitForLabels(labels []string, timeout, interval time.Duration, present func(...string) bool) error {
 	deadline := time.Now().Add(timeout)
 	for attempt := 1; ; attempt++ {
-		if present(label) {
+		if present(labels...) {
 			if attempt > 1 {
-				KLog.Logger.Info().Str("label", label).Int("attempts", attempt).
+				KLog.Logger.Info().Strs("labels", labels).Int("attempts", attempt).
 					Msg("Waited for the device to be enumerated")
 			}
 			return nil
 		}
 		if !time.Now().Before(deadline) {
-			return fmt.Errorf("label %q was not enumerated after %s", label, timeout)
+			if len(labels) == 1 {
+				return fmt.Errorf("label %q was not enumerated after %s", labels[0], timeout)
+			}
+			return fmt.Errorf("none of the labels %q were enumerated after %s", labels, timeout)
 		}
-		KLog.Logger.Debug().Str("label", label).Int("attempt", attempt).
+		KLog.Logger.Debug().Strs("labels", labels).Int("attempt", attempt).
 			Msg("Device not enumerated yet, retrying")
 		time.Sleep(interval)
 	}
