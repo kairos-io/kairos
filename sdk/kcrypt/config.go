@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/sdk/collector"
+	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/bus"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
@@ -74,6 +75,54 @@ func ScanKcryptConfig(logger sdkLogger.KairosLogger, dirs ...string) *bus.Kcrypt
 type EncryptOnBootPolicy struct {
 	Enabled    bool
 	Partitions []string
+}
+
+// ProtectedPartitionError reports that the boot time encryption policy lists
+// a partition the running system depends on, which must never be encrypted
+// while that system is up. Label is the offending entry from
+// install.encrypted_partitions and Reason says why it is refused, so a caller
+// can name both on whatever screen or log it fails with.
+type ProtectedPartitionError struct {
+	Label  string
+	Reason string
+}
+
+func (e *ProtectedPartitionError) Error() string {
+	return fmt.Sprintf("boot time encryption of %s is not supported: %s", e.Label, e.Reason)
+}
+
+// RejectSystemPartitions returns a *ProtectedPartitionError when the policy
+// lists a partition the running boot depends on: OEM (the mounted
+// configuration source the policy is read from), state and recovery (they
+// hold the images of the system that is booting) and EFI (the firmware reads
+// it to start the boot). Encrypting any of them from a running system would
+// destroy that system, so every consumer of the policy (immucore's
+// encrypt-pending step today, the agent subcommand and the reset path later)
+// must call this before acting on Partitions, whether or not the partition
+// still looks pending: a refused label is refused for what it is, not for
+// what state it happens to be in.
+//
+// effectiveOEMLabel is the OEM label after any rename (the rd.cos.oemlabel=
+// and rd.immucore.oemlabel= cmdline overrides); pass the empty string when
+// there is none. The constant OEM label is always refused as well.
+func (p EncryptOnBootPolicy) RejectSystemPartitions(effectiveOEMLabel string) error {
+	const oemReason = "it is the mounted configuration source this policy was read from"
+	protected := map[string]string{
+		constants.OEMLabel:      oemReason,
+		constants.StateLabel:    "it holds the root image of the system that is booting",
+		constants.RecoveryLabel: "it holds the recovery system",
+		constants.EfiLabel:      "the firmware reads it to start the boot",
+	}
+	if effectiveOEMLabel != "" {
+		protected[effectiveOEMLabel] = oemReason
+	}
+
+	for _, label := range p.Partitions {
+		if reason, ok := protected[label]; ok {
+			return &ProtectedPartitionError{Label: label, Reason: reason}
+		}
+	}
+	return nil
 }
 
 // ScanEncryptOnBootPolicy scans the Kairos configuration in the given
