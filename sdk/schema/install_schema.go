@@ -31,6 +31,15 @@ type InstallSchema struct {
 	Active                 Image               `json:"system,omitempty"`
 	Recovery               Image               `json:"recovery-system,omitempty"`
 	Passive                Image               `json:"passive,omitempty"`
+	// Keys below are decoded into InstallSpec and InstallUkiSpec by
+	// unmarshallFullSpec(cfg, "install", spec), not into types/config.Config.
+	Firmware                string   `json:"firmware,omitempty" enum:"[\"efi\",\"bios\"]" description:"Firmware to install for. Defaults to what the installing machine reports, so set it only to install for a machine other than the one running the installer"`
+	PartTable               string   `json:"part-table,omitempty" enum:"[\"gpt\"]" description:"Partition table to write. Only gpt is supported, for both efi and bios firmware"`
+	CloudInit               []string `json:"cloud-init,omitempty" description:"Extra cloud-config files or directories to copy onto the installed system, on top of the config that drove the install"`
+	Iso                     string   `json:"iso,omitempty" description:"URL or path of an ISO to install from, instead of the running installation medium"`
+	Tty                     string   `json:"tty,omitempty" description:"Console the installed system gets a getty on, in addition to the default one" examples:"[\"ttyS0\",\"tty1\"]"`
+	SkipEntries             []string `json:"skip-entries,omitempty" description:"Trusted Boot only: boot entries to leave out of the installed system. Added to the entries Kairos skips by default"`
+	AllowInsecureRegistries bool     `json:"allow-insecure-registries,omitempty" description:"Pull the install image from a registry served over plain HTTP or presenting an untrusted certificate"`
 }
 
 type Image struct {
