@@ -6,12 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/spectrocloud-labs/herd"
 )
 
 var _ = Describe("encrypt pending partitions", func() {
@@ -255,7 +257,8 @@ var _ = Describe("encrypt pending partitions", func() {
 
 		It("halts when the configuration cannot be read", func() {
 			stub := stubRun(nil, errors.New("scanning configuration: I/O error"), nil)
-			Expect(s.runEncryptPending(ctx)).ToNot(Succeed())
+			err := s.runEncryptPending(ctx)
+			Expect(err).To(MatchError(ContainSubstring("reading the configuration")))
 			Expect(stub.encrypted).To(BeEmpty())
 			Expect(stub.halts).To(Equal(1))
 		})
@@ -302,6 +305,30 @@ var _ = Describe("encrypt pending partitions", func() {
 			Expect(stub.halts).To(Equal(1))
 		})
 
+		It("halts on a pending EFI partition", func() {
+			mockDisk(partitions.PartitionList{
+				{Name: "vda1", PartitionLabel: "efi", FilesystemLabel: constants.EfiLabel, FS: "vfat"},
+			})
+			stub := stubRun(policyConfig(true, constants.EfiLabel), nil, nil)
+			Expect(s.runEncryptPending(ctx)).ToNot(Succeed())
+			Expect(stub.encrypted).To(BeEmpty())
+			Expect(stub.halts).To(Equal(1))
+		})
+
+		It("halts on a protected partition even when it is already encrypted", func() {
+			// The intent is refused for what the partition is, not for the
+			// state it is in: a listed state partition halts the boot even
+			// when it happens to be a LUKS container already.
+			mockDisk(partitions.PartitionList{
+				{Name: "vda4", PartitionLabel: "state", FilesystemLabel: constants.StateLabel, FS: constants.LUKSFs},
+			})
+			stub := stubRun(policyConfig(true, constants.StateLabel), nil, nil)
+			err := s.runEncryptPending(ctx)
+			Expect(err).To(MatchError(ContainSubstring("is not supported")))
+			Expect(stub.encrypted).To(BeEmpty())
+			Expect(stub.halts).To(Equal(1))
+		})
+
 		It("halts when a configured partition is missing", func() {
 			mockDisk(partitions.PartitionList{
 				{Name: "vda1", PartitionLabel: "efi", FilesystemLabel: "COS_GRUB", FS: "vfat"},
@@ -317,9 +344,58 @@ var _ = Describe("encrypt pending partitions", func() {
 				{Name: "vda5", PartitionLabel: "persistent", FilesystemLabel: constants.PersistentLabel, FS: "ext4"},
 			})
 			stub := stubRun(policyConfig(true, constants.PersistentLabel), nil, errors.New("no TPM device"))
-			Expect(s.runEncryptPending(ctx)).ToNot(Succeed())
+			err := s.runEncryptPending(ctx)
+			Expect(err).To(MatchError(ContainSubstring("no TPM device")))
 			Expect(stub.encrypted).To(HaveLen(1))
 			Expect(stub.halts).To(Equal(1))
+		})
+	})
+
+	Describe("EncryptPendingDagStep", func() {
+		s := &State{}
+
+		// The halt screen returns on non-systemd hosts (Alpine/openrc), so
+		// the fail-closed guarantee rests on the op being fatal to the graph:
+		// a step that does not depend on encrypt-pending (custom mounts in
+		// the real DAG) must not run after it fails, or it would mount the
+		// still-plaintext partition.
+		It("stops the graph on failure even though the halt screen returned", func() {
+			stub := stubRun(nil, errors.New("scanning configuration: I/O error"), nil)
+
+			// EnableInit, like the production graph in cmd/root.go: without
+			// it an op nothing depends on never enters the topological sort.
+			g := herd.DAG(herd.EnableInit)
+			Expect(s.EncryptPendingDagStep(g)).To(Succeed())
+			unrelatedRan := false
+			Expect(g.Add("config-load",
+				herd.WithCallback(func(context.Context) error { return nil }))).To(Succeed())
+			Expect(g.Add("custom-mounts", herd.WithDeps("config-load"),
+				herd.WithCallback(func(context.Context) error {
+					unrelatedRan = true
+					return nil
+				}))).To(Succeed())
+
+			err := g.Run(context.Background())
+			Expect(err).To(MatchError(ContainSubstring("reading the configuration")))
+			Expect(unrelatedRan).To(BeFalse(), "an op independent of "+cnst.OpEncryptPending+" ran after the fatal failure")
+			Expect(stub.halts).To(Equal(1))
+		})
+
+		It("lets the graph continue when the step is a no-op", func() {
+			stub := stubRun(policyConfig(false, constants.PersistentLabel), nil, nil)
+
+			g := herd.DAG(herd.EnableInit)
+			Expect(s.EncryptPendingDagStep(g)).To(Succeed())
+			laterRan := false
+			Expect(g.Add("unlock-all", herd.WithDeps(cnst.OpEncryptPending),
+				herd.WithCallback(func(context.Context) error {
+					laterRan = true
+					return nil
+				}))).To(Succeed())
+
+			Expect(g.Run(context.Background())).To(Succeed())
+			Expect(laterRan).To(BeTrue())
+			Expect(stub.halts).To(BeZero())
 		})
 	})
 })
