@@ -187,7 +187,7 @@ And what happens to the resolved target:
 
 | Target disk state | `kairos.ram.wipe` | Result |
 |---|---|---|
-| Empty (no partition table) | any | fresh GPT + partitions created |
+| Empty (no partition table) | any | fresh GPT + partitions created, when both labels are missing; append otherwise |
 | Already carries `COS_OEM` or `COS_PERSISTENT` | any | append-only: the missing label is created next to the existing one, nothing else is touched |
 | Carries any other partition table | unset | append-only if the disk is exempt from the wipe guard, otherwise **boot halts** with the wipe-required screen |
 | Carries only foreign partitions | set | fresh GPT when both labels are missing (destroys the disk), append otherwise |
