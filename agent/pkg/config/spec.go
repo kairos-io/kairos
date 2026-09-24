@@ -790,6 +790,14 @@ func NewUkiUpgradeSpec(cfg *sdkConfig.Config) (*spec.UpgradeUkiSpec, error) {
 	if err := unmarshallFullSpec(cfg, "upgrade", spec); err != nil {
 		return nil, fmt.Errorf("failed unmarshalling full spec: %w", err)
 	}
+	// upgrade.efi-partition decodes onto this spec and is overwritten below by
+	// the ESP the host reports, so whatever the config said is thrown away. It
+	// cannot be honored either: the upgrade mounts the partition by Path and
+	// MountPoint, and neither of those is settable from cloud-config. Refuse
+	// the key rather than upgrading a partition the user did not name.
+	if spec.EfiPartition != nil {
+		return nil, fmt.Errorf("upgrade.efi-partition is not configurable: the EFI partition is the one labeled %s on the running system", sdkConstants.EfiLabel)
+	}
 	// Honor upgrade.allow-insecure-registries before any image is fetched
 	if err := applyAllowInsecureRegistries(cfg, "upgrade"); err != nil {
 		return nil, err

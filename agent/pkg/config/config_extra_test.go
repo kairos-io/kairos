@@ -1170,6 +1170,31 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 				Expect(spec.EfiPartition).ToNot(BeNil())
 				Expect(spec.EfiPartition.MountPoint).To(Equal("/tmp"))
 			})
+			It("refuses upgrade.efi-partition instead of silently dropping it", func() {
+				mainDisk := sdkPartitions.Disk{
+					Name: "device",
+					Partitions: []*sdkPartitions.Partition{
+						{
+							Name:            "device1",
+							FilesystemLabel: constants.EfiLabel,
+							FS:              "vfat",
+							MountPoint:      "/tmp",
+						},
+					},
+				}
+				ghwTest = ghwMock.GhwMock{}
+				ghwTest.AddDisk(mainDisk)
+				ghwTest.CreateDevices()
+
+				Expect(fsutils.MkdirAll(fs, "/tmp", constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile("/tmp/waka", []byte("waka"), constants.FilePerm)).To(Succeed())
+				cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader("#cloud-config\nupgrade:\n  system:\n    source: file:/tmp/waka\n  efi-partition:\n    label: MY_ESP\n    fs: ext4\n")))
+				Expect(err).ToNot(HaveOccurred())
+				c.Collector = cfg.Collector
+				_, err = config.NewUkiUpgradeSpec(c)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("upgrade.efi-partition is not configurable"))
+			})
 		})
 	})
 })
