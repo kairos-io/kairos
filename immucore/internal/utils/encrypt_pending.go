@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// encryptOnBootIntro is the shared intro paragraph for every failure screen
+// encryptOnBootFailureIntro is the shared intro paragraph for every failure screen
 // of the boot time encryption step: names the feature the user enabled and
 // where in the flow it broke.
-func encryptOnBootIntro() string {
+func encryptOnBootFailureIntro() string {
 	return "This node is configured with " + Emphasize("kcrypt.encrypt_on_boot") + ". Kairos checked the\n" +
 		"partitions listed in " + Emphasize("install.encrypted_partitions") + " and tried to encrypt the\n" +
 		"ones that are still plaintext before mounting them, but hit a problem.\n" +
@@ -32,7 +32,7 @@ func RenderEncryptOnBootLookupFailedMessage(labels []string, failErr error) stri
 
 	return RenderFailureScreen(
 		"Encrypt on boot: configured partition not found",
-		encryptOnBootIntro(),
+		encryptOnBootFailureIntro(),
 		FailureSection{Title: SectionWhatWentWrong, Body: wrong.String()},
 		FailureSection{Title: SectionHowToFix, Body: fix.String()},
 	)
@@ -54,7 +54,7 @@ func RenderEncryptOnBootProtectedMessage(label, reason string) string {
 
 	return RenderFailureScreen(
 		"Encrypt on boot: partition cannot be encrypted during the boot",
-		encryptOnBootIntro(),
+		encryptOnBootFailureIntro(),
 		FailureSection{Title: SectionWhatWentWrong, Body: wrong.String()},
 		FailureSection{Title: SectionHowToFix, Body: fix.String()},
 	)
@@ -105,7 +105,7 @@ func RenderEncryptOnBootFailedMessage(labels []string, failErr error) string {
 
 	return RenderFailureScreen(
 		"Encrypt on boot: partition encryption failed",
-		encryptOnBootIntro(),
+		encryptOnBootFailureIntro(),
 		FailureSection{Title: SectionWhatWentWrong, Body: wrong.String()},
 		FailureSection{Title: SectionHowToFix, Body: fix.String()},
 	)

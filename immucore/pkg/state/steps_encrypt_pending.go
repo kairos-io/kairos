@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -38,9 +39,20 @@ import (
 // It runs only on the normal boot DAG and only when OEM is plaintext (the
 // policy is read from the mounted /run/cos/oem). UKI installs are always
 // encrypted at install time, so there is nothing pending under trusted boot.
+//
+// The op is registered fatal: on systemd hosts HaltWithBanner never returns,
+// but on non-systemd hosts (Alpine/openrc) it paints the screen and returns,
+// and without herd.FatalOp the DAG would carry on past the failure and steps
+// that do not depend on this one (custom mounts) would mount the partition
+// still in plaintext. Fatal stops the graph at this layer instead.
+//
+// With the opt-in set, a slow-probing disk can hold the boot here: the
+// pending classification settles udev (up to encryptPendingSettleTimeout)
+// and then retries the lookups on the unlock path's backoff schedule, about
+// 75 seconds worst case before the step gives up and halts.
 func (s *State) EncryptPendingDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpEncryptPending,
-		append(opts, TimedCallback(cnst.OpEncryptPending, s.runEncryptPending))...)
+		append(opts, herd.FatalOp, TimedCallback(cnst.OpEncryptPending, s.runEncryptPending))...)
 }
 
 // Package variables so the specs can stub the config scan, the encryption
@@ -80,6 +92,17 @@ var (
 
 const encryptPendingSettleTimeout = 30 * time.Second
 
+// haltEncryptPending paints the failure screen and hands the error back to
+// the DAG. On systemd hosts HaltWithBanner never returns. On non-systemd
+// hosts (Alpine/openrc) it paints the screen and returns, and the returned
+// error stops the graph because EncryptPendingDagStep registers the op with
+// herd.FatalOp: without that, steps that do not depend on this one (custom
+// mounts) would mount the partitions still in plaintext.
+func haltEncryptPending(banner, logMsg string, err error) error {
+	haltWithBannerFn(banner, logMsg, err)
+	return err
+}
+
 // runEncryptPending is the callback behind OpEncryptPending. Split from the
 // DAG registration so the specs can drive it without building a graph.
 func (s *State) runEncryptPending(_ context.Context) error {
@@ -89,15 +112,11 @@ func (s *State) runEncryptPending(_ context.Context) error {
 		// and we cannot see it. Fail closed rather than silently boot what
 		// could be a node that wanted its partitions encrypted.
 		failErr := fmt.Errorf("encrypt on boot: reading the configuration: %w", err)
-		haltWithBannerFn(
+		return haltEncryptPending(
 			internalUtils.RenderEncryptOnBootConfigFailedMessage(failErr),
 			"encrypt on boot: configuration could not be read",
 			failErr,
 		)
-		// Reached only on non-systemd hosts (Alpine/openrc), where
-		// HaltWithBanner paints the screen and returns so we can fail the
-		// step normally.
-		return failErr
 	}
 
 	policy := kcrypt.EncryptOnBootPolicyFromConfig(config, internalUtils.KLog)
@@ -106,21 +125,42 @@ func (s *State) runEncryptPending(_ context.Context) error {
 		return nil
 	}
 	if len(policy.Partitions) == 0 {
-		internalUtils.KLog.Logger.Info().Msg("kcrypt.encrypt_on_boot is set but install.encrypted_partitions is empty; nothing to encrypt")
+		// Warn, not halt: the flag may legitimately ride in a fleet-wide
+		// golden image whose per-node config supplies the partition list,
+		// and a node with nothing to encrypt must still boot. Warn so a
+		// forgotten list is visible when someone asks why nothing was
+		// encrypted.
+		internalUtils.KLog.Logger.Warn().
+			Msg("kcrypt.encrypt_on_boot is set but install.encrypted_partitions is empty; nothing will be encrypted on this boot")
 		return nil
+	}
+
+	// A configured partition the running boot depends on cannot be encrypted
+	// from here: OEM is the mounted config source this policy was read from,
+	// and state, recovery and EFI carry the system that is booting. Checked
+	// against the full configured list before the pending classification, so
+	// a bad intent is refused even when the partition happens to be
+	// encrypted already. The install time hook (which backs OEM up and
+	// restores it after encryption) is the supported path for those.
+	if err := policy.RejectSystemPartitions(internalUtils.GetOemLabel()); err != nil {
+		var protected *kcrypt.ProtectedPartitionError
+		if !errors.As(err, &protected) {
+			protected = &kcrypt.ProtectedPartitionError{Label: "a system partition", Reason: err.Error()}
+		}
+		return haltEncryptPending(
+			internalUtils.RenderEncryptOnBootProtectedMessage(protected.Label, protected.Reason),
+			fmt.Sprintf("encrypt on boot: %s cannot be encrypted during the boot", protected.Label),
+			err,
+		)
 	}
 
 	pending, err := pendingEncryptionLabels(policy.Partitions)
 	if err != nil {
-		haltWithBannerFn(
+		return haltEncryptPending(
 			internalUtils.RenderEncryptOnBootLookupFailedMessage(policy.Partitions, err),
 			"encrypt on boot: configured partition not found",
-			err,
+			fmt.Errorf("encrypt on boot: %w", err),
 		)
-		// Reached only on non-systemd hosts (Alpine/openrc), where
-		// HaltWithBanner paints the screen and returns so we can fail the
-		// step normally.
-		return fmt.Errorf("encrypt on boot: %w", err)
 	}
 	if len(pending) == 0 {
 		internalUtils.KLog.Logger.Info().
@@ -129,69 +169,22 @@ func (s *State) runEncryptPending(_ context.Context) error {
 		return nil
 	}
 
-	// A pending partition the running boot depends on cannot be encrypted
-	// from here: OEM is the mounted config source this policy was read from,
-	// and state, recovery and EFI carry the system that is booting. The
-	// install time hook (which backs OEM up and restores it after
-	// encryption) is the supported path for those.
-	if label, reason, found := protectedPendingLabel(pending); found {
-		err := fmt.Errorf("boot time encryption of %s is not supported: %s", label, reason)
-		haltWithBannerFn(
-			internalUtils.RenderEncryptOnBootProtectedMessage(label, reason),
-			fmt.Sprintf("encrypt on boot: %s cannot be encrypted during the boot", label),
-			err,
-		)
-		// Reached only on non-systemd hosts (Alpine/openrc), where
-		// HaltWithBanner paints the screen and returns so we can fail the
-		// step normally.
-		return err
-	}
-
 	internalUtils.KLog.Logger.Info().
 		Strs("partitions", pending).
 		Msg("encrypting pending partitions before mount")
 	if err := encryptPendingFn(config, pending); err != nil {
 		failErr := fmt.Errorf("encrypting pending partitions: %w", err)
-		haltWithBannerFn(
+		return haltEncryptPending(
 			internalUtils.RenderEncryptOnBootFailedMessage(pending, failErr),
 			"encrypt on boot: partition encryption failed",
 			failErr,
 		)
-		// Reached only on non-systemd hosts (Alpine/openrc), where
-		// HaltWithBanner paints the screen and returns so we can fail the
-		// step normally.
-		return failErr
 	}
 
 	internalUtils.KLog.Logger.Info().
 		Strs("partitions", pending).
 		Msg("pending partitions encrypted; the unlock step will open them")
 	return nil
-}
-
-// protectedPendingLabel returns the first pending label naming a partition
-// the running boot depends on, with the reason it cannot be encrypted from
-// here. OEM is matched by its effective label as well as the constant: the
-// cmdline overrides (rd.cos.oemlabel=, rd.immucore.oemlabel=) rename it, and
-// a renamed OEM is still the mounted configuration source.
-func protectedPendingLabel(pending []string) (string, string, bool) {
-	const oemReason = "it is the mounted configuration source this policy was read from"
-	protected := map[string]string{
-		sdkConstants.OEMLabel:      oemReason,
-		sdkConstants.StateLabel:    "it holds the root image of the system that is booting",
-		sdkConstants.RecoveryLabel: "it holds the recovery system",
-		sdkConstants.EfiLabel:      "the firmware reads it to start the boot",
-	}
-	if oemLabel := internalUtils.GetOemLabel(); oemLabel != "" {
-		protected[oemLabel] = oemReason
-	}
-
-	for _, label := range pending {
-		if reason, ok := protected[label]; ok {
-			return label, reason, true
-		}
-	}
-	return "", "", false
 }
 
 // pendingEncryptionLabels splits the configured labels into the ones that
@@ -204,8 +197,11 @@ func protectedPendingLabel(pending []string) (string, string, bool) {
 //
 // The answer feeds a luksFormat decision, so it is not taken from a single
 // udev snapshot: udev settles first, and a scan that still fails is retried
-// before the boot is halted over it.
+// before the boot is halted over it. Worst case that holds the boot for
+// about 75 seconds: up to encryptPendingSettleTimeout in the settle plus 45
+// seconds of linear backoff across the retries.
 func pendingEncryptionLabels(labels []string) ([]string, error) {
+	start := time.Now()
 	if err := udevSettleFn(); err != nil {
 		return nil, fmt.Errorf("waiting for udev to settle: %w", err)
 	}
@@ -222,6 +218,8 @@ func pendingEncryptionLabels(labels []string) ([]string, error) {
 			return pending, nil
 		}
 	}
+	internalUtils.KLog.Logger.Error().Dur("waited", time.Since(start)).Err(err).
+		Msg("pending-encryption lookup did not succeed within its retry budget")
 	return nil, err
 }
 
