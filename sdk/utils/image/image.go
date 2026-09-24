@@ -133,6 +133,12 @@ func isTransientNetworkError(err error) bool {
 // not reassign it.
 var daemonImageOptions = []daemon.Option{daemon.WithFileBufferedOpener()}
 
+// ErrEmptyExtraction reports that unpacking an image produced no entries at
+// all. Nothing Kairos extracts, be it a system image, a bundle or an
+// extension, is of any use empty, so an extraction that writes nothing is a
+// failure of the read rather than a property of the image.
+var ErrEmptyExtraction = errors.New("image unpacked to an empty tree")
+
 // ExtractOCIImage unpacks img into targetDestination.
 //
 // A Kairos raw extension artifact (see ExtractRawExtension) is written out as
@@ -140,6 +146,15 @@ var daemonImageOptions = []daemon.Option{daemon.WithFileBufferedOpener()}
 // stream, so untarring it fails on the missing tar header. excludes do not
 // apply to that case, there being one blob whose name the artifact fixes.
 // Every other image is applied layer by layer as a tar stream.
+//
+// An image that yields no tar entries is rejected with ErrEmptyExtraction.
+// Reading an image out of a local Docker daemon can hand back a manifest whose
+// layers unpack to nothing, and every step below this one then reports success
+// on an empty directory: kairos-io/kairos#4946 had an ISO build fail three
+// steps later complaining about a missing kernel, when what had happened is
+// that the root filesystem was never copied. The count is of entries the tar
+// stream carried, not of entries written, so excludes can still legitimately
+// filter an extraction down to nothing.
 func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string) error {
 	if _, err := ExtractRawExtension(img, targetDestination); !errors.Is(err, ErrNotRawExtension) {
 		return err
@@ -148,10 +163,12 @@ func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string)
 	reader := mutate.Extract(img)
 	defer reader.Close()
 
+	entries := 0
 	var options archive.ApplyOpt
 	if len(excludes) > 0 {
 		// Create a Filter option to exclude files during extraction
 		options = archive.WithFilter(func(hdr *tar.Header) (bool, error) {
+			entries++
 			for _, exclude := range excludes {
 				matched, matchErr := filepath.Match(exclude, hdr.Name)
 				if matchErr != nil {
@@ -166,6 +183,7 @@ func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string)
 	} else {
 		// Return all files
 		options = archive.WithFilter(func(_ *tar.Header) (bool, error) {
+			entries++
 			return true, nil
 		})
 	}
@@ -178,8 +196,14 @@ func ExtractOCIImage(img v1.Image, targetDestination string, excludes ...string)
 	// marker while closing its tar writer after a layer read failure, leaving
 	// the producer error pending on the pipe. Drain the reader so that error is
 	// observed before reporting a successful extraction.
-	_, err := io.Copy(io.Discard, reader)
-	return err
+	if _, err := io.Copy(io.Discard, reader); err != nil {
+		return err
+	}
+
+	if entries == 0 {
+		return fmt.Errorf("unpacking image into %s: %w", targetDestination, ErrEmptyExtraction)
+	}
+	return nil
 }
 
 // GetOption configures the behaviour of GetImage and GetOCIImageSize.
