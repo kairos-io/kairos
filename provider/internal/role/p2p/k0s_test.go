@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
+	"github.com/kairos-io/kairos/v4/provider/internal/services"
+	"github.com/kairos-io/kairos/v4/sdk/machine"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -68,8 +70,24 @@ var _ = Describe("K0sNode worker setup", func() {
 	It("sends the environment to the worker unit's file, not the controller's", func() {
 		node := &K0sNode{providerConfig: &providerConfig.Config{}, role: RoleWorker}
 
-		Expect(node.EnvFile()).To(HaveSuffix(K0sWorkerServiceName))
+		// Not a suffix match: K0sEnvUnit ends the path in ".env" on OpenRC and
+		// in the bare unit name elsewhere, so a tail assertion would pass or
+		// fail on the init system of whoever runs the suite.
+		Expect(node.EnvFile()).To(ContainSubstring(K0sWorkerServiceName))
+		Expect(node.EnvFile()).ToNot(ContainSubstring(K0sMasterServiceName))
 		Expect(node.ServiceName()).To(Equal(K0sWorkerServiceName))
+	})
+
+	// The unit's EnvironmentFile= path and the path this node writes to come
+	// from two separate copies of the same two strings, and nothing else in
+	// the tree ties them together. Renaming one side alone puts the
+	// environment back in a file no unit opens, which is issue #4815.
+	It("writes to the same path the unit written for that role declares", func() {
+		worker := &K0sNode{providerConfig: &providerConfig.Config{}, role: RoleWorker}
+		Expect(worker.EnvFile()).To(Equal(machine.K0sEnvUnit(services.K0sWorkerUnit)))
+
+		controller := &K0sNode{providerConfig: &providerConfig.Config{}, role: RoleMaster}
+		Expect(controller.EnvFile()).To(Equal(machine.K0sEnvUnit(services.K0sControllerUnit)))
 	})
 
 	It("still fails when the token cannot be written", func() {
