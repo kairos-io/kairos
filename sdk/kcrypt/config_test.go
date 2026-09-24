@@ -1,6 +1,7 @@
 package kcrypt
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -179,4 +180,71 @@ kcrypt:
 			t.Fatalf("policy = %+v, want the zero policy", policy)
 		}
 	})
+}
+
+func TestRejectSystemPartitions(t *testing.T) {
+	tests := []struct {
+		name         string
+		partitions   []string
+		effectiveOEM string
+		wantLabel    string
+	}{
+		{
+			name:       "an empty list is accepted",
+			partitions: nil,
+		},
+		{
+			name:       "a data partition is accepted",
+			partitions: []string{constants.PersistentLabel, "MYAPP_DATA"},
+		},
+		{
+			name:       "the OEM label is refused",
+			partitions: []string{constants.PersistentLabel, constants.OEMLabel},
+			wantLabel:  constants.OEMLabel,
+		},
+		{
+			name:         "a renamed OEM label is refused",
+			partitions:   []string{"MY_OEM"},
+			effectiveOEM: "MY_OEM",
+			wantLabel:    "MY_OEM",
+		},
+		{
+			name:       "the state label is refused",
+			partitions: []string{constants.StateLabel},
+			wantLabel:  constants.StateLabel,
+		},
+		{
+			name:       "the recovery label is refused",
+			partitions: []string{constants.RecoveryLabel},
+			wantLabel:  constants.RecoveryLabel,
+		},
+		{
+			name:       "the EFI label is refused",
+			partitions: []string{constants.EfiLabel},
+			wantLabel:  constants.EfiLabel,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy := EncryptOnBootPolicy{Enabled: true, Partitions: tt.partitions}
+			err := policy.RejectSystemPartitions(tt.effectiveOEM)
+			if tt.wantLabel == "" {
+				if err != nil {
+					t.Fatalf("RejectSystemPartitions() = %v, want nil", err)
+				}
+				return
+			}
+			var protected *ProtectedPartitionError
+			if !errors.As(err, &protected) {
+				t.Fatalf("RejectSystemPartitions() = %v, want a *ProtectedPartitionError", err)
+			}
+			if protected.Label != tt.wantLabel {
+				t.Fatalf("Label = %s, want %s", protected.Label, tt.wantLabel)
+			}
+			if protected.Reason == "" {
+				t.Fatal("Reason is empty, want an explanation")
+			}
+		})
+	}
 }
