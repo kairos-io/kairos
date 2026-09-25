@@ -1016,14 +1016,19 @@ jobs:
                 KEYS_DIR_INPUT="$PWD/$KEYS_DIR_INPUT"
               fi
               DOCKER_CMD="$DOCKER_CMD -v \"$KEYS_DIR_INPUT\":/keys"
+            fi
 
-              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-                SYSEXT_DIR_INPUT="${{ inputs.sysext_dir }}"
-                if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
-                  SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
-                fi
-                DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
+            # build-iso takes --overlay-iso just like build-uki, so the
+            # extensions ship on the GRUB ISO too. The agent sweeps the live
+            # media for *.sysext.raw on both install flows, so keeping this
+            # mount inside the trusted_boot branch left the GRUB half of that
+            # sweep with nothing to find and no test.
+            if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+              SYSEXT_DIR_INPUT="${{ inputs.sysext_dir }}"
+              if [[ "$SYSEXT_DIR_INPUT" != /* ]]; then
+                SYSEXT_DIR_INPUT="$PWD/$SYSEXT_DIR_INPUT"
               fi
+              DOCKER_CMD="$DOCKER_CMD -v \"$SYSEXT_DIR_INPUT\":/overlay"
             fi
 
             # Optional cloud-config (file path or URL)
@@ -1069,10 +1074,10 @@ jobs:
               if [[ -n "${{ inputs.single_efi_cmdline }}" ]]; then
                 DOCKER_CMD="$DOCKER_CMD --single-efi-cmdline=\"${{ inputs.single_efi_cmdline }}\""
               fi
+            fi
 
-              if [[ -n "${{ inputs.sysext_dir }}" ]]; then
-                DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
-              fi
+            if [[ -n "${{ inputs.sysext_dir }}" ]]; then
+              DOCKER_CMD="$DOCKER_CMD --overlay-iso /overlay"
             fi
 
             # Append cloud-config flag if provided
