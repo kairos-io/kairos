@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kairos-io/kairos/v4/sdk/branding"
+	sdkExtensions "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
@@ -43,8 +44,9 @@ type Model struct {
 	username        string
 	sshKeys         []string // Store SSH keys
 	passwordHash    string
-	finishAction    string         // Action after installation: reboot, poweroff, none
-	extraFields     map[string]any // Dynamic fields for customization
+	finishAction    string                   // Action after installation: reboot, poweroff, none
+	extraFields     map[string]any           // Dynamic fields for customization
+	extensions      sdkExtensions.Extensions // System extensions picked on the extensions page
 	log             *sdkLogger.KairosLogger
 	source          string // cli flags to interactive installer? what??
 
@@ -85,6 +87,7 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		newCustomizationPage(),
 		newUserPasswordPage(),
 		newSSHKeysPage(),
+		newExtensionsPage(),
 		newSummaryPage(),
 		newInstallProcessPage(),
 		newUserdataPage(),
