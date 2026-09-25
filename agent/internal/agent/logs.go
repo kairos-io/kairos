@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/kairos-io/kairos/v4/agent/internal/phonehome"
 	"github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
@@ -39,10 +40,27 @@ func NewLogsCollector(cfg *sdkConfig.Config) *LogsCollector {
 
 func defaultLogsConfig() *sdkLogs.LogsConfig {
 	return &sdkLogs.LogsConfig{
+		// Every unit the bundled cloud-configs write and enable, plus the
+		// Kubernetes ones the providers install and the ones the agent writes
+		// itself at runtime. A unit that did not run this boot costs nothing:
+		// Collect drops an empty journal below.
 		Journal: []string{
 			"kairos-agent",
 			"kairos-installer",
+			// The interactive installer is a separate unit, and the
+			// interactive stage in 52_installer.yaml stops and disables
+			// kairos-installer, so without this a failed interactive install
+			// leaves no installer journal in the bundle at all.
+			"kairos-interactive",
 			"kairos-webui",
+			"kairos-reset",
+			"kairos-recovery",
+			"kairos-selinux-relabel",
+			// Written and enabled by the agent rather than by a cloud-config,
+			// on any node whose merged config carries a phonehome url.
+			// Without it a bundle from such a node has no journal for the
+			// channel that runs remote commands.
+			phonehome.ServiceName,
 			"cos-setup-boot",
 			"cos-setup-fs",
 			"cos-setup-network",
