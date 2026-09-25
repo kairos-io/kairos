@@ -121,6 +121,22 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 				Enable: []string{"auditd"},
 			},
 		},
+		{
+			// Alpine's openrc auditd loads a single rules file at start,
+			// with no augenrules step; point it at the CIS drop-in
+			// directly so `-e 2` and the 30 rules reach the kernel.
+			Name:     "Point Alpine openrc auditd at the CIS rules drop-in",
+			OnlyIfOs: values.AlpineRegex,
+			Files: []schema.File{
+				{
+					Path:        bundled.CISAuditdConfDPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISAuditdConfDAlpine,
+				},
+			},
+		},
 	}
 
 	for _, f := range cisAccountFiles {

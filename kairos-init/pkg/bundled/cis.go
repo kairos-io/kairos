@@ -125,3 +125,26 @@ const CISAuditRules = `-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock
 
 -e 2
 `
+
+// CISAuditdConfDPath is the openrc /etc/conf.d/auditd drop-in Alpine's audit
+// package ships. Alpine's openrc auditd script loads a single rules file at
+// start via `auditctl -R $RULEFILE_STARTUP`; the default points at
+// /etc/audit/audit.rules, which the audit package does not ship and which no
+// one compiles from /etc/audit/rules.d/, so the CIS baseline drop-in never
+// reaches the kernel. Override the default to load the drop-in directly.
+const CISAuditdConfDPath = "/etc/conf.d/auditd"
+
+// CISAuditdConfDAlpine keeps upstream's defaults but points RULEFILE_STARTUP
+// at the CIS baseline drop-in so `rc-service auditd start` loads it. Ubuntu,
+// SUSE and RHEL keep using the systemd auditd unit, which runs augenrules and
+// picks up /etc/audit/rules.d/ on its own.
+const CISAuditdConfDAlpine = `# Managed by kairos-init. See kairos-io/kairos#4907.
+EXTRAOPTIONS=''
+
+RULEFILE_STARTUP=/etc/audit/rules.d/50-kairos.rules
+
+RULEFILE_STOP_PRE=/etc/audit/audit.rules.stop.pre
+RULEFILE_STOP_POST=/etc/audit/audit.rules.stop.post
+
+AUDITD_LANG=C
+`
