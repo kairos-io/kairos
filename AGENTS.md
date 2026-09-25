@@ -169,3 +169,11 @@ The `performing-kairos-qa` skill has the procedure for producing a verdict.
 - Where there is no C compiler, `CGO_ENABLED=0 go build ./...` builds the whole
   tree. Do not commit a build tag or a dependency swap to work around a missing
   local compiler.
+- When you add, rename or remove a systemd unit, add it to `Journal` in
+  `defaultLogsConfig` (`agent/internal/agent/logs.go`) in the same change. That
+  list is what `kairos-agent logs` puts in a debug bundle, and it is written by
+  hand: a unit missing from it is silently absent from every bundle, so the one
+  boot that needed the journal is the boot that does not have it. Listing a unit
+  that did not run costs nothing, `Collect` drops an empty journal. This applies
+  to units written by the bundled cloud-configs, by a provider, and by the agent
+  itself at runtime.
