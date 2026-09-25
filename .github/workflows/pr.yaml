@@ -231,8 +231,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell. hadron-fips is a distinct base image from
           # hadron (FIPS-hardened kernel + userspace); passing fips:true
           # additionally flips the FIPS=fips build_arg in images/Dockerfile
@@ -290,10 +290,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
           # rpi cells: raw disk image, no ISO. Still on hadron base.
-          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # NVIDIA Jetson cells. base_image=ubuntu:22.04 -- L4T rootfs
           # only builds on that. Model-derived knobs (grype/sbom/
           # cleanup) turn off scans and enable disk cleanup; see
@@ -390,7 +390,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
@@ -533,7 +533,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'
@@ -573,7 +573,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'

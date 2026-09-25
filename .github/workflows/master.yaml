@@ -139,8 +139,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
-          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-standard', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: 'k3s', fips: false}
           # FIPS core cell (see pr.yaml for rationale).
           - {name: 'amd64-core-fips', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: true}
           # UKI cells feed test-uki (see pr.yaml for the shape).
@@ -183,9 +183,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           - name: 'arm64-nvidia-agx-orin'
             arch: 'arm64'
             base_image: 'ubuntu:22.04'
@@ -262,7 +262,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'core'
       arch: 'amd64'
       model: 'generic'
@@ -390,7 +390,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'
@@ -425,7 +425,7 @@ jobs:
       packages: write
     with:
       test: ${{ matrix.test }}
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       variant: 'standard'
       arch: 'amd64'
       model: 'generic'

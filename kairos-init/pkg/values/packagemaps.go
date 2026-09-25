@@ -589,7 +589,8 @@ var BasePackages = PackageMap{
 		ArchCommon: {
 			Common: {
 				"audit",
-				"curl", // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
+				"audit-openrc", // /etc/init.d/auditd lives here, not in `audit`
+				"curl",         // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"bash",
 				"bash-completion",
 				"blkid",

@@ -272,6 +272,37 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 		})
 
+		Describe("the Alpine openrc auditd drop-in", func() {
+			var confd schema.File
+			var stage schema.Stage
+
+			BeforeEach(func() {
+				confd = fileByPath(result, "/etc/conf.d/auditd")
+				for _, st := range result {
+					for _, f := range st.Files {
+						if f.Path == bundled.CISAuditdConfDPath {
+							stage = st
+						}
+					}
+				}
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(confd.Path).To(Equal(bundled.CISAuditdConfDPath))
+				Expect(confd.Permissions).To(Equal(uint32(0o644)))
+				Expect(confd.Owner).To(BeZero())
+				Expect(confd.Group).To(BeZero())
+			})
+
+			It("gates on Alpine only", func() {
+				Expect(stage.OnlyIfOs).To(Equal(values.AlpineRegex))
+			})
+
+			It("points RULEFILE_STARTUP at the CIS rules drop-in", func() {
+				Expect(confd.Content).To(ContainSubstring("RULEFILE_STARTUP=" + bundled.CISAuditRulesPath))
+			})
+		})
+
 		Describe("the account database permissions", func() {
 			It("tightens every database and backup the benchmark covers", func() {
 				for _, path := range []string{
