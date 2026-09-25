@@ -12,8 +12,10 @@ import (
 	elementalUtils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/signatures"
+	"github.com/kairos-io/kairos/v4/sdk/state"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
+	"github.com/rs/zerolog"
 )
 
 type UpgradeAction struct {
@@ -71,8 +73,10 @@ func (i *UpgradeAction) Run() (err error) {
 		return err
 	}
 
+	noroleEfi := filepath.Join(constants.UkiEfiDir, "EFI", "Kairos", fmt.Sprintf("%s.efi", UnassignedArtifactRole))
+
 	// Check if the upgrade artifact contains the proper signature before copying
-	err = signatures.CheckArtifactSignatureIsValid(i.cfg.Fs, filepath.Join(constants.UkiEfiDir, "EFI", "Kairos", fmt.Sprintf("%s.efi", UnassignedArtifactRole)), i.cfg.Logger)
+	err = signatures.CheckArtifactSignatureIsValid(i.cfg.Fs, noroleEfi, i.cfg.Logger)
 	if err != nil {
 		i.cfg.Logger.Logger.Error().Err(err).Msg("Checking signature before upgrading")
 		// Remove efi file to not occupy space and leave stuff around
@@ -83,6 +87,40 @@ func (i *UpgradeAction) Run() (err error) {
 			"Check the upgrade source and confirm that its signed with a valid key, that key is in the machine DB and it has not been blacklisted.")
 		return err
 	}
+
+	// Above check answers "signed by SOMETHING in DB". For an upgrade
+	// that is not enough: DB commonly holds several unrelated CAs, and
+	// any of them being trusted for boot does not mean any of them
+	// should be trusted to swap the Kairos system in place. The bar
+	// for an upgrade is stricter: the new .efi must be signed by the
+	// same cert that signs the currently-booted one, so an attacker
+	// with a different-but-DB-trusted key cannot substitute a
+	// malicious kairos-agent (which we would then extract from the
+	// .initrd and exec below). Refuse and unwind the norole set on
+	// mismatch.
+	if err := requireSameSignerAsBootedFn(i.cfg, noroleEfi); err != nil {
+		cleanup.Push(func() error {
+			return removeArtifactSetWithRole(i.cfg.Fs, constants.UkiEfiDir, UnassignedArtifactRole)
+		})
+		return err
+	}
+
+	// Extract the target's kairos binary + its kairos-release from the
+	// freshly-dumped norole.efi's .initrd, run the KAIROS_INIT_VERSION
+	// downgrade gate against it, and stage the extracted binary for the
+	// post-rotation handoff. Doing this BEFORE rotation means a refused
+	// upgrade unwinds the norole set and leaves the ESP identical to
+	// how we found it — kairos-io/kairos#4917's "abort before the first
+	// write" line. On any failure below we push a cleanup for the
+	// norole set so the ESP is not left with a half-installed upgrade.
+	stage, err := i.prepareFinalize(noroleEfi)
+	if err != nil {
+		cleanup.Push(func() error {
+			return removeArtifactSetWithRole(i.cfg.Fs, constants.UkiEfiDir, UnassignedArtifactRole)
+		})
+		return err
+	}
+	cleanup.Push(func() error { return os.RemoveAll(stage.tempDir) })
 
 	// The rotation deletes passive and then active before it writes anything in
 	// their place, so a copy that runs out of room part way leaves nothing to
@@ -115,45 +153,203 @@ func (i *UpgradeAction) Run() (err error) {
 		return fmt.Errorf("removing artifact set: %w", err)
 	}
 
-	// add sort key to all files
-	err = AddSystemdConfSortKey(i.cfg.Fs, i.spec.EfiPartition.MountPoint, i.cfg.Logger)
-	if err != nil {
-		i.cfg.Logger.Warnf("adding sort key: %s", err.Error())
-	}
+	// Format-writing work (sort key, boot assessment, default boot entry,
+	// loader.conf key cleanup, EFI key upgrades, kairos-uki-upgrade.after
+	// stage/hook) runs from the target's own kairos-agent, which was
+	// staged out of the norole.efi's .initrd above, so a change to any
+	// of those file shapes ships with the image that owns them.
+	return i.runFinalizeStep(stage)
+}
 
-	// Add boot assessment to files by appending +3 to the name
-	err = elementalUtils.AddBootAssessment(i.cfg.Fs, i.spec.EfiPartition.MountPoint, i.cfg.Logger)
-	if err != nil {
-		i.cfg.Logger.Warnf("adding boot assesment: %s", err.Error())
-	}
-	// SelectBootEntry sets the default boot entry to the selected entry
-	err = action.SelectBootEntry(i.cfg, constants.BootEntryActive)
-	// Should we fail? Or warn?
-	if err != nil {
-		i.cfg.Logger.Errorf("selecting boot entry: %s", err.Error())
-		return err
-	}
+// finalizeStage holds the outputs of prepareFinalize: a temp dir on the
+// host holding the extracted target binary + its kairos-release, and the
+// FinalizeContext the target agent will read via its --context-file flag.
+type finalizeStage struct {
+	tempDir        string
+	extractedAgent string
+	ctx            action.FinalizeContext
+}
 
-	// Remove any default keys in the loader.conf that might cause issues
-	err = removeDefaultKeysFromLoaderConf(i.cfg.Fs, i.spec.EfiPartition.MountPoint, i.cfg.Logger)
+// requireSameSignerAsBootedFn enforces the signer-match rule described at
+// the call site in Run. A package-level var so tests exercising the
+// surrounding UKI rotation / cleanup logic can swap in a no-op instead
+// of hand-building a valid signed active.efi + DB under vfs.
+var requireSameSignerAsBootedFn = requireSameSignerAsBooted
+
+// requireSameSignerAsBooted refuses the upgrade if noroleEfi's Authenticode
+// signer is not the same cert that verifies the .efi the machine is
+// currently booted from. Being signed by "anything in DB" is not the
+// bar for an upgrade — see the block comment at the call site in Run
+// and the doc on signatures.VerifyingDBCert. Called BEFORE rotation
+// so a refusal leaves the ESP unchanged.
+//
+// The reference file is picked from the current UKI boot role rather
+// than assumed to be active.efi: fallback boots from passive.efi or
+// recovery.efi are a normal state that upgrades still have to work
+// from, and comparing to active.efi in that case would enforce the
+// stale slot's key instead of the actually running one.
+func requireSameSignerAsBooted(cfg *sdkConfig.Config, noroleEfi string) error {
+	role, err := currentUkiBootRole(cfg.Logger.Logger)
 	if err != nil {
-		i.cfg.Logger.Warnf("removing default keys from loader.conf: %s", err.Error())
+		return fmt.Errorf("cannot identify the current UKI boot role for the signer-match check: %w", err)
 	}
+	bootedEfi := filepath.Join(constants.UkiEfiDir, "EFI", "Kairos", role+".efi")
 
-	// Upgrade any efi keys in the entries by the new uki key
-	err = upgradeEfiKeysInLoaderEntries(i.cfg.Arch, i.cfg.Fs, i.spec.EfiPartition.MountPoint, i.cfg.Logger)
+	bootedCert, err := signatures.VerifyingDBCert(cfg.Fs, bootedEfi)
 	if err != nil {
-		i.cfg.Logger.Warnf("upgrading efi keys in loader entries: %s", err.Error())
+		return fmt.Errorf("cannot identify the signer of the currently-booted %s: %w", bootedEfi, err)
 	}
-	if err = elementalUtils.RunStage(i.cfg, "kairos-uki-upgrade.after"); err != nil {
-		i.cfg.Logger.Errorf("running kairos-uki-upgrade.after stage: %s", err.Error())
+	targetCert, err := signatures.VerifyingDBCert(cfg.Fs, noroleEfi)
+	if err != nil {
+		return fmt.Errorf("cannot identify the signer of %s: %w", noroleEfi, err)
 	}
-
-	if err = events.RunHookScript("/usr/bin/kairos-agent.uki.upgrade.after.hook"); err != nil {
-		i.cfg.Logger.Errorf("running kairos-uki-upgrade.after hook script: %s", err.Error())
+	if !signatures.SameSigner(bootedCert, targetCert) {
+		return fmt.Errorf(
+			"refusing to upgrade: %s is signed by %q but the currently-booted %s is signed by %q; "+
+				"an upgrade must be signed by the same key that signed the running system, "+
+				"having both keys in the machine DB is not sufficient",
+			noroleEfi, targetCert.Subject.String(),
+			bootedEfi, bootedCert.Subject.String(),
+		)
 	}
-
 	return nil
+}
+
+// currentUkiBootRole returns the UKI loader-entry role name of the .efi
+// this machine is currently booted from ("active", "passive", "recovery").
+// Delegates to kairos-sdk state.DetectBoot, which reads systemd-boot's
+// LoaderEntrySelected from efivarfs — that is the only reliable source
+// under UKI, since the boot role does not appear on the kernel cmdline
+// the way it does with GRUB. Boot states we cannot map to a role we own
+// (LiveCD, AutoReset, Unknown) return an error rather than default to
+// active, so a refusal is preferred over comparing against the wrong
+// slot's key.
+func currentUkiBootRole(logger zerolog.Logger) (string, error) {
+	switch b := state.DetectBoot(logger); b {
+	case state.Active:
+		return "active", nil
+	case state.Passive:
+		return "passive", nil
+	case state.Recovery:
+		return "recovery", nil
+	default:
+		return "", fmt.Errorf("cannot pick a signer-reference .efi from boot state %q", b)
+	}
+}
+
+// extractFromInitrd is what prepareFinalize uses to pull files out of the
+// target's .initrd. A package-level var so tests exercising the
+// surrounding UKI rotation logic can swap in a no-op instead of
+// hand-building a real signed .efi + initrd fixture.
+var extractFromInitrd = ExtractFromInitrd
+
+// prepareFinalize extracts the target's kairos multi-call binary and its
+// /etc/kairos-release from noroleEfi's .initrd into a host temp dir, then
+// runs the KAIROS_INIT_VERSION downgrade gate against the extracted
+// release file. On success the returned finalizeStage carries paths the caller
+// exec's after rotation. On failure the caller is responsible for
+// cleaning up the norole set on the ESP; this function only cleans up
+// the temp dir it created (via os.RemoveAll on the error return).
+//
+// Runs BEFORE rotation so a refusal leaves the ESP unchanged.
+func (i *UpgradeAction) prepareFinalize(noroleEfi string) (*finalizeStage, error) {
+	tempDir, err := os.MkdirTemp("", "kairos-uki-finalize-*")
+	if err != nil {
+		return nil, fmt.Errorf("creating temp dir for target agent extraction: %w", err)
+	}
+	cleanupTempDir := func() { _ = os.RemoveAll(tempDir) }
+
+	extractedAgent := filepath.Join(tempDir, "kairos-agent")
+	extractedRelease := filepath.Join(tempDir, "kairos-release")
+	found, err := extractFromInitrd(noroleEfi, map[string]string{
+		"/usr/bin/kairos":           extractedAgent,
+		constants.KairosReleaseFile: extractedRelease,
+	})
+	if err != nil {
+		cleanupTempDir()
+		return nil, fmt.Errorf("reading .initrd of %s: %w", noroleEfi, err)
+	}
+	if !containsPath(found, "/usr/bin/kairos") {
+		cleanupTempDir()
+		return nil, fmt.Errorf("target %s carries no /usr/bin/kairos in its .initrd; refusing upgrade (kairos-io/kairos#4917)", noroleEfi)
+	}
+	if !containsPath(found, constants.KairosReleaseFile) {
+		cleanupTempDir()
+		return nil, fmt.Errorf("target %s carries no %s in its .initrd; refusing upgrade (kairos-io/kairos#4917)", noroleEfi, constants.KairosReleaseFile)
+	}
+	current, err := action.ReadKairosInitVersionFromFs(i.cfg.Fs, constants.KairosReleaseFile)
+	if err != nil {
+		cleanupTempDir()
+		return nil, fmt.Errorf("reading current KAIROS_INIT_VERSION: %w", err)
+	}
+	target, err := action.ReadKairosInitVersionFromDisk(extractedRelease)
+	if err != nil {
+		cleanupTempDir()
+		return nil, fmt.Errorf("reading target KAIROS_INIT_VERSION from extracted %s: %w", extractedRelease, err)
+	}
+	if err := action.RefuseIfTargetIsDowngrade(current, target); err != nil {
+		cleanupTempDir()
+		return nil, err
+	}
+	if err := os.Chmod(extractedAgent, 0o755); err != nil {
+		cleanupTempDir()
+		return nil, fmt.Errorf("chmod extracted target agent: %w", err)
+	}
+
+	return &finalizeStage{
+		tempDir:        tempDir,
+		extractedAgent: extractedAgent,
+		ctx:            i.buildFinalizeContext(),
+	}, nil
+}
+
+// runFinalizeStep exec's the pre-extracted target kairos-agent (see
+// prepareFinalize) against the FinalizeContext written into the stage's
+// temp dir. Runtime failure of the target agent is propagated, not
+// retried: by this point the target has likely rewritten loader.conf
+// keys / sort keys / boot assessment, and an inline retry with the
+// older host code would double-write. Downgrade / capability-missing
+// refusals were already handled up in prepareFinalize before rotation.
+func (i *UpgradeAction) runFinalizeStep(stage *finalizeStage) error {
+	ctxPath := filepath.Join(stage.tempDir, "context.json")
+	if err := action.WriteFinalizeContext(i.cfg.Fs, ctxPath, stage.ctx); err != nil {
+		return fmt.Errorf("writing finalize context: %w", err)
+	}
+
+	i.cfg.Logger.Infof("Handing off upgrade finalize to target kairos-agent (%s)", stage.extractedAgent)
+	out, err := i.cfg.Runner.Run(stage.extractedAgent, "upgrade-finalize", "--context-file", ctxPath)
+	if len(out) > 0 {
+		i.cfg.Logger.Infof("upgrade-finalize output: %s", string(out))
+	}
+	return err
+}
+
+// buildFinalizeContext packs the fields uki.RunFinalize (and the target's
+// upgrade-finalize subcommand) need out of the spec into a serializable
+// FinalizeContext.
+func (i *UpgradeAction) buildFinalizeContext() action.FinalizeContext {
+	return action.FinalizeContext{
+		Mode:            action.UpgradeModeUki,
+		Arch:            i.cfg.Arch,
+		RecoveryUpgrade: i.spec.RecoveryUpgrade(),
+		UkiEntry:        i.spec.Entry,
+		EFIPartition: &action.SerializedPartition{
+			Path:            i.spec.EfiPartition.Path,
+			Name:            i.spec.EfiPartition.Name,
+			MountPoint:      i.spec.EfiPartition.MountPoint,
+			FS:              i.spec.EfiPartition.FS,
+			FilesystemLabel: i.spec.EfiPartition.FilesystemLabel,
+		},
+	}
+}
+
+func containsPath(paths []string, want string) bool {
+	for _, p := range paths {
+		if p == want {
+			return true
+		}
+	}
+	return false
 }
 
 func (i *UpgradeAction) installEntry(entry string) error {
