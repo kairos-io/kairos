@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	cnst "github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -24,15 +25,39 @@ import (
 
 var _ = Describe("Extension hooks", func() {
 	Describe("ExtensionsPostInstall", func() {
-		// The hook mounts the persistent partition, so the only thing worth
-		// asserting without a real disk is that it does not get that far when
-		// there is nothing to install.
-		It("does nothing when no extension is declared", func() {
-			cfg := &sdkConfig.Config{Install: &sdkInstall.Install{}}
+		var fs vfs.FS
+		var cleanup func()
+		var cfg *sdkConfig.Config
+
+		BeforeEach(func() {
+			var err error
+			fs, cleanup, err = vfst.NewTestFS(nil)
+			Expect(err).ToNot(HaveOccurred())
+			cfg = config.NewConfig(config.WithFs(fs), config.WithLogger(sdkLogger.NewNullLogger()))
+		})
+		AfterEach(func() { cleanup() })
+
+		// The hook mounts the persistent partition, and there is no partition
+		// with that label here, so reaching the mount is what an error means
+		// and succeeding is what returning early means. That is the only
+		// handle on the hook's decision without a real disk.
+		It("does nothing when nothing is declared and the media carries nothing", func() {
+			cfg.Install = &sdkInstall.Install{}
 			Expect(hook.ExtensionsPostInstall{}.Run(*cfg, nil)).To(Succeed())
 
-			cfg = &sdkConfig.Config{}
+			cfg.Install = nil
 			Expect(hook.ExtensionsPostInstall{}.Run(*cfg, nil)).To(Succeed())
+		})
+
+		// Before this, the hook returned on `install.extensions` being empty,
+		// so an extension dropped on an ISO was installed under UKI (by
+		// SysExtPostInstall) and silently dropped on a GRUB install.
+		It("runs for an extension on the live media with nothing declared", func() {
+			Expect(fsutils.MkdirAll(fs, cnst.LiveDir, 0755)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(cnst.LiveDir, "gpg.sysext.raw"), []byte("image"), 0644)).To(Succeed())
+
+			err := hook.ExtensionsPostInstall{}.Run(*cfg, nil)
+			Expect(err).To(MatchError(ContainSubstring("mounting the persistent partition")))
 		})
 	})
 
@@ -176,6 +201,107 @@ var _ = Describe("Extension hooks", func() {
 		It("replaces a link that is already there", func() {
 			Expect(hook.EnableExtensionsForBoot(*cfg, dir, []string{"gpg.sysext.raw"})).To(Succeed())
 			Expect(hook.EnableExtensionsForBoot(*cfg, dir, []string{"gpg.sysext.raw"})).To(Succeed())
+		})
+	})
+
+	Describe("LiveMediaExtensions", func() {
+		var fs vfs.FS
+		var cleanup func()
+		var cfg *sdkConfig.Config
+
+		BeforeEach(func() {
+			var err error
+			fs, cleanup, err = vfst.NewTestFS(nil)
+			Expect(err).ToNot(HaveOccurred())
+			cfg = config.NewConfig(config.WithFs(fs), config.WithLogger(sdkLogger.NewNullLogger()))
+		})
+		AfterEach(func() { cleanup() })
+
+		// AuroraBoot lands an overlay_iso tree at the ISO root, which is
+		// mounted here while the installer runs. This is how an airgapped
+		// artifact ships an extension.
+		It("finds the images on the live media", func() {
+			Expect(fsutils.MkdirAll(fs, cnst.LiveDir, 0755)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(cnst.LiveDir, "gpg.sysext.raw"), []byte("image"), 0644)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(cnst.LiveDir, "config.yaml"), []byte("#cloud-config"), 0644)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(cnst.LiveDir, "tools.raw"), []byte("image"), 0644)).To(Succeed())
+
+			Expect(hook.LiveMediaExtensions(*cfg)).To(Equal([]string{filepath.Join(cnst.LiveDir, "gpg.sysext.raw")}))
+		})
+
+		// An install that did not boot from removable media has no live
+		// directory at all, and that is not a failure.
+		It("reports nothing when there is no live media", func() {
+			found, err := hook.LiveMediaExtensions(*cfg)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(found).To(BeEmpty())
+		})
+	})
+
+	Describe("StageLiveMediaExtensions", func() {
+		var fs vfs.FS
+		var cleanup func()
+		var cfg *sdkConfig.Config
+		var target string
+
+		BeforeEach(func() {
+			var err error
+			fs, cleanup, err = vfst.NewTestFS(nil)
+			Expect(err).ToNot(HaveOccurred())
+			cfg = config.NewConfig(config.WithFs(fs), config.WithLogger(sdkLogger.NewNullLogger()))
+			target = hook.PersistentExtensionsDir
+			Expect(fsutils.MkdirAll(fs, target, 0755)).To(Succeed())
+			Expect(fsutils.MkdirAll(fs, cnst.LiveDir, 0755)).To(Succeed())
+			Expect(fs.WriteFile(filepath.Join(cnst.LiveDir, "gpg.sysext.raw"), []byte("image"), 0644)).To(Succeed())
+		})
+		AfterEach(func() { cleanup() })
+
+		It("copies the image into the target and reports its name", func() {
+			Expect(hook.StageLiveMediaExtensions(*cfg, nil, target)).To(Equal([]string{"gpg.sysext.raw"}))
+
+			content, err := fs.ReadFile(filepath.Join(target, "gpg.sysext.raw"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(content)).To(Equal("image"))
+		})
+
+		// The declared entry resolved through a catalog or an OCI reference,
+		// so it is the one to keep. Copying the media file over it would
+		// replace a resolved image with whatever shares its name.
+		It("leaves alone a name the config already installed", func() {
+			staged, err := hook.StageLiveMediaExtensions(*cfg, []string{"gpg.sysext.raw"}, target)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(staged).To(BeEmpty())
+
+			_, err = fs.Stat(filepath.Join(target, "gpg.sysext.raw"))
+			Expect(os.IsNotExist(err)).To(BeTrue())
+		})
+
+		It("copies into every target it is given", func() {
+			second := "/efi/EFI/kairos/passive.efi.extra.d"
+			Expect(fsutils.MkdirAll(fs, second, 0755)).To(Succeed())
+
+			Expect(hook.StageLiveMediaExtensions(*cfg, nil, target, second)).To(Equal([]string{"gpg.sysext.raw"}))
+			for _, dir := range []string{target, second} {
+				_, err := fs.Stat(filepath.Join(dir, "gpg.sysext.raw"))
+				Expect(err).ToNot(HaveOccurred(), dir)
+			}
+		})
+
+		It("reports a copy it could not make when strict", func() {
+			cfg.FailOnBundleErrors = true
+			staged, err := hook.StageLiveMediaExtensions(*cfg, nil, "/not/there")
+			Expect(err).To(HaveOccurred())
+			Expect(staged).To(BeEmpty())
+		})
+
+		// The rest of the post-install hooks log and continue unless
+		// FailOnBundleErrors is set, and a name that was not copied must not
+		// be reported as staged: EnableExtensionsForBoot would link it and
+		// leave a dangling symlink in the boot state directory.
+		It("skips a copy it could not make when not strict", func() {
+			staged, err := hook.StageLiveMediaExtensions(*cfg, nil, "/not/there")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(staged).To(BeEmpty())
 		})
 	})
 })

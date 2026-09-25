@@ -274,7 +274,7 @@ jobs:
       - name: Run tests
         env:
           MEMORY: 6000
-          CPUS: 4
+          CPUS: 2
           FIRMWARE: ${{ steps.find_ovmf.outputs.firmware }}
           UKI_TEST: true
           TEST_LABEL: ${{ inputs.test }}
