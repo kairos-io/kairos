@@ -21,6 +21,13 @@ installer answers on, and renders the first of them as a QR code so it can be
 opened from a phone. A short terminal drops the QR and keeps the URLs, and a
 boot with no address to offer skips the screen instead of showing an empty one.
 
+That first screen also carries an **Advanced** section, offered only when a
+provider is installed to answer for it: pressing `a` hands the terminal to
+`kairos-agent install`, the pairing flow that prints a go-nodepair QR code and
+waits for `kairosctl register` to send a configuration. That is the other
+remote install the live media has always had, and it is what the default boot
+entry used to run.
+
 One process means one lifetime: quitting the terminal UI ends the web session
 too, unless an install started from the browser is still running, which the
 installer serves to the end before it exits. Nothing re-execs the installer on
