@@ -16,6 +16,11 @@ It also serves the **web installer**, on `:8080` by default, next to the
 terminal UI and in the same process, so a live boot offers both frontends
 without two services fighting over the port.
 
+The terminal UI opens on that address: its first screen lists every URL the web
+installer answers on, and renders the first of them as a QR code so it can be
+opened from a phone. A short terminal drops the QR and keeps the URLs, and a
+boot with no address to offer skips the screen instead of showing an empty one.
+
 One process means one lifetime: quitting the terminal UI ends the web session
 too, unless an install started from the browser is still running, which the
 installer serves to the end before it exits. Nothing re-execs the installer on
