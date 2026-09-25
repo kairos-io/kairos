@@ -81,7 +81,13 @@ net.ipv6.conf.all.accept_redirects = 0
 
 const CISAuditRulesPath = "/etc/audit/rules.d/50-kairos.rules"
 
+// Syscall rules are paired b64+b32. On amd64 with CONFIG_IA32_EMULATION and on
+// aarch64 with CONFIG_COMPAT (userspace's arch=b32 -> AUDIT_ARCH_ARM) a 32-bit
+// binary would otherwise bypass every b64-only rule. `auditctl -R` warns and
+// keeps loading past b32 lines the running kernel rejects, so shipping both
+// pairs is safe on kernels without 32-bit compat.
 const CISAuditRules = `-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock_settime -k time-change
+-a always,exit -F arch=b32 -S adjtimex,settimeofday,clock_settime -k time-change
 -w /etc/localtime -p wa -k time-change
 
 -w /etc/group -p wa -k identity
@@ -91,6 +97,7 @@ const CISAuditRules = `-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock
 -w /etc/security/opasswd -p wa -k identity
 
 -a always,exit -F arch=b64 -S sethostname,setdomainname -k system-locale
+-a always,exit -F arch=b32 -S sethostname,setdomainname -k system-locale
 -w /etc/issue -p wa -k system-locale
 -w /etc/issue.net -p wa -k system-locale
 -w /etc/hosts -p wa -k system-locale
@@ -108,20 +115,28 @@ const CISAuditRules = `-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock
 -w /var/log/btmp -p wa -k session
 
 -a always,exit -F arch=b64 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=unset -F key=perm_mod
+-a always,exit -F arch=b32 -S chmod,fchmod,fchmodat -F auid>=1000 -F auid!=unset -F key=perm_mod
 -a always,exit -F arch=b64 -S chown,fchown,lchown,fchownat -F auid>=1000 -F auid!=unset -F key=perm_mod
+-a always,exit -F arch=b32 -S chown,fchown,lchown,fchownat -F auid>=1000 -F auid!=unset -F key=perm_mod
 -a always,exit -F arch=b64 -S setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr -F auid>=1000 -F auid!=unset -F key=perm_mod
+-a always,exit -F arch=b32 -S setxattr,lsetxattr,fsetxattr,removexattr,lremovexattr,fremovexattr -F auid>=1000 -F auid!=unset -F key=perm_mod
 
 -a always,exit -F arch=b64 -S creat,open,openat,truncate,ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=unset -F key=access
+-a always,exit -F arch=b32 -S creat,open,openat,truncate,ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=unset -F key=access
 -a always,exit -F arch=b64 -S creat,open,openat,truncate,ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=unset -F key=access
+-a always,exit -F arch=b32 -S creat,open,openat,truncate,ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=unset -F key=access
 
 -a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=unset -F key=mounts
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=unset -F key=mounts
 
 -a always,exit -F arch=b64 -S unlink,unlinkat,rename,renameat -F auid>=1000 -F auid!=unset -F key=delete
+-a always,exit -F arch=b32 -S unlink,unlinkat,rename,renameat -F auid>=1000 -F auid!=unset -F key=delete
 
 -w /etc/sudoers -p wa -k scope
 -w /etc/sudoers.d/ -p wa -k scope
 
 -a always,exit -F arch=b64 -S init_module,delete_module,finit_module -F auid>=1000 -F auid!=unset -F key=modules
+-a always,exit -F arch=b32 -S init_module,delete_module,finit_module -F auid>=1000 -F auid!=unset -F key=modules
 
 -e 2
 `

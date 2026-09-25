@@ -243,6 +243,21 @@ var _ = Describe("GetCISHardeningStage", func() {
 				}
 			})
 
+			It("pairs each syscall rule with a b32 variant so 32-bit compat calls are caught", func() {
+				// The 32-bit ABI on amd64 (CONFIG_IA32_EMULATION) and
+				// aarch64 (CONFIG_COMPAT) reaches the same syscall
+				// numbers under arch=b32, so a b64-only rule leaves
+				// that path unaudited. The baseline pairs every
+				// -F arch=b64 -S ... rule with the same syscall list
+				// under -F arch=b32.
+				b64 := regexp.MustCompile(`(?m)^-a always,exit -F arch=b64 (.*)$`)
+				for _, m := range b64.FindAllStringSubmatch(rules.Content, -1) {
+					b32 := "-a always,exit -F arch=b32 " + m[1]
+					Expect(rules.Content).To(ContainSubstring(b32),
+						"missing b32 pair for: "+m[0])
+				}
+			})
+
 			It("locks the config with -e 2 as the last non-blank line", func() {
 				lines := strings.Split(strings.TrimRight(rules.Content, "\n"), "\n")
 				var last string
