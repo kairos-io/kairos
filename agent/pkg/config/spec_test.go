@@ -613,6 +613,53 @@ upgrade:
 					Expect(c.ImageExtractor).To(Equal(imageextractor.OCIImageExtractor{Insecure: true}))
 				})
 
+				DescribeTable("selects the recovery entry from upgrade.recovery in any form the YAML parser produces",
+					func(block string, wantRecovery bool) {
+						cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader(
+							"#cloud-config\n" + block)))
+						Expect(err).ToNot(HaveOccurred())
+						c.Collector = cfg.Collector
+						spec, err := config.NewUpgradeSpec(c)
+						Expect(err).ShouldNot(HaveOccurred())
+						Expect(spec.RecoveryUpgrade()).To(Equal(wantRecovery))
+					},
+					Entry("bare true", "upgrade:\n  recovery: true\n", true),
+					Entry("quoted true", "upgrade:\n  recovery: \"true\"\n", true),
+					Entry("single quoted true", "upgrade:\n  recovery: 'true'\n", true),
+					Entry("capitalised True", "upgrade:\n  recovery: True\n", true),
+					Entry("the number one", "upgrade:\n  recovery: 1\n", true),
+					Entry("bare false", "upgrade:\n  recovery: false\n", false),
+					Entry("quoted false", "upgrade:\n  recovery: \"false\"\n", false),
+					Entry("the number zero", "upgrade:\n  recovery: 0\n", false),
+					Entry("an empty recovery key", "upgrade:\n  recovery:\n", false),
+					Entry("an empty upgrade block", "upgrade:\n", false),
+					Entry("no upgrade block at all", "install:\n  device: /some/device\n", false),
+				)
+
+				DescribeTable("names the key instead of panicking when the upgrade block has the wrong shape",
+					func(block string, wantInError []string) {
+						cfg, err := config.ScanNoLogs(collector.Readers(strings.NewReader(
+							"#cloud-config\n" + block)))
+						Expect(err).ToNot(HaveOccurred())
+						c.Collector = cfg.Collector
+						_, err = config.NewUpgradeSpec(c)
+						Expect(err).To(HaveOccurred())
+						for _, want := range wantInError {
+							Expect(err.Error()).To(ContainSubstring(want))
+						}
+					},
+					Entry("a string that is not a boolean",
+						"upgrade:\n  recovery: maybe\n", []string{"upgrade.recovery", "maybe"}),
+					Entry("a YAML 1.1 habit the parser reads as a string",
+						"upgrade:\n  recovery: yes\n", []string{"upgrade.recovery", "yes"}),
+					Entry("a mapping where a boolean belongs",
+						"upgrade:\n  recovery:\n    enabled: true\n", []string{"upgrade.recovery"}),
+					Entry("the whole upgrade block written as a scalar",
+						"upgrade: somestring\n", []string{"upgrade must be a mapping"}),
+					Entry("the whole upgrade block written as a list",
+						"upgrade:\n  - recovery\n", []string{"upgrade must be a mapping"}),
+				)
+
 				It("fails fast for uki upgrade when the container image cannot be resolved", func() {
 					fake := &v1mock.FakeImageExtractor{
 						Logger: logger,
