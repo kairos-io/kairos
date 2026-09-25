@@ -6,11 +6,14 @@ import (
 
 // P2PSchema represents the P2P block in the Kairos configuration. It is used to enables and configure the p2p full-mesh functionalities.
 type P2PSchema struct {
-	_          struct{} `title:"Kairos Schema: P2P block" description:"The p2p block enables the p2p full-mesh functionalities."`
-	Role       string   `json:"role,omitempty" default:"none" enum:"[\"master\",\"worker\",\"none\"]"`
-	NetworkID  string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
-	DNS        bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
-	DisableDHT bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
+	_            struct{} `title:"Kairos Schema: P2P block" description:"The p2p block enables the p2p full-mesh functionalities."`
+	Role         string   `json:"role,omitempty" default:"none" enum:"[\"master\",\"worker\",\"none\"]"`
+	NetworkID    string   `json:"network_id,omitempty" description:"User defined network-id. Can be used to have multiple clusters in the same network"`
+	DNS          bool     `json:"dns,omitempty" description:"Enable embedded DNS See also: https://mudler.github.io/edgevpn/docs/concepts/overview/dns/"`
+	DisableDHT   bool     `json:"disable_dht,omitempty" default:"true" description:"Disabling DHT makes co-ordination to discover nodes only in the local network"`
+	LogLevel     string   `json:"loglevel,omitempty" default:"debug" description:"Log level of the p2p provider"`
+	MinimumNodes int      `json:"minimum_nodes,omitempty" description:"Number of nodes the network waits for before assigning roles"`
+	DynamicRoles bool     `json:"dynamic_roles,omitempty" description:"Re-assign roles as nodes join and leave, instead of pinning them on the first election"`
 	P2PNetworkExtended
 	VPN `json:"vpn,omitempty"`
 }
@@ -21,7 +24,10 @@ type KubeVIPSchema struct {
 	EIP         string   `json:"eip,omitempty" example:"192.168.1.110"`
 	ManifestURL string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
 	Enable      bool     `json:"enable,omitempty" description:"Enables KubeVIP"`
-	Interface   bool     `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+	Interface   string   `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
+	StaticPod   bool     `json:"static_pod,omitempty" description:"Deploy KubeVIP as a static pod instead of a daemonset"`
+	Version     string   `json:"version,omitempty" description:"Tag of the KubeVIP image to deploy" example:"v0.8.0"`
+	Image       string   `json:"image,omitempty" description:"Repository of the KubeVIP image to deploy" example:"ghcr.io/kube-vip/kube-vip"`
 }
 
 // P2PNetworkExtended is a meta structure to hold the different rules for managing the P2P network, which are not compatible between each other.
@@ -45,8 +51,9 @@ type P2PAutoEnabled struct {
 	Auto         struct {
 		Enable bool `json:"enable,omitempty" const:"true"`
 		Ha     struct {
-			Enable      bool `json:"enable" const:"true"`
-			MasterNodes int  `json:"master_nodes,omitempty" minimum:"1" description:"Number of HA additional master nodes. A master node is always required for creating the cluster and is implied."`
+			Enable      bool   `json:"enable" const:"true"`
+			ExternalDB  string `json:"external_db,omitempty" description:"Datastore endpoint used instead of the embedded one. Only supported with k3s."`
+			MasterNodes int    `json:"master_nodes,omitempty" minimum:"1" description:"Number of HA additional master nodes. A master node is always required for creating the cluster and is implied."`
 		} `json:"ha"`
 	} `json:"auto,omitempty"`
 }
@@ -62,7 +69,7 @@ func (P2PNetworkExtended) JSONSchemaOneOf() []interface{} {
 
 // VPN represents the vpn block in the Kairos configuration.
 type VPN struct {
-	Create bool                   `json:"vpn,omitempty" default:"true"`
+	Create bool                   `json:"create,omitempty" default:"true"`
 	Use    bool                   `json:"use,omitempty" default:"true"`
 	Envs   map[string]interface{} `json:"env,omitempty"`
 }
