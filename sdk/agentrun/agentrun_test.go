@@ -218,3 +218,21 @@ var _ = Describe("contract constants", func() {
 		Expect(agentrun.EnvAgentBin).To(Equal(constants.AgentEnvVar))
 	})
 })
+
+var _ = Describe("PairingCommand", func() {
+	It("runs the agent's pairing install", func() {
+		cmd := agentrun.PairingCommand("/usr/bin/kairos-agent", "")
+		Expect(cmd.Path).To(Equal("/usr/bin/kairos-agent"))
+		Expect(cmd.Args).To(Equal([]string{"/usr/bin/kairos-agent", "install"}))
+	})
+
+	It("installs from the source the installer was given", func() {
+		cmd := agentrun.PairingCommand("/usr/bin/kairos-agent", "oci:quay.io/kairos/test:latest")
+		Expect(cmd.Args).To(Equal([]string{"/usr/bin/kairos-agent", "install", "--source", "oci:quay.io/kairos/test:latest"}))
+	})
+
+	It("does not ask for progress events, which would replace the QR code output", func() {
+		cmd := agentrun.PairingCommand("/usr/bin/kairos-agent", "")
+		Expect(cmd.Env).To(BeNil())
+	})
+})

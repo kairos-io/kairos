@@ -78,6 +78,7 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		finishAction:    "nothing",
 	}
 	mainModel.pages = []Page{
+		newWelcomePage(),
 		newPrerequisitesPage(),
 		newDiskSelectionPage(),
 		newInstallOptionsPage(),
