@@ -210,8 +210,17 @@ const (
 	DestSysExtDir                   = "/run/extensions"
 	DestConfExtDir                  = "/run/confexts"
 	VerityCertDir                   = "/run/verity.d/"
-	SysextDefaultPolicy             = "--image-policy=\"root=signed+absent:usr=signed+absent\""
-	EfiDir                          = "/efi"
+	// SysextSignedPolicy is the image policy the UKI systemd-sysext drop-in
+	// enforces. Trusted Boot only accepts an extension whose verity hash is
+	// signed by a key in the machine db.
+	SysextSignedPolicy = "--image-policy=\"root=signed+absent:usr=signed+absent\""
+	// SysextVerityPolicy is the image policy the non-UKI systemd-sysext drop-in
+	// enforces, written by kairos-init/pkg/bundled/cloudconfigs/99_sysext.yaml
+	// when /run/cos/uki_boot_mode is absent. Validating against anything else
+	// on a GRUB boot enables images systemd-sysext then refuses, and a refresh
+	// that refuses one image merges none of them.
+	SysextVerityPolicy = "--image-policy=\"root=verity+absent:usr=verity+absent\""
+	EfiDir             = "/efi"
 
 	// AuditLogPath is the kernel audit log directory. auditd keeps the audit
 	// trail here, so it has to be backed by the persistent partition rather
