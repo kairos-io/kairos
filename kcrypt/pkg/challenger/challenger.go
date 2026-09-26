@@ -202,16 +202,25 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// DefaultSecret returns the name of the Secret that holds the passphrase for
+// this volume, and the key inside it.
+//
+// Only the name we generate ourselves is sanitized. SecretName and SecretPath
+// come straight out of the operator's SealedVolume and point at an object the
+// operator already created, so rewriting them makes the lookup miss: a Secret
+// named "kcrypt.passphrase" is a legal RFC 1123 subdomain, and a key named
+// "pass_phrase" is a legal Secret key, but SafeKubeName turns both dots and
+// underscores into hyphens.
 func (s SealedVolumeData) DefaultSecret() (string, string) {
-	secretName := fmt.Sprintf("%s-%s", s.VolumeName, s.PartitionLabel)
-	secretPath := "passphrase"
-	if s.SecretName != "" {
-		secretName = s.SecretName
+	secretName := s.SecretName
+	if secretName == "" {
+		secretName = kube.SafeKubeName(fmt.Sprintf("%s-%s", s.VolumeName, s.PartitionLabel))
 	}
-	if s.SecretPath != "" {
-		secretPath = s.SecretPath
+	secretPath := s.SecretPath
+	if secretPath == "" {
+		secretPath = "passphrase"
 	}
-	return kube.SafeKubeName(secretName), kube.SafeKubeName(secretPath)
+	return secretName, secretPath
 }
 
 // generateTOFUPassphrase creates a cryptographically secure random passphrase for TOFU enrollment
