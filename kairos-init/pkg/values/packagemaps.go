@@ -516,6 +516,31 @@ var BasePackages = PackageMap{
 				"zerofree",
 			},
 		},
+		// qemu-guest-agent is what 26_vm.yaml starts once DMI says the machine
+		// is a QEMU or KVM guest, and open-vm-tools is what it starts on a
+		// VMware guest. The Alpine and SUSE families already install both, and
+		// the Red Hat family installs the QEMU one. Without them the hypervisor
+		// gets no guest shutdown, no reported addresses and no filesystem
+		// freeze for snapshots; on vSphere that also leaves
+		// VSphereMachine.status.addresses empty, which is what blocked Cluster
+		// API in #4092. See #4737.
+		//
+		// Listed per architecture rather than under ArchCommon because neither
+		// package is published for riscv64 on Debian bookworm, trixie, or
+		// Ubuntu jammy and noble. That is the same reason open-vm-tools is
+		// split this way for the SUSE family below.
+		ArchAMD64: {
+			Common: {
+				"open-vm-tools",
+				"qemu-guest-agent",
+			},
+		},
+		ArchARM64: {
+			Common: {
+				"open-vm-tools",
+				"qemu-guest-agent",
+			},
+		},
 	},
 	SUSEFamily: {
 		ArchCommon: {
@@ -695,18 +720,27 @@ var BasePackages = PackageMap{
 		// iSCSI backed storage such as Longhorn or Portworx cannot attach a
 		// volume, even though 00_rootfs.yaml persists /etc/iscsi for it.
 		//
-		// Listed per architecture rather than under ArchCommon because the
-		// package cannot be confirmed for Fedora riscv64, the same reason
-		// open-vm-tools is split this way for the SUSE family above. These two
-		// arches cover every published Red Hat family Kairos image.
+		// open-vm-tools is what 26_vm.yaml starts on a VMware guest, as vmtoolsd
+		// on systemd. The Red Hat family already installs the QEMU agent above but
+		// never installed this one, so the stage started a unit that was not
+		// there. See #4737.
+		//
+		// Both are listed per architecture rather than under ArchCommon because
+		// the flavor matrix also builds a riscv64 Fedora cell: the iSCSI package
+		// cannot be confirmed there, and open-vm-tools is a VMware guest agent
+		// that upstream builds for x86_64 and aarch64 only. These two arches cover
+		// every published Red Hat family Kairos image. Same split the Debian and
+		// SUSE families use.
 		ArchAMD64: {
 			Common: {
 				"iscsi-initiator-utils",
+				"open-vm-tools",
 			},
 		},
 		ArchARM64: {
 			Common: {
 				"iscsi-initiator-utils",
+				"open-vm-tools",
 			},
 		},
 	},
