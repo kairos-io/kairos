@@ -72,6 +72,11 @@ var _ = Describe("Uki upgrade action", func() {
 
 		Expect(fsutils.MkdirAll(fs, "/efi/EFI/Kairos", constants.DirPerm)).To(Succeed())
 		Expect(fsutils.MkdirAll(fs, "/source", constants.DirPerm)).To(Succeed())
+		// The KAIROS_INIT_VERSION downgrade gate reads this on the
+		// running system side of the compare; the target side is
+		// stubbed by tests that get far enough to hit prepareFinalize.
+		Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), 0o644)).To(Succeed())
 
 		config = agentConfig.NewConfig(
 			agentConfig.WithFs(fs),
@@ -152,6 +157,38 @@ var _ = Describe("Uki upgrade action", func() {
 			signed, err := os.ReadFile("tests/fbx64.signed.efi")
 			Expect(err).ToNot(HaveOccurred())
 			Expect(fs.WriteFile("/efi/EFI/Kairos/"+UnassignedArtifactRole+".efi", signed, os.ModePerm)).To(Succeed())
+
+			// Skip the signer-match check for these rotation-edge tests;
+			// they intentionally corrupt / overwrite active.efi to trigger
+			// specific rotation failures, so a real signer-match would
+			// short-circuit before the test's actual failure path. The
+			// signer-match rule itself has its own coverage.
+			origSigner := requireSameSignerAsBootedFn
+			requireSameSignerAsBootedFn = func(*sdkConfig.Config, string) error { return nil }
+			DeferCleanup(func() { requireSameSignerAsBootedFn = origSigner })
+
+			// The signed test .efi is not a real Kairos UKI, so its
+			// .initrd cannot be walked by the production extractor.
+			// Stub extractFromInitrd for the length of this Describe so
+			// prepareFinalize returns a valid stage (target's
+			// kairos-release satisfies the downgrade gate) and control
+			// flows on to the rotation logic these tests are about.
+			origExtract := extractFromInitrd
+			extractFromInitrd = func(_ string, extractions map[string]string) ([]string, error) {
+				found := []string{}
+				for src, dst := range extractions {
+					var body []byte
+					if src == constants.KairosReleaseFile {
+						body = []byte(`KAIROS_INIT_VERSION="v4.3.0"` + "\n")
+					}
+					if err := os.WriteFile(dst, body, 0o644); err != nil {
+						return found, err
+					}
+					found = append(found, src)
+				}
+				return found, nil
+			}
+			DeferCleanup(func() { extractFromInitrd = origExtract })
 		})
 
 		It("installs the new artifact as active and fails removing the unassigned set", func() {

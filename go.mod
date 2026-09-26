@@ -286,7 +286,7 @@ require (
 	github.com/kbinani/screenshot v0.0.0-20230812210009-b87d31814237 // indirect
 	github.com/kendru/darwin/go/depgraph v0.0.0-20230809052043-4d1c7e9d1767 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/klauspost/compress v1.19.2 // indirect
+	github.com/klauspost/compress v1.19.2
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kube-vip/kube-vip v1.2.3
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
