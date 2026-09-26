@@ -53,6 +53,8 @@ var _ = Describe("kairos live media extensions", Label("sysext"), func() {
 users:
 - name: "kairos"
   passwd: "kairos"
+  groups:
+    - "admin"
 `, vm)
 
 			By("keeping the extension on the persistent partition", func() {
