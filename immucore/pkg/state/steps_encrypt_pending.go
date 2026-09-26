@@ -9,8 +9,6 @@ import (
 	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
-	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
-	"github.com/kairos-io/kairos/v4/sdk/ghw"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -246,33 +244,9 @@ func classifyPendingLabels(labels []string) ([]string, error) {
 }
 
 // labelIsEncrypted reports whether the partition carrying the label is
-// already a LUKS container. ghw's filesystem type comes from the udev
-// database; when it is missing the device itself is asked through blkid, and
-// when neither can say, the answer is an error: with a luksFormat riding on
-// it, "probably plaintext" is not an answer.
+// already a LUKS container, through the sdk classification every encrypt
+// consumer shares (lookup.LabelIsEncrypted), with this package's stubbable
+// probes plugged in.
 func labelIsEncrypted(disks []*partitions.Disk, label string) (bool, error) {
-	if _, err := lookup.FindLUKSContainerOnDisks(disks, label); err == nil {
-		return true, nil
-	}
-
-	part, err := lookup.FindMapperOnDisks(disks, label)
-	if err != nil {
-		// Pre kairos-sdk#822 installs carry no filesystem label at all and
-		// only blkid's PARTLABEL view finds their LUKS container.
-		if part, err = blkidLookupFn(label); err != nil {
-			return false, fmt.Errorf("partition %s is configured for encryption but was not found", label)
-		}
-	}
-
-	fs := part.FS
-	if fs == "" || fs == ghw.UNKNOWN {
-		fs, _ = filesystemProbeFn(part.Path)
-	}
-	switch fs {
-	case sdkConstants.LUKSFs:
-		return true, nil
-	case "", ghw.UNKNOWN:
-		return false, fmt.Errorf("the filesystem on partition %s (%s) could not be determined; refusing to treat it as plaintext", label, part.Path)
-	}
-	return false, nil
+	return lookup.LabelIsEncrypted(disks, label, blkidLookupFn, filesystemProbeFn)
 }
