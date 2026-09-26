@@ -208,7 +208,7 @@ func (ExtensionSignaturePolicy) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
 		_ = machine.Umount(constants.OEMPath)
 	}()
 
-	return saveCloudConfig("extensions_ignore_signatures", IgnoreSignaturesCloudConfig())
+	return saveCloudConfig(c.Fs, "extensions_ignore_signatures", IgnoreSignaturesCloudConfig())
 }
 
 // IgnoreSignaturesCloudConfig is the cloud config ExtensionSignaturePolicy
