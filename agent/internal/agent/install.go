@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -34,22 +35,44 @@ import (
 	"github.com/sanity-io/litter"
 )
 
+// webUIAddresses returns the addresses an operator can type into a browser to
+// reach the web UI, one per address this node holds, given the address the
+// server listens on.
+//
+// Addresses that cannot carry the operator there are left out. A loopback
+// address only reaches the node itself, and a link-local one needs a zone
+// (fe80::1%eth0) that neither this line nor a browser's address bar carries.
+//
+// The port comes from listen, and the two are joined with net.JoinHostPort so
+// an IPv6 address is bracketed: "fe80::1" + ":8080" is not a host:port, and
+// net.SplitHostPort rejects it with "too many colons in address".
+func webUIAddresses(ips []string, listen string) []string {
+	_, port, err := net.SplitHostPort(listen)
+	if err != nil || port == "" {
+		// A listen address with no port in it is not something to invent one
+		// for. Say nothing rather than print an address that goes nowhere.
+		return nil
+	}
+
+	var out []string
+	for _, s := range ips {
+		ip := net.ParseIP(s)
+		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+			continue
+		}
+		out = append(out, net.JoinHostPort(s, port))
+	}
+	return out
+}
+
 func displayInfo(agentConfig *branding.Config) {
 	if !agentConfig.WebUI.Disable {
 		ifaces := machine.Interfaces()
 		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
 		if !agentConfig.WebUI.HasAddress() {
-			ips := machine.LocalIPs()
-			if len(ips) > 0 {
-				messageIps := " - WebUI installer: "
-				for _, ip := range ips {
-					// Skip printing local ips, makes no sense
-					if strings.Contains("127.0.0.1", ip) || strings.Contains("::1", ip) {
-						continue
-					}
-					messageIps = messageIps + fmt.Sprintf("%s%s ", ip, sdkConstants.DefaultWebUIListenAddress)
-				}
-				message = message + messageIps
+			addrs := webUIAddresses(machine.LocalIPs(), sdkConstants.DefaultWebUIListenAddress)
+			if len(addrs) > 0 {
+				message = message + " - WebUI installer: " + strings.Join(addrs, " ")
 			}
 		} else {
 			message = message + fmt.Sprintf(" - WebUI installer: %s", agentConfig.WebUI.ListenAddress)
