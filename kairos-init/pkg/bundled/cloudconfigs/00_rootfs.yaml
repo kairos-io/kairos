@@ -152,10 +152,10 @@ stages:
         - chmod 600 /usr/local/cloud-config
   boot.before:
     - name: "Mount tmp on alpine"
-      if: "[[ $(kairos-agent state get kairos.flavor) =~ ^alpine ]]"
+      only_os: "Alpine.*"
       commands:
         - mount --make-rshared /
     - name: "Mount BPF on Alpine systems"
-      if: "[[ $(kairos-agent state get kairos.flavor) =~ ^alpine ]]"
+      only_os: "Alpine.*"
       commands:
         - mount bpffs -o rw,nosuid,nodev,noexec,relatime,mode=700 /sys/fs/bpf -t bpf
