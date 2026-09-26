@@ -78,6 +78,15 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # See _unit-tests.yaml for the rationale.
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-build-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-build-
+
       - name: Download default multi-call kairos artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
