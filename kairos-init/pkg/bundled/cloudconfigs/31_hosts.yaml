@@ -1,6 +1,11 @@
 ## Ensure that /etc/hostname and /etc/hosts are persistent across reboots
 ## by storing them in /usr/local/etc/ and symlinking them
-## This is skipped in recovery mode or if they are already symlinks
+## /etc is an ephemeral overlay (see RW_PATHS in 00_rootfs.yaml), so the
+## symlinks are gone again on every boot and have to be recreated, while the
+## files they point at live on the persistent partition and must only be
+## seeded once. Seeding them on every boot resets whatever the running system
+## stored there, which is the opposite of what this file is for.
+## This is skipped in recovery mode
 ## Also, set a default hostname if not already set
 ## This is done in the initramfs stage to ensure it's set early
 ## Use MachineID for consistent hostname generation
@@ -11,13 +16,17 @@
 ## so we get the proper name added to the hosts file
 stages:
   initramfs:
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -L "/etc/hosts" ]'
-      name: "Ensure persistent hosts file"
+    - if: '[ ! -f "/run/cos/recovery_mode" ]'
+      name: "Ensure persistent /etc/ directory"
       directories:
         - path: "/usr/local/etc/"
           permissions: 0755
           owner: 0
           group: 0
+    # Only when the persistent partition has no hosts file yet, so a first
+    # boot gets a usable one and every later boot keeps what is there.
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -e "/usr/local/etc/hosts" ]'
+      name: "Seed the persistent hosts file"
       files:
         - path: "/usr/local/etc/hosts"
           permissions: 0644
@@ -26,16 +35,11 @@ stages:
           content: |
             127.0.0.1 localhost
             ::1       localhost
+    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -L "/etc/hosts" ]'
+      name: "Ensure persistent hosts file"
       commands:
         - rm -f /etc/hosts
         - ln -sf /usr/local/etc/hosts /etc/hosts
-    - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -d /usr/local/etc ]' # check that /usr/local/etc doesnt not exist already
-      name: "Ensure persistent /etc/ directory"
-      directories:
-        - path: "/usr/local/etc/"
-          permissions: 0755
-          owner: 0
-          group: 0
     # Check that hostname is not already a symlink and the persistent file does not exist
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ ! -L "/etc/hostname" ]'
       name: "Ensure persistent hostname"
