@@ -104,3 +104,26 @@ branding:
 		Expect(cfg.WebUI.ListenAddress).To(BeEmpty())
 	})
 })
+
+var _ = Describe("reading the web UI token from the configuration", func() {
+	It("reads webui.token", func() {
+		dir := GinkgoT().TempDir()
+		p := filepath.Join(dir, "agent.yaml")
+		Expect(os.WriteFile(p, []byte("webui:\n  token: \"from the cloud config\"\n"), 0600)).To(Succeed())
+
+		cfg, err := loadConfig(dir, p)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cfg.WebUI.Token).To(Equal("from the cloud config"))
+		Expect(cfg.WebUI.HasToken()).To(BeTrue())
+	})
+
+	It("leaves the web UI open when the configuration sets no token", func() {
+		dir := GinkgoT().TempDir()
+		p := filepath.Join(dir, "agent.yaml")
+		Expect(os.WriteFile(p, []byte("webui:\n  listen_address: \":9000\"\n"), 0600)).To(Succeed())
+
+		cfg, err := loadConfig(dir, p)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cfg.WebUI.HasToken()).To(BeFalse())
+	})
+})

@@ -190,6 +190,10 @@ type Options struct {
 	// starts, so the caller can wait for a browser-driven install to finish
 	// before it shuts the server down.
 	Activity *Activity
+	// WebUI is the image's web UI settings. Only the token is read here, and
+	// the zero value leaves the server open, which is what a standalone run
+	// and every test that does not care about the token want.
+	WebUI branding.WebUI
 }
 
 // StartConfigured fills in the listen address and enablement from the image's
@@ -213,6 +217,11 @@ func StartConfigured(ctx context.Context, o Options) error {
 		if agentConfig.WebUI.ListenAddress != "" {
 			o.Listen = agentConfig.WebUI.ListenAddress
 		}
+	}
+
+	o.WebUI = agentConfig.WebUI
+	if o.WebUI.HasToken() {
+		logTo(o.Logger).Info("WebUI installer requires the token set in the configuration")
 	}
 
 	return StartWith(ctx, o)
@@ -262,6 +271,12 @@ func newServer(o Options) *echo.Echo {
 	}
 
 	ec.Renderer = renderer
+
+	// Before routing, so the check covers the static assets and an unknown
+	// path too. Nothing this server serves is public.
+	if auth := requireToken(o.WebUI); auth != nil {
+		ec.Pre(auth)
+	}
 
 	ec.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
 
