@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,7 +25,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/branding"
 	events "github.com/kairos-io/kairos/v4/sdk/bus"
 	"github.com/kairos-io/kairos/v4/sdk/collector"
-	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
@@ -35,50 +33,34 @@ import (
 	"github.com/sanity-io/litter"
 )
 
-// webUIAddresses returns the addresses an operator can type into a browser to
-// reach the web UI, one per address this node holds, given the address the
-// server listens on.
+// webUIBanner is the line the live media prints before it hands the machine to
+// a shell or to a provider: the interfaces this node has, and where the web
+// installer answers.
 //
-// Addresses that cannot carry the operator there are left out. A loopback
-// address only reaches the node itself, and a link-local one needs a zone
-// (fe80::1%eth0) that neither this line nor a browser's address bar carries.
+// urls comes from branding.WebUI.URLs(), which is the same helper the
+// interactive installer's welcome screen draws, so the two screens cannot say
+// different things about the same boot. Deriving the addresses here a second
+// time is what let them drift: a listen address is where the server binds, and
+// a bind address on every interface (":8080", "0.0.0.0:8080", "[::]:8080") is
+// not somewhere a browser can go.
 //
-// The port comes from listen, and the two are joined with net.JoinHostPort so
-// an IPv6 address is bracketed: "fe80::1" + ":8080" is not a host:port, and
-// net.SplitHostPort rejects it with "too many colons in address".
-func webUIAddresses(ips []string, listen string) []string {
-	_, port, err := net.SplitHostPort(listen)
-	if err != nil || port == "" {
-		// A listen address with no port in it is not something to invent one
-		// for. Say nothing rather than print an address that goes nowhere.
-		return nil
+// An empty urls means there is no address worth offering, which is not an
+// error: the web UI is off, or the node holds no address another machine can
+// reach. The interfaces are still worth printing, because they are what an
+// operator needs in order to give the node one.
+func webUIBanner(ifaces, urls []string) string {
+	message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
+	if len(urls) > 0 {
+		message += " - WebUI installer: " + strings.Join(urls, " ")
 	}
-
-	var out []string
-	for _, s := range ips {
-		ip := net.ParseIP(s)
-		if ip == nil || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
-			continue
-		}
-		out = append(out, net.JoinHostPort(s, port))
-	}
-	return out
+	return message
 }
 
 func displayInfo(agentConfig *branding.Config) {
-	if !agentConfig.WebUI.Disable {
-		ifaces := machine.Interfaces()
-		message := fmt.Sprintf("Interfaces: %s", strings.Join(ifaces, " "))
-		if !agentConfig.WebUI.HasAddress() {
-			addrs := webUIAddresses(machine.LocalIPs(), sdkConstants.DefaultWebUIListenAddress)
-			if len(addrs) > 0 {
-				message = message + " - WebUI installer: " + strings.Join(addrs, " ")
-			}
-		} else {
-			message = message + fmt.Sprintf(" - WebUI installer: %s", agentConfig.WebUI.ListenAddress)
-		}
-		fmt.Println(message)
+	if agentConfig.WebUI.Disable {
+		return
 	}
+	fmt.Println(webUIBanner(machine.Interfaces(), agentConfig.WebUI.URLs()))
 }
 
 func ManualInstall(c, sourceImgURL, device string, reboot, poweroff, strictValidations, useDefaultDirs, allowInsecureRegistries bool) error {
