@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
+	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	extensiontypes "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -301,5 +302,89 @@ func TestWebUIRejectsABadSourceAtParseTime(t *testing.T) {
 	empty.String("source", "", "")
 	if err := webui.Before(cli.NewContext(nil, empty, nil)); err != nil {
 		t.Fatalf("webui with no --source = %v, want nil", err)
+	}
+}
+
+func runStageCommand(t *testing.T) *cli.Command {
+	t.Helper()
+	for _, command := range cmds {
+		if command.Name == "run-stage" {
+			return command
+		}
+	}
+	t.Fatal("run-stage command not found")
+	return nil
+}
+
+// #4665: --override-cloud-init-paths advertises "removing defaults", but the
+// paths it set were prepended with constants.GetCloudInitPaths() anyway, so it
+// behaved exactly like --cloud-init-paths. Running one cloud-config on its own
+// was not expressible, and for a stage like initramfs the machine's whole /oem
+// was re-applied alongside it.
+func TestRunStageOverrideDropsTheDefaults(t *testing.T) {
+	command := runStageCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.CloudInitPaths = []string{"/from/config"}
+
+	ctx := commandContext(t, command, "",
+		"--cloud-init-paths", "/extra",
+		"--override-cloud-init-paths", "/only/this/path",
+		"initramfs")
+
+	got := runStageCloudInitPaths(ctx, cfg)
+	if len(got) != 1 || got[0] != "/only/this/path" {
+		t.Fatalf("override paths = %v, want [/only/this/path]", got)
+	}
+	for _, unwanted := range append(constants.GetCloudInitPaths(), "/from/config", "/extra") {
+		for _, p := range got {
+			if p == unwanted {
+				t.Fatalf("override kept %q; got %v", unwanted, got)
+			}
+		}
+	}
+}
+
+// The other half of the contract: --cloud-init-paths still means "the defaults
+// plus these", so nothing changes for anyone already using it.
+func TestRunStageExtraPathsKeepTheDefaults(t *testing.T) {
+	command := runStageCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.CloudInitPaths = []string{"/from/config"}
+
+	ctx := commandContext(t, command, "", "--cloud-init-paths", "/extra", "initramfs")
+
+	got := runStageCloudInitPaths(ctx, cfg)
+	for _, wanted := range append(constants.GetCloudInitPaths(), "/from/config", "/extra") {
+		found := false
+		for _, p := range got {
+			if p == wanted {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing %q from %v", wanted, got)
+		}
+	}
+}
+
+// With neither flag the stage reads the defaults plus whatever the scanned
+// config contributed, which is what every other RunStage caller gets.
+func TestRunStageWithoutFlagsUsesDefaults(t *testing.T) {
+	command := runStageCommand(t)
+	cfg := agentConfig.NewConfig()
+	cfg.CloudInitPaths = []string{"/from/config"}
+
+	ctx := commandContext(t, command, "", "initramfs")
+
+	got := runStageCloudInitPaths(ctx, cfg)
+	want := append(constants.GetCloudInitPaths(), "/from/config")
+	if len(got) != len(want) {
+		t.Fatalf("paths = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("paths = %v, want %v", got, want)
+		}
 	}
 }

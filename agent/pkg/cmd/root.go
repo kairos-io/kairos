@@ -804,13 +804,7 @@ The validate command expects a configuration file as its only argument. Local fi
 			config, err := agentConfig.Scan(collector.Directories(constants.GetYipConfigDirs()...), collector.NoLogs)
 			config.Strict = c.Bool("strict")
 
-			if len(c.StringSlice("cloud-init-paths")) > 0 {
-				config.CloudInitPaths = append(config.CloudInitPaths, c.StringSlice("cloud-init-paths")...)
-			}
-
-			if len(c.StringSlice("override-cloud-init-paths")) > 0 {
-				config.CloudInitPaths = c.StringSlice("override-cloud-init-paths")
-			}
+			cloudInitPaths := runStageCloudInitPaths(c, config)
 
 			if c.Bool("debug") {
 				config.Logger.SetLevel("debug")
@@ -819,10 +813,7 @@ The validate command expects a configuration file as its only argument. Local fi
 			if err != nil {
 				config.Logger.Errorf("Error reading config: %s\n", err)
 			}
-			if c.Bool("analyze") {
-				return utils.RunStageAnalyze(config, stage)
-			}
-			return utils.RunStage(config, stage)
+			return utils.RunStageWithPaths(config, stage, c.Bool("analyze"), cloudInitPaths)
 		},
 	},
 	{
@@ -1774,6 +1765,27 @@ func skipAutoInstall(c *cli.Context) bool {
 	}
 
 	return cmdlineEnables(string(cmdline), skipAutoInstallCmdline)
+}
+
+// runStageCloudInitPaths resolves the cloud-init paths a `run-stage` run reads,
+// and keeps config.CloudInitPaths in step with them.
+//
+// --cloud-init-paths adds to the defaults; --override-cloud-init-paths replaces
+// everything, defaults included, which is what its usage text has always
+// promised. The composition lives here rather than in RunStage so that every
+// other caller of RunStage (install, upgrade, reset, the boot hooks) keeps
+// reading the defaults.
+func runStageCloudInitPaths(c *cli.Context, config *sdkConfig.Config) []string {
+	if extra := c.StringSlice("cloud-init-paths"); len(extra) > 0 {
+		config.CloudInitPaths = append(config.CloudInitPaths, extra...)
+	}
+
+	if override := c.StringSlice("override-cloud-init-paths"); len(override) > 0 {
+		config.CloudInitPaths = override
+		return override
+	}
+
+	return utils.CloudInitPaths(config)
 }
 
 func validateSource(source string) error {

@@ -36,6 +36,11 @@ stages:
     - if: '[ -e /oem/95_userdata ] && [ -f /run/.userdata_load ]'
       name: "Run stages if userdata is found"
       commands:
+      # The datasource plugin creates this directory as root:root; every other
+      # path under /oem is root:admin because 10_accounting chowns the whole
+      # tree in the initramfs stage, which already ran this boot. Match it here
+      # so the first boot ends with the same ownership as every later one.
+      - chown -R root:admin /oem/95_userdata
       - kairos-agent run-stage initramfs --override-cloud-init-paths /oem/95_userdata
       - kairos-agent run-stage boot --override-cloud-init-paths /oem/95_userdata
       - rm -rf /run/.userdata_load
