@@ -112,7 +112,21 @@ stages:
     - name: "Create journalctl /var/log/journal dir"
       only_service_manager: "systemd"
       directories:
+        # This has to be spelled out: yip chmods the directory even when it
+        # already exists, so an omitted permissions: would leave it 0000 on
+        # every boot, and journalctl would stop working for the non-root
+        # kairos user.
+        #
+        # systemd's own tmpfiles give this directory 2755, but yip cannot ask
+        # for setgid: the plugin applies os.FileMode(permissions), and os.Chmod
+        # keeps only Perm() (the low 0777) unless the caller passes
+        # os.ModeSetgid, which is not 0o2000. So 02755 would land as 0755
+        # anyway, and a 2755 without the leading zero would be read as decimal
+        # and land as 0311. 0755 is what actually reaches the disk.
+        # systemd-journald sets the mode and the ACLs on
+        # /var/log/journal/<machine-id> itself.
         - path: /var/log/journal
+          permissions: 0755
     - if: '[ ! -f "/run/cos/recovery_mode" ] && [ -s /usr/local/etc/machine-id ]'
       name: "Restore /etc/machine-id for systemd systems"
       commands:

@@ -4,15 +4,46 @@ stages:
     - name: "Default sysext/confext extensions dirs"
       only_service_manager: "systemd"
       directories:
+        # yip applies this mode verbatim, and chmods the directory even when it
+        # already exists, so an omitted permissions: would leave 0000 here on
+        # every boot. 0755 is what systemd's own tmpfiles use for these, and it
+        # keeps them traversable for a non-root `systemd-sysext status`.
         - path: /etc/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /run/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /run/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /var/lib/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /var/lib/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/lib/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/lib/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/local/lib/extensions
+          permissions: 0755
+          owner: 0
+          group: 0
         - path: /usr/local/lib/confexts
+          permissions: 0755
+          owner: 0
+          group: 0
   initramfs:
     - name: "systemd-sysext/confext uki config"
       if: '[ -e "/run/cos/uki_boot_mode" ] && [ ! -e "/run/cos/recovery_mode" ] && [ ! -e "/run/cos/autoreset_mode" ]'
