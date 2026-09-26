@@ -2,6 +2,7 @@ package state_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
@@ -69,6 +70,128 @@ var _ = Describe("mounting immutable setup", func() {
 			parked, err := os.Readlink(filepath.Join(root, "etc", "systemd", "kairos-stale-units", "sshd.service"))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(parked).To(Equal("/usr/lib/systemd/system/ssh.service"))
+		})
+	})
+
+	Context("OpMountBind dependencies on OpOverlayMount/OpCustomMounts (kairos-io/kairos#4782)", func() {
+		It("still mounts the persistent-state binds when one overlay or custom-mount entry fails", func() {
+			internalUtils.KLog = logger.NewNullLogger()
+
+			root := GinkgoT().TempDir()
+			binds := []string{"/etc/ssh", "/etc/systemd", "/home"}
+			s := &state.State{
+				Rootdir:    root,
+				BindMounts: binds,
+			}
+
+			// Stand-ins for OpLoadConfig and for what
+			// MountCustomOverlayDagStep/MountCustomMountsDagStep actually do:
+			// both real steps loop over every entry (extra volumes / overlay
+			// paths) and fold every failure into a single multierror instead
+			// of stopping on the first bad one, so a single missing disk or
+			// mislabeled volume still surfaces here as one op-level error.
+			Expect(g.Add(cnst.OpLoadConfig, herd.WithCallback(func(context.Context) error {
+				return nil
+			}))).To(Succeed())
+			Expect(g.Add(cnst.OpOverlayMount, herd.WithDeps(cnst.OpLoadConfig),
+				herd.WithCallback(func(context.Context) error {
+					return errors.New("mount /run/overlay/some-extra-volume: no such device")
+				}))).To(Succeed())
+			Expect(g.Add(cnst.OpCustomMounts, herd.WithDeps(cnst.OpLoadConfig),
+				herd.WithCallback(func(context.Context) error {
+					return nil
+				}))).To(Succeed())
+
+			// The real production wiring under test: MountCustomBindsDagStep
+			// (steps_shared.go) takes OpOverlayMount and OpCustomMounts as
+			// weak dependencies, so they order the step without being able to
+			// cancel it, and only OpLoadConfig is a hard one.
+			Expect(s.MountCustomBindsDagStep(g)).To(Succeed())
+
+			Expect(g.Run(context.Background())).To(Succeed(),
+				"none of these ops is a herd.FatalOp, so the DAG reports overall success even though a mount failed")
+
+			var bindEntry *herd.GraphEntry
+			for _, layer := range g.Analyze() {
+				for i, e := range layer {
+					if e.Name == cnst.OpMountBind {
+						bindEntry = &layer[i]
+					}
+				}
+			}
+			Expect(bindEntry).ToNot(BeNil())
+
+			// A hard dependency on the failed OpOverlayMount would make herd
+			// mark OpMountBind failed and skip its callback (dag.go's
+			// `continue LAYER`), leaving every entry of PERSISTENT_STATE_PATHS
+			// unmounted while the boot reports success.
+			Expect(bindEntry.Executed).To(BeTrue(),
+				"OpMountBind must still run when a weak dependency fails")
+			if bindEntry.Error != nil {
+				Expect(bindEntry.Error.Error()).ToNot(ContainSubstring("deps"),
+					"the failure has to come from the binds themselves, not from a cancelled dependency")
+			}
+
+			// Each bind was attempted on its own: MountBind's prepare step
+			// creates the mountpoint and its backing state directory before
+			// mounting, and the mount itself needs privileges the test does
+			// not have, so the directories are the evidence the loop ran.
+			for _, p := range binds {
+				Expect(filepath.Join(root, p)).To(BeADirectory())
+			}
+		})
+
+		It("still treats OpLoadConfig as a hard dependency", func() {
+			internalUtils.KLog = logger.NewNullLogger()
+
+			root := GinkgoT().TempDir()
+			binds := []string{"/etc/ssh"}
+			s := &state.State{
+				Rootdir:    root,
+				BindMounts: binds,
+			}
+
+			// OpLoadConfig fails outright this time. Unlike OpOverlayMount and
+			// OpCustomMounts, this one must still be able to cancel
+			// OpMountBind: without it there is no bind list to mount at all.
+			// This is the negative control for the fix above: it has to
+			// stay a hard dependency, so the fix must not turn into a
+			// blanket herd.WeakDeps on this op the way the UKI boot DAG
+			// passes it (pkg/dag/dag_uki_boot.go), which makes every
+			// dependency of the op weak, OpLoadConfig included.
+			Expect(g.Add(cnst.OpLoadConfig, herd.WithCallback(func(context.Context) error {
+				return errors.New("no cloud-config found")
+			}))).To(Succeed())
+			Expect(g.Add(cnst.OpOverlayMount, herd.WithDeps(cnst.OpLoadConfig),
+				herd.WithCallback(func(context.Context) error {
+					return nil
+				}))).To(Succeed())
+			Expect(g.Add(cnst.OpCustomMounts, herd.WithDeps(cnst.OpLoadConfig),
+				herd.WithCallback(func(context.Context) error {
+					return nil
+				}))).To(Succeed())
+
+			Expect(s.MountCustomBindsDagStep(g)).To(Succeed())
+
+			// None of these ops carry herd.FatalOp, so g.Run itself still
+			// reports success even here; the DAG-level "success" is not what
+			// this spec is about. What matters is whether OpMountBind's own
+			// callback got to run at all.
+			Expect(g.Run(context.Background())).To(Succeed())
+
+			var bindEntry *herd.GraphEntry
+			for _, layer := range g.Analyze() {
+				for i, e := range layer {
+					if e.Name == cnst.OpMountBind {
+						bindEntry = &layer[i]
+					}
+				}
+			}
+			Expect(bindEntry).ToNot(BeNil())
+			Expect(bindEntry.Executed).To(BeFalse(),
+				"OpMountBind must not run when its one remaining hard dependency, OpLoadConfig, fails")
+			Expect(filepath.Join(root, "etc", "ssh")).ToNot(BeADirectory(),
+				"nothing should have been mounted, since the bind list itself never loaded")
 		})
 	})
 

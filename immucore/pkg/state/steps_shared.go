@@ -460,9 +460,19 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 
 // MountCustomBindsDagStep will add mounting s.BindMounts
 // mount state is defined over a custom mount (/usr/local/.state for instance, needs to be mounted over a device).
+//
+// Only OpLoadConfig is a hard dependency, as it produces the list of binds to
+// mount and there is nothing to do without it. The overlay and the custom
+// mounts are weak dependencies: they still order this step after them, but
+// both of them fold the failures of a whole loop of entries into one op-level
+// error, so a single bad extra volume or overlay path must not take every
+// persistent bind down with it. Binds whose own source is missing fail
+// individually and are collected in the multierror below.
 func (s *State) MountCustomBindsDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpMountBind,
-		append(opts, herd.WithDeps(cnst.OpOverlayMount, cnst.OpCustomMounts, cnst.OpLoadConfig),
+		append(opts,
+			herd.WithDeps(cnst.OpLoadConfig),
+			herd.WithWeakDeps(cnst.OpOverlayMount, cnst.OpCustomMounts),
 			TimedCallback(cnst.OpMountBind,
 				func(_ context.Context) error {
 					var err *multierror.Error
