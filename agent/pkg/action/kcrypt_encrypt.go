@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -11,7 +13,6 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
-	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
 // Package variables so the tests can stub the device probes, the encryptor
@@ -78,28 +79,15 @@ func KcryptEncrypt(cfg *sdkConfig.Config, labels []string, skipConfirmation bool
 		return err
 	}
 
-	// The classification below feeds a luksFormat decision, so it does not
-	// read a stale udev view.
-	if err := kcryptUdevSettleFn(cfg); err != nil {
-		return fmt.Errorf("waiting for udev to settle: %w", err)
-	}
-	disks, err := kcryptScanDisksFn()
+	pending, err := stillPlaintextLabels(cfg, labels)
 	if err != nil {
 		return err
 	}
-
-	var pending []string
 	for _, label := range labels {
-		encrypted, err := lookup.LabelIsEncrypted(disks, label, kcryptBlkidLookupFn, kcryptFsProbeFn)
-		if err != nil {
-			return err
-		}
-		if encrypted {
+		if !slices.Contains(pending, label) {
 			cfg.Logger.Infof("partition %s is already a LUKS container; skipping", label)
 			fmt.Printf("Partition %s is already encrypted; skipping.\n", label)
-			continue
 		}
-		pending = append(pending, label)
 	}
 	if len(pending) == 0 {
 		fmt.Println("Nothing to encrypt.")
@@ -137,26 +125,47 @@ func KcryptEncrypt(cfg *sdkConfig.Config, labels []string, skipConfirmation bool
 	// Trust, but verify: a fresh scan has to agree that every partition is a
 	// LUKS container now, or the operator gets an error instead of a false
 	// success over a partition in an unknown state.
-	if err := kcryptUdevSettleFn(cfg); err != nil {
-		return fmt.Errorf("waiting for udev to settle after encryption: %w", err)
-	}
-	disks, err = kcryptScanDisksFn()
+	stillPending, err := stillPlaintextLabels(cfg, pending)
 	if err != nil {
 		return fmt.Errorf("verifying the encryption result: %w", err)
 	}
-	for _, label := range pending {
-		encrypted, err := lookup.LabelIsEncrypted(disks, label, kcryptBlkidLookupFn, kcryptFsProbeFn)
-		if err != nil {
-			return fmt.Errorf("verifying the encryption result for %s: %w", label, err)
-		}
-		if !encrypted {
-			return fmt.Errorf("partition %s does not verify as a LUKS container after encryption; inspect it before retrying", label)
-		}
+	if len(stillPending) > 0 {
+		return fmt.Errorf("partition %s does not verify as a LUKS container after encryption; inspect it before retrying", strings.Join(stillPending, ", "))
 	}
 
 	fmt.Printf("Encrypted: %s\n", strings.Join(pending, ", "))
 	fmt.Println("The partitions are locked. They unlock on the next boot, or run 'kairos-agent kcrypt unlock-all'.")
 	return nil
+}
+
+// stillPlaintextLabels settles udev, scans the block devices once and
+// returns the subset of labels that are not LUKS containers yet, in input
+// order. Every destructive decision in this package (the encrypt
+// subcommand's classification and its post-encrypt verification, the reset
+// path's re-encryption) goes through this one sequence, so none of them
+// reads a stale udev view and none of them guesses: a label that cannot be
+// found, or whose filesystem cannot be determined, is an error rather than
+// "probably plaintext".
+func stillPlaintextLabels(cfg *sdkConfig.Config, labels []string) ([]string, error) {
+	if err := kcryptUdevSettleFn(cfg); err != nil {
+		return nil, fmt.Errorf("waiting for udev to settle: %w", err)
+	}
+	disks, err := kcryptScanDisksFn()
+	if err != nil {
+		return nil, err
+	}
+
+	var pending []string
+	for _, label := range labels {
+		encrypted, err := lookup.LabelIsEncrypted(disks, label, kcryptBlkidLookupFn, kcryptFsProbeFn)
+		if err != nil {
+			return nil, err
+		}
+		if !encrypted {
+			pending = append(pending, label)
+		}
+	}
+	return pending, nil
 }
 
 // normalizeLabels trims the given labels and drops empties and duplicates,
@@ -200,25 +209,33 @@ func oemLabelFromCmdline() string {
 }
 
 // mountpointsForLabel returns the mountpoints of the device carrying the
-// given filesystem label, empty when it is not mounted. The device is
-// resolved through blkid rather than /dev/disk/by-label to stay off the
-// udev last-writer-wins ambiguity (kairos-io/kairos#4403).
+// given filesystem label, empty when it is not mounted. The device comes
+// from the sdk lookup rather than /dev/disk/by-label, staying off the udev
+// last-writer-wins ambiguity (kairos-io/kairos#4403), and findmnt is exec'd
+// directly rather than through a shell: labels arrive from the command
+// line, often via scripts, and the sdk's blkid helper documents why
+// interpolating them into `sh -c` is not acceptable.
 func mountpointsForLabel(label string) ([]string, error) {
-	device, err := utils.SH(fmt.Sprintf("blkid -L %s", label))
+	part, err := lookup.FindByLabel(label)
 	if err != nil {
 		// The caller already classified the label as an existing plaintext
-		// partition; a blkid miss here means it has no by-label entry (pre
+		// partition; a miss here means it has no by-label view (pre
 		// kairos-sdk#822), which also means nothing mounted it by label.
 		return nil, nil
 	}
-	device = strings.TrimSpace(device)
+	device := part.Path
 	if device == "" {
-		return nil, nil
+		device = filepath.Join("/dev", part.Name)
 	}
 
-	out, _ := utils.SH(fmt.Sprintf("findmnt -n -o TARGET -S %s", device))
+	// findmnt exits nonzero when the device is simply not mounted, which is
+	// the common case and not an error.
+	out, err := exec.Command("findmnt", "-n", "-o", "TARGET", "-S", device).Output()
+	if err != nil {
+		return nil, nil
+	}
 	var mountpoints []string
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			mountpoints = append(mountpoints, line)
 		}

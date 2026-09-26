@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"slices"
 
+	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
-	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -54,21 +54,15 @@ func (r *ResetAction) encryptFormattedPersistent(persistent *partitions.Partitio
 		return nil
 	}
 
-	// The classification feeds a luksFormat decision, so it does not read a
+	// The classification feeds a luksFormat decision, so it goes through the
+	// same settle-scan-classify sequence as the encrypt subcommand: never a
 	// stale udev view, and an unanswerable question fails the reset instead
 	// of being guessed at.
-	if err := kcryptUdevSettleFn(r.cfg); err != nil {
-		return fmt.Errorf("reset encryption: waiting for udev to settle: %w", err)
-	}
-	disks, err := kcryptScanDisksFn()
-	if err != nil {
-		return fmt.Errorf("reset encryption: scanning block devices: %w", err)
-	}
-	encrypted, err := lookup.LabelIsEncrypted(disks, label, kcryptBlkidLookupFn, kcryptFsProbeFn)
+	pending, err := stillPlaintextLabels(r.cfg, []string{label})
 	if err != nil {
 		return fmt.Errorf("reset encryption: classifying %s after the format: %w", label, err)
 	}
-	if encrypted {
+	if len(pending) == 0 {
 		r.cfg.Logger.Infof("partition %s is still a LUKS container after the format; nothing to re-encrypt", label)
 		return nil
 	}
@@ -101,8 +95,9 @@ func (r *ResetAction) encryptFormattedPersistent(persistent *partitions.Partitio
 // resetWantsEncrypted reports whether the configuration says the partition
 // carrying label must be encrypted: it is listed in
 // install.encrypted_partitions, or the node is UKI, where install encrypts
-// OEM and persistent even with an empty list (mirrors
-// determinePartitionsToEncrypt in the install Encrypt hook).
+// the hook.DefaultUKIEncryptionTargets even with an empty list. The UKI
+// default comes from the install hook itself, so the two paths cannot
+// drift.
 func resetWantsEncrypted(cfg *sdkConfig.Config, label string) bool {
 	// Install is a pointer on Config and a reset scan is not obliged to
 	// fill it in; an absent block means nothing is configured, not a crash.
@@ -110,7 +105,7 @@ func resetWantsEncrypted(cfg *sdkConfig.Config, label string) bool {
 		return slices.Contains(cfg.Install.Encrypt, label)
 	}
 	if resetIsUkiFn() {
-		return label == sdkConstants.OEMLabel || label == sdkConstants.PersistentLabel
+		return slices.Contains(hook.DefaultUKIEncryptionTargets(), label)
 	}
 	return false
 }
