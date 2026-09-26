@@ -21,6 +21,8 @@ type RootSchema struct {
 	GrubOptionsSchema         `json:"grub_options,omitempty"`
 	Install                   InstallSchema            `json:"install,omitempty"`
 	Kcrypt                    KcryptSchema             `json:"kcrypt,omitempty"`
+	Upgrade                   UpgradeSchema            `json:"upgrade,omitempty"`
+	Reset                     ResetSchema              `json:"reset,omitempty"`
 	Options                   []interface{}            `json:"options,omitempty" description:"Various options."`
 	Users                     []UserSchema             `json:"users,omitempty" minItems:"1" required:"true"`
 	P2P                       P2PSchema                `json:"p2p,omitempty"`
