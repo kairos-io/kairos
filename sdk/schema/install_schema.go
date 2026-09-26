@@ -21,16 +21,15 @@ type InstallSchema struct {
 	SelinuxOptions      `json:"selinux,omitempty"`
 	Image               string `json:"image,omitempty" description:"Use a different container image for the installation"`
 	PowerManagement
-	SkipEncryptCopyPlugins bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
-	Partitions             ElementalPartitions `json:"partitions,omitempty"`
-	GrubDefEntry           string              `json:"grub-entry-name,omitempty"`
-	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty"`
-	Force                  bool                `json:"force,omitempty"`
-	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty"`
-	SSHHardening           bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
-	Active                 Image               `json:"system,omitempty"`
-	Recovery               Image               `json:"recovery-system,omitempty"`
-	Passive                Image               `json:"passive,omitempty"`
+	Partitions      ElementalPartitions `json:"partitions,omitempty"`
+	GrubDefEntry    string              `json:"grub-entry-name,omitempty"`
+	ExtraPartitions []*Partition        `json:"extra-partitions,omitempty"`
+	Force           bool                `json:"force,omitempty"`
+	ExtraDirsRootfs []string            `json:"extra-dirs-rootfs,omitempty"`
+	SSHHardening    bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
+	Active          Image               `json:"system,omitempty"`
+	Recovery        Image               `json:"recovery-system,omitempty"`
+	Passive         Image               `json:"passive,omitempty"`
 }
 
 type Image struct {
