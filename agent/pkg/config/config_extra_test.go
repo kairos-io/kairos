@@ -328,6 +328,46 @@ var _ = Describe("Specs coverage", Label("types", "config"), func() {
 		})
 	})
 
+	Describe("the partition keys the schema declares", Label("install"), func() {
+		// The install schema is what `kairos validate` and the published
+		// cloud-config.json describe, but the installer reads its spec
+		// through viper and mapstructure. These drive the real reader so a
+		// key the schema advertises cannot drift from the one that is read.
+		BeforeEach(func() {
+			c.Install.Source = "oci:test:latest"
+			c.Collector = collector.Config{Values: collector.ConfigValues{
+				"install": collector.ConfigValues{
+					"partitions": collector.ConfigValues{
+						"efi": collector.ConfigValues{"size": 256},
+					},
+					"extra-partitions": []interface{}{
+						collector.ConfigValues{
+							"name":  "data",
+							"size":  8192,
+							"fs":    "ext4",
+							"label": "DATA",
+						},
+					},
+				},
+			}}
+		})
+
+		It("reads install.partitions.efi.size", func() {
+			spec, err := config.NewInstallSpec(c)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(spec.Partitions.EFI).ToNot(BeNil())
+			Expect(spec.Partitions.EFI.Size).To(Equal(uint(256)))
+		})
+
+		It("reads the label of an extra partition as its filesystem label", func() {
+			spec, err := config.NewInstallSpec(c)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(spec.ExtraPartitions).To(HaveLen(1))
+			Expect(spec.ExtraPartitions[0].Name).To(Equal("data"))
+			Expect(spec.ExtraPartitions[0].FilesystemLabel).To(Equal("DATA"))
+		})
+	})
+
 	Describe("ReadSpecFromCloudConfig sanitize errors", Label("install"), func() {
 		It("fails to sanitize an install spec without source", func() {
 			_, err := config.ReadSpecFromCloudConfig(c, "install")

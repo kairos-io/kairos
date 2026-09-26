@@ -24,7 +24,7 @@ type InstallSchema struct {
 	SkipEncryptCopyPlugins bool                `json:"skip_copy_kcrypt_plugin,omitempty"`
 	Partitions             ElementalPartitions `json:"partitions,omitempty"`
 	GrubDefEntry           string              `json:"grub-entry-name,omitempty"`
-	ExtraPartitions        []*Partition        `json:"extra-partitions,omitempty"`
+	ExtraPartitions        []*ExtraPartition   `json:"extra-partitions,omitempty" description:"Extra partitions to create on the install device, after the Kairos ones"`
 	Force                  bool                `json:"force,omitempty"`
 	ExtraDirsRootfs        []string            `json:"extra-dirs-rootfs,omitempty"`
 	SSHHardening           bool                `json:"ssh_hardening,omitempty" description:"Enforce the DevSec ssh-baseline auth-mode controls on the installed system (PasswordAuthentication no, AuthenticationMethods publickey, ChallengeResponseAuthentication no). Requires at least one user with ssh_authorized_keys; a password on the same user is unusable and flagged as a warning."`
@@ -44,11 +44,31 @@ type Partition struct {
 	FS   string `json:"fs,omitempty"`
 }
 
+// ExtraPartition is one entry of install.extra-partitions. It is a separate
+// type from Partition because the extra partitions are the only ones whose
+// filesystem label comes from the config: SetDefaultLabels overwrites the
+// label of oem, state, recovery and persistent with the constant an installed
+// system looks itself up by.
+type ExtraPartition struct {
+	Name  string `json:"name" required:"true" description:"GPT partition name. The installer looks the device up at /dev/disk/by-partlabel/<name> to format it"`
+	Size  uint   `json:"size,omitempty" description:"Size in MiB. 0, which is also the default, means take whatever is left on the disk, so at most one extra partition can omit it"`
+	FS    string `json:"fs,omitempty" description:"Filesystem to create, e.g. ext4. Use \"-\", \"none\" or \"noformat\" to partition the disk but leave the partition unformatted"`
+	Label string `json:"label,omitempty" description:"Filesystem label to give the partition. Also what the partition UUID is derived from, so two extra partitions that share a label share a PARTUUID"`
+}
+
+// EFIPartition is install.partitions.efi. Only the size is read: the name,
+// filesystem and label of the ESP are fixed by SetFirmwarePartitions, because
+// the bootloader and the installed system find it by them.
+type EFIPartition struct {
+	Size uint `json:"size,omitempty" description:"Size of the EFI system partition in MiB. Defaults to 64. Platforms that stage a firmware capsule on the ESP, such as Jetson Thor, need a larger one"`
+}
+
 type ElementalPartitions struct {
-	OEM        *Partition `json:"oem,omitempty"`
-	Recovery   *Partition `json:"recovery,omitempty"`
-	State      *Partition `json:"state,omitempty"`
-	Persistent *Partition `json:"persistent,omitempty"`
+	EFI        *EFIPartition `json:"efi,omitempty"`
+	OEM        *Partition    `json:"oem,omitempty"`
+	Recovery   *Partition    `json:"recovery,omitempty"`
+	State      *Partition    `json:"state,omitempty"`
+	Persistent *Partition    `json:"persistent,omitempty"`
 }
 
 // BundleSchema represents the bundle block which can be used in different places of the Kairos configuration. It is used to reference a bundle and its confguration.
