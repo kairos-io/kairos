@@ -30,6 +30,8 @@ stages:
           /etc/k0s
           /etc/kubernetes
           /etc/modprobe.d
+          /etc/pki/ca-trust/source/anchors
+          /etc/pki/trust/anchors
           /etc/pwx
           /etc/rancher
           /etc/runlevels
