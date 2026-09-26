@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"slices"
 
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
@@ -136,7 +137,11 @@ var _ = Describe("Uki reset action", func() {
 	})
 
 	It("fails when the EFI partition can not be remounted RW", func() {
-		// strict mode also surfaces the pre-reset stage errors
+		// strict mode also surfaces the pre-reset stage errors, so the test fs
+		// needs the cmdline every stage reads, otherwise the run stops at the
+		// before-reset hook rather than at the remount
+		Expect(fsutils.MkdirAll(fs, "/proc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/proc/cmdline", []byte(""), os.ModePerm)).To(Succeed())
 		config.Strict = true
 		mounter.ErrorOnMount = true
 		err := reset.Run()
@@ -200,6 +205,79 @@ var _ = Describe("Uki reset action", func() {
 		err := reset.Run()
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("copying recovery to active"))
+	})
+
+	// setupBootableEfi mirrors the EFI mountpoint in a real temporary
+	// directory and in the test fs, which is what a reset needs to run all the
+	// way through: conf files are parsed with an os based reader while
+	// artifacts are managed through the config fs.
+	setupBootableEfi := func() {
+		// uki mode so the boot entry selection goes through systemd-boot
+		Expect(fsutils.MkdirAll(fs, "/proc", constants.DirPerm)).To(Succeed())
+		Expect(fs.WriteFile("/proc/cmdline", []byte("rd.immucore.uki"), os.ModePerm)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, "/sys/firmware/efi/efivars", constants.DirPerm)).To(Succeed())
+
+		efiDir := GinkgoT().TempDir()
+		Expect(os.MkdirAll(efiDir+"/loader/entries", 0755)).To(Succeed())
+		Expect(fsutils.MkdirAll(fs, efiDir+"/loader/entries", constants.DirPerm)).To(Succeed())
+		writeBoth := func(path, content string) {
+			Expect(os.WriteFile(path, []byte(content), 0644)).To(Succeed())
+			Expect(fs.WriteFile(path, []byte(content), os.ModePerm)).To(Succeed())
+		}
+		writeBoth(efiDir+"/loader/loader.conf", "timeout 5\n")
+		writeBoth(efiDir+"/loader/entries/active+2-1.conf", "title kairos\nefi /EFI/kairos/active.efi\n")
+		writeBoth(efiDir+"/loader/entries/passive+3.conf", "title kairos (fallback)\nefi /EFI/kairos/passive.efi\n")
+		writeBoth(efiDir+"/loader/entries/recovery+1-2.conf", "title kairos recovery\nefi /EFI/kairos/recovery.efi\n")
+		writeBoth(efiDir+"/loader/entries/statereset+2-1.conf", "title kairos state reset (auto)\nefi /EFI/kairos/statereset.efi\n")
+
+		spec.Partitions.EFI.MountPoint = efiDir
+		// the boot entry selection looks the EFI partition up via ghw
+		ghwTest.Clean()
+		ghwTest = ghwMock.GhwMock{}
+		ghwTest.AddDisk(sdkPartitions.Disk{
+			Name: "device",
+			Partitions: []*sdkPartitions.Partition{
+				{
+					Name:            "device1",
+					FilesystemLabel: "COS_GRUB",
+					FS:              "vfat",
+					MountPoint:      efiDir,
+				},
+			},
+		})
+		ghwTest.CreateDevices()
+
+		// recovery artifact to rotate to active in the default UKI dir
+		Expect(fs.WriteFile("/efi/EFI/kairos/recovery.efi", []byte("recovery"), os.ModePerm)).To(Succeed())
+	}
+
+	It("runs before-reset, and runs it before after-reset", func() {
+		// docs/architecture/cloud-init.md does not mark before-reset as GRUB
+		// only, so a Trusted Boot reset has to run it too, in the same place
+		// the GRUB path does: once the partitions are formatted and mounted
+		// and before the image is deployed. See kairos-io/kairos#4806.
+		setupBootableEfi()
+		spec.FormatPersistent = true
+		spec.FormatOEM = true
+
+		Expect(reset.Run()).To(Succeed())
+
+		Expect(cloudInit.ExecStages).To(ContainElement(constants.BeforeResetHook))
+		Expect(cloudInit.ExecStages).To(ContainElement(constants.AfterResetHook))
+		Expect(slices.Index(cloudInit.ExecStages, constants.BeforeResetHook)).
+			To(BeNumerically("<", slices.Index(cloudInit.ExecStages, constants.AfterResetHook)),
+				"before-reset has to run before after-reset")
+	})
+
+	It("does not run before-reset when a partition could not be formatted", func() {
+		// the stage is documented to run once the partitions are ready, so a
+		// format that failed must not reach it
+		spec.FormatOEM = true
+		runner.ReturnError = errors.New("mkfs error")
+
+		Expect(reset.Run()).ToNot(Succeed())
+
+		Expect(cloudInit.ExecStages).ToNot(ContainElement(constants.BeforeResetHook))
 	})
 
 	It("resets successfully selecting the active boot entry", func() {
