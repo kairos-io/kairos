@@ -150,6 +150,18 @@ func BuildEvent(e *pluggable.Event) pluggable.EventResponse {
 			return returnData
 		}
 
+		// Writing the units ourselves also skips the accounts `k0s install
+		// controller` creates. Without them the controller components run as
+		// root, so create them here.
+		l.Logger.Info().Msg("Creating k0s system users")
+		err = services.EnsureK0sControllerUsers(l)
+		if err != nil {
+			l.Logger.Error().Err(err).Msg("Failed to create k0s system users")
+			returnData.Error = fmt.Sprintf("Failed to create k0s system users: %s", err)
+			returnData.State = bus.EventResponseError
+			return returnData
+		}
+
 	}
 	returnData.Data = string(out)
 	returnData.State = bus.EventResponseSuccess
