@@ -170,6 +170,154 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 		})
 
+		Describe("the sysctl hardening drop-in", func() {
+			var sysctl schema.File
+
+			BeforeEach(func() {
+				sysctl = fileByPath(result, "/etc/sysctl.d/99-kairos-cis.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(sysctl.Path).To(Equal(bundled.CISSysctlPath))
+				Expect(sysctl.Permissions).To(Equal(uint32(0o644)))
+				Expect(sysctl.Owner).To(BeZero())
+				Expect(sysctl.Group).To(BeZero())
+			})
+
+			It("sets every key the issue enumerates", func() {
+				for _, kv := range []string{
+					"kernel.randomize_va_space = 2",
+					"net.ipv4.conf.all.rp_filter = 2",
+					"net.ipv4.conf.default.rp_filter = 2",
+					"net.ipv4.tcp_syncookies = 1",
+					"net.ipv4.conf.all.accept_source_route = 0",
+					"net.ipv4.conf.all.accept_redirects = 0",
+					"net.ipv4.conf.all.send_redirects = 0",
+					"net.ipv6.conf.all.accept_ra = 0",
+					"net.ipv6.conf.all.accept_redirects = 0",
+				} {
+					Expect(sysctl.Content).To(ContainSubstring(kv))
+				}
+			})
+
+			It("orders after the base distro drop-ins with a 99- prefix", func() {
+				Expect(sysctl.Path).To(HavePrefix("/etc/sysctl.d/99-"))
+			})
+		})
+
+		Describe("the audit rules drop-in", func() {
+			var rules schema.File
+
+			BeforeEach(func() {
+				rules = fileByPath(result, "/etc/audit/rules.d/50-kairos.rules")
+			})
+
+			It("is a 0640 root-owned file so CIS 4.1.4.5 stays green", func() {
+				Expect(rules.Path).To(Equal(bundled.CISAuditRulesPath))
+				Expect(rules.Permissions).To(Equal(uint32(0o640)))
+				Expect(rules.Owner).To(BeZero())
+				Expect(rules.Group).To(BeZero())
+			})
+
+			It("watches every account database the identity control names", func() {
+				for _, path := range []string{
+					"/etc/group", "/etc/passwd", "/etc/gshadow", "/etc/shadow",
+				} {
+					Expect(rules.Content).To(MatchRegexp(`-w ` + regexp.QuoteMeta(path) + ` -p wa -k identity`))
+				}
+			})
+
+			It("audits time, network-environment, MAC, login, session and DAC events", func() {
+				for _, key := range []string{
+					"time-change", "system-locale", "MAC-policy",
+					"logins", "session", "perm_mod", "access",
+					"mounts", "delete", "scope", "modules",
+				} {
+					Expect(rules.Content).To(
+						SatisfyAny(
+							ContainSubstring("-k "+key),
+							ContainSubstring("key="+key),
+						),
+						"expected key "+key+" in rules",
+					)
+				}
+			})
+
+			It("pairs each syscall rule with a b32 variant so 32-bit compat calls are caught", func() {
+				// The 32-bit ABI on amd64 (CONFIG_IA32_EMULATION) and
+				// aarch64 (CONFIG_COMPAT) reaches the same syscall
+				// numbers under arch=b32, so a b64-only rule leaves
+				// that path unaudited. The baseline pairs every
+				// -F arch=b64 -S ... rule with the same syscall list
+				// under -F arch=b32.
+				b64 := regexp.MustCompile(`(?m)^-a always,exit -F arch=b64 (.*)$`)
+				for _, m := range b64.FindAllStringSubmatch(rules.Content, -1) {
+					b32 := "-a always,exit -F arch=b32 " + m[1]
+					Expect(rules.Content).To(ContainSubstring(b32),
+						"missing b32 pair for: "+m[0])
+				}
+			})
+
+			It("locks the config with -e 2 as the last non-blank line", func() {
+				lines := strings.Split(strings.TrimRight(rules.Content, "\n"), "\n")
+				var last string
+				for i := len(lines) - 1; i >= 0; i-- {
+					if strings.TrimSpace(lines[i]) != "" {
+						last = strings.TrimSpace(lines[i])
+						break
+					}
+				}
+				Expect(last).To(Equal("-e 2"))
+			})
+		})
+
+		Describe("the auditd enable stage", func() {
+			It("enables auditd only where the systemd unit is present", func() {
+				var found bool
+				for _, st := range result {
+					for _, u := range st.Systemctl.Enable {
+						if u == "auditd" {
+							found = true
+							Expect(st.OnlyIfServiceManager).To(Equal("systemd"))
+							Expect(st.If).To(ContainSubstring("auditd.service"))
+						}
+					}
+				}
+				Expect(found).To(BeTrue(), "expected an Enable entry for auditd")
+			})
+		})
+
+		Describe("the Alpine openrc auditd drop-in", func() {
+			var confd schema.File
+			var stage schema.Stage
+
+			BeforeEach(func() {
+				confd = fileByPath(result, "/etc/conf.d/auditd")
+				for _, st := range result {
+					for _, f := range st.Files {
+						if f.Path == bundled.CISAuditdConfDPath {
+							stage = st
+						}
+					}
+				}
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(confd.Path).To(Equal(bundled.CISAuditdConfDPath))
+				Expect(confd.Permissions).To(Equal(uint32(0o644)))
+				Expect(confd.Owner).To(BeZero())
+				Expect(confd.Group).To(BeZero())
+			})
+
+			It("gates on Alpine only", func() {
+				Expect(stage.OnlyIfOs).To(Equal(values.AlpineRegex))
+			})
+
+			It("points RULEFILE_STARTUP at the CIS rules drop-in", func() {
+				Expect(confd.Content).To(ContainSubstring("RULEFILE_STARTUP=" + bundled.CISAuditRulesPath))
+			})
+		})
+
 		Describe("the account database permissions", func() {
 			It("tightens every database and backup the benchmark covers", func() {
 				for _, path := range []string{

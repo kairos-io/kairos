@@ -465,6 +465,7 @@ var BasePackages = PackageMap{
 	DebianFamily: {
 		ArchCommon: {
 			Common: {
+				"auditd",
 				"ca-certificates", // Basic certificates for secure communication
 				"curl",            // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"binutils",
@@ -520,6 +521,7 @@ var BasePackages = PackageMap{
 	SUSEFamily: {
 		ArchCommon: {
 			Common: {
+				"audit",
 				"curl", // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"bash-completion",
 				"conntrack-tools",
@@ -586,7 +588,9 @@ var BasePackages = PackageMap{
 	AlpineFamily: {
 		ArchCommon: {
 			Common: {
-				"curl", // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
+				"audit",
+				"audit-openrc", // /etc/init.d/auditd lives here, not in `audit`
+				"curl",         // Basic tool. Also needed for netbooting as it is used to download the netboot artifacts. On rockylinux conflicts with curl-minimal
 				"bash",
 				"bash-completion",
 				"blkid",

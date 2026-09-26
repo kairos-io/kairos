@@ -621,6 +621,8 @@ func GetServicesStage(_ values.System, l logger.KairosLogger) []schema.Stage {
 				"rc-update add cgroups sysinit",
 				"rc-update add ntpd boot",
 				"rc-update add crond",
+				"rc-update add auditd boot",
+				"rc-update add sysctl boot",
 			},
 		},
 		{

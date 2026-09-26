@@ -191,7 +191,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
+          - {name: 'amd64-core', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: '', fips: false}
           - {name: 'amd64-core-fips-uki', arch: 'amd64', base_image: 'ghcr.io/kairos-io/hadron-fips-trusted:v0.5.3', model: 'generic', iso: true, trusted_boot: true, kubernetes_distro: '', fips: true}
     name: build-iso / ${{ matrix.name }}
     uses: ./.github/workflows/_build-iso.yaml
@@ -214,7 +214,7 @@ jobs:
       registry_domain: 'quay.io'
       registry_namespace: 'kairos'
       # Drop the $FLAVOR- prefix so the pushed tag matches v4.2.0's
-      # user-facing shape: quay.io/kairos/hadron:v0.5.1-core-amd64-generic-v4.3.0.
+      # user-facing shape: quay.io/kairos/hadron:v0.5.3-core-amd64-generic-v4.3.0.
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
       release: true
@@ -226,9 +226,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
-          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.1', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-core', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'generic', iso: true, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi3', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi3', iso: false, trusted_boot: false, kubernetes_distro: ''}
+          - {name: 'arm64-rpi4', arch: 'arm64', base_image: 'ghcr.io/kairos-io/hadron:v0.5.3', model: 'rpi4', iso: false, trusted_boot: false, kubernetes_distro: ''}
           # Nvidia Jetson cells: ship as container images (iso: false)
           # to the same target v4.2.0 used -- factory-action derives the
           # repo segment from the base_image flavor (ubuntu:22.04 ->
@@ -307,7 +307,7 @@ jobs:
       name: 'amd64-standard-k3s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
       arch: 'amd64'
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       model: 'generic'
       iso: true
       trusted_boot: false
@@ -341,7 +341,7 @@ jobs:
       name: 'arm64-standard-${{ matrix.model }}-k3s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
       arch: 'arm64'
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       model: ${{ matrix.model }}
       # v4.2.0 released the ISO for generic and only the container image
       # for rpi4. rpi4 also gets raw:true so the -img OCI wrapper ships
@@ -375,7 +375,7 @@ jobs:
       name: 'amd64-standard-k0s-${{ matrix.kubernetes_version }}'
       kairos_init_image: quay.io/kairos/kairos-init:${{ github.ref_name }}
       arch: 'amd64'
-      base_image: 'ghcr.io/kairos-io/hadron:v0.5.1'
+      base_image: 'ghcr.io/kairos-io/hadron:v0.5.3'
       model: 'generic'
       iso: true
       trusted_boot: false
