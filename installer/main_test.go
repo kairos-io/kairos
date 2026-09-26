@@ -1,6 +1,8 @@
 package main
 
 import (
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +19,16 @@ func TestWebUILoggerWritesToItsFile(t *testing.T) {
 	dir := t.TempDir()
 	webUILogPath = filepath.Join(dir, "logs", "webui.log")
 
-	webUILogger().Info("hello from echo")
+	logger, logFile := webUILogger()
+	if logFile == nil {
+		t.Fatal("expected file-backed logger")
+	}
+	t.Cleanup(func() {
+		if err := logFile.Close(); err != nil {
+			t.Errorf("closing web UI log: %v", err)
+		}
+	})
+	logger.Info("hello from echo")
 
 	content, err := os.ReadFile(webUILogPath)
 	if err != nil {
@@ -40,7 +51,11 @@ func TestWebUILoggerDiscardsWhenItsFileIsUnwritable(t *testing.T) {
 
 	// The only assertion available is that this does not panic and does not
 	// write the file; anything reaching stdout would corrupt the TUI.
-	webUILogger().Info("hello from echo")
+	logger, logFile := webUILogger()
+	if logFile != nil {
+		t.Fatal("expected discard logger without an open file")
+	}
+	logger.Info("hello from echo")
 
 	if _, err := os.Stat(webUILogPath); err == nil {
 		t.Errorf("expected no log file at %s", webUILogPath)
@@ -56,7 +71,8 @@ func TestWebUICarriesTheInstallSourceInBothModes(t *testing.T) {
 	if got := noTUIWebUIOptions("oci://foo:bar").Source; got != "oci://foo:bar" {
 		t.Errorf("--no-tui dropped the source: %q", got)
 	}
-	if got := tuiWebUIOptions("oci://foo:bar", nil).Source; got != "oci://foo:bar" {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	if got := tuiWebUIOptions("oci://foo:bar", nil, logger).Source; got != "oci://foo:bar" {
 		t.Errorf("the TUI's web UI dropped the source: %q", got)
 	}
 }
@@ -69,7 +85,8 @@ func TestWebUILoggerIsSetOnlyForTheTUIMode(t *testing.T) {
 	if o := noTUIWebUIOptions(""); o.Logger != nil {
 		t.Error("--no-tui should leave echo on stdout, so it reaches the journal")
 	}
-	if o := tuiWebUIOptions("", nil); o.Logger == nil {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	if o := tuiWebUIOptions("", nil, logger); o.Logger == nil {
 		t.Error("the TUI mode must keep echo off stdout")
 	}
 }
@@ -81,7 +98,8 @@ func TestTUIWebUIOptionsCarryTheActivityHandle(t *testing.T) {
 	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
 	activity := &webui.Activity{}
-	if o := tuiWebUIOptions("", activity); o.Activity != activity {
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	if o := tuiWebUIOptions("", activity, logger); o.Activity != activity {
 		t.Error("the TUI's web UI cannot report a browser-driven install back to main")
 	}
 	// --no-tui has no terminal UI to quit, so there is nothing to wait for.

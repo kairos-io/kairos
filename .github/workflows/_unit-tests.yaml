@@ -59,3 +59,9 @@ jobs:
           # cap to 5000/hr.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: make test
+
+      - name: gohawk
+        continue-on-error: true
+        env:
+          CGO_ENABLED: 0
+        run: go run github.com/kojah/gohawk@v0.3.6 ./...
