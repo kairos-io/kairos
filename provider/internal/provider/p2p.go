@@ -115,8 +115,26 @@ func applyAPIListenerEnv(opts, userEnv map[string]string) {
 	}
 }
 
-func SaveCloudConfig(name string, c []byte) error {
-	return os.WriteFile(filepath.Join("oem", fmt.Sprintf("%s.yaml", name)), c, 0700)
+// oemCloudConfigDir is where a cloud-config has to land for the next boot to
+// apply it again. It is relative to rootDir, like every other path this file
+// writes.
+const oemCloudConfigDir = "oem"
+
+// SaveCloudConfig persists a cloud-config under rootDir's OEM directory.
+//
+// The path hangs off rootDir for the same reason writeEdgeVPNEnv's does: the
+// caller already knows which root it is writing into, and a relative path here
+// would instead resolve against the process's working directory. That is not
+// the same place for both callers. Bootstrap runs from /, but rotate-token is
+// typed by an operator from wherever they happen to be, and it rewrites the
+// token in the config before this runs, so a failure here leaves the config
+// and the edgevpn unit holding different tokens.
+//
+// The directory is not created if it is missing. On a node /oem is a mount
+// point, and a file written into it while it is unmounted disappears behind
+// the mount as soon as the partition is there.
+func SaveCloudConfig(rootDir, name string, c []byte) error {
+	return os.WriteFile(filepath.Join(rootDir, oemCloudConfigDir, fmt.Sprintf("%s.yaml", name)), c, 0700)
 }
 
 func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
@@ -201,7 +219,7 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 			}
 		}
 
-		if err := SaveCloudConfig("vpn_dns", []byte(assets.LocalDNS)); err != nil {
+		if err := SaveCloudConfig(rootDir, "vpn_dns", []byte(assets.LocalDNS)); err != nil {
 			return fmt.Errorf("could not create dns config: %w", err)
 		}
 	}

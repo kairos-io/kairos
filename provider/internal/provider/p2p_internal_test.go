@@ -124,3 +124,24 @@ var _ = Describe("Writing the daemon's env file", func() {
 		Expect(ResolveAPIAddress(filepath.Join(rootDir, EdgeVPNEnvFile))).To(Equal("http://127.0.0.1:8080"))
 	})
 })
+
+var _ = Describe("Persisting a cloud-config for the next boot", func() {
+	var rootDir string
+
+	BeforeEach(func() {
+		rootDir = GinkgoT().TempDir()
+		Expect(os.Mkdir(filepath.Join(rootDir, oemCloudConfigDir), 0755)).To(Succeed())
+	})
+
+	// The path hangs off rootDir, not off the process's working directory.
+	// rotate-token is typed by an operator from any directory, and the test
+	// binary's own directory has no oem/ in it, so a relative join fails here
+	// exactly as it fails on a node.
+	It("writes the config under rootDir", func() {
+		Expect(SaveCloudConfig(rootDir, "vpn_dns", []byte("stages: {}"))).To(Succeed())
+
+		content, err := os.ReadFile(filepath.Join(rootDir, oemCloudConfigDir, "vpn_dns.yaml"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(content)).To(Equal("stages: {}"))
+	})
+})
