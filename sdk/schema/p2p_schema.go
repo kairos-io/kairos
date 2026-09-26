@@ -20,7 +20,8 @@ type KubeVIPSchema struct {
 	_           struct{} `title:"Kairos Schema: KubeVIP block" description:"Sets the Elastic IP used in KubeVIP. Only valid with p2p"`
 	EIP         string   `json:"eip,omitempty" example:"192.168.1.110"`
 	ManifestURL string   `json:"manifest_url,omitempty" description:"Specify a manifest URL for KubeVIP." default:""`
-	Enable      bool     `json:"enable,omitempty" description:"Enables KubeVIP"`
+	Enabled     bool     `json:"enabled,omitempty" description:"Enables KubeVIP"`
+	Enable      bool     `json:"enable,omitempty" description:"Deprecated spelling of kubevip.enabled. Still read, and refused when kubevip.enabled is set too"`
 	Interface   bool     `json:"interface,omitempty" description:"Specifies a KubeVIP Interface" example:"ens18"`
 }
 
@@ -32,6 +33,21 @@ type P2PNetworkExtended struct {
 type P2PAutoDisabled struct {
 	NetworkToken string `json:"network_token,omitempty" const:"" required:"true"`
 	Auto         struct {
+		Enabled bool `json:"enabled" const:"false" required:"true"`
+		Ha      struct {
+			Enabled bool `json:"enabled" const:"false"`
+		} `json:"ha"`
+	} `json:"auto"`
+}
+
+// P2PAutoDisabledDeprecated is P2PAutoDisabled for the deprecated `enable`
+// spelling. It is a branch of its own rather than a second optional key on
+// P2PAutoDisabled because that branch requires the key: one struct accepting
+// either spelling would have to require neither, which would make a bare
+// `p2p: {role: worker}` validate.
+type P2PAutoDisabledDeprecated struct {
+	NetworkToken string `json:"network_token,omitempty" const:"" required:"true"`
+	Auto         struct {
 		Enable bool `json:"enable" const:"false" required:"true"`
 		Ha     struct {
 			Enable bool `json:"enable" const:"false"`
@@ -40,12 +56,16 @@ type P2PAutoDisabled struct {
 }
 
 // P2PAutoEnabled is used to validate that when p2p.auto is set, p2p.network_token has to be set.
+// Both `enabled` and the deprecated `enable` are accepted here, and neither is
+// required, because p2p.network_token on its own already enables auto.
 type P2PAutoEnabled struct {
 	NetworkToken string `json:"network_token" required:"true" minLength:"1" description:"network_token is the shared secret used by the nodes to co-ordinate with p2p"`
 	Auto         struct {
-		Enable bool `json:"enable,omitempty" const:"true"`
-		Ha     struct {
-			Enable      bool `json:"enable" const:"true"`
+		Enabled bool `json:"enabled,omitempty" const:"true"`
+		Enable  bool `json:"enable,omitempty" const:"true"`
+		Ha      struct {
+			Enabled     bool `json:"enabled,omitempty" const:"true"`
+			Enable      bool `json:"enable,omitempty" const:"true"`
 			MasterNodes int  `json:"master_nodes,omitempty" minimum:"1" description:"Number of HA additional master nodes. A master node is always required for creating the cluster and is implied."`
 		} `json:"ha"`
 	} `json:"auto,omitempty"`
@@ -56,7 +76,7 @@ var _ jsonschemago.OneOfExposer = P2PNetworkExtended{}
 // JSONSchemaOneOf defines that different which are the different valid p2p network rules and states that one and only one of them needs to be validated for the entire schema to be valid.
 func (P2PNetworkExtended) JSONSchemaOneOf() []interface{} {
 	return []interface{}{
-		P2PAutoEnabled{}, P2PAutoDisabled{},
+		P2PAutoEnabled{}, P2PAutoDisabled{}, P2PAutoDisabledDeprecated{},
 	}
 }
 
