@@ -25,9 +25,20 @@ func RunStage(stage string) error {
 	stageBefore := fmt.Sprintf("%s.before", stage)
 	stageAfter := fmt.Sprintf("%s.after", stage)
 
-	// Run all stages for each of the default cloud config paths + extra cloud config paths
+	// Run all stages for each of the default cloud config paths + extra cloud config paths.
+	// Only pass paths that actually exist: yip's own path resolution falls back to treating
+	// a missing path as literal YAML when it isn't a directory, an existing file or a URL, so
+	// a path that simply hasn't been created yet (e.g. /usr/local/cloud-config/ before the
+	// rootfs stage creates it) would otherwise surface as a spurious unmarshal error on every
+	// boot instead of a real stage failure.
+	var cloudInitPaths []string
+	for _, p := range constants.GetCloudInitPaths() {
+		if _, statErr := os.Stat(p); statErr == nil {
+			cloudInitPaths = append(cloudInitPaths, p)
+		}
+	}
 	for _, s := range []string{stageBefore, stage, stageAfter} {
-		err = yip.Run(s, vfs.OSFS, c, constants.GetCloudInitPaths()...)
+		err = yip.Run(s, vfs.OSFS, c, cloudInitPaths...)
 		if err != nil {
 			allErrors = multierror.Append(allErrors, err)
 		}
@@ -43,8 +54,8 @@ func RunStage(stage string) error {
 	// discovery URL. On template error we append to allErrors and SKIP the
 	// fetch loop for this URI: silently fetching an unintended endpoint is
 	// worse than skipping. Note that RunStage itself always returns nil
-	// today (see the tail comment), so allErrors currently lives only as an
-	// accumulated debug trail. See kairos-sdk PR #820.
+	// today (see the tail comment); allErrors is logged there, not
+	// returned. See kairos-sdk PR #820.
 	if uri := KairosConfigURIFromCmdline(); uri != "" {
 		var rendered string
 		rendered, err = collector.RenderConfigURL(uri)
@@ -82,7 +93,12 @@ func RunStage(stage string) error {
 	// Set back the modifier to nil
 	yip.Modifier(nil)
 
-	// Not doing anything with the errors yet, need to know which ones are permissible (no metadata, marshall errors, etc..)
+	// Not returning the errors yet, need to know which ones are permissible (no metadata, marshall errors, etc..)
+	// but at least log them, so a failed stage leaves a trace instead of vanishing silently.
+	if allErrors != nil {
+		KLog.Logger.Warn().Err(allErrors).Str("stage", stage).Msg("stage completed with errors")
+	}
+
 	return nil
 }
 
