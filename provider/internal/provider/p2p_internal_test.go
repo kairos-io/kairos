@@ -124,3 +124,60 @@ var _ = Describe("Writing the daemon's env file", func() {
 		Expect(ResolveAPIAddress(filepath.Join(rootDir, EdgeVPNEnvFile))).To(Equal("http://127.0.0.1:8080"))
 	})
 })
+
+var _ = Describe("Saving a generated cloud config", func() {
+	var rootDir string
+
+	BeforeEach(func() {
+		rootDir = GinkgoT().TempDir()
+	})
+
+	It("writes the config under rootDir", func() {
+		Expect(SaveCloudConfig(rootDir, "vpn_dns", []byte("#cloud-config\n"))).To(Succeed())
+
+		written := filepath.Join(rootDir, CloudConfigDir, "vpn_dns.yaml")
+		Expect(written).To(BeAnExistingFile())
+
+		contents, err := os.ReadFile(written)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(contents)).To(Equal("#cloud-config\n"))
+	})
+
+	// Rotation runs on a node where the directory exists, and in a staging
+	// root where it does not yet. Only one of those two gets tested by
+	// accident, so create the directory rather than assume it.
+	It("creates the directory when it is not there yet", func() {
+		Expect(SaveCloudConfig(rootDir, "vpn_dns", []byte("#cloud-config\n"))).To(Succeed())
+
+		info, err := os.Stat(filepath.Join(rootDir, CloudConfigDir))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(info.IsDir()).To(BeTrue())
+		Expect(info.Mode().Perm()&0007).To(BeZero(),
+			"directory mode %v is readable by other, and it holds the configs the network token is written into", info.Mode().Perm())
+	})
+
+	// The operator runs rotate-token from wherever they happen to be standing
+	// and says which root to write into with a flag. A path that is not joined
+	// to that root follows the working directory instead, which either fails
+	// outright or quietly writes a config nothing will ever read.
+	It("ignores the working directory", func() {
+		elsewhere := GinkgoT().TempDir()
+		GinkgoT().Chdir(elsewhere)
+
+		Expect(SaveCloudConfig(rootDir, "vpn_dns", []byte("#cloud-config\n"))).To(Succeed())
+
+		entries, err := os.ReadDir(elsewhere)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(entries).To(BeEmpty())
+	})
+
+	// The rotation has already rewritten the token into the config files by
+	// the time this runs, so a failure here leaves the node half rotated.
+	// Saying so is the difference between a fixable state and a mystery.
+	It("reports a failure instead of ignoring it", func() {
+		blocked := filepath.Join(GinkgoT().TempDir(), "not-a-dir")
+		Expect(os.WriteFile(blocked, []byte("i am a file"), 0600)).To(Succeed())
+
+		Expect(SaveCloudConfig(blocked, "vpn_dns", []byte("#cloud-config\n"))).NotTo(Succeed())
+	})
+})

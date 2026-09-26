@@ -26,6 +26,11 @@ const (
 	// daemon's settings for its systemd unit. It is the only place that
 	// knows which address the daemon was actually told to listen on.
 	EdgeVPNEnvFile = "/etc/systemd/system.conf.d/edgevpn-kairos.env"
+
+	// CloudConfigDir is where SaveCloudConfig leaves the configs this
+	// package generates. It is one of the writable directories the config
+	// scan reads, so what lands there is still in effect after a reboot.
+	CloudConfigDir = "/oem"
 )
 
 // ResolveAPIAddress returns the address a client should use to reach the local
@@ -115,8 +120,27 @@ func applyAPIListenerEnv(opts, userEnv map[string]string) {
 	}
 }
 
-func SaveCloudConfig(name string, c []byte) error {
-	return os.WriteFile(filepath.Join("oem", fmt.Sprintf("%s.yaml", name)), c, 0700)
+// cloudConfigDirMode is the mode for the directory the generated configs go
+// in. That directory is the writable config location, holding the network
+// token among the rest, so it takes the same 770 the installer gives it and
+// nothing outside the owner group gets to list it. MkdirAll passes the mode
+// through the process umask, so the concrete result is narrower still.
+const cloudConfigDirMode = 0770
+
+// SaveCloudConfig writes a generated cloud config where the config scan will
+// pick it up, creating the directory if it is not there yet.
+//
+// Both the directory and the file hang off rootDir, the same way
+// writeEdgeVPNEnv does it, so the caller's working directory has no say in
+// where the file ends up and a staging root stays a staging root.
+func SaveCloudConfig(rootDir, name string, c []byte) error {
+	dir := filepath.Join(rootDir, CloudConfigDir)
+
+	if err := os.MkdirAll(dir, cloudConfigDirMode); err != nil {
+		return fmt.Errorf("could not create %s: %w", dir, err)
+	}
+
+	return os.WriteFile(filepath.Join(dir, fmt.Sprintf("%s.yaml", name)), c, 0700)
 }
 
 func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
@@ -201,7 +225,7 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 			}
 		}
 
-		if err := SaveCloudConfig("vpn_dns", []byte(assets.LocalDNS)); err != nil {
+		if err := SaveCloudConfig(rootDir, "vpn_dns", []byte(assets.LocalDNS)); err != nil {
 			return fmt.Errorf("could not create dns config: %w", err)
 		}
 	}
