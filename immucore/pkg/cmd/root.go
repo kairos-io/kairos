@@ -87,6 +87,18 @@ func NewApp() *cli.App {
 		default:
 			utils.KLog.Logger.Info().Msg("Booting on active/passive/recovery.")
 			normalBoot = true
+			// This is the only path that reads block devices before the DAG
+			// runs: RegisterNormalBoot calls oemEncrypted() to decide whether
+			// kcrypt has to unlock OEM before it is mounted. That decision is
+			// made off a device scan and it fails open, so it has to be taken
+			// against an enumerated /dev. immucore used to get that from the
+			// initramfs ordering on systemd-udev-settle.service, which is
+			// deprecated; it waits for itself now, for the images partition first and
+			// then for OEM. See kairos-io/kairos#1378.
+			if waitErr := utils.WaitForBootDevices(utils.DefaultDeviceEnumerationTimeout); waitErr != nil {
+				utils.KLog.Logger.Warn().Err(waitErr).
+					Msg("Continuing anyway; the steps that need the device report their own errors")
+			}
 			err = dag.RegisterNormalBoot(st, g)
 		}
 
