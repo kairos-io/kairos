@@ -18,6 +18,12 @@ import (
 // installer runs.
 const liveMediaExtension = "work.sysext.raw"
 
+// The other image in that directory, built with neither verity nor a
+// signature. It fails the image policy the non-UKI systemd-sysext drop-in
+// enforces, so immucore has to skip it the same way it already does on the UKI
+// path (tests/uki_test.go).
+const brokenMediaExtension = "hello-broke.sysext.raw"
+
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
 // is asserted in uki_test.go, where the extension reaches the EFI partition.
 // Here it has to reach /var/lib/kairos/extensions on persistent, be enabled
@@ -49,10 +55,15 @@ var _ = Describe("kairos live media extensions", Label("sysext"), func() {
 				Expect(out).To(ContainSubstring(liveMediaExtension))
 			})
 
+			// The agent refuses to install when no user is in the admin
+			// group: "no users found in any stage that are part of the
+			// 'admin' group". Every other install spec declares it.
 			_ = testInstall(`#cloud-config
 users:
 - name: "kairos"
   passwd: "kairos"
+  groups:
+    - "admin"
 `, vm)
 
 			By("keeping the extension on the persistent partition", func() {
@@ -72,6 +83,16 @@ users:
 					out, _ := vm.Sudo("ls /run/extensions")
 					return out
 				}, 5*time.Minute, 10*time.Second).Should(ContainSubstring(liveMediaExtension))
+			})
+
+			// The media also carries brokenMediaExtension, which has neither
+			// verity nor a signature. systemd-sysext refreshes all or nothing,
+			// so if immucore links it the extension above does not merge
+			// either, and neither does any bundle the node installed.
+			By("leaving the extension that cannot pass the policy alone", func() {
+				out, err := vm.Sudo("ls /run/extensions")
+				Expect(err).ToNot(HaveOccurred(), out)
+				Expect(out).ToNot(ContainSubstring(brokenMediaExtension))
 			})
 
 			By("merging the extension", func() {
