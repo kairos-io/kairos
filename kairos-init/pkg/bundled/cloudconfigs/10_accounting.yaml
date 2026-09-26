@@ -53,7 +53,12 @@ stages:
   initramfs.after:
     # Run this in the after stage so it doesnt collide with other initramfs changes to the /etc/inittab
     # Otherwise this can lead to 2 steps modifying the inittab at the same time and overriding or not cleaning it properly
+    # On a live boot 25_autologin.yaml owns the ttyS0 line, and initramfs always
+    # completes before initramfs.after, so without this guard the plain getty
+    # below replaces the root autologin and leaves a serial console with no way
+    # in, since root is locked just above.
     - name: "Enable serial login for alpine"  # https://wiki.alpinelinux.org/wiki/Enable_Serial_Console_on_Boot
+      if: '[ ! -f /run/cos/live_mode ]'
       only_service_manager: "openrc"
       commands:
         - sed -i -e 's/ttyS0.*//g' /etc/inittab
