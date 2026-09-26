@@ -122,6 +122,13 @@ var ErrAlreadyMounted = errors.New("already mounted")
 // the rootfs is still mounted read-only at that point in the boot.
 var ErrMountTargetMissing = errors.New("mount target does not exist and could not be created")
 
+// ErrMountTargetIsSymlink is returned when a bind mountpoint is a symlink.
+// mount(2) resolves the link, so the bind would land on the target rather than
+// on the path that was asked for, which is a different path and, when the link
+// points inside the image, image content that the persistent state would then
+// shadow for the life of the machine.
+var ErrMountTargetIsSymlink = errors.New("mount target is a symlink")
+
 const (
 	OpCustomMounts         = "custom-mount"
 	OpDiscoverState        = "discover-state"
