@@ -3,6 +3,8 @@ package webui
 import (
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/kairos-io/kairos/v4/sdk/branding"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -80,5 +82,64 @@ var _ = Describe("the MCP route", func() {
 
 		Expect(res.StatusCode).ToNot(Equal(http.StatusOK))
 		Expect(reached).To(BeEmpty())
+	})
+})
+
+// The MCP route and the token guard landed independently, and mounting MCP on
+// this server is what brings them together: `requireToken` is installed with
+// `Pre`, which runs before routing, so it covers MCPPath the same way it
+// covers the form and the assets. That is the behaviour an image asking for a
+// token wants -- an agent endpoint that installs the machine is the last thing
+// that should be the one open door on the address -- but nothing pinned it,
+// because each half was written while the other did not exist.
+var _ = Describe("the MCP route on a tokened server", func() {
+	const token = "s3cret"
+
+	var srv *httptest.Server
+	var reached []string
+
+	BeforeEach(func() {
+		reached = nil
+		srv = httptest.NewServer(newServer(Options{
+			WebUI: branding.WebUI{Token: token},
+			MCP: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				reached = append(reached, r.Method)
+				w.WriteHeader(http.StatusOK)
+			}),
+		}))
+		DeferCleanup(srv.Close)
+	})
+
+	do := func(req *http.Request) int {
+		res, err := srv.Client().Do(req)
+		Expect(err).ToNot(HaveOccurred())
+		DeferCleanup(res.Body.Close)
+		return res.StatusCode
+	}
+
+	post := func() *http.Request {
+		req, err := http.NewRequest(http.MethodPost, srv.URL+MCPPath, strings.NewReader("{}"))
+		Expect(err).ToNot(HaveOccurred())
+		req.Header.Set("Content-Type", "application/json")
+		return req
+	}
+
+	It("refuses an agent that presents no token", func() {
+		Expect(do(post())).To(Equal(http.StatusUnauthorized))
+		Expect(reached).To(BeEmpty())
+	})
+
+	It("refuses an agent that presents the wrong token", func() {
+		req := post()
+		req.Header.Set("Authorization", "Bearer not-"+token)
+		Expect(do(req)).To(Equal(http.StatusUnauthorized))
+		Expect(reached).To(BeEmpty())
+	})
+
+	It("lets an agent carrying the token through to the handler", func() {
+		req := post()
+		req.Header.Set("Authorization", "Bearer "+token)
+		Expect(do(req)).To(Equal(http.StatusOK))
+		Expect(reached).To(Equal([]string{http.MethodPost}))
 	})
 })
