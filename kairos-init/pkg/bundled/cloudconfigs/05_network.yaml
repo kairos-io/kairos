@@ -72,8 +72,7 @@ stages:
       if: '[ -f /etc/hosts ]'
       only_service_manager: "systemd"
       commands:
-        - rm /etc/resolv.conf
-        - ln -s /run/systemd/resolve/resolv.conf /etc/resolv.conf
+        - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
     - name: "Enabled systemd-networkd on Red Hat if available"
       only_os: "Red.*Hat.*"
       only_service_manager: "systemd"
