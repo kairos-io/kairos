@@ -13,7 +13,7 @@ import (
 	providerConfig "github.com/kairos-io/kairos/v4/provider/internal/provider/config"
 	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
-	"github.com/kairos-io/kairos/v4/sdk/machine/systemd"
+	machinesvc "github.com/kairos-io/kairos/v4/sdk/machine/service"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
@@ -192,10 +192,10 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 		vpnOpts["DNSFORWARD"] = enabledValue
 
 		_ = machine.ExecuteInlineCloudConfig(assets.LocalDNS, "initramfs")
-		if !utils.IsOpenRCBased() {
-			svc, err := systemd.NewService(
-				systemd.WithName("systemd-resolved"),
-			)
+		// systemd-resolved is systemd's own; there is nothing to restart on an
+		// init system that does not ship it.
+		if machinesvc.Detect() == machinesvc.Systemd {
+			svc, err := machinesvc.New(machinesvc.Spec{Name: "systemd-resolved"})
 			if err == nil {
 				_ = svc.Restart()
 			}
