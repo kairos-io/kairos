@@ -1,10 +1,19 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"io"
+	"log/slog"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/webui"
 )
@@ -53,10 +62,10 @@ func TestWebUILoggerDiscardsWhenItsFileIsUnwritable(t *testing.T) {
 func TestWebUICarriesTheInstallSourceInBothModes(t *testing.T) {
 	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
-	if got := noTUIWebUIOptions("oci://foo:bar").Source; got != "oci://foo:bar" {
+	if got := noTUIWebUIOptions("oci://foo:bar", testLogger()).Source; got != "oci://foo:bar" {
 		t.Errorf("--no-tui dropped the source: %q", got)
 	}
-	if got := tuiWebUIOptions("oci://foo:bar", nil).Source; got != "oci://foo:bar" {
+	if got := tuiWebUIOptions("oci://foo:bar", nil, testLogger()).Source; got != "oci://foo:bar" {
 		t.Errorf("the TUI's web UI dropped the source: %q", got)
 	}
 }
@@ -66,10 +75,10 @@ func TestWebUICarriesTheInstallSourceInBothModes(t *testing.T) {
 func TestWebUILoggerIsSetOnlyForTheTUIMode(t *testing.T) {
 	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
-	if o := noTUIWebUIOptions(""); o.Logger != nil {
+	if o := noTUIWebUIOptions("", testLogger()); o.Logger != nil {
 		t.Error("--no-tui should leave echo on stdout, so it reaches the journal")
 	}
-	if o := tuiWebUIOptions("", nil); o.Logger == nil {
+	if o := tuiWebUIOptions("", nil, testLogger()); o.Logger == nil {
 		t.Error("the TUI mode must keep echo off stdout")
 	}
 }
@@ -81,11 +90,62 @@ func TestTUIWebUIOptionsCarryTheActivityHandle(t *testing.T) {
 	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
 
 	activity := &webui.Activity{}
-	if o := tuiWebUIOptions("", activity); o.Activity != activity {
+	if o := tuiWebUIOptions("", activity, testLogger()); o.Activity != activity {
 		t.Error("the TUI's web UI cannot report a browser-driven install back to main")
 	}
 	// --no-tui has no terminal UI to quit, so there is nothing to wait for.
-	if o := noTUIWebUIOptions(""); o.Activity != nil {
+	if o := noTUIWebUIOptions("", testLogger()); o.Activity != nil {
 		t.Error("--no-tui should not need an activity handle")
 	}
+}
+
+// The MCP endpoint is a route on the web UI's server now, so the only thing
+// main still decides about it is whether to hand the server a handler at all.
+// Both modes must, because a boot with only the HTTP installer up is precisely
+// the boot an agent has to drive, and that is the case that regressed before.
+func TestBothModesCarryTheMCPEndpoint(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
+
+	if o := noTUIWebUIOptions("", testLogger()); o.MCP == nil {
+		t.Error("--no-tui served the web UI without MCP, so nothing can drive that boot")
+	}
+	if o := tuiWebUIOptions("", nil, testLogger()); o.MCP == nil {
+		t.Error("the interactive installer served the web UI without MCP")
+	}
+}
+
+// An agent reaching the installer has to find the endpoint on the web UI's
+// address, which is the whole point of mounting it there. This goes through a
+// real listener and a real MCP client rather than asserting on a struct field.
+func TestMCPAnswersOnTheWebUIsOwnListener(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
+
+	opts := noTUIWebUIOptions("", testLogger())
+	opts.Logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+	srv := httptest.NewServer(webui.NewHandler(opts))
+	defer srv.Close()
+
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v1"}, nil)
+	session, err := client.Connect(context.Background(),
+		&mcp.StreamableClientTransport{Endpoint: srv.URL + webui.MCPPath}, nil)
+	if err != nil {
+		t.Fatalf("connecting to MCP on the web UI's address: %v", err)
+	}
+	defer session.Close()
+
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("listing tools: %v", err)
+	}
+	if len(tools.Tools) == 0 {
+		t.Fatal("the endpoint answered but advertised no tools")
+	}
+}
+
+// testLogger keeps the MCP server's own output out of the test log. The sdk
+// logger otherwise writes to journald or /var/log/kairos, neither of which a
+// test should depend on being writable.
+func testLogger() sdkLogger.KairosLogger {
+	return sdkLogger.NewBufferLogger(&bytes.Buffer{})
 }
