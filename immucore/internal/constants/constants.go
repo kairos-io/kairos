@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path"
+	"time"
 )
 
 func DefaultRWPaths() []string {
@@ -157,6 +158,13 @@ const (
 	// the persistent /etc/systemd bind and that now shadow a packaged unit out
 	// of the unit load path. See internalUtils.QuarantineStaleUnitSymlinks.
 	OpQuarantineStaleUnits = "quarantine-stale-units"
+
+	// UkiNetworkTimeout bounds how long the UKI initrd waits for an interface
+	// to get an address before giving up and letting the unlock step run and
+	// report the real failure. A DHCP exchange on a healthy link takes a
+	// couple of seconds; this leaves room for a slow switch without adding a
+	// visible stall to a boot whose network is simply absent.
+	UkiNetworkTimeout = 30 * time.Second
 	// InRAMSentinelName is the extra sentinel file written under /run/cos/ when
 	// the kairos.ram workflow is active. It is additive: WriteSentinelDagStep
 	// still writes the BootState-driven sentinel (which is active_mode for
