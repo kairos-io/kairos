@@ -3,6 +3,7 @@ package role
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -19,6 +20,9 @@ const (
 	K0sWorkerName        = "worker"
 	K0sMasterServiceName = "k0scontroller"
 	K0sWorkerServiceName = "k0sworker"
+	// K0sTokenFile is where a worker reads its join token from, and so also
+	// where the worker setup has to write it.
+	K0sTokenFile = "/etc/k0s/token"
 )
 
 type K0sNode struct {
@@ -134,7 +138,7 @@ func (k *K0sNode) GenArgs() ([]string, error) {
 	}
 
 	if k.HA() && !k.ClusterInit() {
-		args = append(args, "--token-file /etc/k0s/token")
+		args = append(args, fmt.Sprintf("--token-file %s", K0sTokenFile))
 	}
 
 	// when we start implementing this functionality, remember to use
@@ -257,7 +261,7 @@ func (k *K0sNode) PropagateData() error {
 func (k *K0sNode) WorkerArgs() ([]string, error) {
 	pconfig := k.ProviderConfig()
 	k0sConfig := pconfig.K0sWorker
-	args := []string{"--token-file /etc/k0s/token"}
+	args := []string{fmt.Sprintf("--token-file %s", K0sTokenFile)}
 
 	if k0sConfig.ReplaceArgs {
 		args = k0sConfig.Args
@@ -269,11 +273,19 @@ func (k *K0sNode) WorkerArgs() ([]string, error) {
 }
 
 func (k *K0sNode) SetupWorker(_, nodeToken string) error {
-	if err := os.WriteFile("/etc/k0s/token", []byte(nodeToken), 0644); err != nil {
+	return k.setupWorker(K0sTokenFile, k.EnvFile(), nodeToken)
+}
+
+func (k *K0sNode) setupWorker(tokenFile, envFile, nodeToken string) error {
+	if err := os.WriteFile(tokenFile, []byte(nodeToken), 0644); err != nil {
 		return err
 	}
 
-	return nil
+	// Nothing else on the worker path writes the service environment. A
+	// controller gets it from master.go, which calls WriteEnv before it
+	// starts the service, and a node outside p2p gets it from
+	// oneTimeBootstrap. Without this the k0s-worker env block is dropped.
+	return utils.WriteEnv(envFile, k.Env())
 }
 
 func (k *K0sNode) Role() string {
