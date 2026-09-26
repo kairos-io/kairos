@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
@@ -88,6 +89,9 @@ func copyArtifactSetRole(fs sdkFs.KairosFS, artifactDir, oldRole, newRole string
 			if err := replaceConfTitle(newPath, newRole); err != nil {
 				return err
 			}
+			if err := stripLiveOnlyCmdline(newPath); err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -109,11 +113,51 @@ func replaceRoleInKey(path, key, oldRole, newRole string, logger sdkLogger.Kairo
 	}
 
 	conf[key] = strings.ReplaceAll(conf[key], oldRole, newRole)
+	logger.Debugf("Conf file %s new values %v", path, litter.Sdump(conf))
+
+	return writeSystemdBootConf(path, conf)
+}
+
+// stripLiveOnlyCmdline removes the live-media install keywords from the
+// cmdline of an entry that has just been given a role. The live entry is the
+// artifact set the installer copies into every role, so without this the
+// installed system boots with the cmdline that asked for an installer.
+func stripLiveOnlyCmdline(path string) error {
+	conf, err := sdkutils.SystemdBootConfReader(path)
+	if err != nil {
+		return fmt.Errorf("reading conf file %s: %w", path, err)
+	}
+
+	cmdline, hasCmdline := conf["cmdline"]
+	if !hasCmdline {
+		return nil
+	}
+
+	// Match whole arguments: "install-mode" is a prefix of
+	// "install-mode-interactive", and an argument such as
+	// "kairos.install-mode.debug=1" is not one of these keywords at all.
+	kept := []string{}
+	for _, arg := range strings.Fields(cmdline) {
+		if slices.Contains(constants.UkiLiveOnlyCmdlineKeywords(), arg) {
+			continue
+		}
+		kept = append(kept, arg)
+	}
+
+	stripped := strings.Join(kept, " ")
+	if stripped == cmdline {
+		return nil
+	}
+	conf["cmdline"] = stripped
+
+	return writeSystemdBootConf(path, conf)
+}
+
+func writeSystemdBootConf(path string, conf map[string]string) error {
 	newContents := ""
 	for k, v := range conf {
 		newContents = fmt.Sprintf("%s%s %s\n", newContents, k, v)
 	}
-	logger.Debugf("Conf file %s new values %v", path, litter.Sdump(conf))
 
 	return os.WriteFile(path, []byte(newContents), os.ModePerm)
 }
@@ -134,12 +178,8 @@ func replaceConfTitle(path, role string) error {
 	}
 
 	conf["title"] = newTitle
-	newContents := ""
-	for k, v := range conf {
-		newContents = fmt.Sprintf("%s%s %s\n", newContents, k, v)
-	}
 
-	return os.WriteFile(path, []byte(newContents), os.ModePerm)
+	return writeSystemdBootConf(path, conf)
 }
 
 func copyFile(src, dst string) (err error) {

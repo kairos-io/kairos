@@ -169,6 +169,15 @@ func UkiDefaultSkipEntries() []string {
 	return []string{"interactive-install", "install-mode-interactive"}
 }
 
+// UkiLiveOnlyCmdlineKeywords returns the cmdline keywords that only mean
+// something while booted from live media, where they select the installer.
+// kairos-init/pkg/bundled/cloudconfigs/52_installer.yaml keys its stages off
+// them. An entry that has been given a role belongs to an installed system, so
+// it must not carry any of them.
+func UkiLiveOnlyCmdlineKeywords() []string {
+	return []string{"install-mode", "install-mode-interactive", "interactive-install"}
+}
+
 func GetCloudInitPaths() []string {
 	return []string{"/system/oem", "/oem/", "/usr/local/cloud-config/"}
 }
