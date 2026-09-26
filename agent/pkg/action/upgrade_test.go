@@ -292,6 +292,23 @@ var _ = Describe("Upgrade Actions test", func() {
 				Expect(upgrade.Run()).ToNot(HaveOccurred())
 				Expect(memLog).To(ContainSubstring("Skipping ESP refresh: no shim found under"), memLog.String())
 			})
+			It("Successfully upgrades a machine with no recovery partition", Label("docker"), func() {
+				// A system upgrade never writes to the recovery partition, so
+				// a machine that has none has to upgrade like any other. Only
+				// a --recovery upgrade needs it, and Sanitize rejects that
+				// case separately.
+				spec.Partitions.Recovery = nil
+				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
+				upgrade = action.NewUpgradeAction(config, spec)
+				Expect(upgrade.Run()).ToNot(HaveOccurred())
+
+				info, err := fs.Stat(activeImg)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.Size()).To(BeNumerically("==", int64(spec.Active.Size*1024*1024)))
+
+				f, _ := fs.ReadFile(passiveImg)
+				Expect(f).To(ContainSubstring("active"))
+			})
 			It("Successfully upgrades from docker image", Label("docker"), func() {
 				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
 				upgrade = action.NewUpgradeAction(config, spec)
