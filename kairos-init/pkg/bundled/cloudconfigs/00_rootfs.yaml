@@ -145,11 +145,18 @@ stages:
           mkdir -p /var/lib/dbus/
           cp /etc/machine-id /var/lib/dbus/
   fs.after:
-    - if: "[ ! -d /usr/local/cloud-config ]"
-      name: "Ensure /usr/local/cloud-config exists"
+    # kairos-agent creates every cloud-init path with DirPerm before it runs
+    # any fs stage, so this cannot be guarded on the directory being absent,
+    # and only the owner and the mode are left to set. They are the ones
+    # 10_accounting.yaml gives /oem and this same directory, so the boot that
+    # creates it matches every later one. Not 0600: a directory without the
+    # execute bit cannot be traversed, which would take away the access the
+    # admin group is deliberately granted.
+    - name: "Ensure /usr/local/cloud-config is not world readable"
       commands:
-        - mkdir /usr/local/cloud-config
-        - chmod 600 /usr/local/cloud-config
+        - mkdir -p /usr/local/cloud-config
+        - chown root:admin /usr/local/cloud-config
+        - chmod 770 /usr/local/cloud-config
   boot.before:
     - name: "Mount tmp on alpine"
       if: "[[ $(kairos-agent state get kairos.flavor) =~ ^alpine ]]"
