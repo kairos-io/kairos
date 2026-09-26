@@ -111,6 +111,17 @@ func (r ResetAction) Run() (err error) {
 			if rErr := RestoreAuditLog(r.cfg, persistent, stash); rErr != nil {
 				r.cfg.Logger.Warnf("could not restore %s after the reset: %s", cnst.AuditLogPath, rErr)
 			}
+
+			// The format above leaves persistent plaintext. When the
+			// configuration lists it as encrypted, encrypt it again now,
+			// while it is empty by construction, so a reset ends in the
+			// same state an install ends in (kairos-io/kairos#4556). Fail
+			// closed: a node whose configuration demands encryption must
+			// not come back from a reset plaintext.
+			err = r.encryptFormattedPersistent(persistent)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
