@@ -1,11 +1,15 @@
 package provider
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 )
 
 func listenerOptionsForTest(apiAddress string, userEnv map[string]string) map[string]string {
@@ -122,5 +126,44 @@ var _ = Describe("Writing the daemon's env file", func() {
 	It("writes something ResolveAPIAddress can read back", func() {
 		Expect(writeEdgeVPNEnv(rootDir, map[string]string{"APILISTEN": "127.0.0.1:8080"})).To(Succeed())
 		Expect(ResolveAPIAddress(filepath.Join(rootDir, EdgeVPNEnvFile))).To(Equal("http://127.0.0.1:8080"))
+	})
+})
+
+// In plugin mode go-pluggable hands the agent one stream: the JSON response on
+// stdout. So the best-effort notice from the local DNS apply has to leave the
+// process by some other route, or the agent's Unmarshal sees the notice first
+// and aborts bootstrap. Asserting on a buffer-backed logger pins that route:
+// pterm, which was the original bug here, writes to the os.Stdout it captured
+// at package init and would leave this buffer empty.
+var _ = Describe("Applying the local DNS config", func() {
+	var out *bytes.Buffer
+	var logger loggerpkg.KairosLogger
+
+	BeforeEach(func() {
+		out = &bytes.Buffer{}
+		logger = loggerpkg.NewBufferLogger(out)
+
+		original := executeLocalDNSConfig
+		DeferCleanup(func() { executeLocalDNSConfig = original })
+	})
+
+	It("reports a failure through the logger", func() {
+		executeLocalDNSConfig = func() error {
+			return errors.New("open /etc/systemd/resolved.conf: is a directory")
+		}
+
+		applyLocalDNS(logger)
+
+		Expect(out.String()).To(ContainSubstring("it will apply on the next boot"))
+		Expect(out.String()).To(ContainSubstring("is a directory"),
+			"the notice has to name the failure, not just that there was one")
+	})
+
+	It("says nothing when the config applies", func() {
+		executeLocalDNSConfig = func() error { return nil }
+
+		applyLocalDNS(logger)
+
+		Expect(out.String()).To(BeEmpty())
 	})
 })

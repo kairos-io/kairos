@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -198,13 +199,23 @@ func IsOpenRCBased() bool {
 	return GetInit() == openrc
 }
 
+// ShellSTDIN runs c with /bin/sh, feeding s to its standard input, and returns
+// the combined output.
+//
+// The output is both streamed to this process' stdout/stderr and captured, so
+// a long-running command stays visible while the caller still gets the text.
+// CombinedOutput cannot be used for that: it refuses to start a command whose
+// Stdout is already set.
 func ShellSTDIN(s, c string) (string, error) {
+	var out bytes.Buffer
+
 	cmd := exec.Command("/bin/sh", "-c", c)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = io.MultiWriter(os.Stdout, &out)
+	cmd.Stderr = io.MultiWriter(os.Stderr, &out)
 	cmd.Stdin = bytes.NewBuffer([]byte(s))
-	o, err := cmd.CombinedOutput()
-	return string(o), err
+
+	err := cmd.Run()
+	return out.String(), err
 }
 
 func SetEnv(env []string) {
