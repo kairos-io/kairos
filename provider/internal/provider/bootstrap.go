@@ -159,9 +159,9 @@ func Bootstrap(e *pluggable.Event) pluggable.EventResponse {
 	}
 
 	// Optionally set up a specific node role if the user has defined so
-	if prvConfig.P2P.Role != "" {
-		logger.Info("Setting default role from configuration: ", prvConfig.P2P.Role)
-		nodeOpts = append(nodeOpts, service.WithDefaultRoles(prvConfig.P2P.Role))
+	if pinnedRole := prvConfig.P2P.HardcodedRole(); pinnedRole != "" {
+		logger.Info("Setting default role from configuration: ", pinnedRole)
+		nodeOpts = append(nodeOpts, service.WithDefaultRoles(pinnedRole))
 	}
 
 	k, err := service.NewNode(nodeOpts...)

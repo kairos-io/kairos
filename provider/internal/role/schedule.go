@@ -66,7 +66,7 @@ func scheduleRoles(nodes []string, c *service.RoleConfig, cc *sdkConfig.Config, 
 		toSelect := unassignedNodes
 
 		// Avoid to schedule to ourselves if we have a static role
-		if pconfig.P2P.Role != "" {
+		if pconfig.P2P.HardcodedRole() != "" {
 			toSelect = []string{}
 			for _, u := range unassignedNodes {
 				if u != c.UUID {

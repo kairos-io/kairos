@@ -89,11 +89,11 @@ func Master(cc *sdkConfig.Config, pconfig *providerConfig.Config, roleName strin
 
 		c.Logger.Info("Checking role assignment")
 
-		if pconfig.P2P.Role != "" {
-			c.Logger.Info(fmt.Sprintf("Setting role from configuration: %s", pconfig.P2P.Role))
+		if pinnedRole := pconfig.P2P.HardcodedRole(); pinnedRole != "" {
+			c.Logger.Info(fmt.Sprintf("Setting role from configuration: %s", pinnedRole))
 			// propagate role if we were forced by configuration
 			// This unblocks eventual auto instances to try to assign roles
-			if err := c.Client.Set("role", c.UUID, pconfig.P2P.Role); err != nil {
+			if err := c.Client.Set("role", c.UUID, pinnedRole); err != nil {
 				c.Logger.Error(err)
 			}
 		}
