@@ -47,10 +47,10 @@ stages:
             TTYPath=/dev/tty1
             RemainAfterExit=yes
             # Stop systemd messages on tty
-            ExecStartPre=-/usr/bin/kill -SIGRTMIN+21 1
+            ExecStartPre=-/bin/bash -c "kill -SIGRTMIN+21 1"
             ExecStart=/usr/bin/kairos-agent install
             # Start systemd messages on tty
-            ExecStartPost=-/usr/bin/kill -SIGRTMIN+20 1
+            ExecStartPost=-/bin/bash -c "kill -SIGRTMIN+20 1"
             TimeoutStopSec=10s
             [Install]
             WantedBy=multi-user.target
@@ -102,10 +102,10 @@ stages:
             TTYPath=/dev/tty1
             RemainAfterExit=yes
             # Stop systemd messages on tty
-            ExecStartPre=-/usr/bin/kill -SIGRTMIN+21 1
+            ExecStartPre=-/bin/bash -c "kill -SIGRTMIN+21 1"
             ExecStart=/usr/bin/kairos-agent interactive-install --shell
             # Start systemd messages on tty
-            ExecStartPost=-/usr/bin/kill -SIGRTMIN+20 1
+            ExecStartPost=-/bin/bash -c "kill -SIGRTMIN+20 1"
             TimeoutStopSec=10s
             # Restart if it fails, like user doing control+c
             Restart=on-failure
