@@ -1197,6 +1197,51 @@ The command automatically:
 					return kcrypt.UnlockAllEncryptedPartitions(cfg.Logger)
 				},
 			},
+			{
+				Name:      "encrypt",
+				Usage:     "Encrypt plaintext partitions in place, by filesystem label",
+				ArgsUsage: "LABEL [LABEL...]",
+				Description: `Encrypt the given partitions in place, using the configured method
+(local TPM, or the kcrypt challenger server when one is configured).
+
+WARNING: Encrypting a partition DESTROYS ALL DATA on it!
+
+This is the manual counterpart of boot time encryption
+(kcrypt.encrypt_on_boot): the same operation, run from the command line,
+typically from recovery. It is defensive by default:
+
+- A partition that is already a LUKS container is skipped, so the command
+  is safe to re-run.
+- Partitions the running system depends on (OEM, state, recovery, EFI)
+  are refused. Encrypt those at install time instead.
+- A mounted partition is refused; unmount it first.
+- A label that cannot be found, or whose filesystem cannot be determined,
+  is an error rather than a guess.
+- The result is verified before success is reported.
+
+The command prompts for confirmation unless --i-know-what-i-am-doing is
+given. The partitions are left locked; they unlock on the next boot, or
+with 'kairos-agent kcrypt unlock-all'.`,
+				Flags: []cli.Flag{
+					&cli.BoolFlag{
+						Name:  "i-know-what-i-am-doing",
+						Usage: "Skip confirmation prompt (DANGEROUS: encrypting destroys all data on the partitions)",
+					},
+				},
+				Before: func(c *cli.Context) error {
+					return checkRoot()
+				},
+				Action: func(c *cli.Context) error {
+					if c.NArg() == 0 {
+						return fmt.Errorf("no partition labels given; usage: kairos-agent kcrypt encrypt LABEL [LABEL...]")
+					}
+					cfg, err := agentConfig.Scan(collector.Directories(constants.GetUserConfigDirs()...), collector.NoLogs)
+					if err != nil {
+						return fmt.Errorf("failed to scan config: %w", err)
+					}
+					return action.KcryptEncrypt(cfg, c.Args().Slice(), c.Bool("i-know-what-i-am-doing"))
+				},
+			},
 		},
 	},
 	{
