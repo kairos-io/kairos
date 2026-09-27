@@ -131,6 +131,29 @@ on:
         type: string
         default: ''
 
+      default_grub_entry:
+        description: |
+          Id of the live GRUB menu entry the built ISO boots by
+          default, for example `kairos-install`. Empty means the ISO
+          keeps auroraboot's own default, which is the interactive
+          installer (kairos-io/AuroraBoot#869).
+
+          PR and master builds feed the qemu acceptance suite, and ten
+          of its specs call `expectDefaultService` after a plain
+          `types.WithISO()` boot, which the interactive installer does
+          not satisfy: it waits for a human instead of running
+          `kairos-installer.service`. Those callers pin
+          `kairos-install` so the suite keeps booting the unattended
+          entry. Release builds leave it empty, so a released ISO
+          lands on the installer, which is the point of
+          kairos-io/kairos#4960.
+
+          Passed through to auroraboot as `--default-grub-entry`, and
+          only on the non-trusted-boot path: a UKI ISO has no GRUB
+          menu and `build-uki` rejects the flag.
+        type: string
+        default: ''
+
       custom_tag_format:
         description: |
           Factory-action custom_tag_format for the pushed OS image.
@@ -256,6 +279,7 @@ jobs:
       # because there is no sysext on the media to load.
       sysext_dir: '$PWD/tests/assets/sysext'
       single_efi_cmdline: ${{ inputs.single_efi_cmdline }}
+      default_grub_entry: ${{ inputs.default_grub_entry }}
       iso: ${{ inputs.iso }}
       kubernetes_distro: ${{ inputs.kubernetes_distro }}
       kubernetes_version: ${{ inputs.kubernetes_version }}

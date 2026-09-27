@@ -295,6 +295,11 @@ on:
         required: false
         description: "Single EFI command line to use for trusted boot (optional, only used when trusted_boot is true)"
 
+      default_grub_entry:
+        type: string
+        required: false
+        description: "Id of the live GRUB menu entry to boot by default, for example kairos-install. Passed to auroraboot build-iso as --default-grub-entry. Ignored when trusted_boot is true, because a UKI ISO has no GRUB menu. If empty it is not passed and the ISO keeps auroraboot's own default."
+
       # Cloud config (file path or URL)
       cloud_config:
         type: string
@@ -1063,6 +1068,13 @@ jobs:
 
             if [[ "${{ inputs.allow_insecure_registries }}" == "true" ]]; then
               DOCKER_CMD="$DOCKER_CMD --allow-insecure-registries"
+            fi
+
+            # The live GRUB menu only exists on the build-iso path. A trusted
+            # boot ISO boots a UKI straight from systemd-boot and has no
+            # grub.cfg, so build-uki has no such flag and would abort on it.
+            if [[ "${{ inputs.trusted_boot }}" != "true" && -n "${{ inputs.default_grub_entry }}" ]]; then
+              DOCKER_CMD="$DOCKER_CMD --default-grub-entry ${{ inputs.default_grub_entry }}"
             fi
 
             if [[ "${{ inputs.trusted_boot }}" == "true" ]]; then
