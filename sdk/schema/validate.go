@@ -8,11 +8,18 @@ import (
 	"strings"
 )
 
+// SchemaID returns the identifier of the cloud config schema document for a
+// given Kairos version. It names the document, it is not a location to fetch:
+// nothing has been published under https://kairos.io/ since v2.0.1, so the
+// address does not resolve for any supported release.
+func SchemaID(version string) string {
+	return fmt.Sprintf("https://kairos.io/%s/cloud-config.json", version)
+}
+
 // JSONSchema builds a JSON Schema based on the Root Schema and the given version
 // this is helpful when mapping a validation error.
 func JSONSchema(version string) (string, error) {
-	url := fmt.Sprintf("https://kairos.io/%s/cloud-config.json", version)
-	schema, err := GenerateSchema(RootSchema{}, url)
+	schema, err := GenerateSchema(RootSchema{}, SchemaID(version))
 	if err != nil {
 		return "", err
 	}
