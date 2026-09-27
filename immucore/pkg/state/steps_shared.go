@@ -614,15 +614,42 @@ func extensionPolicyChecker(isUKI bool) func(path string) bool {
 		return unvalidatedExtensionCheck(isUKI)
 	}
 
-	policy := sysextImagePolicy(isUKI)
+	return activatableExtensionCheck(isUKI, satisfiesImagePolicy)
+}
+
+// activatableExtensionCheck reports whether an extension is one this boot can
+// actually set up.
+//
+// Satisfying the image policy is necessary but not sufficient. The policy is
+// an overlap test, so an image that is verity and signed satisfies the verity
+// policy a GRUB boot enforces, and then fails to activate for want of a
+// certificate. Both questions have to be asked, because systemd-sysext
+// refreshes all or nothing and one image it cannot set up stops every other
+// extension from merging. kairos-io/kairos#5004.
+func activatableExtensionCheck(isUKI bool, satisfiesPolicy func(isUKI bool, path string) bool) func(path string) bool {
 	return func(path string) bool {
-		out, err := internalUtils.CommandWithPath(fmt.Sprintf("systemd-dissect --validate %s %s", policy, path))
-		if err != nil {
-			internalUtils.KLog.Logger.Debug().Err(err).Str("src", path).Str("output", out).Str("policy", policy).Msg("Validating extension")
+		if !satisfiesPolicy(isUKI, path) {
+			return false
+		}
+		if hasUnverifiableSignature(isUKI, path) {
+			internalUtils.KLog.Logger.Warn().Str("src", path).
+				Msg("Extension carries a verity signature this boot has no certificate to check, skipping")
 			return false
 		}
 		return true
 	}
+}
+
+// satisfiesImagePolicy asks systemd-dissect whether the image satisfies the
+// policy this boot's systemd-sysext drop-in enforces.
+func satisfiesImagePolicy(isUKI bool, path string) bool {
+	policy := sysextImagePolicy(isUKI)
+	out, err := internalUtils.CommandWithPath(fmt.Sprintf("systemd-dissect --validate %s %s", policy, path))
+	if err != nil {
+		internalUtils.KLog.Logger.Debug().Err(err).Str("src", path).Str("output", out).Str("policy", policy).Msg("Validating extension")
+		return false
+	}
+	return true
 }
 
 // unvalidatedExtensionCheck is the check to fall back to when the image policy
