@@ -59,3 +59,13 @@ sshd-45:
   justification: >-
     Hadron's OpenSSH is built with --disable-lastlog. PrintLastLog is not
     a valid directive in that build and sshd -T does not emit it.
+
+sshd-46:
+  expiration_date: "2099-01-01"
+  run: false
+  justification: >-
+    DevSec ssh-baseline wants Banner=none. CIS Distribution Independent
+    Linux L1 5.2.19 requires Banner=/etc/issue.net. Kairos-init follows
+    CIS on this one and ships the pre-auth banner file plus the sshd
+    Banner directive. The two standards disagree; the deliberate choice
+    is CIS.
