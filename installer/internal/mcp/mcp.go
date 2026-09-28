@@ -109,6 +109,14 @@ func (agentInstaller) Run(agentBin, cfgPath, source, finishAction string, onEven
 type Server struct {
 	log sdkLogger.KairosLogger
 
+	// source is the install source this boot pinned, from
+	// `kairos-installer --source`. It is what the install tool falls back to
+	// when the caller names none, so an agent-driven install pulls the image
+	// the medium was started for, the same one the TUI and the web UI pull.
+	// Empty means the boot pinned nothing, and kairos-agent goes on resolving
+	// its own default.
+	source string
+
 	// scanDisks lists installation candidates.
 	scanDisks func() ([]disks.Disk, error)
 	// gatherChecks and applyDecisions run the prerequisite plugins.
@@ -124,10 +132,12 @@ type Server struct {
 	installed  bool
 }
 
-// New builds a Server backed by the real host.
-func New(log sdkLogger.KairosLogger) *Server {
+// New builds a Server backed by the real host. source is the install source the
+// installer was started with, and may be empty.
+func New(log sdkLogger.KairosLogger, source string) *Server {
 	s := &Server{
 		log:            log,
+		source:         source,
 		scanDisks:      disks.Scan,
 		installer:      agentInstaller{},
 		generateBundle: func() (string, error) { return generateBundle(time.Now()) },
@@ -165,10 +175,14 @@ func EnabledFromConfig(paths ...string) bool {
 // Handler returns the MCP server as an http.Handler, so it can be mounted on
 // the web installer's router next to the browser's own routes.
 //
+// source is the install source the installer was started with. It is carried
+// here for the same reason webui.Options carries it: all three frontends of one
+// binary have to install the image the boot asked for.
+//
 // One Server backs every session. The "one install per boot" guard is held on
 // it, so reconnecting does not hand a client a second install.
-func Handler(log sdkLogger.KairosLogger) http.Handler {
-	return handlerFor(New(log))
+func Handler(log sdkLogger.KairosLogger, source string) http.Handler {
+	return handlerFor(New(log, source))
 }
 
 func handlerFor(s *Server) http.Handler {

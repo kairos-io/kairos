@@ -263,9 +263,12 @@ is running, because its default handler writes JSON to stdout and that would
 land on top of the alt screen. With `--no-tui` it logs to stdout, so it ends up
 in the journal.
 
-`--source` reaches both interactive frontends: the web UI passes it to
-`manual-install` the same way `agentrun.Command` does for the TUI, so an install
-driven from the browser pulls the image the boot asked for.
+`--source` reaches all three frontends: the web UI passes it to
+`manual-install` the same way `agentrun.Command` does for the TUI, and the MCP
+server keeps it as the default its `install` tool uses when the caller names no
+`source`, reporting it as `default_source` from `get_install_options`. So an
+install driven from the browser or by an agent pulls the image the boot asked
+for, the same one the terminal installer would.
 
 The reusable pieces live in the **SDK**: `sdk/agentrun` drives
 `kairos-agent manual-install` and parses its JSON-Lines progress, and `sdk/bus`

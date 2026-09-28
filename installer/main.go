@@ -111,17 +111,17 @@ func main() {
 // terminal in that mode, so echo keeps its default stdout logger and its
 // output lands in the journal.
 func noTUIWebUIOptions(source string, logger sdkLogger.KairosLogger) webui.Options {
-	return webui.Options{Source: source, MCP: mcpHandler(logger)}
+	return webui.Options{Source: source, MCP: mcpHandler(logger, source)}
 }
 
 // tuiWebUIOptions is what the interactive installer hands the web UI it runs
 // alongside the TUI. It differs only in the logger, because echo's default
 // writes JSON to stdout and the TUI owns that terminal.
 //
-// Both carry the install source, so an install driven from the browser pulls
-// the same image the terminal installer would, and both carry the MCP
-// endpoint, because a boot with only the HTTP installer up is precisely the
-// boot an agent has to drive.
+// Both carry the install source, so an install driven from the browser or by
+// an agent over MCP pulls the same image the terminal installer would, and both
+// carry the MCP endpoint, because a boot with only the HTTP installer up is
+// precisely the boot an agent has to drive.
 //
 // activity is how main learns that the browser started an install, so quitting
 // the TUI does not cut it short.
@@ -130,7 +130,7 @@ func tuiWebUIOptions(source string, activity *webui.Activity, logger sdkLogger.K
 		Source:   source,
 		Logger:   webUILogger(),
 		Activity: activity,
-		MCP:      mcpHandler(logger),
+		MCP:      mcpHandler(logger, source),
 	}
 }
 
@@ -138,13 +138,15 @@ func tuiWebUIOptions(source string, activity *webui.Activity, logger sdkLogger.K
 // the image asked for the browser installer without the agent one.
 //
 // It takes the installer's own logger rather than echo's: the MCP server must
-// never write to the terminal the TUI is drawing on.
-func mcpHandler(logger sdkLogger.KairosLogger) http.Handler {
+// never write to the terminal the TUI is drawing on. It takes source for the
+// same reason webui.Options does: the image an install pulls is a property of
+// the boot, not of the frontend that drives it.
+func mcpHandler(logger sdkLogger.KairosLogger, source string) http.Handler {
 	if !mcp.EnabledFromConfig() {
 		return nil
 	}
 
-	return mcp.Handler(logger)
+	return mcp.Handler(logger, source)
 }
 
 // webUILogger returns a logger writing to webUILogPath, or one writing nowhere
