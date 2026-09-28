@@ -208,7 +208,7 @@ var _ = Describe("kcrypt encrypt", func() {
 		})
 	})
 
-	Describe("encryptFormattedPersistent", func() {
+	Describe("encryptFormattedPartition", func() {
 		newReset := func(cfg *config.Config) (*ResetAction, *partitions.Partition) {
 			persistent := &partitions.Partition{
 				Name: "vda5", Path: "/dev/vda5",
@@ -226,7 +226,7 @@ var _ = Describe("kcrypt encrypt", func() {
 		It("is a no-op when nothing is configured for encryption", func() {
 			stub := stubAll()
 			r, persistent := newReset(newConfig())
-			Expect(r.encryptFormattedPersistent(persistent)).To(Succeed())
+			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
 			Expect(stub.encrypted).To(BeEmpty())
 			Expect(persistent.Path).To(Equal("/dev/vda5"))
 		})
@@ -234,7 +234,7 @@ var _ = Describe("kcrypt encrypt", func() {
 		It("is a no-op on a nil partition", func() {
 			stub := stubAll()
 			r, _ := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			Expect(r.encryptFormattedPersistent(nil)).To(Succeed())
+			Expect(r.encryptFormattedPartition(nil)).To(Succeed())
 			Expect(stub.encrypted).To(BeEmpty())
 		})
 
@@ -242,14 +242,14 @@ var _ = Describe("kcrypt encrypt", func() {
 			stub := stubAll()
 			stub.disksNow = luksPersistent
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			Expect(r.encryptFormattedPersistent(persistent)).To(Succeed())
+			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
 			Expect(stub.encrypted).To(BeEmpty())
 		})
 
 		It("encrypts, unlocks and repoints the spec at the mapper", func() {
 			stub := stubAll()
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			Expect(r.encryptFormattedPersistent(persistent)).To(Succeed())
+			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
 			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.PersistentLabel}}))
 			Expect(stub.unlocked).To(Equal([][]string{{sdkConstants.PersistentLabel}}))
 			Expect(persistent.Path).To(Equal("/dev/mapper/vda5"))
@@ -259,7 +259,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			stubAll()
 			kcryptEncryptFn = func(*config.Config, []string) error { return errors.New("no TPM device") }
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			err := r.encryptFormattedPersistent(persistent)
+			err := r.encryptFormattedPartition(persistent)
 			Expect(err).To(MatchError(ContainSubstring("no TPM device")))
 			Expect(persistent.Path).To(Equal("/dev/vda5"))
 		})
@@ -268,7 +268,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			stubAll()
 			kcryptUnlockFn = func(*config.Config, []string) error { return errors.New("unlock failed") }
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			err := r.encryptFormattedPersistent(persistent)
+			err := r.encryptFormattedPartition(persistent)
 			Expect(err).To(MatchError(ContainSubstring("unlock failed")))
 		})
 
@@ -276,7 +276,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			stub := stubAll()
 			stub.disksNow = func() []*partitions.Disk { return disksWith() }
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			err := r.encryptFormattedPersistent(persistent)
+			err := r.encryptFormattedPartition(persistent)
 			Expect(err).To(MatchError(ContainSubstring("was not found")))
 			Expect(stub.encrypted).To(BeEmpty())
 		})
@@ -285,8 +285,39 @@ var _ = Describe("kcrypt encrypt", func() {
 			stub := stubAll()
 			resetIsUkiFn = func() bool { return true }
 			r, persistent := newReset(newConfig())
-			Expect(r.encryptFormattedPersistent(persistent)).To(Succeed())
+			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
 			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.PersistentLabel}}))
+		})
+
+		It("encrypts a freshly formatted OEM partition when it is listed", func() {
+			stub := stubAll()
+			stub.disksNow = func() []*partitions.Disk {
+				return disksWith(&partitions.Partition{
+					Name: "vda2", Path: "/dev/vda2",
+					FilesystemLabel: sdkConstants.OEMLabel, FS: "ext4",
+				})
+			}
+			r, _ := newReset(configWithEncrypt(sdkConstants.OEMLabel))
+			oem := &partitions.Partition{Name: "vda2", Path: "/dev/vda2", FilesystemLabel: sdkConstants.OEMLabel}
+			Expect(r.encryptFormattedPartition(oem)).To(Succeed())
+			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.OEMLabel}}))
+			Expect(stub.unlocked).To(Equal([][]string{{sdkConstants.OEMLabel}}))
+			Expect(oem.Path).To(Equal("/dev/mapper/vda5"), "the spec must point at the mapper the stub resolved")
+		})
+
+		It("applies the UKI default to OEM as well", func() {
+			stub := stubAll()
+			resetIsUkiFn = func() bool { return true }
+			stub.disksNow = func() []*partitions.Disk {
+				return disksWith(&partitions.Partition{
+					Name: "vda2", Path: "/dev/vda2",
+					FilesystemLabel: sdkConstants.OEMLabel, FS: "ext4",
+				})
+			}
+			r, _ := newReset(newConfig())
+			oem := &partitions.Partition{Name: "vda2", Path: "/dev/vda2", FilesystemLabel: sdkConstants.OEMLabel}
+			Expect(r.encryptFormattedPartition(oem)).To(Succeed())
+			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.OEMLabel}}))
 		})
 	})
 })

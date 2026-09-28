@@ -18,16 +18,19 @@ var (
 	resetMountSourceFn = lookup.MountSourceForLabel
 )
 
-// encryptFormattedPersistent restores encryption on the persistent partition
-// right after a reset reformatted it. A reset format produces a plaintext
-// filesystem, so a node whose configuration lists persistent in
-// install.encrypted_partitions would come back from reset unencrypted, with
-// nothing but a QA eye to notice. This is the reset half of
+// encryptFormattedPartition restores encryption on a partition right after
+// a reset reformatted it. A reset format produces a plaintext filesystem,
+// so a node whose configuration lists the partition in
+// install.encrypted_partitions would come back from reset unencrypted,
+// with nothing but a QA eye to notice. This is the reset half of
 // kairos-io/kairos#4556: reset ends in the same state install ends in.
 //
-// It is called only from the FormatPersistent branch of the reset, which is
-// the one point where the partition is empty by construction, so encrypting
-// it cannot destroy data. Everything else is defensive:
+// It is called only from the two format branches of the reset
+// (FormatPersistent and FormatOEM), which are the points where the
+// partition is empty by construction, so encrypting it cannot destroy
+// data. OEM needs no backup dance here for the same reason: unlike at
+// install time, the reset format has already emptied it on purpose.
+// Everything else is defensive:
 //
 //   - Nothing configured for this label: no-op. The opt-out stays the same
 //     as install's.
@@ -41,13 +44,13 @@ var (
 //     plaintext, the same fail closed semantics the boot time step has.
 //
 // After encrypting it unlocks the partition and repoints the spec at the
-// mapper device, because the rest of the reset (state record, log copy)
-// still mounts persistent through the spec's path.
-func (r *ResetAction) encryptFormattedPersistent(persistent *partitions.Partition) error {
-	if persistent == nil || persistent.FilesystemLabel == "" {
+// mapper device, because the rest of the reset (the OEM remount, state
+// record, log copy) still mounts the partition through the spec's path.
+func (r *ResetAction) encryptFormattedPartition(part *partitions.Partition) error {
+	if part == nil || part.FilesystemLabel == "" {
 		return nil
 	}
-	label := persistent.FilesystemLabel
+	label := part.FilesystemLabel
 
 	if !resetWantsEncrypted(r.cfg, label) {
 		r.cfg.Logger.Debugf("partition %s is not configured for encryption; leaving it plaintext after the format", label)
@@ -88,7 +91,7 @@ func (r *ResetAction) encryptFormattedPersistent(persistent *partitions.Partitio
 	}
 	r.cfg.Logger.Logger.Info().Str("partition", label).Str("device", source).
 		Msg("partition encrypted and unlocked; the reset continues against the mapper")
-	persistent.Path = source
+	part.Path = source
 	return nil
 }
 

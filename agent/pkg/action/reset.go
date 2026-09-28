@@ -118,7 +118,7 @@ func (r ResetAction) Run() (err error) {
 			// partition, so anything written earlier is destroyed. After
 			// it the spec points at the unlocked mapper, which is where
 			// the restore lands.
-			err = r.encryptFormattedPersistent(persistent)
+			err = r.encryptFormattedPartition(persistent)
 			if err != nil {
 				return err
 			}
@@ -142,6 +142,18 @@ func (r ResetAction) Run() (err error) {
 			if err != nil {
 				return err
 			}
+
+			// Same as persistent above: the format leaves OEM plaintext
+			// and empty, so when the configuration lists it as encrypted
+			// (explicitly, or through the UKI default), encrypt it again
+			// now. On a node encrypted at install the format hit the
+			// unlocked mapper, the container survived, and this is a
+			// no-op.
+			err = r.encryptFormattedPartition(oem)
+			if err != nil {
+				return err
+			}
+
 			// Mount it back, as oem is mounted during recovery, keep everything as is
 			err = e.MountPartition(oem)
 			if err != nil {
