@@ -219,7 +219,7 @@ func haltTerminated(sig os.Signal) {
 // rootMountModeFor is the mode the root filesystems are mounted with.
 // rd.immucore.debugrw asks for read-write, which on write-protected media
 // cannot be granted: the kernel refuses the write open with EACCES and there is
-// nothing to fall back to. The debugging aid loses to the hardware.
+// nothing to fall back to, so the request is ignored there.
 func rootMountModeFor(hardwareRO bool, requested string) string {
 	if hardwareRO && requested != "ro" {
 		utils.KLog.Logger.Warn().

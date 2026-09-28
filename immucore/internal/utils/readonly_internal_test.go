@@ -85,10 +85,9 @@ var _ = Describe("parseHardwareRO", func() {
 	})
 
 	It("does not match =10 as off", func() {
-		// The bug in the first attempt was the mirror of this: hardware_ro=10
-		// read as on because the constant baked in "=1" and was substring
-		// matched. Here 10 is simply not one of the off spellings, so it is on,
-		// and it gets there by parsing rather than by accident.
+		// 10 is not one of the off spellings, so it is on. It has to get there
+		// by parsing the value, not by a substring match on "=1", which would
+		// also read =10 as on but for the wrong reason.
 		setCmdline("rd.immucore.hardware_ro=10")
 		forced, set := parseHardwareRO()
 		Expect(set).To(BeTrue())

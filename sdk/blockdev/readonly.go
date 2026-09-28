@@ -36,10 +36,10 @@ var rdevOf = statRdev
 // created with the read-only flag already reports read-only itself, and a
 // read-write mapper cannot be created on a write-protected device at all (the
 // kernel refuses the write open of the backing device), so on a Kairos boot the
-// mapper's own answer is expected to be right. The descent is cheap insurance
-// for a stack that was assembled some other way, and it is limited to crypt
-// mappers on purpose: a snapshot or thin target writes to a cow device on top
-// of a read-only origin, and calling that read-only would be wrong.
+// mapper's own answer is expected to be right. The descent covers a stack that
+// was assembled some other way, and it is limited to crypt mappers: a snapshot
+// or thin target writes to a cow device on top of a read-only origin, and
+// calling that read-only would be wrong.
 //
 // An error means the question could not be answered, not that the device is
 // writable: callers decide what a missing answer implies, and none of them
