@@ -7,15 +7,16 @@ name: PR fork checks
 # registry secrets. That trigger is what forces its `authorize`
 # gate: a fork PR lands in the fork-pr-builds environment and
 # waits for a maintainer before ANY of its jobs start, including
-# the two that need no secrets at all. Issue #4296 measured the
+# the five that need no secrets at all. Issue #4296 measured the
 # cost -- 117 runs queued, the oldest waiting 25 days, and 18
 # already-approved fixes with no CI run behind them.
 #
-# This workflow does not touch that gate. It runs the two
-# secret-free halves of the pipeline, unit tests and lint, on the
-# plain `pull_request` trigger, which GitHub starts without
-# approval and hands a read-only GITHUB_TOKEN and no repository
-# secrets. release-scan.yml already proves the shape works here:
+# This workflow does not touch that gate. It runs the secret-free
+# part of the pipeline -- unit tests, lint, and the three compile
+# jobs -- on the plain `pull_request` trigger, which GitHub
+# starts without approval and hands a read-only GITHUB_TOKEN and
+# no repository secrets.
+# release-scan.yml already proves the shape works here:
 # its `scan shipped bundle` job runs to completion on fork PRs
 # while their `authorize` check is still pending.
 #
@@ -36,7 +37,7 @@ name: PR fork checks
 # maintainer click before it can go green enough to merge.
 #
 # Same-repo PRs are skipped: pr.yaml routes them to the
-# `internal` environment and runs unit-tests and lint immediately
+# `internal` environment and runs all five of these immediately
 # anyway, so running them here too would only duplicate the work.
 
 on:
@@ -59,14 +60,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # No `with:` and no `secrets: inherit` on either call. Every
-  # input the callees take is optional: `ref` defaults to empty,
-  # which checks out the event's own merge ref, and
-  # `caller-vetted-ref` defaults to false, which is the correct
-  # value here -- actions/checkout's `allow-unsafe-pr-checkout`
-  # opt-in guards `pull_request_target` + fork-ref, a combination
-  # this workflow never creates. `secrets.GITHUB_TOKEN` is
-  # available to a called workflow without being inherited.
+  # No `secrets: inherit` on any call, and no `ref` or
+  # `caller-vetted-ref` on any of them. Both of those inputs are
+  # optional: `ref` defaults to empty, which checks out the
+  # event's own merge ref, and `caller-vetted-ref` defaults to
+  # false, which is the correct value here -- actions/checkout's
+  # `allow-unsafe-pr-checkout` opt-in guards
+  # `pull_request_target` + fork-ref, a combination this workflow
+  # never creates. The only input passed below is `matrix_scope`,
+  # which the three build reusables declare as required and which
+  # carries no privilege. `secrets.GITHUB_TOKEN` is available to
+  # a called workflow without being inherited.
   fork-unit-tests:
     name: fork-unit-tests
     if: github.event.pull_request.head.repo.full_name != github.repository
@@ -76,3 +80,52 @@ jobs:
     name: fork-lint
     if: github.event.pull_request.head.repo.full_name != github.repository
     uses: ./.github/workflows/_lint.yaml
+
+  # The compile pipe. These three are the only other jobs in
+  # pr.yaml that need nothing from the privileged side: each
+  # reusable declares `permissions: contents: read`, runs on
+  # ubuntu-latest, contains no `secrets.` reference, and does
+  # nothing but checkout, setup-go, build and upload-artifact.
+  # `secrets: inherit` in pr.yaml is the only thing they are
+  # handed that this workflow withholds, and they do not read it.
+  # The binaries kairos-init embeds are fetched by
+  # scripts/prepare-kairos-init-binaries.sh with anonymous curl
+  # against public releases, so that step is unaffected too.
+  #
+  # Everything else in pr.yaml stays gated and should: the
+  # image, ISO and qemu jobs need registry credentials or a
+  # self-hosted runner, `size-diff` consumes build-iso's
+  # artifacts, and `changes` only gates `build-flavors`, which
+  # is itself gated, so moving it would buy nothing.
+  #
+  # The three move as a group because build-kairos-init consumes
+  # build-kairos's workflow artifacts and artifacts are scoped to
+  # a run. The cost is that an approved fork PR compiles twice,
+  # once here and once in pr.yaml, since the gated pipeline still
+  # has to produce the artifacts its image and ISO jobs consume.
+  # The trade is a compile error surfacing in minutes rather than
+  # whenever a maintainer gets to the approval.
+  fork-build-kairos:
+    name: fork-build-kairos
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    uses: ./.github/workflows/_build-kairos.yaml
+    with:
+      matrix_scope: ci
+
+  fork-build-kairos-init:
+    name: fork-build-kairos-init
+    # Downloads the multi-call kairos artifacts the job above
+    # uploads, so it has to run in the same workflow run and
+    # after it.
+    needs: fork-build-kairos
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    uses: ./.github/workflows/_build-kairos-init.yaml
+    with:
+      matrix_scope: ci
+
+  fork-build-kcrypt-challenger:
+    name: fork-build-kcrypt-challenger
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    uses: ./.github/workflows/_build-kcrypt-challenger.yaml
+    with:
+      matrix_scope: ci
