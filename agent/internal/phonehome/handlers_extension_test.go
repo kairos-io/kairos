@@ -544,21 +544,27 @@ var _ = Describe("handleUpgrade, extensions bundle", func() {
 		Expect(rebootCalled).To(BeFalse())
 	})
 
-	It("enables bundled extensions at --recovery scope for upgrade-recovery", func() {
-		raw, _ := json.Marshal([]BundledExtension{
-			{Type: "sysext", Name: "rescue-tools", Source: "https://x/r"},
-		})
-		_, err := upgrade(CommandData{
-			Command: "upgrade-recovery",
-			Args: map[string]string{
-				"source":     "oci:quay.io/myorg/edge-os:v4.2.0",
-				"recovery":   "true",
-				"extensions": string(raw),
-			},
-		})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(rec.calls).To(HaveLen(3))
-		Expect(rec.calls[1]).To(Equal([]string{"kairos-agent", "sysext", "enable", "--recovery", "rescue-tools"}))
-		Expect(rebootCalled).To(BeFalse())
-	})
+	// Both encodings of "upgrade the recovery image" have to reach the same
+	// three decisions: the --recovery flag, the extension scope, and skipping
+	// the reboot. Each entry sends one encoding only, so neither can pass by
+	// borrowing the other's.
+	DescribeTable("treats a recovery upgrade the same however it is addressed",
+		func(command string, args map[string]string) {
+			raw, _ := json.Marshal([]BundledExtension{
+				{Type: "sysext", Name: "rescue-tools", Source: "https://x/r"},
+			})
+			args["source"] = "oci:quay.io/myorg/edge-os:v4.2.0"
+			args["extensions"] = string(raw)
+
+			out, err := upgrade(CommandData{Command: command, Args: args})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rec.calls).To(HaveLen(3))
+			Expect(rec.calls[1]).To(Equal([]string{"kairos-agent", "sysext", "enable", "--recovery", "rescue-tools"}))
+			Expect(rec.calls[2]).To(Equal([]string{"kairos-agent", "upgrade", "--source", "oci:quay.io/myorg/edge-os:v4.2.0", "--recovery"}))
+			Expect(rebootCalled).To(BeFalse())
+			Expect(out).To(ContainSubstring("No reboot needed"))
+		},
+		Entry("the upgrade-recovery command", "upgrade-recovery", map[string]string{}),
+		Entry("an upgrade carrying recovery=true", "upgrade", map[string]string{"recovery": "true"}),
+	)
 })
