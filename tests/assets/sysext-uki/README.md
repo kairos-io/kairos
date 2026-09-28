@@ -3,10 +3,12 @@ Sysext test extensions for the Trusted Boot (UKI) live-media sweep.
 This directory is baked onto every UKI test ISO by `_build-iso.yaml` via
 auroraboot's `--overlay-iso`. Two extensions ship:
 
-- `work.sysext.raw`: verity + signed with the test keys under
-  `tests/assets/keys` (db.key/db.pem). A UKI boot enrolls db.crt in the
-  Secure Boot db, so the kernel accepts the verity root-hash signature
-  and systemd-sysext merges the extension.
+- `work.sysext.raw`: verity + signed. The verity root-hash is signed
+  with the test signing key `tests/assets/keys/db.key`, and the
+  matching certificate is `tests/assets/keys/db.pem`. A UKI boot
+  enrolls `tests/assets/keys/db.auth` (the EFI signed variable derived
+  from `db.pem`) into the Secure Boot db, so the kernel trusts the
+  signature and systemd-sysext merges the extension.
 - `hello-broke.sysext.raw`: neither verity nor signed. It is rejected by
   the image policy the UKI drop-in installs, and it is there to assert
   that a broken extension does not take the valid one down with it.
@@ -24,7 +26,10 @@ The split keeps that assertion out of the GRUB path.
 What the extensions are:
 
 - Each is a `/usr/local/bin/` layer with a `hello.sh` script that prints
-  `Hello world`.
+  the literal string `Hello world`. `tests/uki_test.go` and
+  `tests/sysext_live_media_test.go` assert on that string with
+  `ContainSubstring("Hello world")`; keep the exact casing if you
+  regenerate.
 - `work.sysext.raw` is a systemd-repart DDI (erofs data + verity hash +
   verity signature partition).
 - `hello-broke.sysext.raw` is a plain squashfs bake with the same script.
