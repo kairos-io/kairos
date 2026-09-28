@@ -1,7 +1,7 @@
 Sysext test extensions for the plain GRUB live-media sweep.
 
 This directory is baked onto every non-UKI test ISO by `_build-iso.yaml`
-via auroraboot's `--overlay-iso`. Two extensions ship:
+via auroraboot's `--overlay-iso`. One extension ships:
 
 - `work.sysext.raw`: verity, **unsigned**. The GRUB drop-in installed by
   `kairos-init` runs `systemd-sysext refresh` with
@@ -14,29 +14,35 @@ via auroraboot's `--overlay-iso`. Two extensions ship:
   Keeping the GRUB asset unsigned lets the merge succeed on both this
   extension and anything else the boot installs (bundles, declared
   extensions, ...).
-- `hello-broke.sysext.raw`: neither verity nor signed. The image policy
-  above rejects it, but as an incompatible image, which is the forgiving
-  branch of the merge (`n_ignored++; continue`), so it does not take
-  `work.sysext.raw` down with it. It is here to assert that behavior on
-  the GRUB path.
 
-Both extensions carry a `usr/lib/extension-release.d/extension-release.NAME`
-with `ID=_any`, so systemd-sysext identifies them regardless of the host
-os-release.
+Why no `hello-broke.sysext.raw` here: the UKI directory ships that
+malformed asset to assert that systemd-stub filters it out of
+`.efi.extra.d/`. On the GRUB path there is no such filter -- the agent
+sweep stages every `*.sysext.raw` it finds on the media and immucore
+links them all into `/run/extensions`. When `systemd-sysext refresh`
+then dissects each one, an image that fails the policy check (which
+`hello-broke` does, since it has neither verity nor a signature) is a
+fatal error for the whole merge, not a soft skip: `sd-merge` prints
+`Image does not match image policy` and the service exits non-zero,
+leaving even the valid `work.sysext.raw` unmerged. The corresponding
+UKI assertion (that the stub filters `hello-broke` out) is exercised
+in `tests/uki_test.go`; the GRUB spec does not need it.
+
+The one shipped extension carries a
+`usr/lib/extension-release.d/extension-release.work` with `ID=_any`, so
+systemd-sysext identifies it regardless of the host os-release.
 
 The UKI equivalent lives in `tests/assets/sysext-uki/`. Its
 `work.sysext.raw` is verity + signed with the test keys.
 
-What the extensions are:
+What the extension is:
 
-- Each is a `/usr/local/bin/` layer with a `hello.sh` script that prints
-  the literal string `Hello world`. `tests/sysext_live_media_test.go`
+- A `/usr/local/bin/` layer with a `hello.sh` script that prints the
+  literal string `Hello world`. `tests/sysext_live_media_test.go`
   asserts on that string with `ContainSubstring("Hello world")`; keep
   the exact casing if you regenerate.
 - `work.sysext.raw` is a systemd-repart DDI with only the erofs data and
   verity hash partitions (no root-verity-sig partition).
-- `hello-broke.sysext.raw` is a plain squashfs bake with the same
-  script; identical to the file in `tests/assets/sysext-uki/`.
 
 Rebuilding `work.sysext.raw` needs a custom repart definitions directory,
 because `systemd-repart -S` (i.e. `--make-ddi=sysext`) drops in the stock
@@ -73,7 +79,3 @@ systemd-repart --seed=00000000-0000-0000-0000-000000000000 \
 The fixed seed keeps the generated UUIDs and the resulting bytes
 reproducible across rebuilds. `mkfs.erofs` (Arch: `erofs-utils`; Fedora:
 `erofs-utils`; Debian: `erofs-utils`) has to be on PATH.
-
-Rebuilding `hello-broke.sysext.raw` follows the same procedure as in
-`tests/assets/sysext-uki/README.md`. If you regenerate it, keep the two
-files byte-identical (they are the same asset).
