@@ -59,3 +59,84 @@ sshd-45:
   justification: >-
     Hadron's OpenSSH is built with --disable-lastlog. PrintLastLog is not
     a valid directive in that build and sshd -T does not emit it.
+
+# ---------------------------------------------------------------------------
+# Waived because the base image, not kairos-init, owns the directive.
+#
+# hadron v0.5.3 renamed its sshd drop-ins from 99-/100- to 01-/02-/03-.
+# sshd_config is first value wins in lexical order of the drop-in name, so
+# /etc/ssh/sshd_config.d/01-hadron-stig.conf and 02-hadron-crypto.conf now
+# sort below kairos-init's 05-kairos-hardening.conf and win every directive
+# both files set. The rename was deliberate: 02-hadron-crypto.conf shares
+# its prefix with 02-hadron-fips.conf so that kairos-init's non-FIPS lists
+# cannot displace the FIPS-validated ones, and hadron's own acceptance tests
+# depend on its PermitRootLogin winning.
+#
+# The six controls below therefore report hadron's values rather than the
+# ones kairos-init ships. Both policies are defensible and neither is a
+# regression on its own, but they disagree, and nothing in either repository
+# decides which wins. That decision is kairos-io/kairos#5041.
+#
+# These waivers are dated, not permanent like the ones above: they expire on
+# 2026-12-31, after which cinc-auditor runs the controls again and the leg
+# goes red until the ownership question has an answer.
+#
+# The security properties these six controls existed for are still asserted,
+# by the "meets the crypto and login floor" spec in ssh_hardening_test.go,
+# which checks the effective config against sshdfloor.Check instead of
+# against one exact list. Do not delete these waivers without checking that
+# spec still covers what you are re-enabling.
+
+sshd-01:
+  expiration_date: "2026-12-31"
+  run: false
+  justification: >-
+    Ciphers is set by 02-hadron-crypto.conf, which sorts below
+    05-kairos-hardening.conf. hadron's list drops aes192-ctr and reorders
+    the rest; every entry is AEAD or CTR. Ownership open in
+    kairos-io/kairos#5041.
+
+sshd-02:
+  expiration_date: "2026-12-31"
+  run: false
+  justification: >-
+    KexAlgorithms is set by 02-hadron-crypto.conf. hadron leads with the
+    post-quantum hybrids mlkem768x25519-sha256 and sntrup761x25519-sha512,
+    and also offers the ecdh-sha2-nistp curves and diffie-hellman-group14-sha256,
+    which the DevSec list excludes. Broader than the profile expects, no SHA-1
+    key exchange. Ownership open in kairos-io/kairos#5041.
+
+sshd-03:
+  expiration_date: "2026-12-31"
+  run: false
+  justification: >-
+    MACs is set by 02-hadron-crypto.conf. hadron offers the same five
+    entries plus umac-128@openssh.com, which is not encrypt-then-MAC.
+    Ownership open in kairos-io/kairos#5041.
+
+sshd-14:
+  expiration_date: "2026-12-31"
+  run: false
+  justification: >-
+    The host key set is the base image's. hadron v0.5.3 ships OpenSSH 10.x,
+    which generates /etc/ssh/ssh_host_mldsa44_ed25519_key alongside the rsa,
+    ecdsa and ed25519 keys the profile knows about. A new algorithm, not a
+    weaker one. Ownership open in kairos-io/kairos#5041.
+
+sshd-19:
+  expiration_date: "2026-12-31"
+  run: false
+  justification: >-
+    MaxAuthTries is set to 4 by 01-hadron-stig.conf, which sorts below
+    05-kairos-hardening.conf and its 2. Both are below the OpenSSH default
+    of 6. Ownership open in kairos-io/kairos#5041.
+
+sshd-36:
+  expiration_date: "2026-12-31"
+  run: false
+  justification: >-
+    ClientAliveInterval is set to 600 by 01-hadron-stig.conf, against
+    kairos-init's 300. hadron pairs it with ClientAliveCountMax 1 against
+    kairos-init's 3, so the idle window is 600s rather than 900s, shorter
+    than what the profile's expectation implies. Ownership open in
+    kairos-io/kairos#5041.

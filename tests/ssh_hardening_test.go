@@ -12,6 +12,8 @@ import (
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/peg/matcher"
 	"golang.org/x/crypto/ssh"
+
+	"kairos-tests/sshdfloor"
 )
 
 // The DevSec SSH baseline is the reference spec we harden against.
@@ -127,9 +129,10 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 					"-i", keyPath,
 					// IdentitiesOnly + PreferredAuthentications=publickey
 					// force ssh to try ONLY our -i key. Otherwise it tries
-					// agent keys and default IdentityFiles first, and the
-					// kairos-init drop-in's MaxAuthTries=2 disconnects
-					// before it gets to the right one.
+					// agent keys and default IdentityFiles first, and a
+					// low MaxAuthTries disconnects before it gets to the
+					// right one. Whichever drop-in wins sets a low one:
+					// kairos-init asks for 2, hadron v0.5.3 for 4.
 					"-o", "IdentitiesOnly=yes",
 					"-o", "PreferredAuthentications=publickey",
 					"-o", "StrictHostKeyChecking=no",
@@ -250,6 +253,45 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 		}
 		Expect(err).ToNot(HaveOccurred(),
 			"ssh-baseline profile reported failures; see %s for the JSON report", reportPath)
+	})
+
+	// Six of the profile's controls are waived in
+	// assets/ssh-baseline-waivers.yaml because they compare against one
+	// exact list per directive, and since hadron v0.5.3 the base image's
+	// own drop-ins sort below kairos-init's and win those directives.
+	// Which policy should own them is open in kairos-io/kairos#5041.
+	//
+	// This spec is what stops that waiver being a blind spot. It asserts
+	// the properties the six controls existed for, in a form both policies
+	// satisfy, so a base image that reintroduces a broken primitive or
+	// drops the login limits still turns the leg red while the ownership
+	// question is settled.
+	It("meets the crypto and login floor whichever drop-in supplies it", func() {
+		out, err := exec.Command("ssh",
+			"-i", keyPath,
+			"-o", "IdentitiesOnly=yes",
+			"-o", "PreferredAuthentications=publickey",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			"-o", "PasswordAuthentication=no",
+			"-o", "ConnectTimeout=5",
+			"-p", vm.SSHPort(),
+			user()+"@127.0.0.1",
+			// The same effective config the profile reads, materialised
+			// by the BeforeEach. Reading the file rather than running
+			// sshd -T again keeps both checks on one snapshot.
+			"cat /tmp/sshd-effective/sshd_config",
+		).CombinedOutput()
+		Expect(err).ToNot(HaveOccurred(), string(out))
+
+		effective := string(out)
+		GinkgoWriter.Printf("effective sshd config:\n%s\n", effective)
+
+		cfg := sshdfloor.Parse(effective)
+		Expect(cfg).ToNot(BeEmpty(), "sshd -T output did not parse into any directive")
+
+		Expect(sshdfloor.Check(cfg)).To(BeEmpty(),
+			"the effective sshd config is below the Kairos floor; see kairos-io/kairos#5041")
 	})
 })
 

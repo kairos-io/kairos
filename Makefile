@@ -22,7 +22,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS ?= -s -w -X github.com/kairos-io/kairos/v4/internal/version.Version=$(VERSION)
 
 .PHONY: test
-test: kairos-init-embed-stubs test-actions
+test: kairos-init-embed-stubs test-actions test-e2e-helpers
 	$(GO) test ./...
 
 # Nested go modules under .github/actions/ have their own go.mod, so the
@@ -34,6 +34,19 @@ test-actions:
 	@for m in .github/actions/ghcr-cleanup; do \
 	    echo "=== go test $$m/..."; \
 	    (cd $$m && $(GO) test ./...) || exit $$?; \
+	done
+
+# tests/ is the kairos-tests module, so the root `go test ./...` does not
+# descend into it either -- same trap as the actions modules above. Its
+# top-level package is the qemu e2e suite and must not run here, but the
+# packages listed below are pure helpers with unit tests of their own, and
+# without this they would be code nothing ever runs. Add a directory here
+# when you add a helper package under tests/, not the suite itself.
+.PHONY: test-e2e-helpers
+test-e2e-helpers:
+	@for d in tests/sshdfloor; do \
+	    echo "=== go test $$d/..."; \
+	    (cd $$d && $(GO) test ./...) || exit $$?; \
 	done
 
 # kairos-init/pkg/bundled/bundled.go uses //go:embed binaries/*, and
