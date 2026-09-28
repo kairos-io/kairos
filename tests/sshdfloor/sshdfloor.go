@@ -22,6 +22,7 @@ package sshdfloor
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -130,6 +131,11 @@ func Check(cfg map[string][]string) []string {
 	problems = append(problems, checkHostKeys(cfg)...)
 	problems = append(problems, checkLoginPolicy(cfg)...)
 
+	// bannedAlgorithms is a map, so the loop above visits it in a random
+	// order. Sort so a failing run prints the same list every time and two
+	// runs can be diffed.
+	sort.Strings(problems)
+
 	return problems
 }
 
@@ -150,7 +156,7 @@ func checkHostKeys(cfg map[string][]string) []string {
 		if strings.Contains(lower, "ed25519") {
 			ed25519 = true
 		}
-		if strings.Contains(lower, "_dsa_") || strings.HasSuffix(lower, "_dsa_key") {
+		if strings.Contains(lower, "_dsa") {
 			problems = append(problems, fmt.Sprintf("host key %q is DSA", k))
 		}
 	}

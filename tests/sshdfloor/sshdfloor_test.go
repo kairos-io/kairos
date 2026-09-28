@@ -1,6 +1,7 @@
 package sshdfloor_test
 
 import (
+	"sort"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -146,6 +147,44 @@ var _ = Describe("sshd floor", func() {
 			Expect(sshdfloor.Check(sshdfloor.Parse(cfg))).To(
 				ContainElement(ContainSubstring(`host key "/etc/ssh/ssh_host_dsa_key" is DSA`)))
 		})
+
+		// The match is on "_dsa" rather than on the full "_dsa_key" file
+		// name, because HostKey takes any path and a DSA key does not stop
+		// being one when it is not called _key.
+		// Check walks bannedAlgorithms, which is a map, so without an
+		// explicit sort the problem list comes out in a different order on
+		// every call. A red leg is read by a human comparing two runs, so
+		// the order has to be stable. One call cannot show this: the
+		// unsorted order is right by luck often enough, so repeat it.
+		It("returns the problems in the same order every time", func() {
+			first := sshdfloor.Check(sshdfloor.Parse(opensshDefaults))
+			Expect(len(first)).To(BeNumerically(">", 1), "needs several problems to have an order at all")
+			Expect(sort.StringsAreSorted(first)).To(BeTrue(), "want the list sorted, got %v", first)
+			for i := 0; i < 50; i++ {
+				Expect(sshdfloor.Check(sshdfloor.Parse(opensshDefaults))).To(Equal(first))
+			}
+		})
+
+		It("rejects a DSA host key whose path does not end in _key", func() {
+			cfg := hadronEffective + "hostkey /etc/ssh/ssh_host_dsa\n"
+			Expect(sshdfloor.Check(sshdfloor.Parse(cfg))).To(
+				ContainElement(ContainSubstring(`host key "/etc/ssh/ssh_host_dsa" is DSA`)))
+		})
+
+		// Negative control for the widened match above. Both names contain
+		// "dsa", and the ML-DSA one is in the real kairos-init host key
+		// set, so reading either as DSA would fail the leg on an image
+		// that is doing the right thing.
+		DescribeTable("does not read a non-DSA host key as DSA",
+			func(path string) {
+				cfg := hadronEffective + "hostkey " + path + "\n"
+				for _, p := range sshdfloor.Check(sshdfloor.Parse(cfg)) {
+					Expect(p).NotTo(ContainSubstring("is DSA"))
+				}
+			},
+			Entry("an ECDSA key", "/etc/ssh/ssh_host_ecdsa_key"),
+			Entry("an ML-DSA key", "/etc/ssh/ssh_host_mldsa44_ed25519_key"),
+		)
 
 		It("rejects a host key set with no ed25519 key", func() {
 			cfg := replace(hadronEffective, "hostkey", "")
