@@ -315,6 +315,10 @@ active/passive/recovery path Immucore waits for the partitions it has to see bef
 the one holding its images (30s), then the OEM partition (5s), which is the one whose absence is read as "OEM is not
 encrypted". Both waits are bounded and a timeout is not fatal, since an installation is allowed to carry no OEM
 partition at all. Immucore used to order itself after the deprecated `systemd-udev-settle.service` instead.
+The `kairos.ram` path waits too, for `COS_OEM` and `COS_PERSISTENT` on one shared 30s budget, because it reads the
+same OEM scan and also decides from a scan whether to create those partitions. Under Trusted Boot (UKI) there is no
+wait here: Immucore starts `udevd` itself from inside its own DAG and every step that touches a device is ordered
+after it.
 See [#1378](https://github.com/kairos-io/kairos/issues/1378).
 To see the full bootup process from dracut you can check [here](https://man7.org/linux/man-pages/man7/dracut.bootup.7.html).
 

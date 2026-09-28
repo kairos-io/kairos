@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -79,6 +80,44 @@ func waitForBootDevices(boot state.Boot, imagesTimeout, oemTimeout, interval tim
 	return nil
 }
 
+// WaitForInRAMDevices blocks until the partitions the kairos.ram workflow
+// reads before its DAG runs, COS_OEM and COS_PERSISTENT, are visible to a
+// block device scan, or until timeout elapses.
+//
+// The images leg of WaitForBootDevices does not apply on this path: an in-RAM
+// boot has no images partition, dracut's rd.live.ram already staged /sysroot.
+// What it does have is two build-time device scans that both fail badly
+// against an /dev udev has not finished populating. oemEncrypted() reads an
+// empty scan as "OEM is not encrypted" and wires the DAG to mount a LUKS
+// container as if it were ext4, exactly as on a normal boot; and
+// KairosPartitionsPresent() decides whether EnsurePartitionsDagStep halts the
+// boot for partitions that are missing or creates them on a disk that already
+// carries them.
+//
+// Both labels share one budget, so a machine whose disk is merely slow pays
+// it once and not twice. A first boot that legitimately carries neither
+// partition yet, the kairos.ram.create_partitions case, pays the full budget,
+// but only on that boot.
+//
+// A timeout is not fatal, for the same reason WaitForBootDevices' is not.
+func WaitForInRAMDevices(timeout time.Duration) error {
+	return waitForInRAMDevices(timeout, deviceEnumerationPollInterval, labelsEnumerated)
+}
+
+// waitForInRAMDevices is the testable core of WaitForInRAMDevices.
+func waitForInRAMDevices(timeout, interval time.Duration, present func(...string) bool) error {
+	deadline := time.Now().Add(timeout)
+	var errs []error
+	// Both partitions have to be enumerated, so unlike the OEM leg of a
+	// normal boot this cannot be a single any-of scan.
+	for _, label := range []string{constants.OEMLabel, constants.PersistentLabel} {
+		if err := waitForLabelsUntil([]string{label}, deadline, timeout, interval, present); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // oemLabelsToWaitFor returns the labels whose appearance settles OEM
 // detection for this boot: the one the cmdline names, or every label
 // GetOemLabel falls back to scanning for.
@@ -111,7 +150,13 @@ func labelsEnumerated(labels ...string) bool {
 // always attempted once before the deadline is consulted, so a zero timeout
 // still answers correctly for a device that is already there.
 func waitForLabels(labels []string, timeout, interval time.Duration, present func(...string) bool) error {
-	deadline := time.Now().Add(timeout)
+	return waitForLabelsUntil(labels, time.Now().Add(timeout), timeout, interval, present)
+}
+
+// waitForLabelsUntil is waitForLabels against a deadline a caller already
+// holds, so several legs can share one budget. budget is only used to name
+// that budget in the error.
+func waitForLabelsUntil(labels []string, deadline time.Time, budget, interval time.Duration, present func(...string) bool) error {
 	for attempt := 1; ; attempt++ {
 		if present(labels...) {
 			if attempt > 1 {
@@ -122,9 +167,9 @@ func waitForLabels(labels []string, timeout, interval time.Duration, present fun
 		}
 		if !time.Now().Before(deadline) {
 			if len(labels) == 1 {
-				return fmt.Errorf("label %q was not enumerated after %s", labels[0], timeout)
+				return fmt.Errorf("label %q was not enumerated after %s", labels[0], budget)
 			}
-			return fmt.Errorf("none of the labels %q were enumerated after %s", labels, timeout)
+			return fmt.Errorf("none of the labels %q were enumerated after %s", labels, budget)
 		}
 		KLog.Logger.Debug().Strs("labels", labels).Int("attempt", attempt).
 			Msg("Device not enumerated yet, retrying")

@@ -237,3 +237,66 @@ var _ = Describe("labelsEnumerated", func() {
 		Expect(labelsEnumerated(sdkConstants.OEMLabel, sdkConstants.OEMLUKSLabel)).To(BeFalse())
 	})
 })
+
+var _ = Describe("waitForInRAMDevices", func() {
+	// asked records every set of labels the wait scanned for, in order.
+	asked := func(found map[string]bool, seen *[][]string) func(...string) bool {
+		return func(labels ...string) bool {
+			*seen = append(*seen, labels)
+			for _, l := range labels {
+				if found[l] {
+					return true
+				}
+			}
+			return false
+		}
+	}
+
+	// The kairos.ram path needs both partitions: oemEncrypted() reads COS_OEM
+	// and EnsurePartitionsDagStep reads both before it decides whether to
+	// create them.
+	It("waits for COS_OEM and COS_PERSISTENT, and for no images partition", func() {
+		var seen [][]string
+		found := map[string]bool{sdkConstants.OEMLabel: true, sdkConstants.PersistentLabel: true}
+		Expect(waitForInRAMDevices(time.Second, time.Millisecond, asked(found, &seen))).To(Succeed())
+		Expect(seen).To(Equal([][]string{
+			{sdkConstants.OEMLabel},
+			{sdkConstants.PersistentLabel},
+		}))
+	})
+
+	// Each label is its own scan: an any-of scan would return as soon as one
+	// of the two showed up and leave the other unwaited for.
+	It("keeps waiting for persistent when only OEM is enumerated", func() {
+		var seen [][]string
+		found := map[string]bool{sdkConstants.OEMLabel: true}
+		err := waitForInRAMDevices(5*time.Millisecond, time.Millisecond, asked(found, &seen))
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(sdkConstants.PersistentLabel))
+		Expect(err.Error()).ToNot(ContainSubstring(sdkConstants.OEMLabel))
+	})
+
+	// Both legs share one deadline, so a disk that never wakes up costs the
+	// budget once rather than twice.
+	It("spends one budget across both labels", func() {
+		var seen [][]string
+		budget := 40 * time.Millisecond
+		start := time.Now()
+		err := waitForInRAMDevices(budget, time.Millisecond, asked(nil, &seen))
+		elapsed := time.Since(start)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(sdkConstants.OEMLabel))
+		Expect(err.Error()).To(ContainSubstring(sdkConstants.PersistentLabel))
+		Expect(elapsed).To(BeNumerically("<", 2*budget))
+	})
+
+	// A boot whose disk is already awake must not pay a poll interval.
+	It("returns at once when both are already enumerated", func() {
+		var seen [][]string
+		found := map[string]bool{sdkConstants.OEMLabel: true, sdkConstants.PersistentLabel: true}
+		start := time.Now()
+		Expect(waitForInRAMDevices(time.Hour, time.Hour, asked(found, &seen))).To(Succeed())
+		Expect(seen).To(HaveLen(2))
+		Expect(time.Since(start)).To(BeNumerically("<", 500*time.Millisecond))
+	})
+})

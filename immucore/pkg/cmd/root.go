@@ -61,12 +61,21 @@ func NewApp() *cli.App {
 		// live media intentionally disables immucore, and UKI already drops to a
 		// shell from inside its own steps.
 		var normalBoot bool
+		// Only the paths that read a block device before their DAG is built
+		// wait for udev out here. The two UKI paths do not, and must not:
+		// under UKI immucore is PID1 in an initramfs where udevd is not
+		// running yet, and RegisterUKI starts it itself (UKIUdevDaemon runs
+		// udevd --daemon, udevadm trigger and udevadm settle). Every UKI step
+		// that touches a device depends on that step, so there is nothing to
+		// wait for before the DAG, and a wait here would burn its whole
+		// budget on every UKI boot against a /dev nobody is populating.
 		switch {
 		case st.InRAM && utils.IsUKI():
 			// Trusted boot in-RAM: the UKI is already the whole system in
 			// RAM, so the regular UKI DAG applies — RegisterUKI keys off
 			// st.InRAM to add partition provisioning (encrypted with the TPM
 			// policy) and to skip the removable-media unlock/sentinel gates.
+			// Partition provisioning is a DAG step here, gated on OpUkiUdev.
 			utils.KLog.Logger.Info().Msg("UKI booting in-RAM (kairos.ram) with OEM+persistent from disk!")
 			err = dag.RegisterUKI(st, g)
 		case st.InRAM:
@@ -77,8 +86,20 @@ func NewApp() *cli.App {
 			// persistent + apply cloud-init from disk.
 			utils.KLog.Logger.Info().Msg("Booting in-RAM (kairos.ram) with OEM+persistent from disk.")
 			normalBoot = true
+			// Same race as the active/passive/recovery path below, with a
+			// worse outcome. RegisterInRAMBoot calls the same fail-open
+			// oemEncrypted(), and it also wires EnsurePartitionsDagStep,
+			// which reads a device scan to decide whether to halt the boot
+			// for missing partitions or to create COS_OEM and COS_PERSISTENT
+			// on a disk that may already carry them. There is no images
+			// partition on this path, so the wait is for those two labels.
+			if waitErr := utils.WaitForInRAMDevices(utils.DefaultDeviceEnumerationTimeout); waitErr != nil {
+				utils.KLog.Logger.Warn().Err(waitErr).
+					Msg("Continuing anyway; the steps that need the device report their own errors")
+			}
 			err = dag.RegisterInRAMBoot(st, g)
 		case utils.DisableImmucore():
+			// Live media reads no block device before its DAG is built.
 			utils.KLog.Logger.Info().Msg("Stanza rd.cos.disable/rd.immucore.disable on the cmdline or booting from CDROM/Netboot/Squash recovery. Disabling immucore.")
 			err = dag.RegisterLiveMedia(st, g)
 		case utils.IsUKI():
@@ -87,8 +108,7 @@ func NewApp() *cli.App {
 		default:
 			utils.KLog.Logger.Info().Msg("Booting on active/passive/recovery.")
 			normalBoot = true
-			// This is the only path that reads block devices before the DAG
-			// runs: RegisterNormalBoot calls oemEncrypted() to decide whether
+			// RegisterNormalBoot calls oemEncrypted() to decide whether
 			// kcrypt has to unlock OEM before it is mounted. That decision is
 			// made off a device scan and it fails open, so it has to be taken
 			// against an enumerated /dev. immucore used to get that from the
