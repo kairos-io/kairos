@@ -12,10 +12,12 @@ import (
 	. "github.com/spectrocloud/peg/matcher"
 )
 
-// The extension the ISO ships. tests/assets/sysext is mounted as the
-// auroraboot --overlay-iso directory by reusable-factory.yaml, so both images
-// in it land at the ISO root and therefore under /run/initramfs/live while the
-// installer runs.
+// The extension the ISO ships. tests/assets/sysext-grub is mounted as the
+// auroraboot --overlay-iso directory by _build-iso.yaml on non-trusted-boot
+// cells, so both images in it land at the ISO root and therefore under
+// /run/initramfs/live while the installer runs. Its work.sysext.raw is
+// verity-only (unsigned) so systemd-sysext can activate it on a boot with
+// no test signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
 
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
