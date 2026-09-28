@@ -40,8 +40,10 @@ stages:
            #includedir /etc/sudoers.d
       commands:
         - passwd -l root
+    # Not on read-only media: /oem is mounted ro there, so this write fails on
+    # every boot. The permissions were set while the disk was still writable.
     - name: "Ensure runtime permission"
-      if: '[ -e "/oem" ]'
+      if: '[ -e "/oem" ] && [ ! -f /run/cos/readonly_mode ]'
       commands:
         - chown -R root:admin /oem
         - chmod 770 /oem

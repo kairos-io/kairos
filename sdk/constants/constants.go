@@ -83,3 +83,14 @@ const (
 const (
 	DefaultWebUIListenAddress = ":8080"
 )
+
+// Boot-mode sentinels immucore writes under SentinelDir, which downstream
+// cloud-config stages gate on with a yip `if:` and which kairos-agent reads back
+// into its runtime state. Shared so the writer and the readers cannot drift.
+const (
+	SentinelDir = "/run/cos"
+	// HardwareROSentinelName marks a boot on write-protected media, where the
+	// persistent filesystem is mounted read-only with a tmpfs overlay over it.
+	// Additive: the BootState sentinel is written as well.
+	HardwareROSentinelName = "readonly_mode"
+)

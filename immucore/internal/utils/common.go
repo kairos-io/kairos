@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/google/go-tpm/tpm2/transport/linuxtpm"
 	"github.com/joho/godotenv"
 	"github.com/kairos-io/kairos/v4/immucore/internal/constants"
+	"github.com/kairos-io/kairos/v4/sdk/blockdev"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/state"
 	"golang.org/x/term"
 )
@@ -519,6 +522,172 @@ func RootRW() string {
 		return "rw"
 	}
 	return "ro"
+}
+
+// parseHardwareRO reads rd.immucore.hardware_ro from the kernel cmdline. The
+// stanza has three shapes:
+//   - absent                  -> set=false, the device probe decides
+//   - bare token, or =1/=true -> forced=true
+//   - =0 or =false            -> forced=false
+//
+// Uses exact-token matching, not ReadCMDLineArg's HasPrefix, for the reason
+// ParseAutoCreateDisk gives: a prefix match would read a typo such as
+// rd.immucore.hardware_rox as a request to turn the layout on, and turning it on
+// by accident makes every persistent write ephemeral.
+//
+// A cmdline that cannot be read reports set=false rather than forced=false, so
+// the caller falls through to the probe. Defaulting to "writable" on an
+// unreadable cmdline would point the failure the wrong way.
+func parseHardwareRO() (forced, set bool) {
+	cmdline, err := os.ReadFile(GetHostProcCmdline())
+	if err != nil {
+		KLog.Logger.Warn().Err(err).Msg("Could not read the kernel cmdline, falling back to probing the device")
+		return false, false
+	}
+
+	key := constants.CmdlineHardwareRO
+	for _, tok := range strings.Fields(string(cmdline)) {
+		if tok == key {
+			forced, set = true, true
+			continue
+		}
+		if strings.HasPrefix(tok, key+"=") {
+			switch strings.TrimPrefix(tok, key+"=") {
+			case "0", "false", "no":
+				forced, set = false, true
+			default:
+				forced, set = true, true
+			}
+		}
+	}
+	return forced, set
+}
+
+// deviceReadOnly is a seam for the tests. Nothing else reassigns it.
+var deviceReadOnly = blockdev.ReadOnly
+
+// hardwareRORetryDelay and hardwareRORetryAttempts bound how long detection
+// waits for a label to appear, the same ten seconds GetState allows for the
+// same symlinks. Vars so the tests do not have to wait it out.
+var (
+	hardwareRORetryDelay    = time.Second
+	hardwareRORetryAttempts = uint(10)
+)
+
+// hardwareROCandidates are the devices the probe tries, in order, stopping at
+// the first one that answers.
+//
+// The persistent partition first, because it is the one whose writability the
+// layout turns on, and because custom partitioning can put it on a different
+// disk than the rest. Its LUKS sibling next, for an encrypted install where the
+// plaintext label only appears on the mapper after the unlock step, which runs
+// later than this. The state and recovery partitions last: write protection is a
+// whole-disk property, so on the ordinary single-disk install they give the same
+// answer as persistent would, and one of them is always present.
+//
+// These are built as plain by-label paths rather than asked of GetState(), which
+// panics after ten seconds of retries when it cannot resolve a label. That is
+// fine where GetState() is called today, inside the normal-boot mount steps, but
+// this function runs on every boot including live media and rd.immucore.disable,
+// where there is no state label to find. A path that does not exist simply fails
+// to open and we move on to the next candidate.
+func hardwareROCandidates() []string {
+	labels := []string{
+		sdkConstants.PersistentLabel,
+		sdkConstants.PersistentLUKSLabel,
+		sdkConstants.StateLabel,
+		sdkConstants.RecoveryLabel,
+	}
+	candidates := make([]string, 0, len(labels))
+	for _, l := range labels {
+		candidates = append(candidates, filepath.Join("/dev/disk/by-label", l))
+	}
+	return candidates
+}
+
+// HardwareRO reports whether this deployment is on write-protected media, in
+// which case the persistent filesystem is mounted read-only and given a
+// tmpfs-backed overlay instead of being mounted read-write.
+//
+// The answer cannot change while immucore runs, and Fsck asks it once per mount
+// attempt inside a retry loop, so it is memoized the same way blkidIsBusyBox is:
+// a var rather than a bare sync.OnceValue call, so that a test can answer for
+// it, wrapping a named body so that resetting it re-arms this same function
+// rather than a copy.
+var HardwareRO = sync.OnceValue(detectHardwareRO)
+
+// detectHardwareRO works out whether the media is write-protected. The cmdline
+// overrides the device probe in both directions, because hardware that
+// misreports exists in both: CmdlineHardwareRO on its own forces the read-only
+// layout, and "=0" forces it off.
+func detectHardwareRO() bool {
+	// The layout is only registered by the normal-boot and in-RAM DAGs, so the
+	// question is not asked anywhere else, and every step that consults the
+	// answer sees a consistent one. UKI could not answer it anyway: udevd is
+	// started by the UKI DAG's own step, so no label exists before the DAG
+	// runs. Live media must not carry it at all, or booting an installer ISO
+	// on a unit with a frozen disk attached would write the sentinel and skip
+	// the cdrom datasource stage. In-RAM boots carry live:LABEL on the cmdline
+	// too, which is why DisableImmucore alone is not the test.
+	if IsUKI() || (!BootInRAM() && DisableImmucore()) {
+		KLog.Logger.Debug().Msg("Read-only media layout is not applicable to this boot; not probing")
+		return false
+	}
+
+	if forced, set := parseHardwareRO(); set {
+		if forced {
+			KLog.Logger.Warn().Msg("Read-only media layout forced on the cmdline")
+		} else {
+			KLog.Logger.Info().Msg("Read-only media layout disabled on the cmdline")
+		}
+		return forced
+	}
+
+	// The candidates are udev symlinks. immucore.service is ordered after
+	// systemd-udev-settle, which is usually enough, but settle does not wait
+	// for a slow USB or SD enumeration and the ordering is a soft Wants=. So
+	// the first answer is waited for, briefly, rather than concluded from one
+	// look: the price of guessing "writable" on frozen media is a boot that
+	// fails late, and the price of waiting is a few seconds on a boot with no
+	// Kairos disk at all.
+	candidates := hardwareROCandidates()
+	var answer bool
+	err := retry.Do(
+		func() error {
+			for _, device := range candidates {
+				ro, err := deviceReadOnly(device)
+				if err != nil {
+					KLog.Logger.Debug().Str("device", device).Err(err).
+						Msg("Could not ask this device whether it is read-only, trying the next one")
+					continue
+				}
+				answer = ro
+				return nil
+			}
+			return errors.New("no candidate device answered")
+		},
+		retry.Delay(hardwareRORetryDelay),
+		retry.Attempts(hardwareRORetryAttempts),
+		retry.DelayType(retry.FixedDelay),
+		retry.LastErrorOnly(true),
+		retry.OnRetry(func(n uint, _ error) {
+			KLog.Logger.Debug().Uint("try", n).Msg("No block device has answered whether it is read-only yet, waiting for udev")
+		}),
+	)
+	if err != nil {
+		// Nothing answered. Report writable, which is what every install before
+		// this existed did, but say so: on genuinely write-protected media this
+		// is the line that explains why the boot then behaved as if the disk
+		// were writable.
+		KLog.Logger.Warn().Strs("tried", candidates).
+			Msg("No block device could say whether it is read-only, assuming writable media")
+		return false
+	}
+	if answer {
+		KLog.Logger.Warn().
+			Msg("Device is write-protected: mounting the persistent filesystem read-only with a tmpfs overlay over it")
+	}
+	return answer
 }
 
 // GetState returns the disk-by-label of the state partition to mount

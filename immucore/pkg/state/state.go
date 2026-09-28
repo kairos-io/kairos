@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/deniswernert/go-fstab"
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/spectrocloud-labs/herd"
 )
 
@@ -19,6 +21,11 @@ type State struct {
 	TargetDevice  string // e.g. /dev/disk/by-label/COS_ACTIVE
 	RootMountMode string // How to mount the root partition e.g. ro or rw
 	InRAM         bool   // running the kairos.ram workflow: rootfs is a tmpfs staged by dracut's rd.live.ram, OEM+persistent still on disk
+	// HardwareRO means the media is write-protected, so the persistent
+	// filesystem is mounted read-only and a tmpfs-backed overlay is stacked over
+	// it rather than mounting it read-write. Resolved once in pkg/cmd/root.go
+	// from internalUtils.HardwareRO(); nothing re-reads the cmdline per step.
+	HardwareRO bool
 
 	// /run/cos-layout.env (different!)
 	OverlayDirs  []string          // e.g. /var
@@ -47,6 +54,110 @@ func (s *State) SortedBindMounts() []string {
 
 func (s *State) path(p ...string) string {
 	return filepath.Join(append([]string{s.Rootdir}, p...)...)
+}
+
+// isPersistentVolume reports whether a custom mount backs the persistent state
+// target. With the defaults that is the volume mounted at /usr/local, which
+// backs /usr/local/.state.
+//
+// Two signals, either of which is enough. The mountpoint: the exact parent of
+// the state target, or the target itself. The mountpoint survives every way of
+// declaring a VOLUMES entry, which the device does not: internalUtils.ParseMount
+// rewrites UUID=<uuid>:/usr/local into /dev/disk/by-uuid/<uuid>, which carries no
+// label, and VOLUMES=/dev/sda5:/usr/local never had one. Matching the device by
+// string, as this code used to, silently half-applied the read-only layout for
+// anyone declaring the volume by UUID.
+//
+// The label as well: a by-label device carrying the persistent label is the
+// persistent volume wherever it is mounted, which keeps LABEL=COS_PERSISTENT:/data
+// read-write as it always was. An ancestor further up than the parent is not
+// enough: a VOLUMES entry mounted at /usr is not the persistent volume.
+func (s *State) isPersistentVolume(what, where string) bool {
+	target := s.StateDir
+	if target == "" {
+		// Nothing has read cos-layout.env yet. Fall back to the same default
+		// LoadEnvLayoutDagStep would have applied, so a caller that runs early
+		// cannot get a quietly wrong answer.
+		target = cnst.PersistentStateTarget
+	}
+	target = filepath.Clean(target)
+	w := filepath.Clean(where)
+	if w == target || w == filepath.Dir(target) {
+		return true
+	}
+
+	switch labelFromByLabelPath(what) {
+	case sdkConstants.PersistentLabel, sdkConstants.PersistentLUKSLabel:
+		return true
+	}
+	return false
+}
+
+// persistentVolume returns the device and mountpoint of the custom mount that
+// backs the persistent state target, so that every step deciding something about
+// it agrees by construction rather than by a second copy of the predicate.
+func (s *State) persistentVolume() (what, where string, ok bool) {
+	for what, where := range s.CustomMounts {
+		if s.isPersistentVolume(what, where) {
+			return what, where, true
+		}
+	}
+	return "", "", false
+}
+
+// customMountPlan decides where a VOLUMES entry is mounted and with which
+// options. Returned as a function of the filesystem type, because the type is
+// only known for certain inside the mount retry loop and the read-only options
+// depend on it.
+//
+// Ordinary volumes are read-only. The persistent volume is read-write, except on
+// write-protected media, where it is mounted read-only out of the way at
+// cnst.PersistentROMount to serve as the lower layer of an overlay: no journal
+// replay, and Fsck has already declined to run. OpPersistentROOverlay puts the
+// writable view back at the configured mountpoint.
+func (s *State) customMountPlan(what, where string) (target string, options func(fstype string) []string) {
+	persistent := s.isPersistentVolume(what, where)
+	switch {
+	case persistent && s.HardwareRO:
+		return cnst.PersistentROMount, internalUtils.ReadOnlyMountOptions
+	case persistent:
+		// TODO: Are custom mounts always rw?ro?depends? Clarify.
+		// Persistent needs to be RW
+		return s.path(where), func(string) []string { return []string{"rw"} }
+	default:
+		return s.path(where), func(string) []string { return []string{"ro"} }
+	}
+}
+
+// oemMountOptions are the options /oem is mounted with, given its filesystem.
+//
+// OEM is the operator's input: the userdata, the grub environment, the kcrypt
+// configuration. On write-protected media it is mounted read-only rather than
+// given an overlay of its own, so that a write which cannot be persisted fails
+// instead of appearing to succeed and vanishing on the next boot. /oem/grubenv
+// is the clearest case: GRUB reads it before Linux exists, so a write landing in
+// RAM could never affect the next boot anyway.
+func (s *State) oemMountOptions(fstype string) []string {
+	mode := []string{"rw"}
+	if s.HardwareRO {
+		mode = internalUtils.ReadOnlyMountOptions(fstype)
+	}
+	return append(mode, "suid", "dev", "exec", "async")
+}
+
+// readOnlyOrMode returns the mount options for a device that is normally mounted
+// with RootMountMode.
+//
+// On write-protected media RootMountMode is already "ro", but "ro" on its own
+// still lets the kernel replay a dirty ext4 journal, and that replay is a write.
+// So the read-only branch asks for the filesystem's no-recovery option too. This
+// covers COS_STATE and the root image, which are mounted before anything knows
+// about the persistent partition and which PR #4405 left writing to the disk.
+func (s *State) readOnlyOrMode(fstype string) []string {
+	if s.HardwareRO {
+		return internalUtils.ReadOnlyMountOptions(fstype)
+	}
+	return []string{s.RootMountMode}
 }
 
 func (s *State) WriteFstab() func(context.Context) error {

@@ -20,8 +20,22 @@ var mountRetryInterval = 250 * time.Millisecond
 // MountOPWithFstab creates and executes a mount operation.
 // returns the fstab entries created and an error if any.
 func MountOPWithFstab(what, where, t string, options []string, timeout time.Duration) (schema.FsTabs, error) {
+	return MountOPWithFstabFn(what, where, t, func(string) []string { return options }, timeout)
+}
+
+// MountOPWithFstabFn is MountOPWithFstab with the options derived from the
+// filesystem type on every attempt rather than fixed up front.
+//
+// The retry loop below re-probes the type on each attempt, because the device
+// node can lag udev by seconds and the first blkid may answer nothing. Options
+// that depend on the type, the read-only no-recovery ones especially, have to
+// follow that correction: "noload" is right for ext4 and rejected by xfs, and a
+// caller that chose it from a first-attempt guess of ext4 would then fail every
+// retry until the timeout once the type resolved to xfs. So the caller hands over
+// how to choose, and the choice is remade with the type actually found.
+func MountOPWithFstabFn(what, where, t string, options func(fstype string) []string, timeout time.Duration) (schema.FsTabs, error) {
 	var fstab schema.FsTabs
-	l := internalUtils.KLog.With().Str("what", what).Str("where", where).Str("type", t).Strs("options", options).Logger().Level(internalUtils.KLog.GetLevel())
+	l := internalUtils.KLog.With().Str("what", what).Str("where", where).Str("type", t).Logger().Level(internalUtils.KLog.GetLevel())
 	c := context.Background()
 	cc := time.After(timeout)
 	// Zero for the first attempt: the device is usually already there, and
@@ -46,10 +60,11 @@ func MountOPWithFstab(what, where, t string, options []string, timeout time.Dura
 				l.Err(err).Msg("Creating dir")
 				continue
 			}
+			attemptOptions := options(t)
 			mountPoint := mount.Mount{
 				Type:    t,
 				Source:  what,
-				Options: options,
+				Options: attemptOptions,
 			}
 			tmpFstab := internalUtils.MountToFstab(mountPoint)
 			tmpFstab.File = internalUtils.CleanSysrootForFstab(where)
@@ -78,7 +93,7 @@ func MountOPWithFstab(what, where, t string, options []string, timeout time.Dura
 				l.Warn().Err(err).Send()
 				continue
 			}
-			l.Info().Msg("mount done")
+			l.Info().Strs("options", attemptOptions).Msg("mount done")
 			return fstab, nil
 		case <-c.Done():
 			e := fmt.Errorf("context canceled")

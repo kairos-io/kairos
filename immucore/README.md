@@ -114,7 +114,131 @@ The immutable rootfs can be configured with the following kernel parameters:
   comment in `internal/utils/common.go` describes. Raise `TimeoutStartSec=` on
   `immucore.service` if you need to hold a breakpoint open longer than that.
 
+* `rd.immucore.hardware_ro`: Overrides the detection of write-protected media.
+  Present on its own, or as `=1`, it forces the read-only layout on; `=0` forces
+  it off. Absent, immucore asks the block device itself, which is the normal
+  case: a unit installed while its disk was writable and then write-protected
+  needs no change to its cmdline, with the exceptions listed under Limits. See
+  [Read-only media boot](#read-only-media-boot-rdimmucorehardware_ro) below for
+  what the layout actually does.
+
 * `rd.immucore.sysrootwait=<seconds>`: Waits for the sysroot to be mounted up to <seconds> before continuing with the boot process. This is useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready. Sometimes dracut can be really slow and the default 1 minute of waiting is not enough. In those cases you can increase this value to wait more time. Defaults to 60s.
+
+### Read-only media boot (`rd.immucore.hardware_ro`)
+
+---
+
+Some units ship with a drive that is write-protected in hardware. The unit is
+installed normally while the drive is still writable, the switch is flipped, and
+from then on every boot sees a block device the kernel refuses writes to.
+
+immucore detects that and changes the layout so the machine still boots and its
+applications can still write. Reads fall through to whatever provisioning left on
+the persistent partition; writes go to RAM and are gone on the next boot.
+
+#### What the layout looks like
+
+| What | Where it ends up |
+|---|---|
+| `COS_PERSISTENT` | mounted read-only at `/run/immucore/persistent-ro` |
+| `/usr/local` | an overlay: lower is that mount, upper and work are on the `/run/overlay` tmpfs |
+| `/usr/local/.state/*.bind` binds | unchanged, and writable, because they resolve through the overlay |
+| `COS_OEM` | mounted read-only |
+| `COS_STATE` and the root image | mounted `ro` plus the filesystem's no-recovery option |
+
+Nothing under `/usr/local` survives a reboot. Everything that was there when the
+drive was write-protected is still readable, because it is the overlay's lower
+layer.
+
+#### How it decides
+
+The kernel is asked directly, with the `BLKROGET` ioctl, whether it refuses
+writes to the device. The persistent partition is asked first, then its LUKS
+container, then the state and recovery partitions, and the first that answers
+decides. Those are udev symlinks, so immucore waits up to ten seconds for one to
+appear before concluding it cannot tell, in which case it assumes writable media
+and says so in the log. A dm-crypt mapper is also checked against the devices
+underneath it, as insurance.
+
+`rd.immucore.hardware_ro` overrides the answer in either direction, for hardware
+that misreports and for testing the path on a writable disk.
+
+#### What is not written, and why
+
+* `fsck` does not run. The default is a repairing fsck (`fsck.mode=auto` with
+  `fsck.repair=preen`), it runs before the mount, so no mount option can prevent
+  it, and it would be the first write of the boot. `fsck.mode=skip` was always
+  the manual way out; read-only media now implies it.
+* The journal is not replayed. `ro` on its own is not enough for ext4: a dirty
+  journal is replayed even on a read-only mount unless `noload` is given. xfs
+  spells the same thing `norecovery`.
+* The persistent partition is not grown, the GRUB environment is not rewritten,
+  and the LUKS headers are not upgraded. Each of those wrote to the disk on every
+  boot; they are now skipped.
+
+#### Reporting
+
+immucore writes `/run/cos/readonly_mode`, additively, alongside the usual
+boot-state sentinel, so the existing cloud-config gates keep firing. Gate a
+cloud-config stage on it the way the shipped ones do:
+
+```yaml
+- if: '[ ! -f /run/cos/readonly_mode ]'
+  name: "something that writes to the disk"
+```
+
+`kairos-agent state` reports it as `hardware_ro`, so
+`kairos-agent state get hardware_ro` answers from inside the booted system.
+
+#### Sizing the tmpfs, which is the thing most likely to bite
+
+Every write to the persistent tree now consumes RAM out of the single
+`/run/overlay` tmpfs, sized by `OVERLAY` in `cos-layout.env`. The shipped
+`00_rootfs.yaml` sets it to `tmpfs:25%` in every layout, and that file wins over
+`rd.immucore.overlay=` on the cmdline, so to change it on a stock image override
+`OVERLAY` from a cloud-config stage rather than from the cmdline. Two costs are
+easy to miss:
+
+* overlayfs copies a whole file up on first modification. Appending one byte to a
+  2 GB file that was pre-seeded on the partition costs 2 GB of RAM.
+* the per-boot rsync that populates each `.state/*.bind` directory now writes into
+  RAM rather than onto the disk.
+
+So pre-seed bulk content, container images especially, onto the partition while
+it is still writable, and size `OVERLAY` for the deltas. When the tmpfs fills,
+writes fail with no space left on the device; there is no graceful degradation,
+because immucore is not in the write path.
+
+#### Limits
+
+* Only normal and in-RAM boots get the layout. On UKI, udevd is started by
+  immucore's own UKI step, so nothing can be detected before the graph runs; on
+  live media the layout would skip the cdrom datasource stage. Both keep the
+  ordinary layout, and a frozen disk behind them fails the way it always did.
+* LVM installs are not detected. The persistent, state and recovery labels are on
+  logical volumes that do not exist until LVM activation, which runs inside the
+  graph, after detection. Pass `rd.immucore.hardware_ro` on such a unit.
+* Encrypted persistent partitions do not unlock on write-protected media. kcrypt
+  opens the mapper through `anatol/luks.go`, which never sets the device-mapper
+  read-only flag, and the kernel refuses a read-write mapper over a device it
+  cannot write. The fix belongs upstream; until it lands, do not write-protect an
+  encrypted unit.
+* Boot once before write-protecting. The first boot saves the machine-id and
+  hostname into `/usr/local`; a unit frozen before that gets a fresh machine-id
+  on every boot.
+* Upgrades and resets are impossible. They write to `COS_STATE`.
+* Userdata has to be in place before the drive is write-protected. `/oem` is
+  read-only, so the datasource stage that would write `/oem/95_userdata` is
+  skipped: a config that only arrives at boot from a cdrom or NoCloud source
+  cannot be persisted.
+* Writes an operator makes to `/oem` fail, on purpose. `/oem` holds authored
+  configuration, and `/oem/grubenv` is read by GRUB before Linux exists, so a
+  write landing in RAM could never affect the next boot. An error is more use
+  than a write that appears to succeed and disappears.
+* If no `VOLUMES` entry names the persistent mountpoint, `/usr/local` is overlaid
+  on the image's own copy of it and the machine is fully ephemeral. That is
+  deliberate: the alternative is every bind mount failing on the read-only
+  rootfs and a node that looks booted with none of its state.
 
 ### In-RAM boot (`kairos.ram.*`)
 

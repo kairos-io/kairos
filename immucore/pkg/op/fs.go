@@ -131,6 +131,28 @@ func MountBind(mountpoint, root, stateTarget string) MountOperation {
 
 // https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L145
 func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
+	// The lower layer is the target itself: an ephemeral RW path shows the
+	// image's own content underneath and collects writes in RAM above it.
+	return mountOverlay(mountpoint, root, base, filepath.Join(root, strings.TrimLeft(mountpoint, "/")))
+}
+
+// MountOverlayWithLower is MountWithBaseOverlay with the lower layer named
+// explicitly instead of being the target.
+//
+// This is what makes a write-protected persistent filesystem usable: it is
+// mounted read-only out of the way, and the tree callers expect at /usr/local is
+// an overlay whose lower layer is that mount. Reads fall through to whatever
+// provisioning left on the partition, writes land on the tmpfs above it, and
+// everything below /usr/local, the .state bind directories included, carries on
+// as though the partition were writable.
+func MountOverlayWithLower(mountpoint, root, base, lower string) MountOperation {
+	return mountOverlay(mountpoint, root, base, lower)
+}
+
+// mountOverlay builds the overlay mount both exported forms share. upper and
+// work always live under base, keyed by the mangled target path, so one tmpfs
+// backs every overlay in the boot.
+func mountOverlay(mountpoint, root, base, lower string) MountOperation {
 	mountpoint = strings.TrimLeft(mountpoint, "/") // normalize, remove / upfront as we are going to re-use it in subdirs
 	rootMount := filepath.Join(root, mountpoint)
 	bindMountPath := strings.ReplaceAll(mountpoint, "/", "-")
@@ -143,7 +165,7 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 		Source: "overlay",
 		Options: []string{
 			//"defaults",
-			fmt.Sprintf("lowerdir=%s", rootMount),
+			fmt.Sprintf("lowerdir=%s", lower),
 			fmt.Sprintf("upperdir=%s", upperdir),
 			fmt.Sprintf("workdir=%s", workdir),
 		},
@@ -151,18 +173,23 @@ func MountWithBaseOverlay(mountpoint, root, base string) MountOperation {
 
 	tmpFstab := internalUtils.MountToFstab(tmpMount)
 	tmpFstab.File = internalUtils.CleanSysrootForFstab(rootMount)
-	// TODO: update fstab with x-systemd info
+	// No x-systemd ordering here: the ephemeral overlays are always mounted
+	// before systemd starts and it simply marks them active. The one overlay
+	// whose lower layer is a separate mount adds x-systemd.requires itself, in
+	// state.buildOverlayOn.
 	// https://github.com/kairos-io/packages/blob/94aa3bef3d1330cb6c6905ae164f5004b6a58b8c/packages/system/dracut/immutable-rootfs/30cos-immutable-rootfs/cos-mount-layout.sh#L170
 	return MountOperation{
 		MountOption: tmpMount,
 		FstabEntry:  *tmpFstab,
 		Target:      rootMount,
 		PrepareCallback: func() error {
-			// The lowerdir has to exist before we can stack an overlay on it. It
+			// The target has to exist before an overlay can be stacked on it. It
 			// usually ships in the OS image, but if it does not we cannot create it
 			// either: the rootfs is still mounted read-only at this point. Report
 			// that clearly instead of letting the mount syscall fail later with a
-			// bare "lstat <path>: no such file or directory".
+			// bare "lstat <path>: no such file or directory". The lower layer is
+			// not checked here: for MountWithBaseOverlay it is this same path,
+			// and for MountOverlayWithLower the caller owns it.
 			if err := internalUtils.CreateIfNotExists(rootMount); err != nil {
 				return fmt.Errorf("%w: %s: %w", constants.ErrMountTargetMissing, rootMount, err)
 			}

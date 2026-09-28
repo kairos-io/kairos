@@ -14,6 +14,7 @@ import (
 	internalUtils "github.com/kairos-io/kairos/v4/immucore/internal/utils"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/op"
 	"github.com/kairos-io/kairos/v4/immucore/pkg/schema"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	"github.com/kairos-io/kairos/v4/sdk/state"
@@ -31,7 +32,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			var sentinel string
 
 			internalUtils.KLog.Logger.Debug().Msg("Will now create /run/cos if not exists")
-			err := internalUtils.CreateIfNotExists("/run/cos/")
+			err := internalUtils.CreateIfNotExists(sdkConstants.SentinelDir)
 			if err != nil {
 				internalUtils.KLog.Logger.Err(err).Msg("failed to create /run/cos")
 				return err
@@ -64,7 +65,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			internalUtils.KLog.Logger.Debug().Str("BootState", string(runtime.BootState)).Msg("The BootState was")
 
 			internalUtils.KLog.Logger.Info().Str("to", sentinel).Msg("Setting sentinel file")
-			err = os.WriteFile(filepath.Join("/run/cos/", sentinel), []byte("1"), os.ModePerm)
+			err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, sentinel), []byte("1"), os.ModePerm)
 			if err != nil {
 				return err
 			}
@@ -75,7 +76,20 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// when kairos.ram is present) so existing gates keep firing.
 			if s.InRAM {
 				internalUtils.KLog.Logger.Info().Str("to", cnst.InRAMSentinelName).Msg("Setting in-RAM sentinel file")
-				if err = os.WriteFile(filepath.Join("/run/cos/", cnst.InRAMSentinelName), []byte("1"), os.ModePerm); err != nil {
+				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.InRAMSentinelName), []byte("1"), os.ModePerm); err != nil {
+					return err
+				}
+			}
+
+			// Write-protected media gets its own additive sentinel, for the same
+			// reason as the in-RAM one: the BootState sentinel above is still
+			// active_mode, so existing gates keep firing, and a stage that must
+			// not touch the disk has something to gate on. The shipped
+			// 00_rootfs.yaml uses it to skip growing the persistent partition,
+			// which otherwise opens the whole disk O_RDWR on every boot.
+			if s.HardwareRO {
+				internalUtils.KLog.Logger.Info().Str("to", cnst.HardwareROSentinelName).Msg("Setting read-only media sentinel file")
+				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.HardwareROSentinelName), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -91,7 +105,7 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			if strings.Contains(string(cmdline), "rd.immucore.uki") {
 				ukiSentinel := internalUtils.UkiSentinel(state.EfiBootFromInstall(internalUtils.KLog.Logger), s.InRAM)
 				internalUtils.KLog.Logger.Info().Str("to", ukiSentinel).Msg("Setting sentinel file")
-				if err := os.WriteFile(filepath.Join("/run/cos/", ukiSentinel), []byte("1"), os.ModePerm); err != nil {
+				if err := os.WriteFile(filepath.Join(sdkConstants.SentinelDir, ukiSentinel), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -223,6 +237,27 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					s.StateDir = cnst.PersistentStateTarget
 				}
 
+				// On write-protected media the persistent mountpoint gets its
+				// overlay from OpPersistentROOverlay, whose lower layer is the
+				// read-only filesystem. An ephemeral overlay over the same path
+				// would fight it for one upperdir: both derive the upper from the
+				// mangled mountpoint, so both would claim
+				// /run/overlay/usr-local/.overlay/upper. This is not a contrived
+				// case, /usr/local is in cnst.DefaultRWPaths(), so any install
+				// whose RW_PATHS came out empty lands here.
+				if s.HardwareRO {
+					kept := make([]string, 0, len(s.OverlayDirs))
+					for _, d := range s.OverlayDirs {
+						if s.isPersistentVolume("", d) {
+							internalUtils.KLog.Logger.Info().Str("what", d).
+								Msg("Dropping the ephemeral overlay for the persistent mountpoint: on read-only media it is overlaid on the persistent filesystem instead")
+							continue
+						}
+						kept = append(kept, d)
+					}
+					s.OverlayDirs = kept
+				}
+
 				addLine := func(d string) {
 					dat := strings.Split(d, ":")
 					if len(dat) == 2 {
@@ -267,17 +302,11 @@ func (s *State) MountOemDagStep(g *herd.Graph, opts ...herd.OpOption) error {
 					return err
 				}
 				operation := func(_ context.Context) error {
-					fstab, err := op.MountOPWithFstab(
+					fstab, err := op.MountOPWithFstabFn(
 						source,
 						s.path("/oem"),
 						internalUtils.DiskFSType(source),
-						[]string{
-							"rw",
-							"suid",
-							"dev",
-							"exec",
-							"async",
-						}, time.Duration(internalUtils.GetOemTimeout())*time.Second)
+						s.oemMountOptions, time.Duration(internalUtils.GetOemTimeout())*time.Second)
 					for _, f := range fstab {
 						s.fstabs = append(s.fstabs, f)
 					}
@@ -327,7 +356,7 @@ func (s *State) MountBaseOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) er
 			TimedCallback(cnst.OpMountBaseOverlay,
 				func(_ context.Context) error {
 					operation, err := op.BaseOverlay(schema.Overlay{
-						Base:        "/run/overlay",
+						Base:        cnst.OverlayBaseDir,
 						BackingBase: s.OverlayBase,
 					})
 					if err != nil {
@@ -360,7 +389,7 @@ func (s *State) MountCustomOverlayDagStep(g *herd.Graph, opts ...herd.OpOption) 
 					internalUtils.KLog.Logger.Debug().Strs("dirs", s.OverlayDirs).Msg("Mounting overlays")
 					for _, p := range s.OverlayDirs {
 						internalUtils.KLog.Logger.Debug().Str("what", p).Msg("Overlay mount start")
-						operation := op.MountWithBaseOverlay(p, s.Rootdir, "/run/overlay")
+						operation := op.MountWithBaseOverlay(p, s.Rootdir, cnst.OverlayBaseDir)
 						err := operation.Run()
 						// A path that is missing from the OS image cannot be mounted, but it
 						// must not take the whole step down with it: OpMountBind depends on
@@ -397,14 +426,6 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 
 			for what, where := range s.CustomMounts {
 				internalUtils.KLog.Logger.Debug().Str("what", what).Str("where", where).Msg("Custom mount start")
-				// TODO: scan for the custom mount disk to know the underlying fs and set it proper
-				fstype := "ext4"
-				mountOptions := []string{"ro"}
-				// TODO: Are custom mounts always rw?ro?depends? Clarify.
-				// Persistent needs to be RW
-				if strings.Contains(what, "COS_PERSISTENT") {
-					mountOptions = []string{"rw"}
-				}
 				// If `what` is a /dev/disk/by-label/<X> path (the common
 				// case from cos-layout.env's VOLUMES entries), resolve to
 				// the concrete device path first, since the by-label symlink
@@ -423,6 +444,12 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 					}
 					source = resolved
 				}
+
+				target, mountOptions := s.customMountPlan(what, where)
+				if target == cnst.PersistentROMount {
+					internalUtils.KLog.Logger.Info().Str("what", source).Str("where", target).
+						Msg("Mounting the persistent filesystem read-only, as the lower layer of the persistent overlay")
+				}
 				// The 30s timeout covers the window between cryptsetup
 				// creating the mapper (kernel side) and udev finishing the
 				// /dev/mapper/<name> node MountOPWithFstab tries to open.
@@ -434,10 +461,10 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				// up and log a warning. If resolveMountSource failed above,
 				// we already `continue`d, so this path is only reached with
 				// a resolved concrete source.
-				fstab, err2 := op.MountOPWithFstab(
+				fstab, err2 := op.MountOPWithFstabFn(
 					source,
-					s.path(where),
-					fstype,
+					target,
+					internalUtils.DiskFSType(source),
 					mountOptions,
 					30*time.Second,
 				)

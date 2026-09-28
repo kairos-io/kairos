@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path"
+
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 )
 
 func DefaultRWPaths() []string {
@@ -157,6 +159,11 @@ const (
 	// the persistent /etc/systemd bind and that now shadow a packaged unit out
 	// of the unit load path. See internalUtils.QuarantineStaleUnitSymlinks.
 	OpQuarantineStaleUnits = "quarantine-stale-units"
+	// OpPersistentROOverlay stacks a tmpfs-backed overlay over the read-only
+	// persistent filesystem so the persistent tree is writable in RAM. It is
+	// only registered when the media is write-protected, so a writable install
+	// keeps exactly the graph it had before. See MountPersistentROOverlayDagStep.
+	OpPersistentROOverlay = "persistent-ro-overlay"
 	// InRAMSentinelName is the extra sentinel file written under /run/cos/ when
 	// the kairos.ram workflow is active. It is additive: WriteSentinelDagStep
 	// still writes the BootState-driven sentinel (which is active_mode for
@@ -164,6 +171,38 @@ const (
 	// cloud-init gates keep firing. Tooling that specifically needs to know the
 	// rootfs is on a tmpfs can stat this file.
 	InRAMSentinelName = "in_ram_mode"
+
+	// Read-only media boot. A unit is installed on a writable disk and then
+	// write-protected in hardware, so from that point on every boot sees a block
+	// device the kernel refuses writes to. immucore then mounts the persistent
+	// filesystem read-only and stacks a tmpfs-backed overlay over it, so the
+	// persistent tree reads through to what provisioning left behind and writes
+	// land in RAM.
+	//
+	// CmdlineHardwareRO overrides the device probe in both directions: present
+	// forces the read-only layout on, "=0" forces it off. Matched as an exact
+	// token, the way ParseAutoCreateDisk matches its stanza, so a typo that
+	// merely starts with the key cannot switch the layout on by accident.
+	CmdlineHardwareRO = "rd.immucore.hardware_ro"
+	// HardwareROSentinelName is the extra sentinel written under /run/cos/ when
+	// the media is write-protected. Additive, exactly like InRAMSentinelName:
+	// the BootState sentinel is still written, so existing cloud-init gates keep
+	// firing, and a stage that must not write to the disk gates on this one.
+	// Defined in the SDK because kairos-agent reads the same file back into its
+	// runtime state, and the writer and the reader must not drift.
+	HardwareROSentinelName = sdkConstants.HardwareROSentinelName
+	// PersistentROMount is where the write-protected persistent filesystem is
+	// mounted, to serve as the lower layer of the /usr/local overlay rather than
+	// being mounted on /usr/local itself. It lives under /run because immucore
+	// owns that tmpfs and can create the directory even though the rootfs is
+	// read-only, and because /run carries over switch_root, which is what makes
+	// the overlay's fstab entry valid in the booted system.
+	PersistentROMount = "/run/immucore/persistent-ro"
+	// OverlayBaseDir is the tmpfs that backs every overlay immucore stacks: the
+	// upper and work directories of the ephemeral RW_PATHS overlays, and on
+	// read-only media the writable layer of the persistent tree too. Sized by
+	// OVERLAY in cos-layout.env, default tmpfs:25%.
+	OverlayBaseDir = "/run/overlay"
 
 	// OpEncryptPending runs on the normal boot DAG, gated behind
 	// kcrypt.encrypt_on_boot, and encrypts partitions that the configuration

@@ -298,11 +298,65 @@ func CleanSysrootForFstab(path string) string {
 	return cleaned
 }
 
+// ReadOnlyMountOptions returns the options that mount a filesystem of this type
+// without writing to the device.
+//
+// "ro" on its own is not enough, which is the whole reason this exists. A dirty
+// ext4 journal is replayed even on a read-only mount unless noload is given, and
+// replaying it is a write: on write-protected media the mount then fails, and on
+// media that only refuses writes silently it corrupts. xfs spells the same thing
+// norecovery, and requires ro alongside it.
+//
+// Anything else gets a bare "ro" and a line in the log. btrfs has nologreplay
+// (since 4.9, spelled rescue=nologreplay from 5.9), and an option the running
+// kernel does not know makes mount(2) fail outright rather than degrade, so
+// guessing costs more than it saves.
+func ReadOnlyMountOptions(fstype string) []string {
+	switch fstype {
+	case "ext3", "ext4":
+		return []string{"ro", "noload"}
+	case "ext2":
+		// No journal, so nothing to replay, and the kernel rejects noload on an
+		// ext2-type mount outright ("Mount option(s) incompatible with ext2",
+		// EINVAL). This is not a corner case: the Kairos active and passive
+		// images are ext2, so this is the root image's path. Found by booting.
+		return []string{"ro"}
+	case "xfs":
+		return []string{"ro", "norecovery"}
+	default:
+		KLog.Logger.Debug().Str("type", fstype).
+			Msg("No journal-recovery option known for this filesystem, mounting plain ro")
+		return []string{"ro"}
+	}
+}
+
 // Fsck will run fsck over the device
 // options are set on cmdline, but they are for systemd-fsck,
 // so we need to interpret ourselves.
+// On write-protected media it does nothing: see the gate at the top of the body.
 func Fsck(device string) error {
 	if device == "tmpfs" {
+		return nil
+	}
+	// A repairing fsck is a write, and the defaults below are a repairing fsck
+	// (fsck.mode=auto with fsck.repair=preen). On write-protected media that is
+	// the first write of the boot, and it happens here, before the mount, so no
+	// mount option can prevent it. fsck.mode=skip was always the manual way out;
+	// read-only media now implies it.
+	//
+	// Two gates, because neither covers the other. The global one catches what
+	// the per-device probe cannot answer for: the loop image, where device is a
+	// file path rather than a block device and the ioctl returns ENOTTY. The
+	// per-device one catches a write-protected disk in some custom VOLUMES entry
+	// even when the global answer was forced off.
+	if HardwareRO() {
+		KLog.Logger.Info().Str("what", device).
+			Msg("Skipping fsck: booting on write-protected media, and a repairing fsck would write to it")
+		return nil
+	}
+	if ro, err := deviceReadOnly(device); err == nil && ro {
+		KLog.Logger.Info().Str("what", device).
+			Msg("Skipping fsck: the kernel reports this device as read-only, and fsck would write to it")
 		return nil
 	}
 	mode := CleanupSlice(ReadCMDLineArg("fsck.mode="))

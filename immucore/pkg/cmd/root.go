@@ -47,13 +47,19 @@ func NewApp() *cli.App {
 			return err
 		}
 
+		// HardwareRO answers false on boots the layout does not apply to (UKI,
+		// live media), so every DAG sees a consistent answer from one place.
+		hardwareRO := utils.HardwareRO()
+		rootMountMode := rootMountModeFor(hardwareRO, utils.RootRW())
+
 		st = &state.State{
 			Rootdir:       utils.GetRootDir(),
 			TargetDevice:  targetDevice,
 			TargetImage:   targetImage,
-			RootMountMode: utils.RootRW(),
+			RootMountMode: rootMountMode,
 			OverlayBase:   utils.GetOverlayBase(),
 			InRAM:         utils.BootInRAM(),
+			HardwareRO:    hardwareRO,
 		}
 
 		// normalBoot tracks whether we took the full active/passive/recovery mount
@@ -208,4 +214,17 @@ func haltTerminated(sig os.Signal) {
 	// point, so stop the process rather than letting a half-mounted root come
 	// up.
 	os.Exit(1)
+}
+
+// rootMountModeFor is the mode the root filesystems are mounted with.
+// rd.immucore.debugrw asks for read-write, which on write-protected media
+// cannot be granted: the kernel refuses the write open with EACCES and there is
+// nothing to fall back to. The debugging aid loses to the hardware.
+func rootMountModeFor(hardwareRO bool, requested string) string {
+	if hardwareRO && requested != "ro" {
+		utils.KLog.Logger.Warn().
+			Msg("Ignoring the request to mount root RW: the media is write-protected")
+		return "ro"
+	}
+	return requested
 }
