@@ -59,14 +59,13 @@ func (s *State) MountPersistentROOverlayDagStep(g *herd.Graph, opts ...herd.OpOp
 					return s.mountOverlayOn(where, s.path(where))
 				}
 
-				// herd skips this op outright when OpCustomMounts errored, so a
-				// failed persistent mount never reaches here. What this catches
-				// is OpCustomMounts succeeding without the persistent filesystem
-				// being mounted where we expect it: a second VOLUMES entry that
-				// also matched the predicate and got ErrAlreadyMounted, or the
-				// mount having gone away. Cheap, and the alternative is stacking
-				// the overlay on an empty directory and booting a node that looks
-				// healthy with none of its pre-seeded content.
+				// herd skips this op when OpCustomMounts errored, so a failed
+				// persistent mount never reaches here. This catches the other
+				// case: OpCustomMounts succeeded but nothing is mounted where we
+				// expect it, because a second VOLUMES entry also matched the
+				// predicate and got ErrAlreadyMounted, or the mount went away.
+				// Without the check the overlay would be stacked on an empty
+				// directory and the node would boot with none of its content.
 				if !lowerIsMounted(cnst.PersistentROMount) {
 					return fmt.Errorf("the persistent filesystem is not mounted at %s, so there is nothing for the writable overlay on %s to read through to", cnst.PersistentROMount, where)
 				}
@@ -90,12 +89,12 @@ func (s *State) ReadOnlyOverlayBindDeps() []herd.OpOption {
 // ReadOnlyOverlayWeakDep names OpPersistentROOverlay as a weak dependency, but
 // only when that step was actually registered.
 //
-// Naming an op that was never registered does not fail, which is the trap. herd
-// hands the name to depgraph.DependOn, which creates the node rather than
-// complaining, and the node then has no entry in the ops map. The first
-// Analyze() walks the layers doing g.ops[name].Lock() on every one of them, so
-// the nil *OpState dereferences and immucore panics before it has mounted
-// anything. Hence a no-op option on a writable install rather than the name.
+// Naming an op that was never registered does not fail loudly. herd hands the
+// name to depgraph.DependOn, which creates the node rather than complaining,
+// and the node then has no entry in the ops map. The first Analyze() walks the
+// layers doing g.ops[name].Lock() on every one of them, so the nil *OpState
+// dereferences and immucore panics before it has mounted anything. That is why
+// a writable install gets a no-op option here rather than the name.
 func (s *State) ReadOnlyOverlayWeakDep() herd.OpOption {
 	if s.HardwareRO {
 		return herd.WithWeakDeps(cnst.OpPersistentROOverlay)
@@ -113,7 +112,7 @@ func (s *State) buildOverlayOn(where, lower string) op.MountOperation {
 	// and an overlay's device field is the literal string "overlay": it has no
 	// way to know that lowerdir= names a mount it has to order behind. In
 	// practice both are mounted before systemd takes over and it simply marks
-	// them active, so this is insurance rather than load-bearing. It goes on the
+	// them active, so this only matters if that ever changes. It goes on the
 	// fstab entry only, never on the mount options, or mount(2) would be handed
 	// an option the filesystem does not know. op.BaseOverlay already reaches
 	// into MntOps the same way.
@@ -145,9 +144,12 @@ func (s *State) mountOverlayOn(where, lower string) error {
 	// skips the dependents, Run() still returns nil, immucore exits 0 and
 	// switch_root happens. The op is therefore registered with herd.FatalOp,
 	// which makes Run() return this error, so pkg/cmd/root.go paints the boot
-	// failure summary on the console and writes /run/immucore/boot_failure.log.
-	// The boot still continues into the degraded system afterwards, the same
-	// as every other failed mount in this tree; halting a remote unit into a
-	// loop was judged worse than a visible degraded boot.
+	// failure summary on the console and writes /run/immucore/boot_failure.log,
+	// and immucore.service fails. What happens next is dracut's decision: the
+	// Kairos cmdline carries rd.emergency=reboot, so the machine reboots, which
+	// gives a label that appeared late another try and turns a permanent cause
+	// into a reboot loop with the summary on the console each time round.
+	// Nothing durable can be written on write-protected media, so the console
+	// is the record.
 	return fmt.Errorf("stacking the writable overlay for %s on %s: %w", where, lower, err)
 }

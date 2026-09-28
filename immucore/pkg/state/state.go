@@ -64,9 +64,8 @@ func (s *State) path(p ...string) string {
 // the state target, or the target itself. The mountpoint survives every way of
 // declaring a VOLUMES entry, which the device does not: internalUtils.ParseMount
 // rewrites UUID=<uuid>:/usr/local into /dev/disk/by-uuid/<uuid>, which carries no
-// label, and VOLUMES=/dev/sda5:/usr/local never had one. Matching the device by
-// string, as this code used to, silently half-applied the read-only layout for
-// anyone declaring the volume by UUID.
+// label, and VOLUMES=/dev/sda5:/usr/local never had one. Matching on the device
+// string would miss both and apply the read-only layout to only half the mounts.
 //
 // The label as well: a by-label device carrying the persistent label is the
 // persistent volume wherever it is mounted, which keeps LABEL=COS_PERSISTENT:/data
@@ -152,7 +151,7 @@ func (s *State) oemMountOptions(fstype string) []string {
 // still lets the kernel replay a dirty ext4 journal, and that replay is a write.
 // So the read-only branch asks for the filesystem's no-recovery option too. This
 // covers COS_STATE and the root image, which are mounted before anything knows
-// about the persistent partition and which PR #4405 left writing to the disk.
+// about the persistent partition.
 func (s *State) readOnlyOrMode(fstype string) []string {
 	if s.HardwareRO {
 		return internalUtils.ReadOnlyMountOptions(fstype)

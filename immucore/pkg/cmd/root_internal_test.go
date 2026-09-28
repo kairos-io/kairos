@@ -127,7 +127,7 @@ func TestRootMountModeForKeepsTheRequestOnWritableMedia(t *testing.T) {
 
 func TestRootMountModeForRefusesRWOnWriteProtectedMedia(t *testing.T) {
 	// The kernel refuses the write open with EACCES and there is nothing to
-	// fall back to, so the debugging aid loses to the hardware.
+	// fall back to, so the request cannot be honoured there.
 	if got := rootMountModeFor(true, "rw"); got != "ro" {
 		t.Fatalf("got %q, want ro", got)
 	}

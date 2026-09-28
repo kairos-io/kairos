@@ -13,9 +13,9 @@ import (
 
 var _ = Describe("isPersistentVolume", func() {
 	// The predicate keys off the mountpoint because that is the only half of a
-	// VOLUMES entry that survives every way of declaring the partition. The
-	// first attempt at read-only support matched the device by string, which
-	// silently half-applied the layout for anyone declaring it by UUID.
+	// VOLUMES entry that survives every way of declaring the partition. A device
+	// string match misses a volume declared by UUID and applies the layout to
+	// only half the mounts.
 
 	It("recognises the default mountpoint", func() {
 		s := &State{StateDir: cnst.PersistentStateTarget}
@@ -87,8 +87,8 @@ var _ = Describe("isPersistentVolume", func() {
 	})
 
 	It("does not match a volume whose device path merely says persistent", func() {
-		// The mirror of the UUID bug: the first attempt matched any device path
-		// containing "persistent", so an unrelated volume was force-remapped.
+		// A substring match on the device path would remap an unrelated volume
+		// whose name happens to contain the word.
 		s := &State{
 			StateDir:     cnst.PersistentStateTarget,
 			CustomMounts: map[string]string{"/dev/disk/by-label/my-persistent-data": "/data"},
@@ -104,9 +104,8 @@ var _ = Describe("isPersistentVolume", func() {
 })
 
 var _ = Describe("customMountPlan", func() {
-	// The decision the #4405 review asked to see tested: where the persistent
-	// volume lands and with which options, for every way of declaring it, with
-	// the read-only layout on and off.
+	// Where the persistent volume lands and with which options, for every way
+	// of declaring it, with the read-only layout on and off.
 	root := "/sysroot"
 
 	DescribeTable("the persistent volume on write-protected media is parked read-only out of the way",
@@ -179,8 +178,8 @@ var _ = Describe("buildOverlayOn", func() {
 		Expect(operation.FstabEntry.File).To(Equal("/usr/local"))
 		Expect(operation.FstabEntry.VfsType).To(Equal("overlay"))
 		Expect(operation.FstabEntry.MntOps).To(HaveKeyWithValue("lowerdir", cnst.PersistentROMount))
-		// Ordering insurance for systemd, which cannot see that lowerdir names
-		// a mount. On the fstab entry only, never on the mount options.
+		// Ordering for systemd, which cannot see that lowerdir names a mount.
+		// On the fstab entry only, never on the mount options.
 		Expect(operation.FstabEntry.MntOps).To(HaveKeyWithValue("x-systemd.requires", cnst.PersistentROMount))
 		Expect(operation.MountOption.Options).ToNot(ContainElement(ContainSubstring("x-systemd")))
 		// And nothing that would make systemd remount it read-only.
@@ -272,9 +271,9 @@ var _ = Describe("oemMountOptions", func() {
 	})
 
 	It("mounts /oem read-only, without journal replay, on write-protected media", func() {
-		// No overlay for /oem on purpose: it holds authored configuration, and
-		// a write that appeared to succeed and vanished on reboot is worse than
-		// one that fails.
+		// /oem gets no overlay: it holds authored configuration, and a write
+		// that appeared to succeed and vanished on reboot is worse than one
+		// that fails.
 		s := &State{HardwareRO: true}
 		Expect(s.oemMountOptions("ext4")).To(Equal([]string{"ro", "noload", "suid", "dev", "exec", "async"}))
 		Expect(s.oemMountOptions("xfs")).To(Equal([]string{"ro", "norecovery", "suid", "dev", "exec", "async"}))

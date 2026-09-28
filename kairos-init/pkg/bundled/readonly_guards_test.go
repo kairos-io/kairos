@@ -70,8 +70,7 @@ var _ = Describe("read-only media guards in the shipped cloud-configs", func() {
 		Entry("removing legacy userdata, initramfs.before", "00_datasource.yaml", "initramfs.before", "Remove old userdata"),
 		Entry("pulling userdata, rootfs.before", "00_datasource.yaml", "rootfs.before", "Pull data from provider"),
 		Entry("pulling userdata, initramfs.before", "00_datasource.yaml", "initramfs.before", "Pull data from provider"),
-		// chown -R root:admin /oem on every boot; found failing in the journal
-		// of a real read-only boot.
+		// chown -R root:admin /oem on every boot.
 		Entry("fixing /oem permissions", "10_accounting.yaml", "initramfs", "Ensure runtime permission"),
 	)
 

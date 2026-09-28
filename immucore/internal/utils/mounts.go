@@ -318,8 +318,8 @@ func ReadOnlyMountOptions(fstype string) []string {
 	case "ext2":
 		// No journal, so nothing to replay, and the kernel rejects noload on an
 		// ext2-type mount outright ("Mount option(s) incompatible with ext2",
-		// EINVAL). This is not a corner case: the Kairos active and passive
-		// images are ext2, so this is the root image's path. Found by booting.
+		// EINVAL). The active and passive images are ext2, so this is the path
+		// the root image takes.
 		return []string{"ro"}
 	case "xfs":
 		return []string{"ro", "norecovery"}
