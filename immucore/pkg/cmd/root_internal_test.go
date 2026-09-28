@@ -115,3 +115,20 @@ func TestWatchForTerminationStopsInterceptingAfterStop(t *testing.T) {
 	default:
 	}
 }
+
+func TestRootMountModeForKeepsTheRequestOnWritableMedia(t *testing.T) {
+	if got := rootMountModeFor(false, "rw"); got != "rw" {
+		t.Fatalf("got %q, want rw: rd.immucore.debugrw must still work on a writable disk", got)
+	}
+	if got := rootMountModeFor(false, "ro"); got != "ro" {
+		t.Fatalf("got %q, want ro", got)
+	}
+}
+
+func TestRootMountModeForRefusesRWOnWriteProtectedMedia(t *testing.T) {
+	// The kernel refuses the write open with EACCES and there is nothing to
+	// fall back to, so the debugging aid loses to the hardware.
+	if got := rootMountModeFor(true, "rw"); got != "ro" {
+		t.Fatalf("got %q, want ro", got)
+	}
+}

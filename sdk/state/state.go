@@ -80,6 +80,7 @@ type Runtime struct {
 	EncryptedPartitions EncryptedParts   `yaml:"encrypted_partitions,omitempty" json:"encrypted_partitions,omitempty"`
 	BootState           Boot             `yaml:"boot" json:"boot"`
 	InRAM               bool             `yaml:"in_ram" json:"in_ram"`
+	HardwareRO          bool             `yaml:"hardware_ro" json:"hardware_ro"` // write-protected media: the persistent tree is a tmpfs overlay, so nothing written to it survives a reboot and upgrades are impossible. Set from DetectHardwareROFromRun.
 	System              sysinfo.SysInfo  `yaml:"system" json:"system"`
 	Addresses           []MachineAddress `yaml:"addresses,omitempty" json:"addresses,omitempty"`
 	Kairos              Kairos           `yaml:"kairos" json:"kairos"`
@@ -273,6 +274,25 @@ func DetectInRAMFromProc() bool {
 		return false
 	}
 	return DetectInRAM(string(cmdline))
+}
+
+// HardwareROSentinel is the file immucore writes when it has detected that the
+// media is write-protected and has mounted the persistent filesystem read-only
+// with a tmpfs overlay over it.
+const HardwareROSentinel = constants.SentinelDir + "/" + constants.HardwareROSentinelName
+
+// DetectHardwareROFromRun reports whether immucore flagged this boot as being on
+// write-protected media.
+func DetectHardwareROFromRun() bool {
+	_, err := os.Stat(HardwareROSentinel)
+	return err == nil
+}
+
+// DetectHardwareROWithVFS mirrors DetectHardwareROFromRun but uses a KairosFS so
+// it can be exercised from tests.
+func DetectHardwareROWithVFS(fs fs.KairosFS) bool {
+	_, err := fs.Stat(HardwareROSentinel)
+	return err == nil
 }
 
 // DetectInRAMWithVFS mirrors DetectInRAMFromProc but uses a KairosFS so it can
@@ -492,8 +512,13 @@ func NewRuntimeWithLogger(logger zerolog.Logger) (Runtime, error) {
 	runtime := &Runtime{
 		BootState: detectBoot(logger),
 		InRAM:     DetectInRAMFromProc(),
-		UUID:      utils.UUID(),
-		Addresses: DetectAddresses(),
+		// Read from immucore's sentinel rather than probed again here. immucore
+		// resolved this once, from a device probe plus a possible cmdline
+		// override, and acted on the answer for the whole boot: re-deriving it
+		// would let the two disagree, and the sentinel is the published answer.
+		HardwareRO: DetectHardwareROFromRun(),
+		UUID:       utils.UUID(),
+		Addresses:  DetectAddresses(),
 	}
 
 	detectSystem(runtime)

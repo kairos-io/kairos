@@ -95,9 +95,17 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 
 	s.LogIfError(s.MountCustomMountsDagStep(g), "custom mounts mount")
 
+	// On write-protected media the step above mounted the persistent filesystem
+	// read-only and out of the way, so the writable view the binds need has to be
+	// stacked on top of it before they run. Registered only in that case, so a
+	// writable install keeps exactly the graph it had.
+	if s.HardwareRO {
+		s.LogIfError(s.MountPersistentROOverlayDagStep(g), "persistent read-only overlay")
+	}
+
 	// Mount custom binds loaded from the /run/cos/cos-layout.env file
 	// Depends on mount binds as that usually mounts COS_PERSISTENT
-	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")
+	s.LogIfError(s.MountCustomBindsDagStep(g, s.ReadOnlyOverlayBindDeps()...), "custom binds mount")
 
 	// Move unit symlinks an earlier image left in the persistent /etc/systemd
 	// bind out of the unit load path, before the initramfs stage and switch_root.
@@ -109,12 +117,14 @@ func RegisterNormalBoot(s *state.State, g *herd.Graph) error {
 	// Write fstab file
 	s.LogIfError(s.WriteFstabDagStep(g,
 		herd.WithDeps(cnst.OpMountRoot, cnst.OpDiscoverState, cnst.OpLoadConfig),
-		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount)), "write fstab")
+		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount),
+		s.ReadOnlyOverlayWeakDep()), "write fstab")
 
 	// do it after fstab is created
 	s.LogIfError(s.InitramfsStageDagStep(g,
 		herd.WithDeps(cnst.OpMountRoot, cnst.OpDiscoverState, cnst.OpLoadConfig, cnst.OpWriteFstab),
 		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpQuarantineStaleUnits),
+		s.ReadOnlyOverlayWeakDep(),
 	), "initramfs stage")
 	return err
 }

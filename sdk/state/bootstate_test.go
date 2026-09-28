@@ -96,3 +96,20 @@ var _ = Describe("DetectBootWithVFS", func() {
 		Expect(b).To(Equal(Unknown))
 	})
 })
+
+var _ = Describe("DetectHardwareROWithVFS", func() {
+	It("reports write-protected media when immucore wrote the sentinel", func() {
+		fs, _, err := vfst.NewTestFS(map[string]interface{}{HardwareROSentinel: "1"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(DetectHardwareROWithVFS(fs)).To(BeTrue())
+	})
+
+	It("reports writable media when there is no sentinel", func() {
+		// Read from the sentinel rather than probed again: immucore resolved
+		// this once and acted on it for the whole boot, and re-deriving it here
+		// would let the two disagree.
+		fs, _, err := vfst.NewTestFS(map[string]interface{}{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(DetectHardwareROWithVFS(fs)).To(BeFalse())
+	})
+})

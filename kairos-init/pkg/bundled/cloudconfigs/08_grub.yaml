@@ -20,9 +20,13 @@ stages:
     # enable_boot_assessment to 'yes'.
     # This can be then customized easily by having a cloud-config file which always enables boot assessment on
     # the boot stage.
+    # Skipped on read-only media: this remounts COS_STATE read-write and writes
+    # the grub environment, on every active boot. The sentinels it clears are
+    # only ever set by an upgrade, and an upgrade cannot happen on a
+    # write-protected disk, so there is nothing to clear there.
     - name: "Remove GRUB sentinels"
       if: |
-          cat /proc/cmdline | grep -q "active.img" && grep -vq "rd.immucore.uki" /proc/cmdline
+          cat /proc/cmdline | grep -q "active.img" && grep -vq "rd.immucore.uki" /proc/cmdline && [ ! -f /run/cos/readonly_mode ]
       commands:
       - |
           mount -o rw,remount /run/initramfs/cos-state
