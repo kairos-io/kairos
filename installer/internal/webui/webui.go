@@ -190,7 +190,19 @@ type Options struct {
 	// starts, so the caller can wait for a browser-driven install to finish
 	// before it shuts the server down.
 	Activity *Activity
+	// WebUI is the image's web UI settings. Only the token is read here, and
+	// the zero value leaves the server open, which is what a standalone run
+	// and every test that does not care about the token want.
+	WebUI branding.WebUI
+	// MCP, when non-nil, is served at MCPPath, so an agent drives the
+	// installer through the same listener a browser does. It is an
+	// http.Handler and not the MCP package itself so this server stays the
+	// one thing that decides what is reachable on its address.
+	MCP http.Handler
 }
+
+// MCPPath is where Options.MCP is mounted. It is the path MCP clients assume.
+const MCPPath = "/mcp"
 
 // StartConfigured fills in the listen address and enablement from the image's
 // branding config and runs the server with the rest of o as the caller set it.
@@ -213,6 +225,11 @@ func StartConfigured(ctx context.Context, o Options) error {
 		if agentConfig.WebUI.ListenAddress != "" {
 			o.Listen = agentConfig.WebUI.ListenAddress
 		}
+	}
+
+	o.WebUI = agentConfig.WebUI
+	if o.WebUI.HasToken() {
+		logTo(o.Logger).Info("WebUI installer requires the token set in the configuration")
 	}
 
 	return StartWith(ctx, o)
@@ -247,10 +264,15 @@ func StartWith(ctx context.Context, o Options) error {
 	return nil
 }
 
-// newServer builds the web UI's routes. It is separate from StartWith so the
-// same handler can be mounted on a listener the caller owns, which is how the
-// tests drive a real install over a real websocket, and how this will hang off
-// the installer's own mux next to the MCP server.
+// NewHandler builds the web UI's routes, MCP included, without binding
+// anything. It is separate from StartWith so the same handler can be mounted
+// on a listener the caller owns, which is how the tests drive a real install
+// over a real websocket and a real MCP session.
+func NewHandler(o Options) http.Handler {
+	return newServer(o)
+}
+
+// newServer builds the web UI's routes.
 func newServer(o Options) *echo.Echo {
 	s := state{}
 
@@ -262,6 +284,23 @@ func newServer(o Options) *echo.Echo {
 	}
 
 	ec.Renderer = renderer
+
+	// Before routing, so the check covers the static assets and an unknown
+	// path too. Nothing this server serves is public.
+	if auth := requireToken(o.WebUI); auth != nil {
+		ec.Pre(auth)
+	}
+
+	// Any, not POST: the streamable HTTP transport opens its event stream
+	// with GET and ends a session with DELETE, so a POST-only route would
+	// let a client call a tool but never be told anything back. The GET
+	// competes with the "/*" asset route below, and echo's router prefers
+	// the static path over the wildcard whichever order they are registered
+	// in, so this reaches the handler rather than a 404 page from the
+	// embedded file system.
+	if o.MCP != nil {
+		ec.Any(MCPPath, echo.WrapHandler(o.MCP))
+	}
 
 	ec.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
 

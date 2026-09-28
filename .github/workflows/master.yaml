@@ -80,6 +80,18 @@ jobs:
       matrix_scope: full
     secrets: inherit
 
+  # Flavor smoke matrix. Same shape as pr.yaml's build-flavors, with
+  # matrix_scope: full so the riscv64 cells (ubuntu:24.04, debian:13,
+  # fedorariscv:42) also run -- their kairos-init tarball only exists
+  # at this scope. Runs in parallel with build-image-kairos-init /
+  # build-iso / test-* for the same reason as in pr.yaml.
+  build-flavors:
+    needs: build-kairos-init
+    uses: ./.github/workflows/_build-flavors.yaml
+    with:
+      matrix_scope: full
+    secrets: inherit
+
   build-image-kairos-init:
     needs: [build-kairos-init, unit-tests, lint]
     uses: ./.github/workflows/_build-image-kairos-init.yaml
@@ -237,6 +249,7 @@ jobs:
           - {test: 'upgrade-with-cli'}
           - {test: 'bundles'}
           - {test: 'ssh-hardening'}
+          - {test: 'sysext'}
           - {test: 'upgrade-latest-with-cli', release-matcher: 'kairos-hadron-*-core-amd64-generic-v*.iso'}
     name: test-core / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
@@ -405,6 +418,9 @@ jobs:
           - {test: 'encryption-remote-ek-reenroll'}
           - {test: 'encryption-remote-mixed-modes'}
           - {test: 'encryption-kcrypt-cli'}
+          - {test: 'encryption-on-boot'}
+          - {test: 'encryption-on-boot-no-tpm'}
+          - {test: 'encryption-on-boot-remote'}
     name: test-standard-encryption / ${{ matrix.test }}
     uses: ./.github/workflows/reusable-qemu-test.yaml
     # See test-core-fips above.

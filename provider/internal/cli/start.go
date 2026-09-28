@@ -256,37 +256,7 @@ For all the example cases, see: https://kairos.io/docs/
 		UsageText: ``,
 		Copyright: Author,
 		Commands: []*cli.Command{
-			{
-				Name:      "recovery-ssh-server",
-				UsageText: "recovery-ssh-server",
-				Usage:     "Starts SSH recovery service",
-				Description: `
-				Spawn up a simple standalone ssh server over p2p
-		`,
-				ArgsUsage: "Spawn up a simple standalone ssh server over p2p",
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:    "token",
-						EnvVars: []string{"TOKEN"},
-					},
-					&cli.StringFlag{
-						Name:    "service",
-						EnvVars: []string{"SERVICE"},
-					},
-					&cli.StringFlag{
-						Name:    "password",
-						EnvVars: []string{"PASSWORD"},
-					},
-					&cli.StringFlag{
-						Name:    "listen",
-						EnvVars: []string{"LISTEN"},
-						Value:   recoveryAddr,
-					},
-				},
-				Action: func(c *cli.Context) error {
-					return StartRecoveryService(c)
-				},
-			},
+			RecoverySSHServerCMD(),
 			RegisterCMD(toolName),
 			BridgeCMD(toolName),
 			&GetKubeConfigCMD,

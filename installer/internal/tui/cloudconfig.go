@@ -35,6 +35,9 @@ func RenderCloudConfig(m *Model) (string, error) {
 	if m.source != "" {
 		cc.Install.Source = m.source
 	}
+	if len(m.extensions) > 0 {
+		cc.Install.Extensions = m.extensions
+	}
 	switch m.finishAction {
 	case "reboot":
 		cc.Install.Reboot = true

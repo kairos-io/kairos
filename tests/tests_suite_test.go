@@ -181,6 +181,25 @@ func startVM() (context.Context, VM) {
 	return ctx, vm
 }
 
+// startVMNoTPM is startVM for a machine without a TPM device. Used by the
+// encryption-on-boot negative spec, which asserts the fail closed halt when
+// the configuration demands encryption on a machine that cannot do it.
+func startVMNoTPM() (context.Context, VM) {
+	stateDir, err := os.MkdirTemp("", "")
+	Expect(err).ToNot(HaveOccurred())
+	GinkgoLogr.Info("Starting VM without TPM", "stateDir", stateDir)
+
+	m, err := machine.New(defaultVMOptsNoTPM(stateDir)...)
+	Expect(err).ToNot(HaveOccurred())
+
+	vm := NewVM(m, stateDir)
+
+	ctx, err := vm.Start(context.Background())
+	Expect(err).ToNot(HaveOccurred())
+
+	return ctx, vm
+}
+
 func isFlavor(vm VM, flavor string) bool {
 	out, err := vm.Sudo(fmt.Sprintf("cat /etc/os-release | grep ID=%s", flavor))
 	return err == nil && out != ""
@@ -416,7 +435,23 @@ func defaultVMOpts(stateDir string) []types.MachineOption {
 	return opts
 }
 
+// defaultVMOptsNoTPM is defaultVMOpts without the swtpm emulator and without
+// the TPM device on the qemu command line. The encryption-on-boot negative
+// spec needs a machine that genuinely has no TPM, so the boot time encryption
+// step can only halt.
+func defaultVMOptsNoTPM(stateDir string) []types.MachineOption {
+	opts := vmOptsNoDrives(stateDir, false)
+	driveSize := getEnvOrDefault("DRIVE_SIZE", "25000")
+	opts = append(opts, types.WithDriveSize(driveSize))
+
+	return opts
+}
+
 func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
+	return vmOptsNoDrives(stateDir, true)
+}
+
+func vmOptsNoDrives(stateDir string, withTPM bool) []types.MachineOption {
 	var err error
 
 	if os.Getenv("ISO") == "" {
@@ -428,8 +463,10 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 
 	vmName := uuid.New().String()
 
-	// Always setup a tpm emulator
-	emulateTPM(stateDir)
+	// Setup a tpm emulator unless the spec asked for a TPM-less machine
+	if withTPM {
+		emulateTPM(stateDir)
+	}
 
 	sshPort, err = getFreePort()
 	Expect(err).ToNot(HaveOccurred())
@@ -490,11 +527,14 @@ func defaultVMOptsNoDrives(stateDir string) []types.MachineOption {
 				"-serial", "chardev:char0",
 				"-mon", "chardev=char0",
 			)
-			// Always set a tpm device in the vm
-			m.Args = append(m.Args,
-				"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
-				"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
-			)
+			// Set a tpm device in the vm unless the spec asked for a
+			// TPM-less machine
+			if withTPM {
+				m.Args = append(m.Args,
+					"-chardev", fmt.Sprintf("socket,id=chrtpm,path=%s/swtpm-sock", path.Join(stateDir, "tpm")),
+					"-tpmdev", "emulator,id=tpm0,chardev=chrtpm", "-device", "tpm-tis,tpmdev=tpm0",
+				)
+			}
 
 			// Set boot order to disk -> cdrom
 			m.Args = append(m.Args,

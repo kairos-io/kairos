@@ -1,6 +1,7 @@
 package hook
 
 import (
+	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkSpec "github.com/kairos-io/kairos/v4/sdk/types/spec"
 )
@@ -33,11 +34,16 @@ func (k Finish) Run(c sdkConfig.Config, spec sdkSpec.Spec) error {
 			return err
 		}
 	}
-	err = ExtensionsPostInstall{}.Run(c, spec)
-	if err != nil {
-		c.Logger.Logger.Warn().Err(err).Msg("could not install the declared extensions")
-		if c.FailOnBundleErrors {
-			return err
+	// Finish runs on both install flows, but the extensions of a UKI node
+	// live in the EFI partition, where FinishUKIInstall's SysExtPostInstall
+	// puts them. Only the GRUB layout is staged here.
+	if !internalutils.IsUki() {
+		err = ExtensionsPostInstall{}.Run(c, spec)
+		if err != nil {
+			c.Logger.Logger.Warn().Err(err).Msg("could not install the declared extensions")
+			if c.FailOnBundleErrors {
+				return err
+			}
 		}
 	}
 	err = ExtensionSignaturePolicy{}.Run(c, spec)

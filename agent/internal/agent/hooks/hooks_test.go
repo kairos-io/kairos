@@ -187,6 +187,20 @@ var _ = Describe("Hooks", func() {
 			Expect(err).ShouldNot(BeNil())
 		})
 
+		// An install that did not boot from removable media has no live
+		// directory, which is not something to fail on. The sweep used to
+		// hand the stat error to the walk callback, so strict mode failed the
+		// whole hook over it.
+		It("doesn't error in strict mode when there is no live media", func() {
+			cfg.FailOnBundleErrors = true
+			_, err = fs.Stat(cnst.LiveDir)
+			Expect(os.IsNotExist(err)).To(BeTrue(), "the fixture is supposed to have no live media")
+
+			postInstall := hook.SysExtPostInstall{}
+			err = postInstall.Run(*cfg, nil)
+			Expect(err).Should(BeNil())
+		})
+
 	})
 
 	Context("FirstBootStage", func() {

@@ -191,3 +191,22 @@ func (l *lockedWriter) Write(p []byte) (int, error) {
 	defer l.mu.Unlock()
 	return l.w.Write(p)
 }
+
+// PairingCommand builds the pairing-install invocation, `kairos-agent install`.
+//
+// That command is the QR code pairing flow: the agent asks the providers for a
+// token, prints it as a QR code, and then waits for `kairosctl register` to
+// send a configuration over it. It is what the live media's default boot entry
+// runs today, so an installer frontend that wants to offer pairing hands the
+// terminal to it rather than reimplementing the flow.
+//
+// Unlike Command it does not ask for progress events: the agent draws the QR
+// code and its own messages on the terminal it is given, and there is no
+// progress bar to drive.
+func PairingCommand(agentBin, source string) *exec.Cmd {
+	args := []string{"install"}
+	if source != "" {
+		args = append(args, "--source", source)
+	}
+	return exec.Command(agentBin, args...)
+}

@@ -53,6 +53,19 @@ func (p *summaryPage) View() string {
 			s += "  - SSH Keys: Not set\n"
 		}
 
+		if len(mainModel.extensions) > 0 {
+			s += "  - System Extensions:\n"
+			for _, extension := range mainModel.extensions {
+				version := extension.Version
+				if version == "" {
+					version = "latest"
+				}
+				s += fmt.Sprintf("      %s (%s)\n", extension.Name, version)
+			}
+		} else {
+			s += "  - System Extensions: Not set\n"
+		}
+
 		if len(mainModel.extraFields) > 0 {
 			s += "\nExtra Options:\n"
 			yamlStr, err := yaml.Marshal(mainModel.extraFields)

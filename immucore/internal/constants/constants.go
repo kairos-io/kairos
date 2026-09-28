@@ -165,6 +165,12 @@ const (
 	// rootfs is on a tmpfs can stat this file.
 	InRAMSentinelName = "in_ram_mode"
 
+	// OpEncryptPending runs on the normal boot DAG, gated behind
+	// kcrypt.encrypt_on_boot, and encrypts partitions that the configuration
+	// marks for encryption but that are still plaintext on disk, before
+	// anything mounts them. See kairos-io/kairos#4556.
+	OpEncryptPending = "encrypt-pending"
+
 	// OpEnsurePartitions runs early in the in-RAM DAG and either confirms that
 	// COS_OEM + COS_PERSISTENT already exist on disk, or auto-creates the
 	// missing ones on the disk selected via kairos.ram.create_partitions.

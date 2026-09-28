@@ -2,13 +2,10 @@ package tui
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/jaypipes/ghw/pkg/block"
-	"github.com/jaypipes/ghw/pkg/option"
+	"github.com/kairos-io/kairos/v4/installer/internal/disks"
 )
 
 type diskStruct struct {
@@ -78,48 +75,32 @@ func (p *diskSelectionPage) clampOffset() {
 // coupling to ghw directly).
 var scanDisks = scanDisksGHW
 
-// scanDisksGHW is the production disk scanner: it asks ghw for the current set
-// of block devices and filters out virtual/undersized ones. It re-queries the
-// kernel on every call, so it picks up disks that appeared/disappeared since
-// the last scan — for example, LVMs that a prerequisites plugin (wipefs) just
-// removed.
+// scanDisksGHW is the production disk scanner. Which disks are candidates is
+// the installer's rule rather than this page's, so it lives in
+// installer/internal/disks and every frontend gets the same answer; this only
+// shapes it for the list.
 func scanDisksGHW() ([]diskStruct, error) {
-	bl, err := block.New(option.WithDisableTools(), option.WithNullAlerter())
+	found, err := disks.Scan()
 	if err != nil {
 		return nil, err
 	}
-	const minDiskSizeBytes = 1 * 1024 * 1024 * 1024 // 1 GiB
-	excludedDevicePrefixes := []string{"loop", "ram", "sr", "zram"}
 
-	var disks []diskStruct
-	for _, disk := range bl.Disks {
-		excluded := false
-		for _, prefix := range excludedDevicePrefixes {
-			if strings.HasPrefix(disk.Name, prefix) {
-				excluded = true
-				break
-			}
-		}
-		if excluded || disk.SizeBytes < minDiskSizeBytes {
-			continue // Skip excluded devices and disks smaller than the minimum size.
-		}
-		disks = append(disks, diskStruct{
-			name: filepath.Join("/dev", disk.Name),
-			size: fmt.Sprintf("%.2f GiB", float64(disk.SizeBytes)/float64(1024*1024*1024)),
-			id:   len(disks),
-		})
+	out := make([]diskStruct, 0, len(found))
+	for i, d := range found {
+		out = append(out, diskStruct{name: d.Path, size: d.Size, id: i})
 	}
-	return disks, nil
+
+	return out, nil
 }
 
 func newDiskSelectionPage() *diskSelectionPage {
-	disks, err := scanDisks()
+	found, err := scanDisks()
 	if err != nil {
 		fmt.Printf("Error initializing block device info: %v\n", err)
 		return nil
 	}
 	return &diskSelectionPage{
-		disks:  disks,
+		disks:  found,
 		cursor: 0,
 	}
 }
@@ -132,14 +113,14 @@ func newDiskSelectionPage() *diskSelectionPage {
 //
 // See kairos-io/kairos#4260.
 func (p *diskSelectionPage) Init() tea.Cmd {
-	disks, err := scanDisks()
+	found, err := scanDisks()
 	if err != nil {
 		if mainModel.log != nil {
 			mainModel.log.Logger.Warn().Err(err).Msg("Failed to refresh disk list; keeping previous view")
 		}
 		return nil
 	}
-	p.disks = disks
+	p.disks = found
 	// The previously-selected disk may no longer exist. Clamp the cursor into
 	// the new range and reset the scroll window to keep the view sane.
 	if p.cursor >= len(p.disks) {
