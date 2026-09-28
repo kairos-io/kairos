@@ -91,31 +91,64 @@ func TestK0sSpecUnitSourcesItsOwnEnvFile(t *testing.T) {
 	}
 }
 
-// systemd takes its arguments in the unit, so the k0s units it gets are the
-// packaged ones and the env file is the distro default.
+// systemd takes the service's arguments in the unit, through the ExecStart
+// drop-in OverrideCmd writes, so the env file carries only the environment.
+// Kairos writes the k0s units itself, unlike k3s' packaged ones, so this unit
+// is the only thing that can declare where that environment is read from.
 func TestK0sSpecOnSystemd(t *testing.T) {
-	root := t.TempDir()
-	spec := K0sSpec("k0scontroller")
-	spec.Root = root
-	spec.NoReload = true
+	for _, name := range K0sServiceNames {
+		t.Run(name, func(t *testing.T) {
+			root := t.TempDir()
+			spec := K0sSpec(name)
+			spec.Root = root
+			spec.NoReload = true
 
-	svc, err := service.NewFor(service.Systemd, spec)
-	if err != nil {
-		t.Fatalf("building the service: %v", err)
-	}
-	if err := svc.WriteUnit(); err != nil {
-		t.Fatalf("writing the unit: %v", err)
-	}
+			svc, err := service.NewFor(service.Systemd, spec)
+			if err != nil {
+				t.Fatalf("building the service: %v", err)
+			}
+			if err := svc.WriteUnit(); err != nil {
+				t.Fatalf("writing the unit: %v", err)
+			}
 
-	unit, err := os.ReadFile(filepath.Join(root, "etc/systemd/system/k0scontroller.service"))
-	if err != nil {
-		t.Fatalf("reading back the unit: %v", err)
-	}
-	if !strings.Contains(string(unit), "ExecStart=/usr/bin/k0s controller") {
-		t.Fatalf("not the k0s controller unit:\n%s", unit)
-	}
-	if got, want := svc.EnvFile(), "/etc/sysconfig/k0scontroller"; got != want {
-		t.Fatalf("env file is %q, want %q", got, want)
+			unit, err := os.ReadFile(filepath.Join(root, "etc/systemd/system", name+".service"))
+			if err != nil {
+				t.Fatalf("reading back the unit: %v", err)
+			}
+			role := strings.TrimPrefix(name, "k0s")
+			if !strings.Contains(string(unit), "ExecStart=/usr/bin/k0s "+role) {
+				t.Fatalf("not the k0s %s unit:\n%s", role, unit)
+			}
+			if strings.Contains(string(unit), service.EnvFilePlaceholder) {
+				t.Fatal("the placeholder survived writing the unit")
+			}
+
+			envFile := svc.EnvFile()
+			if envFile != K0sSysconfigFile(name) {
+				t.Fatalf("env file is %q, want %q", envFile, K0sSysconfigFile(name))
+			}
+
+			// The unit has to name that file, or SetEnv below writes
+			// environment k0s never reads and reports success doing it.
+			// Optional (the leading "-"), because the provider writes the file
+			// after the unit and systemd refuses to start a unit whose
+			// mandatory EnvironmentFile is missing.
+			if !strings.Contains(string(unit), "EnvironmentFile=-"+envFile) {
+				t.Fatalf("the unit does not read %q, so the provider's environment never reaches k0s:\n%s", envFile, unit)
+			}
+
+			// And what SetEnv writes has to land in that same file.
+			if err := svc.SetEnv(map[string]string{"HTTP_PROXY": "http://proxy:3128"}); err != nil {
+				t.Fatalf("setting the environment: %v", err)
+			}
+			written, err := os.ReadFile(filepath.Join(root, envFile))
+			if err != nil {
+				t.Fatalf("the unit reads %q but nothing was written there: %v", envFile, err)
+			}
+			if !strings.Contains(string(written), "http://proxy:3128") {
+				t.Fatalf("env file does not carry the environment:\n%s", written)
+			}
+		})
 	}
 }
 
