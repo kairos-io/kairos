@@ -30,7 +30,9 @@ The UKI equivalent lives in `tests/assets/sysext-uki/`. Its
 What the extensions are:
 
 - Each is a `/usr/local/bin/` layer with a `hello.sh` script that prints
-  `Hello world`.
+  the literal string `Hello world`. `tests/sysext_live_media_test.go`
+  asserts on that string with `ContainSubstring("Hello world")`; keep
+  the exact casing if you regenerate.
 - `work.sysext.raw` is a systemd-repart DDI with only the erofs data and
   verity hash partitions (no root-verity-sig partition).
 - `hello-broke.sysext.raw` is a plain squashfs bake with the same
