@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http/httptest"
@@ -140,6 +141,60 @@ func TestMCPAnswersOnTheWebUIsOwnListener(t *testing.T) {
 	}
 	if len(tools.Tools) == 0 {
 		t.Fatal("the endpoint answered but advertised no tools")
+	}
+}
+
+// The source is a property of the boot, not of the frontend, so the MCP
+// endpoint both modes hand the web UI has to carry the one main was started
+// with. This drives a real MCP client against a real listener and reads the
+// answer back, because the bug it covers was main handing the handler no
+// source at all while the struct field next to it carried one.
+func TestMCPCarriesTheInstallSourceInBothModes(t *testing.T) {
+	webUILogPath = filepath.Join(t.TempDir(), "webui.log")
+
+	const booted = "docker:quay.io/kairos/fedora:40-core-amd64-generic-v3.6.0"
+
+	modes := map[string]webui.Options{
+		"--no-tui":    noTUIWebUIOptions(booted, testLogger()),
+		"interactive": tuiWebUIOptions(booted, nil, testLogger()),
+	}
+
+	for name, opts := range modes {
+		t.Run(name, func(t *testing.T) {
+			opts.Logger = slog.New(slog.NewJSONHandler(io.Discard, nil))
+
+			srv := httptest.NewServer(webui.NewHandler(opts))
+			defer srv.Close()
+
+			client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v1"}, nil)
+			session, err := client.Connect(context.Background(),
+				&mcp.StreamableClientTransport{Endpoint: srv.URL + webui.MCPPath}, nil)
+			if err != nil {
+				t.Fatalf("connecting to MCP on the web UI's address: %v", err)
+			}
+			defer session.Close()
+
+			res, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_install_options"})
+			if err != nil {
+				t.Fatalf("calling get_install_options: %v", err)
+			}
+
+			b, err := json.Marshal(res.StructuredContent)
+			if err != nil {
+				t.Fatalf("re-encoding the tool output: %v", err)
+			}
+			var out struct {
+				DefaultSource string `json:"default_source"`
+			}
+			if err := json.Unmarshal(b, &out); err != nil {
+				t.Fatalf("decoding the tool output: %v", err)
+			}
+
+			if out.DefaultSource != booted {
+				t.Errorf("MCP reports default_source %q, want the booted %q: an agent-driven install would pull a different image than the TUI",
+					out.DefaultSource, booted)
+			}
+		})
 	}
 }
 

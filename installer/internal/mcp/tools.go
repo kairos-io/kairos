@@ -51,6 +51,7 @@ type installOptionsInput struct{}
 
 type installOptionsOutput struct {
 	AgentBinary     string       `json:"agent_binary" jsonschema:"path to the kairos-agent binary that performs the install, empty when none was found"`
+	DefaultSource   string       `json:"default_source,omitempty" jsonschema:"the image an install pulls when the install tool is called without a source, from the source this installer was started with. Empty means kairos-agent picks its own"`
 	FinishActions   []string     `json:"finish_actions" jsonschema:"accepted values of the install tool's finish_action"`
 	Steps           []string     `json:"steps" jsonschema:"the progress steps an install reports, in the order the agent emits them"`
 	Disks           []disks.Disk `json:"disks" jsonschema:"the disks an installation can target"`
@@ -228,6 +229,7 @@ func (s *Server) applyPrerequisites(_ context.Context, _ *mcp.CallToolRequest, i
 func (s *Server) installOptions(_ context.Context, _ *mcp.CallToolRequest, _ installOptionsInput) (*mcp.CallToolResult, installOptionsOutput, error) {
 	out := installOptionsOutput{
 		AgentBinary:     s.installer.ResolveAgentBin(),
+		DefaultSource:   s.source,
 		FinishActions:   FinishActions,
 		Steps:           agentrun.Steps,
 		MinDiskBytes:    disks.MinSizeBytes,
@@ -269,6 +271,16 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		return errorResult("refusing to install: %q is not an installation candidate on this machine. The candidates are: %s.", in.Device, names), out, nil
 	}
 
+	// A caller that names no source gets the one the boot pinned, which is what
+	// this tool's schema promises and what the other two frontends do. Without
+	// it the agent resolves its own default instead, and the machine comes up
+	// on a different image from the one the TUI would have installed, with
+	// nothing reporting that it happened.
+	source := in.Source
+	if source == "" {
+		source = s.source
+	}
+
 	finishAction := in.FinishAction
 	if finishAction == "" {
 		finishAction = FinishNone
@@ -293,7 +305,7 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		return errorResult("this session already installed to %q. Start a new installer to install again.", in.Device), out, nil
 	}
 
-	cloudConfig, err := renderCloudConfig(in.Device, in.Source, finishAction, in.CloudConfig)
+	cloudConfig, err := renderCloudConfig(in.Device, source, finishAction, in.CloudConfig)
 	if err != nil {
 		return errorResult("could not build the cloud-config: %v", err), out, nil
 	}
@@ -308,7 +320,7 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 	s.log.Logger.Info().Str("device", in.Device).Str("agent", agentBin).Msg("Starting an install driven over MCP")
 
 	var sawError string
-	runErr := s.installer.Run(agentBin, cfgPath, in.Source, finishAction,
+	runErr := s.installer.Run(agentBin, cfgPath, source, finishAction,
 		func(ev agentrun.ProgressEvent) {
 			switch ev.Event {
 			case agentrun.EventStep:
