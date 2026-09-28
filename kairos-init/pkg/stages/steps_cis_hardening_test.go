@@ -386,11 +386,26 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 
 			It("guards the chmod so a missing backup does not fail the build", func() {
+				accountDBs := map[string]struct{}{}
+				for _, p := range []string{
+					"/etc/passwd", "/etc/group", "/etc/shadow", "/etc/gshadow",
+					"/etc/passwd-", "/etc/group-", "/etc/shadow-", "/etc/gshadow-",
+				} {
+					accountDBs[p] = struct{}{}
+				}
 				for _, st := range result {
 					for _, cmd := range st.Commands {
-						if strings.HasPrefix(cmd, "chmod ") {
-							Expect(st.If).To(HavePrefix("test -f /etc/"))
+						if !strings.HasPrefix(cmd, "chmod ") {
+							continue
 						}
+						fields := strings.Fields(cmd)
+						if len(fields) != 3 {
+							continue
+						}
+						if _, ok := accountDBs[fields[2]]; !ok {
+							continue
+						}
+						Expect(st.If).To(HavePrefix("test -f /etc/"))
 					}
 				}
 			})
@@ -404,6 +419,134 @@ var _ = Describe("GetCISHardeningStage", func() {
 						Expect(f.Path).ToNot(HavePrefix("/etc/group"))
 						Expect(f.Path).ToNot(HavePrefix("/etc/shadow"))
 						Expect(f.Path).ToNot(HavePrefix("/etc/gshadow"))
+					}
+				}
+			})
+		})
+
+		Describe("the pwquality password policy", func() {
+			var pwq schema.File
+
+			BeforeEach(func() {
+				pwq = fileByPath(result, "/etc/security/pwquality.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(pwq.Path).To(Equal(bundled.CISPwqualityPath))
+				Expect(pwq.Permissions).To(Equal(uint32(0o644)))
+				Expect(pwq.Owner).To(BeZero())
+				Expect(pwq.Group).To(BeZero())
+			})
+
+			It("enforces the CIS 5.4.1 minimum length and character classes", func() {
+				for _, kv := range []string{
+					"minlen = 14",
+					"dcredit = -1",
+					"ucredit = -1",
+					"ocredit = -1",
+					"lcredit = -1",
+				} {
+					Expect(pwq.Content).To(ContainSubstring(kv))
+				}
+			})
+		})
+
+		Describe("the faillock lockout policy", func() {
+			var fl schema.File
+
+			BeforeEach(func() {
+				fl = fileByPath(result, "/etc/security/faillock.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(fl.Path).To(Equal(bundled.CISFaillockPath))
+				Expect(fl.Permissions).To(Equal(uint32(0o644)))
+				Expect(fl.Owner).To(BeZero())
+				Expect(fl.Group).To(BeZero())
+			})
+
+			It("locks accounts after five failures with a 900s window", func() {
+				for _, kv := range []string{
+					"deny = 5",
+					"unlock_time = 900",
+					"fail_interval = 900",
+					"even_deny_root",
+				} {
+					Expect(fl.Content).To(ContainSubstring(kv))
+				}
+			})
+		})
+
+		Describe("the login.defs aging and umask defaults", func() {
+			var stage schema.Stage
+
+			BeforeEach(func() {
+				for _, st := range result {
+					if st.If == "test -f /etc/login.defs" {
+						stage = st
+					}
+				}
+				Expect(stage.Commands).ToNot(BeEmpty(), "expected a login.defs stage")
+			})
+
+			It("pins every key CIS 5.4.1 and 5.4.5 require", func() {
+				joined := strings.Join(stage.Commands, "\n")
+				for _, kv := range []string{
+					"PASS_MAX_DAYS", "365",
+					"PASS_MIN_DAYS", "1",
+					"PASS_WARN_AGE", "7",
+					"UMASK", "027",
+					"ENCRYPT_METHOD", "SHA512",
+				} {
+					Expect(joined).To(ContainSubstring(kv))
+				}
+			})
+
+			It("rewrites the existing line rather than appending blindly", func() {
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring("sed -i"))
+					Expect(cmd).To(ContainSubstring("else echo"))
+				}
+			})
+		})
+
+		Describe("the cron and at directory permissions", func() {
+			It("tightens every path CIS 5.1 names", func() {
+				for _, path := range []string{
+					"/etc/crontab",
+					"/etc/cron.hourly", "/etc/cron.daily",
+					"/etc/cron.weekly", "/etc/cron.monthly",
+					"/etc/cron.d",
+					"/etc/cron.allow", "/etc/cron.deny",
+					"/etc/at.allow", "/etc/at.deny",
+				} {
+					var found bool
+					for _, st := range result {
+						if st.If != "test -e "+path {
+							continue
+						}
+						found = true
+						Expect(st.Commands).To(ContainElement(MatchRegexp(`^chown root:root ` + regexp.QuoteMeta(path) + `$`)))
+						Expect(st.Commands).To(ContainElement(MatchRegexp(`^chmod 0[67][04]0 ` + regexp.QuoteMeta(path) + `$`)))
+					}
+					Expect(found).To(BeTrue(), "expected a stage for "+path)
+				}
+			})
+
+			It("guards every cron chmod on the path existing so a missing subsystem does not fail the build", func() {
+				for _, st := range result {
+					for _, cmd := range st.Commands {
+						if !strings.HasPrefix(cmd, "chmod 0") {
+							continue
+						}
+						fields := strings.Fields(cmd)
+						if len(fields) != 3 {
+							continue
+						}
+						if !strings.HasPrefix(fields[2], "/etc/cron") && !strings.HasPrefix(fields[2], "/etc/at.") && fields[2] != "/etc/crontab" {
+							continue
+						}
+						Expect(st.If).To(HavePrefix("test -e "))
 					}
 				}
 			})

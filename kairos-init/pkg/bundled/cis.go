@@ -163,3 +163,136 @@ RULEFILE_STOP_POST=/etc/audit/audit.rules.stop.post
 
 AUDITD_LANG=C
 `
+
+// CISPwqualityPath is the libpwquality config file. It is consulted by
+// pam_pwquality (and by passwd on distros that link libpwquality directly),
+// so it only ever affects password changes, never login.
+const CISPwqualityPath = "/etc/security/pwquality.conf"
+
+// CISPwquality covers CIS Distribution Independent Linux v2.0.0 L1 section
+// 5.4.1 (password creation requirements). Values match the benchmark:
+// 14-char minimum, at least one of each class, four-character difference
+// from the old password.
+const CISPwquality = `# Managed by kairos-init.
+#
+# CIS Distribution Independent Linux v2.0.0 L1, section 5.4.1
+# (password creation requirements). Read by pam_pwquality.so on any PAM
+# stack that includes the module (password type) and by passwd on distros
+# that link libpwquality directly. Only affects password *changes*; a
+# stricter policy here cannot lock out an existing operator, it just
+# refuses a weak new password.
+#
+# minlen  = minimum accepted length in characters
+# dcredit = digit credit (negative = at least |N| digits required)
+# ucredit = uppercase letter credit (negative = at least |N| required)
+# ocredit = other/symbol credit (negative = at least |N| required)
+# lcredit = lowercase letter credit (negative = at least |N| required)
+# difok   = minimum number of characters that must differ from the old
+#           password
+#
+# Wiring pam_pwquality into the PAM password stack is distro-specific
+# (authselect on RHEL, pam-auth-update on Debian/Ubuntu, hand-edited on
+# Alpine) and left to the base image; RHEL 9 and Ubuntu 22.04+ enable
+# the module by default once the pwquality package is present.
+minlen = 14
+dcredit = -1
+ucredit = -1
+ocredit = -1
+lcredit = -1
+difok = 4
+`
+
+// CISFaillockPath is the pam_faillock config file, read at PAM stack time.
+// Shipping it is inert on its own: it only takes effect once pam_faillock
+// is wired into the auth stack. That wiring is distro-specific (authselect
+// on RHEL, pam-auth-update on Debian, hand-edited common-auth on Alpine)
+// and a wrong edit locks every account out, so the wiring itself is left
+// for a follow-up ticket with proper per-distro boot testing. The config
+// is still shipped now so that any operator who enables faillock manually
+// gets CIS-compliant lockout parameters without further work.
+const CISFaillockPath = "/etc/security/faillock.conf"
+
+// CISFaillock covers CIS Distribution Independent Linux v2.0.0 L1 section
+// 5.4.2 (lockout on failed authentication). Root is included in the count
+// because a network-facing root account under brute force is the case the
+// control exists for; consoles that need recovery still have single-user
+// mode.
+const CISFaillock = `# Managed by kairos-init.
+#
+# CIS Distribution Independent Linux v2.0.0 L1, section 5.4.2 (lockout on
+# failed authentication). Read by pam_faillock.so; inert on its own until
+# the module is present in the PAM auth stack.
+#
+# Wiring pam_faillock is distro-specific (authselect on RHEL,
+# pam-auth-update on Debian, hand-edited common-auth on Alpine) and one
+# wrong edit locks every account out, so kairos-init does not do the
+# wiring: it ships this file so operators who enable faillock by hand
+# get CIS-compliant parameters without further work, and so a follow-up
+# ticket that adds the wiring per distro only has to touch the PAM
+# stacks. RHEL 9's default authselect profile already loads
+# pam_faillock, which means this file takes effect there on its own.
+#
+# deny           = failed attempts before the account is locked
+# unlock_time    = seconds the lock lasts (0 would mean forever)
+# fail_interval  = seconds during which failed attempts are counted
+# even_deny_root = apply the lockout to the root account too; the
+#                  control exists for network-facing brute force and
+#                  console recovery is still possible via single-user
+#                  mode
+deny = 5
+unlock_time = 900
+fail_interval = 900
+even_deny_root
+`
+
+// CISLoginDefsSetting is one key kairos-init pins in /etc/login.defs to
+// satisfy the CIS L1 password-aging and umask controls. Applied with sed
+// so the base distro's surrounding comments and unrelated defaults stay.
+type CISLoginDefsSetting struct {
+	Key   string
+	Value string
+}
+
+// CISLoginDefsSettings covers CIS Distribution Independent Linux v2.0.0 L1
+// sections 5.4.1.1-5.4.1.5 (password aging) and 5.4.5 (default user umask).
+// Only newly created accounts pick these up, so tightening them cannot lock
+// out an existing operator. UMASK 027 matches the benchmark; a stricter 077
+// breaks group-shared directories on the base images.
+var CISLoginDefsSettings = []CISLoginDefsSetting{
+	{Key: "PASS_MAX_DAYS", Value: "365"},
+	{Key: "PASS_MIN_DAYS", Value: "1"},
+	{Key: "PASS_WARN_AGE", Value: "7"},
+	{Key: "UMASK", Value: "027"},
+	{Key: "ENCRYPT_METHOD", Value: "SHA512"},
+}
+
+// CISCronPath is one filesystem entry whose mode CIS L1 section 5.1
+// (cron and at) pins down. Modes are octal because unlike the account
+// databases in section 6.1 there is no PAM helper that needs a group
+// bit preserved: cron and atd run as root, they read these paths as
+// root, and everything else is out.
+type CISCronPath struct {
+	Path string
+	Mode string
+}
+
+// CISCronPaths lists the cron and at paths CIS L1 sections 5.1.2-5.1.9
+// require to be root-owned and inaccessible to non-root users. The
+// permissions here match the benchmark; the chmods are guarded on the
+// path existing because base images ship different subsets (Alpine has
+// no /etc/cron.d, Ubuntu has no /etc/at.deny by default) and creating
+// what a base did not ship would either enable a subsystem the image
+// deliberately left out (cron.d) or lock everyone out of at (at.allow
+// without at.deny).
+var CISCronPaths = []CISCronPath{
+	{Path: "/etc/crontab", Mode: "0600"},
+	{Path: "/etc/cron.hourly", Mode: "0700"},
+	{Path: "/etc/cron.daily", Mode: "0700"},
+	{Path: "/etc/cron.weekly", Mode: "0700"},
+	{Path: "/etc/cron.monthly", Mode: "0700"},
+	{Path: "/etc/cron.d", Mode: "0700"},
+	{Path: "/etc/cron.allow", Mode: "0640"},
+	{Path: "/etc/cron.deny", Mode: "0640"},
+	{Path: "/etc/at.allow", Mode: "0640"},
+	{Path: "/etc/at.deny", Mode: "0640"},
+}

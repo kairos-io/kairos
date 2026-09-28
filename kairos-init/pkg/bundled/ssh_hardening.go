@@ -55,4 +55,7 @@ LogLevel VERBOSE
 UseDNS no
 UsePAM yes
 StrictModes yes
+
+PermitUserEnvironment no
+Banner /etc/issue.net
 `

@@ -49,12 +49,17 @@ var cisAccountFiles = []cisAccountFile{
 // Setup" ones - the filesystem module blocklist (1.1.1.1-1.1.1.6) and the
 // remote login warning banner (1.7) - the section 3 kernel and network
 // sysctl hardening, the section 4.1 baseline audit rules and auditd enable,
-// plus the section 6.1 "System File Permissions" modes on the account
-// databases.
+// the section 5.1 cron/at path permissions, the section 5.4 password quality,
+// lockout and aging defaults, plus the section 6.1 "System File Permissions"
+// modes on the account databases.
 //
-// The rest of the benchmark - SELinux enforcing, PAM, time sync - needs
-// either runtime state or decisions that change how a node boots, and is not
-// covered here.
+// Section 6 (time sync) is not covered here: steps_init.go already enables
+// systemd-timesyncd on Debian/Ubuntu/SUSE/Hadron and chronyd on the RHEL
+// family, and both ship distro-default NTP sources that satisfy CIS 6.
+// SELinux enforcing on RHEL and wiring pam_faillock into the PAM auth stack
+// need per-distro boot testing and are left for follow-up tickets; the
+// pam_faillock config file is still shipped so any operator who does the
+// wiring by hand gets CIS-compliant parameters.
 func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Stage {
 	if config.ContainsSkipStep(values.CISHardeningStep) {
 		l.Logger.Warn().Msg("Skipping CIS hardening stage")
@@ -149,6 +154,74 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 			If:   fmt.Sprintf("test -f %s", f.path),
 			Commands: []string{
 				fmt.Sprintf("chmod %s %s", f.mode, f.path),
+			},
+		})
+	}
+
+	stages = append(stages,
+		schema.Stage{
+			Name: "Install CIS pwquality password policy",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISPwqualityPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISPwquality,
+				},
+			},
+		},
+		schema.Stage{
+			// Inert until pam_faillock is present in the PAM auth
+			// stack. Distros where it is not, ignore the file; distros
+			// where it is (RHEL 9 default), pick up CIS parameters
+			// without further work.
+			Name: "Install CIS faillock lockout policy",
+			Files: []schema.File{
+				{
+					Path:        bundled.CISFaillockPath,
+					Permissions: 0644,
+					Owner:       0,
+					Group:       0,
+					Content:     bundled.CISFaillock,
+				},
+			},
+		},
+	)
+
+	// login.defs: rewrite the line if the key is set (all base distros
+	// ship the file with a commented example of each), else append. The
+	// sed pattern matches both the commented default and any live line,
+	// so it flips a base distro's shipped default to the CIS value
+	// without wrecking the surrounding comments or unrelated settings.
+	loginDefsCommands := []string{}
+	for _, s := range bundled.CISLoginDefsSettings {
+		loginDefsCommands = append(loginDefsCommands,
+			fmt.Sprintf(
+				"if grep -Eq '^[[:space:]]*#?[[:space:]]*%s([[:space:]]|$)' /etc/login.defs; then "+
+					"sed -i -E 's|^[[:space:]]*#?[[:space:]]*%s([[:space:]]+.*)?$|%s\\t%s|' /etc/login.defs; "+
+					"else echo '%s\\t%s' >> /etc/login.defs; fi",
+				s.Key, s.Key, s.Key, s.Value, s.Key, s.Value,
+			),
+		)
+	}
+	stages = append(stages, schema.Stage{
+		Name:     "Set CIS password aging and umask defaults in /etc/login.defs",
+		If:       "test -f /etc/login.defs",
+		Commands: loginDefsCommands,
+	})
+
+	for _, c := range bundled.CISCronPaths {
+		stages = append(stages, schema.Stage{
+			// Guarded on existence: base images ship different
+			// subsets and creating what a base did not ship would
+			// either enable a subsystem (cron.d) or lock everyone
+			// out of at (at.allow without at.deny).
+			Name: fmt.Sprintf("Tighten permissions on %s", c.Path),
+			If:   fmt.Sprintf("test -e %s", c.Path),
+			Commands: []string{
+				fmt.Sprintf("chown root:root %s", c.Path),
+				fmt.Sprintf("chmod %s %s", c.Mode, c.Path),
 			},
 		})
 	}
