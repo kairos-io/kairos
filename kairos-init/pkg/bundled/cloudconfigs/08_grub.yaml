@@ -26,7 +26,7 @@ stages:
     # write-protected disk, so there is nothing to clear there.
     - name: "Remove GRUB sentinels"
       if: |
-          cat /proc/cmdline | grep -q "active.img" && grep -vq "rd.immucore.uki" /proc/cmdline && [ ! -f /run/cos/readonly_mode ]
+          cat /proc/cmdline | grep -q "active.img" && grep -vq "rd.immucore.uki" /proc/cmdline && [ ! -f /run/cos/write_protected ]
       commands:
       - |
           mount -o rw,remount /run/initramfs/cos-state

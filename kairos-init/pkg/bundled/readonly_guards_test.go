@@ -20,7 +20,7 @@ import (
 // named stage, not found anywhere in the file: a guard on the wrong stage would
 // otherwise pass.
 var _ = Describe("read-only media guards in the shipped cloud-configs", func() {
-	sentinel := filepath.Join(sdkConstants.SentinelDir, sdkConstants.HardwareROSentinelName)
+	sentinel := filepath.Join(sdkConstants.SentinelDir, sdkConstants.WriteProtectedSentinelName)
 	guard := fmt.Sprintf("[ ! -f %s ]", sentinel)
 
 	type stage struct {

@@ -11,7 +11,7 @@ import (
 )
 
 // setCmdline points GetHostProcCmdline at a fixture holding content, for one
-// spec, and re-arms the memoized HardwareRO answer so specs do not inherit each
+// spec, and re-arms the memoized WriteProtected answer so specs do not inherit each
 // other's. Same shape as installFakeBlkid in mounts_internal_test.go.
 func setCmdline(content string) {
 	path := filepath.Join(GinkgoT().TempDir(), "cmdline")
@@ -20,14 +20,14 @@ func setCmdline(content string) {
 	previous, had := os.LookupEnv("HOST_PROC_CMDLINE")
 	Expect(os.Setenv("HOST_PROC_CMDLINE", path)).To(Succeed())
 
-	previousHardwareRO := HardwareRO
-	HardwareRO = sync.OnceValue(detectHardwareRO)
-	previousDelay, previousAttempts := hardwareRORetryDelay, hardwareRORetryAttempts
-	hardwareRORetryDelay, hardwareRORetryAttempts = 0, 2
+	previousWriteProtected := WriteProtected
+	WriteProtected = sync.OnceValue(detectWriteProtected)
+	previousDelay, previousAttempts := writeProtectedRetryDelay, writeProtectedRetryAttempts
+	writeProtectedRetryDelay, writeProtectedRetryAttempts = 0, 2
 
 	DeferCleanup(func() {
-		HardwareRO = previousHardwareRO
-		hardwareRORetryDelay, hardwareRORetryAttempts = previousDelay, previousAttempts
+		WriteProtected = previousWriteProtected
+		writeProtectedRetryDelay, writeProtectedRetryAttempts = previousDelay, previousAttempts
 		if had {
 			Expect(os.Setenv("HOST_PROC_CMDLINE", previous)).To(Succeed())
 			return
@@ -48,30 +48,30 @@ func answerProbe(ro bool, err error) {
 	answerProbeWith(func(string) (bool, error) { return ro, err })
 }
 
-var _ = Describe("parseHardwareRO", func() {
+var _ = Describe("parseWriteProtected", func() {
 	It("reports not set when the stanza is absent", func() {
 		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.debug")
-		_, set := parseHardwareRO()
+		_, set := parseWriteProtected()
 		Expect(set).To(BeFalse())
 	})
 
 	It("reads a bare token as on", func() {
-		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.hardware_ro")
-		forced, set := parseHardwareRO()
+		setCmdline("root=LABEL=COS_ACTIVE rd.immucore.write_protected")
+		forced, set := parseWriteProtected()
 		Expect(set).To(BeTrue())
 		Expect(forced).To(BeTrue())
 	})
 
 	It("reads =0 as off", func() {
-		setCmdline("rd.immucore.hardware_ro=0")
-		forced, set := parseHardwareRO()
+		setCmdline("rd.immucore.write_protected=0")
+		forced, set := parseWriteProtected()
 		Expect(set).To(BeTrue())
 		Expect(forced).To(BeFalse())
 	})
 
 	It("reads =1 as on", func() {
-		setCmdline("rd.immucore.hardware_ro=1")
-		forced, set := parseHardwareRO()
+		setCmdline("rd.immucore.write_protected=1")
+		forced, set := parseWriteProtected()
 		Expect(set).To(BeTrue())
 		Expect(forced).To(BeTrue())
 	})
@@ -79,8 +79,8 @@ var _ = Describe("parseHardwareRO", func() {
 	// A prefix match would have read this as a request to turn the layout on,
 	// which silently makes every persistent write ephemeral. Exact tokens only.
 	It("does not match a stanza that merely starts with the key", func() {
-		setCmdline("rd.immucore.hardware_rox")
-		_, set := parseHardwareRO()
+		setCmdline("rd.immucore.write_protectedx")
+		_, set := parseWriteProtected()
 		Expect(set).To(BeFalse())
 	})
 
@@ -88,19 +88,19 @@ var _ = Describe("parseHardwareRO", func() {
 		// 10 is not one of the off spellings, so it is on. It has to get there
 		// by parsing the value, not by a substring match on "=1", which would
 		// also read =10 as on but for the wrong reason.
-		setCmdline("rd.immucore.hardware_ro=10")
-		forced, set := parseHardwareRO()
+		setCmdline("rd.immucore.write_protected=10")
+		forced, set := parseWriteProtected()
 		Expect(set).To(BeTrue())
 		Expect(forced).To(BeTrue())
 	})
 })
 
-var _ = Describe("hardwareROCandidates", func() {
+var _ = Describe("writeProtectedCandidates", func() {
 	// Detection runs on every boot, live media and rd.immucore.disable included.
 	// GetState() panics after ten seconds of retries when there is no state label
 	// to find, so the candidate list must not be built from it.
 	It("is built from plain by-label paths only", func() {
-		candidates := hardwareROCandidates()
+		candidates := writeProtectedCandidates()
 		Expect(candidates).ToNot(BeEmpty())
 		for _, c := range candidates {
 			Expect(c).To(HavePrefix("/dev/disk/by-label/"))
@@ -111,11 +111,11 @@ var _ = Describe("hardwareROCandidates", func() {
 	It("asks about the persistent partition before anything else", func() {
 		// It is the partition whose writability the layout turns on, and custom
 		// partitioning can put it on a different disk than the state partition.
-		Expect(hardwareROCandidates()[0]).To(Equal("/dev/disk/by-label/COS_PERSISTENT"))
+		Expect(writeProtectedCandidates()[0]).To(Equal("/dev/disk/by-label/COS_PERSISTENT"))
 	})
 
 	It("covers the encrypted and recovery shapes too", func() {
-		Expect(hardwareROCandidates()).To(ContainElements(
+		Expect(writeProtectedCandidates()).To(ContainElements(
 			"/dev/disk/by-label/COS_PERSISTENT_LUKS",
 			"/dev/disk/by-label/COS_STATE",
 			"/dev/disk/by-label/COS_RECOVERY",
@@ -123,35 +123,35 @@ var _ = Describe("hardwareROCandidates", func() {
 	})
 })
 
-var _ = Describe("HardwareRO", func() {
+var _ = Describe("WriteProtected", func() {
 	It("lets the cmdline override a device that says writable", func() {
-		setCmdline("rd.immucore.hardware_ro")
+		setCmdline("rd.immucore.write_protected")
 		answerProbe(false, nil)
-		Expect(HardwareRO()).To(BeTrue())
+		Expect(WriteProtected()).To(BeTrue())
 	})
 
 	It("lets the cmdline override a device that says read-only", func() {
-		setCmdline("rd.immucore.hardware_ro=0")
+		setCmdline("rd.immucore.write_protected=0")
 		answerProbe(true, nil)
-		Expect(HardwareRO()).To(BeFalse())
+		Expect(WriteProtected()).To(BeFalse())
 	})
 
 	It("uses the device when the cmdline says nothing", func() {
 		setCmdline("root=LABEL=COS_ACTIVE")
 		answerProbe(true, nil)
-		Expect(HardwareRO()).To(BeTrue())
+		Expect(WriteProtected()).To(BeTrue())
 	})
 
 	It("reports writable when the device says writable", func() {
 		setCmdline("root=LABEL=COS_ACTIVE")
 		answerProbe(false, nil)
-		Expect(HardwareRO()).To(BeFalse())
+		Expect(WriteProtected()).To(BeFalse())
 	})
 
 	It("reports writable when no device can answer", func() {
 		setCmdline("root=LABEL=COS_ACTIVE")
 		answerProbe(false, errors.New("no such device"))
-		Expect(HardwareRO()).To(BeFalse())
+		Expect(WriteProtected()).To(BeFalse())
 	})
 
 	It("is memoized, so the probe runs once however often it is asked", func() {
@@ -162,14 +162,14 @@ var _ = Describe("HardwareRO", func() {
 			return true, nil
 		})
 
-		Expect(HardwareRO()).To(BeTrue())
-		Expect(HardwareRO()).To(BeTrue())
-		Expect(HardwareRO()).To(BeTrue())
+		Expect(WriteProtected()).To(BeTrue())
+		Expect(WriteProtected()).To(BeTrue())
+		Expect(WriteProtected()).To(BeTrue())
 		Expect(calls).To(Equal(1), "Fsck asks this once per mount attempt inside a retry loop")
 	})
 })
 
-var _ = Describe("HardwareRO candidate order", func() {
+var _ = Describe("WriteProtected candidate order", func() {
 	It("takes the first device that answers, not the first device", func() {
 		setCmdline("root=LABEL=COS_ACTIVE")
 		answerProbeWith(func(device string) (bool, error) {
@@ -178,7 +178,7 @@ var _ = Describe("HardwareRO candidate order", func() {
 			}
 			return true, nil
 		})
-		Expect(HardwareRO()).To(BeTrue())
+		Expect(WriteProtected()).To(BeTrue())
 	})
 
 	It("waits for a label that appears late", func() {
@@ -191,8 +191,8 @@ var _ = Describe("HardwareRO candidate order", func() {
 			}
 			return true, nil
 		})
-		hardwareRORetryAttempts = 5
-		Expect(HardwareRO()).To(BeTrue())
+		writeProtectedRetryAttempts = 5
+		Expect(WriteProtected()).To(BeTrue())
 		Expect(attempt).To(BeNumerically(">=", 3))
 	})
 
@@ -202,30 +202,53 @@ var _ = Describe("HardwareRO candidate order", func() {
 			Fail("the probe ran on live media")
 			return false, nil
 		})
-		Expect(HardwareRO()).To(BeFalse())
+		Expect(WriteProtected()).To(BeFalse())
 	})
 })
 
-var _ = Describe("parseHardwareRO edge cases", func() {
+var _ = Describe("parseWriteProtected auto and the store sub-key", func() {
+	It("hands =auto back to the probe", func() {
+		setCmdline("rd.immucore.write_protected=auto")
+		forced, set := parseWriteProtected()
+		Expect(set).To(BeFalse())
+		Expect(forced).To(BeFalse())
+	})
+
+	It("lets a later =auto undo an earlier forced value", func() {
+		setCmdline("rd.immucore.write_protected=1 rd.immucore.write_protected=auto")
+		_, set := parseWriteProtected()
+		Expect(set).To(BeFalse())
+	})
+
+	It("does not read the store size sub-key as the flag", func() {
+		// rd.immucore.write_protected.cow= shares the prefix; a prefix match would
+		// turn the layout on for anyone who only wanted to size the store.
+		setCmdline("rd.immucore.write_protected.cow=tmpfs:2G")
+		_, set := parseWriteProtected()
+		Expect(set).To(BeFalse())
+	})
+})
+
+var _ = Describe("parseWriteProtected edge cases", func() {
 	It("reads the other off spellings", func() {
 		for _, v := range []string{"=false", "=no"} {
-			setCmdline("rd.immucore.hardware_ro" + v)
-			forced, set := parseHardwareRO()
+			setCmdline("rd.immucore.write_protected" + v)
+			forced, set := parseWriteProtected()
 			Expect(set).To(BeTrue(), v)
 			Expect(forced).To(BeFalse(), v)
 		}
 	})
 
 	It("reads an empty value as on, like the bare token", func() {
-		setCmdline("rd.immucore.hardware_ro=")
-		forced, set := parseHardwareRO()
+		setCmdline("rd.immucore.write_protected=")
+		forced, set := parseWriteProtected()
 		Expect(set).To(BeTrue())
 		Expect(forced).To(BeTrue())
 	})
 
 	It("lets the last of two tokens win", func() {
-		setCmdline("rd.immucore.hardware_ro rd.immucore.hardware_ro=0")
-		forced, _ := parseHardwareRO()
+		setCmdline("rd.immucore.write_protected rd.immucore.write_protected=0")
+		forced, _ := parseWriteProtected()
 		Expect(forced).To(BeFalse())
 	})
 })
@@ -262,7 +285,7 @@ var _ = Describe("ReadOnlyMountOptions", func() {
 
 var _ = Describe("Fsck on write-protected media", func() {
 	It("does not run at all", func() {
-		setCmdline("rd.immucore.hardware_ro")
+		setCmdline("rd.immucore.write_protected")
 		answerProbe(false, nil)
 
 		// A device that cannot exist, so a fsck that did run would fail. The
@@ -273,7 +296,7 @@ var _ = Describe("Fsck on write-protected media", func() {
 	})
 
 	It("skips a read-only device even when the global answer is forced off", func() {
-		setCmdline("rd.immucore.hardware_ro=0")
+		setCmdline("rd.immucore.write_protected=0")
 		answerProbe(true, nil)
 		Expect(Fsck("/dev/immucore-does-not-exist")).To(Succeed())
 	})

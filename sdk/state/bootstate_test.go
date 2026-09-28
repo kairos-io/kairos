@@ -97,11 +97,11 @@ var _ = Describe("DetectBootWithVFS", func() {
 	})
 })
 
-var _ = Describe("DetectHardwareROWithVFS", func() {
+var _ = Describe("DetectWriteProtectedWithVFS", func() {
 	It("reports write-protected media when immucore wrote the sentinel", func() {
-		fs, _, err := vfst.NewTestFS(map[string]interface{}{HardwareROSentinel: "1"})
+		fs, _, err := vfst.NewTestFS(map[string]interface{}{WriteProtectedSentinel: "1"})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(DetectHardwareROWithVFS(fs)).To(BeTrue())
+		Expect(DetectWriteProtectedWithVFS(fs)).To(BeTrue())
 	})
 
 	It("reports writable media when there is no sentinel", func() {
@@ -110,6 +110,6 @@ var _ = Describe("DetectHardwareROWithVFS", func() {
 		// would let the two disagree.
 		fs, _, err := vfst.NewTestFS(map[string]interface{}{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(DetectHardwareROWithVFS(fs)).To(BeFalse())
+		Expect(DetectWriteProtectedWithVFS(fs)).To(BeFalse())
 	})
 })

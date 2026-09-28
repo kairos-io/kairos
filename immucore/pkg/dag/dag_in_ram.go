@@ -73,20 +73,17 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 	// Mount custom overlays loaded from the /run/cos/cos-layout.env file
 	s.LogIfError(s.MountCustomOverlayDagStep(g), "custom overlays mount")
 
-	// Mount custom mounts — this is what mounts COS_PERSISTENT rw at /usr/local.
-	s.LogIfError(s.MountCustomMountsDagStep(g), "custom mounts mount")
-
 	// An in-RAM node keeps its persistent state on the local disk, so a
-	// write-protected disk needs the same treatment here as on a normal boot:
-	// the shared custom-mount step has parked the persistent filesystem
-	// read-only out of the way, and without this step the binds would land on
-	// the tmpfs rootfs and the node would boot with none of its state.
-	if s.HardwareRO {
-		s.LogIfError(s.MountPersistentROOverlayDagStep(g), "persistent read-only overlay")
+	// write-protected disk needs the same snapshot here as on a normal boot.
+	if s.WriteProtected {
+		s.LogIfError(s.MountPersistentSnapshotDagStep(g), "persistent snapshot")
 	}
 
+	// Mount custom mounts — this is what mounts COS_PERSISTENT rw at /usr/local.
+	s.LogIfError(s.MountCustomMountsDagStep(g, s.WriteProtectedSnapshotDeps()...), "custom mounts mount")
+
 	// Bind mounts backed by the persistent-state target (COS_PERSISTENT).
-	s.LogIfError(s.MountCustomBindsDagStep(g, s.ReadOnlyOverlayBindDeps()...), "custom binds mount")
+	s.LogIfError(s.MountCustomBindsDagStep(g), "custom binds mount")
 
 	// Move unit symlinks an earlier image left in the persistent /etc/systemd
 	// bind out of the unit load path. An in-RAM node keeps COS_PERSISTENT on
@@ -99,13 +96,11 @@ func RegisterInRAMBoot(s *state.State, g *herd.Graph) error {
 	// Write fstab. Same deps as normal boot minus the mount-root chain.
 	s.LogIfError(s.WriteFstabDagStep(g,
 		herd.WithDeps(cnst.OpWaitForSysroot, cnst.OpLoadConfig),
-		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount),
-		s.ReadOnlyOverlayWeakDep()), "write fstab")
+		herd.WithWeakDeps(cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpCustomMounts, cnst.OpMountBind, cnst.OpOverlayMount)), "write fstab")
 
 	s.LogIfError(s.InitramfsStageDagStep(g,
 		herd.WithDeps(cnst.OpWaitForSysroot, cnst.OpLoadConfig, cnst.OpWriteFstab),
 		herd.WithWeakDeps(cnst.OpMountBaseOverlay, cnst.OpKcryptUnlock, cnst.OpMountOEM, cnst.OpMountBind, cnst.OpCustomMounts, cnst.OpOverlayMount, cnst.OpQuarantineStaleUnits),
-		s.ReadOnlyOverlayWeakDep(),
 	), "initramfs stage")
 	return err
 }

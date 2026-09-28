@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/deniswernert/go-fstab"
+	cnst "github.com/kairos-io/kairos/v4/immucore/internal/constants"
 	"github.com/kairos-io/kairos/v4/immucore/internal/mount"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/ghw"
@@ -349,7 +350,7 @@ func Fsck(device string) error {
 	// file path rather than a block device and the ioctl returns ENOTTY. The
 	// per-device one catches a write-protected disk in some custom VOLUMES entry
 	// even when the global answer was forced off.
-	if HardwareRO() {
+	if WriteProtected() {
 		KLog.Logger.Info().Str("what", device).
 			Msg("Skipping fsck: booting on write-protected media, and a repairing fsck would write to it")
 		return nil
@@ -450,6 +451,34 @@ func GetOemTimeout() int {
 		return 5
 	}
 	return converted
+}
+
+// GetCowBase returns the size spec of the tmpfs that backs the copy-on-write
+// store of the persistent snapshot on read-only media. rd.immucore.write_protected.cow= on the
+// cmdline wins; otherwise the store is sized like the base overlay, so one
+// number sizes both unless the operator says otherwise. A base overlay backed
+// by a device is no use here, since on read-only media that device is the
+// frozen disk, so anything but a tmpfs spec falls back to the default.
+func GetCowBase(overlayBase string) string {
+	if v := CleanupSlice(ReadCMDLineArg(cnst.CmdlineCow)); len(v) > 0 {
+		return CowSpec(v[0])
+	}
+	if strings.HasPrefix(overlayBase, "tmpfs:") {
+		return overlayBase
+	}
+	return "tmpfs:25%"
+}
+
+// CowSpec normalises a store spec to the OVERLAY grammar the mount code parses:
+// tmpfs:<size>, LABEL=<label> or UUID=<uuid>. A bare size such as 2G or 25% is
+// the short form for a tmpfs of that size, since the prefix carries no
+// information until there is a second RAM-backed store type to choose from.
+func CowSpec(spec string) string {
+	spec = strings.TrimSpace(spec)
+	if spec == "" || strings.ContainsAny(spec, ":=") {
+		return spec
+	}
+	return "tmpfs:" + spec
 }
 
 // GetOverlayBase parses the cdmline and gets the overlay config
