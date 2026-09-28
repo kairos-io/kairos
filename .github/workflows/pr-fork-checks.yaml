@@ -1,0 +1,78 @@
+name: PR fork checks
+
+# Fast, ungated feedback for pull requests opened from a fork.
+#
+# pr.yaml is the canonical pipeline and runs under
+# pull_request_target so its build and qemu jobs can reach the
+# registry secrets. That trigger is what forces its `authorize`
+# gate: a fork PR lands in the fork-pr-builds environment and
+# waits for a maintainer before ANY of its jobs start, including
+# the two that need no secrets at all. Issue #4296 measured the
+# cost -- 117 runs queued, the oldest waiting 25 days, and 18
+# already-approved fixes with no CI run behind them.
+#
+# This workflow does not touch that gate. It runs the two
+# secret-free halves of the pipeline, unit tests and lint, on the
+# plain `pull_request` trigger, which GitHub starts without
+# approval and hands a read-only GITHUB_TOKEN and no repository
+# secrets. release-scan.yml already proves the shape works here:
+# its `scan shipped bundle` job runs to completion on fork PRs
+# while their `authorize` check is still pending.
+#
+# Why this is not a hole in the pull_request_target mitigation:
+# the two threats the `authorize` gate exists to stop are secret
+# exfiltration and privileged writes. Under `pull_request` a fork
+# gets neither, so the fork's code is run in the same
+# unprivileged context any public CI gives a drive-by
+# contributor. Note that the callees below are resolved from the
+# PR's own merge ref, so a PR can change what they do -- that is
+# the accepted, secret-free risk this trigger is designed for,
+# and it is why no job here inherits secrets or asks for more
+# than `contents: read`.
+#
+# This covers the feedback half of #4296, not the merge half. The
+# image, ISO and qemu jobs genuinely need secrets, so they stay
+# behind `authorize` in pr.yaml, and a fork PR still needs a
+# maintainer click before it can go green enough to merge.
+#
+# Same-repo PRs are skipped: pr.yaml routes them to the
+# `internal` environment and runs unit-tests and lint immediately
+# anyway, so running them here too would only duplicate the work.
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/CODEOWNERS'
+
+permissions:
+  contents: read
+
+# Deliberately a different group from pr.yaml's `ci-pr-...`.
+# Sharing it would make the two workflows cancel each other on
+# every push to a fork PR.
+concurrency:
+  group: ci-pr-fork-checks-${{ github.head_ref || github.ref }}-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  # No `with:` and no `secrets: inherit` on either call. Every
+  # input the callees take is optional: `ref` defaults to empty,
+  # which checks out the event's own merge ref, and
+  # `caller-vetted-ref` defaults to false, which is the correct
+  # value here -- actions/checkout's `allow-unsafe-pr-checkout`
+  # opt-in guards `pull_request_target` + fork-ref, a combination
+  # this workflow never creates. `secrets.GITHUB_TOKEN` is
+  # available to a called workflow without being inherited.
+  fork-unit-tests:
+    name: fork-unit-tests
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    uses: ./.github/workflows/_unit-tests.yaml
+
+  fork-lint:
+    name: fork-lint
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    uses: ./.github/workflows/_lint.yaml
