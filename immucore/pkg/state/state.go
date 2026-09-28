@@ -21,17 +21,18 @@ type State struct {
 	TargetDevice  string // e.g. /dev/disk/by-label/COS_ACTIVE
 	RootMountMode string // How to mount the root partition e.g. ro or rw
 	InRAM         bool   // running the kairos.ram workflow: rootfs is a tmpfs staged by dracut's rd.live.ram, OEM+persistent still on disk
-	// HardwareRO means the media is write-protected, so the persistent
-	// filesystem is mounted read-only and a tmpfs-backed overlay is stacked over
-	// it rather than mounting it read-write. Resolved once in pkg/cmd/root.go
-	// from internalUtils.HardwareRO(); nothing re-reads the cmdline per step.
-	HardwareRO bool
+	// WriteProtected means the media is write-protected, so the persistent
+	// partition is mounted through a copy-on-write snapshot held in RAM rather
+	// than directly. Resolved once in pkg/cmd/root.go
+	// from internalUtils.WriteProtected(); nothing re-reads the cmdline per step.
+	WriteProtected bool
 
 	// /run/cos-layout.env (different!)
 	OverlayDirs  []string          // e.g. /var
 	BindMounts   []string          // e.g. /etc/kubernetes
 	CustomMounts map[string]string // e.g. diskid : mountpoint
 	OverlayBase  string            // Overlay config, defaults to tmpfs:20%
+	CowBase      string            // tmpfs spec for the snapshot's copy-on-write store on read-only media
 	StateDir     string            // e.g. "/usr/local/.state"
 	fstabs       []*fstab.Mount
 }
@@ -106,26 +107,19 @@ func (s *State) persistentVolume() (what, where string, ok bool) {
 
 // customMountPlan decides where a VOLUMES entry is mounted and with which
 // options. Returned as a function of the filesystem type, because the type is
-// only known for certain inside the mount retry loop and the read-only options
-// depend on it.
+// only known for certain inside the mount retry loop.
 //
-// Ordinary volumes are read-only. The persistent volume is read-write, except on
-// write-protected media, where it is mounted read-only out of the way at
-// cnst.PersistentROMount to serve as the lower layer of an overlay: no journal
-// replay, and Fsck has already declined to run. OpPersistentROOverlay puts the
-// writable view back at the configured mountpoint.
+// Ordinary volumes are read-only and the persistent volume is read-write, on
+// write-protected media too: by the time this runs OpPersistentSnapshot has
+// replaced the persistent device in s.CustomMounts with its copy-on-write
+// snapshot, which accepts writes, so the mount is the same as on any disk.
 func (s *State) customMountPlan(what, where string) (target string, options func(fstype string) []string) {
-	persistent := s.isPersistentVolume(what, where)
-	switch {
-	case persistent && s.HardwareRO:
-		return cnst.PersistentROMount, internalUtils.ReadOnlyMountOptions
-	case persistent:
+	if s.isPersistentVolume(what, where) {
 		// TODO: Are custom mounts always rw?ro?depends? Clarify.
 		// Persistent needs to be RW
 		return s.path(where), func(string) []string { return []string{"rw"} }
-	default:
-		return s.path(where), func(string) []string { return []string{"ro"} }
 	}
+	return s.path(where), func(string) []string { return []string{"ro"} }
 }
 
 // oemMountOptions are the options /oem is mounted with, given its filesystem.
@@ -138,7 +132,7 @@ func (s *State) customMountPlan(what, where string) (target string, options func
 // RAM could never affect the next boot anyway.
 func (s *State) oemMountOptions(fstype string) []string {
 	mode := []string{"rw"}
-	if s.HardwareRO {
+	if s.WriteProtected {
 		mode = internalUtils.ReadOnlyMountOptions(fstype)
 	}
 	return append(mode, "suid", "dev", "exec", "async")
@@ -153,7 +147,7 @@ func (s *State) oemMountOptions(fstype string) []string {
 // covers COS_STATE and the root image, which are mounted before anything knows
 // about the persistent partition.
 func (s *State) readOnlyOrMode(fstype string) []string {
-	if s.HardwareRO {
+	if s.WriteProtected {
 		return internalUtils.ReadOnlyMountOptions(fstype)
 	}
 	return []string{s.RootMountMode}

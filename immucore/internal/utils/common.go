@@ -524,28 +524,33 @@ func RootRW() string {
 	return "ro"
 }
 
-// parseHardwareRO reads rd.immucore.hardware_ro from the kernel cmdline. The
-// stanza has three shapes:
-//   - absent                  -> set=false, the device probe decides
+// parseWriteProtected reads rd.immucore.write_protected from the kernel cmdline. The
+// stanza has four shapes:
+//   - absent, or =auto        -> set=false, the device probe decides
 //   - bare token, or =1/=true -> forced=true
 //   - =0 or =false            -> forced=false
 //
+// The last one on the cmdline wins, so =auto after a forced value hands the
+// decision back to the probe.
+//
 // Uses exact-token matching, not ReadCMDLineArg's HasPrefix, for the reason
 // ParseAutoCreateDisk gives: a prefix match would read a typo such as
-// rd.immucore.hardware_rox as a request to turn the layout on, and turning it on
-// by accident makes every persistent write ephemeral.
+// rd.immucore.write_protectedx as a request to turn the layout on, and turning it on
+// by accident makes every persistent write ephemeral. The same rule keeps
+// rd.immucore.write_protected.cow=, the sub-key for the store size, from being read
+// as the flag.
 //
 // A cmdline that cannot be read reports set=false rather than forced=false, so
 // the caller falls through to the probe. Defaulting to "writable" on an
 // unreadable cmdline would point the failure the wrong way.
-func parseHardwareRO() (forced, set bool) {
+func parseWriteProtected() (forced, set bool) {
 	cmdline, err := os.ReadFile(GetHostProcCmdline())
 	if err != nil {
 		KLog.Logger.Warn().Err(err).Msg("Could not read the kernel cmdline, falling back to probing the device")
 		return false, false
 	}
 
-	key := constants.CmdlineHardwareRO
+	key := constants.CmdlineWriteProtected
 	for _, tok := range strings.Fields(string(cmdline)) {
 		if tok == key {
 			forced, set = true, true
@@ -555,6 +560,8 @@ func parseHardwareRO() (forced, set bool) {
 			switch strings.TrimPrefix(tok, key+"=") {
 			case "0", "false", "no":
 				forced, set = false, true
+			case "auto":
+				forced, set = false, false
 			default:
 				forced, set = true, true
 			}
@@ -566,15 +573,15 @@ func parseHardwareRO() (forced, set bool) {
 // deviceReadOnly is a seam for the tests. Nothing else reassigns it.
 var deviceReadOnly = blockdev.ReadOnly
 
-// hardwareRORetryDelay and hardwareRORetryAttempts bound how long detection
+// writeProtectedRetryDelay and writeProtectedRetryAttempts bound how long detection
 // waits for a label to appear, the same ten seconds GetState allows for the
 // same symlinks. Vars so the tests do not have to wait it out.
 var (
-	hardwareRORetryDelay    = time.Second
-	hardwareRORetryAttempts = uint(10)
+	writeProtectedRetryDelay    = time.Second
+	writeProtectedRetryAttempts = uint(10)
 )
 
-// hardwareROCandidates are the devices the probe tries, in order, stopping at
+// writeProtectedCandidates are the devices the probe tries, in order, stopping at
 // the first one that answers.
 //
 // The persistent partition first, because it is the one whose writability the
@@ -591,7 +598,7 @@ var (
 // this function runs on every boot including live media and rd.immucore.disable,
 // where there is no state label to find. A path that does not exist simply fails
 // to open and we move on to the next candidate.
-func hardwareROCandidates() []string {
+func writeProtectedCandidates() []string {
 	labels := []string{
 		sdkConstants.PersistentLabel,
 		sdkConstants.PersistentLUKSLabel,
@@ -605,22 +612,22 @@ func hardwareROCandidates() []string {
 	return candidates
 }
 
-// HardwareRO reports whether this deployment is on write-protected media, in
-// which case the persistent filesystem is mounted read-only and given a
-// tmpfs-backed overlay instead of being mounted read-write.
+// WriteProtected reports whether this deployment is on write-protected media, in
+// which case the persistent partition is mounted through a copy-on-write
+// snapshot whose store is in RAM instead of being mounted directly.
 //
 // The answer cannot change while immucore runs, and Fsck asks it once per mount
 // attempt inside a retry loop, so it is memoized the same way blkidIsBusyBox is:
 // a var rather than a bare sync.OnceValue call, so that a test can answer for
 // it, wrapping a named body so that resetting it re-arms this same function
 // rather than a copy.
-var HardwareRO = sync.OnceValue(detectHardwareRO)
+var WriteProtected = sync.OnceValue(detectWriteProtected)
 
-// detectHardwareRO works out whether the media is write-protected. The cmdline
+// detectWriteProtected works out whether the media is write-protected. The cmdline
 // overrides the device probe in both directions, because hardware that
-// misreports exists in both: CmdlineHardwareRO on its own forces the read-only
+// misreports exists in both: CmdlineWriteProtected on its own forces the read-only
 // layout, and "=0" forces it off.
-func detectHardwareRO() bool {
+func detectWriteProtected() bool {
 	// The layout is only registered by the normal-boot and in-RAM DAGs, so the
 	// question is not asked anywhere else, and every step that consults the
 	// answer sees a consistent one. UKI could not answer it anyway: udevd is
@@ -634,7 +641,7 @@ func detectHardwareRO() bool {
 		return false
 	}
 
-	if forced, set := parseHardwareRO(); set {
+	if forced, set := parseWriteProtected(); set {
 		if forced {
 			KLog.Logger.Warn().Msg("Read-only media layout forced on the cmdline")
 		} else {
@@ -650,7 +657,7 @@ func detectHardwareRO() bool {
 	// look: the price of guessing "writable" on frozen media is a boot that
 	// fails late, and the price of waiting is a few seconds on a boot with no
 	// Kairos disk at all.
-	candidates := hardwareROCandidates()
+	candidates := writeProtectedCandidates()
 	var answer bool
 	err := retry.Do(
 		func() error {
@@ -666,8 +673,8 @@ func detectHardwareRO() bool {
 			}
 			return errors.New("no candidate device answered")
 		},
-		retry.Delay(hardwareRORetryDelay),
-		retry.Attempts(hardwareRORetryAttempts),
+		retry.Delay(writeProtectedRetryDelay),
+		retry.Attempts(writeProtectedRetryAttempts),
 		retry.DelayType(retry.FixedDelay),
 		retry.LastErrorOnly(true),
 		retry.OnRetry(func(n uint, _ error) {
@@ -685,7 +692,7 @@ func detectHardwareRO() bool {
 	}
 	if answer {
 		KLog.Logger.Warn().
-			Msg("Device is write-protected: mounting the persistent filesystem read-only with a tmpfs overlay over it")
+			Msg("Device is write-protected: mounting the persistent partition through a copy-on-write snapshot held in RAM")
 	}
 	return answer
 }

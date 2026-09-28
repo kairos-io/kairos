@@ -47,19 +47,19 @@ func NewApp() *cli.App {
 			return err
 		}
 
-		// HardwareRO answers false on boots the layout does not apply to (UKI,
+		// WriteProtected answers false on boots the layout does not apply to (UKI,
 		// live media), so every DAG sees a consistent answer from one place.
-		hardwareRO := utils.HardwareRO()
-		rootMountMode := rootMountModeFor(hardwareRO, utils.RootRW())
+		writeProtected := utils.WriteProtected()
+		rootMountMode := rootMountModeFor(writeProtected, utils.RootRW())
 
 		st = &state.State{
-			Rootdir:       utils.GetRootDir(),
-			TargetDevice:  targetDevice,
-			TargetImage:   targetImage,
-			RootMountMode: rootMountMode,
-			OverlayBase:   utils.GetOverlayBase(),
-			InRAM:         utils.BootInRAM(),
-			HardwareRO:    hardwareRO,
+			Rootdir:        utils.GetRootDir(),
+			TargetDevice:   targetDevice,
+			TargetImage:    targetImage,
+			RootMountMode:  rootMountMode,
+			OverlayBase:    utils.GetOverlayBase(),
+			InRAM:          utils.BootInRAM(),
+			WriteProtected: writeProtected,
 		}
 
 		// normalBoot tracks whether we took the full active/passive/recovery mount
@@ -220,8 +220,8 @@ func haltTerminated(sig os.Signal) {
 // rd.immucore.debugrw asks for read-write, which on write-protected media
 // cannot be granted: the kernel refuses the write open with EACCES and there is
 // nothing to fall back to, so the request is ignored there.
-func rootMountModeFor(hardwareRO bool, requested string) string {
-	if hardwareRO && requested != "ro" {
+func rootMountModeFor(writeProtected bool, requested string) string {
+	if writeProtected && requested != "ro" {
 		utils.KLog.Logger.Warn().
 			Msg("Ignoring the request to mount root RW: the media is write-protected")
 		return "ro"

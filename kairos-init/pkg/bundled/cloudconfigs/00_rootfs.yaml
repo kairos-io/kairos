@@ -103,9 +103,9 @@ stages:
     # Not on read-only media: yip's layout plugin opens the whole disk read-write
     # in both VerifyAndRepairHeaders and ExpandLastPartition, and the kernel
     # refuses that open on write-protected media before the plugin even looks
-    # at whether there is anything to grow. immucore writes readonly_mode when
+    # at whether there is anything to grow. immucore writes write_protected when
     # it detects such media.
-    - if: '[ ! -f /run/cos/recovery_mode ] && [ ! -f /run/cos/live_mode ] && [ ! -f /run/cos/readonly_mode ]'
+    - if: '[ ! -f /run/cos/recovery_mode ] && [ ! -f /run/cos/live_mode ] && [ ! -f /run/cos/write_protected ]'
       name: "Grow persistent"
       layout:
         device:

@@ -114,17 +114,24 @@ The immutable rootfs can be configured with the following kernel parameters:
   comment in `internal/utils/common.go` describes. Raise `TimeoutStartSec=` on
   `immucore.service` if you need to hold a breakpoint open longer than that.
 
-* `rd.immucore.hardware_ro`: Overrides the detection of write-protected media.
+* `rd.immucore.write_protected`: Overrides the detection of write-protected media.
   Present on its own, or as `=1`, it forces the read-only layout on; `=0` forces
   it off. Absent, immucore asks the block device itself, which is the normal
   case: a unit installed while its disk was writable and then write-protected
   needs no change to its cmdline, with the exceptions listed under Limits. See
-  [Read-only media boot](#read-only-media-boot-rdimmucorehardware_ro) below for
+  [Read-only media boot](#read-only-media-boot-rdimmucorewrite_protected) below for
   what the layout actually does.
+
+* `rd.immucore.write_protected.cow=<size>`: On read-only media, sizes the
+  tmpfs that holds the persistent partition's copy-on-write store. `2G`,
+  `25%` and `tmpfs:2G` all mean a tmpfs of that size.
+  `WRITE_PROTECTED_COW` in `cos-layout.env` is the same knob and wins over the
+  cmdline. Absent, the store is sized like `rd.immucore.overlay=`. Does nothing
+  on a writable disk. See Read-only media boot below.
 
 * `rd.immucore.sysrootwait=<seconds>`: Waits for the sysroot to be mounted up to <seconds> before continuing with the boot process. This is useful when booting from CD/Netboot as immucore doesn't mount the /sysroot in those cases, but we want to run the initramfs stage once the system is ready. Sometimes dracut can be really slow and the default 1 minute of waiting is not enough. In those cases you can increase this value to wait more time. Defaults to 60s.
 
-### Read-only media boot (`rd.immucore.hardware_ro`)
+### Read-only media boot (`rd.immucore.write_protected`)
 
 ---
 
@@ -140,15 +147,30 @@ the persistent partition; writes go to RAM and are gone on the next boot.
 
 | What | Where it ends up |
 |---|---|
-| `COS_PERSISTENT` | mounted read-only at `/run/immucore/persistent-ro` |
-| `/usr/local` | an overlay: lower is that mount, upper and work are on the `/run/overlay` tmpfs |
-| `/usr/local/.state/*.bind` binds | unchanged, and writable, because they resolve through the overlay |
+| `COS_PERSISTENT` | the origin of a device-mapper snapshot, `/dev/mapper/kairos-persistent` |
+| the snapshot's copy-on-write store | a sparse file on its own tmpfs at `/run/immucore/cow`, attached as a loop device |
+| `/usr/local` | the snapshot, mounted read-write like the partition would be |
+| `/usr/local/.state/*.bind` binds | unchanged, and writable |
 | `COS_OEM` | mounted read-only |
 | `COS_STATE` and the root image | mounted `ro` plus the filesystem's no-recovery option |
 
+The snapshot is a block device. A read of a chunk nobody has written since boot
+comes from the partition; a write copies the 4 KiB chunk into the store and goes
+there, and so does every later read of it. The filesystem on top is the
+partition's own ext4, mounted read-write, and it has no idea the disk underneath
+refuses writes. Its journal replays into the store like any other write, so a
+unit that lost power before it was write-protected still boots cleanly.
+
+It is a block device rather than a file-level overlay for what runs on top. A
+container runtime's snapshotter is itself overlayfs, and the kernel refuses an
+overlayfs whose upper layer sits on another overlayfs, so k3s and k0s could not
+start a single pod on the earlier design. On the snapshot they run as they do on
+any disk, and container images pre-seeded on the partition are used in place
+rather than copied. This is the same mechanism dracut's `dmsquash-live` uses for
+the root of every live boot.
+
 Nothing under `/usr/local` survives a reboot. Everything that was there when the
-drive was write-protected is still readable, because it is the overlay's lower
-layer.
+drive was write-protected is still readable.
 
 #### How it decides
 
@@ -160,8 +182,17 @@ appear before concluding it cannot tell, in which case it assumes writable media
 and says so in the log. A dm-crypt mapper is also checked against the devices
 underneath it, as insurance.
 
-`rd.immucore.hardware_ro` overrides the answer in either direction, for hardware
-that misreports and for testing the path on a writable disk.
+`rd.immucore.write_protected` overrides the answer in either direction, for hardware
+that misreports and for testing the path on a writable disk: bare or `=1` forces
+the layout on, `=0` forces it off, and `=auto` is the default, the probe
+decides. The last one on the cmdline wins.
+
+Auto is the default on purpose. Every software write filter (Windows UWF,
+Deep Freeze, `overlayroot`, `systemd.volatile=`) is off until turned on,
+because none of them can know what you want. Here the disk decides and the
+kernel reports it, so "off by default" would send a frozen unit into a reboot
+loop unless somebody remembered a flag, and "on by default" would make every
+writable install silently ephemeral.
 
 #### What is not written, and why
 
@@ -169,45 +200,81 @@ that misreports and for testing the path on a writable disk.
   `fsck.repair=preen`), it runs before the mount, so no mount option can prevent
   it, and it would be the first write of the boot. `fsck.mode=skip` was always
   the manual way out; read-only media now implies it.
-* The journal is not replayed. `ro` on its own is not enough for ext4: a dirty
-  journal is replayed even on a read-only mount unless `noload` is given. xfs
-  spells the same thing `norecovery`.
+* The journals of `COS_STATE`, `COS_OEM` and the root image are not replayed.
+  `ro` on its own is not enough for ext4: a dirty journal is replayed even on a
+  read-only mount unless `noload` is given. xfs spells the same thing
+  `norecovery`. The persistent partition needs none of this, because its writes
+  land in the snapshot's store.
 * The persistent partition is not grown, the GRUB environment is not rewritten,
   and the LUKS headers are not upgraded. Each of those wrote to the disk on every
   boot; they are now skipped.
 
 #### Reporting
 
-immucore writes `/run/cos/readonly_mode`, additively, alongside the usual
+immucore writes `/run/cos/write_protected`, additively, alongside the usual
 boot-state sentinel, so the existing cloud-config gates keep firing. Gate a
 cloud-config stage on it the way the shipped ones do:
 
 ```yaml
-- if: '[ ! -f /run/cos/readonly_mode ]'
+- if: '[ ! -f /run/cos/write_protected ]'
   name: "something that writes to the disk"
 ```
 
-`kairos-agent state` reports it as `hardware_ro`, so
-`kairos-agent state get hardware_ro` answers from inside the booted system.
+`kairos-agent state` reports it as `write_protected`, and how full the store is
+under `persistent_cow`, in 512-byte sectors:
 
-#### Sizing the tmpfs, which is the thing most likely to bite
+```
+$ kairos-agent state get write_protected
+true
+$ kairos-agent state get persistent_cow.state
+active
+$ kairos-agent state get persistent_cow.used_sectors
+57344
+$ kairos-agent state get persistent_cow.total_sectors
+2847168
+```
 
-Every write to the persistent tree now consumes RAM out of the single
-`/run/overlay` tmpfs, sized by `OVERLAY` in `cos-layout.env`. The shipped
-`00_rootfs.yaml` sets it to `tmpfs:25%` in every layout, and that file wins over
-`rd.immucore.overlay=` on the cmdline, so to change it on a stock image override
-`OVERLAY` from a cloud-config stage rather than from the cmdline. Two costs are
-easy to miss:
+`dmsetup status kairos-persistent` is the same information straight from the
+kernel, as `<used>/<total> <metadata>`.
 
-* overlayfs copies a whole file up on first modification. Appending one byte to a
-  2 GB file that was pre-seeded on the partition costs 2 GB of RAM.
-* the per-boot rsync that populates each `.state/*.bind` directory now writes into
-  RAM rather than onto the disk.
+#### Sizing the store, which is the thing most likely to bite
 
-So pre-seed bulk content, container images especially, onto the partition while
-it is still writable, and size `OVERLAY` for the deltas. When the tmpfs fills,
-writes fail with no space left on the device; there is no graceful degradation,
-because immucore is not in the write path.
+Every write to the persistent tree consumes RAM out of the store, and the store
+only grows: a chunk copied in stays there until power-off, even if the file it
+belonged to is deleted, and writing the same chunk twice costs it once. When the
+store is full, the persistent filesystem starts refusing writes. Reads keep
+working, so a node in that state is still reachable and `persistent_cow` says
+`overflow`; it does not recover without a reboot.
+
+The store lives on its own tmpfs, sized by `WRITE_PROTECTED_COW` in
+`cos-layout.env` or `rd.immucore.write_protected.cow=` on the cmdline. The
+value is a size in tmpfs syntax (`2G`, `512M`, `25%`); the `OVERLAY` spelling
+`tmpfs:<size>` is accepted too, and so is `LABEL=<label>` or `UUID=<uuid>` for
+a filesystem on a second, writable disk to hold the store instead of RAM,
+though that form is untested. Neither set, it is sized like `OVERLAY`,
+which the shipped `00_rootfs.yaml` makes `tmpfs:25%` of RAM. The store claims
+95% of that tmpfs, so that it reports full before the tmpfs underneath it runs
+out of space, and the tmpfs holds nothing else. The size is a ceiling, not a
+reservation: the file is sparse and the tmpfs only takes RAM as chunks are
+written. Set it from a cloud-config stage on a stock image, as `OVERLAY` from
+`cos-layout.env` overrides the cmdline:
+
+```yaml
+stages:
+  rootfs:
+    - name: "Size the copy-on-write store"
+      environment_file: /run/cos/cos-layout.env
+      environment:
+        WRITE_PROTECTED_COW: "2G"
+```
+
+Container images pulled after boot, the per-boot rsync into each
+`.state/*.bind` directory, and logs all land in the store. Pre-seed bulk content
+onto the partition while it is still writable and size the store for the
+deltas. The store counts sectors, not files, so it cannot say which files
+filled it; size it the way Windows recommends for its write filter, by running
+the real workload on a test unit and watching `persistent_cow.used_sectors`
+over the longest interval between reboots.
 
 #### Limits
 
@@ -215,9 +282,11 @@ because immucore is not in the write path.
   immucore's own UKI step, so nothing can be detected before the graph runs; on
   live media the layout would skip the cdrom datasource stage. Both keep the
   ordinary layout, and a frozen disk behind them fails the way it always did.
+* The kernel needs `dm-snapshot`. The Kairos initramfs ships it, and
+  `kairos-init validate` warns when the kernel in an image does not have it.
 * LVM installs are not detected. The persistent, state and recovery labels are on
   logical volumes that do not exist until LVM activation, which runs inside the
-  graph, after detection. Pass `rd.immucore.hardware_ro` on such a unit.
+  graph, after detection. Pass `rd.immucore.write_protected` on such a unit.
 * Encrypted persistent partitions do not unlock on write-protected media. kcrypt
   opens the mapper through `anatol/luks.go`, which never sets the device-mapper
   read-only flag, and the kernel refuses a read-write mapper over a device it
@@ -235,10 +304,19 @@ because immucore is not in the write path.
   configuration, and `/oem/grubenv` is read by GRUB before Linux exists, so a
   write landing in RAM could never affect the next boot. An error is more use
   than a write that appears to succeed and disappears.
-* If no `VOLUMES` entry names the persistent mountpoint, `/usr/local` is overlaid
-  on the image's own copy of it and the machine is fully ephemeral. That is
-  deliberate: the alternative is every bind mount failing on the read-only
-  rootfs and a node that looks booted with none of its state.
+* Nothing on the frozen disk can be made to persist. Software write filters
+  offer exclusions, a thaw space or a commit command for the few files that
+  should survive; here the filter is the hardware, and there is no path
+  through it. What has to persist across reboots goes on a second device that
+  is not write-protected.
+* If no `VOLUMES` entry names the persistent mountpoint there is nothing to
+  snapshot, and the layout is whatever the same configuration gives on a
+  writable disk.
+* If the snapshot cannot be made, the boot fails loudly. immucore's failure
+  summary is painted on the console, and with the `rd.emergency=reboot` the
+  Kairos cmdline carries, dracut reboots. Persistent state cannot be mounted
+  without it, so booting on without it would mean a node that looks up with
+  none of its state.
 
 ### In-RAM boot (`kairos.ram.*`)
 

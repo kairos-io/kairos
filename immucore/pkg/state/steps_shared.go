@@ -87,9 +87,9 @@ func (s *State) WriteSentinelDagStep(g *herd.Graph, deps ...string) error {
 			// not touch the disk has something to gate on. The shipped
 			// 00_rootfs.yaml uses it to skip growing the persistent partition,
 			// which otherwise opens the whole disk O_RDWR on every boot.
-			if s.HardwareRO {
-				internalUtils.KLog.Logger.Info().Str("to", cnst.HardwareROSentinelName).Msg("Setting read-only media sentinel file")
-				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.HardwareROSentinelName), []byte("1"), os.ModePerm); err != nil {
+			if s.WriteProtected {
+				internalUtils.KLog.Logger.Info().Str("to", cnst.WriteProtectedSentinelName).Msg("Setting read-only media sentinel file")
+				if err = os.WriteFile(filepath.Join(sdkConstants.SentinelDir, cnst.WriteProtectedSentinelName), []byte("1"), os.ModePerm); err != nil {
 					return err
 				}
 			}
@@ -237,25 +237,9 @@ func (s *State) LoadEnvLayoutDagStep(g *herd.Graph, opts ...herd.OpOption) error
 					s.StateDir = cnst.PersistentStateTarget
 				}
 
-				// On write-protected media the persistent mountpoint gets its
-				// overlay from OpPersistentROOverlay, whose lower layer is the
-				// read-only filesystem. An ephemeral overlay over the same path
-				// would fight it for one upperdir: both derive the upper from the
-				// mangled mountpoint, so both would claim
-				// /run/overlay/usr-local/.overlay/upper. This is not a contrived
-				// case, /usr/local is in cnst.DefaultRWPaths(), so any install
-				// whose RW_PATHS came out empty lands here.
-				if s.HardwareRO {
-					kept := make([]string, 0, len(s.OverlayDirs))
-					for _, d := range s.OverlayDirs {
-						if s.isPersistentVolume("", d) {
-							internalUtils.KLog.Logger.Info().Str("what", d).
-								Msg("Dropping the ephemeral overlay for the persistent mountpoint: on read-only media it is overlaid on the persistent filesystem instead")
-							continue
-						}
-						kept = append(kept, d)
-					}
-					s.OverlayDirs = kept
+				s.CowBase = internalUtils.CowSpec(env["WRITE_PROTECTED_COW"])
+				if s.CowBase == "" {
+					s.CowBase = internalUtils.GetCowBase(s.OverlayBase)
 				}
 
 				addLine := func(d string) {
@@ -446,10 +430,6 @@ func (s *State) MountCustomMountsDagStep(g *herd.Graph, opts ...herd.OpOption) e
 				}
 
 				target, mountOptions := s.customMountPlan(what, where)
-				if target == cnst.PersistentROMount {
-					internalUtils.KLog.Logger.Info().Str("what", source).Str("where", target).
-						Msg("Mounting the persistent filesystem read-only, as the lower layer of the persistent overlay")
-				}
 				// The 30s timeout covers the window between cryptsetup
 				// creating the mapper (kernel side) and udev finishing the
 				// /dev/mapper/<name> node MountOPWithFstab tries to open.

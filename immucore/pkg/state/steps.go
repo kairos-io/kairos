@@ -213,7 +213,7 @@ var upgradeKcryptPartitions = internalUtils.UpgradeKcryptPartitions
 // As those old installs have an old agent the only way to do it is during the first boot after the upgrade to the newest immucore.
 func (s *State) RunKcryptUpgrade(g *herd.Graph, opts ...herd.OpOption) error {
 	return g.Add(cnst.OpKcryptUpgrade, append(opts, TimedCallback(cnst.OpKcryptUpgrade, func(_ context.Context) error {
-		if s.HardwareRO {
+		if s.WriteProtected {
 			// The upgrade rewrites the LUKS header (cryptsetup luksUUID --uuid),
 			// which is a write to the very device the media refuses writes to.
 			// It cannot succeed, so it is skipped rather than allowed to fail the
