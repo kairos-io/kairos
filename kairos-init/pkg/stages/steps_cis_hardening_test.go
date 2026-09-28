@@ -1,6 +1,9 @@
 package stages_test
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -505,8 +508,114 @@ var _ = Describe("GetCISHardeningStage", func() {
 			It("rewrites the existing line rather than appending blindly", func() {
 				for _, cmd := range stage.Commands {
 					Expect(cmd).To(ContainSubstring("sed -i"))
-					Expect(cmd).To(ContainSubstring("else echo"))
+					Expect(cmd).To(ContainSubstring("printf"))
 				}
+			})
+
+			It("uses printf and not echo so backslash-t stays a real tab", func() {
+				// echo '\t' writes a literal backslash-t under most
+				// /bin/sh implementations; only printf expands it.
+				// The Hadron QA failure was exactly this.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).ToNot(MatchRegexp(`echo '[^']*\\t`),
+						"login.defs command uses echo with a literal \\t which will not expand: "+cmd)
+				}
+			})
+
+			It("guards the trailing newline before appending a new key", func() {
+				// Hadron's stock /etc/login.defs has no trailing
+				// newline. Without a guard, the appended key glues onto
+				// the last line and corrupts it.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring(`tail -c1`),
+						"login.defs command missing trailing-newline guard: "+cmd)
+				}
+			})
+
+			It("only matches live settings so comment prose is left alone", func() {
+				// A pattern like `#?[[:space:]]*KEY` also matches
+				// `# UMASK is the default umask value...`; sed'ing that
+				// turns the prose into a duplicate live setting.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).ToNot(ContainSubstring("#?"),
+						"login.defs detection must not accept commented lines: "+cmd)
+					Expect(cmd).ToNot(MatchRegexp(`\^\[\[:space:\]\]\*#`),
+						"login.defs sed must not match comment lines: "+cmd)
+				}
+			})
+
+			Context("when the shell runs the generated commands", func() {
+				// The unit-level tests above prove the command shape;
+				// this one runs it against tempfiles that reproduce
+				// each base image's shipped /etc/login.defs to catch
+				// regressions that only show up under sh.
+				var tmpdir string
+
+				BeforeEach(func() {
+					var err error
+					tmpdir, err = os.MkdirTemp("", "login-defs-*")
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					_ = os.RemoveAll(tmpdir)
+				})
+
+				runAgainst := func(initial string) string {
+					path := filepath.Join(tmpdir, "login.defs")
+					Expect(os.WriteFile(path, []byte(initial), 0o644)).To(Succeed())
+					for _, cmd := range stage.Commands {
+						// The stage writes /etc/login.defs; the test
+						// runs the same command against the tempfile.
+						scoped := strings.ReplaceAll(cmd, "/etc/login.defs", path)
+						out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+						Expect(err).ToNot(HaveOccurred(), "sh -c failed: %s\n%s", scoped, out)
+					}
+					got, err := os.ReadFile(path)
+					Expect(err).ToNot(HaveOccurred())
+					return string(got)
+				}
+
+				It("appends ENCRYPT_METHOD as a real tabbed line to a Hadron file with no trailing newline", func() {
+					initial := "USERGROUPS_ENAB yes\nPREVENT_NO_AUTH superuser"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("\nPREVENT_NO_AUTH superuser\n"),
+						"missing-newline base image had its last line corrupted: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^ENCRYPT_METHOD\tSHA512$`),
+						"ENCRYPT_METHOD not appended as a live tab-separated line: %q", got)
+					Expect(got).ToNot(ContainSubstring(`\t`),
+						"literal backslash-t leaked into the file: %q", got)
+				})
+
+				It("rewrites an already-set live key and does not duplicate it", func() {
+					initial := "UMASK 077\nPASS_MAX_DAYS 60\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\nENCRYPT_METHOD SHA512\n"
+					got := runAgainst(initial)
+					Expect(strings.Count(got, "UMASK")).To(Equal(1), "UMASK appeared more than once: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`))
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MAX_DAYS\t365$`))
+				})
+
+				It("leaves commented documentation intact and does not create duplicates from prose", func() {
+					initial := "# UMASK is the default umask value...\n# PASS_MAX_DAYS Maximum number of days...\nUSERGROUPS_ENAB yes\n"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("# UMASK is the default umask value..."),
+						"comment prose was rewritten: %q", got)
+					Expect(got).To(ContainSubstring("# PASS_MAX_DAYS Maximum number of days..."),
+						"comment prose was rewritten: %q", got)
+					Expect(strings.Count(got, "\nUMASK")).To(Equal(1),
+						"UMASK live line appeared more than once: %q", got)
+					Expect(strings.Count(got, "\nPASS_MAX_DAYS")).To(Equal(1),
+						"PASS_MAX_DAYS live line appeared more than once: %q", got)
+				})
+
+				It("appends when only a commented-out setting is present", func() {
+					initial := "#UMASK 022\n#PASS_MAX_DAYS 99999\n"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("#UMASK 022"),
+						"commented default was rewritten: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`),
+						"missing appended UMASK when only commented default present: %q", got)
+				})
 			})
 		})
 

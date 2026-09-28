@@ -203,13 +203,17 @@ difok = 4
 `
 
 // CISFaillockPath is the pam_faillock config file, read at PAM stack time.
-// Shipping it is inert on its own: it only takes effect once pam_faillock
-// is wired into the auth stack. That wiring is distro-specific (authselect
-// on RHEL, pam-auth-update on Debian, hand-edited common-auth on Alpine)
-// and a wrong edit locks every account out, so the wiring itself is left
-// for a follow-up ticket with proper per-distro boot testing. The config
-// is still shipped now so that any operator who enables faillock manually
-// gets CIS-compliant lockout parameters without further work.
+// Whether shipping the file also enforces lockout depends on the base:
+// Hadron's /etc/pam.d/system-auth already wires pam_faillock (preauth,
+// authfail, authsucc), so the CIS parameters take effect on Hadron as
+// soon as this file lands. RHEL 9's default authselect profile also
+// loads pam_faillock. On Ubuntu, Debian and Alpine bases the module
+// is not in the auth stack out of the box; the file has no effect
+// there until pam_faillock is wired in through the distro's standard
+// mechanism (pam-auth-update on Debian, authselect on RHEL, hand-edited
+// common-auth on Alpine). That wiring is distro-specific and a wrong
+// edit locks every account out, so it is left for a follow-up ticket
+// with proper per-distro boot testing.
 const CISFaillockPath = "/etc/security/faillock.conf"
 
 // CISFaillock covers CIS Distribution Independent Linux v2.0.0 L1 section
@@ -220,17 +224,16 @@ const CISFaillockPath = "/etc/security/faillock.conf"
 const CISFaillock = `# Managed by kairos-init.
 #
 # CIS Distribution Independent Linux v2.0.0 L1, section 5.4.2 (lockout on
-# failed authentication). Read by pam_faillock.so; inert on its own until
-# the module is present in the PAM auth stack.
+# failed authentication). Read by pam_faillock.so.
 #
-# Wiring pam_faillock is distro-specific (authselect on RHEL,
-# pam-auth-update on Debian, hand-edited common-auth on Alpine) and one
-# wrong edit locks every account out, so kairos-init does not do the
-# wiring: it ships this file so operators who enable faillock by hand
-# get CIS-compliant parameters without further work, and so a follow-up
-# ticket that adds the wiring per distro only has to touch the PAM
-# stacks. RHEL 9's default authselect profile already loads
-# pam_faillock, which means this file takes effect there on its own.
+# Whether this file changes runtime behavior depends on the base:
+# Hadron's system-auth already wires pam_faillock, and RHEL 9's default
+# authselect profile also loads it, so the CIS parameters take effect on
+# those bases as soon as this file lands. On Ubuntu, Debian and Alpine
+# bases pam_faillock is not in the auth stack out of the box, so the
+# file is inert there until the module is wired in. That wiring is
+# distro-specific and a wrong edit locks every account out, so it is
+# left for a follow-up ticket with proper per-distro boot testing.
 #
 # deny           = failed attempts before the account is locked
 # unlock_time    = seconds the lock lasts (0 would mean forever)

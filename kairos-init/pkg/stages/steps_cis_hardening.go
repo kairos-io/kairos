@@ -56,10 +56,12 @@ var cisAccountFiles = []cisAccountFile{
 // Section 6 (time sync) is not covered here: steps_init.go already enables
 // systemd-timesyncd on Debian/Ubuntu/SUSE/Hadron and chronyd on the RHEL
 // family, and both ship distro-default NTP sources that satisfy CIS 6.
-// SELinux enforcing on RHEL and wiring pam_faillock into the PAM auth stack
-// need per-distro boot testing and are left for follow-up tickets; the
-// pam_faillock config file is still shipped so any operator who does the
-// wiring by hand gets CIS-compliant parameters.
+// SELinux enforcing on RHEL is left for a follow-up ticket. pam_faillock:
+// Hadron's system-auth and RHEL 9's authselect default already wire it, so
+// the shipped faillock.conf takes effect there on its own. Wiring the
+// module into the PAM auth stack on Ubuntu, Debian and Alpine bases is
+// left for a follow-up ticket for the same reason (per-distro boot testing
+// needed to avoid locking accounts out).
 func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Stage {
 	if config.ContainsSkipStep(values.CISHardeningStep) {
 		l.Logger.Warn().Msg("Skipping CIS hardening stage")
@@ -189,18 +191,24 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 		},
 	)
 
-	// login.defs: rewrite the line if the key is set (all base distros
-	// ship the file with a commented example of each), else append. The
-	// sed pattern matches both the commented default and any live line,
-	// so it flips a base distro's shipped default to the CIS value
-	// without wrecking the surrounding comments or unrelated settings.
+	// login.defs: rewrite the line when the key is already set live,
+	// else append. The detection deliberately does not match commented
+	// documentation (`# UMASK is the default...`) or commented defaults
+	// (`#UMASK 022`): sed'ing those would turn prose into a duplicate
+	// live setting or lose the comment. Missing-key path uses printf
+	// (echo does not expand `\t` under sh) and guards the trailing
+	// newline (Hadron's stock /etc/login.defs has none, so a naked
+	// append glues the new key onto the last line).
 	loginDefsCommands := []string{}
 	for _, s := range bundled.CISLoginDefsSettings {
 		loginDefsCommands = append(loginDefsCommands,
 			fmt.Sprintf(
-				"if grep -Eq '^[[:space:]]*#?[[:space:]]*%s([[:space:]]|$)' /etc/login.defs; then "+
-					"sed -i -E 's|^[[:space:]]*#?[[:space:]]*%s([[:space:]]+.*)?$|%s\\t%s|' /etc/login.defs; "+
-					"else echo '%s\\t%s' >> /etc/login.defs; fi",
+				"if grep -Eq '^[[:space:]]*%s[[:space:]]' /etc/login.defs; then "+
+					"sed -i -E 's|^([[:space:]]*)%s[[:space:]]+.*$|\\1%s\\t%s|' /etc/login.defs; "+
+					"else "+
+					"[ -n \"$(tail -c1 /etc/login.defs)\" ] && printf '\\n' >> /etc/login.defs; "+
+					"printf '%s\\t%s\\n' >> /etc/login.defs; "+
+					"fi",
 				s.Key, s.Key, s.Key, s.Value, s.Key, s.Value,
 			),
 		)
