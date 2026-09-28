@@ -199,8 +199,10 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 		source = "oci:" + source
 	}
 
+	recovery := isRecoveryUpgrade(cmd)
+
 	args := []string{"upgrade", "--source", source}
-	if cmd.Command == commandUpgradeRecovery || cmd.Args[argRecovery] == argTrue {
+	if recovery {
 		args = append(args, "--recovery")
 	}
 
@@ -212,7 +214,7 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 		return "", err
 	}
 	scope := constants.BootActive
-	if cmd.Command == commandUpgradeRecovery {
+	if recovery {
 		scope = constants.BootRecovery
 	}
 	for _, e := range bundled {
@@ -231,13 +233,23 @@ func handleUpgrade(ctx context.Context, cmd CommandData, serverURL string, apiKe
 	}
 	Logger.Infof("kairos-agent upgrade completed: %s", string(out))
 
-	// Reboot after successful upgrade so the new image takes effect.
-	// Do NOT reboot for recovery upgrades (recovery doesn't need reboot).
-	if cmd.Command != commandUpgradeRecovery {
-		rebootScheduler()
+	// Reboot after successful upgrade so the new image takes effect. A recovery
+	// upgrade does not touch the running system, so it needs no reboot.
+	if recovery {
+		return string(out) + "\nRecovery image upgraded. No reboot needed.", nil
 	}
 
+	rebootScheduler()
+
 	return string(out) + "\nUpgrade complete. Rebooting in 10s...", nil
+}
+
+// isRecoveryUpgrade reports whether an upgrade command targets the recovery
+// image. Two encodings reach us: the dedicated `upgrade-recovery` command, and
+// an `upgrade` carrying `recovery: "true"`. Every decision that follows from
+// the answer has to read it from here, or the two encodings behave differently.
+func isRecoveryUpgrade(cmd CommandData) bool {
+	return cmd.Command == commandUpgradeRecovery || cmd.Args[argRecovery] == argTrue
 }
 
 func downloadArtifact(ctx context.Context, serverURL, apiKey, artifactID string, systemConfig *sdkConfig.Config, retries int, retryInterval time.Duration) (string, error) {
