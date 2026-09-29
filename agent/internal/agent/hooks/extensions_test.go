@@ -61,6 +61,87 @@ var _ = Describe("Extension hooks", func() {
 		})
 	})
 
+	// The kernel command line is the only channel that reaches a netbooted
+	// node: it has no live media to sweep, and the cloud config AuroraBoot
+	// serves is written before the server knows its own reachable address.
+	// See kairos-io/kairos#5040.
+	Describe("DeclaredExtensions", func() {
+		var fs vfs.FS
+		var cleanup func()
+		var cfg *sdkConfig.Config
+
+		BeforeEach(func() {
+			var err error
+			fs, cleanup, err = vfst.NewTestFS(nil)
+			Expect(err).ToNot(HaveOccurred())
+			cfg = config.NewConfig(config.WithFs(fs), config.WithLogger(sdkLogger.NewNullLogger()))
+		})
+		AfterEach(func() { cleanup() })
+
+		writeCmdline := func(content string) {
+			Expect(fsutils.MkdirAll(fs, "/proc", 0755)).To(Succeed())
+			Expect(fs.WriteFile("/proc/cmdline", []byte(content), 0644)).To(Succeed())
+		}
+
+		It("declares nothing when neither source names anything", func() {
+			writeCmdline("console=tty1 quiet")
+			Expect(hook.DeclaredExtensions(*cfg)).To(BeEmpty())
+		})
+
+		It("reads the kernel command line when the cloud config names none", func() {
+			writeCmdline("console=tty1 kairos.extensions=https://10.0.0.1/tools.sysext.raw")
+			Expect(hook.DeclaredExtensions(*cfg)).To(Equal(extensiontypes.Extensions{
+				{Name: "https://10.0.0.1/tools.sysext.raw"},
+			}))
+		})
+
+		It("reads it with an install block that declares nothing", func() {
+			cfg.Install = &sdkInstall.Install{}
+			writeCmdline("kairos.extensions=fwupd")
+			Expect(hook.DeclaredExtensions(*cfg)).To(Equal(extensiontypes.Extensions{{Name: "fwupd"}}))
+		})
+
+		// An operator who wrote install.extensions named a source
+		// deliberately. The command line is filled in by whatever built the
+		// boot, so letting it win would make a baked-in default beat an
+		// explicit choice.
+		It("prefers the cloud config over the command line", func() {
+			cfg.Install = &sdkInstall.Install{
+				Extensions: extensiontypes.Extensions{{Name: "oci://ghcr.io/example/mine.sysext.raw"}},
+			}
+			writeCmdline("kairos.extensions=https://10.0.0.1/theirs.sysext.raw")
+			Expect(hook.DeclaredExtensions(*cfg)).To(Equal(extensiontypes.Extensions{
+				{Name: "oci://ghcr.io/example/mine.sysext.raw"},
+			}))
+		})
+
+		// All or nothing, not a union: the two are alternative answers to the
+		// same question, and merging would install a set neither side asked
+		// for.
+		It("does not merge the two sources", func() {
+			cfg.Install = &sdkInstall.Install{
+				Extensions: extensiontypes.Extensions{{Name: "fwupd"}},
+			}
+			writeCmdline("kairos.extensions=gpg")
+			Expect(hook.DeclaredExtensions(*cfg)).To(HaveLen(1))
+		})
+
+		// Off a booted system, in a container and in a test there is no
+		// /proc/cmdline. That means nothing was declared there, not that the
+		// install should fail.
+		It("declares nothing when there is no kernel command line to read", func() {
+			Expect(hook.DeclaredExtensions(*cfg)).To(BeEmpty())
+		})
+
+		// An extension that was asked for and silently not installed is the
+		// failure this whole path exists to close.
+		It("fails on a command line value it cannot read", func() {
+			writeCmdline("kairos.extensions=fwupd@")
+			_, err := hook.DeclaredExtensions(*cfg)
+			Expect(err).To(MatchError(ContainSubstring("kairos.extensions")))
+		})
+	})
+
 	Describe("ExtensionSignaturePolicy", func() {
 		It("does nothing unless ignore_signatures is set", func() {
 			cfg := config.NewConfig()

@@ -28,6 +28,53 @@ import (
 // directory is an `rsync -aquAX` with no --delete, so what we stage survives it.
 const PersistentExtensionsDir = constants.UsrLocalPath + "/.state/var-lib-kairos.bind/extensions"
 
+// DeclaredExtensions resolves which extensions this install was asked for,
+// from the cloud config when it names any and from the kernel command line
+// otherwise.
+//
+// The cloud config wins. An operator who wrote `install.extensions` named a
+// source deliberately, and the command line is filled in by whatever built the
+// boot: letting the build override the operator would make a baked-in default
+// silently beat an explicit choice. It is all-or-nothing rather than a merge,
+// because the two are alternative answers to the same question and a union
+// would install a set neither side asked for.
+//
+// The command line route exists for netboot, where there is no cloud config to
+// carry the declaration and no live media to sweep. See
+// kairos-io/kairos#5040.
+//
+// An unparseable value is an error rather than a skip: an extension that was
+// asked for and silently not installed is the failure mode this whole path
+// exists to close.
+func DeclaredExtensions(c sdkConfig.Config) (extensiontypes.Extensions, error) {
+	if c.Install != nil && len(c.Install.Extensions) > 0 {
+		return c.Install.Extensions, nil
+	}
+
+	if c.Fs == nil {
+		return nil, nil
+	}
+	cmdline, err := c.Fs.ReadFile("/proc/cmdline")
+	if err != nil {
+		// No /proc/cmdline is normal off a booted system, in a test and in a
+		// container. It means nothing was declared there, not that the
+		// install should fail.
+		c.Logger.Logger.Debug().Err(err).Msg("Could not read the kernel command line, no extensions declared there")
+		return nil, nil
+	}
+
+	declared, err := extensiontypes.ParseCmdline(string(cmdline))
+	if err != nil {
+		return nil, err
+	}
+	if len(declared) > 0 {
+		c.Logger.Logger.Info().Int("extensions", len(declared)).
+			Str("key", extensiontypes.CmdlineKey).
+			Msg("Extensions declared on the kernel command line")
+	}
+	return declared, nil
+}
+
 // permissiveImagePolicy is a systemd image policy that accepts an extension
 // however it is protected, including not at all. It spells out every flag
 // rather than using systemd's `open` alias so a typo fails at review instead
@@ -44,9 +91,9 @@ const permissiveImagePolicy = "root=verity+signed+encrypted+unprotected+absent:u
 type ExtensionsPostInstall struct{}
 
 func (ExtensionsPostInstall) Run(c sdkConfig.Config, _ sdkSpec.Spec) error {
-	var declared extensiontypes.Extensions
-	if c.Install != nil {
-		declared = c.Install.Extensions
+	declared, err := DeclaredExtensions(c)
+	if err != nil {
+		return err
 	}
 	// Read the media before mounting anything, so that an install with
 	// nothing to do still touches no partition.
@@ -153,10 +200,14 @@ func EnableExtensionsForBoot(c sdkConfig.Config, dir string, names []string) err
 // up in both the active and the passive directory, and pulling it twice would
 // double the transfer for no gain.
 func installDeclaredExtensionsToEFI(c sdkConfig.Config, targets ...string) ([]string, error) {
-	if c.Install == nil || len(c.Install.Extensions) == 0 {
+	declared, err := DeclaredExtensions(c)
+	if err != nil {
+		return nil, err
+	}
+	if len(declared) == 0 {
 		return nil, nil
 	}
-	c.Logger.Logger.Info().Int("extensions", len(c.Install.Extensions)).Msg("Installing declared extensions into the EFI partition")
+	c.Logger.Logger.Info().Int("extensions", len(declared)).Msg("Installing declared extensions into the EFI partition")
 
 	staging, err := fsutils.TempDir(c.Fs, "", "kairos-extensions-")
 	if err != nil {
@@ -164,7 +215,7 @@ func installDeclaredExtensionsToEFI(c sdkConfig.Config, targets ...string) ([]st
 	}
 	defer func() { _ = c.Fs.RemoveAll(staging) }()
 
-	installed, err := installer.InstallDeclared(&c, c.Install.Extensions, staging)
+	installed, err := installer.InstallDeclared(&c, declared, staging)
 	if err != nil {
 		return nil, err
 	}
