@@ -89,10 +89,15 @@ func evalGuard(expr, cmdline string, liveMode bool) bool {
 	return evalGuardOn(expr, cmdline, liveMode, false)
 }
 
-// evalGuardUki is evalGuard for a Trusted Boot medium: immucore has written
-// /run/cos/uki_install_mode and there is no live_mode sentinel.
+// evalGuardUki is evalGuard for a Trusted Boot install medium. immucore
+// writes BOTH sentinels on that boot: uki_install_mode because the UKI did not
+// boot from an installed EFI entry, and live_mode because the same condition
+// makes getUKIBootState report LiveCD (see sdk/state/state.go and
+// immucore/pkg/state/steps_shared.go). A guard that wants to exclude Trusted
+// Boot therefore has to name uki_install_mode; requiring live_mode does not
+// narrow anything.
 func evalGuardUki(expr, cmdline string) bool {
-	return evalGuardOn(expr, cmdline, false, true)
+	return evalGuardOn(expr, cmdline, true, true)
 }
 
 // evalGuardOn runs the guard with each of the two sentinels present or absent
@@ -162,17 +167,19 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 
 		// On Trusted Boot every UKI entry AuroraBoot builds carries
 		// install-mode, because they all extend the same base cmdline, and the
-		// installer copies norole.efi verbatim into each installed role. So
-		// the keyword is true on a live UKI boot and on an installed one
-		// alike, and only /run/cos/uki_install_mode separates them. The plain
-		// installer has to key off the sentinel there, or it depends on a
-		// keyword that says nothing.
-		It("starts the plain installer on a UKI medium whatever the cmdline says", func() {
+		// installer copies norole.efi verbatim into each installed role. The
+		// cmdline is signed, so no entry can carry a keyword of its own and
+		// there is nothing there to read. A UKI install medium therefore gets
+		// the interactive installer, which is the dispatcher: it runs
+		// AutoInstall first, so install.auto: true still installs unattended.
+		It("starts the interactive installer on a UKI medium whatever the cmdline says", func() {
 			for _, cmdline := range []string{
 				"BOOT_IMAGE=/boot/kernel install-mode",
+				"BOOT_IMAGE=/boot/kernel install-mode-interactive",
 				"BOOT_IMAGE=/boot/kernel",
 			} {
-				Expect(evalGuardUki(plain, cmdline)).To(BeTrue(), "cmdline %q", cmdline)
+				Expect(evalGuardUki(interactive, cmdline)).To(BeTrue(), "cmdline %q", cmdline)
+				Expect(evalGuardUki(plain, cmdline)).To(BeFalse(), "cmdline %q", cmdline)
 			}
 		})
 
@@ -199,8 +206,8 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 				{"BOOT_IMAGE=/boot/kernel install-mode", true, false},
 				{"BOOT_IMAGE=/boot/kernel", true, false},
 				{"BOOT_IMAGE=/boot/kernel nodepair.enable", true, false},
-				{"BOOT_IMAGE=/boot/kernel install-mode", false, true},
-				{"BOOT_IMAGE=/boot/kernel", false, true},
+				{"BOOT_IMAGE=/boot/kernel install-mode", true, true},
+				{"BOOT_IMAGE=/boot/kernel", true, true},
 				{"BOOT_IMAGE=/boot/kernel install-mode", false, false},
 			} {
 				Expect(evalGuardOn(openrc, tc.cmdline, tc.live, tc.ukiMedia)).
@@ -209,12 +216,39 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			}
 		})
 
-		// install-mode-interactive is a per-entry extra rather than part of the
-		// base cmdline, so on UKI it still discriminates and the interactive
-		// stage keeps requiring it.
-		It("keeps the interactive stage keyed on its own keyword on a UKI medium", func() {
-			Expect(evalGuardUki(interactive, "BOOT_IMAGE=/boot/kernel install-mode")).To(BeFalse())
-			Expect(evalGuardUki(interactive, "BOOT_IMAGE=/boot/kernel install-mode install-mode-interactive")).To(BeTrue())
+		// The GRUB live ISO keeps deciding by keyword: its cmdline is per menu
+		// entry and unsigned, so the entry can still say which installer it
+		// wants, and a live boot that asks for neither gets neither.
+		It("still decides by keyword on the GRUB live ISO", func() {
+			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel install-mode", true)).To(BeTrue())
+			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel install-mode", true)).To(BeFalse())
+			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel install-mode-interactive", true)).To(BeTrue())
+			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel", true)).To(BeFalse())
+			Expect(evalGuard(interactive, "BOOT_IMAGE=/boot/kernel", true)).To(BeFalse())
+		})
+
+		// The openrc interactive stage is a separate `if`, same as the plain
+		// pair below. Pin it to the same answers rather than the same text.
+		It("guards the openrc interactive installer exactly as the systemd one", func() {
+			openrc := stageRunningFor(readStages("52_installer.yaml"), "openrc",
+				`echo "tty1::respawn:/usr/bin/kairos-agent interactive-install --shell tty1" >> /etc/inittab`).If
+
+			for _, tc := range []struct {
+				cmdline        string
+				live, ukiMedia bool
+			}{
+				{"BOOT_IMAGE=/boot/kernel install-mode-interactive", true, false},
+				{"BOOT_IMAGE=/boot/kernel interactive-install", true, false},
+				{"BOOT_IMAGE=/boot/kernel install-mode", true, false},
+				{"BOOT_IMAGE=/boot/kernel", true, false},
+				{"BOOT_IMAGE=/boot/kernel install-mode", true, true},
+				{"BOOT_IMAGE=/boot/kernel", true, true},
+				{"BOOT_IMAGE=/boot/kernel install-mode-interactive", false, false},
+			} {
+				Expect(evalGuardOn(openrc, tc.cmdline, tc.live, tc.ukiMedia)).
+					To(Equal(evalGuardOn(interactive, tc.cmdline, tc.live, tc.ukiMedia)),
+						"cmdline %q live=%v uki=%v", tc.cmdline, tc.live, tc.ukiMedia)
+			}
 		})
 
 		It("starts nothing on a plain boot, or outside live mode", func() {
@@ -260,6 +294,28 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 					"boot stage should refuse %q", cmdline)
 				Expect(evalGuard(openrc.If, cmdline, true)).To(BeFalse(),
 					"openrc boot stage should refuse %q", cmdline)
+			}
+		})
+
+		// A UKI install medium is always interactive now, so the installer is
+		// always serving the WebUI in its own process and the service must
+		// never come up beside it. live_mode is present on that boot, so the
+		// boot stage only refuses it by naming uki_install_mode: this is the
+		// spec that fails if that term is dropped as redundant.
+		It("leaves the webui service alone on a UKI medium", func() {
+			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
+			openrc := stageRunningFor(readStage("52_installer.yaml", "boot"), "openrc", "rc-service kairos-webui start")
+
+			for _, cmdline := range []string{
+				"BOOT_IMAGE=/boot/kernel install-mode",
+				"BOOT_IMAGE=/boot/kernel",
+			} {
+				Expect(evalGuardUki(interactive, cmdline)).To(BeTrue(),
+					"interactive stage should claim %q on UKI", cmdline)
+				Expect(evalGuardUki(boot.If, cmdline)).To(BeFalse(),
+					"boot stage should refuse %q on UKI", cmdline)
+				Expect(evalGuardUki(openrc.If, cmdline)).To(BeFalse(),
+					"openrc boot stage should refuse %q on UKI", cmdline)
 			}
 		})
 
