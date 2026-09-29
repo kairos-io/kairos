@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kairos-io/kairos/v4/installer/internal/checks"
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/mudler/go-pluggable"
 )
@@ -96,7 +97,7 @@ func (p *prerequisitesPage) Init() tea.Cmd {
 	}
 
 	if len(p.checks) == 0 {
-		return func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+		return func() tea.Msg { return GoToPageMsg{PageID: wizard.StepDisk} }
 	}
 	return p.syncFocus()
 }
@@ -152,7 +153,7 @@ func (p *prerequisitesPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	case "enter":
 		// After an optional-action failure, enter means "continue anyway".
 		if p.failure == failOptional {
-			return p, func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+			return p, func() tea.Msg { return GoToPageMsg{PageID: wizard.StepDisk} }
 		}
 		return p.proceed()
 	}
@@ -291,7 +292,7 @@ func (p *prerequisitesPage) clearFailure() {
 
 // advance returns the command that moves on to disk selection.
 func (p *prerequisitesPage) advance() tea.Cmd {
-	return func() tea.Msg { return GoToPageMsg{PageID: "disk_selection"} }
+	return func() tea.Msg { return GoToPageMsg{PageID: wizard.StepDisk} }
 }
 
 // proceed validates blockers, applies the user's decisions and advances to

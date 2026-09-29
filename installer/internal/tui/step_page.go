@@ -1,13 +1,16 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	sdkBus "github.com/kairos-io/kairos/v4/sdk/bus"
 
+	"github.com/kairos-io/kairos/v4/installer/internal/disks"
 	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
@@ -74,10 +77,51 @@ func (p *stepPage) Help() string {
 	if len(p.widgets) > 0 {
 		h = p.widgets[p.focus].Help() + " • " + h
 	}
+	if p.step.ID == wizard.StepDisk {
+		h += " • ctrl+d: collect debug logs"
+	}
 	return h
 }
 
+// diskOnlyEnv answers the disk scan from the real env and nothing else, so
+// re-reading the disk step does not re-run the network catalog fetch. It
+// keeps the scan error, which the step only shows as a notice.
+type diskOnlyEnv struct {
+	wizard.Env
+	err *error
+}
+
+func (e diskOnlyEnv) Disks() ([]disks.Disk, error) {
+	found, err := e.Env.Disks()
+	*e.err = err
+	return found, err
+}
+func (diskOnlyEnv) Extensions(context.Context) ([]wizard.Choice, error) { return nil, nil }
+func (diskOnlyEnv) ProviderPrompts() []sdkBus.YAMLPrompt                { return nil }
+func (diskOnlyEnv) AdvancedDisabled() bool                              { return true }
+
+// rescanDisks rebuilds the disk step, because a prerequisites plugin such as
+// wipefs can change the disks between two visits (#4260). A failed scan
+// keeps the list the operator was looking at rather than blanking it.
+func (p *stepPage) rescanDisks() {
+	var scanErr error
+	fresh, ok := wizard.StepByID(wizard.Steps(context.Background(), diskOnlyEnv{Env: wizardEnv, err: &scanErr}), wizard.StepDisk)
+	if !ok || (scanErr != nil && len(p.step.Fields) > 0 && len(p.step.Fields[0].Choices) > 0) {
+		return
+	}
+	p.step = fresh
+	p.widgets[0] = widgetFor[wizard.KindChoice](fresh.Fields[0])
+	for i := range mainModel.steps {
+		if mainModel.steps[i].ID == wizard.StepDisk {
+			mainModel.steps[i] = fresh
+		}
+	}
+}
+
 func (p *stepPage) Init() tea.Cmd {
+	if p.step.ID == wizard.StepDisk {
+		p.rescanDisks()
+	}
 	for _, w := range p.widgets {
 		w.Load(mainModel.answers)
 		w.Blur()
@@ -107,6 +151,27 @@ func (p *stepPage) move(delta int) tea.Cmd {
 	p.widgets[p.focus].Blur()
 	p.focus = (p.focus + delta + len(p.widgets)) % len(p.widgets)
 	return p.widgets[p.focus].Focus()
+}
+
+// CapturesKey keeps q, esc and ctrl+d from the model when the focused widget
+// uses them: a q typed into a text field, esc closing a choice filter,
+// ctrl+d removing a list entry.
+func (p *stepPage) CapturesKey(k tea.KeyMsg) bool {
+	if len(p.widgets) == 0 {
+		return false
+	}
+	w := p.widgets[p.focus]
+	if w.Wants(k) {
+		return true
+	}
+	if k.Type != tea.KeyRunes {
+		return false
+	}
+	switch w.(type) {
+	case *textWidget, *listWidget:
+		return true
+	}
+	return false
 }
 
 func (p *stepPage) Update(msg tea.Msg) (Page, tea.Cmd) {
@@ -575,8 +640,15 @@ func (w *listWidget) Load(a wizard.Answers) {
 func (w *listWidget) Focus() tea.Cmd { w.cursor = len(w.items); return w.input.Focus() }
 func (w *listWidget) Blur()          { w.input.Blur() }
 func (w *listWidget) Wants(k tea.KeyMsg) bool {
-	// enter on a typed key adds it; enter on an empty input submits the step.
-	return k.String() == "enter" && strings.TrimSpace(w.input.Value()) != ""
+	switch k.String() {
+	case "enter":
+		// enter on a typed key adds it; enter on an empty input submits the step.
+		return strings.TrimSpace(w.input.Value()) != ""
+	case "delete", "ctrl+d":
+		// On an entry these remove it, rather than opening the debug bundle.
+		return w.cursor < len(w.items)
+	}
+	return false
 }
 func (w *listWidget) Update(k tea.KeyMsg) tea.Cmd {
 	switch k.String() {

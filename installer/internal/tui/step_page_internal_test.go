@@ -1,6 +1,10 @@
 package tui
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -8,6 +12,10 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	"gopkg.in/yaml.v3"
+
+	"github.com/kairos-io/kairos/v4/installer/internal/disks"
 	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
@@ -295,5 +303,196 @@ var _ = Describe("the step page", func() {
 			Expect(mainModel.answers.Timezone).To(Equal("Asia/Tokyo"))
 			Expect(mainModel.answers.Keymap).To(BeEmpty())
 		})
+	})
+
+	// Ported from the disk selection page (#4260): a prerequisites plugin
+	// such as wipefs can change the disks between startup and the moment
+	// the operator reaches the disk step.
+	Describe("the disk step", func() {
+		sda := disks.Disk{Path: "/dev/sda", Size: "10.00 GiB"}
+		sdb := disks.Disk{Path: "/dev/sdb", Size: "20.00 GiB"}
+		sdc := disks.Disk{Path: "/dev/sdc", Size: "30.00 GiB"}
+		nvme := disks.Disk{Path: "/dev/nvme0n1", Size: "500.00 GiB"}
+
+		diskPage := func(env fakeWizardEnv) *stepPage {
+			useFakeWizardEnv(env)
+			mainModel.steps = wizard.Steps(context.Background(), env)
+			s, ok := wizard.StepByID(mainModel.steps, wizard.StepDisk)
+			Expect(ok).To(BeTrue())
+			return newStepPage(s)
+		}
+		offered := func(p *stepPage) []string {
+			var out []string
+			for _, c := range p.widgets[0].(*choiceWidget).options {
+				out = append(out, c.Value)
+			}
+			return out
+		}
+
+		It("re-scans on every Init and applies against the fresh list", func() {
+			env := newFakeWizardEnv()
+			env.disks = [][]disks.Disk{{sda, sdb, sdc}, {sda, sdc}}
+			p := diskPage(env)
+			Expect(offered(p)).To(Equal([]string{"/dev/sda", "/dev/sdb", "/dev/sdc"}))
+			Expect(*env.diskCalls).To(Equal(1))
+
+			Expect(p.Init()).To(BeNil())
+			Expect(*env.diskCalls).To(Equal(2))
+			Expect(offered(p)).To(Equal([]string{"/dev/sda", "/dev/sdc"}))
+			Expect(p.View()).ToNot(ContainSubstring("/dev/sdb"))
+
+			// The model's copy of the step is what Apply checks against.
+			_, errs := wizard.Apply(mainModel.steps, mainModel.answers, wizard.StepDisk, map[string]string{wizard.FieldDisk: "/dev/sdb"})
+			Expect(errs).ToNot(BeEmpty())
+			p.Update(key("down"))
+			_, cmd := p.Update(key("enter"))
+			Expect(cmd).ToNot(BeNil())
+			Expect(mainModel.answers.Disk).To(Equal("/dev/sdc"))
+		})
+
+		It("picks up a disk that appeared since the last scan", func() {
+			env := newFakeWizardEnv()
+			env.disks = [][]disks.Disk{{sda}, {sda, nvme}}
+			p := diskPage(env)
+			p.Init()
+			Expect(offered(p)).To(Equal([]string{"/dev/sda", "/dev/nvme0n1"}))
+		})
+
+		It("keeps the previous list when a re-scan fails", func() {
+			env := newFakeWizardEnv()
+			env.disks = [][]disks.Disk{{sda, sdb}}
+			env.diskErr = errors.New("simulated ghw failure")
+			p := diskPage(env)
+			p.Init()
+			Expect(offered(p)).To(Equal([]string{"/dev/sda", "/dev/sdb"}))
+		})
+
+		It("keeps a long disk list inside an 80x24 console", func() {
+			var many []disks.Disk
+			for i := 0; i < 30; i++ {
+				many = append(many, disks.Disk{Path: fmt.Sprintf("/dev/vd%02d", i), Size: "10.00 GiB"})
+			}
+			env := newFakeWizardEnv()
+			env.disks = [][]disks.Disk{many}
+			p := diskPage(env)
+			p.Init()
+			for i := 0; i < 15; i++ {
+				p.Update(key("down"))
+			}
+			budget := defaultTermHeight - 8 - 2
+			view := p.View()
+			Expect(len(splitLines(strings.TrimRight(view, "\n")))).To(BeNumerically("<=", budget))
+			Expect(view).To(ContainSubstring("more above"))
+			Expect(view).To(ContainSubstring("more below"))
+			for i := 0; i < 30; i++ {
+				p.Update(key("down"))
+			}
+			Expect(p.View()).To(ContainSubstring("/dev/vd29"))
+		})
+
+		It("advertises the debug-log hotkey", func() {
+			p := diskPage(newFakeWizardEnv())
+			p.Init()
+			Expect(p.Help()).To(ContainSubstring("ctrl+d"))
+		})
+	})
+
+	// Ported from the extensions page.
+	Describe("the extensions step", func() {
+		extPage := func(env fakeWizardEnv) *stepPage {
+			useFakeWizardEnv(env)
+			mainModel.steps = wizard.Steps(context.Background(), env)
+			s, ok := wizard.StepByID(mainModel.steps, wizard.StepExtensions)
+			Expect(ok).To(BeTrue())
+			p := newStepPage(s)
+			p.Init()
+			return p
+		}
+
+		It("writes the selection into install.extensions of the rendered config", func() {
+			live := filepath.Join("/run/initramfs/live", "tools.sysext.raw")
+			env := newFakeWizardEnv()
+			env.exts = []wizard.Choice{{Value: "nvidia", Label: "nvidia"}, {Value: "tailscale", Label: "tailscale"}, {Value: live, Label: "tools"}}
+			p := extPage(env)
+			p.Update(key("down"))
+			p.Update(key("space"))
+			p.Update(key("down"))
+			p.Update(key("space"))
+			_, cmd := p.Update(key("enter"))
+			Expect(cmd).ToNot(BeNil())
+			Expect(cmd()).To(Equal(GoToPageMsg{PageID: "customization"}))
+
+			mainModel.answers.Disk = "/dev/sda"
+			out, err := currentCloudConfig()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).To(ContainSubstring("extensions:"))
+			Expect(out).To(ContainSubstring("- tailscale\n"))
+			Expect(out).To(ContainSubstring("- " + live + "\n"))
+			Expect(out).ToNot(ContainSubstring("nvidia"))
+
+			// The agent reads the file back as a Config.
+			var decoded sdkConfig.Config
+			Expect(yaml.Unmarshal([]byte(out), &decoded)).To(Succeed())
+			Expect(decoded.Install).ToNot(BeNil())
+			Expect(decoded.Install.Extensions).To(Equal(mainModel.answers.Extensions))
+		})
+
+		It("leaves install.extensions out when nothing is picked", func() {
+			p := extPage(newFakeWizardEnv())
+			p.Update(key("enter"))
+			mainModel.answers.Disk = "/dev/sda"
+			out, err := currentCloudConfig()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(out).ToNot(ContainSubstring("extensions:"))
+		})
+
+		It("fits the body an 80x24 console leaves for a page", func() {
+			env := newFakeWizardEnv()
+			env.exts = nil
+			for i := 0; i < 30; i++ {
+				env.exts = append(env.exts, wizard.Choice{Value: fmt.Sprintf("layer%02d", i), Label: fmt.Sprintf("layer%02d", i)})
+			}
+			p := extPage(env)
+			for i := 0; i < 15; i++ {
+				p.Update(key("down"))
+			}
+			budget := defaultTermHeight - 8 - 2
+			view := p.View()
+			Expect(len(splitLines(strings.TrimRight(view, "\n")))).To(BeNumerically("<=", budget),
+				"a body the model truncates loses rows with nothing on screen to say so")
+			Expect(view).To(ContainSubstring("more above"))
+			Expect(view).To(ContainSubstring("more below"))
+			Expect(view).To(ContainSubstring("layer15"))
+			for i := 0; i < 30; i++ {
+				p.Update(key("down"))
+			}
+			Expect(p.View()).To(ContainSubstring("layer29"))
+		})
+
+		It("is on the customization menu and ticks once something is picked", func() {
+			l := sdkLogger.NewKairosLogger("test", "error", false)
+			mainModel = InitialModel(&l, "")
+			c := newCustomizationPage()
+			c.Init()
+			Expect(c.ids).To(ContainElement(wizard.StepExtensions))
+			Expect(c.isConfigured(wizard.StepExtensions)).To(BeFalse())
+			mainModel.answers.Extensions = nil
+			a, errs := wizard.Apply(mainModel.steps, mainModel.answers, wizard.StepExtensions, map[string]string{wizard.FieldExtensions: "tailscale"})
+			Expect(errs).To(BeEmpty())
+			mainModel.answers = a
+			Expect(c.isConfigured(wizard.StepExtensions)).To(BeTrue())
+		})
+	})
+
+	It("keeps the visible window on the cursor without scrolling past either end", func() {
+		first, last := visibleWindow(0, 20, 8)
+		Expect([]int{first, last}).To(Equal([]int{0, 8}))
+		first, last = visibleWindow(10, 20, 8)
+		Expect(first).To(BeNumerically("<=", 10))
+		Expect(last).To(BeNumerically(">", 10))
+		first, last = visibleWindow(19, 20, 8)
+		Expect([]int{first, last}).To(Equal([]int{12, 20}))
+		first, last = visibleWindow(2, 3, 8)
+		Expect([]int{first, last}).To(Equal([]int{0, 3}))
 	})
 })

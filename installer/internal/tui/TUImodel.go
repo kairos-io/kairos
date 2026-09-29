@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -9,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kairos-io/kairos/v4/sdk/branding"
-	sdkExtensions "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
@@ -42,38 +42,43 @@ type Model struct {
 	width           int
 	height          int
 	title           string
-	disk            string // Selected disk
-	username        string
-	sshKeys         []string // Store SSH keys
-	passwordHash    string
-	finishAction    string                   // Action after installation: reboot, poweroff, none
-	extraFields     map[string]any           // Dynamic fields for customization
-	extensions      sdkExtensions.Extensions // System extensions picked on the extensions page
 	log             *sdkLogger.KairosLogger
-	source          string // cli flags to interactive installer? what??
+	// source is the installer's --source. The welcome page's pairing reads
+	// it here; the install reads the copy in answers.
+	source string
 
 	installError     string // set when an install fails; shown on the debug bundle page
 	showAbortConfirm bool   // Show abort confirmation popup
 
 	answers     wizard.Answers // what the steps collected
 	steps       []wizard.Step  // wizard.Steps(), resolved once at start
-	cloudConfig string         // the text the install runs with; set on the summary, maybe edited
-	edited      bool           // cloudConfig was changed by hand
+	cloudConfig string         // the text the operator saved on the edit page
+	edited      bool           // cloudConfig was changed by hand and replaces the rendered answers
 }
 
 var mainModel Model
 
-// normalizedFinishAction returns mainModel.finishAction if it is one of the
+// wizardEnv is where the wizard steps get their choices from. Tests replace
+// it so they never scan disks, read branding or fetch a catalog.
+var wizardEnv wizard.Env = wizard.NewSystemEnv()
+
+// keyCapturer is a page that needs a key the model would otherwise handle
+// itself (q, esc, ctrl+d), such as a text field that must be able to take a
+// q. ctrl+c is never offered: it always reaches the model.
+type keyCapturer interface {
+	CapturesKey(tea.KeyMsg) bool
+}
+
+// normalizedFinishAction returns the finish action if it is one of the
 // known post-install actions, and "nothing" otherwise. This keeps the
 // completed install page from rendering a blank action if an unexpected
 // value ever reaches it.
 func normalizedFinishAction() string {
-	switch mainModel.finishAction {
-	case "reboot", "poweroff":
-		return mainModel.finishAction
-	default:
-		return "nothing"
+	switch mainModel.answers.FinishAction {
+	case wizard.FinishReboot, wizard.FinishPoweroff:
+		return mainModel.answers.FinishAction
 	}
+	return "nothing"
 }
 
 // InitialModel Initialize the application
@@ -84,22 +89,21 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		title:           branding.DefaultTitleInteractiveInstaller(),
 		source:          source,
 		log:             l,
-		finishAction:    "nothing",
 	}
-	mainModel.pages = []Page{
-		newWelcomePage(),
-		newPrerequisitesPage(),
-		newDiskSelectionPage(),
-		newInstallOptionsPage(),
-		newCustomizationPage(),
-		newUserPasswordPage(),
-		newSSHKeysPage(),
-		newExtensionsPage(),
-		newSummaryPage(),
-		newInstallProcessPage(),
-		newUserdataPage(),
-		newDebugBundlePage(),
+	// The steps are resolved once; the disk step re-scans on every visit.
+	mainModel.steps = wizard.Steps(context.Background(), wizardEnv)
+	mainModel.answers.Source = source
+	pages := []Page{newWelcomePage(), newPrerequisitesPage()}
+	for _, s := range mainModel.steps {
+		if s.ID == wizard.StepFinish {
+			continue // the install options page asks it, next to Start Install
+		}
+		pages = append(pages, newStepPage(s))
+		if s.ID == wizard.StepDisk {
+			pages = append(pages, newInstallOptionsPage(), newCustomizationPage())
+		}
 	}
+	mainModel.pages = append(pages, newSummaryPage(), newEditPage(), newInstallProcessPage(), newDebugBundlePage())
 	mainModel.currentPageID = mainModel.pages[0].ID() // Start with the first page
 
 	mainModel.log.Logger.Debug().Msg("Initial model created")
@@ -201,6 +205,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mainModel.log.Tracef("Dealing with message in mainModel.Update")
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if kc, ok := mainModel.pages[currentIdx].(keyCapturer); ok && msg.String() != "ctrl+c" && kc.CapturesKey(msg) {
+			break
+		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			mainModel.log.Debug("User requested to quit the installer")
@@ -376,8 +383,11 @@ func (m Model) View() string {
 			fullHelp = help
 		} else if _, ok := mainModel.pages[currentIdx].(*summaryPage); ok {
 			fullHelp = help
-		} else if _, ok := mainModel.pages[currentIdx].(*userdataPage); ok {
-			fullHelp = help
+		} else if _, ok := mainModel.pages[currentIdx].(*editPage); ok {
+			fullHelp = help + " • ctrl+c: quit"
+		} else if _, ok := mainModel.pages[currentIdx].(*stepPage); ok {
+			// The step page says esc itself, and q types a q in its fields.
+			fullHelp = help + " • ctrl+c: quit"
 		} else {
 			fullHelp = help + " • ESC: back • q/ctrl+c: quit"
 		}

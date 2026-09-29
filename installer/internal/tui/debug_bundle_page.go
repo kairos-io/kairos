@@ -12,6 +12,7 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/agentrun"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/debugbundle"
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
 type bundleState int
@@ -55,13 +56,16 @@ func (p *debugBundlePage) Init() tea.Cmd {
 		// spawning the worker, so the worker never touches the mainModel global
 		// (which the Update goroutine mutates on WindowSizeMsg / navigation).
 		agentBin := agentrun.ResolveAgentBin()
-		redacted, _ := RenderRedactedCloudConfig(&mainModel)
-		cmd := agentrun.Command(agentBin, "<config>", mainModel.source, mainModel.finishAction)
+		// A configuration that cannot be produced, or that was edited into
+		// something that does not parse, is still bundled, redacted whole.
+		cfg, _ := currentCloudConfig()
+		redacted := wizard.Redact(cfg)
+		cmd := agentrun.Command(agentBin, "<config>", mainModel.answers.Source, mainModel.answers.FinishAction)
 		ctx := debugbundle.Context{
 			AgentBin:            agentBin,
 			AgentArgs:           cmd.Args[1:],
-			Disk:                mainModel.disk,
-			Source:              mainModel.source,
+			Disk:                mainModel.answers.Disk,
+			Source:              mainModel.answers.Source,
 			Version:             version,
 			CloudConfigRedacted: redacted,
 		}
