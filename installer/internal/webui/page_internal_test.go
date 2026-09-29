@@ -3,6 +3,7 @@ package webui
 import (
 	"io"
 	"regexp"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -87,6 +88,15 @@ var _ = Describe("the wizard page", func() {
 		Expect(js).To(ContainSubstring("fetch('/install'"))
 		Expect(js).To(ContainSubstring("device: state.answers.disk"))
 		Expect(js).To(ContainSubstring("finish_action: state.answers.finish_action"))
+	})
+
+	It("never hands a missing child straight to replaceChildren", func() {
+		// replaceChildren turns a null into the text "null", and the review
+		// step printed exactly that under its title on a real boot. Every
+		// redraw goes through fill, which drops the empty slots first.
+		js := read("wizard.js")
+		Expect(js).To(MatchRegexp(`function fill\(node, \.\.\.children\) \{\n\s+node\.replaceChildren\(\.\.\.children\.flat\(\)\.filter\(c => c != null && c !== false\)\);`))
+		Expect(strings.Count(js, ".replaceChildren(")).To(Equal(1), "call fill instead of replaceChildren")
 	})
 
 	It("offers an optional single choice a first row that leaves it unset", func() {

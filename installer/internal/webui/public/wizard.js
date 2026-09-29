@@ -19,6 +19,12 @@ function el(tag, attrs, ...children) {
   return n;
 }
 
+// fill replaces a node's children. replaceChildren on its own turns a null
+// into the text "null", so the empty slots of an optional part are dropped.
+function fill(node, ...children) {
+  node.replaceChildren(...children.flat().filter(c => c != null && c !== false));
+}
+
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
@@ -130,7 +136,7 @@ function done(s) {
 
 function drawRail() {
   const rail = document.getElementById('rail');
-  rail.replaceChildren(el('div', { class: 'rail-label' }, 'Steps'), ...allSteps().map((s, i) =>
+  fill(rail, el('div', { class: 'rail-label' }, 'Steps'), ...allSteps().map((s, i) =>
     el('button', { type: 'button', 'aria-current': i === state.cur ? 'step' : false, onclick: () => go(i) },
       el('span', { class: 'n' }, String(i + 1).padStart(2, '0')), el('span', {}, s.title),
       s !== REVIEW && done(s) ? el('span', { class: 'done', 'aria-label': 'set' }, '\u2713') : el('span'))));
@@ -143,8 +149,7 @@ function drawStep(step) {
     f.help ? el('div', { class: 'fhelp' }, f.help) : null,
     RENDERERS[f.kind](f),
     state.errors[f.id] ? el('div', { class: 'err', role: 'alert' }, state.errors[f.id]) : null));
-  // replaceChildren turns a null into the text "null", so drop the empty slots.
-  main.replaceChildren(...[
+  fill(main,
     el('div', {}, el('h1', {}, step.title), step.help ? el('p', { class: 'help' }, step.help) : null),
     step.notice ? el('div', { class: 'banner' }, step.notice) : null,
     state.errors[''] ? el('div', { class: 'banner', role: 'alert' }, state.errors['']) : null,
@@ -153,8 +158,7 @@ function drawStep(step) {
       el('button', { type: 'button', class: 'btn ghost', disabled: state.cur === 0, onclick: () => go(state.cur - 1) }, 'Back'),
       el('div', { class: 'row' },
         step.optional ? el('button', { type: 'button', class: 'btn ghost', onclick: () => { state.errors = {}; go(state.cur + 1, true); } }, 'Skip') : null,
-        el('button', { type: 'button', class: 'btn', id: 'next', onclick: () => go(state.cur + 1) }, 'Next'))),
-  ].filter(Boolean));
+        el('button', { type: 'button', class: 'btn', id: 'next', onclick: () => go(state.cur + 1) }, 'Next'))));
 }
 
 async function validate() {
@@ -185,7 +189,7 @@ function drawReview() {
   };
   const disk = a.disk || '(no disk)';
   const confirmText = ((state.steps[0] && state.steps[0].fields[0].confirm) || 'Everything on {value} will be erased.').replace('{value}', disk);
-  main.replaceChildren(
+  fill(main,
     el('div', {}, el('h1', {}, 'Review and install'),
       el('p', { class: 'help' }, 'This is the configuration the install runs with, built from your answers. Edit it to add anything the steps do not ask for.')),
     state.errors[''] ? el('div', { class: 'banner', role: 'alert' }, state.errors['']) : null,
@@ -267,4 +271,4 @@ function answersDefaults() {
 }
 
 api('/api/wizard').then(r => { state.steps = r.steps; answersDefaults(); draw(); })
-  .catch(e => document.getElementById('main').replaceChildren(el('div', { class: 'banner', role: 'alert' }, 'The installer steps could not be loaded: ' + e.message)));
+  .catch(e => fill(document.getElementById('main'), el('div', { class: 'banner', role: 'alert' }, 'The installer steps could not be loaded: ' + e.message)));
