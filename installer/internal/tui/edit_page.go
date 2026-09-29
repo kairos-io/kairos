@@ -38,13 +38,15 @@ func confirmedOverrides() wizard.Overrides {
 // back leaves the page the way the operator came, like a global esc.
 func back() tea.Msg { return BackMsg{} }
 
-// editPage shows the cloud-config the install will run with and lets the
-// operator change it before the install starts. Under the branding switch
-// that hides the optional steps it only shows it.
+// editPage shows the cloud-config the install will run with and, when the
+// summary opened it with e, lets the operator change it before the install
+// starts. Opened with v, or under the branding switch that hides the optional
+// steps, it only shows it.
 type editPage struct {
 	area textarea.Model
 	err  string
-	// readOnly is set when wizardEnv.AdvancedDisabled(): any key goes back.
+	// readOnly is set when the summary opened the page with v, or when
+	// wizardEnv.AdvancedDisabled(): any key goes back.
 	readOnly bool
 	// confirming is set while the page asks whether to throw the edits away.
 	confirming bool
@@ -79,7 +81,7 @@ func (p *editPage) resize() {
 // answers, so text left with esc never comes back.
 func (p *editPage) Init() tea.Cmd {
 	p.err, p.confirming = "", false
-	p.readOnly = wizardEnv.AdvancedDisabled()
+	p.readOnly = mainModel.viewOnly || wizardEnv.AdvancedDisabled()
 	p.resize()
 	if mainModel.edited && !p.readOnly {
 		p.area.SetValue(mainModel.cloudConfig)

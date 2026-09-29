@@ -32,8 +32,11 @@ func (p *summaryPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 			if wizardEnv.AdvancedDisabled() {
 				return p, nil
 			}
+			mainModel.viewOnly = false
 			return p, func() tea.Msg { return GoToPageMsg{PageID: editPageID} }
 		case "v":
+			// v only shows the configuration, whether or not e is offered.
+			mainModel.viewOnly = true
 			return p, func() tea.Msg { return GoToPageMsg{PageID: editPageID} }
 		}
 	}
@@ -106,7 +109,7 @@ func (p *summaryPage) Help() string {
 	if wizardEnv.AdvancedDisabled() {
 		return "enter: start the installation • v: view the configuration"
 	}
-	return "enter: start the installation • e: view and edit the configuration"
+	return "enter: install • v: view the configuration • e: edit the configuration"
 }
 
 func (p *summaryPage) ID() string { return "summary" }

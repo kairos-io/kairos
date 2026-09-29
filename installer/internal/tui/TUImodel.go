@@ -54,6 +54,7 @@ type Model struct {
 	steps       []wizard.Step  // wizard.Steps(), resolved once at start
 	cloudConfig string         // the text the operator saved on the edit page
 	edited      bool           // cloudConfig was changed by hand and replaces the rendered answers
+	viewOnly    bool           // the summary opened the configuration page with v, to read it only
 }
 
 var mainModel Model

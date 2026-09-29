@@ -148,12 +148,58 @@ var _ = Describe("the configuration page under the branding switch", func() {
 
 	It("offers editing when advanced options are on", func() {
 		open(false)
-		Expect(newSummaryPage().Help()).To(ContainSubstring("e: view and edit"))
+		Expect(newSummaryPage().Help()).To(ContainSubstring("e: edit the configuration"))
 		drive(runes("e"))
 		Expect(mainModel.currentPageID).To(Equal(editPageID))
 		drive(runes("x"))
 		Expect(findEditPage().area.Value()).To(ContainSubstring("x"))
 		Expect(mainModel.currentPageID).To(Equal(editPageID))
+	})
+
+	It("keeps v a read-only view when advanced options are on, and e the editor", func() {
+		open(false)
+		help := newSummaryPage().Help()
+		Expect(help).To(ContainSubstring("v: view the configuration"))
+		Expect(help).To(ContainSubstring("e: edit the configuration"))
+
+		drive(runes("v"))
+		Expect(mainModel.currentPageID).To(Equal(editPageID))
+		edit := findEditPage()
+		Expect(edit.readOnly).To(BeTrue())
+		Expect(edit.Help()).ToNot(ContainSubstring("ctrl+s"))
+		generated := edit.area.Value()
+		Expect(generated).To(ContainSubstring("device: /dev/vda"))
+
+		// Typing does not change it: any key leaves.
+		drive(runes("x"))
+		Expect(mainModel.currentPageID).To(Equal("summary"))
+		Expect(edit.area.Value()).To(Equal(generated))
+
+		// ctrl+s does not save.
+		drive(runes("v"))
+		drive(tea.KeyMsg{Type: tea.KeyCtrlS})
+		Expect(mainModel.edited).To(BeFalse())
+		Expect(mainModel.currentPageID).To(Equal("summary"))
+
+		// e, after v, opens the page editable.
+		drive(runes("e"))
+		Expect(mainModel.currentPageID).To(Equal(editPageID))
+		Expect(edit.readOnly).To(BeFalse())
+		drive(runes("x"))
+		Expect(edit.area.Value()).To(ContainSubstring("x"))
+		Expect(mainModel.currentPageID).To(Equal(editPageID))
+	})
+
+	It("shows a saved edit on v, the text the install will run with", func() {
+		open(false)
+		drive(runes("e"))
+		findEditPage().area.SetValue("#cloud-config\nk3s:\n  enabled: true\n")
+		drive(tea.KeyMsg{Type: tea.KeyCtrlS})
+		Expect(mainModel.edited).To(BeTrue())
+		drive(runes("v"))
+		Expect(findEditPage().readOnly).To(BeTrue())
+		Expect(findEditPage().area.Value()).To(ContainSubstring("k3s:"))
+		Expect(findEditPage().area.Value()).To(ContainSubstring("device: /dev/vda"))
 	})
 
 	It("only shows the configuration when advanced options are off", func() {

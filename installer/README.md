@@ -8,7 +8,8 @@ The default **interactive installer** for [Kairos](https://kairos.io).
 
 `kairos-installer` is a standalone terminal UI that collects installation
 settings (disk, user, SSH keys, hostname, timezone and keymap, system
-extensions, post-install action, plus any provider-supplied fields) and then drives [`kairos-agent`](../agent/) to perform the install.
+extensions, post-install action, plus any provider-supplied fields) and then
+drives [`kairos-agent`](../agent/) to perform the install.
 It does **not** partition or install anything itself — that is `kairos-agent`'s
 job. The installer only owns the UX and hands a configuration to the agent.
 
