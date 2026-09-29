@@ -17,10 +17,13 @@ import (
 	"unicode/utf8"
 )
 
-// DefaultBrandingDir is where a distribution drops its artwork. It is also the
-// switch that turns the splash on: the dracut module and the systemd unit both
-// gate on this directory existing, because gating on the binary is not an
-// option (the binary is the whole multi-call kairos tool).
+// DefaultBrandingDir is where a distribution drops its artwork.
+//
+// It is not a switch: an absent directory yields the built-in Kairos artwork,
+// not a skipped splash. What turns the animation on and off is the `splash`
+// token on the kernel command line, which both units gate on, and the
+// kairos.splash=0 kill switch this package honours. What replaces it wholesale
+// is the executable at /usr/bin/kairos-splash, which is what both units exec.
 const DefaultBrandingDir = "/etc/kairos/branding/splash"
 
 // Branding is the artwork the animation paints.
