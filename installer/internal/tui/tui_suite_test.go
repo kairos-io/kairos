@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"os"
+	"sync/atomic"
 	"testing"
 
 	sdkBus "github.com/kairos-io/kairos/v4/sdk/bus"
@@ -17,10 +18,14 @@ import (
 // no disk scan, no branding directory, no catalog fetch, no provider bus.
 type fakeWizardEnv struct {
 	// disks is returned by Disks, one entry per call; the last entry repeats.
-	disks      [][]disks.Disk
-	diskErr    error
-	diskCalls  *int
-	exts       []wizard.Choice
+	disks     [][]disks.Disk
+	diskErr   error
+	diskCalls *int
+	exts      []wizard.Choice
+	// extGate, when set, holds Extensions until it is closed, and extCalls
+	// counts the calls, which come from a command's goroutine.
+	extGate    chan struct{}
+	extCalls   *atomic.Int32
 	zones      []string
 	keymaps    []string
 	prompts    []sdkBus.YAMLPrompt
@@ -51,11 +56,19 @@ func (f fakeWizardEnv) Disks() ([]disks.Disk, error) {
 	}
 	return f.disks[i], nil
 }
-func (f fakeWizardEnv) Extensions(context.Context) ([]wizard.Choice, error) { return f.exts, nil }
-func (f fakeWizardEnv) Timezones() []string                                 { return f.zones }
-func (f fakeWizardEnv) Keymaps() []string                                   { return f.keymaps }
-func (f fakeWizardEnv) ProviderPrompts() []sdkBus.YAMLPrompt                { return f.prompts }
-func (f fakeWizardEnv) AdvancedDisabled() bool                              { return f.noAdvanced }
+func (f fakeWizardEnv) Extensions(context.Context) ([]wizard.Choice, error) {
+	if f.extCalls != nil {
+		f.extCalls.Add(1)
+	}
+	if f.extGate != nil {
+		<-f.extGate
+	}
+	return f.exts, nil
+}
+func (f fakeWizardEnv) Timezones() []string                  { return f.zones }
+func (f fakeWizardEnv) Keymaps() []string                    { return f.keymaps }
+func (f fakeWizardEnv) ProviderPrompts() []sdkBus.YAMLPrompt { return f.prompts }
+func (f fakeWizardEnv) AdvancedDisabled() bool               { return f.noAdvanced }
 
 // useFakeWizardEnv installs env for the rest of the test.
 func useFakeWizardEnv(env wizard.Env) {

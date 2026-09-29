@@ -54,6 +54,57 @@ type stepPage struct {
 	widgets []fieldWidget
 	focus   int
 	errs    map[string]string
+	// pending is set on the extensions step until its choices are fetched,
+	// and loading while the fetch runs.
+	pending, loading bool
+}
+
+// loadingExtensions is what the extensions step shows while it reads the
+// live media and the catalog.
+const loadingExtensions = "Looking for extensions on the live media and in the catalog..."
+
+// extensionsLoadedMsg carries the extensions step with its choices.
+type extensionsLoadedMsg struct{ step wizard.Step }
+
+// noExtensionsEnv is the env with the extension fetch taken out, for the
+// steps the installer resolves before its first frame.
+type noExtensionsEnv struct{ wizard.Env }
+
+func (noExtensionsEnv) Extensions(context.Context) ([]wizard.Choice, error) { return nil, nil }
+
+// fetchExtensions reads the catalog off the event loop, once.
+func (p *stepPage) fetchExtensions() tea.Cmd {
+	if p.loading {
+		return nil
+	}
+	p.loading = true
+	env := wizardEnv
+	return func() tea.Msg {
+		return extensionsLoadedMsg{step: wizard.ExtensionsStep(context.Background(), env)}
+	}
+}
+
+// loaded puts the fetched step on the page and in mainModel.steps, which
+// Apply checks the picks against, and shows the saved picks on it.
+func (p *stepPage) loaded(step wizard.Step) tea.Cmd {
+	p.step, p.pending, p.loading = step, false, false
+	p.widgets = nil
+	for _, f := range step.Fields {
+		w := widgetFor[f.Kind](f)
+		w.Load(mainModel.answers)
+		w.Blur()
+		p.widgets = append(p.widgets, w)
+	}
+	for i := range mainModel.steps {
+		if mainModel.steps[i].ID == step.ID {
+			mainModel.steps[i] = step
+		}
+	}
+	p.focus = 0
+	if len(p.widgets) == 0 || mainModel.currentPageID != p.ID() {
+		return nil
+	}
+	return p.widgets[0].Focus()
 }
 
 func newStepPage(step wizard.Step) *stepPage {
@@ -74,6 +125,9 @@ func (p *stepPage) ID() string    { return p.step.ID }
 func (p *stepPage) Title() string { return p.step.Title }
 
 func (p *stepPage) Help() string {
+	if p.pending {
+		return "esc: back"
+	}
 	h := "tab: next field • enter: save • esc: back"
 	if len(p.widgets) > 0 {
 		h = p.widgets[p.focus].Help() + " • " + h
@@ -128,6 +182,9 @@ func (p *stepPage) Init() tea.Cmd {
 		w.Blur()
 	}
 	p.focus, p.errs = 0, map[string]string{}
+	if p.pending {
+		return p.fetchExtensions()
+	}
 	if len(p.widgets) == 0 {
 		return nil
 	}
@@ -158,7 +215,7 @@ func (p *stepPage) move(delta int) tea.Cmd {
 // uses them: a q typed into a text field, esc closing a choice filter,
 // ctrl+d removing a list entry.
 func (p *stepPage) CapturesKey(k tea.KeyMsg) bool {
-	if len(p.widgets) == 0 {
+	if p.pending || len(p.widgets) == 0 {
 		return false
 	}
 	w := p.widgets[p.focus]
@@ -177,7 +234,8 @@ func (p *stepPage) CapturesKey(k tea.KeyMsg) bool {
 
 func (p *stepPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	k, ok := msg.(tea.KeyMsg)
-	if !ok || len(p.widgets) == 0 {
+	// Nothing to save until the choices are here; esc still goes back.
+	if !ok || p.pending || len(p.widgets) == 0 {
 		return p, nil
 	}
 	w := p.widgets[p.focus]
@@ -250,6 +308,9 @@ func (p *stepPage) View() string {
 	s := p.step.Title + "\n"
 	if p.step.Help != "" {
 		s += p.step.Help + "\n"
+	}
+	if p.pending {
+		return s + "\n" + loadingExtensions + "\n"
 	}
 	if p.step.Notice != "" {
 		s += warn.Render(p.step.Notice) + "\n"

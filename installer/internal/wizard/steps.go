@@ -31,7 +31,7 @@ type Env interface {
 func Steps(ctx context.Context, env Env) []Step {
 	steps := []Step{diskStep(env)}
 	if !env.AdvancedDisabled() {
-		steps = append(steps, userStep(), sshKeysStep(), hostnameStep(), localeStep(env), extensionsStep(ctx, env))
+		steps = append(steps, userStep(), sshKeysStep(), hostnameStep(), localeStep(env), ExtensionsStep(ctx, env))
 		if p, ok := providerStep(env); ok {
 			steps = append(steps, p)
 		}
@@ -126,7 +126,9 @@ func choiceOrText(id, label, placeholder string, values []string) Field {
 	return f
 }
 
-func extensionsStep(ctx context.Context, env Env) Step {
+// ExtensionsStep builds the extensions step on its own, so a frontend can
+// fetch the catalog when the step is shown rather than before anything is.
+func ExtensionsStep(ctx context.Context, env Env) Step {
 	s := Step{
 		ID: StepExtensions, Title: "System extensions", Optional: true,
 		Help: "Merged into the system on the first boot after install.",

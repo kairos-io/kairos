@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	tea "github.com/charmbracelet/bubbletea"
 	sdkBus "github.com/kairos-io/kairos/v4/sdk/bus"
@@ -478,6 +479,12 @@ var _ = Describe("the step page", func() {
 			c.Init()
 			Expect(c.ids).To(ContainElement(wizard.StepExtensions))
 			Expect(c.isConfigured(wizard.StepExtensions)).To(BeFalse())
+			// The choices arrive when the step is entered.
+			for _, pg := range mainModel.pages {
+				if sp, ok := pg.(*stepPage); ok && sp.ID() == wizard.StepExtensions {
+					sp.loaded(wizard.ExtensionsStep(context.Background(), wizardEnv))
+				}
+			}
 			mainModel.answers.Extensions = nil
 			a, errs := wizard.Apply(mainModel.steps, mainModel.answers, wizard.StepExtensions, map[string]string{wizard.FieldExtensions: "tailscale"})
 			Expect(errs).To(BeEmpty())
@@ -534,5 +541,56 @@ var _ = Describe("the provider step with a yes or no gate", func() {
 		Expect(page.values()["p2p.network_token"+wizard.AskSuffix]).To(Equal("true"))
 		Expect(page.values()["p2p.network_token"]).To(Equal("tok"))
 		Expect(page.View()).To(ContainSubstring("Used only when the answer above is yes."))
+	})
+})
+
+var _ = Describe("the extensions step, fetched when it is entered", func() {
+	It("does not fetch at start, fetches on entry with a loading line, and keeps the result", func() {
+		env := newFakeWizardEnv()
+		env.extGate, env.extCalls = make(chan struct{}), new(atomic.Int32)
+		useFakeWizardEnv(env)
+		DeferCleanup(func() {
+			select {
+			case <-env.extGate:
+			default:
+				close(env.extGate)
+			}
+		})
+
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		built := make(chan struct{})
+		go func() {
+			defer GinkgoRecover()
+			mainModel = InitialModel(&l, "")
+			close(built)
+		}()
+		Eventually(built, "2s").Should(BeClosed(), "InitialModel waited for the extension catalog")
+		Expect(env.extCalls.Load()).To(BeZero())
+
+		mainModel.currentPageID = "customization"
+		_, cmd := mainModel.Update(GoToPageMsg{PageID: wizard.StepExtensions})
+		Expect(mainModel.currentPageID).To(Equal(wizard.StepExtensions))
+		Expect(mainModel.View()).To(ContainSubstring("Looking for extensions on the live media and in the catalog..."))
+
+		msgs := make(chan []tea.Msg, 1)
+		go func() { msgs <- resolves(cmd) }()
+		Eventually(env.extCalls.Load, "2s").Should(Equal(int32(1)))
+		close(env.extGate)
+		var got []tea.Msg
+		Eventually(msgs, "3s").Should(Receive(&got))
+		for _, m := range got {
+			mainModel.Update(m)
+		}
+		Expect(mainModel.View()).To(ContainSubstring("tailscale"))
+		Expect(mainModel.View()).ToNot(ContainSubstring("Looking for extensions"))
+		s, _ := wizard.StepByID(mainModel.steps, wizard.StepExtensions)
+		Expect(s.Fields[0].Choices).To(HaveLen(2), "Apply validates against mainModel.steps")
+
+		// Leaving and entering again does not fetch again.
+		drive(tea.KeyMsg{Type: tea.KeyEsc})
+		drive(GoToPageMsg{PageID: wizard.StepExtensions})
+		Expect(mainModel.currentPageID).To(Equal(wizard.StepExtensions))
+		Expect(env.extCalls.Load()).To(Equal(int32(1)))
+		Expect(mainModel.View()).To(ContainSubstring("tailscale"))
 	})
 })

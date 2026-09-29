@@ -51,7 +51,7 @@ type Model struct {
 	showAbortConfirm bool   // Show abort confirmation popup
 
 	answers     wizard.Answers // what the steps collected
-	steps       []wizard.Step  // wizard.Steps(), resolved once at start
+	steps       []wizard.Step  // wizard.Steps(), resolved at start; the extensions step once it is entered
 	cloudConfig string         // the text the operator saved on the edit page
 	edited      bool           // cloudConfig was changed by hand and replaces the rendered answers
 	viewOnly    bool           // the summary opened the configuration page with v, to read it only
@@ -124,15 +124,20 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 		source:          source,
 		log:             l,
 	}
-	// The steps are resolved once; the disk step re-scans on every visit.
-	mainModel.steps = wizard.Steps(context.Background(), wizardEnv)
+	// The steps are resolved once, without the extension catalog: the
+	// extensions step fetches it when it is entered, so the first frame
+	// does not wait up to the catalog timeout. The disk step re-scans on
+	// every visit.
+	mainModel.steps = wizard.Steps(context.Background(), noExtensionsEnv{wizardEnv})
 	mainModel.answers.Source = source
 	pages := []Page{newWelcomePage(), newPrerequisitesPage()}
 	for _, s := range mainModel.steps {
 		if s.ID == wizard.StepFinish {
 			continue // the install options page asks it, next to Start Install
 		}
-		pages = append(pages, newStepPage(s))
+		page := newStepPage(s)
+		page.pending = s.ID == wizard.StepExtensions
+		pages = append(pages, page)
 		if s.ID == wizard.StepDisk {
 			pages = append(pages, newInstallOptionsPage(), newCustomizationPage())
 		}
@@ -170,6 +175,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case BackMsg:
 		cmd, _ := goBack()
 		return mainModel, cmd
+	case extensionsLoadedMsg:
+		// Whichever page is showing: the operator may have left the step
+		// while the catalog was being read.
+		for _, p := range mainModel.pages {
+			if sp, ok := p.(*stepPage); ok && sp.ID() == wizard.StepExtensions {
+				return mainModel, sp.loaded(msg.step)
+			}
+		}
+		return mainModel, nil
 	}
 	// For navigation, access the mainModel so we can modify from anywhere
 	currentIdx := -1
