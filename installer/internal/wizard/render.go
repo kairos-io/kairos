@@ -114,14 +114,6 @@ func Render(a Answers) (string, error) {
 	return "#cloud-config\n" + string(dat), nil
 }
 
-// RenderRedacted renders a with the password hash replaced.
-func RenderRedacted(a Answers) (string, error) {
-	if a.PasswordHash != "" {
-		a.PasswordHash = Redacted
-	}
-	return Render(a)
-}
-
 // checkWritten refuses a hostname, timezone or keymap that Apply would have
 // refused.
 func checkWritten(a Answers) error {

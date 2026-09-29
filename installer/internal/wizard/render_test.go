@@ -79,14 +79,7 @@ stages:
 	})
 })
 
-var _ = Describe("RenderRedacted and Redact", func() {
-	It("replaces the password hash and never leaks it", func() {
-		out, err := wizard.RenderRedacted(wizard.Answers{Disk: "/dev/sda", Username: "kairos", PasswordHash: "$6$salt$supersecrethash"})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(out).To(ContainSubstring(wizard.Redacted))
-		Expect(out).ToNot(ContainSubstring("supersecrethash"))
-	})
-
+var _ = Describe("Redact", func() {
 	It("redacts every passwd key in hand-edited YAML, at any depth", func() {
 		in := "#cloud-config\nusers:\n  - name: a\n    passwd: plain1\nstages:\n  boot:\n    - users:\n        b:\n          passwd: $6$x$secret2\n"
 		out := wizard.Redact(in)
