@@ -4,6 +4,7 @@ import (
 	sdkExtensions "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gopkg.in/yaml.v3"
 
 	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
@@ -85,5 +86,61 @@ var _ = Describe("RenderRedacted and Redact", func() {
 
 	It("returns a placeholder instead of the text when the YAML does not parse", func() {
 		Expect(wizard.Redact("users: [unterminated\n  passwd: leak")).ToNot(ContainSubstring("leak"))
+	})
+})
+
+var _ = Describe("Render, the settings added with the wizard", func() {
+	// parse returns the initramfs stage list of a rendered document.
+	parse := func(out string) []map[string]any {
+		doc := map[string]any{}
+		Expect(yaml.Unmarshal([]byte(out), &doc)).To(Succeed())
+		stages, _ := doc["stages"].(map[string]any)
+		list, _ := stages["initramfs"].([]any)
+		var res []map[string]any
+		for _, s := range list {
+			res = append(res, s.(map[string]any))
+		}
+		return res
+	}
+
+	It("sets the hostname in the initramfs stage", func() {
+		out, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Hostname: "edge-01"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(parse(out)).To(ContainElement(HaveKeyWithValue("hostname", "edge-01")))
+	})
+
+	It("links the timezone to /etc/localtime", func() {
+		out, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Timezone: "Europe/Rome"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(ContainSubstring("ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime"))
+	})
+
+	It("writes the keymap for systemd, and for openrc only where conf.d exists", func() {
+		out, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Keymap: "it"})
+		Expect(err).ToNot(HaveOccurred())
+		stages := parse(out)
+		Expect(stages).To(HaveLen(2))
+		Expect(stages[0]).ToNot(HaveKey("if"))
+		Expect(out).To(ContainSubstring("path: /etc/vconsole.conf"))
+		Expect(out).To(ContainSubstring("KEYMAP=it"))
+		Expect(stages[1]).To(HaveKeyWithValue("if", "[ -d /etc/conf.d ]"))
+		Expect(out).To(ContainSubstring(`keymap="it"`))
+	})
+
+	It("keeps the new settings before the user, in one initramfs stage list", func() {
+		out, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Hostname: "h", Username: "kairos", PasswordHash: "$6$x$y"})
+		Expect(err).ToNot(HaveOccurred())
+		stages := parse(out)
+		Expect(stages).To(HaveLen(2))
+		Expect(stages[0]).To(HaveKey("hostname"))
+		Expect(stages[1]).To(HaveKey("users"))
+	})
+
+	It("writes nothing for settings left empty", func() {
+		out, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Username: "kairos", PasswordHash: "$6$x$y"})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).ToNot(ContainSubstring("hostname"))
+		Expect(out).ToNot(ContainSubstring("zoneinfo"))
+		Expect(out).ToNot(ContainSubstring("vconsole"))
 	})
 })
