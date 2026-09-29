@@ -1,6 +1,7 @@
 package mos_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -248,8 +249,16 @@ var _ = Describe("ssh hardening", Label("ssh-hardening"), func() {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 101 {
 			err = nil
 		}
+		if err != nil {
+			// Save the full cinc-auditor CLI report next to the JSON,
+			// so the artifact bundle carries both a human-readable
+			// listing and the machine-readable report.
+			_ = os.WriteFile(filepath.Join(reportDir, "ssh-baseline.cli.log"), out, 0o644)
+			summarizeFailedControls(reportPath)
+		}
 		Expect(err).ToNot(HaveOccurred(),
-			"ssh-baseline profile reported failures; see %s for the JSON report", reportPath)
+			"ssh-baseline profile reported failures; failed controls are printed above; %s and %s are attached as artifacts",
+			reportPath, filepath.Join(reportDir, "ssh-baseline.cli.log"))
 	})
 })
 
@@ -299,8 +308,75 @@ func dumpGuestState(vm VM, keyPath string) {
 	dump("authorized_keys content", "cat /home/kairos/.ssh/authorized_keys 2>&1")
 	dump("sshd drop-ins", "ls -la /etc/ssh/sshd_config.d 2>&1")
 	dump("50-kairos-hardening-authn.conf", "cat /etc/ssh/sshd_config.d/50-kairos-hardening-authn.conf 2>&1")
+	dump("05-kairos-hardening.conf", "cat /etc/ssh/sshd_config.d/05-kairos-hardening.conf 2>&1")
+	dump("every sshd drop-in", "for f in /etc/ssh/sshd_config.d/*.conf; do echo === $f ===; cat $f; done 2>&1")
 	dump("sshd -T (auth relevant)", "sudo sshd -T 2>&1 | grep -Ei 'passwordauth|kbdinteractive|authenticationmethods|pubkeyauth|maxauthtries'")
+	dump("sshd -T (full effective config)", "sudo sshd -T 2>&1")
 	dump("/oem listing", "ls -la /oem 2>&1")
 	dump("/oem/10_ssh_hardening.yaml", "cat /oem/10_ssh_hardening.yaml 2>&1")
 	dump("kairos-agent state", "kairos-agent state 2>&1 | head -30")
+
+	// Persist the full effective sshd config to the artifact bundle
+	// so a triage session does not have to reproduce the boot to see
+	// what the DevSec profile actually read.
+	if effective, err := run("sudo sshd -T 2>&1"); err == nil {
+		_ = os.MkdirAll("logs", 0o755)
+		_ = os.WriteFile(filepath.Join("logs", "sshd-T-effective.txt"), []byte(effective), 0o644)
+	}
+	if dropIns, err := run("for f in /etc/ssh/sshd_config.d/*.conf; do echo === $f ===; cat $f; done 2>&1"); err == nil {
+		_ = os.WriteFile(filepath.Join("logs", "sshd_config.d.txt"), []byte(dropIns), 0o644)
+	}
+}
+
+// summarizeFailedControls parses the cinc-auditor JSON report and
+// prints every failed control's id, title and each failing example's
+// message to GinkgoWriter, so the failure summary in the CI log holds
+// enough context to diagnose without downloading the artifact.
+func summarizeFailedControls(reportPath string) {
+	raw, err := os.ReadFile(reportPath)
+	if err != nil {
+		GinkgoWriter.Printf("summarizeFailedControls: cannot read %s: %v\n", reportPath, err)
+		return
+	}
+	var report struct {
+		Profiles []struct {
+			Name     string `json:"name"`
+			Controls []struct {
+				ID      string `json:"id"`
+				Title   string `json:"title"`
+				Desc    string `json:"desc"`
+				Results []struct {
+					Status      string `json:"status"`
+					CodeDesc    string `json:"code_desc"`
+					Message     string `json:"message"`
+					SkipMessage string `json:"skip_message"`
+				} `json:"results"`
+			} `json:"controls"`
+		} `json:"profiles"`
+	}
+	if err := json.Unmarshal(raw, &report); err != nil {
+		GinkgoWriter.Printf("summarizeFailedControls: cannot parse %s: %v\n", reportPath, err)
+		return
+	}
+	GinkgoWriter.Printf("\n=== ssh-baseline failed controls ===\n")
+	var failed int
+	for _, p := range report.Profiles {
+		for _, ctl := range p.Controls {
+			var failing []string
+			for _, r := range ctl.Results {
+				if r.Status == "failed" {
+					failing = append(failing, fmt.Sprintf("    - %s\n      %s", r.CodeDesc, strings.TrimSpace(r.Message)))
+				}
+			}
+			if len(failing) == 0 {
+				continue
+			}
+			failed++
+			GinkgoWriter.Printf("- %s: %s\n%s\n", ctl.ID, ctl.Title, strings.Join(failing, "\n"))
+		}
+	}
+	if failed == 0 {
+		GinkgoWriter.Printf("(no failed controls parsed; check %s directly)\n", reportPath)
+	}
+	GinkgoWriter.Printf("=== end failed controls (%d) ===\n\n", failed)
 }

@@ -1,6 +1,9 @@
 package stages_test
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -386,11 +389,26 @@ var _ = Describe("GetCISHardeningStage", func() {
 			})
 
 			It("guards the chmod so a missing backup does not fail the build", func() {
+				accountDBs := map[string]struct{}{}
+				for _, p := range []string{
+					"/etc/passwd", "/etc/group", "/etc/shadow", "/etc/gshadow",
+					"/etc/passwd-", "/etc/group-", "/etc/shadow-", "/etc/gshadow-",
+				} {
+					accountDBs[p] = struct{}{}
+				}
 				for _, st := range result {
 					for _, cmd := range st.Commands {
-						if strings.HasPrefix(cmd, "chmod ") {
-							Expect(st.If).To(HavePrefix("test -f /etc/"))
+						if !strings.HasPrefix(cmd, "chmod ") {
+							continue
 						}
+						fields := strings.Fields(cmd)
+						if len(fields) != 3 {
+							continue
+						}
+						if _, ok := accountDBs[fields[2]]; !ok {
+							continue
+						}
+						Expect(st.If).To(HavePrefix("test -f /etc/"))
 					}
 				}
 			})
@@ -404,6 +422,282 @@ var _ = Describe("GetCISHardeningStage", func() {
 						Expect(f.Path).ToNot(HavePrefix("/etc/group"))
 						Expect(f.Path).ToNot(HavePrefix("/etc/shadow"))
 						Expect(f.Path).ToNot(HavePrefix("/etc/gshadow"))
+					}
+				}
+			})
+		})
+
+		Describe("the pwquality password policy", func() {
+			var pwq schema.File
+
+			BeforeEach(func() {
+				pwq = fileByPath(result, "/etc/security/pwquality.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(pwq.Path).To(Equal(bundled.CISPwqualityPath))
+				Expect(pwq.Permissions).To(Equal(uint32(0o644)))
+				Expect(pwq.Owner).To(BeZero())
+				Expect(pwq.Group).To(BeZero())
+			})
+
+			It("enforces the CIS 5.4.1 minimum length and character classes", func() {
+				for _, kv := range []string{
+					"minlen = 14",
+					"dcredit = -1",
+					"ucredit = -1",
+					"ocredit = -1",
+					"lcredit = -1",
+				} {
+					Expect(pwq.Content).To(ContainSubstring(kv))
+				}
+			})
+		})
+
+		Describe("the faillock lockout policy", func() {
+			var fl schema.File
+
+			BeforeEach(func() {
+				fl = fileByPath(result, "/etc/security/faillock.conf")
+			})
+
+			It("is a 0644 root-owned file", func() {
+				Expect(fl.Path).To(Equal(bundled.CISFaillockPath))
+				Expect(fl.Permissions).To(Equal(uint32(0o644)))
+				Expect(fl.Owner).To(BeZero())
+				Expect(fl.Group).To(BeZero())
+			})
+
+			It("locks accounts after five failures with a 900s window", func() {
+				for _, kv := range []string{
+					"deny = 5",
+					"unlock_time = 900",
+					"fail_interval = 900",
+					"even_deny_root",
+				} {
+					Expect(fl.Content).To(ContainSubstring(kv))
+				}
+			})
+		})
+
+		Describe("the login.defs aging and umask defaults", func() {
+			var stage schema.Stage
+
+			BeforeEach(func() {
+				for _, st := range result {
+					if st.If == "test -f /etc/login.defs" {
+						stage = st
+					}
+				}
+				Expect(stage.Commands).ToNot(BeEmpty(), "expected a login.defs stage")
+			})
+
+			It("pins every key CIS 5.4.1 and 5.4.5 require", func() {
+				joined := strings.Join(stage.Commands, "\n")
+				for _, kv := range []string{
+					"PASS_MAX_DAYS", "365",
+					"PASS_MIN_DAYS", "1",
+					"PASS_WARN_AGE", "7",
+					"UMASK", "027",
+					"ENCRYPT_METHOD", "SHA512",
+				} {
+					Expect(joined).To(ContainSubstring(kv))
+				}
+			})
+
+			It("rewrites the existing line rather than appending blindly", func() {
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring("sed -i"))
+					Expect(cmd).To(ContainSubstring("printf"))
+				}
+			})
+
+			It("compares the shipped value against the CIS floor and skips when the base is already stricter", func() {
+				// Every command has to read the current value and branch
+				// on whether it is already at least as strict as CIS;
+				// otherwise the stage would loosen a base image's
+				// stricter policy (Hadron ships PASS_MAX_DAYS 60 and
+				// UMASK 077, both tighter than CIS).
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring(`cur=$(awk`),
+						"login.defs command missing current-value read: "+cmd)
+					Expect(cmd).To(SatisfyAny(
+						ContainSubstring(`[ "$cur" -le`),
+						ContainSubstring(`[ "$cur" -ge`),
+						ContainSubstring(`[ -n "$cur" ]`),
+					), "login.defs command missing tighten-only guard: "+cmd)
+				}
+			})
+
+			It("uses printf and not echo so backslash-t stays a real tab", func() {
+				// echo '\t' writes a literal backslash-t under most
+				// /bin/sh implementations; only printf expands it.
+				// The Hadron QA failure was exactly this.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).ToNot(MatchRegexp(`echo '[^']*\\t`),
+						"login.defs command uses echo with a literal \\t which will not expand: "+cmd)
+				}
+			})
+
+			It("guards the trailing newline before appending a new key", func() {
+				// Hadron's stock /etc/login.defs has no trailing
+				// newline. Without a guard, the appended key glues onto
+				// the last line and corrupts it.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring(`tail -c1`),
+						"login.defs command missing trailing-newline guard: "+cmd)
+				}
+			})
+
+			It("only matches live settings so comment prose is left alone", func() {
+				// A pattern like `#?[[:space:]]*KEY` also matches
+				// `# UMASK is the default umask value...`; sed'ing that
+				// turns the prose into a duplicate live setting.
+				for _, cmd := range stage.Commands {
+					Expect(cmd).ToNot(ContainSubstring("#?"),
+						"login.defs detection must not accept commented lines: "+cmd)
+					Expect(cmd).ToNot(MatchRegexp(`\^\[\[:space:\]\]\*#`),
+						"login.defs sed must not match comment lines: "+cmd)
+				}
+			})
+
+			Context("when the shell runs the generated commands", func() {
+				// The unit-level tests above prove the command shape;
+				// this one runs it against tempfiles that reproduce
+				// each base image's shipped /etc/login.defs to catch
+				// regressions that only show up under sh.
+				var tmpdir string
+
+				BeforeEach(func() {
+					var err error
+					tmpdir, err = os.MkdirTemp("", "login-defs-*")
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					_ = os.RemoveAll(tmpdir)
+				})
+
+				runAgainst := func(initial string) string {
+					path := filepath.Join(tmpdir, "login.defs")
+					Expect(os.WriteFile(path, []byte(initial), 0o644)).To(Succeed())
+					for _, cmd := range stage.Commands {
+						// The stage writes /etc/login.defs; the test
+						// runs the same command against the tempfile.
+						scoped := strings.ReplaceAll(cmd, "/etc/login.defs", path)
+						out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+						Expect(err).ToNot(HaveOccurred(), "sh -c failed: %s\n%s", scoped, out)
+					}
+					got, err := os.ReadFile(path)
+					Expect(err).ToNot(HaveOccurred())
+					return string(got)
+				}
+
+				It("appends ENCRYPT_METHOD as a real tabbed line to a Hadron file with no trailing newline", func() {
+					initial := "USERGROUPS_ENAB yes\nPREVENT_NO_AUTH superuser"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("\nPREVENT_NO_AUTH superuser\n"),
+						"missing-newline base image had its last line corrupted: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^ENCRYPT_METHOD\tSHA512$`),
+						"ENCRYPT_METHOD not appended as a live tab-separated line: %q", got)
+					Expect(got).ToNot(ContainSubstring(`\t`),
+						"literal backslash-t leaked into the file: %q", got)
+				})
+
+				It("keeps a base image's stricter value on Hadron-shape inputs and only tightens weaker keys", func() {
+					// Hadron ships UMASK 077 (stricter than 027),
+					// PASS_MAX_DAYS 60 (stricter than 365) and
+					// PASS_MIN_DAYS 0 (weaker than 1). The stage must
+					// leave the two stricter keys alone and only raise
+					// PASS_MIN_DAYS.
+					initial := "UMASK 077\nPASS_MAX_DAYS 60\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\nENCRYPT_METHOD SHA512\n"
+					got := runAgainst(initial)
+					Expect(got).To(MatchRegexp(`(?m)^UMASK 077$`),
+						"UMASK 077 was loosened: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MAX_DAYS 60$`),
+						"PASS_MAX_DAYS 60 was loosened: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MIN_DAYS\t1$`),
+						"PASS_MIN_DAYS 0 was not tightened to 1: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_WARN_AGE 7$`),
+						"PASS_WARN_AGE 7 was churned unnecessarily: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^ENCRYPT_METHOD SHA512$`),
+						"ENCRYPT_METHOD SHA512 was churned unnecessarily: %q", got)
+					Expect(strings.Count(got, "UMASK")).To(Equal(1))
+					Expect(strings.Count(got, "PASS_MAX_DAYS")).To(Equal(1))
+				})
+
+				It("tightens weaker values on Ubuntu-shape inputs", func() {
+					// Ubuntu ships PASS_MAX_DAYS 99999 (weaker than CIS
+					// 365), UMASK 022 (weaker than 027), PASS_MIN_DAYS 0
+					// (weaker than 1). All three must be raised.
+					initial := "PASS_MAX_DAYS 99999\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\nUMASK 022\n"
+					got := runAgainst(initial)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MAX_DAYS\t365$`))
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MIN_DAYS\t1$`))
+					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`))
+				})
+
+				It("leaves commented documentation intact and does not create duplicates from prose", func() {
+					initial := "# UMASK is the default umask value...\n# PASS_MAX_DAYS Maximum number of days...\nUSERGROUPS_ENAB yes\n"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("# UMASK is the default umask value..."),
+						"comment prose was rewritten: %q", got)
+					Expect(got).To(ContainSubstring("# PASS_MAX_DAYS Maximum number of days..."),
+						"comment prose was rewritten: %q", got)
+					Expect(strings.Count(got, "\nUMASK")).To(Equal(1),
+						"UMASK live line appeared more than once: %q", got)
+					Expect(strings.Count(got, "\nPASS_MAX_DAYS")).To(Equal(1),
+						"PASS_MAX_DAYS live line appeared more than once: %q", got)
+				})
+
+				It("appends when only a commented-out setting is present", func() {
+					initial := "#UMASK 022\n#PASS_MAX_DAYS 99999\n"
+					got := runAgainst(initial)
+					Expect(got).To(ContainSubstring("#UMASK 022"),
+						"commented default was rewritten: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`),
+						"missing appended UMASK when only commented default present: %q", got)
+				})
+			})
+		})
+
+		Describe("the cron and at directory permissions", func() {
+			It("tightens every path CIS 5.1 names", func() {
+				for _, path := range []string{
+					"/etc/crontab",
+					"/etc/cron.hourly", "/etc/cron.daily",
+					"/etc/cron.weekly", "/etc/cron.monthly",
+					"/etc/cron.d",
+					"/etc/cron.allow", "/etc/cron.deny",
+					"/etc/at.allow", "/etc/at.deny",
+				} {
+					var found bool
+					for _, st := range result {
+						if st.If != "test -e "+path {
+							continue
+						}
+						found = true
+						Expect(st.Commands).To(ContainElement(MatchRegexp(`^chown root:root ` + regexp.QuoteMeta(path) + `$`)))
+						Expect(st.Commands).To(ContainElement(MatchRegexp(`^chmod 0[67][04]0 ` + regexp.QuoteMeta(path) + `$`)))
+					}
+					Expect(found).To(BeTrue(), "expected a stage for "+path)
+				}
+			})
+
+			It("guards every cron chmod on the path existing so a missing subsystem does not fail the build", func() {
+				for _, st := range result {
+					for _, cmd := range st.Commands {
+						if !strings.HasPrefix(cmd, "chmod 0") {
+							continue
+						}
+						fields := strings.Fields(cmd)
+						if len(fields) != 3 {
+							continue
+						}
+						if !strings.HasPrefix(fields[2], "/etc/cron") && !strings.HasPrefix(fields[2], "/etc/at.") && fields[2] != "/etc/crontab" {
+							continue
+						}
+						Expect(st.If).To(HavePrefix("test -e "))
 					}
 				}
 			})
