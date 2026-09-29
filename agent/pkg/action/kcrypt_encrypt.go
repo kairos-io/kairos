@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -42,6 +41,7 @@ var (
 	kcryptMountpointsFn = mountpointsForLabel
 	kcryptConfirmFn     = askForConfirmation
 	procCmdlinePath     = "/proc/cmdline"
+	procMountsPath      = "/proc/mounts"
 )
 
 const kcryptEncryptSettleTimeout = 15 * time.Second
@@ -209,35 +209,59 @@ func oemLabelFromCmdline() string {
 }
 
 // mountpointsForLabel returns the mountpoints of the device carrying the
-// given filesystem label, empty when it is not mounted. The device comes
-// from the sdk lookup rather than /dev/disk/by-label, staying off the udev
-// last-writer-wins ambiguity (kairos-io/kairos#4403), and findmnt is exec'd
-// directly rather than through a shell: labels arrive from the command
-// line, often via scripts, and the sdk's blkid helper documents why
-// interpolating them into `sh -c` is not acceptable.
+// given filesystem label, empty only when it is positively not mounted.
+//
+// The answer gates a destructive write, and the encryptor underneath will
+// silently unmount a mounted device before formatting it, so this check
+// fails closed: a device that cannot be resolved, or a mount table that
+// cannot be read, is an error, never "not mounted". The device comes from
+// the sdk lookup (with the blkid fallback for pre kairos-sdk#822 installs)
+// rather than /dev/disk/by-label, and the mount table is read directly
+// rather than through findmnt, whose nonzero exit cannot tell "no match"
+// from "could not look".
 func mountpointsForLabel(label string) ([]string, error) {
 	part, err := lookup.FindByLabel(label)
 	if err != nil {
-		// The caller already classified the label as an existing plaintext
-		// partition; a miss here means it has no by-label view (pre
-		// kairos-sdk#822), which also means nothing mounted it by label.
-		return nil, nil
+		return nil, fmt.Errorf("cannot resolve the device for %s to check whether it is mounted: %w", label, err)
 	}
 	device := part.Path
-	if device == "" {
+	if device == "" && part.Name != "" {
 		device = filepath.Join("/dev", part.Name)
 	}
-
-	// findmnt exits nonzero when the device is simply not mounted, which is
-	// the common case and not an error.
-	out, err := exec.Command("findmnt", "-n", "-o", "TARGET", "-S", device).Output()
-	if err != nil {
-		return nil, nil
+	if device == "" {
+		return nil, fmt.Errorf("cannot resolve the device for %s to check whether it is mounted", label)
 	}
+	return mountpointsForDevice(procMountsPath, device)
+}
+
+// mountpointsForDevice lists the mountpoints in the given mount table whose
+// source is device. Sources that are symlinks (a /dev/disk/by-* path) are
+// resolved before comparing, so a mount made through a by-label link is
+// still seen. An unreadable table is an error.
+func mountpointsForDevice(mountsPath, device string) ([]string, error) {
+	want := device
+	if resolved, err := filepath.EvalSymlinks(device); err == nil {
+		want = resolved
+	}
+
+	data, err := os.ReadFile(mountsPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading the mount table %s: %w", mountsPath, err)
+	}
+
 	var mountpoints []string
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			mountpoints = append(mountpoints, line)
+	for _, line := range strings.Split(string(data), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		source := fields[0]
+		if resolved, err := filepath.EvalSymlinks(source); err == nil {
+			source = resolved
+		}
+		if source == want || fields[0] == device {
+			// /proc/mounts escapes spaces in mountpoints as \040.
+			mountpoints = append(mountpoints, strings.ReplaceAll(fields[1], `\040`, " "))
 		}
 	}
 	return mountpoints, nil

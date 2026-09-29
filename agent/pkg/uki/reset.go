@@ -68,6 +68,17 @@ func (r *ResetAction) Run() (err error) {
 				return err
 			}
 
+			// Same as the non-UKI reset: when the configuration lists
+			// persistent as encrypted (explicitly, or through the UKI
+			// default), the format above must not leave it plaintext.
+			// Encrypt before restoring the audit trail, since encrypting
+			// LUKS-formats the partition and would destroy it. Fail closed.
+			err = action.ResetEncryptFn(r.cfg, persistent)
+			if err != nil {
+				r.cfg.Logger.Errorf("re-encrypting persistent partition: %s", err.Error())
+				return err
+			}
+
 			if rErr := action.RestoreAuditLog(r.cfg, persistent, stash); rErr != nil {
 				r.cfg.Logger.Warnf("could not restore %s after the reset: %s", constants.AuditLogPath, rErr)
 			}
@@ -87,6 +98,15 @@ func (r *ResetAction) Run() (err error) {
 				r.cfg.Logger.Errorf("formatting OEM partition: %s", err.Error())
 				return err
 			}
+
+			// Same as persistent: re-encrypt OEM before remounting it when
+			// the configuration lists it, which on UKI is the default.
+			err = action.ResetEncryptFn(r.cfg, oem)
+			if err != nil {
+				r.cfg.Logger.Errorf("re-encrypting OEM partition: %s", err.Error())
+				return err
+			}
+
 			// Mount it back, as oem is mounted during recovery, keep everything as is
 			err = e.MountPartition(oem)
 			if err != nil {

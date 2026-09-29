@@ -118,7 +118,7 @@ func (r ResetAction) Run() (err error) {
 			// partition, so anything written earlier is destroyed. After
 			// it the spec points at the unlocked mapper, which is where
 			// the restore lands.
-			err = r.encryptFormattedPartition(persistent)
+			err = ResetEncryptFn(r.cfg, persistent)
 			if err != nil {
 				return err
 			}
@@ -149,7 +149,7 @@ func (r ResetAction) Run() (err error) {
 			// now. On a node encrypted at install the format hit the
 			// unlocked mapper, the container survived, and this is a
 			// no-op.
-			err = r.encryptFormattedPartition(oem)
+			err = ResetEncryptFn(r.cfg, oem)
 			if err != nil {
 				return err
 			}

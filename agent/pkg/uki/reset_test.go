@@ -21,6 +21,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/kairos-io/kairos/v4/agent/pkg/action"
 	agentConfig "github.com/kairos-io/kairos/v4/agent/pkg/config"
 	"github.com/kairos-io/kairos/v4/agent/pkg/constants"
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
@@ -168,6 +169,49 @@ var _ = Describe("Uki reset action", func() {
 		err := reset.Run()
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("mount"))
+	})
+
+	// UKI nodes are dispatched to this reset implementation, not to
+	// agent/pkg/action.ResetAction, so the re-encryption wiring has to be
+	// checked here through Run, not only through the shared helper.
+	Describe("re-encryption after the format", func() {
+		var encrypted []string
+		var encryptErr error
+		BeforeEach(func() {
+			encrypted, encryptErr = nil, nil
+			orig := action.ResetEncryptFn
+			DeferCleanup(func() { action.ResetEncryptFn = orig })
+			action.ResetEncryptFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition) error {
+				encrypted = append(encrypted, part.FilesystemLabel)
+				return encryptErr
+			}
+		})
+
+		It("runs for every formatted partition, before OEM is mounted back", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			// Run fails later at boot entry selection in this harness; the
+			// format branches, which run first, are what is under test.
+			_ = reset.Run()
+			Expect(encrypted).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+		})
+
+		It("fails the reset when re-encrypting persistent fails", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			encryptErr = errors.New("no TPM device")
+			Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+			Expect(encrypted).To(Equal([]string{constants.PersistentLabel}),
+				"the reset must stop at the first failed re-encryption, before the OEM branch")
+		})
+
+		It("fails the reset when re-encrypting OEM fails", func() {
+			spec.FormatPersistent = false
+			spec.FormatOEM = true
+			encryptErr = errors.New("no TPM device")
+			Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+			Expect(encrypted).To(Equal([]string{constants.OEMLabel}))
+		})
 	})
 
 	It("fails when formatting the persistent partition fails", func() {

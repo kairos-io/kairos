@@ -18,15 +18,24 @@ var (
 	resetMountSourceFn = lookup.MountSourceForLabel
 )
 
-// encryptFormattedPartition restores encryption on a partition right after
+// ResetEncryptFn is what both reset implementations call right after they
+// format a partition. It is a variable so the reset specs, here and in
+// agent/pkg/uki, can check through ResetAction.Run that every format branch
+// is wired to it: UKI nodes are dispatched to a separate reset
+// implementation, and specs that only call the helper directly cannot see
+// a branch that never calls it.
+var ResetEncryptFn = EncryptFormattedPartition
+
+// EncryptFormattedPartition restores encryption on a partition right after
 // a reset reformatted it. A reset format produces a plaintext filesystem,
 // so a node whose configuration lists the partition in
 // install.encrypted_partitions would come back from reset unencrypted,
 // with nothing but a QA eye to notice. This is the reset half of
 // kairos-io/kairos#4556: reset ends in the same state install ends in.
 //
-// It is called only from the two format branches of the reset
-// (FormatPersistent and FormatOEM), which are the points where the
+// It is called only from the format branches of both reset
+// implementations (FormatPersistent and FormatOEM in ResetAction here and
+// in agent/pkg/uki, which UKI nodes are dispatched to), which are the points where the
 // partition is empty by construction, so encrypting it cannot destroy
 // data. OEM needs no backup dance here for the same reason: unlike at
 // install time, the reset format has already emptied it on purpose.
@@ -46,14 +55,14 @@ var (
 // After encrypting it unlocks the partition and repoints the spec at the
 // mapper device, because the rest of the reset (the OEM remount, state
 // record, log copy) still mounts the partition through the spec's path.
-func (r *ResetAction) encryptFormattedPartition(part *partitions.Partition) error {
+func EncryptFormattedPartition(cfg *sdkConfig.Config, part *partitions.Partition) error {
 	if part == nil || part.FilesystemLabel == "" {
 		return nil
 	}
 	label := part.FilesystemLabel
 
-	if !resetWantsEncrypted(r.cfg, label) {
-		r.cfg.Logger.Debugf("partition %s is not configured for encryption; leaving it plaintext after the format", label)
+	if !resetWantsEncrypted(cfg, label) {
+		cfg.Logger.Debugf("partition %s is not configured for encryption; leaving it plaintext after the format", label)
 		return nil
 	}
 
@@ -61,35 +70,35 @@ func (r *ResetAction) encryptFormattedPartition(part *partitions.Partition) erro
 	// same settle-scan-classify sequence as the encrypt subcommand: never a
 	// stale udev view, and an unanswerable question fails the reset instead
 	// of being guessed at.
-	pending, err := stillPlaintextLabels(r.cfg, []string{label})
+	pending, err := stillPlaintextLabels(cfg, []string{label})
 	if err != nil {
 		return fmt.Errorf("reset encryption: classifying %s after the format: %w", label, err)
 	}
 	if len(pending) == 0 {
-		r.cfg.Logger.Infof("partition %s is still a LUKS container after the format; nothing to re-encrypt", label)
+		cfg.Logger.Infof("partition %s is still a LUKS container after the format; nothing to re-encrypt", label)
 		return nil
 	}
 
-	r.cfg.Logger.Logger.Info().Str("partition", label).
+	cfg.Logger.Logger.Info().Str("partition", label).
 		Msg("configuration lists the partition as encrypted; encrypting it again after the reset format")
-	if err := kcryptEncryptFn(r.cfg, []string{label}); err != nil {
+	if err := kcryptEncryptFn(cfg, []string{label}); err != nil {
 		return fmt.Errorf("reset encryption: encrypting %s: %w", label, err)
 	}
 
 	// The rest of the reset still needs the partition: unlock it and point
 	// the spec at the mapper, which is the only unambiguous device now that
 	// the label also exists inside a LUKS container.
-	if err := kcryptUnlockFn(r.cfg, []string{label}); err != nil {
+	if err := kcryptUnlockFn(cfg, []string{label}); err != nil {
 		return fmt.Errorf("reset encryption: unlocking %s after encrypting it: %w", label, err)
 	}
-	if err := kcryptUdevSettleFn(r.cfg); err != nil {
+	if err := kcryptUdevSettleFn(cfg); err != nil {
 		return fmt.Errorf("reset encryption: waiting for udev after the unlock: %w", err)
 	}
 	source, err := resetMountSourceFn(label)
 	if err != nil {
 		return fmt.Errorf("reset encryption: resolving the mapper for %s: %w", label, err)
 	}
-	r.cfg.Logger.Logger.Info().Str("partition", label).Str("device", source).
+	cfg.Logger.Logger.Info().Str("partition", label).Str("device", source).
 		Msg("partition encrypted and unlocked; the reset continues against the mapper")
 	part.Path = source
 	return nil

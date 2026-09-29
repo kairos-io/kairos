@@ -243,6 +243,42 @@ var _ = Describe("Reset action tests", func() {
 				cloudInit.Error = true
 				Expect(reset.Run()).NotTo(BeNil())
 			})
+			Describe("re-encryption after the format", func() {
+				var encrypted []string
+				var encryptErr error
+				BeforeEach(func() {
+					encrypted, encryptErr = nil, nil
+					orig := action.ResetEncryptFn
+					DeferCleanup(func() { action.ResetEncryptFn = orig })
+					action.ResetEncryptFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition) error {
+						encrypted = append(encrypted, part.FilesystemLabel)
+						return encryptErr
+					}
+				})
+
+				It("runs for every formatted partition", func() {
+					spec.FormatPersistent = true
+					spec.FormatOEM = true
+					Expect(reset.Run()).To(BeNil())
+					Expect(encrypted).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+				})
+
+				It("does not run for partitions the reset does not format", func() {
+					spec.FormatPersistent = false
+					spec.FormatOEM = false
+					Expect(reset.Run()).To(BeNil())
+					Expect(encrypted).To(BeEmpty())
+				})
+
+				It("fails the reset when re-encrypting persistent fails", func() {
+					spec.FormatPersistent = true
+					spec.FormatOEM = true
+					encryptErr = errors.New("no TPM device")
+					Expect(reset.Run()).To(MatchError(ContainSubstring("no TPM device")))
+					Expect(encrypted).To(Equal([]string{constants.PersistentLabel}),
+						"the reset must stop at the first failed re-encryption")
+				})
+			})
 			It("Fails formatting the persistent partition", func() {
 				spec.FormatPersistent = true
 				cmdFail = "mkfs.ext4"

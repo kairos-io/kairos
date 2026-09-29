@@ -149,6 +149,16 @@ var _ = Describe("kcrypt encrypt", func() {
 			Expect(stub.encrypted).To(BeEmpty())
 		})
 
+		It("refuses when whether the partition is mounted cannot be determined", func() {
+			stub := stubAll()
+			kcryptMountpointsFn = func(string) ([]string, error) {
+				return nil, errors.New("cannot resolve the device")
+			}
+			err := KcryptEncrypt(newConfig(), []string{sdkConstants.PersistentLabel}, true)
+			Expect(err).To(MatchError(ContainSubstring("checking whether COS_PERSISTENT is mounted")))
+			Expect(stub.encrypted).To(BeEmpty())
+		})
+
 		It("does nothing when the prompt is declined", func() {
 			stub := stubAll()
 			stub.confirmAns = false
@@ -226,7 +236,7 @@ var _ = Describe("kcrypt encrypt", func() {
 		It("is a no-op when nothing is configured for encryption", func() {
 			stub := stubAll()
 			r, persistent := newReset(newConfig())
-			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
+			Expect(EncryptFormattedPartition(r.cfg, persistent)).To(Succeed())
 			Expect(stub.encrypted).To(BeEmpty())
 			Expect(persistent.Path).To(Equal("/dev/vda5"))
 		})
@@ -234,7 +244,7 @@ var _ = Describe("kcrypt encrypt", func() {
 		It("is a no-op on a nil partition", func() {
 			stub := stubAll()
 			r, _ := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			Expect(r.encryptFormattedPartition(nil)).To(Succeed())
+			Expect(EncryptFormattedPartition(r.cfg, nil)).To(Succeed())
 			Expect(stub.encrypted).To(BeEmpty())
 		})
 
@@ -242,14 +252,14 @@ var _ = Describe("kcrypt encrypt", func() {
 			stub := stubAll()
 			stub.disksNow = luksPersistent
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
+			Expect(EncryptFormattedPartition(r.cfg, persistent)).To(Succeed())
 			Expect(stub.encrypted).To(BeEmpty())
 		})
 
 		It("encrypts, unlocks and repoints the spec at the mapper", func() {
 			stub := stubAll()
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
+			Expect(EncryptFormattedPartition(r.cfg, persistent)).To(Succeed())
 			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.PersistentLabel}}))
 			Expect(stub.unlocked).To(Equal([][]string{{sdkConstants.PersistentLabel}}))
 			Expect(persistent.Path).To(Equal("/dev/mapper/vda5"))
@@ -259,7 +269,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			stubAll()
 			kcryptEncryptFn = func(*config.Config, []string) error { return errors.New("no TPM device") }
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			err := r.encryptFormattedPartition(persistent)
+			err := EncryptFormattedPartition(r.cfg, persistent)
 			Expect(err).To(MatchError(ContainSubstring("no TPM device")))
 			Expect(persistent.Path).To(Equal("/dev/vda5"))
 		})
@@ -268,7 +278,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			stubAll()
 			kcryptUnlockFn = func(*config.Config, []string) error { return errors.New("unlock failed") }
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			err := r.encryptFormattedPartition(persistent)
+			err := EncryptFormattedPartition(r.cfg, persistent)
 			Expect(err).To(MatchError(ContainSubstring("unlock failed")))
 		})
 
@@ -276,7 +286,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			stub := stubAll()
 			stub.disksNow = func() []*partitions.Disk { return disksWith() }
 			r, persistent := newReset(configWithEncrypt(sdkConstants.PersistentLabel))
-			err := r.encryptFormattedPartition(persistent)
+			err := EncryptFormattedPartition(r.cfg, persistent)
 			Expect(err).To(MatchError(ContainSubstring("was not found")))
 			Expect(stub.encrypted).To(BeEmpty())
 		})
@@ -285,7 +295,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			stub := stubAll()
 			resetIsUkiFn = func() bool { return true }
 			r, persistent := newReset(newConfig())
-			Expect(r.encryptFormattedPartition(persistent)).To(Succeed())
+			Expect(EncryptFormattedPartition(r.cfg, persistent)).To(Succeed())
 			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.PersistentLabel}}))
 		})
 
@@ -299,7 +309,7 @@ var _ = Describe("kcrypt encrypt", func() {
 			}
 			r, _ := newReset(configWithEncrypt(sdkConstants.OEMLabel))
 			oem := &partitions.Partition{Name: "vda2", Path: "/dev/vda2", FilesystemLabel: sdkConstants.OEMLabel}
-			Expect(r.encryptFormattedPartition(oem)).To(Succeed())
+			Expect(EncryptFormattedPartition(r.cfg, oem)).To(Succeed())
 			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.OEMLabel}}))
 			Expect(stub.unlocked).To(Equal([][]string{{sdkConstants.OEMLabel}}))
 			Expect(oem.Path).To(Equal("/dev/mapper/vda5"), "the spec must point at the mapper the stub resolved")
@@ -316,8 +326,38 @@ var _ = Describe("kcrypt encrypt", func() {
 			}
 			r, _ := newReset(newConfig())
 			oem := &partitions.Partition{Name: "vda2", Path: "/dev/vda2", FilesystemLabel: sdkConstants.OEMLabel}
-			Expect(r.encryptFormattedPartition(oem)).To(Succeed())
+			Expect(EncryptFormattedPartition(r.cfg, oem)).To(Succeed())
 			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.OEMLabel}}))
 		})
+	})
+})
+
+var _ = Describe("mountpointsForDevice", func() {
+	writeTable := func(content string) string {
+		p := filepath.Join(GinkgoT().TempDir(), "mounts")
+		Expect(os.WriteFile(p, []byte(content), 0o600)).To(Succeed())
+		return p
+	}
+
+	It("lists every mountpoint of the device, bind mounts included", func() {
+		table := writeTable("/dev/vda5 /usr/local ext4 rw 0 0\n" +
+			"/dev/vda5 /var/log ext4 rw 0 0\n" +
+			"/dev/vda2 /oem ext4 rw 0 0\n")
+		Expect(mountpointsForDevice(table, "/dev/vda5")).To(Equal([]string{"/usr/local", "/var/log"}))
+	})
+
+	It("reports an unmounted device as having no mountpoints", func() {
+		table := writeTable("/dev/vda2 /oem ext4 rw 0 0\n")
+		Expect(mountpointsForDevice(table, "/dev/vda5")).To(BeEmpty())
+	})
+
+	It("unescapes spaces in mountpoints", func() {
+		table := writeTable(`/dev/vda5 /mnt/my\040data ext4 rw 0 0` + "\n")
+		Expect(mountpointsForDevice(table, "/dev/vda5")).To(Equal([]string{"/mnt/my data"}))
+	})
+
+	It("fails closed when the mount table cannot be read", func() {
+		_, err := mountpointsForDevice(filepath.Join(GinkgoT().TempDir(), "missing"), "/dev/vda5")
+		Expect(err).To(MatchError(ContainSubstring("reading the mount table")))
 	})
 })
