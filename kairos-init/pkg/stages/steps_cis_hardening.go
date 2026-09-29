@@ -191,27 +191,44 @@ func GetCISHardeningStage(sis values.System, l logger.KairosLogger) []schema.Sta
 		},
 	)
 
-	// login.defs: rewrite the line when the key is already set live,
-	// else append. The detection deliberately does not match commented
+	// login.defs: per-key "only tighten" logic. The stage never loosens a
+	// base image's stricter value (Hadron ships PASS_MAX_DAYS 60 and
+	// UMASK 077, both tighter than CIS; overwriting with CIS's 365 and
+	// 027 would weaken the shipped policy and break Hadron's own
+	// acceptance suite). Detection deliberately does not match commented
 	// documentation (`# UMASK is the default...`) or commented defaults
-	// (`#UMASK 022`): sed'ing those would turn prose into a duplicate
-	// live setting or lose the comment. Missing-key path uses printf
-	// (echo does not expand `\t` under sh) and guards the trailing
-	// newline (Hadron's stock /etc/login.defs has none, so a naked
-	// append glues the new key onto the last line).
+	// (`#UMASK 022`); missing-key path uses printf (echo does not expand
+	// `\t` under sh) and guards the trailing newline (Hadron's stock
+	// /etc/login.defs has none, so a naked append glues the new key onto
+	// the last line).
 	loginDefsCommands := []string{}
 	for _, s := range bundled.CISLoginDefsSettings {
-		loginDefsCommands = append(loginDefsCommands,
-			fmt.Sprintf(
-				"if grep -Eq '^[[:space:]]*%s[[:space:]]' /etc/login.defs; then "+
-					"sed -i -E 's|^([[:space:]]*)%s[[:space:]]+.*$|\\1%s\\t%s|' /etc/login.defs; "+
-					"else "+
-					"[ -n \"$(tail -c1 /etc/login.defs)\" ] && printf '\\n' >> /etc/login.defs; "+
-					"printf '%s\\t%s\\n' >> /etc/login.defs; "+
-					"fi",
-				s.Key, s.Key, s.Key, s.Value, s.Key, s.Value,
-			),
-		)
+		var keepIf string
+		switch s.Direction {
+		case bundled.CISLoginDefsLowerStricter:
+			// Keep the shipped value when it is already <= the CIS floor.
+			keepIf = fmt.Sprintf("[ \"$cur\" -le %s ]", s.Value)
+		case bundled.CISLoginDefsHigherStricter:
+			// UMASK is written as `077` and treated as a decimal integer
+			// by shell arithmetic (`[ 077 -gt 027 ]` compares 77 vs 27),
+			// which happens to give the right ordering for umask masks
+			// too: more bits masked means a higher three-digit decimal.
+			keepIf = fmt.Sprintf("[ \"$cur\" -ge %s ]", s.Value)
+		case bundled.CISLoginDefsSetIfUnset:
+			// Any shipped value is kept; only fill in when unset.
+			keepIf = "[ -n \"$cur\" ]"
+		}
+		loginDefsCommands = append(loginDefsCommands, fmt.Sprintf(
+			"cur=$(awk '/^[[:space:]]*%s[[:space:]]/{print $2; exit}' /etc/login.defs); "+
+				"if %s; then :; "+
+				"elif [ -n \"$cur\" ]; then "+
+				"sed -i -E 's|^([[:space:]]*)%s[[:space:]]+.*$|\\1%s\\t%s|' /etc/login.defs; "+
+				"else "+
+				"[ -n \"$(tail -c1 /etc/login.defs)\" ] && printf '\\n' >> /etc/login.defs; "+
+				"printf '%s\\t%s\\n' >> /etc/login.defs; "+
+				"fi",
+			s.Key, keepIf, s.Key, s.Key, s.Value, s.Key, s.Value,
+		))
 	}
 	stages = append(stages, schema.Stage{
 		Name:     "Set CIS password aging and umask defaults in /etc/login.defs",

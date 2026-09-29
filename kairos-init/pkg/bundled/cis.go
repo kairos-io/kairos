@@ -248,25 +248,51 @@ fail_interval = 900
 even_deny_root
 `
 
+// CISLoginDefsDirection tells the stage code how to compare the base
+// image's shipped value against the CIS floor: which direction "stricter"
+// is for that key.
+type CISLoginDefsDirection string
+
+const (
+	// CISLoginDefsLowerStricter marks keys where a numerically lower value
+	// is more restrictive (e.g. PASS_MAX_DAYS: 60 is stricter than 365).
+	// The stage keeps the shipped value if it is already <= the CIS value.
+	CISLoginDefsLowerStricter CISLoginDefsDirection = "lower-stricter"
+	// CISLoginDefsHigherStricter marks keys where a numerically higher
+	// value is more restrictive (PASS_MIN_DAYS, PASS_WARN_AGE, and UMASK
+	// interpreted as octal digits: 077 masks more bits than 027 so it is
+	// stricter). The stage keeps the shipped value if it is already >= the
+	// CIS value.
+	CISLoginDefsHigherStricter CISLoginDefsDirection = "higher-stricter"
+	// CISLoginDefsSetIfUnset marks keys where the shipped value is opaque
+	// (ENCRYPT_METHOD SHA512 vs YESCRYPT are both CIS-compliant), so the
+	// stage only writes the CIS value when the base ships no value at all.
+	CISLoginDefsSetIfUnset CISLoginDefsDirection = "set-if-unset"
+)
+
 // CISLoginDefsSetting is one key kairos-init pins in /etc/login.defs to
 // satisfy the CIS L1 password-aging and umask controls. Applied with sed
-// so the base distro's surrounding comments and unrelated defaults stay.
+// so the base distro's surrounding comments and unrelated defaults stay,
+// and only tightened where the shipped value is weaker than CIS L1.
 type CISLoginDefsSetting struct {
-	Key   string
-	Value string
+	Key       string
+	Value     string
+	Direction CISLoginDefsDirection
 }
 
 // CISLoginDefsSettings covers CIS Distribution Independent Linux v2.0.0 L1
 // sections 5.4.1.1-5.4.1.5 (password aging) and 5.4.5 (default user umask).
-// Only newly created accounts pick these up, so tightening them cannot lock
-// out an existing operator. UMASK 027 matches the benchmark; a stricter 077
-// breaks group-shared directories on the base images.
+// Each entry names the CIS floor and the direction "stricter" runs in for
+// that key, so a base whose shipped value already meets or exceeds the
+// benchmark keeps its own value rather than getting loosened to the floor.
+// Only newly created accounts pick these up, so tightening cannot lock out
+// an existing operator.
 var CISLoginDefsSettings = []CISLoginDefsSetting{
-	{Key: "PASS_MAX_DAYS", Value: "365"},
-	{Key: "PASS_MIN_DAYS", Value: "1"},
-	{Key: "PASS_WARN_AGE", Value: "7"},
-	{Key: "UMASK", Value: "027"},
-	{Key: "ENCRYPT_METHOD", Value: "SHA512"},
+	{Key: "PASS_MAX_DAYS", Value: "365", Direction: CISLoginDefsLowerStricter},
+	{Key: "PASS_MIN_DAYS", Value: "1", Direction: CISLoginDefsHigherStricter},
+	{Key: "PASS_WARN_AGE", Value: "7", Direction: CISLoginDefsHigherStricter},
+	{Key: "UMASK", Value: "027", Direction: CISLoginDefsHigherStricter},
+	{Key: "ENCRYPT_METHOD", Value: "SHA512", Direction: CISLoginDefsSetIfUnset},
 }
 
 // CISCronPath is one filesystem entry whose mode CIS L1 section 5.1

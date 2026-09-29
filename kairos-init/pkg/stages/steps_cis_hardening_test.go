@@ -512,6 +512,23 @@ var _ = Describe("GetCISHardeningStage", func() {
 				}
 			})
 
+			It("compares the shipped value against the CIS floor and skips when the base is already stricter", func() {
+				// Every command has to read the current value and branch
+				// on whether it is already at least as strict as CIS;
+				// otherwise the stage would loosen a base image's
+				// stricter policy (Hadron ships PASS_MAX_DAYS 60 and
+				// UMASK 077, both tighter than CIS).
+				for _, cmd := range stage.Commands {
+					Expect(cmd).To(ContainSubstring(`cur=$(awk`),
+						"login.defs command missing current-value read: "+cmd)
+					Expect(cmd).To(SatisfyAny(
+						ContainSubstring(`[ "$cur" -le`),
+						ContainSubstring(`[ "$cur" -ge`),
+						ContainSubstring(`[ -n "$cur" ]`),
+					), "login.defs command missing tighten-only guard: "+cmd)
+				}
+			})
+
 			It("uses printf and not echo so backslash-t stays a real tab", func() {
 				// echo '\t' writes a literal backslash-t under most
 				// /bin/sh implementations; only printf expands it.
@@ -587,12 +604,37 @@ var _ = Describe("GetCISHardeningStage", func() {
 						"literal backslash-t leaked into the file: %q", got)
 				})
 
-				It("rewrites an already-set live key and does not duplicate it", func() {
+				It("keeps a base image's stricter value on Hadron-shape inputs and only tightens weaker keys", func() {
+					// Hadron ships UMASK 077 (stricter than 027),
+					// PASS_MAX_DAYS 60 (stricter than 365) and
+					// PASS_MIN_DAYS 0 (weaker than 1). The stage must
+					// leave the two stricter keys alone and only raise
+					// PASS_MIN_DAYS.
 					initial := "UMASK 077\nPASS_MAX_DAYS 60\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\nENCRYPT_METHOD SHA512\n"
 					got := runAgainst(initial)
-					Expect(strings.Count(got, "UMASK")).To(Equal(1), "UMASK appeared more than once: %q", got)
-					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`))
+					Expect(got).To(MatchRegexp(`(?m)^UMASK 077$`),
+						"UMASK 077 was loosened: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MAX_DAYS 60$`),
+						"PASS_MAX_DAYS 60 was loosened: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MIN_DAYS\t1$`),
+						"PASS_MIN_DAYS 0 was not tightened to 1: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^PASS_WARN_AGE 7$`),
+						"PASS_WARN_AGE 7 was churned unnecessarily: %q", got)
+					Expect(got).To(MatchRegexp(`(?m)^ENCRYPT_METHOD SHA512$`),
+						"ENCRYPT_METHOD SHA512 was churned unnecessarily: %q", got)
+					Expect(strings.Count(got, "UMASK")).To(Equal(1))
+					Expect(strings.Count(got, "PASS_MAX_DAYS")).To(Equal(1))
+				})
+
+				It("tightens weaker values on Ubuntu-shape inputs", func() {
+					// Ubuntu ships PASS_MAX_DAYS 99999 (weaker than CIS
+					// 365), UMASK 022 (weaker than 027), PASS_MIN_DAYS 0
+					// (weaker than 1). All three must be raised.
+					initial := "PASS_MAX_DAYS 99999\nPASS_MIN_DAYS 0\nPASS_WARN_AGE 7\nUMASK 022\n"
+					got := runAgainst(initial)
 					Expect(got).To(MatchRegexp(`(?m)^PASS_MAX_DAYS\t365$`))
+					Expect(got).To(MatchRegexp(`(?m)^PASS_MIN_DAYS\t1$`))
+					Expect(got).To(MatchRegexp(`(?m)^UMASK\t027$`))
 				})
 
 				It("leaves commented documentation intact and does not create duplicates from prose", func() {
