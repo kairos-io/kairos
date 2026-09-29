@@ -59,13 +59,19 @@ var _ = Describe("SplashServiceDracut", func() {
 
 	It("is inert unless the command line asks for a splash", func() {
 		Expect(unitSection()).To(ContainSubstring("ConditionKernelCommandLine=splash"))
-		Expect(unitSection()).To(ContainSubstring("ConditionPathExists=/usr/bin/kairos"))
+		Expect(unitSection()).To(ContainSubstring(
+			"ConditionPathExists=" + bundled.SplashBinaryPath + "\n"))
 	})
 
-	It("draws on tty1 with the multi-call binary", func() {
+	// The unit execs the replaceable path, never /usr/bin/kairos: that is what
+	// lets a downstream swap the animation by dropping its own executable
+	// there. `ExecStart=/usr/bin/kairos splash` would work identically on a
+	// stock image and ignore the replacement on a rebuilt one.
+	It("draws on tty1 through the replaceable splash path", func() {
 		svc := section(bundled.SplashServiceDracut, "Service")
 		Expect(svc).To(ContainSubstring("TTYPath=/dev/tty1"))
-		Expect(svc).To(ContainSubstring("ExecStart=/usr/bin/kairos splash\n"))
+		Expect(svc).To(ContainSubstring("ExecStart=" + bundled.SplashBinaryPath + "\n"))
+		Expect(svc).ToNot(ContainSubstring("/usr/bin/kairos "))
 	})
 
 	// Zero duration means "until SIGTERM", which is what the initramfs wants:
@@ -122,6 +128,55 @@ var _ = Describe("SplashService", func() {
 
 	It("is installable into multi-user.target", func() {
 		Expect(section(unit(), "Install")).To(ContainSubstring("WantedBy=multi-user.target"))
+	})
+
+	// Same reason as the initramfs unit: this is the path a downstream
+	// replaces, and it has to be the path the unit execs and gates on.
+	It("execs and gates on the replaceable splash path", func() {
+		Expect(section(unit(), "Service")).
+			To(ContainSubstring("ExecStart=" + bundled.SplashBinaryPath + " "))
+		Expect(section(unit(), "Unit")).
+			To(ContainSubstring("ConditionPathExists=" + bundled.SplashBinaryPath + "\n"))
+		Expect(unit()).ToNot(ContainSubstring("/usr/bin/kairos "))
+	})
+})
+
+// The override is only an override if every place the feature names an
+// executable names the same one. A single leftover /usr/bin/kairos would make
+// one half of the boot ignore a downstream's splash, which is worse than not
+// supporting the override at all: the animation would change at switch-root.
+var _ = Describe("the splash binary path", func() {
+	It("is the only executable the splash wiring names", func() {
+		for name, text := range map[string]string{
+			"SplashServiceDracut":     bundled.SplashServiceDracut,
+			"SplashService":           fmt.Sprintf(bundled.SplashService, bundled.SplashDuration),
+			"SplashModuleSetupDracut": bundled.SplashModuleSetupDracut,
+		} {
+			Expect(text).To(ContainSubstring(bundled.SplashBinaryPath), name)
+			// Comment lines in the module-setup script explain the symlink,
+			// so they name /usr/bin/kairos legitimately. Only the directives
+			// matter here. Then strip every mention of the splash path, so
+			// what is left is a bare /usr/bin/kairos only if one is really
+			// being exec'd or installed.
+			var directives []string
+			for _, line := range strings.Split(text, "\n") {
+				if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+					directives = append(directives, line)
+				}
+			}
+			bare := strings.ReplaceAll(strings.Join(directives, "\n"),
+				bundled.SplashBinaryPath, "")
+			Expect(bare).ToNot(MatchRegexp(`/usr/bin/kairos\b`), name)
+		}
+	})
+
+	// The units exec this path directly, with no sub-tool argument, so the
+	// multi-call binary has to pick the splash from argv[0] alone. That alias
+	// lives in cmd/kairos/register_splash.go and is asserted there; here we
+	// only pin the basename the alias has to match.
+	It("is named after the sub-tool the multi-call binary dispatches on", func() {
+		Expect(filepath.Base(bundled.SplashBinaryPath)).To(Equal("kairos-splash"))
+		Expect(filepath.Dir(bundled.SplashBinaryPath)).To(Equal("/usr/bin"))
 	})
 })
 
@@ -215,12 +270,18 @@ source %[1]s/module-setup.sh
 	})
 
 	// An image whose binaries were all pinned through --version-overrides has
-	// no /usr/bin/kairos. check() failing there is what keeps the initramfs
-	// from getting a unit whose ExecStart does not exist.
-	It("excludes itself when the multi-call binary is missing", func() {
+	// no /usr/bin/kairos, so kairos-init installs no splash symlink either.
+	// check() failing there is what keeps the initramfs from getting a unit
+	// whose ExecStart does not exist.
+	//
+	// The check is on the replaceable path and not on the multi-call binary,
+	// so an image whose splash is a downstream executable rather than a
+	// symlink to kairos is still included.
+	It("excludes itself when the splash binary is missing", func() {
 		status, recorded := run("check", 1)
 		Expect(status).ToNot(Equal(0))
-		Expect(recorded).To(ContainSubstring("require_binaries /usr/bin/kairos"))
+		Expect(recorded).To(ContainSubstring("require_binaries " + bundled.SplashBinaryPath + "\n"))
+		Expect(recorded).ToNot(ContainSubstring("require_binaries /usr/bin/kairos\n"))
 	})
 
 	It("includes itself when the binary is there", func() {
@@ -229,10 +290,13 @@ source %[1]s/module-setup.sh
 	})
 
 	// inst_simple would copy the ELF without the shared libraries it needs
-	// and the unit would fail to exec inside the initramfs.
-	It("installs the binary with its libraries", func() {
+	// and the unit would fail to exec inside the initramfs. inst_multiple on
+	// the splash path also carries the symlink plus its target, so the
+	// initramfs half execs the same replaceable name the booted system does.
+	It("installs the splash binary with its libraries", func() {
 		_, recorded := run("install", 0)
-		Expect(recorded).To(ContainSubstring("inst_multiple /usr/bin/kairos"))
+		Expect(recorded).To(ContainSubstring("inst_multiple " + bundled.SplashBinaryPath + "\n"))
+		Expect(recorded).ToNot(ContainSubstring("inst_multiple /usr/bin/kairos\n"))
 	})
 
 	// .wants, not .requires: a splash that cannot open /dev/tty1 (a

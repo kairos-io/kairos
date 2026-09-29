@@ -287,10 +287,11 @@ add_drivers+=" xhci_pci_renesas "
 //   2. in the booted system, from switch-root until the login prompt. That is
 //      SplashService, a oneshot ordered Before=getty.target.
 //
-// Both draw with the same multi-call binary that is already in the initramfs
-// and the rootfs, and both are gated on `splash` being on the kernel command
-// line (BootArgsCfg puts it there) so that removing one token turns the whole
-// thing off without editing a unit.
+// Both exec SplashBinaryPath, never the multi-call binary by name, so that
+// replacing that one path replaces the animation for both halves of the boot.
+// Both are gated on `splash` being on the kernel command line (BootArgsCfg
+// puts it there) so that removing one token turns the whole thing off without
+// editing a unit.
 
 // Paths
 const (
@@ -299,14 +300,30 @@ const (
 	DracutSplashServicePath       = "/usr/lib/dracut/modules.d/50kairos-splash/kairos-splash.service"
 	DracutSplashImmucoreQuietPath = "/usr/lib/dracut/modules.d/50kairos-splash/immucore-quiet.conf"
 	SplashServicePath             = "/usr/lib/systemd/system/kairos-splash.service"
+
+	// SplashBinaryPath is the one path the whole feature draws through: both
+	// units exec it, and the dracut module both checks for it and copies it
+	// into the initramfs. Nothing here names /usr/bin/kairos.
+	//
+	// By default kairos-init points it at the multi-call binary, whose
+	// "kairos-splash" argv[0] alias dispatches to `kairos splash`. The
+	// indirection is the replacement seam: an image that already has
+	// something at this path keeps it, kairos-init installs no symlink over
+	// it, and the boot animates with that instead. Because kairos-init
+	// rebuilds the initramfs in a later stage than the one that installs
+	// binaries, a downstream Dockerfile that drops its own executable here
+	// and re-runs kairos-init gets it in both halves of the boot with no
+	// further wiring.
+	SplashBinaryPath = "/usr/bin/kairos-splash"
 )
 
 // SplashDracutConfig pulls the splash module into the initramfs.
 //
 // add_dracutmodules+=, not force_add_dracutmodules+=: dracut still runs the
 // module's check(), which is what keeps an image built without
-// /usr/bin/kairos (every binary pinned through VersionOverrides, so the
-// multi-call binary is never written) from getting a unit that cannot exec.
+// SplashBinaryPath (every binary pinned through VersionOverrides, so the
+// multi-call binary the default symlink points at is never written) from
+// getting a unit that cannot exec.
 //
 // plymouth is omitted in the same breath. It claims the console on the same
 // `splash` token this feature puts on the command line, so a base image that
@@ -340,7 +357,7 @@ Before=initrd.target
 Conflicts=initrd-switch-root.target
 Conflicts=emergency.target
 ConditionKernelCommandLine=splash
-ConditionPathExists=/usr/bin/kairos
+ConditionPathExists=/usr/bin/kairos-splash
 
 [Service]
 Type=simple
@@ -348,7 +365,7 @@ StandardInput=tty
 StandardOutput=tty
 TTYPath=/dev/tty1
 TTYReset=yes
-ExecStart=/usr/bin/kairos splash
+ExecStart=/usr/bin/kairos-splash
 KillSignal=SIGTERM
 TimeoutStopSec=5s`
 
@@ -370,10 +387,15 @@ const SplashModuleSetupDracut = `#!/bin/bash
 
 # check() decides whether dracut pulls this module in. The kairos-splash.conf
 # drop-in adds it to the module set, but the check still runs, so an image
-# whose /usr/bin/kairos was never written (every binary pinned through
-# --version-overrides) gets no module instead of a unit that cannot exec.
+# with no /usr/bin/kairos-splash (every binary pinned through
+# --version-overrides, so the multi-call binary the default symlink points at
+# was never written) gets no module instead of a unit that cannot exec.
+#
+# The check is on /usr/bin/kairos-splash and not on the multi-call binary on
+# purpose: that path is the replacement seam, so an image whose splash is a
+# downstream executable rather than a symlink to kairos passes it too.
 check() {
-    require_binaries /usr/bin/kairos || return 1
+    require_binaries /usr/bin/kairos-splash || return 1
     return 0
 }
 
@@ -390,8 +412,11 @@ install() {
 
     # inst_multiple, not inst_simple: it pulls the shared libraries the binary
     # needs in with it. inst_simple would copy the ELF on its own and it would
-    # fail to exec.
-    inst_multiple /usr/bin/kairos
+    # fail to exec. It also resolves a symlink and installs the link plus its
+    # target, which is what carries the default /usr/bin/kairos-splash ->
+    # /usr/bin/kairos indirection into the initramfs intact; the unit execs
+    # the link, so the argv[0] alias is what selects the splash sub-tool.
+    inst_multiple /usr/bin/kairos-splash
 
     # Branding is data, so a downstream that dropped its own wordmark in
     # /etc/kairos/branding/splash gets it in the initramfs too. Absent or
@@ -444,7 +469,7 @@ const SplashService = `[Unit]
 Description=Kairos boot splash
 Before=getty.target
 ConditionKernelCommandLine=splash
-ConditionPathExists=/usr/bin/kairos
+ConditionPathExists=/usr/bin/kairos-splash
 ConditionPathExists=!/run/cos/live_mode
 ConditionPathExists=!/run/cos/autoreset_mode
 
@@ -455,7 +480,7 @@ StandardInput=tty
 StandardOutput=tty
 TTYPath=/dev/tty1
 TTYReset=yes
-ExecStart=/usr/bin/kairos splash --duration=%s
+ExecStart=/usr/bin/kairos-splash --duration=%s
 TimeoutStartSec=10s
 
 [Install]

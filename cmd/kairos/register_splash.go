@@ -14,5 +14,12 @@ func init() {
 	// 28immucore dracut module installs it with inst_check_multiple, so the
 	// whole multi-call binary is inside every initramfs and every rootfs
 	// already.
-	register("splash", splash.Main)
+	//
+	// The "kairos-splash" alias is what the units actually exec. kairos-init
+	// installs /usr/bin/kairos-splash as a symlink to this binary, and both
+	// splash units and the dracut module name only that path. A downstream
+	// rebuilding the OCI image replaces the file there to replace the
+	// animation entirely, without editing a unit or forking the module; the
+	// alias is what makes the default symlink dispatch here on argv[0].
+	register("splash", splash.Main, "kairos-splash")
 }
