@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"embed"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
@@ -21,11 +22,14 @@ import (
 )
 
 type FormData struct {
-	CloudConfig string `form:"cloud-config" json:"cloud-config" query:"cloud-config"`
+	CloudConfig string `form:"cloud-config" json:"cloud_config" query:"cloud-config"`
 	Reboot      string `form:"reboot" json:"reboot" query:"reboot"`
 
 	PowerOff           string `form:"power-off" json:"power-off" query:"power-off"`
-	InstallationDevice string `form:"installation-device" json:"installation-device" query:"installation-device"`
+	InstallationDevice string `form:"installation-device" json:"device" query:"installation-device"`
+	// FinishAction is the wizard's spelling of the two checkboxes above:
+	// "", "reboot" or "poweroff". When it is empty the checkboxes decide.
+	FinishAction string `form:"-" json:"finish_action" query:"-"`
 }
 
 //go:embed public
@@ -200,6 +204,8 @@ type Options struct {
 	// http.Handler and not the MCP package itself so this server stays the
 	// one thing that decides what is reachable on its address.
 	MCP http.Handler
+	// Env answers the wizard's questions. Nil means the machine this runs on.
+	Env wizard.Env
 }
 
 // MCPPath is where Options.MCP is mounted. It is the path MCP clients assume.
@@ -307,6 +313,12 @@ func newServer(o Options) *echo.Echo {
 		ec.Any(MCPPath, echo.WrapHandler(o.MCP))
 	}
 
+	env := o.Env
+	if env == nil {
+		env = wizard.NewSystemEnv()
+	}
+	(&wizardAPI{env: env, source: o.Source}).register(ec)
+
 	ec.GET("/*", echo.WrapHandler(http.StripPrefix("/", assetHandler)))
 
 	ec.POST("/validate", func(c *echo.Context) error {
@@ -364,7 +376,16 @@ func newServer(o Options) *echo.Echo {
 		// Report a failure to start back to the browser rather than
 		// exiting. This handler shares a process with the installer TUI, so
 		// bringing the process down here would take the TUI with it.
-		finish := finishAction(formData.Reboot, formData.PowerOff)
+		finish := formData.FinishAction
+		if finish == "" {
+			finish = finishAction(formData.Reboot, formData.PowerOff)
+		}
+		if finish != wizard.FinishReboot && finish != wizard.FinishPoweroff && finish != "" {
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{
+				"message": fmt.Sprintf("unknown finish action %q, expected reboot or poweroff", finish),
+				"type":    "danger",
+			})
+		}
 		rendered, err := wizard.Finalize(formData.CloudConfig, wizard.Overrides{
 			Device: formData.InstallationDevice, FinishAction: finish,
 		})
