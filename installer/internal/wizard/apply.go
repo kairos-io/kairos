@@ -29,106 +29,144 @@ func Apply(steps []Step, a Answers, stepID string, values map[string]string) (An
 	}
 	out := a
 	var errs []FieldError
-	fail := func(field, format string, args ...any) {
-		errs = append(errs, FieldError{Field: field, Message: fmt.Sprintf(format, args...)})
-	}
-	get := func(id string) string { return strings.TrimSpace(values[id]) }
 
 	switch stepID {
 	case StepDisk:
-		v := get(FieldDisk)
-		switch {
-		case v == "":
-			fail(FieldDisk, "Pick a disk to install to.")
-		case !offered(step.Fields[0], v):
-			fail(FieldDisk, "%s is not one of the disks this machine has.", v)
-		default:
-			out.Disk = v
-		}
+		errs = applyDisk(step, &out, values)
 	case StepUser:
-		name, pw, confirm := get(FieldUsername), values[FieldPassword], values[FieldPassword+ConfirmSuffix]
-		switch {
-		case name == "":
-			out.Username, out.PasswordHash = "", ""
-		case !usernameRe.MatchString(name):
-			fail(FieldUsername, "Use lowercase letters, digits, hyphens and underscores, starting with a letter or an underscore, up to 32 characters.")
-		case pw == "" && (a.PasswordHash == "" || a.Username != name):
-			fail(FieldPassword, "Set a password for %s, or clear the username.", name)
-		case pw != "" && pw != confirm:
-			fail(FieldPassword, "The two passwords do not match.")
-		case pw != "":
-			hash, err := passwordHasher(pw)
-			if err != nil {
-				fail(FieldPassword, "The password could not be hashed: %v", err)
-				break
-			}
-			out.Username, out.PasswordHash = name, hash
-		default:
-			out.Username = name
-		}
+		errs = applyUser(a, &out, values)
 	case StepSSHKeys:
 		out.SSHKeys = lines(values[FieldSSHKeys])
 	case StepHostname:
-		v := get(FieldHostname)
-		if v != "" && !validHostname(v) {
-			fail(FieldHostname, "Use letters, digits and hyphens, dot-separated, and do not start or end a part with a hyphen.")
-			break
-		}
-		out.Hostname = v
+		errs = applyHostname(&out, values)
 	case StepLocale:
-		tz, km := get(FieldTimezone), get(FieldKeymap)
-		if tz != "" && (!timezoneRe.MatchString(tz) || strings.Contains(tz, "..") || !offered(step.Fields[0], tz)) {
-			fail(FieldTimezone, "%s is not a timezone this image knows.", tz)
-		}
-		if km != "" && (!keymapRe.MatchString(km) || !offered(step.Fields[1], km)) {
-			fail(FieldKeymap, "%s is not a keyboard layout this image knows.", km)
-		}
-		out.Timezone, out.Keymap = tz, km
+		errs = applyLocale(step, &out, values)
 	case StepExtensions:
-		picked := map[string]bool{}
-		for _, v := range lines(values[FieldExtensions]) {
-			if !offered(step.Fields[0], v) {
-				fail(FieldExtensions, "%s is not an extension this installer offers.", v)
-			}
-			picked[v] = true
-		}
-		out.Extensions = nil
-		// Offer order, so the rendered YAML does not depend on click order.
-		for _, c := range step.Fields[0].Choices {
-			if picked[c.Value] {
-				out.Extensions = append(out.Extensions, sdkExtensions.Extension{Name: c.Value})
-			}
-		}
+		errs = applyExtensions(step, &out, values)
 	case StepProvider:
-		prov := map[string]any{}
-		for _, f := range step.Fields {
-			v := get(f.ID)
-			if v == "" {
-				v = f.IfEmpty
-			}
-			if v == "" {
-				continue
-			}
-			var val any = v
-			if f.Kind == KindBool {
-				val = v == "true"
-			}
-			setPath(prov, f.ID, val)
-		}
-		out.Provider = prov
+		applyProvider(step, &out, values)
 	case StepFinish:
-		v := get(FieldFinish)
-		if !offered(step.Fields[0], v) {
-			fail(FieldFinish, "%s is not something the installer can do when it finishes.", v)
-			break
-		}
-		out.FinishAction = v
+		errs = applyFinish(step, &out, values)
 	}
 
 	if len(errs) > 0 {
 		return a, errs
 	}
 	return out, nil
+}
+
+// get returns the trimmed value of one field.
+func get(values map[string]string, id string) string { return strings.TrimSpace(values[id]) }
+
+// fieldErr builds a FieldError for one field.
+func fieldErr(field, format string, args ...any) []FieldError {
+	return []FieldError{{Field: field, Message: fmt.Sprintf(format, args...)}}
+}
+
+func applyDisk(step Step, out *Answers, values map[string]string) []FieldError {
+	v := get(values, FieldDisk)
+	switch {
+	case v == "":
+		return fieldErr(FieldDisk, "Pick a disk to install to.")
+	case !offered(step.Fields[0], v):
+		return fieldErr(FieldDisk, "%s is not one of the disks this machine has.", v)
+	}
+	out.Disk = v
+	return nil
+}
+
+// applyUser folds the user step into out. prev is the answers before the
+// step, used to keep an existing password when the username is unchanged.
+func applyUser(prev Answers, out *Answers, values map[string]string) []FieldError {
+	name, pw, confirm := get(values, FieldUsername), values[FieldPassword], values[FieldPassword+ConfirmSuffix]
+	switch {
+	case name == "":
+		out.Username, out.PasswordHash = "", ""
+	case !usernameRe.MatchString(name):
+		return fieldErr(FieldUsername, "Use lowercase letters, digits, hyphens and underscores, starting with a letter or an underscore, up to 32 characters.")
+	case pw == "" && (prev.PasswordHash == "" || prev.Username != name):
+		return fieldErr(FieldPassword, "Set a password for %s, or clear the username.", name)
+	case pw != "" && pw != confirm:
+		return fieldErr(FieldPassword, "The two passwords do not match.")
+	case pw != "":
+		hash, err := passwordHasher(pw)
+		if err != nil {
+			return fieldErr(FieldPassword, "The password could not be hashed: %v", err)
+		}
+		out.Username, out.PasswordHash = name, hash
+	default:
+		out.Username = name
+	}
+	return nil
+}
+
+func applyHostname(out *Answers, values map[string]string) []FieldError {
+	v := get(values, FieldHostname)
+	if v != "" && !validHostname(v) {
+		return fieldErr(FieldHostname, "Use letters, digits and hyphens, dot-separated, and do not start or end a part with a hyphen.")
+	}
+	out.Hostname = v
+	return nil
+}
+
+func applyLocale(step Step, out *Answers, values map[string]string) []FieldError {
+	var errs []FieldError
+	tz, km := get(values, FieldTimezone), get(values, FieldKeymap)
+	if tz != "" && (!timezoneRe.MatchString(tz) || strings.Contains(tz, "..") || !offered(step.Fields[0], tz)) {
+		errs = append(errs, fieldErr(FieldTimezone, "%s is not a timezone this image knows.", tz)...)
+	}
+	if km != "" && (!keymapRe.MatchString(km) || !offered(step.Fields[1], km)) {
+		errs = append(errs, fieldErr(FieldKeymap, "%s is not a keyboard layout this image knows.", km)...)
+	}
+	out.Timezone, out.Keymap = tz, km
+	return errs
+}
+
+func applyExtensions(step Step, out *Answers, values map[string]string) []FieldError {
+	var errs []FieldError
+	picked := map[string]bool{}
+	for _, v := range lines(values[FieldExtensions]) {
+		if !offered(step.Fields[0], v) {
+			errs = append(errs, fieldErr(FieldExtensions, "%s is not an extension this installer offers.", v)...)
+		}
+		picked[v] = true
+	}
+	out.Extensions = nil
+	// Offer order, so the rendered YAML does not depend on click order.
+	for _, c := range step.Fields[0].Choices {
+		if picked[c.Value] {
+			out.Extensions = append(out.Extensions, sdkExtensions.Extension{Name: c.Value})
+		}
+	}
+	return errs
+}
+
+func applyProvider(step Step, out *Answers, values map[string]string) {
+	prov := map[string]any{}
+	for _, f := range step.Fields {
+		v := get(values, f.ID)
+		if v == "" {
+			v = f.IfEmpty
+		}
+		if v == "" {
+			continue
+		}
+		var val any = v
+		if f.Kind == KindBool {
+			val = v == "true"
+		}
+		setPath(prov, f.ID, val)
+	}
+	out.Provider = prov
+}
+
+func applyFinish(step Step, out *Answers, values map[string]string) []FieldError {
+	v := get(values, FieldFinish)
+	if !offered(step.Fields[0], v) {
+		return fieldErr(FieldFinish, "%s is not something the installer can do when it finishes.", v)
+	}
+	out.FinishAction = v
+	return nil
 }
 
 // offered reports whether v is one of f's choices. Only Choice and
