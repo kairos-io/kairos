@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 	"github.com/kairos-io/kairos/v4/sdk/branding"
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 	"github.com/kairos-io/kairos/v4/sdk/schema"
@@ -363,8 +364,14 @@ func newServer(o Options) *echo.Echo {
 		// Report a failure to start back to the browser rather than
 		// exiting. This handler shares a process with the installer TUI, so
 		// bringing the process down here would take the TUI with it.
-		if err := startInstall(log, o.Source, formData.CloudConfig, formData.InstallationDevice,
-			finishAction(formData.Reboot, formData.PowerOff)); err != nil {
+		finish := finishAction(formData.Reboot, formData.PowerOff)
+		rendered, err := wizard.Finalize(formData.CloudConfig, wizard.Overrides{
+			Device: formData.InstallationDevice, FinishAction: finish,
+		})
+		if err != nil {
+			return c.Render(http.StatusOK, "message.html", map[string]interface{}{"message": err.Error(), "type": "danger"})
+		}
+		if err := startInstall(log, o.Source, rendered, finish); err != nil {
 			// The run never started, so nothing will publish to it. Leave
 			// s.run as it was, so the form can be submitted again and no
 			// /ws connection can attach to a log nobody will write to.
