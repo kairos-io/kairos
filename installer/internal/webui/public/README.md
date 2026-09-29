@@ -22,8 +22,24 @@ network.
 
 - `index.html` - The wizard page and its styles
 - `wizard.js` - The wizard: draws each step and talks to the JSON endpoints
+  listed below
 - `progress.html` - Installation progress page with WebSocket streaming
 - `message.html` - Error/success message display
 - `favicon.ico` - Favicon
+
+## Endpoints wizard.js calls
+
+- `GET /api/wizard` - the steps, with the disks and extensions found on the
+  machine
+- `POST /api/step/:id` - checks one step's values; answers with the updated
+  answers, or with one error per field
+- `POST /api/render` - builds the cloud-config from the answers, for the
+  review screen and for its "Regenerate from answers" button
+- `POST /validate-json` - checks the cloud-config on the review screen against
+  the schema
+- `POST /install` - starts the install with a JSON body of `cloud_config`,
+  `device` and `finish_action`, then the page moves to `progress.html`
+
+`progress.html` reads the install progress from `GET /ws`.
 
 All files are embedded into the Go binary using `//go:embed` in `webui.go`.

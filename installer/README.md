@@ -7,14 +7,15 @@
 The default **interactive installer** for [Kairos](https://kairos.io).
 
 `kairos-installer` is a standalone terminal UI that collects installation
-settings (disk, user, SSH keys, post-install action, plus any provider-supplied
-fields) and then drives [`kairos-agent`](../agent/) to perform the install.
+settings (disk, user, SSH keys, hostname, timezone and keymap, system
+extensions, post-install action, plus any provider-supplied fields) and then drives [`kairos-agent`](../agent/) to perform the install.
 It does **not** partition or install anything itself — that is `kairos-agent`'s
 job. The installer only owns the UX and hands a configuration to the agent.
 
 It also serves the **web installer**, on `:8080` by default, next to the
 terminal UI and in the same process, so a live boot offers both frontends
-without two services fighting over the port.
+without two services fighting over the port. Both frontends ask the same
+questions: see [The installer steps](#the-installer-steps).
 
 The terminal UI opens on that address: its first screen lists every URL the web
 installer answers on, and renders the first of them as a QR code so it can be
@@ -81,9 +82,10 @@ progress as **JSON Lines** on stdout:
 {"event":"error","message":"no target device found"}
 ```
 
-The web UI is a third frontend on that same contract, not a separate path into
-the agent. Its `/ws` re-publishes the events above as one JSON object per
-frame:
+The web UI is another frontend on that same contract, not a separate path into
+the agent. The browser builds the cloud-config with the wizard, and the server
+sends it to `manual-install` the same way the terminal UI does. Its `/ws`
+re-publishes the events above as one JSON object per frame:
 
 ```json
 {"type":"step","step":"partition"}
@@ -97,6 +99,65 @@ page shows the whole install rather than whatever arrives next.
 
 The full, authoritative contract is documented in kairos-agent:
 **[`docs/installer-contract.md`](https://github.com/kairos-io/kairos-agent/blob/main/docs/installer-contract.md)**.
+
+---
+
+## The installer steps
+
+The questions are defined once, in `internal/wizard`, as data: an ordered list
+of steps, each with its fields. The terminal UI and the web UI both draw that
+list, and both send every answer through the same `wizard.Apply`, so a value
+one frontend refuses the other refuses too, with the same message.
+
+| Step | Asks for | Can be skipped |
+| --- | --- | --- |
+| `disk` | the disk to install to | no |
+| `user` | a user name and a password | yes |
+| `ssh_keys` | SSH public keys, or `github:` and `gitlab:` user names | yes |
+| `hostname` | the host name | yes |
+| `locale` | the timezone and the console keymap | yes |
+| `extensions` | system extensions from the live media or the catalogs | yes |
+| `provider` | the fields a provider plugin asks for | yes, and it is shown only when a provider asks something |
+| `finish` | reboot, power off, or nothing after the install | no, it starts on nothing |
+
+`wizard.Render` turns the answers into a `#cloud-config`, and
+`wizard.Finalize` writes the confirmed disk and finish action over it just
+before the install starts. So a cloud-config edited by hand still installs to
+the disk the operator confirmed, whatever its `install.device` says.
+
+### Terminal UI
+
+The terminal UI asks for the disk, then offers **Start Install** (with the
+finish action) or **Customize Further**, which opens a menu of the optional
+steps. The summary page shows the generated cloud-config: `e` opens it in an
+editor (`ctrl+s` keeps the edit, `ctrl+r` builds it again from the answers,
+`esc` drops the edit), and `v` shows it read-only. A long list, such as the
+timezones, filters with `/`, and an optional list starts on "(leave unset)".
+
+### Web installer
+
+The web installer at `/` is a step-by-step wizard over the same steps. Each
+step is one screen, and a rail on the side jumps between them. The last screen,
+**Review and install**, shows the generated cloud-config in a text box that can
+be edited by hand, checks it against the schema as you type, and has a
+**Regenerate from answers** button. Install stays disabled until you tick the
+box that confirms the disk will be erased.
+
+The page talks to these endpoints:
+
+| Endpoint | What it does |
+| --- | --- |
+| `GET /api/wizard` | the steps, with the disks and extensions found on this machine |
+| `POST /api/step/:id` | check one step's values and return the updated answers, or the errors per field |
+| `POST /api/render` | build the cloud-config from the answers |
+| `POST /validate-json` | check a cloud-config against the schema |
+| `POST /install` | start the install |
+| `GET /ws` | the install progress |
+
+`POST /install` takes JSON (`cloud_config`, `device`, `finish_action`) or the
+older form fields, so a script can still post a finished cloud-config to it
+directly. The device and finish action it is given win over the ones in the
+text.
 
 ---
 
@@ -230,8 +291,9 @@ copy it either.
 
 To customize the UX itself, fork or vendor this repo:
 
-- **`internal/tui`** — the bubbletea model and pages, including
-  `cloudconfig.go` which turns the collected model into a `#cloud-config`.
+- **`internal/wizard`** - the steps both frontends ask, how their answers are
+  checked, and how the answers become a `#cloud-config`.
+- **`internal/tui`** - the bubbletea model and pages that draw those steps.
 
 ---
 
@@ -241,9 +303,13 @@ To customize the UX itself, fork or vendor this repo:
 main.go               flags (--source, --no-tui, --collect-debug-bundle),
                       serves the web UI with the MCP endpoint mounted on it,
                       and unless --no-tui runs the bubbletea program alongside
-internal/tui/         the UX: model, pages, branding, and cloud-config shaping;
-                      the install page calls kairos-sdk/agentrun and renders progress
-internal/webui/       the web frontend: embedded assets, cloud-config
+internal/wizard/      the steps both frontends ask, their checks, and the
+                      cloud-config the answers render to
+internal/tui/         the terminal UX: model, pages and branding over the wizard
+                      steps; the install page calls kairos-sdk/agentrun and
+                      renders progress
+internal/webui/       the web frontend: embedded wizard assets, the /api
+                      endpoints over the wizard steps, cloud-config
                       validation, and the install/progress websocket. It calls
                       kairos-sdk/agentrun too, so /ws carries the same typed
                       progress events the TUI renders. It owns the router, so
