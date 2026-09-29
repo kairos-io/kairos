@@ -179,3 +179,38 @@ var _ = Describe("Apply with nothing on offer", func() {
 		Expect(errs).ToNot(BeEmpty())
 	})
 })
+
+var _ = Describe("Apply locale on an image without lists", func() {
+	var steps []Step
+	BeforeEach(func() { steps = Steps(context.Background(), emptyEnv{}) })
+
+	It("offers text fields, so the charset checks are the only guard", func() {
+		step, _ := StepByID(steps, StepLocale)
+		Expect(step.Fields[0].Kind).To(Equal(KindText))
+		Expect(step.Fields[1].Kind).To(Equal(KindText))
+	})
+
+	DescribeTable("timezone and keymap as free text",
+		func(tz, km string, ok bool) {
+			_, errs := Apply(steps, Answers{}, StepLocale, map[string]string{FieldTimezone: tz, FieldKeymap: km})
+			Expect(errs == nil).To(Equal(ok), "%v", errs)
+		},
+		Entry("zoneinfo name with plus", "Etc/GMT+5", "", true),
+		Entry("keymap with hyphen", "", "de-latin1", true),
+		Entry("both plain", "Europe/Rome", "us", true),
+		Entry("path traversal", "../../etc/shadow", "", false),
+		Entry("dot dot inside", "Europe/../Rome", "", false),
+		Entry("absolute path", "/etc/passwd", "", false),
+		Entry("shell in timezone", "UTC; rm -rf /", "", false),
+		Entry("quote in keymap", "", `it"`, false),
+		Entry("newline in keymap", "", "it\nKEYMAP=us", false),
+		Entry("space in keymap", "", "it us", false),
+	)
+
+	It("returns the answers unchanged when one locale value is bad", func() {
+		in := Answers{Timezone: "UTC", Keymap: "us"}
+		out, errs := Apply(steps, in, StepLocale, map[string]string{FieldTimezone: "Europe/Rome", FieldKeymap: "it;x"})
+		Expect(errs).ToNot(BeEmpty())
+		Expect(out).To(Equal(in))
+	})
+})

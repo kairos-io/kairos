@@ -51,7 +51,7 @@ func Apply(steps []Step, a Answers, stepID string, values map[string]string) (An
 		case name == "":
 			out.Username, out.PasswordHash = "", ""
 		case !usernameRe.MatchString(name):
-			fail(FieldUsername, "Use lowercase letters, digits, hyphens and underscores, starting with a letter, up to 32 characters.")
+			fail(FieldUsername, "Use lowercase letters, digits, hyphens and underscores, starting with a letter or an underscore, up to 32 characters.")
 		case pw == "" && (a.PasswordHash == "" || a.Username != name):
 			fail(FieldPassword, "Set a password for %s, or clear the username.", name)
 		case pw != "" && pw != confirm:
