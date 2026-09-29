@@ -157,8 +157,7 @@ const (
 
 // Deprecated: use sdkConstants.DefaultWebUIListenAddress. This package is
 // importable outside the repo, so the constant stays as an alias rather than
-// breaking an out-of-tree build. Remove it together with the
-// `kairos-agent webui` subcommand.
+// breaking an out-of-tree build. Remove it at a major version.
 const DefaultWebUIListenAddress = sdkConstants.DefaultWebUIListenAddress
 
 func UkiDefaultMenuEntries() []string {

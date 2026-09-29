@@ -23,17 +23,6 @@ type guardStage struct {
 	Files              []guardFile `yaml:"files"`
 }
 
-// writesFile reports whether the stage lays down the given path. Unmarshalling
-// resolves the file list's YAML merge keys, so an aliased entry counts.
-func (s guardStage) writesFile(path string) bool {
-	for _, f := range s.Files {
-		if f.Path == path {
-			return true
-		}
-	}
-	return false
-}
-
 type guardConfig struct {
 	Stages map[string][]guardStage `yaml:"stages"`
 }
@@ -161,10 +150,6 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			Expect(evalGuard(plain, cmdline, true)).To(BeFalse())
 		})
 
-		It("still honours the legacy nodepair.enable keyword", func() {
-			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel nodepair.enable", true)).To(BeTrue())
-		})
-
 		// On Trusted Boot every UKI entry AuroraBoot builds carries
 		// install-mode, because they all extend the same base cmdline, and the
 		// installer copies norole.efi verbatim into each installed role. The
@@ -206,6 +191,7 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 				{"BOOT_IMAGE=/boot/kernel install-mode", true, false},
 				{"BOOT_IMAGE=/boot/kernel", true, false},
 				{"BOOT_IMAGE=/boot/kernel nodepair.enable", true, false},
+				{"BOOT_IMAGE=/boot/kernel install-mode-interactive", true, false},
 				{"BOOT_IMAGE=/boot/kernel install-mode", true, true},
 				{"BOOT_IMAGE=/boot/kernel", true, true},
 				{"BOOT_IMAGE=/boot/kernel install-mode", false, false},
@@ -257,118 +243,50 @@ var _ = Describe("Bundled cloudconfigs install-mode guards", func() {
 			Expect(evalGuard(plain, "BOOT_IMAGE=/boot/kernel install-mode", false)).To(BeFalse())
 		})
 
-		// Narrowing the install-mode guard took the WebUI's `systemctl enable`
-		// off the interactive path, since that enable sits in the install-mode
-		// stage. The boot stage covers the rest: any live boot, install-mode or
-		// not, gets the WebUI as its own service and gets it enabled rather
-		// than only started, so it comes back after a restart.
-		It("enables the webui on a live boot with no install keyword at all", func() {
-			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
-
-			for _, cmdline := range []string{
-				"BOOT_IMAGE=/boot/kernel install-mode",
-				"BOOT_IMAGE=/boot/kernel",
-			} {
-				Expect(evalGuard(boot.If, cmdline, true)).To(BeTrue(), "cmdline %q", cmdline)
-			}
-			Expect(evalGuard(boot.If, "BOOT_IMAGE=/boot/kernel install-mode", false)).To(BeFalse())
+		// nodepair.enable used to start the plain installer, back when the
+		// live medium's job was to show the pairing QR code. The medium boots
+		// the front-facing installer now, and install-mode is the one keyword
+		// that asks for the plain one, so the legacy keyword decides nothing.
+		It("no longer starts an installer on the legacy nodepair.enable keyword", func() {
+			const cmdline = "BOOT_IMAGE=/boot/kernel nodepair.enable"
+			Expect(evalGuard(plain, cmdline, true)).To(BeFalse())
+			Expect(evalGuard(interactive, cmdline, true)).To(BeFalse())
 		})
+	})
 
-		// On an interactive boot the installer binary serves the WebUI itself,
-		// in the same process as its terminal UI. Starting kairos-webui too
-		// would put a second process on the same listen address, so the boot
-		// stage has to stay off that path. Every cmdline the interactive stage
-		// claims has to be one the boot stage refuses, or both fire.
-		It("leaves the webui service alone on an interactive boot", func() {
-			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
-			openrc := stageRunningFor(readStage("52_installer.yaml", "boot"), "openrc", "rc-service kairos-webui start")
+	// The web UI is a frontend of the installer, served in the installer's own
+	// process on every boot that runs it. A kairos-webui service beside it is
+	// a second process going for the same listen address, which is why the
+	// guards keeping the two apart kept growing terms. There is no service any
+	// more: no unit, no init script, and no stage that starts or enables one.
+	Describe("the retired kairos-webui service", func() {
+		It("is not written or started by any bundled cloudconfig", func() {
+			entries, err := os.ReadDir(filepath.Join("..", "bundled", "cloudconfigs"))
+			Expect(err).NotTo(HaveOccurred())
 
-			for _, cmdline := range []string{
-				"BOOT_IMAGE=/boot/kernel install-mode-interactive",
-				"BOOT_IMAGE=/boot/kernel interactive-install",
-				"BOOT_IMAGE=/boot/kernel interactive-install install-mode-interactive",
-			} {
-				Expect(evalGuard(interactive, cmdline, true)).To(BeTrue(),
-					"interactive stage should claim %q", cmdline)
-				Expect(evalGuard(boot.If, cmdline, true)).To(BeFalse(),
-					"boot stage should refuse %q", cmdline)
-				Expect(evalGuard(openrc.If, cmdline, true)).To(BeFalse(),
-					"openrc boot stage should refuse %q", cmdline)
-			}
-		})
+			for _, e := range entries {
+				if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
+					continue
+				}
 
-		// A UKI install medium is always interactive now, so the installer is
-		// always serving the WebUI in its own process and the service must
-		// never come up beside it. live_mode is present on that boot, so the
-		// boot stage only refuses it by naming uki_install_mode: this is the
-		// spec that fails if that term is dropped as redundant.
-		It("leaves the webui service alone on a UKI medium", func() {
-			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
-			openrc := stageRunningFor(readStage("52_installer.yaml", "boot"), "openrc", "rc-service kairos-webui start")
+				content, err := os.ReadFile(filepath.Join("..", "bundled", "cloudconfigs", e.Name()))
+				Expect(err).NotTo(HaveOccurred(), "read cloudconfig %s", e.Name())
 
-			for _, cmdline := range []string{
-				"BOOT_IMAGE=/boot/kernel install-mode",
-				"BOOT_IMAGE=/boot/kernel",
-			} {
-				Expect(evalGuardUki(interactive, cmdline)).To(BeTrue(),
-					"interactive stage should claim %q on UKI", cmdline)
-				Expect(evalGuardUki(boot.If, cmdline)).To(BeFalse(),
-					"boot stage should refuse %q on UKI", cmdline)
-				Expect(evalGuardUki(openrc.If, cmdline)).To(BeFalse(),
-					"openrc boot stage should refuse %q on UKI", cmdline)
-			}
-		})
+				var cfg guardConfig
+				Expect(yaml.Unmarshal(content, &cfg)).To(Succeed(), "parse cloudconfig %s", e.Name())
 
-		// Quitting the terminal UI ends the in-process WebUI with it, and
-		// nothing re-execs the installer for that boot. openrc can bring it
-		// back because /etc/init.d/kairos-webui is written unconditionally;
-		// systemd could not, because the only stages writing the unit are the
-		// install-mode one (whose guard excludes install-mode-interactive) and
-		// the boot one (which refuses it outright), so `systemctl start
-		// kairos-webui` failed with "Unit kairos-webui.service not found".
-		It("installs the webui unit on an interactive systemd boot without enabling it", func() {
-			stages := readStages("52_installer.yaml")
-			stage := stageEnabling(stages, "kairos-interactive")
-
-			Expect(stage.writesFile("/etc/systemd/system/kairos-webui.service")).To(BeTrue(),
-				"interactive stage must write the unit so the WebUI can be restarted by hand")
-
-			// Enabling or starting it here would put a second process on the
-			// listen address the installer already holds.
-			for _, c := range stage.Commands {
-				Expect(c).NotTo(ContainSubstring("kairos-webui"),
-					"interactive stage must not touch the kairos-webui service")
-			}
-		})
-
-		// install-mode and install-mode-interactive are not mutually
-		// exclusive on the cmdline, and the space-delimited match means a
-		// cmdline carrying both fires the plain stage as well as the
-		// interactive one. That is deliberate for tty1: the interactive stage
-		// runs later and disables kairos-installer. It is not deliberate for
-		// the WebUI, so no stage that fires on this cmdline may enable or
-		// start kairos-webui, or the service and the installer's in-process
-		// WebUI both go for the same listen address.
-		It("leaves the webui service alone when the cmdline carries both keywords", func() {
-			const cmdline = "BOOT_IMAGE=/boot/kernel install-mode install-mode-interactive"
-
-			plainStage := stageEnabling(readStages("52_installer.yaml"), "kairos-installer")
-			boot := stageRunning(readStage("52_installer.yaml", "boot"), "systemctl enable --now kairos-webui")
-			openrc := stageRunningFor(readStage("52_installer.yaml", "boot"), "openrc", "rc-service kairos-webui start")
-
-			Expect(evalGuard(plain, cmdline, true)).To(BeTrue(),
-				"install-mode stage should still claim %q", cmdline)
-			Expect(evalGuard(interactive, cmdline, true)).To(BeTrue(),
-				"interactive stage should claim %q", cmdline)
-
-			Expect(evalGuard(boot.If, cmdline, true)).To(BeFalse(),
-				"boot stage should refuse %q", cmdline)
-			Expect(evalGuard(openrc.If, cmdline, true)).To(BeFalse(),
-				"openrc boot stage should refuse %q", cmdline)
-
-			for _, c := range plainStage.Commands {
-				Expect(c).NotTo(ContainSubstring("kairos-webui"),
-					"install-mode stage must not touch the kairos-webui service")
+				for stage, stages := range cfg.Stages {
+					for _, s := range stages {
+						for _, f := range s.Files {
+							Expect(f.Path).NotTo(ContainSubstring("kairos-webui"),
+								"%s stage %q writes %s", e.Name(), stage, f.Path)
+						}
+						for _, c := range s.Commands {
+							Expect(c).NotTo(ContainSubstring("kairos-webui"),
+								"%s stage %q runs %q", e.Name(), stage, c)
+						}
+					}
+				}
 			}
 		})
 	})

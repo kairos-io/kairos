@@ -31,11 +31,9 @@ entry used to run.
 One process means one lifetime: quitting the terminal UI ends the web session
 too, unless an install started from the browser is still running, which the
 installer serves to the end before it exits. Nothing re-execs the installer on
-an interactive boot, so bringing the web UI back for that boot means starting
-the `kairos-webui` service by hand, once the installer has exited and released
-the port. An interactive boot ships that service on both init systems but
-leaves it disabled, so nothing competes with the in-process web UI while the
-installer is still up.
+an interactive boot, so bringing the web UI back for that boot means running
+the installer again by hand, once the first one has exited and released the
+port.
 
 It is shipped in Kairos images (by [`kairos-init`](../kairos-init/)) at
 `/system/installer/kairos-installer`, where `kairos-agent interactive-install`
@@ -53,16 +51,11 @@ wins):
 2. `/system/installer/installer` — **override slot** (you drop your binary here)
 3. `/system/installer/kairos-installer` — the default (this project)
 
-`kairos-agent webui` is a dispatcher onto the same binary, with the same
-resolution order, adding `--no-tui`. In that mode the installer serves only its
-web UI and draws no terminal UI, which is what the non-interactive live
-boot entry wants. The web installer is a frontend of the installer, not of the
-agent, so an image that ships its own installer serves its own web UI.
-
-That subcommand is **deprecated** and logs a warning to the journal (the agent
-runs quiet, so nothing is printed to the terminal): it exists only so the
-`kairos-webui` service keeps working, and it goes away with that service. Call
-the installer with `--no-tui` instead.
+Run the installer with `--no-tui` to serve only its web UI and draw no
+terminal UI. The web installer is a frontend of the installer, not of the
+agent, so an image that ships its own installer serves its own web UI. There
+is no `kairos-agent webui` subcommand and no `kairos-webui` service any more:
+every boot that runs the installer gets the web UI in that same process.
 
 The agent forwards `--source <uri>` to the installer. The installer, in turn,
 drives the install by running:
@@ -194,7 +187,7 @@ any language. Your binary must:
 
 - accept `--source <uri>` (the agent forwards it; it may be empty);
 - accept `--no-tui`, and in that mode draw no terminal UI: it is how
-  `kairos-agent webui` asks for a web-only frontend on a non-interactive boot.
+  an operator asks for a web-only frontend without a terminal to draw on.
   Plain log lines on stdout/stderr are fine there, since nothing owns the
   screen. Serving nothing and exiting 0 is a valid answer if you have no web UI;
 - run on the inherited terminal (stdin/stdout/stderr are passed through);

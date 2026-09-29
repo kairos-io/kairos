@@ -78,26 +78,6 @@ stages:
         permissions: 0755
         owner: 0
         group: 0
-      - path: /etc/init.d/kairos-webui
-        content: |
-          #!/sbin/openrc-run
-
-          depend() {
-            provide kairos-webui
-          }
-
-          supervisor=supervise-daemon
-          name="kairos-webui"
-          command="kairos-agent webui"
-          supervise_daemon_args="--stdout /var/log/kairos/webui.log --stderr /var/log/kairos/webui.log"
-          pidfile="/run/${RC_SVCNAME}.pid"
-          respawn_delay=5
-          set -o allexport
-          if [ -f /etc/environment ]; then . /etc/environment; fi
-          set +o allexport
-        permissions: 0755
-        owner: 0
-        group: 0
       - path: /etc/issue
         content: |
 

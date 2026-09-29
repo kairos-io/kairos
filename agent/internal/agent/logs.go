@@ -52,7 +52,6 @@ func defaultLogsConfig() *sdkLogs.LogsConfig {
 			// kairos-installer, so without this a failed interactive install
 			// leaves no installer journal in the bundle at all.
 			"kairos-interactive",
-			"kairos-webui",
 			"kairos-reset",
 			"kairos-recovery",
 			"kairos-selinux-relabel",
