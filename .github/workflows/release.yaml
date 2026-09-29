@@ -217,10 +217,6 @@ jobs:
       # user-facing shape: quay.io/kairos/hadron:v0.5.3-core-amd64-generic-v4.3.0.
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
-      # Belt and suspenders: the _build-iso.yaml default is already
-      # false, but pin it here so a future default flip cannot bake the
-      # CI-only sysext test extensions onto a shipped ISO.
-      test_sysext_overlay: false
       release: true
     secrets: inherit
 
@@ -286,10 +282,6 @@ jobs:
       grype: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       sbom: ${{ !startsWith(matrix.model, 'nvidia-jetson') }}
       cleanup: ${{ startsWith(matrix.model, 'nvidia-jetson') }}
-      # Belt and suspenders: the _build-iso.yaml default is already
-      # false, but pin it here so a future default flip cannot bake the
-      # CI-only sysext test extensions onto a shipped ISO.
-      test_sysext_overlay: false
       release: true
     secrets: inherit
 
@@ -325,10 +317,6 @@ jobs:
       registry_namespace: 'kairos'
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
-      # Belt and suspenders: the _build-iso.yaml default is already
-      # false, but pin it here so a future default flip cannot bake the
-      # CI-only sysext test extensions onto a shipped ISO.
-      test_sysext_overlay: false
       release: true
     secrets: inherit
 
@@ -367,10 +355,6 @@ jobs:
       registry_namespace: 'kairos'
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
-      # Belt and suspenders: the _build-iso.yaml default is already
-      # false, but pin it here so a future default flip cannot bake the
-      # CI-only sysext test extensions onto a shipped ISO.
-      test_sysext_overlay: false
       release: true
     secrets: inherit
 
@@ -401,10 +385,6 @@ jobs:
       registry_namespace: 'kairos'
       custom_tag_format: '$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
       custom_artifact_format: 'kairos-$FLAVOR-$FLAVOR_RELEASE-$VARIANT-$ARCH-$MODEL-$VERSION$K8S$UKI'
-      # Belt and suspenders: the _build-iso.yaml default is already
-      # false, but pin it here so a future default flip cannot bake the
-      # CI-only sysext test extensions onto a shipped ISO.
-      test_sysext_overlay: false
       release: true
     secrets: inherit
 
