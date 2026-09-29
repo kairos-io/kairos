@@ -17,7 +17,7 @@ Create a Dockerfile with your desired base image, mount the kairos-init binary f
 ```Dockerfile
 FROM ubuntu:24.04
 ARG VERSION=1.0.0
-RUN --mount=type=bind,from=quay.io/kairos/kairos-init:latest,src=/kairos-init,dst=/kairos-init /kairos-init --version "${VERSION}"
+RUN --mount=type=bind,from=quay.io/kairos/kairos-init:v4.3.0,src=/kairos-init,dst=/kairos-init /kairos-init --version "${VERSION}"
 ```
 
 Then build it:
