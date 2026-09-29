@@ -56,9 +56,20 @@ stages:
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("source: oci:quay.io/kairos/test:v1"))
 		Expect(out).To(ContainSubstring("poweroff: true"))
-		Expect(out).To(ContainSubstring("- name: /run/initramfs/live/k3s.sysext.raw"))
-		Expect(out).To(ContainSubstring("- name: tailscale"))
+		Expect(out).To(ContainSubstring("- /run/initramfs/live/k3s.sysext.raw"))
+		Expect(out).To(ContainSubstring("- tailscale"))
 		Expect(out).ToNot(ContainSubstring("reboot:"))
+	})
+
+	It("preserves extension versions in the install block", func() {
+		out, err := wizard.Render(wizard.Answers{
+			Disk:       "/dev/sda",
+			Extensions: sdkExtensions.Extensions{{Name: "fwupd", Version: ">= 2.1"}},
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(out).To(ContainSubstring("name: fwupd"))
+		Expect(out).To(ContainSubstring("version:"))
+		Expect(out).To(ContainSubstring(">= 2.1"))
 	})
 
 	It("merges provider fields at the top level", func() {

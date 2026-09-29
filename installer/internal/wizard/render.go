@@ -3,6 +3,8 @@ package wizard
 import (
 	"fmt"
 
+	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
+	sdkInstall "github.com/kairos-io/kairos/v4/sdk/types/install"
 	"github.com/mudler/yip/pkg/schema"
 	"gopkg.in/yaml.v3"
 )
@@ -23,28 +25,6 @@ type extraFields struct {
 	Extrafields map[string]any `yaml:",inline,omitempty"`
 }
 
-// extensionRef wraps an extension name to marshal it with the name key.
-type extensionRef struct {
-	Name string `yaml:"name"`
-}
-
-// installConfig wraps the SDK Install to handle extensions specially.
-type installConfig struct {
-	Device       string         `yaml:"device,omitempty"`
-	Source       string         `yaml:"source,omitempty"`
-	Extensions   []extensionRef `yaml:"extensions,omitempty"`
-	NoUsers      bool           `yaml:"nousers,omitempty"`
-	Reboot       bool           `yaml:"reboot,omitempty"`
-	Poweroff     bool           `yaml:"poweroff,omitempty"`
-}
-
-// configWrapper wraps Config to use custom install marshaling.
-type configWrapper struct {
-	Install *installConfig `yaml:"install,omitempty"`
-	Name    string         `yaml:"name,omitempty"`
-	Stages  map[string][]schema.Stage `yaml:"stages,omitempty"`
-}
-
 // Render turns the answers into a #cloud-config document.
 //
 // It does not merge the system userdata directories: kairos-agent
@@ -53,23 +33,21 @@ type configWrapper struct {
 // Settings left empty write nothing, so an install that skips every optional
 // step gets exactly the configuration it got before those steps existed.
 func Render(a Answers) (string, error) {
-	ic := &installConfig{Device: a.Disk}
+	cc := &sdkConfig.Config{Install: &sdkInstall.Install{Device: a.Disk}}
 	if a.Source != "" {
-		ic.Source = a.Source
+		cc.Install.Source = a.Source
 	}
 	if len(a.Extensions) > 0 {
-		for _, ext := range a.Extensions {
-			ic.Extensions = append(ic.Extensions, extensionRef{Name: ext.Name})
-		}
+		cc.Install.Extensions = a.Extensions
 	}
 	switch a.FinishAction {
 	case FinishReboot:
-		ic.Reboot = true
+		cc.Install.Reboot = true
 	case FinishPoweroff:
-		ic.Poweroff = true
+		cc.Install.Poweroff = true
 	}
 	if a.Username == "" {
-		ic.NoUsers = true
+		cc.Install.NoUsers = true
 	}
 
 	stages := map[string][]schema.Stage{}
@@ -116,13 +94,12 @@ func Render(a Answers) (string, error) {
 		add(stage, schema.Stage{Users: map[string]schema.User{a.Username: user}})
 	}
 
-	cw := &configWrapper{Install: ic}
+	var yc schema.YipConfig
 	if len(stages) > 0 {
-		cw.Name = generatedName
-		cw.Stages = stages
+		yc = schema.YipConfig{Name: generatedName, Stages: stages}
 	}
 
-	dat, err := mergeYAML(cw, extraFields{a.Provider})
+	dat, err := mergeYAML(yc, cc, extraFields{a.Provider})
 	if err != nil {
 		return "", err
 	}

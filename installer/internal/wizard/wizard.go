@@ -37,12 +37,12 @@ type Choice struct {
 // and a List or MultiChoice is its entries joined by newlines. A Password
 // field is sent as its ID and its ID with ConfirmSuffix.
 type Field struct {
-	ID          string   `json:"id"`
-	Kind        Kind     `json:"kind"`
-	Label       string   `json:"label"`
-	Help        string   `json:"help,omitempty"`
-	Placeholder string   `json:"placeholder,omitempty"`
-	Default     string   `json:"default,omitempty"`
+	ID          string `json:"id"`
+	Kind        Kind   `json:"kind"`
+	Label       string `json:"label"`
+	Help        string `json:"help,omitempty"`
+	Placeholder string `json:"placeholder,omitempty"`
+	Default     string `json:"default,omitempty"`
 	// IfEmpty is the value used when the field is submitted empty. It comes
 	// from provider prompts.
 	IfEmpty  string   `json:"if_empty,omitempty"`
@@ -59,9 +59,9 @@ const ConfirmSuffix = "_confirm"
 
 // Step is one screen of questions.
 type Step struct {
-	ID       string  `json:"id"`
-	Title    string  `json:"title"`
-	Help     string  `json:"help,omitempty"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Help  string `json:"help,omitempty"`
 	// Notice is something the operator should know about this step's
 	// choices, such as "no catalog could be read".
 	Notice   string  `json:"notice,omitempty"`
