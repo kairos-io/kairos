@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	tea "github.com/charmbracelet/bubbletea"
+	sdkExtensions "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -311,5 +312,18 @@ var _ = Describe("starting the install from the summary", func() {
 		drive(tea.KeyMsg{Type: tea.KeyEnter})
 		drive(runes("y"))
 		Expect(mainModel.currentPageID).To(Equal("install_process"))
+	})
+})
+
+var _ = Describe("the extensions on the summary", func() {
+	It("shows a catalog version, and live media for a file on the live media", func() {
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel = InitialModel(&l, "")
+		mainModel.answers.Disk = "/dev/vda"
+		mainModel.answers.Extensions = sdkExtensions.Extensions{{Name: "tailscale"}, {Name: "/run/initramfs/live/tools.sysext.raw"}}
+		view := newSummaryPage().View()
+		Expect(view).To(ContainSubstring("tailscale (latest)"))
+		Expect(view).To(ContainSubstring("tools.sysext.raw (live media)"))
+		Expect(view).ToNot(ContainSubstring("tools.sysext.raw (latest)"))
 	})
 })

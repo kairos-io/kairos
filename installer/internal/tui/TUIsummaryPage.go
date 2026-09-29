@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -114,6 +115,12 @@ func (p *summaryPage) View() string {
 
 		var exts []string
 		for _, e := range a.Extensions {
+			// A path is a file on the live media, which has no version to
+			// resolve; a name is resolved in the catalog.
+			if filepath.IsAbs(e.Name) {
+				exts = append(exts, filepath.Base(e.Name)+" (live media)")
+				continue
+			}
 			version := e.Version
 			if version == "" {
 				version = "latest"
