@@ -503,7 +503,7 @@ var _ = Describe("Elemental", Label("elemental"), func() {
 
 			Expect(persistent).ToNot(BeNil())
 			persistentBytes := (persistent.End - persistent.Start + 1) * sectorSize
-			Expect(persistentBytes).To(Equal(1024 * mib),
+			Expect(persistentBytes).To(Equal(1024*mib),
 				"persistent should keep its configured 1024 MiB size")
 		})
 		It("Refuses config when persistent + extras exceed target disk size", func() {
