@@ -7,6 +7,8 @@ import (
 
 	"github.com/labstack/echo/v5"
 
+	"github.com/kairos-io/kairos/v4/sdk/schema"
+
 	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
@@ -39,6 +41,9 @@ func (w *wizardAPI) current(ctx context.Context) []wizard.Step {
 	return steps
 }
 
+// errorKey is the JSON key the page reads a failure from.
+const errorKey = "error"
+
 type stepRequest struct {
 	Answers wizard.Answers    `json:"answers"`
 	Values  map[string]string `json:"values"`
@@ -57,7 +62,7 @@ func (w *wizardAPI) register(ec *echo.Echo) {
 	ec.POST("/api/step/:id", func(c *echo.Context) error {
 		var req stepRequest
 		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return c.JSON(http.StatusBadRequest, map[string]string{errorKey: err.Error()})
 		}
 		req.Answers.Source = w.source
 		answers, errs := wizard.Apply(w.current(c.Request().Context()), req.Answers, c.Param("id"), req.Values)
@@ -67,15 +72,31 @@ func (w *wizardAPI) register(ec *echo.Echo) {
 		return c.JSON(http.StatusOK, stepResponse{Answers: answers, Errors: errs})
 	})
 
+	// The wizard page checks the cloud-config on the review step. The message
+	// is the schema's own; an empty one means the document is valid.
+	ec.POST("/validate-json", func(c *echo.Context) error {
+		var req struct {
+			CloudConfig string `json:"cloud_config"`
+		}
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{errorKey: err.Error()})
+		}
+		msg := ""
+		if err := schema.Validate(req.CloudConfig); err != nil {
+			msg = err.Error()
+		}
+		return c.JSON(http.StatusOK, map[string]string{errorKey: msg})
+	})
+
 	ec.POST("/api/render", func(c *echo.Context) error {
 		var req stepRequest
 		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return c.JSON(http.StatusBadRequest, map[string]string{errorKey: err.Error()})
 		}
 		req.Answers.Source = w.source
 		out, err := wizard.Render(req.Answers)
 		if err != nil {
-			return c.JSON(http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return c.JSON(http.StatusUnprocessableEntity, map[string]string{errorKey: err.Error()})
 		}
 		return c.JSON(http.StatusOK, map[string]string{"cloud_config": out})
 	})

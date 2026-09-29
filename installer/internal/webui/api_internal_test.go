@@ -107,6 +107,15 @@ var _ = Describe("the wizard API", func() {
 		Expect(got.CloudConfig).ToNot(ContainSubstring("oci:evil"))
 	})
 
+	It("validates a cloud-config as JSON, an empty error meaning valid", func() {
+		var ok, bad struct{ Error string }
+		post("/validate-json", map[string]string{"cloud_config": "#cloud-config\nusers:\n  - name: kairos\n    passwd: kairos\n"}, &ok)
+		Expect(ok.Error).To(BeEmpty())
+		resp := post("/validate-json", map[string]string{"cloud_config": "#cloud-config\ninstall: {device: 7}\n"}, &bad)
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+		Expect(bad.Error).ToNot(BeEmpty())
+	})
+
 	It("answers a malformed body with a 400", func() {
 		resp, err := http.Post(srv.URL+"/api/render", "application/json", strings.NewReader("{not json"))
 		Expect(err).ToNot(HaveOccurred())
