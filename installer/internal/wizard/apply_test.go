@@ -214,3 +214,74 @@ var _ = Describe("Apply locale on an image without lists", func() {
 		Expect(out).To(Equal(in))
 	})
 })
+
+// providerKairosPrompts is the shape provider-kairos sends on
+// EventInteractiveInstall (provider/internal/provider/interactive-install.go).
+func providerKairosPrompts() []sdkBus.YAMLPrompt {
+	return []sdkBus.YAMLPrompt{
+		{
+			YAMLSection: "p2p.network_token",
+			Prompt:      "Insert a network token, leave empty to autogenerate",
+			AskFirst:    true,
+			AskPrompt:   "Do you want to setup a full mesh-support?",
+			IfEmpty:     "generated-token",
+		},
+		{YAMLSection: "k3s.enabled", Bool: true, Prompt: "Do you want to enable k3s?"},
+	}
+}
+
+var _ = Describe("Apply with the provider-kairos prompts", func() {
+	var steps []Step
+	BeforeEach(func() { steps = Steps(context.Background(), applyEnv{prompts: providerKairosPrompts()}) })
+
+	// defaults is what a frontend submits for the step untouched: every Bool
+	// as "false" and every text field empty.
+	defaults := func() map[string]string {
+		step, ok := StepByID(steps, StepProvider)
+		Expect(ok).To(BeTrue())
+		v := map[string]string{}
+		for _, f := range step.Fields {
+			v[f.ID] = ""
+			if f.Kind == KindBool {
+				v[f.ID] = "false"
+			}
+		}
+		return v
+	}
+
+	It("writes nothing when the step is submitted with its defaults", func() {
+		a, errs := Apply(steps, Answers{}, StepProvider, defaults())
+		Expect(errs).To(BeEmpty())
+		Expect(a.Provider).To(BeEmpty(), "Next on the provider step must not turn on p2p or k3s")
+	})
+
+	It("uses the generated token when the gate is yes and the token is empty", func() {
+		v := defaults()
+		v["p2p.network_token"+AskSuffix] = "true"
+		a, errs := Apply(steps, Answers{}, StepProvider, v)
+		Expect(errs).To(BeEmpty())
+		Expect(a.Provider).To(Equal(map[string]any{"p2p": map[string]any{"network_token": "generated-token"}}))
+	})
+
+	It("uses a typed token when the gate is yes", func() {
+		v := defaults()
+		v["p2p.network_token"+AskSuffix] = "true"
+		v["p2p.network_token"] = "typed-token"
+		a, _ := Apply(steps, Answers{}, StepProvider, v)
+		Expect(a.Provider).To(Equal(map[string]any{"p2p": map[string]any{"network_token": "typed-token"}}))
+	})
+
+	It("ignores a typed token when the gate is no", func() {
+		v := defaults()
+		v["p2p.network_token"] = "typed-token"
+		a, _ := Apply(steps, Answers{}, StepProvider, v)
+		Expect(a.Provider).To(BeEmpty())
+	})
+
+	It("writes k3s.enabled when it is turned on", func() {
+		v := defaults()
+		v["k3s.enabled"] = "true"
+		a, _ := Apply(steps, Answers{}, StepProvider, v)
+		Expect(a.Provider).To(Equal(map[string]any{"k3s": map[string]any{"enabled": true}}))
+	})
+})

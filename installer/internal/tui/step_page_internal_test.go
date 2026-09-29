@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	sdkBus "github.com/kairos-io/kairos/v4/sdk/bus"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -494,5 +496,43 @@ var _ = Describe("the step page", func() {
 		Expect([]int{first, last}).To(Equal([]int{12, 20}))
 		first, last = visibleWindow(2, 3, 8)
 		Expect([]int{first, last}).To(Equal([]int{0, 3}))
+	})
+})
+
+var _ = Describe("the provider step with a yes or no gate", func() {
+	var page *stepPage
+	BeforeEach(func() {
+		env := newFakeWizardEnv()
+		env.prompts = []sdkBus.YAMLPrompt{
+			{YAMLSection: "p2p.network_token", Prompt: "Insert a network token, leave empty to autogenerate",
+				AskFirst: true, AskPrompt: "Do you want to setup a full mesh-support?", IfEmpty: "generated-token"},
+			{YAMLSection: "k3s.enabled", Bool: true, Prompt: "Do you want to enable k3s?"},
+		}
+		useFakeWizardEnv(env)
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel = InitialModel(&l, "")
+		for _, p := range mainModel.pages {
+			if sp, ok := p.(*stepPage); ok && sp.ID() == wizard.StepProvider {
+				page = sp
+			}
+		}
+		Expect(page).ToNot(BeNil())
+	})
+
+	It("writes nothing when enter is pressed through every field", func() {
+		page.Init()
+		for range page.widgets {
+			page.Update(key("enter"))
+		}
+		Expect(page.errs).To(BeEmpty())
+		Expect(mainModel.answers.Provider).To(BeEmpty())
+	})
+
+	It("shows the gate as yes when the section it gates is set", func() {
+		mainModel.answers.Provider = map[string]any{"p2p": map[string]any{"network_token": "tok"}}
+		page.Init()
+		Expect(page.values()["p2p.network_token"+wizard.AskSuffix]).To(Equal("true"))
+		Expect(page.values()["p2p.network_token"]).To(Equal("tok"))
+		Expect(page.View()).To(ContainSubstring("Used only when the answer above is yes."))
 	})
 })

@@ -31,6 +31,17 @@ func (webEnv) Keymaps() []string                    { return []string{"it"} }
 func (webEnv) ProviderPrompts() []sdkBus.YAMLPrompt { return nil }
 func (webEnv) AdvancedDisabled() bool               { return false }
 
+// providerEnv adds the prompts provider-kairos sends.
+type providerEnv struct{ webEnv }
+
+func (providerEnv) ProviderPrompts() []sdkBus.YAMLPrompt {
+	return []sdkBus.YAMLPrompt{
+		{YAMLSection: "p2p.network_token", Prompt: "Insert a network token, leave empty to autogenerate",
+			AskFirst: true, AskPrompt: "Do you want to setup a full mesh-support?", IfEmpty: "generated-token"},
+		{YAMLSection: "k3s.enabled", Bool: true, Prompt: "Do you want to enable k3s?"},
+	}
+}
+
 var _ = Describe("the wizard API", func() {
 	var srv *httptest.Server
 	BeforeEach(func() {
@@ -148,6 +159,20 @@ echo '{"event":"step","step":"done"}'
 		_, _ = body.ReadFrom(resp.Body)
 		Expect(body.String()).To(ContainSubstring("halt"))
 		Consistently(func() bool { _, err := os.Stat(started); return err == nil }, "500ms").Should(BeFalse())
+	})
+
+	It("writes no provider section when the provider step is submitted with its defaults", func() {
+		psrv := httptest.NewServer(newServer(Options{Env: providerEnv{}}))
+		DeferCleanup(psrv.Close)
+		b, _ := json.Marshal(map[string]any{"answers": map[string]any{}, "values": map[string]string{
+			"p2p.network_token" + wizard.AskSuffix: "false", "p2p.network_token": "", "k3s.enabled": "false",
+		}})
+		resp, err := http.Post(psrv.URL+"/api/step/"+wizard.StepProvider, "application/json", bytes.NewReader(b))
+		Expect(err).ToNot(HaveOccurred())
+		defer resp.Body.Close()
+		var raw struct{ Answers map[string]json.RawMessage }
+		Expect(json.NewDecoder(resp.Body).Decode(&raw)).To(Succeed())
+		Expect(raw.Answers).ToNot(HaveKey("provider"))
 	})
 
 	Describe("behind the token", func() {

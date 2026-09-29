@@ -57,6 +57,10 @@ type Field struct {
 // ConfirmSuffix names the second input of a Password field.
 const ConfirmSuffix = "_confirm"
 
+// AskSuffix names the yes or no field a provider prompt with AskFirst gets in
+// front of its value: "p2p.network_token#ask" gates "p2p.network_token".
+const AskSuffix = "#ask"
+
 // Step is one screen of questions.
 type Step struct {
 	ID    string `json:"id"`

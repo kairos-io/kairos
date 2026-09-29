@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -736,6 +737,10 @@ func answerFor(a wizard.Answers, f wizard.Field) string {
 			names = append(names, e.Name)
 		}
 		return strings.Join(names, "\n")
+	}
+	// A provider gate reads yes when the section it gates was written.
+	if section, ok := strings.CutSuffix(f.ID, wizard.AskSuffix); ok {
+		return strconv.FormatBool(providerValue(a.Provider, section) != "")
 	}
 	return providerValue(a.Provider, f.ID)
 }

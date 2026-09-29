@@ -141,23 +141,46 @@ func applyExtensions(step Step, out *Answers, values map[string]string) []FieldE
 	return errs
 }
 
+// applyProvider writes only what the operator turned on. A section behind a
+// no gate writes nothing, IfEmpty included, and a Bool that is off is left
+// out rather than written as false: the plugin's defaults then stay what
+// they were before the installer asked, as they did when the old terminal
+// installer's page was never opened.
 func applyProvider(step Step, out *Answers, values map[string]string) {
 	prov := map[string]any{}
 	for _, f := range step.Fields {
+		if strings.HasSuffix(f.ID, AskSuffix) {
+			continue
+		}
+		if gated(step, f.ID) && get(values, f.ID+AskSuffix) != "true" {
+			continue
+		}
 		v := get(values, f.ID)
+		if f.Kind == KindBool {
+			if v == "true" {
+				setPath(prov, f.ID, true)
+			}
+			continue
+		}
 		if v == "" {
 			v = f.IfEmpty
 		}
 		if v == "" {
 			continue
 		}
-		var val any = v
-		if f.Kind == KindBool {
-			val = v == "true"
-		}
-		setPath(prov, f.ID, val)
+		setPath(prov, f.ID, v)
 	}
 	out.Provider = prov
+}
+
+// gated reports whether the step asks a yes or no in front of field id.
+func gated(step Step, id string) bool {
+	for _, f := range step.Fields {
+		if f.ID == id+AskSuffix {
+			return true
+		}
+	}
+	return false
 }
 
 func applyFinish(step Step, out *Answers, values map[string]string) []FieldError {

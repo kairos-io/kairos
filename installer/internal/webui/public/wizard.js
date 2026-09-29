@@ -54,8 +54,15 @@ function answerFor(f) {
     case 'finish_action': return a.finish_action || f.default || '';
     case 'extensions': return (a.extensions || []).map(e => e.name).join('\n');
   }
-  let v = a.provider || {};
-  for (const k of f.id.split('.')) v = v && typeof v === 'object' ? v[k] : undefined;
+  return providerValue(f.id);
+}
+
+// providerValue reads a dot-separated provider section. A gate, a field id
+// ending in '#ask', reads yes when the section it gates was written.
+function providerValue(id) {
+  if (id.endsWith('#ask')) return String(providerValue(id.slice(0, -4)) !== '');
+  let v = state.answers.provider || {};
+  for (const k of id.split('.')) v = v && typeof v === 'object' ? v[k] : undefined;
   return v == null ? '' : String(v);
 }
 

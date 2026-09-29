@@ -1,6 +1,7 @@
 package webui
 
 import (
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -105,5 +106,10 @@ var _ = Describe("the wizard page", func() {
 		// has no empty choice of its own; a comment cannot satisfy this.
 		Expect(js).To(MatchRegexp(`canLeave = !f\.required && !f\.choices\.some\(c => c\.value === ''\)`))
 		Expect(js).To(MatchRegexp(`\{ value: '', label: 'Leave unset'`))
+	})
+
+	It("reads a provider gate back as yes when its section is set", func() {
+		js := read("wizard.js")
+		Expect(js).To(ContainSubstring("if (id.endsWith('" + wizard.AskSuffix + "')) return String(providerValue(id.slice(0, -" + fmt.Sprint(len(wizard.AskSuffix)) + ")) !== '');"))
 	})
 })

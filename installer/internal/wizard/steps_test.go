@@ -83,6 +83,24 @@ var _ = Describe("Steps", func() {
 		Expect(s.Fields[1]).To(MatchFields(IgnoreExtras, Fields{"Kind": Equal(wizard.KindText), "IfEmpty": Equal("generated"), "Placeholder": Equal("token")}))
 	})
 
+	It("asks an AskFirst prompt as a gate before its value, and titles the step Provider settings", func() {
+		e := env
+		e.prompts = []sdkBus.YAMLPrompt{
+			{YAMLSection: "p2p.network_token", Prompt: "Insert a network token, leave empty to autogenerate",
+				AskFirst: true, AskPrompt: "Do you want to setup a full mesh-support?", IfEmpty: "generated"},
+			{YAMLSection: "k3s.enabled", Bool: true, Prompt: "Do you want to enable k3s?"},
+		}
+		s, _ := wizard.StepByID(wizard.Steps(context.Background(), e), wizard.StepProvider)
+		Expect(s.Title).To(Equal("Provider settings"))
+		Expect(s.Fields).To(HaveLen(3))
+		Expect(s.Fields[0]).To(MatchFields(IgnoreExtras, Fields{
+			"ID": Equal("p2p.network_token" + wizard.AskSuffix), "Kind": Equal(wizard.KindBool),
+			"Label": Equal("Do you want to setup a full mesh-support?"), "Default": Equal("false"),
+		}))
+		Expect(s.Fields[1]).To(MatchFields(IgnoreExtras, Fields{"ID": Equal("p2p.network_token"), "Kind": Equal(wizard.KindText), "Help": Not(BeEmpty())}))
+		Expect(s.Fields[2]).To(MatchFields(IgnoreExtras, Fields{"ID": Equal("k3s.enabled"), "Kind": Equal(wizard.KindBool)}))
+	})
+
 	It("keeps only disk and finish when branding disables advanced customization", func() {
 		e := env
 		e.noAdvanced = true

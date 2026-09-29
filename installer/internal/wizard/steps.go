@@ -3,7 +3,6 @@ package wizard
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	sdkBus "github.com/kairos-io/kairos/v4/sdk/bus"
 
@@ -162,13 +161,22 @@ func providerStep(env Env) (Step, bool) {
 		if p.Bool {
 			f.Kind = KindBool
 		}
+		// A prompt the plugin asks only after a yes gets that yes or no as a
+		// field of its own, in front of it. Apply writes the section, and
+		// its IfEmpty, only when the answer is yes.
+		if p.AskFirst {
+			label := p.AskPrompt
+			if label == "" {
+				label = "Set " + p.YAMLSection + "?"
+			}
+			s.Fields = append(s.Fields, Field{ID: p.YAMLSection + AskSuffix, Kind: KindBool, Label: label, Default: "false"})
+			f.Help = "Used only when the answer above is yes."
+		}
 		s.Fields = append(s.Fields, f)
 	}
 	if len(s.Fields) == 0 {
 		return Step{}, false
 	}
-	// A step title the operator recognises: the first section's top key.
-	s.Title = strings.SplitN(s.Fields[0].ID, ".", 2)[0] + " settings"
 	return s, true
 }
 
