@@ -143,22 +143,6 @@ func (p *extensionsPage) View() string {
 // cursor could walk off the bottom into rows nobody can see.
 const visibleExtensionRows = 7
 
-// visibleWindow returns the half-open range of rows to draw so that cursor
-// stays inside it, without scrolling past either end of a list of count rows.
-func visibleWindow(cursor, count, rows int) (first, last int) {
-	if count <= rows {
-		return 0, count
-	}
-	first = cursor - rows/2
-	if first < 0 {
-		first = 0
-	}
-	if first > count-rows {
-		first = count - rows
-	}
-	return first, first + rows
-}
-
 func (p *extensionsPage) Title() string {
 	return "System Extensions"
 }

@@ -11,6 +11,8 @@ import (
 	"github.com/kairos-io/kairos/v4/sdk/branding"
 	sdkExtensions "github.com/kairos-io/kairos/v4/sdk/types/extensions"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
+
+	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 )
 
 // Page interface that all pages must implement
@@ -52,6 +54,11 @@ type Model struct {
 
 	installError     string // set when an install fails; shown on the debug bundle page
 	showAbortConfirm bool   // Show abort confirmation popup
+
+	answers     wizard.Answers // what the steps collected
+	steps       []wizard.Step  // wizard.Steps(), resolved once at start
+	cloudConfig string         // the text the install runs with; set on the summary, maybe edited
+	edited      bool           // cloudConfig was changed by hand
 }
 
 var mainModel Model
