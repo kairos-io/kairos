@@ -91,6 +91,9 @@ var _ = Describe("the wizard page", func() {
 
 	It("offers an optional single choice a first row that leaves it unset", func() {
 		js := read("wizard.js")
-		Expect(js).To(ContainSubstring("Leave unset"))
+		// The row is added by code that checks the field is optional and
+		// has no empty choice of its own; a comment cannot satisfy this.
+		Expect(js).To(MatchRegexp(`canLeave = !f\.required && !f\.choices\.some\(c => c\.value === ''\)`))
+		Expect(js).To(MatchRegexp(`\{ value: '', label: 'Leave unset'`))
 	})
 })

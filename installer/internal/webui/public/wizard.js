@@ -4,7 +4,7 @@
 // keeps the answers between calls.
 'use strict';
 
-const state = { steps: [], answers: {}, cur: 0, yaml: '', edited: false, confirmed: false, errors: {}, regen: false };
+const state = { steps: [], answers: {}, cur: 0, yaml: '', edited: false, confirmedDisk: '', errors: {}, regen: false, applied: new Set(), validSeq: 0 };
 const REVIEW = { id: 'review', title: 'Review and install' };
 
 function el(tag, attrs, ...children) {
@@ -22,8 +22,16 @@ function el(tag, attrs, ...children) {
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw new Error(r.status === 401 ? UNAUTHORIZED : (j.error || r.statusText || 'HTTP ' + r.status));
   return j;
+}
+
+const UNAUTHORIZED = 'The installer refused this request. The page needs the installer access token: open the address the installer printed, with its token, and reload.';
+
+// failure puts a readable message where the page shows it and redraws.
+function failure(e) {
+  state.errors = { '': e && e.message === UNAUTHORIZED ? e.message : 'Could not reach the installer: ' + (e && e.message ? e.message : e) };
+  draw();
 }
 
 // answerFor mirrors the TUI's answerFor: the current answer in the wizard's
@@ -117,7 +125,7 @@ function allSteps() { return [...state.steps, REVIEW]; }
 function done(s) {
   const a = state.answers;
   return { disk: !!a.disk, user: !!a.username, ssh_keys: (a.ssh_keys || []).length > 0, hostname: !!a.hostname,
-    locale: !!(a.timezone || a.keymap), extensions: (a.extensions || []).length > 0, provider: !!a.provider, finish: true }[s.id];
+    locale: !!(a.timezone || a.keymap), extensions: (a.extensions || []).length > 0, provider: !!a.provider, finish: state.applied.has('finish') }[s.id];
 }
 
 function drawRail() {
@@ -150,12 +158,16 @@ function drawStep(step) {
 }
 
 async function validate() {
-  const r = await api('/validate-json', { cloud_config: state.yaml }).catch(() => null);
+  const seq = ++state.validSeq;
   const banner = document.getElementById('valid');
-  if (!banner) return;
-  const msg = r ? r.error : '';
-  banner.className = 'banner' + (msg ? '' : ' ok');
-  banner.textContent = msg ? 'Schema warning: ' + msg.replace(/^.*?#/, '') : 'Valid cloud-config';
+  if (banner) { banner.className = 'banner'; banner.textContent = 'Checking the configuration...'; }
+  let msg = '', failed = false;
+  try { msg = (await api('/validate-json', { cloud_config: state.yaml })).error; } catch (e) { failed = true; msg = e.message; }
+  // A later edit started a newer check; only its reply may be shown.
+  const now = document.getElementById('valid');
+  if (seq !== state.validSeq || !now) return;
+  now.className = 'banner' + (msg ? '' : ' ok');
+  now.textContent = failed ? 'Could not check the configuration: ' + msg : msg ? 'Schema warning: ' + msg.replace(/^.*?#/, '') : 'Valid cloud-config';
 }
 
 function drawReview() {
@@ -167,13 +179,16 @@ function drawReview() {
   editedTag.hidden = !state.edited;
   const regenerate = async () => {
     if (state.edited && !state.regen) { state.regen = true; return draw(); }
-    state.regen = false; state.edited = false; state.yaml = (await api('/api/render', { answers: a })).cloud_config; draw();
+    state.regen = false;
+    try { state.yaml = (await api('/api/render', { answers: a })).cloud_config; } catch (e) { return failure(e); }
+    state.edited = false; state.errors = {}; draw();
   };
   const disk = a.disk || '(no disk)';
   const confirmText = ((state.steps[0] && state.steps[0].fields[0].confirm) || 'Everything on {value} will be erased.').replace('{value}', disk);
   main.replaceChildren(
     el('div', {}, el('h1', {}, 'Review and install'),
       el('p', { class: 'help' }, 'This is the configuration the install runs with, built from your answers. Edit it to add anything the steps do not ask for.')),
+    state.errors[''] ? el('div', { class: 'banner', role: 'alert' }, state.errors['']) : null,
     el('div', { class: 'review' },
       el('div', { class: 'editor' },
         el('div', { class: 'editor-head' }, el('strong', {}, 'cloud-config'),
@@ -189,9 +204,9 @@ function drawReview() {
               ['Extensions', (a.extensions || []).map(e => e.name.split('/').pop().replace('.sysext.raw', '')).join(', ') || 'none'],
               ['When done', a.finish_action || 'nothing']].map(([k, v]) => el('div', {}, el('dt', {}, k), el('dd', {}, v)))),
         el('p', { class: 'fhelp' }, 'The disk and the finish action come from your answers, even if the text says otherwise.'),
-        el('label', { class: 'confirm' }, el('input', { type: 'checkbox', id: 'confirm', checked: state.confirmed,
-          onchange: e => { state.confirmed = e.target.checked; document.getElementById('install').disabled = !state.confirmed || !a.disk; } }), el('span', {}, confirmText)),
-        el('button', { type: 'button', class: 'btn', id: 'install', disabled: !state.confirmed || !a.disk, onclick: install }, 'Install to ' + disk),
+        el('label', { class: 'confirm' }, el('input', { type: 'checkbox', id: 'confirm', checked: state.confirmedDisk === a.disk && !!a.disk,
+          onchange: e => { state.confirmedDisk = e.target.checked ? a.disk : ''; document.getElementById('install').disabled = !e.target.checked || !a.disk; } }), el('span', {}, confirmText)),
+        el('button', { type: 'button', class: 'btn', id: 'install', disabled: !(state.confirmedDisk === a.disk && a.disk), onclick: install }, 'Install to ' + disk),
         el('button', { type: 'button', class: 'btn ghost', onclick: () => go(state.cur - 1) }, 'Back'))));
   validate();
 }
@@ -199,28 +214,41 @@ function drawReview() {
 async function install() {
   const btn = document.getElementById('install');
   btn.disabled = true; btn.textContent = 'Starting...';
-  const r = await fetch('/install', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cloud_config: state.yaml, device: state.answers.disk, finish_action: state.answers.finish_action || '' }), redirect: 'follow' });
-  if (r.redirected || r.url.endsWith('progress.html')) { window.location.href = '/progress.html'; return; }
-  // A failure to start comes back as the message page; show its text.
-  const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-  state.errors[''] = (doc.querySelector('.alert') || doc.body).textContent.trim();
-  btn.disabled = false; btn.textContent = 'Install to ' + state.answers.disk;
-  document.getElementById('main').prepend(el('div', { class: 'banner', role: 'alert' }, state.errors['']));
+  try {
+    const r = await fetch('/install', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cloud_config: state.yaml, device: state.answers.disk, finish_action: state.answers.finish_action || '' }), redirect: 'follow' });
+    if (r.redirected || r.url.endsWith('progress.html')) { window.location.href = '/progress.html'; return; }
+    if (r.status === 401) throw new Error(UNAUTHORIZED);
+    // A failure to start comes back as the message page; show its text.
+    const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+    const text = ((doc.querySelector('.alert') || doc.body).textContent || '').trim();
+    state.errors = { '': text || 'The install did not start (HTTP ' + r.status + ').' };
+    draw();
+  } catch (e) { failure(e); }
 }
 
 async function go(i, skip) {
   const s = allSteps()[state.cur];
-  if (s !== REVIEW && i > state.cur && !skip) {
-    const r = await api('/api/step/' + s.id, { answers: state.answers, values: { ...values } });
+  try {
+    if (s !== REVIEW && i > state.cur && !skip) {
+      // Text typed into a list but never added still counts.
+      for (const f of s.fields.filter(f => f.kind === 'list')) {
+        const box = document.getElementById('f-' + f.id + '-new');
+        const pending = box ? box.value.trim() : '';
+        if (pending) values[f.id] = ((values[f.id] || '') + '\n' + pending).trim();
+      }
+      const r = await api('/api/step/' + s.id, { answers: state.answers, values: { ...values } });
+      if (r.errors.length) { state.errors = {}; for (const e of r.errors) state.errors[e.field] = e.message; return draw(); }
+      state.answers = r.answers;
+      state.applied.add(s.id);
+    }
+    const to = Math.max(0, Math.min(allSteps().length - 1, i));
+    // Render before moving, so a failure leaves the operator on this step.
+    if (allSteps()[to] === REVIEW && !state.edited) state.yaml = (await api('/api/render', { answers: state.answers })).cloud_config;
     state.errors = {};
-    if (r.errors.length) { for (const e of r.errors) state.errors[e.field] = e.message; return draw(); }
-    state.answers = r.answers;
-  }
-  state.errors = {};
-  state.cur = Math.max(0, Math.min(allSteps().length - 1, i));
-  if (allSteps()[state.cur] === REVIEW && !state.edited) state.yaml = (await api('/api/render', { answers: state.answers })).cloud_config;
-  draw();
+    state.cur = to;
+    draw();
+  } catch (e) { failure(e); }
 }
 
 function draw() {
