@@ -154,7 +154,7 @@ users:
 	})
 
 	Context("GenerateSchema", func() {
-		var url string
+		var id string
 		var schema string
 		var err error
 
@@ -162,13 +162,21 @@ users:
 			Key interface{} `json:"key,omitempty" required:"true"`
 		}
 
+		BeforeEach(func() {
+			id = ""
+		})
+
 		JustBeforeEach(func() {
-			schema, err = GenerateSchema(TestSchema{}, url)
+			schema, err = GenerateSchema(TestSchema{}, id)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("does not include the $schema key by default", func() {
 			Expect(strings.Contains(schema, `$schema`)).To(BeFalse())
+		})
+
+		It("does not include the $id key by default", func() {
+			Expect(strings.Contains(schema, `$id`)).To(BeFalse())
 		})
 
 		It("can use any type of schma", func() {
@@ -184,13 +192,18 @@ users:
 			Expect(schema).To(Equal(wants))
 		})
 
-		Context("with a URL", func() {
+		Context("with an id", func() {
 			BeforeEach(func() {
-				url = "http://foobar"
+				id = "http://foobar"
 			})
 
-			It("appends the $schema key", func() {
-				Expect(strings.Contains(schema, `$schema": "http://foobar"`)).To(BeTrue())
+			It("writes the id to $id, which names the document", func() {
+				Expect(schema).To(ContainSubstring(`"$id": "http://foobar"`))
+			})
+
+			It("declares the draft-07 dialect in $schema, not the id", func() {
+				Expect(schema).To(ContainSubstring(`"$schema": "http://json-schema.org/draft-07/schema#"`))
+				Expect(schema).ToNot(ContainSubstring(`"$schema": "http://foobar"`))
 			})
 		})
 
