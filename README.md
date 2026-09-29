@@ -70,11 +70,6 @@ image initializer all live in one source tree, share a single
 - `installer/` -- interactive terminal-UI installer embedded by
   kairos-init at `/system/installer/kairos-installer` and invoked by
   `kairos-agent interactive-install` (was `kairos-io/kairos-installer`).
-- `internal/splash/` -- the animated boot splash, drawn on tty1 from the
-  initramfs to the login prompt. Reached as `kairos splash`, and shipped by
-  kairos-init at `/usr/bin/kairos-splash`, the path a downstream replaces to
-  ship its own animation. See
-  [`internal/splash/README.md`](internal/splash/README.md).
 - `provider/` -- the p2p/mesh provider, embedded by kairos-init at
   `/system/providers/agent-provider-kairos` in standard images. Both an
   agent bus plugin and the CLI behind `kairos provider <cmd>`
