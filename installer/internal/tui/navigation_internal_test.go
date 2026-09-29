@@ -264,3 +264,52 @@ var _ = Describe("the keys the operator confirmed", func() {
 		Expect(confirmedOverrides()).To(Equal(wizard.Overrides{Device: "/dev/vda", Source: "oci:example/image:tag", FinishAction: wizard.FinishPoweroff}))
 	})
 })
+
+var _ = Describe("starting the install from the summary", func() {
+	BeforeEach(func() {
+		// The install page runs the agent on entry; with none to find it
+		// only reports that, so reaching it starts nothing.
+		GinkgoT().Setenv("KAIROS_AGENT_BIN", "")
+		GinkgoT().Setenv("PATH", GinkgoT().TempDir())
+		l := sdkLogger.NewBufferLogger(&bytes.Buffer{})
+		mainModel = InitialModel(&l, "")
+		mainModel.answers.Disk = "/dev/vda"
+		mainModel.navigationStack = []string{"install_options"}
+		mainModel.currentPageID = "summary"
+	})
+
+	summary := func() *summaryPage {
+		for _, p := range mainModel.pages {
+			if s, ok := p.(*summaryPage); ok {
+				return s
+			}
+		}
+		Fail("no summary page")
+		return nil
+	}
+
+	It("shows the disk step's warning with the chosen disk", func() {
+		Expect(summary().View()).To(ContainSubstring("Everything on /dev/vda will be erased."))
+	})
+
+	It("asks before erasing the disk, and any key but y cancels", func() {
+		drive(tea.KeyMsg{Type: tea.KeyEnter})
+		Expect(mainModel.currentPageID).To(Equal("summary"))
+		Expect(summary().View()).To(ContainSubstring("Type y to erase /dev/vda and install, any other key to cancel"))
+		drive(runes("n"))
+		Expect(mainModel.currentPageID).To(Equal("summary"))
+		Expect(summary().View()).ToNot(ContainSubstring("Type y to erase"))
+
+		// q and esc cancel the question too, rather than quitting or going back.
+		drive(tea.KeyMsg{Type: tea.KeyEnter})
+		drive(tea.KeyMsg{Type: tea.KeyEsc})
+		Expect(mainModel.currentPageID).To(Equal("summary"))
+		Expect(summary().View()).ToNot(ContainSubstring("Type y to erase"))
+	})
+
+	It("starts the install page on enter then y", func() {
+		drive(tea.KeyMsg{Type: tea.KeyEnter})
+		drive(runes("y"))
+		Expect(mainModel.currentPageID).To(Equal("install_process"))
+	})
+})
