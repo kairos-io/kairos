@@ -56,7 +56,12 @@ type stepResponse struct {
 
 func (w *wizardAPI) register(ec *echo.Echo) {
 	ec.GET("/api/wizard", func(c *echo.Context) error {
-		return c.JSON(http.StatusOK, map[string]any{"steps": w.refresh(c.Request().Context())})
+		// advanced_disabled is the branding switch that hides the terminal
+		// installer's editor; the page makes its review read only with it.
+		return c.JSON(http.StatusOK, map[string]any{
+			"steps":             w.refresh(c.Request().Context()),
+			"advanced_disabled": w.env.AdvancedDisabled(),
+		})
 	})
 
 	ec.POST("/api/step/:id", func(c *echo.Context) error {

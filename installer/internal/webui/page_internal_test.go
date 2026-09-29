@@ -112,4 +112,11 @@ var _ = Describe("the wizard page", func() {
 		js := read("wizard.js")
 		Expect(js).To(ContainSubstring("if (id.endsWith('" + wizard.AskSuffix + "')) return String(providerValue(id.slice(0, -" + fmt.Sprint(len(wizard.AskSuffix)) + ")) !== '');"))
 	})
+
+	It("makes the review read only and hides Regenerate when the branding switch is on", func() {
+		js := read("wizard.js")
+		Expect(js).To(ContainSubstring("state.advancedDisabled = !!r.advanced_disabled;"))
+		Expect(js).To(ContainSubstring("area.readOnly = state.advancedDisabled;"))
+		Expect(js).To(MatchRegexp(`state\.advancedDisabled \? null : el\('button', \{ type: 'button', class: 'btn ghost', onclick: regenerate \}, 'Regenerate from answers'\)`))
+	})
 })

@@ -4,7 +4,7 @@
 // keeps the answers between calls.
 'use strict';
 
-const state = { steps: [], answers: {}, cur: 0, yaml: '', edited: false, confirmedDisk: '', errors: {}, regen: false, applied: new Set(), validSeq: 0 };
+const state = { steps: [], advancedDisabled: false, answers: {}, cur: 0, yaml: '', edited: false, confirmedDisk: '', errors: {}, regen: false, applied: new Set(), validSeq: 0 };
 const REVIEW = { id: 'review', title: 'Review and install' };
 
 function el(tag, attrs, ...children) {
@@ -186,6 +186,9 @@ function drawReview() {
   const area = el('textarea', { id: 'yaml', spellcheck: 'false', 'aria-label': 'cloud-config',
     oninput: e => { state.yaml = e.target.value; state.edited = true; editedTag.hidden = false; clearTimeout(drawReview.t); drawReview.t = setTimeout(validate, 400); } });
   area.value = state.yaml;
+  // The branding switch that hides the terminal installer's editor: the text
+  // can be read, not changed, and the install runs with what was generated.
+  area.readOnly = state.advancedDisabled;
   const editedTag = el('span', { class: 'edited' }, 'Edited by hand');
   editedTag.hidden = !state.edited;
   const regenerate = async () => {
@@ -198,12 +201,13 @@ function drawReview() {
   const confirmText = ((state.steps[0] && state.steps[0].fields[0].confirm) || 'Everything on {value} will be erased.').replace('{value}', disk);
   fill(main,
     el('div', {}, el('h1', {}, 'Review and install'),
-      el('p', { class: 'help' }, 'This is the configuration the install runs with, built from your answers. Edit it to add anything the steps do not ask for.')),
+      el('p', { class: 'help' }, state.advancedDisabled ? 'This is the configuration the install runs with, built from your answers.'
+        : 'This is the configuration the install runs with, built from your answers. Edit it to add anything the steps do not ask for.')),
     state.errors[''] ? el('div', { class: 'banner', role: 'alert' }, state.errors['']) : null,
     el('div', { class: 'review' },
       el('div', { class: 'editor' },
         el('div', { class: 'editor-head' }, el('strong', {}, 'cloud-config'),
-          el('div', { class: 'row' }, editedTag, el('button', { type: 'button', class: 'btn ghost', onclick: regenerate }, 'Regenerate from answers'))),
+          el('div', { class: 'row' }, editedTag, state.advancedDisabled ? null : el('button', { type: 'button', class: 'btn ghost', onclick: regenerate }, 'Regenerate from answers'))),
         state.regen ? el('div', { class: 'inline-warn' }, 'Regenerating replaces your edits with the configuration built from the answers.',
           el('div', { class: 'row' }, el('button', { type: 'button', class: 'btn', onclick: regenerate }, 'Replace my edits'),
             el('button', { type: 'button', class: 'btn ghost', onclick: () => { state.regen = false; draw(); } }, 'Keep editing'))) : null,
@@ -277,5 +281,5 @@ function answersDefaults() {
   if (fin && state.answers.finish_action === undefined) state.answers.finish_action = fin.fields[0].default || '';
 }
 
-api('/api/wizard').then(r => { state.steps = r.steps; answersDefaults(); draw(); })
+api('/api/wizard').then(r => { state.steps = r.steps; state.advancedDisabled = !!r.advanced_disabled; answersDefaults(); draw(); })
   .catch(e => fill(document.getElementById('main'), el('div', { class: 'banner', role: 'alert' }, 'The installer steps could not be loaded: ' + e.message)));

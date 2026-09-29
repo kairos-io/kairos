@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -30,6 +31,11 @@ func (webEnv) Timezones() []string                  { return []string{"UTC", "Eu
 func (webEnv) Keymaps() []string                    { return []string{"it"} }
 func (webEnv) ProviderPrompts() []sdkBus.YAMLPrompt { return nil }
 func (webEnv) AdvancedDisabled() bool               { return false }
+
+// brandedEnv is an image with the advanced customization switched off.
+type brandedEnv struct{ webEnv }
+
+func (brandedEnv) AdvancedDisabled() bool { return true }
 
 // providerEnv adds the prompts provider-kairos sends.
 type providerEnv struct{ webEnv }
@@ -77,6 +83,23 @@ var _ = Describe("the wizard API", func() {
 		Expect(json.NewDecoder(resp.Body).Decode(&got)).To(Succeed())
 		Expect(got.Steps[0].ID).To(Equal(wizard.StepDisk))
 		Expect(got.Steps[0].Fields[0].Choices[0].Value).To(Equal("/dev/vda"))
+	})
+
+	It("says whether the branding switch turned the advanced customization off", func() {
+		for _, tc := range []struct {
+			env  wizard.Env
+			want bool
+		}{{webEnv{}, false}, {brandedEnv{}, true}} {
+			s := httptest.NewServer(newServer(Options{Env: tc.env}))
+			resp, err := http.Get(s.URL + "/api/wizard")
+			Expect(err).ToNot(HaveOccurred())
+			var raw map[string]json.RawMessage
+			Expect(json.NewDecoder(resp.Body).Decode(&raw)).To(Succeed())
+			resp.Body.Close()
+			s.Close()
+			Expect(raw).To(HaveKey("advanced_disabled"))
+			Expect(string(raw["advanced_disabled"])).To(Equal(fmt.Sprint(tc.want)))
+		}
 	})
 
 	It("applies a step and returns the answers, or the field errors", func() {
