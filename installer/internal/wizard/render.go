@@ -32,7 +32,15 @@ type extraFields struct {
 //
 // Settings left empty write nothing, so an install that skips every optional
 // step gets exactly the configuration it got before those steps existed.
+//
+// The answers may not have come through Apply: the web UI's /api/render takes
+// them from the browser as they are. So Render checks the values it writes
+// into a command or a file with the same checks Apply uses, and refuses the
+// answers when one fails.
 func Render(a Answers) (string, error) {
+	if err := checkWritten(a); err != nil {
+		return "", err
+	}
 	cc := &sdkConfig.Config{Install: &sdkInstall.Install{Device: a.Disk}}
 	if a.Source != "" {
 		cc.Install.Source = a.Source
@@ -57,8 +65,8 @@ func Render(a Answers) (string, error) {
 		add(initramfsStage, schema.Stage{Name: "Set the hostname", Hostname: a.Hostname})
 	}
 	if a.Timezone != "" {
-		// Apply only lets a zoneinfo name through, so this cannot be
-		// anything but a path under /usr/share/zoneinfo.
+		// checkWritten only lets a zoneinfo name through, so this cannot
+		// be anything but a path under /usr/share/zoneinfo.
 		add(initramfsStage, schema.Stage{
 			Name:     "Set the timezone",
 			Commands: []string{fmt.Sprintf("ln -sf /usr/share/zoneinfo/%s /etc/localtime", a.Timezone)},
@@ -112,6 +120,20 @@ func RenderRedacted(a Answers) (string, error) {
 		a.PasswordHash = Redacted
 	}
 	return Render(a)
+}
+
+// checkWritten refuses a hostname, timezone or keymap that Apply would have
+// refused.
+func checkWritten(a Answers) error {
+	switch {
+	case a.Hostname != "" && !validHostname(a.Hostname):
+		return fmt.Errorf("the hostname %q is not a valid host name", a.Hostname)
+	case a.Timezone != "" && !validTimezone(a.Timezone):
+		return fmt.Errorf("the timezone %q is not a zoneinfo name", a.Timezone)
+	case a.Keymap != "" && !validKeymap(a.Keymap):
+		return fmt.Errorf("the keymap %q is not a keyboard layout name", a.Keymap)
+	}
+	return nil
 }
 
 // Redact replaces every passwd value in a cloud-config, at any depth, for a

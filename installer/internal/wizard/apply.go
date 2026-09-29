@@ -112,10 +112,10 @@ func applyHostname(out *Answers, values map[string]string) []FieldError {
 func applyLocale(step Step, out *Answers, values map[string]string) []FieldError {
 	var errs []FieldError
 	tz, km := get(values, FieldTimezone), get(values, FieldKeymap)
-	if tz != "" && (!timezoneRe.MatchString(tz) || strings.Contains(tz, "..") || !offered(step.Fields[0], tz)) {
+	if tz != "" && (!validTimezone(tz) || !offered(step.Fields[0], tz)) {
 		errs = append(errs, fieldErr(FieldTimezone, "%s is not a timezone this image knows.", tz)...)
 	}
-	if km != "" && (!keymapRe.MatchString(km) || !offered(step.Fields[1], km)) {
+	if km != "" && (!validKeymap(km) || !offered(step.Fields[1], km)) {
 		errs = append(errs, fieldErr(FieldKeymap, "%s is not a keyboard layout this image knows.", km)...)
 	}
 	out.Timezone, out.Keymap = tz, km
@@ -208,6 +208,11 @@ func offered(f Field, v string) bool {
 	}
 	return false
 }
+
+// validTimezone and validKeymap are the charset checks Apply and Render
+// share: a zoneinfo-shaped name, and a keymap-shaped one.
+func validTimezone(v string) bool { return timezoneRe.MatchString(v) && !strings.Contains(v, "..") }
+func validKeymap(v string) bool   { return keymapRe.MatchString(v) }
 
 func validHostname(v string) bool {
 	if len(v) > 253 {

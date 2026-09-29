@@ -155,3 +155,27 @@ var _ = Describe("Render, the settings added with the wizard", func() {
 		Expect(out).ToNot(ContainSubstring("vconsole"))
 	})
 })
+
+var _ = Describe("Render, on answers that did not come through Apply", func() {
+	// /api/render takes the answers straight from the browser, so Render
+	// checks what it writes into a command or a file itself.
+	DescribeTable("refuses a value Apply would have refused",
+		func(a wizard.Answers, field string) {
+			a.Disk = "/dev/sda"
+			out, err := wizard.Render(a)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(field))
+			Expect(out).To(BeEmpty())
+		},
+		Entry("shell in timezone", wizard.Answers{Timezone: "UTC; reboot"}, "timezone"),
+		Entry("path traversal in timezone", wizard.Answers{Timezone: "../../etc/shadow"}, "timezone"),
+		Entry("newline in keymap", wizard.Answers{Keymap: "it\nKEYMAP=us"}, "keymap"),
+		Entry("quote in keymap", wizard.Answers{Keymap: `it"`}, "keymap"),
+		Entry("shell in hostname", wizard.Answers{Hostname: "a;reboot"}, "hostname"),
+	)
+
+	It("still renders valid values", func() {
+		_, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Timezone: "Etc/GMT+5", Keymap: "de-latin1", Hostname: "edge-01.lab"})
+		Expect(err).ToNot(HaveOccurred())
+	})
+})

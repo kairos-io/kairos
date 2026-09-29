@@ -141,6 +141,14 @@ var _ = Describe("the wizard API", func() {
 		Expect(got.CloudConfig).ToNot(ContainSubstring("oci:evil"))
 	})
 
+	It("refuses to render a timezone that would reach the shell, with a 422", func() {
+		var got map[string]string
+		resp := post("/api/render", map[string]any{"answers": map[string]any{"disk": "/dev/vda", "timezone": "UTC; reboot"}}, &got)
+		Expect(resp.StatusCode).To(Equal(http.StatusUnprocessableEntity))
+		Expect(got["error"]).To(ContainSubstring("timezone"))
+		Expect(got).ToNot(HaveKey("cloud_config"))
+	})
+
 	It("validates a cloud-config as JSON, an empty error meaning valid", func() {
 		var ok, bad struct{ Error string }
 		post("/validate-json", map[string]string{"cloud_config": "#cloud-config\nusers:\n  - name: kairos\n    passwd: kairos\n"}, &ok)
