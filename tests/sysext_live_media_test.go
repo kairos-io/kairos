@@ -14,10 +14,10 @@ import (
 
 // The extension the ISO ships. tests/assets/sysext-grub is mounted as the
 // auroraboot --overlay-iso directory by _build-iso.yaml on non-trusted-boot
-// cells, so both images in it land at the ISO root and therefore under
-// /run/initramfs/live while the installer runs. Its work.sysext.raw is
-// verity-only (unsigned) so systemd-sysext can activate it on a boot with
-// no test signing key enrolled.
+// cells, so its work.sysext.raw lands at the ISO root and therefore under
+// /run/initramfs/live while the installer runs. That image is verity-only
+// (unsigned) so systemd-sysext can activate it on a boot with no test
+// signing key enrolled.
 const liveMediaExtension = "work.sysext.raw"
 
 // Coverage for the GRUB half of the live media extension sweep. The UKI half
@@ -94,18 +94,35 @@ users:
 				var sysexts sysextStatus
 				Expect(json.Unmarshal([]byte(out), &sysexts)).ToNot(HaveOccurred())
 
+				// The extension's payload lives under /usr/local/include so
+				// the overlay it creates does not land on /usr/local/bin, which
+				// would be read-only after the merge on this systemd version
+				// and would break every install path that writes there
+				// (bundles with rootfs_path=/usr/local/bin, kairos-agent's
+				// fix-home-dir-ownership, ...). See tests/assets/sysext-grub
+				// for the constraint. Assert the extension merged into any
+				// hierarchy rather than pinning /usr/local/bin.
 				var merged bool
 				for _, sysext := range sysexts {
-					if sysext.Hierarchy == "/usr/local/bin" {
-						Expect(sysext.Extensions).To(ContainElement("work"))
-						merged = true
+					exts, ok := sysext.Extensions.([]interface{})
+					if !ok {
+						continue
+					}
+					for _, e := range exts {
+						if e == "work" {
+							merged = true
+							break
+						}
+					}
+					if merged {
+						break
 					}
 				}
-				Expect(merged).To(BeTrue(), "no /usr/local/bin hierarchy in %s", out)
+				Expect(merged).To(BeTrue(), "no hierarchy has 'work' merged in %s", out)
 			})
 
 			By("running a command the extension provides", func() {
-				out, err := vm.Sudo("hello.sh")
+				out, err := vm.Sudo("/usr/local/include/kairos-test/hello.sh")
 				Expect(err).ToNot(HaveOccurred(), out)
 				Expect(out).To(ContainSubstring("Hello world"))
 			})
