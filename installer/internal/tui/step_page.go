@@ -124,7 +124,9 @@ func (p *stepPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	case "shift+tab":
 		return p, p.move(-1)
 	case "enter":
-		if p.focus < len(p.widgets)-1 && p.step.Fields[p.focus].Kind != wizard.KindChoice {
+		// enter saves the step on its last field and moves on from the
+		// others, so a second list on the page is never skipped.
+		if p.focus < len(p.widgets)-1 {
 			return p, p.move(1)
 		}
 		return p, p.submit()
@@ -142,6 +144,13 @@ func (p *stepPage) submit() tea.Cmd {
 		return nil
 	}
 	mainModel.answers = answers
+	// The hash is in the answers now; do not keep the plaintext around.
+	for _, w := range p.widgets {
+		if t, ok := w.(*textWidget); ok && t.password {
+			t.input.SetValue("")
+			t.confirm.SetValue("")
+		}
+	}
 	next := "customization"
 	if p.step.ID == wizard.StepDisk {
 		next = "install_options"
@@ -237,11 +246,12 @@ func (w *textWidget) Load(a wizard.Answers) {
 func (w *textWidget) Focus() tea.Cmd { w.second = false; return w.input.Focus() }
 func (w *textWidget) Blur()          { w.input.Blur(); w.confirm.Blur() }
 func (w *textWidget) Wants(k tea.KeyMsg) bool {
-	// Inside a password, tab moves to the confirmation before leaving.
-	return w.password && !w.second && k.String() == "tab"
+	// Inside a password, tab and enter move to the confirmation before
+	// leaving, so enter never submits with the confirmation still empty.
+	return w.password && !w.second && (k.String() == "tab" || k.String() == "enter")
 }
 func (w *textWidget) Update(k tea.KeyMsg) tea.Cmd {
-	if w.password && k.String() == "tab" {
+	if w.password && !w.second && (k.String() == "tab" || k.String() == "enter") {
 		w.second = true
 		w.input.Blur()
 		return w.confirm.Focus()
@@ -266,13 +276,16 @@ func (w *textWidget) View(focused bool, _ int) string {
 }
 func (w *textWidget) Value() string {
 	if w.password {
+		if w.input.Value() == "" && w.confirm.Value() == "" {
+			return ""
+		}
 		return w.input.Value() + "\n" + w.confirm.Value()
 	}
 	return w.input.Value()
 }
 func (w *textWidget) Help() string {
 	if w.password {
-		return "type the password, tab, type it again"
+		return "type the password, enter, type it again"
 	}
 	return "type to edit"
 }
@@ -280,27 +293,40 @@ func (w *textWidget) Help() string {
 // ---- choice and multichoice ----
 
 type choiceWidget struct {
-	field     wizard.Field
-	multi     bool
-	cursor    int
-	selected  map[string]bool
-	filter    textinput.Model
-	filtering bool
+	field wizard.Field
+	// options is what the widget offers: the field's choices, after a
+	// "(leave unset)" row on an optional single choice.
+	options []wizard.Choice
+	multi   bool
+	cursor  int
+	// unfiltered is where the cursor was when the filter opened.
+	unfiltered int
+	selected   map[string]bool
+	filter     textinput.Model
+	filtering  bool
 }
+
+// unsetLabel is the row an optional single choice starts on, so an
+// unanswered list never submits its first entry by accident.
+const unsetLabel = "(leave unset)"
 
 func newChoiceWidget(f wizard.Field, multi bool) *choiceWidget {
 	t := textinput.New()
 	t.Prompt = "/"
-	return &choiceWidget{field: f, multi: multi, selected: map[string]bool{}, filter: t}
+	w := &choiceWidget{field: f, multi: multi, selected: map[string]bool{}, filter: t, options: f.Choices}
+	if !multi && !f.Required && !containsValue(f.Choices, "") {
+		w.options = append([]wizard.Choice{{Value: "", Label: unsetLabel}}, f.Choices...)
+	}
+	return w
 }
 
 func (w *choiceWidget) visible() []wizard.Choice {
 	q := strings.ToLower(w.filter.Value())
 	if q == "" {
-		return w.field.Choices
+		return w.options
 	}
 	var out []wizard.Choice
-	for _, c := range w.field.Choices {
+	for _, c := range w.options {
 		if strings.Contains(strings.ToLower(c.Label), q) && !containsValue(out, c.Value) {
 			out = append(out, c)
 		}
@@ -318,6 +344,10 @@ func containsValue(cs []wizard.Choice, v string) bool {
 }
 
 func (w *choiceWidget) Load(a wizard.Answers) {
+	w.filtering = false
+	w.filter.SetValue("")
+	w.filter.Blur()
+	w.cursor = 0
 	w.selected = map[string]bool{}
 	cur := answerFor(a, w.field)
 	if cur == "" && !w.multi {
@@ -326,7 +356,7 @@ func (w *choiceWidget) Load(a wizard.Answers) {
 	for _, v := range strings.Split(cur, "\n") {
 		w.selected[v] = true
 	}
-	for i, c := range w.field.Choices {
+	for i, c := range w.options {
 		if w.selected[c.Value] {
 			w.cursor = i
 			break
@@ -340,21 +370,13 @@ func (w *choiceWidget) Wants(k tea.KeyMsg) bool {
 }
 func (w *choiceWidget) Update(k tea.KeyMsg) tea.Cmd {
 	vis := w.visible()
-	switch {
-	case w.filtering && k.String() == "esc":
-		w.filtering = false
-		w.filter.SetValue("")
-		w.cursor = 0
-		return nil
-	case w.filtering:
-		var cmd tea.Cmd
-		w.filter, cmd = w.filter.Update(k)
-		w.cursor = 0
-		return cmd
+	if w.filtering {
+		return w.updateFiltering(k, vis)
 	}
 	switch k.String() {
 	case "/":
 		w.filtering = true
+		w.unfiltered = w.cursor
 		return w.filter.Focus()
 	case "up", "k":
 		if w.cursor > 0 {
@@ -376,6 +398,59 @@ func (w *choiceWidget) Update(k tea.KeyMsg) tea.Cmd {
 	}
 	return nil
 }
+
+// updateFiltering handles a key while the filter has the keyboard. The
+// arrows still move, space still toggles a multichoice, and esc leaves the
+// filter with the cursor on the entry it was on.
+func (w *choiceWidget) updateFiltering(k tea.KeyMsg, vis []wizard.Choice) tea.Cmd {
+	switch k.String() {
+	case "esc":
+		w.filtering = false
+		w.filter.Blur()
+		cur := w.unfiltered
+		if w.cursor < len(vis) {
+			cur = indexOfValue(w.options, vis[w.cursor].Value)
+		}
+		w.filter.SetValue("")
+		w.cursor = cur
+		return nil
+	case "up":
+		if w.cursor > 0 {
+			w.cursor--
+		}
+		return nil
+	case "down":
+		if w.cursor < len(vis)-1 {
+			w.cursor++
+		}
+		return nil
+	case " ":
+		if w.multi {
+			if w.cursor < len(vis) {
+				v := vis[w.cursor].Value
+				w.selected[v] = !w.selected[v]
+			}
+			return nil
+		}
+	}
+	before := w.filter.Value()
+	var cmd tea.Cmd
+	w.filter, cmd = w.filter.Update(k)
+	if w.filter.Value() != before {
+		w.cursor = 0
+	}
+	return cmd
+}
+
+func indexOfValue(cs []wizard.Choice, v string) int {
+	for i, c := range cs {
+		if c.Value == v {
+			return i
+		}
+	}
+	return 0
+}
+
 func (w *choiceWidget) Value() string {
 	if !w.multi {
 		vis := w.visible()
@@ -385,7 +460,7 @@ func (w *choiceWidget) Value() string {
 		return ""
 	}
 	var out []string
-	for _, c := range w.field.Choices {
+	for _, c := range w.options {
 		if w.selected[c.Value] && !contains(out, c.Value) {
 			out = append(out, c.Value)
 		}
@@ -394,14 +469,17 @@ func (w *choiceWidget) Value() string {
 }
 func (w *choiceWidget) View(focused bool, _ int) string {
 	vis := w.visible()
-	if len(vis) == 0 {
-		return "  (nothing to choose from)"
-	}
-	first, last := visibleWindow(w.cursor, len(vis), visibleChoiceRows)
 	var b strings.Builder
 	if w.filtering || w.filter.Value() != "" {
 		b.WriteString("  " + w.filter.View() + "\n")
 	}
+	if len(vis) == 0 {
+		if w.filter.Value() != "" {
+			return b.String() + "  (nothing matches)"
+		}
+		return "  (nothing to choose from)"
+	}
+	first, last := visibleWindow(w.cursor, len(vis), visibleChoiceRows)
 	if first > 0 {
 		fmt.Fprintf(&b, "  ... %d more above\n", first)
 	}
@@ -524,10 +602,14 @@ func (w *listWidget) Update(k tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 	case "delete", "ctrl+d":
+		// On an entry these remove it; on the input row they edit the input.
 		if w.cursor < len(w.items) {
 			w.items = append(w.items[:w.cursor], w.items[w.cursor+1:]...)
+			if w.cursor == len(w.items) {
+				return w.input.Focus()
+			}
+			return nil
 		}
-		return nil
 	}
 	if w.cursor != len(w.items) {
 		return nil
