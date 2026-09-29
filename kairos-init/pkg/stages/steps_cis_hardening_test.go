@@ -2,6 +2,7 @@ package stages_test
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -39,6 +40,38 @@ func commandsFor(result []schema.Stage, path string) []string {
 		}
 	}
 	return cmds
+}
+
+// auditDirectives returns the lines of an audit rules file in the order
+// auditctl -R applies them, with blank and comment lines dropped the same way
+// auditctl drops them.
+func auditDirectives(content string) []string {
+	var out []string
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// auditDirectiveValue returns the integer argument of the single occurrence of
+// a one-argument audit directive such as -b or -f.
+func auditDirectiveValue(directives []string, flag string) int {
+	var values []int
+	for _, d := range directives {
+		fields := strings.Fields(d)
+		if len(fields) != 2 || fields[0] != flag {
+			continue
+		}
+		v, err := strconv.Atoi(fields[1])
+		ExpectWithOffset(1, err).ToNot(HaveOccurred(), "expected an integer argument to "+flag+", got "+fields[1])
+		values = append(values, v)
+	}
+	ExpectWithOffset(1, values).To(HaveLen(1), "expected exactly one "+flag+" directive")
+	return values[0]
 }
 
 // chmodMode returns the mode expression of the single chmod applied to path.
@@ -255,6 +288,53 @@ var _ = Describe("GetCISHardeningStage", func() {
 					b32 := "-a always,exit -F arch=b32 " + m[1]
 					Expect(rules.Content).To(ContainSubstring(b32),
 						"missing b32 pair for: "+m[0])
+				}
+			})
+
+			It("sizes the backlog and sets a failure mode the kernel defaults leave off", func() {
+				// The openrc path loads this file on its own, with
+				// `auditctl -R`, and Alpine's audit package ships no
+				// rules of its own. Whatever is not here is not set:
+				// the kernel default backlog_limit is 64, far too
+				// small for the syscall rules below, and failure mode
+				// 0 discards the overrun without logging it.
+				directives := auditDirectives(rules.Content)
+
+				Expect(directives).To(ContainElement("-D"))
+				Expect(directives).To(ContainElement(MatchRegexp(`^--backlog_wait_time \d+$`)))
+
+				backlog := auditDirectiveValue(directives, "-b")
+				Expect(backlog).To(BeNumerically(">", 64), "backlog must be raised above the kernel default")
+
+				failureMode := auditDirectiveValue(directives, "-f")
+				Expect(failureMode).To(BeNumerically(">", 0), "failure mode 0 discards an overrun silently")
+			})
+
+			It("puts every global directive before the first rule and before -e", func() {
+				// auditctl -R applies lines in order and has no
+				// reordering of its own, unlike augenrules on the
+				// systemd path. A -b or -f written after the rules
+				// still applies, but one written after -e 2 is
+				// rejected with EPERM, and -D after a rule would
+				// delete the rules just loaded.
+				directives := auditDirectives(rules.Content)
+
+				firstRule := -1
+				for i, d := range directives {
+					if strings.HasPrefix(d, "-a ") || strings.HasPrefix(d, "-w ") {
+						firstRule = i
+						break
+					}
+				}
+				Expect(firstRule).To(BeNumerically(">", 0), "expected at least one rule, preceded by the base configuration")
+
+				for i, d := range directives {
+					for _, global := range []string{"-D", "-b ", "-f ", "--backlog_wait_time "} {
+						if d == strings.TrimSpace(global) || strings.HasPrefix(d, global) {
+							Expect(i).To(BeNumerically("<", firstRule),
+								"global directive "+d+" must come before the first rule")
+						}
+					}
 				}
 			})
 
