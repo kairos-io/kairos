@@ -30,7 +30,7 @@ network.
 ## Endpoints wizard.js calls
 
 - `GET /api/wizard` - the steps, with the disks and extensions found on the
-  machine
+  machine, and `advanced_disabled`, which makes the review read only
 - `POST /api/step/:id` - checks one step's values; answers with the updated
   answers, or with one error per field
 - `POST /api/render` - builds the cloud-config from the answers, for the

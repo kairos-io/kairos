@@ -118,7 +118,7 @@ one frontend refuses the other refuses too, with the same message.
 | `hostname` | the host name | yes |
 | `locale` | the timezone and the console keymap | yes |
 | `extensions` | system extensions from the live media or the catalogs | yes |
-| `provider` | the fields a provider plugin asks for | yes, and it is shown only when a provider asks something |
+| `provider` | the fields a provider plugin asks for; a field the plugin asks only after a yes gets that yes or no in front of it | yes, and it is shown only when a provider asks something |
 | `finish` | reboot, power off, or nothing after the install | no, it starts on nothing |
 
 `wizard.Render` turns the answers into a `#cloud-config`, and
@@ -132,8 +132,11 @@ The terminal UI asks for the disk, then offers **Start Install** (with the
 finish action) or **Customize Further**, which opens a menu of the optional
 steps. The summary page shows the generated cloud-config: `e` opens it in an
 editor (`ctrl+s` keeps the edit, `ctrl+r` builds it again from the answers,
-`esc` drops the edit), and `v` shows it read-only. A long list, such as the
-timezones, filters with `/`, and an optional list starts on "(leave unset)".
+`esc` drops the edit), and `v` shows it read-only. `enter` on the summary asks
+for a `y` before it erases the disk and starts the install. A long list, such
+as the timezones, filters with `/`, and an optional list starts on "(leave
+unset)". The extensions step reads the live media and the catalogs when it is
+opened, not when the installer starts.
 
 ### Web installer
 
@@ -142,13 +145,15 @@ step is one screen, and a rail on the side jumps between them. The last screen,
 **Review and install**, shows the generated cloud-config in a text box that can
 be edited by hand, checks it against the schema as you type, and has a
 **Regenerate from answers** button. Install stays disabled until you tick the
-box that confirms the disk will be erased.
+box that confirms the disk will be erased. On an image branded with
+`interactive_install_advanced_disabled`, the text box is read only and there is
+no Regenerate button, as the terminal UI has no editor there.
 
 The page talks to these endpoints:
 
 | Endpoint | What it does |
 | --- | --- |
-| `GET /api/wizard` | the steps, with the disks and extensions found on this machine |
+| `GET /api/wizard` | the steps, with the disks and extensions found on this machine, and `advanced_disabled` |
 | `POST /api/step/:id` | check one step's values and return the updated answers, or the errors per field |
 | `POST /api/render` | build the cloud-config from the answers |
 | `POST /validate-json` | check a cloud-config against the schema |
@@ -157,7 +162,8 @@ The page talks to these endpoints:
 
 `POST /install` takes JSON (`cloud_config`, `device`, `finish_action`) or the
 older form fields, so a script can still post a finished cloud-config to it
-directly. The device and finish action it is given win over the ones in the
+directly. The JSON keys of the previous web UI, `cloud-config` and
+`installation-device`, are still read; the new keys win when both are sent. The device and finish action it is given win over the ones in the
 text.
 
 ---
