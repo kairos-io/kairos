@@ -24,16 +24,28 @@ func currentCloudConfig() (string, error) {
 		}
 		text = rendered
 	}
-	return wizard.Finalize(text, wizard.Overrides{
-		Device: mainModel.answers.Disk, Source: mainModel.answers.Source, FinishAction: mainModel.answers.FinishAction,
-	})
+	return wizard.Finalize(text, confirmedOverrides())
 }
 
+// confirmedOverrides are the keys the operator confirmed, which the install
+// writes back over any text. Saving an edit validates with the same ones.
+func confirmedOverrides() wizard.Overrides {
+	return wizard.Overrides{
+		Device: mainModel.answers.Disk, Source: mainModel.answers.Source, FinishAction: mainModel.answers.FinishAction,
+	}
+}
+
+// back leaves the page the way the operator came, like a global esc.
+func back() tea.Msg { return BackMsg{} }
+
 // editPage shows the cloud-config the install will run with and lets the
-// operator change it before the install starts.
+// operator change it before the install starts. Under the branding switch
+// that hides the optional steps it only shows it.
 type editPage struct {
 	area textarea.Model
 	err  string
+	// readOnly is set when wizardEnv.AdvancedDisabled(): any key goes back.
+	readOnly bool
 	// confirming is set while the page asks whether to throw the edits away.
 	confirming bool
 }
@@ -50,6 +62,9 @@ func newEditPage() *editPage {
 func (p *editPage) ID() string    { return editPageID }
 func (p *editPage) Title() string { return "Configuration" }
 func (p *editPage) Help() string {
+	if p.readOnly {
+		return "any key: back"
+	}
 	return "ctrl+s: save • ctrl+r: regenerate from answers • esc: back without saving"
 }
 
@@ -60,15 +75,22 @@ func (p *editPage) resize() {
 	p.area.SetHeight(max(3, height-12))
 }
 
+// Init reloads the area on every entry, from the saved edit or from the
+// answers, so text left with esc never comes back.
 func (p *editPage) Init() tea.Cmd {
 	p.err, p.confirming = "", false
+	p.readOnly = wizardEnv.AdvancedDisabled()
 	p.resize()
-	if mainModel.edited {
+	if mainModel.edited && !p.readOnly {
 		p.area.SetValue(mainModel.cloudConfig)
 	} else {
 		p.loadGenerated()
 	}
 	p.area.CursorStart()
+	if p.readOnly {
+		p.area.Blur()
+		return nil
+	}
 	return p.area.Focus()
 }
 
@@ -93,6 +115,9 @@ func (p *editPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 		p.area, cmd = p.area.Update(msg)
 		return p, cmd
 	}
+	if p.readOnly {
+		return p, back
+	}
 	if p.confirming {
 		p.confirming = false
 		if k.String() == "y" || k.String() == "Y" {
@@ -106,19 +131,19 @@ func (p *editPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	switch k.String() {
 	case "ctrl+s":
 		text := p.area.Value()
-		if _, err := wizard.Finalize(text, wizard.Overrides{Device: mainModel.answers.Disk, FinishAction: mainModel.answers.FinishAction}); err != nil {
+		if _, err := wizard.Finalize(text, confirmedOverrides()); err != nil {
 			p.err = err.Error()
 			return p, nil
 		}
 		mainModel.cloudConfig = text
 		mainModel.edited = true
 		p.err = ""
-		return p, func() tea.Msg { return GoToPageMsg{PageID: "summary"} }
+		return p, back
 	case "ctrl+r":
 		p.confirming = true
 		return p, nil
 	case "esc":
-		return p, func() tea.Msg { return GoToPageMsg{PageID: "summary"} }
+		return p, back
 	}
 	var cmd tea.Cmd
 	p.area, cmd = p.area.Update(k)
@@ -128,6 +153,9 @@ func (p *editPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 func (p *editPage) View() string {
 	warn := lipgloss.NewStyle().Foreground(kairosHighlight2)
 	s := "The disk and finish action you chose always win over this text.\n"
+	if p.readOnly {
+		s = "The configuration the install runs with (read only).\n"
+	}
 	s += p.area.View() + "\n"
 	switch {
 	case p.confirming:

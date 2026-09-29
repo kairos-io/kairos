@@ -26,7 +26,14 @@ func (p *summaryPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 		switch msg.String() {
 		case "enter":
 			return p, func() tea.Msg { return GoToPageMsg{PageID: "install_process"} }
-		case "e", "v":
+		case "e":
+			// The branding switch that hides the optional steps hides the
+			// editor too; v still shows the configuration.
+			if wizardEnv.AdvancedDisabled() {
+				return p, nil
+			}
+			return p, func() tea.Msg { return GoToPageMsg{PageID: editPageID} }
+		case "v":
 			return p, func() tea.Msg { return GoToPageMsg{PageID: editPageID} }
 		}
 	}
@@ -96,6 +103,9 @@ func (p *summaryPage) Title() string {
 }
 
 func (p *summaryPage) Help() string {
+	if wizardEnv.AdvancedDisabled() {
+		return "enter: start the installation • v: view the configuration"
+	}
 	return "enter: start the installation • e: view and edit the configuration"
 }
 

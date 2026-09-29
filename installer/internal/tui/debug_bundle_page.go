@@ -56,10 +56,7 @@ func (p *debugBundlePage) Init() tea.Cmd {
 		// spawning the worker, so the worker never touches the mainModel global
 		// (which the Update goroutine mutates on WindowSizeMsg / navigation).
 		agentBin := agentrun.ResolveAgentBin()
-		// A configuration that cannot be produced, or that was edited into
-		// something that does not parse, is still bundled, redacted whole.
-		cfg, _ := currentCloudConfig()
-		redacted := wizard.Redact(cfg)
+		redacted := bundledCloudConfig()
 		cmd := agentrun.Command(agentBin, "<config>", mainModel.answers.Source, mainModel.answers.FinishAction)
 		ctx := debugbundle.Context{
 			AgentBin:            agentBin,
@@ -74,6 +71,18 @@ func (p *debugBundlePage) Init() tea.Cmd {
 		}()
 	})
 	return func() tea.Msg { return CheckBundleMsg{} }
+}
+
+// bundledCloudConfig is the install's configuration with every password
+// redacted. A configuration that cannot be produced, such as hand-edited text
+// that does not parse, is replaced whole by a redacted placeholder: there is
+// no way to know where a password is in it.
+func bundledCloudConfig() string {
+	cfg, err := currentCloudConfig()
+	if err != nil {
+		return "#cloud-config\n# " + wizard.Redacted + " (the configuration could not be produced)\n"
+	}
+	return wizard.Redact(cfg)
 }
 
 // buildBundle collects extras, generates the tarball, and starts the HTTP

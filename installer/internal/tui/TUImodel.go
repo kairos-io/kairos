@@ -69,6 +69,39 @@ type keyCapturer interface {
 	CapturesKey(tea.KeyMsg) bool
 }
 
+// BackMsg asks the model to go back one page, the same way a global esc
+// does. A page that leaves by going forward to where it came from would put
+// itself on the navigation stack, and esc would lead back into it.
+type BackMsg struct{}
+
+// skipper is a page that had nothing to show and moved on by itself. Going
+// back passes over it, or it would move on again at once.
+type skipper interface {
+	Skipped() bool
+}
+
+// goBack pops the navigation stack to the last page that is not skipped and
+// Inits that page, so it shows current data: the disk step re-scans (#4260)
+// and a step page reloads the saved answers. It reports false when there is
+// nowhere to go back to.
+func goBack() (tea.Cmd, bool) {
+	stack := mainModel.navigationStack
+	for i := len(stack) - 1; i >= 0; i-- {
+		for _, p := range mainModel.pages {
+			if p.ID() != stack[i] {
+				continue
+			}
+			if s, ok := p.(skipper); ok && s.Skipped() {
+				break
+			}
+			mainModel.navigationStack = stack[:i]
+			mainModel.currentPageID = stack[i]
+			return p.Init(), true
+		}
+	}
+	return nil, false
+}
+
 // normalizedFinishAction returns the finish action if it is one of the
 // known post-install actions, and "nothing" otherwise. This keeps the
 // completed install page from rendering a blank action if an unexpected
@@ -133,6 +166,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mainModel.width = msg.Width
 		mainModel.height = msg.Height
 		return m, nil
+	case BackMsg:
+		cmd, _ := goBack()
+		return mainModel, cmd
 	}
 	// For navigation, access the mainModel so we can modify from anywhere
 	currentIdx := -1
@@ -217,12 +253,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			mainModel.log.Debug("User requested debug bundle")
 			return mainModel, func() tea.Msg { return GoToPageMsg{PageID: DebugBundlePageID} }
 		case "esc":
-			// Go back to previous page if we have navigation history
-			if len(mainModel.navigationStack) > 0 {
-				// Pop the last page from the stack
-				mainModel.currentPageID = mainModel.navigationStack[len(mainModel.navigationStack)-1]
-				mainModel.navigationStack = mainModel.navigationStack[:len(mainModel.navigationStack)-1]
-				return mainModel, mainModel.pages[currentIdx].Init()
+			if cmd, ok := goBack(); ok {
+				return mainModel, cmd
 			}
 		}
 	}

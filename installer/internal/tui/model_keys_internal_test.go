@@ -35,7 +35,7 @@ func resolves(cmd tea.Cmd) []tea.Msg {
 			return out
 		}
 		return []tea.Msg{msg}
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(50 * time.Millisecond):
 		return nil
 	}
 }
@@ -129,6 +129,6 @@ var _ = Describe("keys the step pages keep from the installer", func() {
 		Expect(msgs).ToNot(ContainElement(tea.QuitMsg{}))
 		Expect(edit.area.Value()).To(ContainSubstring("q"))
 		msgs = press(tea.KeyMsg{Type: tea.KeyEsc})
-		Expect(msgs).To(ContainElement(GoToPageMsg{PageID: "summary"}))
+		Expect(msgs).To(ContainElement(BackMsg{}))
 	})
 })

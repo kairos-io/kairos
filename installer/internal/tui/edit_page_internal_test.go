@@ -55,13 +55,13 @@ var _ = Describe("the generated configuration in the terminal installer", func()
 	})
 
 	// Beyond the brief's four: the page's own keys.
-	It("goes back to the summary on esc without saving", func() {
+	It("goes back the way it came on esc, without saving", func() {
 		p := newEditPage()
 		p.Init()
 		p.area.SetValue("#cloud-config\nk3s: {}\n")
 		_, cmd := p.Update(tea.KeyMsg{Type: tea.KeyEsc})
 		Expect(cmd).ToNot(BeNil())
-		Expect(cmd()).To(Equal(GoToPageMsg{PageID: "summary"}))
+		Expect(cmd()).To(Equal(BackMsg{}))
 		Expect(mainModel.edited).To(BeFalse())
 	})
 
