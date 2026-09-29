@@ -285,8 +285,12 @@ func newServer(o Options) *echo.Echo {
 
 	ec.Renderer = renderer
 
-	// Before routing, so the check covers the static assets and an unknown
-	// path too. Nothing this server serves is public.
+	// Before routing, so the check covers the static assets, an unknown path,
+	// and MCPPath below. Nothing this server serves is public. Pre is what
+	// puts the agent endpoint behind the same token as the browser one, which
+	// is the whole reason MCP is a route here rather than a listener of its
+	// own; moving it out from under Pre, or onto a server of its own, takes
+	// its authentication with it.
 	if auth := requireToken(o.WebUI); auth != nil {
 		ec.Pre(auth)
 	}
