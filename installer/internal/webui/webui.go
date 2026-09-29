@@ -30,6 +30,23 @@ type FormData struct {
 	// FinishAction is the wizard's spelling of the two checkboxes above:
 	// "", "reboot" or "poweroff". When it is empty the checkboxes decide.
 	FinishAction string `form:"-" json:"finish_action" query:"-"`
+
+	// The JSON keys the web UI used before the wizard. A client written
+	// against them still installs its configuration; see withLegacyKeys.
+	LegacyCloudConfig string `form:"-" json:"cloud-config" query:"-"`
+	LegacyDevice      string `form:"-" json:"installation-device" query:"-"`
+}
+
+// withLegacyKeys fills the cloud-config and the device from the JSON keys
+// of the previous web UI when the current ones are empty, so the new keys
+// win when a client sends both.
+func (f *FormData) withLegacyKeys() {
+	if f.CloudConfig == "" {
+		f.CloudConfig = f.LegacyCloudConfig
+	}
+	if f.InstallationDevice == "" {
+		f.InstallationDevice = f.LegacyDevice
+	}
 }
 
 //go:embed public
@@ -326,6 +343,7 @@ func newServer(o Options) *echo.Echo {
 		if err := c.Bind(formData); err != nil {
 			return err
 		}
+		formData.withLegacyKeys()
 		cloudConfig := formData.CloudConfig
 
 		// Use the same validation approach as the rest of the codebase
@@ -346,6 +364,7 @@ func newServer(o Options) *echo.Echo {
 		if err := c.Bind(formData); err != nil {
 			return err
 		}
+		formData.withLegacyKeys()
 
 		// One lock for the whole decision. Reading s.run, starting the
 		// install and storing it have to be one step: two POSTs racing

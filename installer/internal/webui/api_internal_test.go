@@ -179,6 +179,36 @@ echo '{"event":"step","step":"done"}'
 			ContainSubstring("device: /dev/vda"), ContainSubstring("reboot: true")))
 	})
 
+	Describe("an install posted with the JSON keys of the previous web UI", func() {
+		var cfgOut string
+		BeforeEach(func() {
+			GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent(`
+for a in "$@"; do cfg="$a"; done
+cp "$cfg" "$TESTCFG"
+echo '{"event":"step","step":"done"}'
+`))
+			cfgOut = GinkgoT().TempDir() + "/cfg.yaml"
+			GinkgoT().Setenv("TESTCFG", cfgOut)
+		})
+		written := func() string { b, _ := os.ReadFile(cfgOut); return string(b) }
+
+		It("takes cloud-config and installation-device", func() {
+			resp := postInstallJSON(map[string]string{"cloud-config": "#cloud-config\nhostname: old-client\n", "installation-device": "/dev/vda"})
+			Expect(resp.StatusCode).To(Equal(http.StatusSeeOther))
+			Eventually(written, "5s").Should(And(ContainSubstring("hostname: old-client"), ContainSubstring("device: /dev/vda")))
+		})
+
+		It("prefers the new keys when a client sends both", func() {
+			resp := postInstallJSON(map[string]string{
+				"cloud-config": "#cloud-config\nhostname: old\n", "installation-device": "/dev/vdb",
+				"cloud_config": "#cloud-config\nhostname: new\n", "device": "/dev/vda",
+			})
+			Expect(resp.StatusCode).To(Equal(http.StatusSeeOther))
+			Eventually(written, "5s").Should(And(ContainSubstring("hostname: new"), ContainSubstring("device: /dev/vda")))
+			Expect(written()).ToNot(ContainSubstring("hostname: old"))
+		})
+	})
+
 	It("refuses a finish action it does not know, and starts nothing", func() {
 		started := GinkgoT().TempDir() + "/started"
 		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent(`echo run >> `+started+`
