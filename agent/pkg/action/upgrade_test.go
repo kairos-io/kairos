@@ -29,7 +29,6 @@ import (
 	"github.com/kairos-io/kairos/v4/agent/pkg/utils"
 	fsutils "github.com/kairos-io/kairos/v4/agent/pkg/utils/fs"
 	v1mock "github.com/kairos-io/kairos/v4/agent/tests/mocks"
-	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
 	ghwMock "github.com/kairos-io/kairos/v4/sdk/ghw/mocks"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	sdkImages "github.com/kairos-io/kairos/v4/sdk/types/images"
@@ -196,10 +195,15 @@ var _ = Describe("Upgrade Actions test", func() {
 
 				err = fs.WriteFile(
 					filepath.Join(spec.Active.MountPoint, "etc", "kairos-release"),
-					[]byte("GRUB_ENTRY_NAME=TESTOS"),
+					[]byte("GRUB_ENTRY_NAME=TESTOS\nKAIROS_INIT_VERSION=\"v4.3.0\"\n"),
 					constants.FilePerm,
 				)
 				Expect(err).ShouldNot(HaveOccurred())
+				// KAIROS_INIT_VERSION on the running system's kairos-release
+				// so the downgrade gate in UpgradeAction.runFinalizeStep can
+				// compare "target >= current". Same version as target = pass.
+				Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
 
 				spec.Active.Size = 10
 				spec.Passive.Size = 10
@@ -244,62 +248,13 @@ var _ = Describe("Upgrade Actions test", func() {
 				// Make sure is a cloud init error!
 				Expect(err.Error()).To(ContainSubstring("cloud init"))
 			})
-			It("Refreshes the shim, grub and grub.cfg on the ESP", Label("docker"), func() {
-				// The ESP is not mounted on a running GRUB system, which is
-				// what the ghw mock above reproduces: COS_GRUB has no
-				// mountpoint. The refresh has to mount it itself, so this
-				// covers the whole path from spec to written bytes.
-				espDir := filepath.Join(sdkConstants.EfiDirTransient, "EFI", "boot")
-				Expect(fsutils.MkdirAll(fs, espDir, constants.DirPerm)).ToNot(HaveOccurred())
-				for _, f := range []string{"shim.efi", "bootx64.efi", "grubx64.efi", "grub.cfg"} {
-					Expect(fs.WriteFile(filepath.Join(espDir, f), []byte("stale"), constants.FilePerm)).ToNot(HaveOccurred())
-				}
-
-				// Shim and grub as the newly deployed image ships them.
-				sourceShim := filepath.Join(spec.Active.MountPoint, "usr/share/efi/x86_64/shim.efi")
-				sourceGrub := filepath.Join(spec.Active.MountPoint, "usr/lib/grub/x86_64-efi/grubx64.efi")
-				for path, content := range map[string]string{sourceShim: "new shim", sourceGrub: "new grub"} {
-					Expect(fsutils.MkdirAll(fs, filepath.Dir(path), constants.DirPerm)).ToNot(HaveOccurred())
-					Expect(fs.WriteFile(path, []byte(content), constants.FilePerm)).ToNot(HaveOccurred())
-				}
-
-				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
-				upgrade = action.NewUpgradeAction(config, spec)
-				Expect(upgrade.Run()).ToNot(HaveOccurred())
-
-				By("writing the new shim, under its own name and the fallback one")
-				Expect(fs.ReadFile(filepath.Join(espDir, "shim.efi"))).To(Equal([]byte("new shim")))
-				Expect(fs.ReadFile(filepath.Join(espDir, "bootx64.efi"))).To(Equal([]byte("new shim")))
-
-				By("writing the new grub")
-				Expect(fs.ReadFile(filepath.Join(espDir, "grubx64.efi"))).To(Equal([]byte("new grub")))
-
-				By("rewriting grub.cfg to chainload the state partition")
-				Expect(fs.ReadFile(filepath.Join(espDir, "grub.cfg"))).To(ContainSubstring(spec.Partitions.State.FilesystemLabel))
-
-				By("unmounting the ESP afterwards")
-				Expect(memLog).ToNot(ContainSubstring("Skipping ESP refresh"), memLog.String())
-				mnt, err := fs.Stat(sdkConstants.EfiDirTransient)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(mnt.IsDir()).To(BeTrue())
-			})
-			It("Skips the ESP refresh when the image ships no shim or grub", Label("docker"), func() {
-				// A missing shim must not turn a working upgrade into a
-				// failed one, since the pre-existing upgrade contract never
-				// touched the ESP at all.
-				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
-				upgrade = action.NewUpgradeAction(config, spec)
-				Expect(upgrade.Run()).ToNot(HaveOccurred())
-				Expect(memLog).To(ContainSubstring("Skipping ESP refresh: no shim found under"), memLog.String())
-			})
 			It("Successfully upgrades from docker image", Label("docker"), func() {
 				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
 				upgrade = action.NewUpgradeAction(config, spec)
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"), memLog.String())
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"), memLog.String())
 
 				// This should be the new image
 				info, err := fs.Stat(activeImg)
@@ -330,8 +285,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 				By("Checking the log")
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				By("checking active image")
 				// This should be the new image
@@ -364,8 +318,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				// This should be the new image
 				info, err := fs.Stat(activeImg)
@@ -440,16 +393,6 @@ var _ = Describe("Upgrade Actions test", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(memLog.String()).To(ContainSubstring("Failed to move"))
 			})
-			It("Fails on the after-upgrade-chroot hook when strict", Label("docker"), func() {
-				config.Strict = true
-				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterUpgradeChrootHook}
-				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
-				upgrade = action.NewUpgradeAction(config, spec)
-				err := upgrade.Run()
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring(constants.AfterUpgradeChrootHook))
-				Expect(memLog.String()).To(ContainSubstring("Error running hook after-upgrade-chroot"))
-			})
 			It("Fails on the after-upgrade hook when strict", Label("docker"), func() {
 				config.Strict = true
 				config.CloudInitRunner = &stageFailCloudInitRunner{failStage: constants.AfterUpgradeHook}
@@ -465,15 +408,6 @@ var _ = Describe("Upgrade Actions test", func() {
 				upgrade = action.NewUpgradeAction(config, spec)
 				err := upgrade.Run()
 				Expect(err).To(HaveOccurred())
-			})
-			It("Warns but does not fail when the rebranding fails", Label("docker"), func() {
-				// Make the grub env file a directory so writing the default entry fails
-				Expect(fsutils.MkdirAll(fs, filepath.Join(constants.RunningStateDir, constants.GrubOEMEnv), constants.DirPerm)).ToNot(HaveOccurred())
-				spec.Active.Source = sdkImages.NewDockerSrc("alpine")
-				upgrade = action.NewUpgradeAction(config, spec)
-				err := upgrade.Run()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(memLog.String()).To(ContainSubstring("failure while rebranding GRUB default entry"))
 			})
 			It("Warns but does not fail when cleanup fails", Label("docker"), func() {
 				config.Syscall = &failingMountSyscall{FakeSyscall: syscall}
@@ -524,8 +458,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err = upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				// Not much that we can create here as the dir copy was done on the real os, but we do the rest of the ops on a mem one
 				// This should be the new image
@@ -576,10 +509,12 @@ var _ = Describe("Upgrade Actions test", func() {
 
 				err = fs.WriteFile(
 					filepath.Join(spec.Active.MountPoint, "etc", "kairos-release"),
-					[]byte("GRUB_ENTRY_NAME=TESTOS"),
+					[]byte("GRUB_ENTRY_NAME=TESTOS\nKAIROS_INIT_VERSION=\"v4.3.0\"\n"),
 					constants.FilePerm,
 				)
 				Expect(err).ShouldNot(HaveOccurred())
+				Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+				Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
 
 				err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
 				Expect(err).ShouldNot(HaveOccurred())
@@ -625,8 +560,7 @@ var _ = Describe("Upgrade Actions test", func() {
 				err := upgrade.Run()
 				Expect(err).ToNot(HaveOccurred())
 
-				// Check that the rebrand worked with our kairos-release value
-				Expect(memLog).To(ContainSubstring("Setting default grub entry to TESTOS"))
+				Expect(memLog).To(ContainSubstring("Handing off upgrade finalize"))
 
 				// This should be the new image
 				info, err := fs.Stat(activeImg)
@@ -690,6 +624,18 @@ var _ = Describe("Upgrade Actions test", func() {
 					spec.Passive.Size = 10
 					spec.Recovery.Size = 10
 					spec.Entry = constants.BootEntryRecovery
+
+					// KAIROS_INIT_VERSION setup for the downgrade gate. For the
+					// squashfs recovery flow spec.Recovery.MountPoint is
+					// empty; the finalize gate then reads /etc/kairos-release
+					// on the same fs for both sides of the compare, so the
+					// running-system file above is enough.
+					Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					if mp := spec.Recovery.MountPoint; mp != "" {
+						Expect(fsutils.MkdirAll(fs, filepath.Join(mp, "etc"), constants.DirPerm)).To(Succeed())
+						Expect(fs.WriteFile(filepath.Join(mp, "etc", "kairos-release"), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					}
 
 					err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
 					Expect(err).ShouldNot(HaveOccurred())
@@ -782,6 +728,14 @@ var _ = Describe("Upgrade Actions test", func() {
 					spec.Passive.Size = 10
 					spec.Recovery.Size = 10
 					spec.Entry = constants.BootEntryRecovery
+
+					// KAIROS_INIT_VERSION setup for the downgrade gate.
+					Expect(fsutils.MkdirAll(fs, "/etc", constants.DirPerm)).To(Succeed())
+					Expect(fs.WriteFile(constants.KairosReleaseFile, []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					if mp := spec.Recovery.MountPoint; mp != "" {
+						Expect(fsutils.MkdirAll(fs, filepath.Join(mp, "etc"), constants.DirPerm)).To(Succeed())
+						Expect(fs.WriteFile(filepath.Join(mp, "etc", "kairos-release"), []byte(`KAIROS_INIT_VERSION="v4.3.0"`+"\n"), constants.FilePerm)).To(Succeed())
+					}
 
 					err = fsutils.MkdirAll(config.Fs, "/proc", constants.DirPerm)
 					Expect(err).ShouldNot(HaveOccurred())

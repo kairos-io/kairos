@@ -18,6 +18,7 @@ package action
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -155,67 +156,18 @@ func (u *UpgradeAction) Run() (err error) {
 	}
 	cleanup.Push(func() error { return e.UnmountImage(&upgradeImg) })
 
-	// Label the state images for system upgrades. The existing active image
-	// is labeled so a boot back into it (failed upgrade, fallback boot)
-	// finds it as boot_t even if it was deployed by an agent version that
-	// did not label it. The transition image becomes active.img on rename
-	// and keeps the label; the old active moves to passive.img the same way.
-	if !u.spec.RecoveryUpgrade() {
-		e.LabelStateImage(filepath.Join(u.spec.Partitions.State.MountPoint, "cOS", constants.ActiveImgFile))
-		e.LabelStateImage(upgradeImg.File)
-	}
-
-	// Create extra dirs in rootfs as afterwards this will be impossible due to RO system
-	createExtraDirsInRootfs(u.config, u.spec.ExtraDirsRootfs, upgradeImg.MountPoint)
-
-	// Selinux relabel
-	// Doesn't make sense to relabel a readonly filesystem
-	if upgradeImg.FS != constants.SquashFs {
-		// Relabel SELinux
-		// TODO probably relabelling persistent volumes should be an opt in feature, it could
-		// have undesired effects in case of failures
-		binds := map[string]string{}
-		if mnt, _ := utils.IsMounted(u.config, u.spec.Partitions.Persistent); mnt {
-			binds[u.spec.Partitions.Persistent.MountPoint] = constants.UsrLocalPath
-		}
-		if mnt, _ := utils.IsMounted(u.config, u.spec.Partitions.OEM); mnt {
-			binds[u.spec.Partitions.OEM.MountPoint] = constants.OEMPath
-		}
-		err = utils.ChrootedCallback(
-			u.config, upgradeImg.MountPoint, binds,
-			func() error { return e.SelinuxRelabel("/", true) },
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	err = u.upgradeHook(constants.AfterUpgradeChrootHook, true)
-	if err != nil {
-		u.Error("Error running hook after-upgrade-chroot: %s", err)
+	// Everything from labeling the state images to refreshing the ESP is
+	// finalize work whose on-disk formats the target image owns (GRUB
+	// entries, loader/entries/*.conf keys, boot-assessment flags,
+	// after-upgrade-chroot hooks). Delegating it to the target agent lets a
+	// format change ship in an image without needing every previously
+	// released host agent to already understand that format (see
+	// https://github.com/kairos-io/kairos/issues/4456). We first try to
+	// hand off to the target's own kairos-agent inside a chroot; if the
+	// target predates the upgrade-finalize subcommand we run the same
+	// steps inline, preserving the historical behavior.
+	if err = u.runFinalizeStep(&upgradeImg); err != nil {
 		return err
-	}
-
-	// Only apply rebrand stage for system upgrades
-	if !u.spec.RecoveryUpgrade() {
-		u.Info("rebranding")
-		if rebrandingErr := e.SetDefaultGrubEntry(u.spec.Partitions.State.MountPoint, upgradeImg.MountPoint, u.spec.GrubDefEntry); rebrandingErr != nil {
-			u.config.Logger.Warn("failure while rebranding GRUB default entry (ignoring), run with --debug to see more details")
-			u.config.Logger.Debug(rebrandingErr.Error())
-		}
-
-		// Refresh shim.efi, grub.efi and EFI/boot/grub.cfg on the ESP from
-		// the freshly deployed image, so a signed-shim rotation or a
-		// grub.cfg change reaches installed nodes on upgrade rather than
-		// only on install/reset. The image is still mounted at
-		// upgradeImg.MountPoint, so the shim/grub binaries are readable
-		// from here. Failure is fatal only if the ESP write itself fails;
-		// missing EFI partition, missing shim/grub in the source, or a
-		// space check that will not fit are all logged and skipped.
-		if err := u.refreshESP(upgradeImg.MountPoint); err != nil {
-			u.Error("Failed to refresh the ESP: %s", err)
-			return err
-		}
 	}
 
 	err = e.UnmountImage(&upgradeImg)
@@ -315,51 +267,123 @@ func (u *UpgradeAction) remove(path string) error {
 	return nil
 }
 
-// refreshESP copies the shim, grub and stub grub.cfg from the newly deployed
-// image into the ESP, so the bootloader is refreshed on upgrade for the same
-// reasons install and reset already refresh it (signed-shim rotation, grub
-// CVEs, grub.cfg schema changes).
-//
-// This handles GRUB-mode systems only. UKI-mode upgrades refresh the ESP
-// through agent/pkg/uki/upgrade.go. Machines with no EFI partition (BIOS
-// GRUB) skip cleanly because Partitions.EFI is nil. Machines with too little
-// ESP room to fit the refresh, and images that ship no shim or grub at a path
-// Kairos knows, skip with a warning, so neither a tight partition nor a moved
-// binary turns a working upgrade into a boot failure.
-func (u *UpgradeAction) refreshESP(sourceDir string) error {
-	efiPart := u.spec.Partitions.EFI
-	if efiPart == nil {
-		u.Debug("No EFI partition on this machine, skipping ESP refresh")
-		return nil
-	}
-
-	e := elemental.NewElemental(u.config)
-	umount, err := e.MountRWPartition(efiPart)
+// runFinalizeStep gates the upgrade on KAIROS_INIT_VERSION (target must
+// be >= current — kairos-io/kairos#4917, kairos-io/kairos#4953) and, on
+// pass, hands off to the target's own kairos-agent for the finalize step.
+// The gate reads KAIROS_INIT_VERSION rather than KAIROS_VERSION so a
+// derivative image whose own product version rolls backwards is not
+// refused when its build tooling is fine, and — the more important half
+// — an image with a hand-picked KAIROS_VERSION cannot bypass the gate
+// when its build tooling actually predates upgrade-finalize.
+// The gate runs after DeployImage but before any rename or
+// after-upgrade-hook side effect, so a refusal unwinds through cleanup
+// and leaves active.img untouched. A runtime failure of the handoff
+// itself is propagated, not retried inline: by then the target has
+// likely already labeled images, rebranded GRUB or refreshed the ESP,
+// and an older host doing the same work would double-write. The
+// transition image is still mounted at upgradeImg.MountPoint on return;
+// unmounting and renaming remain the host's responsibility (see
+// UpgradeAction.Run below).
+func (u *UpgradeAction) runFinalizeStep(upgradeImg *sdkImages.Image) error {
+	current, err := ReadKairosInitVersionFromFs(u.config.Fs, constants.KairosReleaseFile)
 	if err != nil {
-		// The ESP refresh is a best-effort enhancement over the pre-existing
-		// upgrade contract (which never touched the ESP). A machine that
-		// cannot mount its EFI partition has a pre-existing problem the
-		// upgrade did not cause, so warn and continue rather than aborting a
-		// system upgrade that would otherwise have completed.
-		u.config.Logger.Warnf("Skipping ESP refresh, could not mount the EFI partition: %s", err)
-		return nil
+		return fmt.Errorf("reading current KAIROS_INIT_VERSION: %w", err)
 	}
+	target, err := ReadKairosInitVersionFromFs(u.config.Fs, filepath.Join(upgradeImg.MountPoint, constants.KairosReleaseFile))
+	if err != nil {
+		return fmt.Errorf("reading target KAIROS_INIT_VERSION from the deployed rootfs: %w", err)
+	}
+	if err := RefuseIfTargetIsDowngrade(current, target); err != nil {
+		return err
+	}
+	return u.handoffFinalizeToTarget(upgradeImg)
+}
+
+// handoffFinalizeToTarget runs the finalize step by chrooting into the
+// deployed target rootfs and executing its kairos-agent upgrade-finalize
+// subcommand. Host filesystem paths the target needs (state partition,
+// recovery partition, OEM, persistent, EFI) are bind-mounted under
+// /host inside the target chroot; OEM and persistent are also bind-mounted
+// at their standard /oem and /usr/local paths so the after-upgrade-chroot
+// yip stages see them where they expect. The upgrade-finalize context is
+// serialized to a JSON file inside the target rootfs (under /tmp/) and
+// read back by the target agent.
+func (u *UpgradeAction) handoffFinalizeToTarget(upgradeImg *sdkImages.Image) error {
+	ctxPathInsideTarget := constants.UpgradeFinalizeContextPath
+	ctxPathOnHost := filepath.Join(upgradeImg.MountPoint, ctxPathInsideTarget)
+
+	handoffCtx := NewFinalizeContextForHandoff(u.spec, upgradeImg, constants.HandoffHostPrefix)
+	handoffCtx.Arch = u.config.Arch
+	// Ensure the target's /tmp exists before writing the context there;
+	// on a freshly-deployed rootfs the standard /tmp directory is present
+	// under the default dir structure, but for tests using a bare mount
+	// point we might get here before anything created it.
+	if err := fsutils.MkdirAll(u.config.Fs, filepath.Dir(ctxPathOnHost), constants.DirPerm); err != nil {
+		return fmt.Errorf("preparing %s for finalize context: %w", filepath.Dir(ctxPathOnHost), err)
+	}
+	if err := WriteFinalizeContext(u.config.Fs, ctxPathOnHost, handoffCtx); err != nil {
+		return fmt.Errorf("writing finalize context to %s: %w", ctxPathOnHost, err)
+	}
+	// Remove the context file on return whether the handoff succeeded or
+	// failed. The file lives inside the ext4 image, so unmounting the
+	// transition image or renaming it to active.img does NOT delete it;
+	// Kairos overlays /tmp with a tmpfs at boot so it becomes invisible
+	// on the upgraded system, but the bytes stay on disk forever without
+	// this Remove.
 	defer func() {
-		if uerr := umount(); uerr != nil {
-			u.config.Logger.Warnf("failed to unmount the EFI partition after ESP refresh: %s", uerr)
+		if err := u.config.Fs.Remove(ctxPathOnHost); err != nil && !os.IsNotExist(err) {
+			u.config.Logger.Debugf("could not remove finalize context %s: %s", ctxPathOnHost, err)
 		}
 	}()
 
-	if err := utils.CheckESPRefresh(u.config.Fs, u.config.Arch, sourceDir, efiPart.MountPoint); err != nil {
-		u.config.Logger.Warnf("Skipping ESP refresh: %s", err)
-		return nil
+	binds := u.finalizeHandoffBinds()
+	callback := func() error {
+		u.Info("Handing off upgrade finalize to target kairos-agent (%s)", constants.TargetKairosAgentPath)
+		out, err := u.config.Runner.Run(constants.TargetKairosAgentPath, "upgrade-finalize", "--context-file", ctxPathInsideTarget)
+		if len(out) > 0 {
+			u.config.Logger.Infof("upgrade-finalize output: %s", string(out))
+		}
+		return err
 	}
+	return utils.ChrootedCallback(u.config, upgradeImg.MountPoint, binds, callback)
+}
 
-	grub := utils.NewGrub(u.config)
-	if err := grub.RefreshESP(sourceDir, efiPart.MountPoint, u.spec.Partitions.State.FilesystemLabel, "grub2"); err != nil {
-		return fmt.Errorf("refreshing the ESP from %s: %w", sourceDir, err)
+// finalizeHandoffBinds returns the bind mounts the target chroot needs so
+// the target agent can reach the host filesystem the same way it does under
+// Kubernetes (host at /host), and so the after-upgrade-chroot hook still
+// finds OEM at /oem and persistent at /usr/local inside the chroot.
+func (u *UpgradeAction) finalizeHandoffBinds() map[string]string {
+	binds := map[string]string{}
+	addBind := func(src, dst string) {
+		if src == "" || dst == "" {
+			return
+		}
+		binds[src] = dst
 	}
-
-	u.Info("Refreshed shim, grub and grub.cfg on the EFI partition from %s", sourceDir)
-	return nil
+	if u.spec.Partitions.State != nil {
+		addBind(u.spec.Partitions.State.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.State.MountPoint))
+	}
+	if u.spec.Partitions.Recovery != nil {
+		addBind(u.spec.Partitions.Recovery.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.Recovery.MountPoint))
+	}
+	if u.spec.Partitions.OEM != nil {
+		addBind(u.spec.Partitions.OEM.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.OEM.MountPoint))
+		// Also expose OEM at its standard path so hooks in the
+		// after-upgrade-chroot stage keep finding it where they expect.
+		if mnt, _ := utils.IsMounted(u.config, u.spec.Partitions.OEM); mnt {
+			addBind(u.spec.Partitions.OEM.MountPoint, constants.OEMPath)
+		}
+	}
+	if u.spec.Partitions.Persistent != nil {
+		addBind(u.spec.Partitions.Persistent.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.Persistent.MountPoint))
+		if mnt, _ := utils.IsMounted(u.config, u.spec.Partitions.Persistent); mnt {
+			addBind(u.spec.Partitions.Persistent.MountPoint, constants.UsrLocalPath)
+		}
+	}
+	if u.spec.Partitions.EFI != nil && u.spec.Partitions.EFI.MountPoint != "" {
+		if mnt, _ := utils.IsMounted(u.config, u.spec.Partitions.EFI); mnt {
+			addBind(u.spec.Partitions.EFI.MountPoint, filepath.Join(constants.HandoffHostPrefix, u.spec.Partitions.EFI.MountPoint))
+		}
+	}
+	return binds
 }
