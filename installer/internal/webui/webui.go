@@ -336,6 +336,11 @@ func newServer(o Options) *echo.Echo {
 		// two installs would partition the same disk at once. A
 		// double-clicked Install button is enough to do it.
 		//
+		// This covers the browser only. An install already running in the
+		// terminal UI or over MCP is refused by agentrun's process-wide
+		// guard, and arrives on the progress stream as an error rather than
+		// on this form.
+		//
 		// startInstall does not block, and the goroutine it spawns
 		// publishes to the log rather than touching s, so holding the lock
 		// across it cannot deadlock against /ws.

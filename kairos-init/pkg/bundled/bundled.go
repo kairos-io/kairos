@@ -194,6 +194,15 @@ install() {
     inst_check_multiple immucore
     # add utils used by yip stages
     inst_check_multiple sync udevadm blkid lsblk e2fsck mount umount rsync cryptsetup gawk awk mkfs.ext2 mkfs.ext3 mkfs.ext4 mkfs.vfat
+    # immucore validates a system extension image against the image policy the
+    # systemd-sysext drop-in enforces before it links the image into
+    # /run/extensions, and systemd-dissect is what evaluates that policy. The
+    # 11systemd-sysext dracut module installs systemd-sysext and
+    # systemd-confext but not systemd-dissect, so without this line the check
+    # has no tool to run and immucore enables every image unvalidated.
+    # Optional, because image policies and systemd-dissect --validate both
+    # arrived in systemd 254 and Kairos builds on flavors older than that.
+    inst_multiple -o systemd-dissect
     # add mkfs.fat using inst_multiple which doesnt check for existence
     # we should remove this as soon as Hadron supports mkfs.fat
     inst_multiple mkfs.fat

@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -294,9 +295,11 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		return errorResult("no kairos-agent binary was found, so nothing can be installed"), out, nil
 	}
 
-	// One install per server. A second one would race the first over the same
-	// disk, and a retry after a successful install would wipe what was just
-	// written.
+	// One install per server: a second MCP call would race the first over the
+	// same disk, and a retry after a successful install would wipe what was
+	// just written. This covers MCP only. An install started from the TUI or
+	// the browser is refused by agentrun's process-wide guard below, which is
+	// the one all three frontends share.
 	if !s.installing.TryLock() {
 		return errorResult("an install is already running on this session"), out, nil
 	}
@@ -334,6 +337,14 @@ func (s *Server) install(ctx context.Context, req *mcp.CallToolRequest, in insta
 		},
 		func(line string) { s.log.Print(line) },
 	)
+
+	// Another frontend of this same installer holds the disk. Nothing was
+	// started, so say that rather than reporting an install that failed: the
+	// caller's answer is to wait, not to fix anything.
+	if errors.Is(runErr, agentrun.ErrInstallInProgress) {
+		out.Error = runErr.Error()
+		return errorResult("refusing to install: an install started from another frontend of this installer is already running. Wait for it to finish."), out, nil
+	}
 
 	switch {
 	case sawError != "":

@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kairos-io/kairos/v4/provider/internal/provider"
 	. "github.com/onsi/ginkgo/v2"
@@ -48,10 +49,29 @@ var _ = Describe("The --api flag default", func() {
 		Expect(apiFlagValue()).To(Equal("unix:///run/custom.sock"))
 	})
 
-	// A node that has not bootstrapped yet has no env file. The default is
-	// still the best guess, and is what the daemon would be given anyway.
-	It("keeps the default when the daemon has no env file yet", func() {
+	// No env file and no socket is an operator's machine, not a node: these
+	// commands are run there after `bridge`, whose API is the only one within
+	// reach. Both are absent in a temp directory, so this is that case.
+	It("uses the bridge's API when there is no daemon to follow", func() {
+		// applyAPIDefault reads the real socket path, so a machine that is
+		// itself a kairos node would be the other case. Nothing to check there.
+		if _, err := os.Stat(strings.TrimPrefix(provider.DefaultEdgeVPNAPIAddress, "unix://")); err == nil {
+			Skip("this machine has a local edgevpn socket, so it is not the no-daemon case")
+		}
+
 		applyAPIDefault(filepath.Join(GinkgoT().TempDir(), "absent.env"))
-		Expect(apiFlagValue()).To(Equal(provider.DefaultEdgeVPNAPIAddress))
+		Expect(apiFlagValue()).To(Equal("http://" + provider.DefaultBridgeAPIListen))
+	})
+
+	// And that default is the address bridge itself listens on, so the two
+	// cannot be changed apart.
+	It("names the address bridge serves", func() {
+		bridgeAPI := ""
+		for _, f := range BridgeCMD("kairos provider").Flags {
+			if sf, ok := f.(*cli.StringFlag); ok && sf.Name == apiFlagName {
+				bridgeAPI = sf.Value
+			}
+		}
+		Expect(bridgeAPI).To(Equal(provider.DefaultBridgeAPIListen))
 	})
 })

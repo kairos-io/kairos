@@ -14,6 +14,7 @@ import (
 	"github.com/kairos-io/kairos/v4/provider/internal/services"
 	"github.com/kairos-io/kairos/v4/sdk/machine"
 	machinesvc "github.com/kairos-io/kairos/v4/sdk/machine/service"
+	loggerpkg "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	"github.com/kairos-io/kairos/v4/sdk/utils"
 )
 
@@ -26,6 +27,12 @@ const (
 	// daemon's settings for its systemd unit. It is the only place that
 	// knows which address the daemon was actually told to listen on.
 	EdgeVPNEnvFile = "/etc/systemd/system.conf.d/edgevpn-kairos.env"
+
+	// DefaultBridgeAPIListen is the address the bridge command serves its own
+	// API on. A bridge runs on an operator's machine, where it is the only
+	// edgevpn API there is, so it is also what a client on that machine has to
+	// dial.
+	DefaultBridgeAPIListen = "127.0.0.1:8080"
 )
 
 // ResolveAPIAddress returns the address a client should use to reach the local
@@ -38,20 +45,49 @@ const (
 // than a failure. Reading back what the daemon was given keeps both ends on one
 // address instead of two that have to agree by coincidence.
 //
-// Falls back to DefaultEdgeVPNAPIAddress when the file is missing or carries no
-// APILISTEN, which is the state of a node that has not bootstrapped yet.
+// With no daemon to follow, the address depends on where the command is being
+// run. On a node the answer is the local socket. On an operator's machine, where
+// these commands are used after "bridge" has built a tunnel, the only edgevpn
+// API in reach is the one bridge serves on DefaultBridgeAPIListen, and defaulting
+// to a socket that machine will never have is what made role and get-kubeconfig
+// unusable there without an explicit --api.
 func ResolveAPIAddress(envFile string) string {
+	return resolveAPIAddress(envFile, socketPathFor(DefaultEdgeVPNAPIAddress))
+}
+
+// resolveAPIAddress takes the local socket's path so a test does not depend on
+// whether the machine running it happens to have a daemon.
+func resolveAPIAddress(envFile, localSocket string) string {
 	env, err := godotenv.Read(envFile)
-	if err != nil {
+	if err == nil {
+		if listen := strings.TrimSpace(env["APILISTEN"]); listen != "" {
+			return clientAddressForListener(listen)
+		}
+	}
+
+	// No daemon was ever configured here. A socket still on disk means one runs
+	// anyway; anything else means this is not a node, so the bridge's API is the
+	// one to reach for.
+	if localSocket != "" && socketExists(localSocket) {
 		return DefaultEdgeVPNAPIAddress
 	}
 
-	listen := strings.TrimSpace(env["APILISTEN"])
-	if listen == "" {
-		return DefaultEdgeVPNAPIAddress
+	return clientAddressForListener(DefaultBridgeAPIListen)
+}
+
+// socketPathFor returns the filesystem path inside a unix:// address, and an
+// empty string for any address that is not one.
+func socketPathFor(address string) string {
+	if !strings.HasPrefix(address, "unix://") {
+		return ""
 	}
 
-	return clientAddressForListener(listen)
+	return strings.TrimPrefix(address, "unix://")
+}
+
+func socketExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // clientAddressForListener turns an APILISTEN value into something the API
@@ -160,7 +196,32 @@ func SetupAPI(apiAddress, rootDir string, start bool, c *providerConfig.Config) 
 	return nil
 }
 
-func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
+// executeLocalDNSConfig runs the local-resolver cloud-config against the
+// running system. It is a variable so a spec can exercise applyLocalDNS's
+// failure branch without rewriting the host's /etc/systemd/resolved.conf.
+var executeLocalDNSConfig = func() error {
+	return machine.ExecuteInlineCloudConfig(assets.LocalDNS, "initramfs")
+}
+
+// applyLocalDNS points the running system's resolver at the VPN's local
+// forwarder, and says so when it cannot.
+//
+// Best effort: SetupVPN persists the same config, so a failure here only
+// costs the operator until the next boot. But it has to be reported, or a
+// node that resolves through the wrong server until then looks like a
+// success. The notice goes through the logger and never through the
+// process's stdout, because in plugin mode stdout carries go-pluggable's
+// JSON response: anything printed in front of it makes kairos-agent's
+// Unmarshal fail, which would turn this notice into a failed bootstrap.
+// pterm is the specific trap, it binds its writer to os.Stdout at package
+// init and so escapes go-pluggable's capture.
+func applyLocalDNS(logger loggerpkg.KairosLogger) {
+	if err := executeLocalDNSConfig(); err != nil {
+		logger.Warnf("could not point the resolver at the VPN now, it will apply on the next boot: %s", err)
+	}
+}
+
+func SetupVPN(logger loggerpkg.KairosLogger, instance, apiAddress, rootDir string, start bool, c *providerConfig.Config) error {
 	token := ""
 	if c.P2P != nil && c.P2P.NetworkToken != "" {
 		token = c.P2P.NetworkToken
@@ -191,7 +252,7 @@ func SetupVPN(instance, apiAddress, rootDir string, start bool, c *providerConfi
 		vpnOpts["DNSADDRESS"] = "127.0.0.1:53"
 		vpnOpts["DNSFORWARD"] = enabledValue
 
-		_ = machine.ExecuteInlineCloudConfig(assets.LocalDNS, "initramfs")
+		applyLocalDNS(logger)
 		// systemd-resolved is systemd's own; there is nothing to restart on an
 		// init system that does not ship it.
 		if machinesvc.Detect() == machinesvc.Systemd {
