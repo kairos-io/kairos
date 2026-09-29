@@ -50,11 +50,14 @@ var _ = Describe("Finalize", func() {
 	})
 
 	It("sets nousers only when asked to and the document creates no users", func() {
-		out, _ := wizard.Finalize("#cloud-config\n", wizard.Overrides{Device: "/dev/sda", DefaultNoUsers: true})
+		out, err := wizard.Finalize("#cloud-config\n", wizard.Overrides{Device: "/dev/sda", DefaultNoUsers: true})
+		Expect(err).ToNot(HaveOccurred())
 		Expect(installOf(out)).To(HaveKeyWithValue("nousers", true))
-		out, _ = wizard.Finalize("#cloud-config\nstages:\n  boot: []\n", wizard.Overrides{Device: "/dev/sda", DefaultNoUsers: true})
+		out, err = wizard.Finalize("#cloud-config\nstages:\n  boot: []\n", wizard.Overrides{Device: "/dev/sda", DefaultNoUsers: true})
+		Expect(err).ToNot(HaveOccurred())
 		Expect(installOf(out)).ToNot(HaveKey("nousers"))
-		out, _ = wizard.Finalize("#cloud-config\n", wizard.Overrides{Device: "/dev/sda"})
+		out, err = wizard.Finalize("#cloud-config\n", wizard.Overrides{Device: "/dev/sda"})
+		Expect(err).ToNot(HaveOccurred())
 		Expect(installOf(out)).ToNot(HaveKey("nousers"))
 	})
 

@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"golang.org/x/net/websocket"
+	"gopkg.in/yaml.v3"
 
 	"github.com/kairos-io/kairos/v4/sdk/constants"
 )
@@ -95,6 +96,36 @@ exit 0
 		Expect(msgs[0].Type).To(Equal(MessageError))
 		Expect(msgs[0].Message).To(ContainSubstring("no installation has been started"))
 		Expect(msgs[1].Type).To(Equal(MessageDone))
+	})
+
+	It("writes the submitted device and finish action over the pasted YAML", func() {
+		seen := filepath.Join(GinkgoT().TempDir(), "config-seen.yaml")
+		GinkgoT().Setenv("KAIROS_AGENT_BIN", stubAgent(`
+for a in "$@"; do cfg="$a"; done
+cp "$cfg" `+seen+`
+echo '{"event":"step","step":"done"}'
+exit 0
+`))
+
+		resp := postInstall(url.Values{
+			"cloud-config":        {"#cloud-config\ninstall:\n  device: /dev/vdb\n  poweroff: true\n"},
+			"installation-device": {"/dev/sda"},
+		})
+		Expect(resp.StatusCode).To(Equal(http.StatusSeeOther))
+
+		var raw []byte
+		Eventually(func() error {
+			var err error
+			raw, err = os.ReadFile(seen)
+			return err
+		}, "5s").Should(Succeed())
+
+		doc := map[string]any{}
+		Expect(yaml.Unmarshal(raw, &doc)).To(Succeed())
+		install, _ := doc["install"].(map[string]any)
+		Expect(install).To(HaveKeyWithValue("device", "/dev/sda"))
+		Expect(install).To(HaveKeyWithValue("poweroff", false))
+		Expect(install).To(HaveKeyWithValue("reboot", false))
 	})
 
 	It("does not start a second install while one is running", func() {
