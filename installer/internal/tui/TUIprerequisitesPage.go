@@ -80,12 +80,12 @@ func (p *prerequisitesPage) Help() string {
 	return "↑/↓: move • ←/→ or space: change • enter: continue"
 }
 
-// Init gathers the checks from providers synchronously (go-pluggable runs
-// plugins inline), mirroring the customization page. With no checks it emits a
-// navigation message to skip straight to disk selection.
 // Skipped reports that there were no checks, so the page moved on.
 func (p *prerequisitesPage) Skipped() bool { return p.loaded && len(p.checks) == 0 }
 
+// Init gathers the checks from providers synchronously (go-pluggable runs
+// plugins inline), the way the wizard asks them for their prompts. With no
+// checks it emits a navigation message to skip straight to disk selection.
 func (p *prerequisitesPage) Init() tea.Cmd {
 	if !p.loaded {
 		p.mgr = checks.NewManager(*mainModel.log)

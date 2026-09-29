@@ -78,17 +78,17 @@ func (w *welcomePage) Help() string {
 	return help
 }
 
+// Skipped reports that the page had nothing to show and moved on.
+func (w *welcomePage) Skipped() bool {
+	return w.loaded && len(w.urls) == 0 && !w.pairing && !w.recovery
+}
+
 // Init reads the web UI's addresses once, renders the QR for the first one,
 // and looks for a provider that could drive the pairing install.
 //
 // A branding file that cannot be read is not an error here: LoadConfig already
 // treats an unbranded image as the normal case, and the defaults it returns are
 // what an unbranded live ISO actually serves.
-// Skipped reports that the page had nothing to show and moved on.
-func (w *welcomePage) Skipped() bool {
-	return w.loaded && len(w.urls) == 0 && !w.pairing && !w.recovery
-}
-
 func (w *welcomePage) Init() tea.Cmd {
 	if !w.loaded {
 		cfg, err := branding.LoadConfig()
