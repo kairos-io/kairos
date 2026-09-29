@@ -81,12 +81,32 @@ net.ipv6.conf.all.accept_redirects = 0
 
 const CISAuditRulesPath = "/etc/audit/rules.d/50-kairos.rules"
 
+// The file opens with the base configuration upstream audit-userspace ships as
+// rules/10-base-config.rules, because on the openrc path nothing else supplies
+// it. Alpine's auditd init script runs `auditctl -R` on this one file (see
+// CISAuditdConfDAlpine) and Alpine's audit package installs an empty
+// /etc/audit/rules.d, so without these four lines the kernel keeps its default
+// backlog_limit of 64 while the rules below audit open, chmod, chown and
+// unlink for every non-system user, and failure mode 0 does not even log the
+// overrun. `-e 2` at the end then makes that permanent: `auditctl -b` on a
+// running node fails with EPERM.
+//
+// Repeating them here is also correct on the systemd path, which merges every
+// /etc/audit/rules.d/*.rules with augenrules: that hoists -D, -b and -f to the
+// top and moves -e to the last line, keeping the last value it processed,
+// which is the same 8192 the base images already set.
+//
 // Syscall rules are paired b64+b32. On amd64 with CONFIG_IA32_EMULATION and on
 // aarch64 with CONFIG_COMPAT (userspace's arch=b32 -> AUDIT_ARCH_ARM) a 32-bit
 // binary would otherwise bypass every b64-only rule. `auditctl -R` warns and
 // keeps loading past b32 lines the running kernel rejects, so shipping both
 // pairs is safe on kernels without 32-bit compat.
-const CISAuditRules = `-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock_settime -k time-change
+const CISAuditRules = `-D
+-b 8192
+--backlog_wait_time 60000
+-f 1
+
+-a always,exit -F arch=b64 -S adjtimex,settimeofday,clock_settime -k time-change
 -a always,exit -F arch=b32 -S adjtimex,settimeofday,clock_settime -k time-change
 -w /etc/localtime -p wa -k time-change
 
