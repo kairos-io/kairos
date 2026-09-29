@@ -2,9 +2,11 @@ package tui
 
 import (
 	"bytes"
+	"reflect"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
 	. "github.com/onsi/ginkgo/v2"
@@ -16,11 +18,24 @@ import (
 // splitLines counts a view's rows the way the model truncates it.
 func splitLines(s string) []string { return strings.Split(s, "\n") }
 
+// resolveTimeout is how long resolves waits for one command. It is well past
+// what a loaded CI runner needs to schedule the goroutine of a quick command.
+const resolveTimeout = 2 * time.Second
+
+// blinkCode is the code of the cursor's blink command, which every focused
+// text input and text area returns. It only ever produces a blink, after half
+// a second, so resolves skips it instead of waiting for it.
+var blinkCode = func() uintptr {
+	t := textinput.New()
+	return reflect.ValueOf(t.Focus()).Pointer()
+}()
+
 // resolves runs cmd, the way bubbletea would, and returns every message it
-// produces, unwrapping batches. A command that blocks (a cursor blink) is
-// given up on after a moment, since it cannot be a quit or a navigation.
+// produces, unwrapping batches. A cursor blink is not run, and a command still
+// blocked after resolveTimeout is given up on: neither can be a quit or a
+// navigation.
 func resolves(cmd tea.Cmd) []tea.Msg {
-	if cmd == nil {
+	if cmd == nil || reflect.ValueOf(cmd).Pointer() == blinkCode {
 		return nil
 	}
 	ch := make(chan tea.Msg, 1)
@@ -35,7 +50,7 @@ func resolves(cmd tea.Cmd) []tea.Msg {
 			return out
 		}
 		return []tea.Msg{msg}
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(resolveTimeout):
 		return nil
 	}
 }
