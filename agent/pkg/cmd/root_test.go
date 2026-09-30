@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -301,5 +302,60 @@ func TestWebUIRejectsABadSourceAtParseTime(t *testing.T) {
 	empty.String("source", "", "")
 	if err := webui.Before(cli.NewContext(nil, empty, nil)); err != nil {
 		t.Fatalf("webui with no --source = %v, want nil", err)
+	}
+}
+
+// `state apply` was a registered subcommand with an empty body: it advertised
+// itself in --help as applying a machine state, did nothing, and exited 0.
+// Dropping the subcommand is not enough on its own, because `state` has an
+// action of its own, so an unmatched argument falls through to it, prints the
+// machine state and still exits 0. A caller scripting an apply cannot tell
+// that from a successful one, which is the whole bug.
+func TestStateRejectsAnArgumentItCannotApply(t *testing.T) {
+	app := &cli.App{
+		Name:      "kairos-agent",
+		Commands:  cmds,
+		Writer:    io.Discard,
+		ErrWriter: io.Discard,
+	}
+
+	// "a" was the alias apply carried, "gte" stands for any other typo: both
+	// used to reach the state dump instead of being refused.
+	for _, arg := range []string{"apply", "a", "gte"} {
+		err := app.Run([]string{"kairos-agent", "state", arg})
+		if err == nil {
+			t.Fatalf("`state %s` exited 0, so it is indistinguishable from a command that did the work", arg)
+		}
+		if !strings.Contains(err.Error(), arg) {
+			t.Fatalf("`state %s` = %v, want an error naming %q", arg, err, arg)
+		}
+	}
+}
+
+// Nothing may re-register a placeholder under `state`, and `get` has to stay.
+func TestStateRegistersGetAndNoApply(t *testing.T) {
+	var stateCmd *cli.Command
+	for _, c := range cmds {
+		if c.Name == "state" {
+			stateCmd = c
+			break
+		}
+	}
+	if stateCmd == nil {
+		t.Fatal("no state command registered")
+	}
+
+	names := map[string]bool{}
+	for _, sub := range stateCmd.Subcommands {
+		names[sub.Name] = true
+		for _, alias := range sub.Aliases {
+			names[alias] = true
+		}
+	}
+	if names["apply"] || names["a"] {
+		t.Errorf("state advertises an apply subcommand again, subcommands %v", names)
+	}
+	if !names["get"] {
+		t.Errorf("state lost its get subcommand, subcommands %v", names)
 	}
 }
