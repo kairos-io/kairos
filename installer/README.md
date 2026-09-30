@@ -128,9 +128,16 @@ the disk the operator confirmed, whatever its `install.device` says.
 
 ### Terminal UI
 
-The terminal UI asks for the disk, then offers **Start Install** (with the
-finish action) or **Customize Further**, which opens a menu of the optional
-steps. The summary page shows the generated cloud-config: `e` opens it in an
+After the prerequisites, the terminal UI asks how to install. **Quick
+install**, the default, asks for the disk and goes straight to the summary:
+no user is created and nothing else is configured, so `enter`, `enter`,
+`enter` and `y` install. The summary says that no user was set up, and `esc`
+twice goes back to the choice, keeping the disk. **Customize** asks for the
+disk, then offers **Start Install** (with the finish action) or **Customize
+Further**, which opens a menu of the optional steps. On an image branded with
+`interactive_install_advanced_disabled` there is nothing to customize, so the
+terminal UI does not ask how to install: it asks for the disk, then offers
+**Start Install** with the finish action. The summary page shows the generated cloud-config: `e` opens it in an
 editor (`ctrl+s` keeps the edit, `ctrl+r` builds it again from the answers,
 `esc` drops the edit), and `v` shows it read-only. `enter` on the summary asks
 for a `y` before it erases the disk and starts the install. A long list, such

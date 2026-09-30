@@ -55,6 +55,9 @@ type Model struct {
 	cloudConfig string         // the text the operator saved on the edit page
 	edited      bool           // cloudConfig was changed by hand and replaces the rendered answers
 	viewOnly    bool           // the summary opened the configuration page with v, to read it only
+	// quick is the install mode page's choice: the disk step leads straight
+	// to the summary, and nothing but the disk is configured.
+	quick bool
 }
 
 var mainModel Model
@@ -130,7 +133,7 @@ func InitialModel(l *sdkLogger.KairosLogger, source string) Model {
 	// every visit.
 	mainModel.steps = wizard.Steps(context.Background(), noExtensionsEnv{wizardEnv})
 	mainModel.answers.Source = source
-	pages := []Page{newWelcomePage(), newPrerequisitesPage()}
+	pages := []Page{newWelcomePage(), newPrerequisitesPage(), newInstallModePage()}
 	for _, s := range mainModel.steps {
 		if s.ID == wizard.StepFinish {
 			continue // the install options page asks it, next to Start Install

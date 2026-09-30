@@ -164,12 +164,12 @@ var _ = Describe("the install options page", func() {
 		Expect(newSummaryPage().View()).ToNot(ContainSubstring("Username"))
 	})
 
-	It("is where the disk step leads, and the disk step is where the prerequisites lead", func() {
+	It("is where the disk step leads, after the prerequisites and the install mode page", func() {
 		ids := []string{}
 		for _, pg := range mainModel.pages {
 			ids = append(ids, pg.ID())
 		}
-		Expect(ids).To(Equal([]string{welcomePageID, "prerequisites", wizard.StepDisk, "install_options", "customization",
+		Expect(ids).To(Equal([]string{welcomePageID, "prerequisites", installModePageID, wizard.StepDisk, "install_options", "customization",
 			wizard.StepUser, wizard.StepSSHKeys, wizard.StepHostname, wizard.StepLocale, wizard.StepExtensions,
 			"summary", editPageID, "install_process", DebugBundlePageID}))
 	})

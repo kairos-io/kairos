@@ -94,7 +94,11 @@ func (p *summaryPage) View() string {
 		s += warningStyle.Render(w) + "\n"
 	}
 	s += "Action to take when installation is complete: " + normalizedFinishAction() + "\n\n"
-	if !wizardEnv.AdvancedDisabled() {
+	if mainModel.quick {
+		s += "Quick install: nothing but the disk is configured.\n"
+		s += warningStyle.Render("No user was set up, so you cannot log in with a password.") + "\n"
+		s += "To add a user, press esc twice and choose Customize.\n"
+	} else if !wizardEnv.AdvancedDisabled() {
 		s += "Configuration Summary:\n"
 		if a.Username != "" {
 			s += fmt.Sprintf("  - Username: %s\n", a.Username)

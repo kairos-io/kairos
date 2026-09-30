@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/kairos-io/kairos/v4/installer/internal/checks"
-	"github.com/kairos-io/kairos/v4/installer/internal/wizard"
 	"github.com/kairos-io/kairos/v4/installer/prereqs"
 	"github.com/mudler/go-pluggable"
 )
@@ -85,7 +84,8 @@ func (p *prerequisitesPage) Skipped() bool { return p.loaded && len(p.checks) ==
 
 // Init gathers the checks from providers synchronously (go-pluggable runs
 // plugins inline), the way the wizard asks them for their prompts. With no
-// checks it emits a navigation message to skip straight to disk selection.
+// checks it emits a navigation message to skip straight to the install mode
+// page.
 func (p *prerequisitesPage) Init() tea.Cmd {
 	if !p.loaded {
 		p.mgr = checks.NewManager(*mainModel.log)
@@ -100,7 +100,7 @@ func (p *prerequisitesPage) Init() tea.Cmd {
 	}
 
 	if len(p.checks) == 0 {
-		return func() tea.Msg { return GoToPageMsg{PageID: wizard.StepDisk} }
+		return func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 	}
 	return p.syncFocus()
 }
@@ -156,7 +156,7 @@ func (p *prerequisitesPage) Update(msg tea.Msg) (Page, tea.Cmd) {
 	case "enter":
 		// After an optional-action failure, enter means "continue anyway".
 		if p.failure == failOptional {
-			return p, func() tea.Msg { return GoToPageMsg{PageID: wizard.StepDisk} }
+			return p, func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 		}
 		return p.proceed()
 	}
@@ -293,9 +293,9 @@ func (p *prerequisitesPage) clearFailure() {
 	p.results = nil
 }
 
-// advance returns the command that moves on to disk selection.
+// advance returns the command that moves on to the install mode page.
 func (p *prerequisitesPage) advance() tea.Cmd {
-	return func() tea.Msg { return GoToPageMsg{PageID: wizard.StepDisk} }
+	return func() tea.Msg { return GoToPageMsg{PageID: installModePageID} }
 }
 
 // proceed validates blockers, applies the user's decisions and advances to
