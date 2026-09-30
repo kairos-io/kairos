@@ -71,8 +71,7 @@ func (k *KernelConsole) signal(sig syscall.Signal) error {
 //
 // Calling it while already quiet does not re-read printk: the value on disk is
 // the quiet one by then, and capturing it would make Unquiet "restore" the
-// console to silence. Close hits exactly that path, because it quiets on the
-// way through LeaveLogs before unquieting for good.
+// console to silence.
 func (k *KernelConsole) Quiet() {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -126,31 +125,44 @@ func (k *KernelConsole) EnterLogs() error {
 	return nil
 }
 
-// LeaveLogs stops the stream and quiets the kernel again.
-func (k *KernelConsole) LeaveLogs() error {
+// stopStream tears down the /dev/kmsg pump and leaves the quiet state alone,
+// so each caller decides which way the console ends up.
+func (k *KernelConsole) stopStream() error {
 	k.mu.Lock()
 	f, stop, done := k.kmsg, k.stop, k.done
 	k.kmsg, k.stop, k.done = nil, nil, nil
 	k.mu.Unlock()
 
-	if f != nil {
-		close(stop)
-		// Closing the file unblocks the pump's in-flight read; without it
-		// the goroutine would sit in Read until the next kernel message.
-		err := f.Close()
-		<-done
-		k.Quiet()
-		return err
+	if f == nil {
+		return nil
 	}
+	close(stop)
+	// Closing the file unblocks the pump's in-flight read; without it the
+	// goroutine would sit in Read until the next kernel message.
+	err := f.Close()
+	<-done
+	return err
+}
+
+// LeaveLogs stops the stream and quiets the kernel again.
+func (k *KernelConsole) LeaveLogs() error {
+	err := k.stopStream()
 	k.Quiet()
-	return nil
+	return err
 }
 
 // Close restores the console. Called on the way out, so a splash that is
 // killed at switch-root does not leave the kernel silent for whatever runs
 // next.
+//
+// It tears the stream down directly instead of going through LeaveLogs,
+// because LeaveLogs quiets. Real-time signals queue, and the kernel delivers
+// the lowest number first when several are pending, so a hide-status
+// SIGRTMIN+21 followed immediately by a show-status SIGRTMIN+20 can reach
+// PID 1 in the opposite order and leave the console silent for the rest of
+// the uptime. Close sends one signal.
 func (k *KernelConsole) Close() {
-	_ = k.LeaveLogs()
+	_ = k.stopStream()
 	k.Unquiet()
 }
 

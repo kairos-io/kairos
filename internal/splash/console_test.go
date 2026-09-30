@@ -249,3 +249,43 @@ func TestShowStatusSignalDependsOnTheLibc(t *testing.T) {
 		t.Errorf("musl: showStatusSignal(20) = %d, want 55", got)
 	}
 }
+
+// Real-time signals queue, and the kernel delivers the lowest number first
+// when several are pending. Close used to reach Unquiet through LeaveLogs, so
+// it sent SIGRTMIN+21 (hide status) and SIGRTMIN+20 (show status) back to
+// back; PID 1 could then handle them in the other order and keep the console
+// silent for the rest of the uptime. Close must send one signal, the one that
+// shows status.
+func TestCloseSendsOnlyTheShowStatusSignal(t *testing.T) {
+	k, _, sigs, _ := testConsole(t, "7 4 1 7\n")
+	k.Quiet()
+	*sigs = nil
+
+	k.Close()
+
+	if len(*sigs) != 1 || (*sigs)[0] != showStatusSignal(20) {
+		t.Errorf("Close sent %v, want exactly [%d]", *sigs, showStatusSignal(20))
+	}
+}
+
+// Same guarantee on the path the splash actually takes out: the user pressed
+// ESC, so the kmsg pump is running when Close tears it down.
+func TestCloseWhileStreamingSendsOnlyTheShowStatusSignal(t *testing.T) {
+	k, _, sigs, _ := testConsole(t, "7 4 1 7\n")
+	kmsg := filepath.Join(t.TempDir(), "kmsg")
+	if err := os.WriteFile(kmsg, []byte("6,1,10,-;a record\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	k.KmsgPath = kmsg
+	k.Quiet()
+	if err := k.EnterLogs(); err != nil {
+		t.Fatal(err)
+	}
+	*sigs = nil
+
+	k.Close()
+
+	if len(*sigs) != 1 || (*sigs)[0] != showStatusSignal(20) {
+		t.Errorf("Close sent %v, want exactly [%d]", *sigs, showStatusSignal(20))
+	}
+}
