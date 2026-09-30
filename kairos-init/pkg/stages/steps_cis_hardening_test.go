@@ -782,6 +782,175 @@ var _ = Describe("GetCISHardeningStage", func() {
 				}
 			})
 		})
+
+		Describe("the PAM stack wiring", func() {
+			stageNamed := func(name string) schema.Stage {
+				var found []schema.Stage
+				for _, st := range result {
+					if st.Name == name {
+						found = append(found, st)
+					}
+				}
+				ExpectWithOffset(1, found).To(HaveLen(1), "expected exactly one stage named "+name)
+				return found[0]
+			}
+
+			Context("on Debian and Ubuntu", func() {
+				It("writes both faillock profiles and enables them with pam-auth-update", func() {
+					st := stageNamed("Wire pam_faillock into the Debian/Ubuntu PAM stack")
+					Expect(st.OnlyIfOs).To(Equal("Ubuntu.*|Debian.*"))
+					Expect(st.Commands).To(ConsistOf(
+						"DEBIAN_FRONTEND=noninteractive pam-auth-update --enable kairos-faillock kairos-faillock-notify"))
+					var paths []string
+					for _, f := range st.Files {
+						paths = append(paths, f.Path)
+						Expect(f.Permissions).To(Equal(uint32(0o644)))
+					}
+					Expect(paths).To(ConsistOf(bundled.CISPamConfigFaillockPath, bundled.CISPamConfigFaillockNotifyPath))
+				})
+
+				It("only writes the profiles when pam_faillock.so is on disk", func() {
+					// pam-auth-update enables Default: yes profiles on any
+					// later run; a profile naming a missing module would
+					// fail every authentication.
+					st := stageNamed("Wire pam_faillock into the Debian/Ubuntu PAM stack")
+					Expect(st.If).To(ContainSubstring("command -v pam-auth-update"))
+					Expect(st.If).To(ContainSubstring("security/pam_faillock.so"))
+				})
+
+				It("places authfail after pam_unix and preauth plus account reset before it", func() {
+					Expect(bundled.CISPamConfigFaillock).To(ContainSubstring("Priority: 0\n"))
+					Expect(bundled.CISPamConfigFaillock).To(MatchRegexp(`(?m)^\t\[default=die\]\tpam_faillock\.so authfail$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(ContainSubstring("Priority: 1024\n"))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^\trequisite\tpam_faillock\.so preauth$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^Account-Type: Primary$`))
+					Expect(bundled.CISPamConfigFaillockNotify).To(MatchRegexp(`(?m)^\trequired\tpam_faillock\.so$`))
+				})
+
+				It("enables the stock pwquality profile only when libpam-pwquality installed it", func() {
+					st := stageNamed("Wire pam_pwquality into the Debian/Ubuntu PAM stack")
+					Expect(st.OnlyIfOs).To(Equal("Ubuntu.*|Debian.*"))
+					Expect(st.If).To(ContainSubstring("test -f /usr/share/pam-configs/pwquality"))
+					Expect(st.If).To(ContainSubstring("security/pam_pwquality.so"))
+					Expect(st.Commands).To(ConsistOf("DEBIAN_FRONTEND=noninteractive pam-auth-update --enable pwquality"))
+				})
+			})
+
+			Context("on the RHEL family", func() {
+				It("uses authselect with-faillock when authselect is installed", func() {
+					st := stageNamed("Wire pam_faillock into the RHEL-family PAM stack with authselect")
+					Expect(st.OnlyIfOs).To(Equal(values.RHELFamilyRegex))
+					Expect(st.If).To(HavePrefix("command -v authselect >/dev/null && "))
+					Expect(st.If).To(ContainSubstring("security/pam_faillock.so"))
+					Expect(st.Commands).To(ConsistOf(bundled.CISAuthselectFaillock))
+					Expect(bundled.CISAuthselectFaillock).To(ContainSubstring("authselect enable-feature with-faillock"))
+					Expect(bundled.CISAuthselectFaillock).To(ContainSubstring(`authselect select "$profile" with-faillock --force`))
+				})
+
+				It("falls back to editing the plain stack only when authselect is missing", func() {
+					st := stageNamed("Wire pam_faillock into the RHEL-family PAM stack without authselect")
+					Expect(st.OnlyIfOs).To(Equal(values.RHELFamilyRegex))
+					Expect(st.If).To(HavePrefix("! command -v authselect >/dev/null && "))
+					Expect(st.Commands).To(ConsistOf(bundled.CISRHELFaillockFallback))
+				})
+
+				Context("when the fallback script runs against a stock EL9 stack", func() {
+					var tmpdir string
+					const stockSystemAuth = `#%PAM-1.0
+auth        required      pam_env.so
+auth        sufficient    pam_unix.so try_first_pass nullok
+auth        required      pam_deny.so
+
+account     required      pam_unix.so
+
+password    requisite     pam_pwquality.so try_first_pass local_users_only retry=3 authtok_type=
+password    sufficient    pam_unix.so try_first_pass use_authtok nullok sha512 shadow
+password    required      pam_deny.so
+`
+
+					BeforeEach(func() {
+						var err error
+						tmpdir, err = os.MkdirTemp("", "pam-d-*")
+						Expect(err).ToNot(HaveOccurred())
+					})
+
+					AfterEach(func() {
+						_ = os.RemoveAll(tmpdir)
+					})
+
+					run := func() {
+						scoped := strings.ReplaceAll(bundled.CISRHELFaillockFallback, "/etc/pam.d/", tmpdir+"/")
+						out, err := exec.Command("sh", "-c", scoped).CombinedOutput()
+						Expect(err).ToNot(HaveOccurred(), string(out))
+					}
+
+					It("inserts preauth, authfail and the account line around pam_unix, once", func() {
+						for _, n := range []string{"system-auth", "password-auth"} {
+							Expect(os.WriteFile(filepath.Join(tmpdir, n), []byte(stockSystemAuth), 0o644)).To(Succeed())
+						}
+						run()
+						run()
+						for _, n := range []string{"system-auth", "password-auth"} {
+							got, err := os.ReadFile(filepath.Join(tmpdir, n))
+							Expect(err).ToNot(HaveOccurred())
+							lines := strings.Split(string(got), "\n")
+							idx := func(re string) int {
+								for i, l := range lines {
+									if regexp.MustCompile(re).MatchString(l) {
+										return i
+									}
+								}
+								return -1
+							}
+							pre := idx(`^auth\s+required\s+pam_faillock\.so preauth silent$`)
+							unix := idx(`^auth\s+sufficient\s+pam_unix\.so`)
+							fail := idx(`^auth\s+required\s+pam_faillock\.so authfail$`)
+							acct := idx(`^account\s+required\s+pam_faillock\.so$`)
+							acctUnix := idx(`^account\s+required\s+pam_unix\.so`)
+							Expect(pre).To(BeNumerically(">=", 0), n+": %s", got)
+							Expect(pre).To(Equal(unix-1), n)
+							Expect(fail).To(Equal(unix+1), n)
+							Expect(acct).To(Equal(acctUnix-1), n)
+							Expect(strings.Count(string(got), "pam_faillock.so")).To(Equal(3), "script is not idempotent in "+n)
+							Expect(string(got)).To(ContainSubstring("pam_pwquality.so"))
+						}
+					})
+
+					It("leaves an authselect-managed symlink and an unexpected stack alone", func() {
+						Expect(os.WriteFile(filepath.Join(tmpdir, "target"), []byte(stockSystemAuth), 0o644)).To(Succeed())
+						Expect(os.Symlink(filepath.Join(tmpdir, "target"), filepath.Join(tmpdir, "system-auth"))).To(Succeed())
+						odd := "auth required pam_sss.so\naccount required pam_sss.so\n"
+						Expect(os.WriteFile(filepath.Join(tmpdir, "password-auth"), []byte(odd), 0o644)).To(Succeed())
+						run()
+						got, _ := os.ReadFile(filepath.Join(tmpdir, "target"))
+						Expect(string(got)).To(Equal(stockSystemAuth))
+						got, _ = os.ReadFile(filepath.Join(tmpdir, "password-auth"))
+						Expect(string(got)).To(Equal(odd))
+					})
+				})
+			})
+
+			Context("on SUSE", func() {
+				It("swaps cracklib for pwquality with pam-config when pam-config knows the module", func() {
+					st := stageNamed("Wire pam_pwquality into the SUSE PAM stack with pam-config")
+					Expect(st.OnlyIfOs).To(Equal(values.AllSuseRegex))
+					Expect(st.If).To(ContainSubstring("pam-config --help"))
+					Expect(st.If).To(ContainSubstring("--pwquality"))
+					Expect(st.If).To(ContainSubstring("security/pam_pwquality.so"))
+					Expect(bundled.CISSUSEPwquality).To(ContainSubstring("pam-config -a --pwquality"))
+					Expect(bundled.CISSUSEPwquality).To(ContainSubstring("pam-config -d --cracklib"))
+				})
+			})
+
+			It("does not wire anything on Alpine, which has no PAM in the login path", func() {
+				for _, st := range result {
+					if strings.HasPrefix(st.Name, "Wire pam_") {
+						Expect(st.OnlyIfOs).ToNot(Equal(values.AlpineRegex))
+						Expect(st.OnlyIfOs).ToNot(BeEmpty(), st.Name+" must be gated on a distro family")
+					}
+				}
+			})
+		})
 	})
 
 	Context("when the skip step is configured", func() {
