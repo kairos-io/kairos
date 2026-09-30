@@ -9,6 +9,20 @@ stages:
     # repaired: 52_installer.yaml masks getty@tty1 on an interactive boot, so
     # the tty1 override below is already inert there, and the ttyS0 one is the
     # only way to reach a machine whose console is serial.
+    #
+    # The virtual console override is on the getty@.service template rather
+    # than on getty@tty1, so that every VT autologs in and not only the first.
+    # logind starts tty2 to tty6 on demand as autovt@ttyN (NAutoVTs=6), and
+    # autovt@.service is a symlink to getty@.service, so those instances never
+    # saw a getty@tty1 drop-in and presented a login prompt instead. They do
+    # inherit this one: systemd resolves autovt@ttyN.service to the
+    # getty@.service fragment and records getty@ttyN.service as an alias, and
+    # drop-in lookup runs over every alias and widens each instance name to
+    # its template directory.
+    #
+    # This matters most on an interactive install, where 52_installer.yaml
+    # masks getty@tty1 to own the console: the mask is on the instance, so it
+    # still wins there, while the other VTs stay reachable without a password.
     - if: |
         ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
       only_service_manager: "systemd"
@@ -19,7 +33,7 @@ stages:
             ExecStart=
             ExecStart=-/sbin/agetty --autologin root --noclear %I $TERM
           permissions: 0644
-        - path: /etc/systemd/system/getty@tty1.service.d/override.conf
+        - path: /etc/systemd/system/getty@.service.d/override.conf
           content: |
             [Service]
             ExecStart=
