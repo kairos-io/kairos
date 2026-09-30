@@ -271,37 +271,21 @@ func TestInteractiveInstallHonoursSkipAutoInstall(t *testing.T) {
 	}
 }
 
-// The web UI passes --source straight through to `manual-install`, so a bad
-// one has to be rejected by the process the operator invoked. Without a Before
-// the rejection only surfaces in the browser's progress stream, after the user
-// has typed a whole cloud-config.
-func TestWebUIRejectsABadSourceAtParseTime(t *testing.T) {
-	var webui *cli.Command
+// `kairos-agent webui` existed only so the kairos-webui service kept working
+// while the web UI moved into the installer. The service is gone, and the
+// installer serves the web UI in its own process on every interactive boot,
+// so the subcommand has no caller left. The alias matters as much as the
+// name: `kairos-agent w` used to reach it.
+func TestNoWebUISubcommandIsRegistered(t *testing.T) {
 	for _, c := range cmds {
 		if c.Name == "webui" {
-			webui = c
-			break
+			t.Fatal("webui is registered again; the web UI is a frontend of the installer, run it with --no-tui")
 		}
-	}
-	if webui == nil {
-		t.Fatal("no webui command registered")
-	}
-	if webui.Before == nil {
-		t.Fatal("webui has no Before, so --source is never validated")
-	}
-
-	set := flag.NewFlagSet("webui", flag.ContinueOnError)
-	set.String("source", "not-a-uri", "")
-	err := webui.Before(cli.NewContext(nil, set, nil))
-	if err == nil || !strings.Contains(err.Error(), "not-a-uri") {
-		t.Fatalf("webui --source not-a-uri = %v, want an error naming the source", err)
-	}
-
-	// The kairos-webui service passes no --source, so it must still start.
-	empty := flag.NewFlagSet("webui", flag.ContinueOnError)
-	empty.String("source", "", "")
-	if err := webui.Before(cli.NewContext(nil, empty, nil)); err != nil {
-		t.Fatalf("webui with no --source = %v, want nil", err)
+		for _, a := range c.Aliases {
+			if a == "w" {
+				t.Fatalf("%q took over the freed webui alias w", c.Name)
+			}
+		}
 	}
 }
 

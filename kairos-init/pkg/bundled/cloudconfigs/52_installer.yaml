@@ -1,16 +1,27 @@
 name: "Start installer on tty1"
 stages:
   initramfs:
-    # Start the plain installer on a boot that is asking to install.
+    # Start the plain installer on a boot that is asking to install. This is
+    # the GRUB live ISO path, and only that one.
     #
     # On Trusted Boot the cmdline lives in a signed section of the UKI, and
     # AuroraBoot builds every entry from the same base, so install-mode is
     # present on every UKI boot: on the live medium and, because the installer
     # copies norole.efi byte for byte into active, passive, recovery and
     # statereset, on every installed role too. The keyword therefore tells a
-    # live UKI boot and an installed one apart in neither direction, and
-    # /run/cos/uki_install_mode is the only signal that does: immucore writes
-    # it from removable-media boot, not from the cmdline.
+    # live UKI boot and an installed one apart in neither direction, so it
+    # decides nothing there. What a UKI install medium gets instead is the
+    # interactive installer, unconditionally: see the stage below.
+    #
+    # /run/cos/uki_install_mode is the signal that does separate the two, and
+    # immucore writes /run/cos/live_mode next to it on the same boot (a UKI
+    # medium that did not boot from an installed EFI entry is LiveCD). So this
+    # guard has to refuse the UKI sentinel rather than merely not require it:
+    # live_mode alone would still be true on Trusted Boot.
+    #
+    # Nothing is lost by handing Trusted Boot to the interactive installer:
+    # it runs AutoInstall first, so a config carrying install.auto: true still
+    # installs with no prompt. See agent/docs/installer-contract.md.
     #
     # On the GRUB live ISO the cmdline is per menu entry and unsigned, so the
     # keyword is what separates "install" from a plain live boot, and it stays
@@ -19,31 +30,12 @@ stages:
     # install-mode is a prefix of install-mode-interactive, so the keyword is
     # matched space-delimited to keep an interactive-only cmdline out. A
     # cmdline with both keywords still lands here; the interactive stage below
-    # runs later and disables kairos-installer again. That is also why nothing
-    # here enables kairos-webui: the boot stage owns that, and it refuses every
-    # interactive cmdline, because on those the installer serves the WebUI
-    # in-process and a service would race it for the listen address.
-    # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
+    # runs later and disables kairos-installer again.
     - if: |
-        [ -f /run/cos/uki_install_mode ] || \
-        ([ -f /run/cos/live_mode ] && \
-         (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline))
+        [ ! -f /run/cos/uki_install_mode ] && [ -f /run/cos/live_mode ] && \
+        grep -qE "(^| )install-mode( |$)" /proc/cmdline
       only_service_manager: "systemd"
       files:
-        - &webui-service
-          path: /etc/systemd/system/kairos-webui.service
-          permissions: 0644
-          owner: 0
-          group: 0
-          content: |
-            [Unit]
-            Description=kairos webui installer
-            After=sysinit.target
-            [Service]
-            ExecStart=/usr/bin/kairos-agent webui
-            TimeoutStopSec=10s
-            [Install]
-            WantedBy=multi-user.target
         - path: /etc/systemd/system/kairos-installer.service
           permissions: 0644
           owner: 0
@@ -74,30 +66,31 @@ stages:
         - systemctl mask getty@tty1
         - systemctl enable kairos-installer
     # Starts installer on boot for openRC based systems. Same guard as the
-    # systemd stage above: the sentinel on Trusted Boot, the keyword on GRUB.
-    # TODO: Drop nodepair.enable keyword in Kairos 4.0.0
+    # systemd stage above: the keyword on GRUB, never on Trusted Boot.
     - if: |
-        [ -f /run/cos/uki_install_mode ] || \
-        ([ -f /run/cos/live_mode ] && \
-         (grep -qE "(^| )install-mode( |$)" /proc/cmdline || grep -q "nodepair.enable" /proc/cmdline))
+        [ ! -f /run/cos/uki_install_mode ] && [ -f /run/cos/live_mode ] && \
+        grep -qE "(^| )install-mode( |$)" /proc/cmdline
       only_service_manager: "openrc"
       commands:
         - sed -i -e 's/tty1.*//g' /etc/inittab
         - echo "tty1::respawn:/usr/bin/kairos-agent install tty1" >> /etc/inittab
-    # Starts interactive installer on boot for systemd based systems in livecd or uki install mode
+    # Starts the interactive installer. It is what a Trusted Boot install
+    # medium always gets, and what a GRUB live ISO gets when the entry the
+    # user picked asks for it.
+    #
+    # A UKI entry cannot ask for anything: its cmdline is signed and shared by
+    # every entry AuroraBoot builds, so there is no per-entry keyword to read.
+    # /run/cos/uki_install_mode says "this is install media" and that is the
+    # whole decision. The interactive installer is the right default for it
+    # because it is the dispatcher, not just a terminal UI: it runs AutoInstall
+    # first, serves the WebUI in-process, and takes --shell.
     # TODO: Drop interactive-install keyword in Kairos 4.0.0
     - if: |
-        (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline) && \
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+        [ -f /run/cos/uki_install_mode ] || \
+        ([ -f /run/cos/live_mode ] && \
+         (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline))
       only_service_manager: "systemd"
       files:
-        # Written but deliberately not enabled. The interactive installer
-        # serves the WebUI in-process, so enabling this would leave a second
-        # process losing the race for the listen address. Quitting the
-        # terminal UI ends that in-process WebUI, and this unit is the only
-        # way back for the rest of the boot: openrc already has one at
-        # /etc/init.d/kairos-webui, and without this systemd did not.
-        - <<: *webui-service
         - path: /etc/systemd/system/kairos-interactive.service
           permissions: 0644
           owner: 0
@@ -128,47 +121,22 @@ stages:
             [Install]
             WantedBy=multi-user.target
       commands:
-        - systemctl stop kairos-installer
-        - systemctl disable kairos-installer
+        # kairos-installer exists only where the plain stage above ran, which
+        # a Trusted Boot medium no longer does, so tolerate it being absent.
+        - systemctl stop kairos-installer || true
+        - systemctl disable kairos-installer || true
         - systemctl disable getty@tty1
         - systemctl stop getty@tty1
         - systemctl mask getty@tty1
         - systemctl enable kairos-interactive
-    # Starts installer on boot for openRC based systems
+    # Starts installer on boot for openRC based systems. Same guard as the
+    # systemd stage above.
     # TODO: Drop interactive-install keyword in Kairos 4.0.0
     - if: |
-        (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline) && \
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ])
+        [ -f /run/cos/uki_install_mode ] || \
+        ([ -f /run/cos/live_mode ] && \
+         (grep -q "interactive-install" /proc/cmdline || grep -q "install-mode-interactive" /proc/cmdline))
       only_service_manager: "openrc"
       commands:
         - sed -i -e 's/tty1.*//g' /etc/inittab
         - echo "tty1::respawn:/usr/bin/kairos-agent interactive-install --shell tty1" >> /etc/inittab
-  boot:
-    # Every live boot that is not an interactive one gets the WebUI as its own
-    # service. An interactive boot does not: `kairos-agent webui` and
-    # `kairos-agent interactive-install` both delegate to the same installer
-    # binary, which serves the WebUI in-process next to its terminal UI, so
-    # starting the service too would just leave a second process losing the
-    # race for the listen address. The negative match mirrors the interactive
-    # stage's guard above term for term, so the two can never both fire.
-    - if: |
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ]) && \
-        ! grep -q "interactive-install" /proc/cmdline && \
-        ! grep -q "install-mode-interactive" /proc/cmdline
-      only_service_manager: "openrc"
-      commands:
-        - rc-service kairos-webui start
-    - if: |
-        ([ -f /run/cos/live_mode ] || [ -f /run/cos/uki_install_mode ]) && \
-        ! grep -q "interactive-install" /proc/cmdline && \
-        ! grep -q "install-mode-interactive" /proc/cmdline
-      only_service_manager: "systemd"
-      files:
-        - <<: *webui-service
-      commands:
-        # enable, not just start, so the WebUI comes back after a restart.
-        # This is the only stage that enables it: doing it from the
-        # install-mode stage too would leave it enabled on a cmdline carrying
-        # both install-mode and install-mode-interactive, which this guard
-        # refuses but that one accepts.
-        - systemctl enable --now kairos-webui

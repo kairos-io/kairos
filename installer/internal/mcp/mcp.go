@@ -166,7 +166,7 @@ func New(log sdkLogger.KairosLogger, source string) *Server {
 }
 
 // EnabledFromConfig reports whether to serve MCP at all, from
-// /etc/kairos/agent.yaml, the same file kairos-webui reads for itself. It is
+// /etc/kairos/agent.yaml, the same file the agent reads for itself. It is
 // on unless the image turned it off.
 //
 // This is the only control an operator has on a real boot: kairos-agent execs

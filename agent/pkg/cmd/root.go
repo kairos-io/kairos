@@ -381,29 +381,6 @@ E.g. kairos-agent install-bundle container:quay.io/kairos/kairos...
 		},
 	},
 	{
-		Name:        "webui",
-		Usage:       "Starts the webui (deprecated)",
-		Description: "DEPRECATED: starts the webui installer by delegating to the image's installer with its terminal UI suppressed. The web UI is served by the installer itself; run the installer with --no-tui instead. This subcommand is kept for the kairos-webui service and will be removed with it.",
-		Aliases:     []string{"w"},
-		Flags:       []cli.Flag{&sourceFlag},
-		// Reject a bad --source here, like the three install commands do,
-		// rather than in the browser's progress stream once the spawned
-		// manual-install hits its own check. validateSource passes on the
-		// empty string, so the kairos-webui service is unaffected.
-		Before: func(c *cli.Context) error {
-			return validateSource(c.String("source"))
-		},
-		Action: func(c *cli.Context) error {
-			log := sdkLogger.NewKairosLogger("agent", "info", true)
-			if viper.GetBool("debug") {
-				log.SetLevel("debug")
-			}
-
-			// The deprecated subcommand is what has to keep calling it.
-			return agent.WebUI(c.String("source"), log) //nolint:staticcheck
-		},
-	},
-	{
 		Name:        "config",
 		Usage:       "Shows the machine configuration",
 		Description: "Show the runtime configuration of the machine. It will scan the machine for all the configuration and will return the config file processed and found.",
