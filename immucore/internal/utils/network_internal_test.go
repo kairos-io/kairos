@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -8,6 +9,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/rs/zerolog"
 )
 
 var _ = Describe("early-boot networking", func() {
@@ -239,6 +241,132 @@ DNS_OVER_TLS=no
 			// anything the image ships under /etc must sort before ours.
 			Expect(networkdFallbackUnit).To(HavePrefix("99-"))
 			Expect(networkdRuntimeUnitDir).To(Equal("/run/systemd/network"))
+		})
+
+		It("asks for identifiers that do not need a machine id", func() {
+			// The initrd has no /etc/machine-id, and networkd's default
+			// DHCPv4 client id and DHCPv6 DUID are both derived from it. With
+			// the defaults networkd starts, configures no DHCP client, and
+			// the link never gets an address: on a real UKI install against a
+			// remote KMS that is a 30s timeout and an unbootable node. Both
+			// identifiers below come from the hardware address instead.
+			unit := FallbackNetworkUnit()
+			Expect(unit).To(ContainSubstring("ClientIdentifier=mac"))
+			Expect(unit).To(ContainSubstring("DUIDType=link-layer"))
+			// Under the right sections, or networkd ignores them.
+			Expect(unit).To(MatchRegexp(`(?s)\[DHCPv4\].*ClientIdentifier=mac`))
+			Expect(unit).To(MatchRegexp(`(?s)\[DHCPv6\].*DUIDType=link-layer`))
+		})
+	})
+
+	Describe("hasMachineID", func() {
+		var root string
+
+		BeforeEach(func() {
+			root = GinkgoT().TempDir()
+			Expect(os.MkdirAll(filepath.Join(root, "etc"), 0755)).To(Succeed())
+		})
+
+		It("reports no id when the file is absent, which is what an image ships", func() {
+			Expect(hasMachineID(root)).To(BeFalse())
+		})
+
+		It("reports no id for an empty file, the way systemd reads it", func() {
+			// systemd treats an empty /etc/machine-id as "not yet set", and
+			// an image can ship it that way to have it created on first boot.
+			Expect(os.WriteFile(filepath.Join(root, "etc", "machine-id"), []byte("\n"), 0644)).To(Succeed())
+			Expect(hasMachineID(root)).To(BeFalse())
+		})
+
+		It("reports an id when one is written", func() {
+			Expect(os.WriteFile(filepath.Join(root, "etc", "machine-id"),
+				[]byte("b16119b8b16119b8b16119b8b16119b8\n"), 0644)).To(Succeed())
+			Expect(hasMachineID(root)).To(BeTrue())
+		})
+	})
+
+	Describe("networkdLogWriter", func() {
+		var logbuf bytes.Buffer
+		var restore func()
+
+		BeforeEach(func() {
+			logbuf.Reset()
+			old := KLog.Logger
+			KLog.Logger = zerolog.New(&logbuf).Level(zerolog.DebugLevel)
+			restore = func() { KLog.Logger = old }
+		})
+
+		AfterEach(func() { restore() })
+
+		It("logs one message per line", func() {
+			w := &networkdLogWriter{}
+			n, err := w.Write([]byte("eth0: Link UP\neth0: DHCPv4 address 10.0.2.15/24\n"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(n).To(Equal(48))
+			Expect(logbuf.String()).To(ContainSubstring("eth0: Link UP"))
+			Expect(logbuf.String()).To(ContainSubstring("DHCPv4 address 10.0.2.15/24"))
+			Expect(logbuf.String()).To(ContainSubstring(`"bin":"systemd-networkd"`))
+		})
+
+		It("holds a partial line until the rest of it arrives", func() {
+			// A pipe splits wherever it likes, so half a message is normal.
+			w := &networkdLogWriter{}
+			_, err := w.Write([]byte("eth0: Could not set DHCPv4 c"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logbuf.String()).To(BeEmpty())
+			_, err = w.Write([]byte("lient identifier\n"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logbuf.String()).To(ContainSubstring("Could not set DHCPv4 client identifier"))
+		})
+
+		It("logs a last message that never got its newline", func() {
+			// This is the shape of the message that matters most: the one
+			// networkd writes just before it gives up.
+			w := &networkdLogWriter{}
+			_, err := w.Write([]byte("eth0: Failed to configure DHCPv4 client"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logbuf.String()).To(BeEmpty())
+			w.Flush()
+			Expect(logbuf.String()).To(ContainSubstring("Failed to configure DHCPv4 client"))
+		})
+
+		It("does not log blank lines", func() {
+			w := &networkdLogWriter{}
+			_, err := w.Write([]byte("\n\r\n   \n"))
+			Expect(err).NotTo(HaveOccurred())
+			w.Flush()
+			Expect(logbuf.String()).To(BeEmpty())
+		})
+
+		It("carries the output of the process immucore actually starts", func() {
+			// The writer above is only worth having if it is attached to
+			// networkd. Run the real command builder against a stand-in that
+			// writes to both streams, the way networkd does.
+			bin := filepath.Join(GinkgoT().TempDir(), "fake-networkd")
+			Expect(os.WriteFile(bin, []byte(
+				"#!/bin/sh\n"+
+					"echo 'eth0: Link UP'\n"+
+					"echo 'eth0: Could not set DHCPv4 client identifier: No such file or directory' >&2\n",
+			), 0o700)).To(Succeed())
+
+			cmd, out := networkdCommand(bin)
+			Expect(cmd.Start()).To(Succeed())
+			Expect(cmd.Wait()).To(Succeed())
+			out.Flush()
+
+			logged := logbuf.String()
+			Expect(logged).To(ContainSubstring("eth0: Link UP"))
+			Expect(logged).To(ContainSubstring("Could not set DHCPv4 client identifier"))
+		})
+
+		It("gives up buffering once a line stops looking like a line", func() {
+			// immucore is PID 1 in an initrd with no swap, so output with no
+			// newline in it must not grow without a bound.
+			w := &networkdLogWriter{}
+			_, err := w.Write(bytes.Repeat([]byte("x"), maxNetworkdLogLine+1))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logbuf.Len()).To(BeNumerically(">", maxNetworkdLogLine))
+			Expect(w.rest).To(BeEmpty())
 		})
 	})
 })

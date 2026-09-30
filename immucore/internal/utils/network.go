@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -8,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -43,6 +45,10 @@ const (
 	// networkdStateFile is where networkd publishes the manager state,
 	// including the DNS servers it learned.
 	networkdStateFile = "/run/systemd/netif/state"
+	// machineIDFile holds the machine id networkd derives its default DHCP
+	// identifiers from. A Kairos image ships without one on purpose: it is
+	// created on first boot of the real root, per node.
+	machineIDFile = "/etc/machine-id"
 )
 
 // networkConfigDirs are the directories that count as somebody having
@@ -65,6 +71,16 @@ IPv6AcceptRA=yes
 [DHCPv4]
 UseDNS=yes
 UseDomains=yes
+# Both identifiers below are derived from the interface's hardware address.
+# networkd's defaults are derived from /etc/machine-id instead, and a Kairos
+# image ships without one: the id is created on first boot of the real root,
+# so in the initrd there is none. networkd starts either way, but it cannot
+# configure a DHCP client whose identifier it cannot compute, so the link
+# stays down and the only thing the boot shows is immucore's own timeout.
+ClientIdentifier=mac
+
+[DHCPv6]
+DUIDType=link-layer
 `
 
 // FallbackNetworkUnit returns the networkd configuration immucore falls back
@@ -210,6 +226,79 @@ var hasRoutableAddress = func() bool {
 	return false
 }
 
+// hasMachineID reports whether the initrd carries a usable machine id.
+// An empty file counts as absent, which is how systemd itself reads it.
+func hasMachineID(root string) bool {
+	raw, err := os.ReadFile(filepath.Join(root, machineIDFile))
+	if err != nil {
+		return false
+	}
+	return len(bytes.TrimSpace(raw)) > 0
+}
+
+// maxNetworkdLogLine caps how much output is held while waiting for a
+// newline, so a binary that writes none cannot grow the initrd's memory.
+const maxNetworkdLogLine = 8 << 10
+
+// networkdLogWriter forwards systemd-networkd's own output into the immucore
+// log, one message per line. It exists because the first version of this step
+// discarded that output: when networkd could not configure a DHCP client the
+// boot showed nothing but immucore's 30s timeout, and the cause had to be
+// found by rebuilding the image.
+type networkdLogWriter struct {
+	mu   sync.Mutex
+	rest []byte
+}
+
+func (w *networkdLogWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.rest = append(w.rest, p...)
+	for {
+		i := bytes.IndexByte(w.rest, '\n')
+		if i < 0 {
+			break
+		}
+		logNetworkdLine(w.rest[:i])
+		w.rest = w.rest[i+1:]
+	}
+	if len(w.rest) > maxNetworkdLogLine {
+		logNetworkdLine(w.rest)
+		w.rest = nil
+	}
+	return len(p), nil
+}
+
+// Flush logs a trailing line that never got its newline, which is what a
+// binary exiting mid-message leaves behind.
+func (w *networkdLogWriter) Flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	logNetworkdLine(w.rest)
+	w.rest = nil
+}
+
+func logNetworkdLine(line []byte) {
+	msg := strings.TrimRight(string(line), "\r\n\t ")
+	if msg == "" {
+		return
+	}
+	KLog.Logger.Info().Str("bin", "systemd-networkd").Msg(msg)
+}
+
+// networkdCommand builds the command that runs systemd-networkd, with both of
+// its streams pointed at the returned writer. There is no journal in the
+// initrd, so networkd's own diagnostics only exist if immucore carries them,
+// and both streams share one writer to keep the order networkd wrote them in.
+func networkdCommand(bin string) (*exec.Cmd, *networkdLogWriter) {
+	out := &networkdLogWriter{}
+	cmd := exec.Command(bin)
+	cmd.Env = append(os.Environ(), "PATH=/usr/bin:/usr/sbin:/bin:/sbin")
+	cmd.Stdout = out
+	cmd.Stderr = out
+	return cmd, out
+}
+
 // SetupInitrdNetwork brings up networking inside the UKI initrd by running
 // systemd-networkd directly and waiting for an address, then publishing the
 // DNS servers it learned to resolv.conf.
@@ -230,6 +319,14 @@ func SetupInitrdNetwork(ctx context.Context, timeout time.Duration) error {
 
 	if hasNetworkConfig("/", networkConfigDirs...) {
 		KLog.Logger.Info().Msg("Image ships networkd configuration, using it as is")
+		if !hasMachineID("/") {
+			// The fallback unit works around the missing id with
+			// hardware-address identifiers. A unit the image ships gets no
+			// such treatment, so say so rather than letting it look like a
+			// plain DHCP timeout.
+			KLog.Logger.Warn().Str("file", machineIDFile).
+				Msg("No machine id in the initrd: networkd's default DHCP identifiers are derived from it, so the image's own units may get no address. Set ClientIdentifier=mac and DUIDType=link-layer in them")
+		}
 	} else {
 		if err := os.MkdirAll(networkdRuntimeUnitDir, 0755); err != nil {
 			return fmt.Errorf("creating %s: %w", networkdRuntimeUnitDir, err)
@@ -241,8 +338,7 @@ func SetupInitrdNetwork(ctx context.Context, timeout time.Duration) error {
 		KLog.Logger.Info().Str("unit", unit).Msg("Wrote fallback DHCP configuration")
 	}
 
-	cmd := exec.Command(networkd)
-	cmd.Env = append(os.Environ(), "PATH=/usr/bin:/usr/sbin:/bin:/sbin")
+	cmd, out := networkdCommand(networkd)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("starting %s: %w", networkd, err)
 	}
@@ -250,7 +346,11 @@ func SetupInitrdNetwork(ctx context.Context, timeout time.Duration) error {
 	// immucore is PID 1 here, so the child has to be reaped or it stays a
 	// zombie for the rest of the initrd.
 	go func() {
-		if err := cmd.Wait(); err != nil {
+		err := cmd.Wait()
+		// Wait has drained both streams by now, so anything still buffered is
+		// a last message with no newline.
+		out.Flush()
+		if err != nil {
 			KLog.Logger.Warn().Err(err).Msg("systemd-networkd exited")
 		}
 	}()
