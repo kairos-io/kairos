@@ -85,6 +85,14 @@ func (r ResetAction) Run() (err error) {
 		}
 	*/
 
+	// Check every partition this reset formats before formatting any of
+	// them, so a reset that cannot end in the state the configuration
+	// demands stops while nothing has been destroyed.
+	err = PreflightResetFormats(r.cfg, r.spec.Partitions.Persistent, r.spec.Partitions.OEM, r.spec.FormatPersistent, r.spec.FormatOEM)
+	if err != nil {
+		return err
+	}
+
 	// Reformat persistent partition
 	if r.spec.FormatPersistent {
 		persistent := r.spec.Partitions.Persistent

@@ -7,6 +7,7 @@ import (
 
 	v1 "github.com/kairos-io/kairos/v4/agent/pkg/implementations/spec"
 	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/types/install"
 	sdkLogger "github.com/kairos-io/kairos/v4/sdk/types/logger"
@@ -57,7 +58,9 @@ var _ = Describe("kcrypt encrypt", func() {
 		origSettle, origEncrypt, origUnlock := kcryptUdevSettleFn, kcryptEncryptFn, kcryptUnlockFn
 		origMounts, origConfirm, origCmdline := kcryptMountpointsFn, kcryptConfirmFn, procCmdlinePath
 		origIsUki, origMountSource := resetIsUkiFn, resetMountSourceFn
+		origResetProbe, origResetEncryptor := resetFsProbeFn, resetEncryptorFn
 		DeferCleanup(func() {
+			resetFsProbeFn, resetEncryptorFn = origResetProbe, origResetEncryptor
 			kcryptScanDisksFn, kcryptBlkidLookupFn, kcryptFsProbeFn = origScan, origBlkid, origProbe
 			kcryptUdevSettleFn, kcryptEncryptFn, kcryptUnlockFn = origSettle, origEncrypt, origUnlock
 			kcryptMountpointsFn, kcryptConfirmFn, procCmdlinePath = origMounts, origConfirm, origCmdline
@@ -87,6 +90,10 @@ var _ = Describe("kcrypt encrypt", func() {
 		}
 		resetIsUkiFn = func() bool { return false }
 		resetMountSourceFn = func(string) (string, error) { return "/dev/mapper/vda5", nil }
+		resetFsProbeFn = func(string) (string, error) { return "ext4", nil }
+		resetEncryptorFn = func(*config.Config) (kcrypt.PartitionEncryptor, error) {
+			return &kcrypt.LocalTPMNVEncryptor{}, nil
+		}
 
 		// No cmdline OEM rename unless a spec writes one.
 		cmdline := filepath.Join(GinkgoT().TempDir(), "cmdline")
@@ -159,6 +166,26 @@ var _ = Describe("kcrypt encrypt", func() {
 			Expect(stub.encrypted).To(BeEmpty())
 		})
 
+		It("refuses a partition mounted while the confirmation prompt was open", func() {
+			stub := stubAll()
+			mounted := false
+			kcryptMountpointsFn = func(string) ([]string, error) {
+				if mounted {
+					return []string{"/usr/local"}, nil
+				}
+				return nil, nil
+			}
+			kcryptConfirmFn = func() bool {
+				stub.confirms++
+				mounted = true
+				return true
+			}
+			err := KcryptEncrypt(newConfig(), []string{sdkConstants.PersistentLabel}, false)
+			Expect(err).To(MatchError(ContainSubstring("unmount it first")))
+			Expect(stub.confirms).To(Equal(1))
+			Expect(stub.encrypted).To(BeEmpty())
+		})
+
 		It("does nothing when the prompt is declined", func() {
 			stub := stubAll()
 			stub.confirmAns = false
@@ -218,7 +245,7 @@ var _ = Describe("kcrypt encrypt", func() {
 		})
 	})
 
-	Describe("encryptFormattedPartition", func() {
+	Describe("EncryptFormattedPartition", func() {
 		newReset := func(cfg *config.Config) (*ResetAction, *partitions.Partition) {
 			persistent := &partitions.Partition{
 				Name: "vda5", Path: "/dev/vda5",
@@ -328,6 +355,83 @@ var _ = Describe("kcrypt encrypt", func() {
 			oem := &partitions.Partition{Name: "vda2", Path: "/dev/vda2", FilesystemLabel: sdkConstants.OEMLabel}
 			Expect(EncryptFormattedPartition(r.cfg, oem)).To(Succeed())
 			Expect(stub.encrypted).To(Equal([][]string{{sdkConstants.OEMLabel}}))
+		})
+	})
+
+	Describe("PreflightResetFormat", func() {
+		persistentAt := func(path string) *partitions.Partition {
+			return &partitions.Partition{Name: "vda5", Path: path, FilesystemLabel: sdkConstants.PersistentLabel}
+		}
+		configWithEncrypt := func(labels ...string) *config.Config {
+			cfg := newConfig()
+			cfg.Install = &install.Install{Encrypt: labels}
+			return cfg
+		}
+
+		It("passes a partition on its mapper without probing it", func() {
+			stubAll()
+			resetFsProbeFn = func(string) (string, error) {
+				Fail("a mapper path must not be probed")
+				return "", nil
+			}
+			Expect(PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/mapper/vda5"), false)).To(Succeed())
+		})
+
+		It("refuses a raw LUKS container, configured or not", func() {
+			stubAll()
+			resetFsProbeFn = func(string) (string, error) { return sdkConstants.LUKSFs, nil }
+			Expect(PreflightResetFormat(newConfig(), persistentAt("/dev/vda5"), false)).
+				To(MatchError(ContainSubstring("raw LUKS container")))
+			Expect(PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/vda5"), false)).
+				To(MatchError(ContainSubstring("raw LUKS container")))
+		})
+
+		It("passes a plaintext partition nothing asks to encrypt", func() {
+			stubAll()
+			resetEncryptorFn = func(*config.Config) (kcrypt.PartitionEncryptor, error) {
+				Fail("the encryptor must not be built when nothing is configured")
+				return nil, nil
+			}
+			Expect(PreflightResetFormat(newConfig(), persistentAt("/dev/vda5"), false)).To(Succeed())
+		})
+
+		It("refuses before any format when the encryptor cannot be validated", func() {
+			stubAll()
+			resetEncryptorFn = func(*config.Config) (kcrypt.PartitionEncryptor, error) {
+				return nil, errors.New("could not find TPM 2.0 device")
+			}
+			err := PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/vda5"), false)
+			Expect(err).To(MatchError(ContainSubstring("could not find TPM 2.0 device")))
+			Expect(err).To(MatchError(ContainSubstring("nothing was formatted")))
+		})
+
+		It("fails closed when the filesystem of a configured partition cannot be determined", func() {
+			stubAll()
+			resetFsProbeFn = func(string) (string, error) { return "", errors.New("blkid failed") }
+			Expect(PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/vda5"), false)).
+				To(MatchError(ContainSubstring("cannot determine the filesystem")))
+		})
+
+		It("keeps an unconfigured reset going when the probe fails", func() {
+			stubAll()
+			resetFsProbeFn = func(string) (string, error) { return "", errors.New("blkid failed") }
+			Expect(PreflightResetFormat(newConfig(), persistentAt("/dev/vda5"), false)).To(Succeed())
+		})
+
+		It("refuses remote KMS re-encryption when OEM is formatted too", func() {
+			stubAll()
+			resetEncryptorFn = func(*config.Config) (kcrypt.PartitionEncryptor, error) {
+				return &kcrypt.RemoteKMSEncryptor{}, nil
+			}
+			Expect(PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/vda5"), true)).
+				To(MatchError(ContainSubstring("remote KMS")))
+			Expect(PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/vda5"), false)).
+				To(Succeed(), "remote KMS without an OEM format is allowed")
+		})
+
+		It("allows local TPM re-encryption when OEM is formatted too", func() {
+			stubAll()
+			Expect(PreflightResetFormat(configWithEncrypt(sdkConstants.PersistentLabel), persistentAt("/dev/vda5"), true)).To(Succeed())
 		})
 	})
 })

@@ -41,6 +41,14 @@ func (r *ResetAction) Run() (err error) {
 	_, err = utils.SH("udevadm trigger --type=all || udevadm trigger")
 	_, err = utils.SH("udevadm settle")
 
+	// Check every partition this reset formats before formatting any of
+	// them, so a reset that cannot end in the state the configuration
+	// demands stops while nothing has been destroyed.
+	err = action.PreflightResetFormats(r.cfg, r.spec.Partitions.Persistent, r.spec.Partitions.OEM, r.spec.FormatPersistent, r.spec.FormatOEM)
+	if err != nil {
+		return err
+	}
+
 	if r.spec.FormatPersistent {
 		persistent := r.spec.Partitions.Persistent
 		if persistent != nil {

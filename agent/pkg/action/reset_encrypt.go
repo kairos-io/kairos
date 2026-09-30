@@ -3,9 +3,12 @@ package action
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	hook "github.com/kairos-io/kairos/v4/agent/internal/agent/hooks"
 	internalutils "github.com/kairos-io/kairos/v4/agent/pkg/utils"
+	sdkConstants "github.com/kairos-io/kairos/v4/sdk/constants"
+	"github.com/kairos-io/kairos/v4/sdk/kcrypt"
 	"github.com/kairos-io/kairos/v4/sdk/kcrypt/lookup"
 	sdkConfig "github.com/kairos-io/kairos/v4/sdk/types/config"
 	"github.com/kairos-io/kairos/v4/sdk/types/partitions"
@@ -16,7 +19,98 @@ import (
 var (
 	resetIsUkiFn       = internalutils.IsUki
 	resetMountSourceFn = lookup.MountSourceForLabel
+	resetFsProbeFn     = lookup.FilesystemType
+	resetEncryptorFn   = func(cfg *sdkConfig.Config) (kcrypt.PartitionEncryptor, error) {
+		return kcrypt.GetEncryptorFromConfig(cfg.Logger, &cfg.Collector)
+	}
 )
+
+// ResetPreflightFn is what both reset implementations call for every
+// partition they are about to format, before any of them is formatted. A
+// variable for the same reason as ResetEncryptFn.
+var ResetPreflightFn = PreflightResetFormat
+
+// PreflightResetFormats runs the preflight for every partition a reset is
+// about to format, before any of them is formatted, so a reset that cannot
+// end in the state the configuration demands stops while nothing has been
+// destroyed. Both reset implementations call it.
+func PreflightResetFormats(cfg *sdkConfig.Config, persistent, oem *partitions.Partition, formatPersistent, formatOEM bool) error {
+	if formatPersistent {
+		if err := ResetPreflightFn(cfg, persistent, formatOEM); err != nil {
+			return err
+		}
+	}
+	if formatOEM {
+		if err := ResetPreflightFn(cfg, oem, formatOEM); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// PreflightResetFormat checks, before a reset formats part, that the format
+// and any re-encryption after it can succeed, so a reset that cannot end
+// encrypted stops while nothing has been destroyed yet. formatOEM says
+// whether this reset also formats OEM. It refuses:
+//
+//   - A raw LUKS container. The reset must format the unlocked mapper
+//     inside it, which keeps the container and its key (recovery unlocks
+//     persistent before the reset runs, so this is the normal case).
+//     Formatting the raw container would destroy it, and the re-encryption
+//     after it would silently re-key the node. That can happen when the
+//     reset spec resolves the raw partition instead of the mapper, for
+//     example on pre kairos-io/kairos#4403 installs where the container and
+//     the inner filesystem share a label.
+//   - A partition the configuration lists as encrypted when the encryptor
+//     cannot be built or validated (no TPM device, for example). Note the
+//     remote KMS encryptor does not validate reachability before encrypting,
+//     so an unreachable KMS is still only caught after the format.
+//   - Re-encryption through a remote KMS when OEM is formatted in the same
+//     reset: the challenger configuration usually lives in OEM, so the next
+//     boot would have nothing telling it how to unlock the new container.
+//
+// When the partition is on its mapper the container survives the format and
+// no re-encryption is needed, so only the raw container check applies.
+func PreflightResetFormat(cfg *sdkConfig.Config, part *partitions.Partition, formatOEM bool) error {
+	if part == nil || part.FilesystemLabel == "" {
+		return nil
+	}
+	label := part.FilesystemLabel
+	wantsEncrypted := resetWantsEncrypted(cfg, label)
+
+	if strings.HasPrefix(part.Path, "/dev/mapper/") {
+		if wantsEncrypted && formatOEM {
+			cfg.Logger.Warnf("partition %s stays encrypted across this reset, but OEM is formatted too: "+
+				"if its unlock configuration (a kcrypt challenger server) lives only in OEM, the next boot cannot unlock it", label)
+		}
+		return nil
+	}
+
+	fs, err := resetFsProbeFn(part.Path)
+	if err != nil || fs == "" {
+		if wantsEncrypted {
+			return fmt.Errorf("reset preflight: cannot determine the filesystem on %s (%s), refusing to format a partition configured as encrypted; nothing was formatted", label, part.Path)
+		}
+		cfg.Logger.Warnf("reset preflight: could not determine the filesystem on %s (%s): %v", label, part.Path, err)
+	}
+	if fs == sdkConstants.LUKSFs {
+		return fmt.Errorf("reset preflight: %s resolves to the raw LUKS container %s, not its unlocked mapper; "+
+			"formatting it would destroy the container and its key. Unlock it (kairos-agent kcrypt unlock-all) and retry; nothing was formatted", label, part.Path)
+	}
+
+	if !wantsEncrypted {
+		return nil
+	}
+	encryptor, err := resetEncryptorFn(cfg)
+	if err != nil {
+		return fmt.Errorf("reset preflight: %s is configured as encrypted but cannot be encrypted: %w; nothing was formatted", label, err)
+	}
+	if _, remote := encryptor.(*kcrypt.RemoteKMSEncryptor); formatOEM && remote {
+		return fmt.Errorf("reset preflight: refusing to encrypt %s through a remote KMS while this reset also formats OEM, "+
+			"which holds the challenger configuration the next boot needs to unlock it; reset without --reset-oem, or encrypt locally; nothing was formatted", label)
+	}
+	return nil
+}
 
 // ResetEncryptFn is what both reset implementations call right after they
 // format a partition. It is a variable so the reset specs, here and in

@@ -96,15 +96,11 @@ func KcryptEncrypt(cfg *sdkConfig.Config, labels []string, skipConfirmation bool
 
 	// Refuse a mounted partition instead of unmounting it behind the
 	// operator's back: whatever mounted it (the running system, a manual
-	// mount in recovery) is using it, and encryption destroys it.
-	for _, label := range pending {
-		mountpoints, err := kcryptMountpointsFn(label)
-		if err != nil {
-			return fmt.Errorf("checking whether %s is mounted: %w", label, err)
-		}
-		if len(mountpoints) > 0 {
-			return fmt.Errorf("partition %s is mounted at %s; unmount it first", label, strings.Join(mountpoints, ", "))
-		}
+	// mount in recovery) is using it, and encryption destroys it. Checked
+	// here so the operator is not asked to confirm something that will be
+	// refused, and again after the confirmation below.
+	if err := refuseMounted(pending); err != nil {
+		return err
 	}
 
 	if !skipConfirmation {
@@ -115,6 +111,13 @@ func KcryptEncrypt(cfg *sdkConfig.Config, labels []string, skipConfirmation bool
 			fmt.Println("Encryption cancelled.")
 			return nil
 		}
+	}
+
+	// The prompt can wait indefinitely, and the encryptor underneath
+	// silently unmounts a mounted device before formatting it, so a mount
+	// made while the prompt was open must still be refused.
+	if err := refuseMounted(pending); err != nil {
+		return err
 	}
 
 	cfg.Logger.Logger.Info().Strs("partitions", pending).Msg("encrypting partitions")
@@ -135,6 +138,21 @@ func KcryptEncrypt(cfg *sdkConfig.Config, labels []string, skipConfirmation bool
 
 	fmt.Printf("Encrypted: %s\n", strings.Join(pending, ", "))
 	fmt.Println("The partitions are locked. They unlock on the next boot, or run 'kairos-agent kcrypt unlock-all'.")
+	return nil
+}
+
+// refuseMounted returns an error when any of the labels is mounted, or when
+// whether it is mounted cannot be determined.
+func refuseMounted(labels []string) error {
+	for _, label := range labels {
+		mountpoints, err := kcryptMountpointsFn(label)
+		if err != nil {
+			return fmt.Errorf("checking whether %s is mounted: %w", label, err)
+		}
+		if len(mountpoints) > 0 {
+			return fmt.Errorf("partition %s is mounted at %s; unmount it first", label, strings.Join(mountpoints, ", "))
+		}
+	}
 	return nil
 }
 
@@ -256,8 +274,10 @@ func mountpointsForDevice(mountsPath, device string) ([]string, error) {
 			continue
 		}
 		source := fields[0]
-		if resolved, err := filepath.EvalSymlinks(source); err == nil {
-			source = resolved
+		if strings.HasPrefix(source, "/") {
+			if resolved, err := filepath.EvalSymlinks(source); err == nil {
+				source = resolved
+			}
 		}
 		if source == want || fields[0] == device {
 			// /proc/mounts escapes spaces in mountpoints as \040.

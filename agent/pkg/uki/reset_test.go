@@ -190,10 +190,34 @@ var _ = Describe("Uki reset action", func() {
 		It("runs for every formatted partition, before OEM is mounted back", func() {
 			spec.FormatPersistent = true
 			spec.FormatOEM = true
-			// Run fails later at boot entry selection in this harness; the
-			// format branches, which run first, are what is under test.
-			_ = reset.Run()
+			// Run fails later in this harness, after the format branches
+			// that are under test; make sure it is not an earlier failure.
+			err := reset.Run()
+			if err != nil {
+				Expect(err.Error()).ToNot(ContainSubstring("preflight"))
+				Expect(err.Error()).ToNot(ContainSubstring("format"))
+			}
 			Expect(encrypted).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+		})
+
+		It("formats nothing when the preflight refuses", func() {
+			spec.FormatPersistent = true
+			spec.FormatOEM = true
+			orig := action.ResetPreflightFn
+			DeferCleanup(func() { action.ResetPreflightFn = orig })
+			var checked []string
+			action.ResetPreflightFn = func(_ *sdkConfig.Config, part *sdkPartitions.Partition, _ bool) error {
+				checked = append(checked, part.FilesystemLabel)
+				if part.FilesystemLabel == constants.OEMLabel {
+					return errors.New("preflight refused")
+				}
+				return nil
+			}
+			Expect(reset.Run()).To(MatchError(ContainSubstring("preflight refused")))
+			Expect(checked).To(Equal([]string{constants.PersistentLabel, constants.OEMLabel}))
+			Expect(runner.IncludesCmds([][]string{{"mkfs.ext4"}})).To(HaveOccurred(),
+				"a partition was formatted although the preflight of a later one refused")
+			Expect(encrypted).To(BeEmpty())
 		})
 
 		It("fails the reset when re-encrypting persistent fails", func() {
