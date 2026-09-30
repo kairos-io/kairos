@@ -147,7 +147,7 @@ function drawRail() {
   const rail = document.getElementById('rail');
   fill(rail, el('div', { class: 'rail-label' }, 'Steps'), ...allSteps().map((s, i) => {
     const set = s !== REVIEW && done(s), cur = i === state.cur;
-    return el('button', { type: 'button', title: s.title, 'aria-current': cur ? 'step' : false, onclick: () => { drawer(false); go(i); } },
+    return el('button', { type: 'button', 'aria-current': cur ? 'step' : false, onclick: () => { drawer(false); go(i); } },
       el('span', { class: 'marker' + (set ? ' done' : ''), 'aria-hidden': 'true' }, set && !cur ? '\u2713' : String(i + 1)),
       el('span', { class: 'step-title' }, s.title), set ? el('span', { class: 'sr-only' }, ', set') : null);
   }));
@@ -157,14 +157,21 @@ function drawRail() {
 // behind the top bar, as AuroraBoot's sidebar is. While it is open the rest
 // of the page is inert, so focus stays in it; Escape, the backdrop and
 // choosing a step close it.
-function drawer(open) {
+function drawer(open, widened) {
   const shell = document.getElementById('shell');
   if (!shell || shell.classList.contains('drawer-open') === open) return;
   shell.classList.toggle('drawer-open', open);
   document.getElementById('backdrop').hidden = !open;
   document.getElementById('menu').setAttribute('aria-expanded', String(open));
-  for (const id of ['content', 'menu']) document.getElementById(id).inert = open;
-  if (open) (document.querySelector('#rail [aria-current=step]') || document.getElementById('menu-close')).focus();
+  // Everything behind the backdrop, the top bar included, is out of reach.
+  for (const id of ['content', 'topbar']) document.getElementById(id).inert = open;
+  const side = document.getElementById('sidebar');
+  if (open) { side.setAttribute('role', 'dialog'); side.setAttribute('aria-modal', 'true'); side.setAttribute('aria-label', 'Installation steps'); }
+  else for (const a of ['role', 'aria-modal', 'aria-label']) side.removeAttribute(a);
+  const step = document.querySelector('#rail [aria-current=step]');
+  // A window widened past the breakpoint hides the menu button, so focus
+  // goes to the current step, which is now in the visible sidebar.
+  if (open || widened) (step || document.getElementById('menu-close')).focus();
   else document.getElementById('menu').focus();
 }
 
@@ -313,7 +320,7 @@ document.getElementById('menu-close').addEventListener('click', () => drawer(fal
 document.getElementById('backdrop').addEventListener('click', () => drawer(false));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') drawer(false); });
 // Widening the window past the drawer breakpoint leaves no drawer to close.
-window.matchMedia('(min-width: 768px)').addEventListener('change', e => { if (e.matches) drawer(false); });
+window.matchMedia('(min-width: 768px)').addEventListener('change', e => { if (e.matches) drawer(false, true); });
 
 api('/api/wizard').then(r => { state.steps = r.steps; state.advancedDisabled = !!r.advanced_disabled; answersDefaults(); draw(); })
   .catch(e => fill(document.getElementById('main'), el('div', { class: 'banner', role: 'alert' }, 'The installer steps could not be loaded: ' + e.message)));

@@ -259,14 +259,14 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 1
 .divider { margin: 0 16px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
 .rail { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 4px; }
 .rail-label { display: block; padding: 4px 12px 4px; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: color-mix(in srgb, var(--sidebar-fg) 40%, transparent); }
-.rail button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--sidebar-fg); opacity: .8; text-align: left; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color .15s, opacity .15s; }
+.rail button { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 8px 12px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--sidebar-fg); opacity: .8; text-align: left; font-size: 14px; font-weight: 500; cursor: pointer; transition: background-color .15s, opacity .15s; }
 .rail button:hover { opacity: 1; background: var(--sidebar-muted); }
 .rail button[aria-current=step] { background: var(--sidebar-accent); color: #ffffff; opacity: 1; }
 .rail button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--ring); }
 .rail .marker { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex-shrink: 0; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .rail .marker.done { background: rgba(255, 255, 255, 0.12); border-color: transparent; }
 .rail button[aria-current=step] .marker { background: #ffffff; border-color: #ffffff; color: var(--sidebar-accent); }
-.rail .step-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail .step-title { min-width: 0; overflow-wrap: anywhere; line-height: 20px; padding-top: 2px; }
 .sidebar-foot { padding: 12px 12px 20px; display: grid; gap: 8px; }
 .backdrop { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 0.6); }
 

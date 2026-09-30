@@ -231,6 +231,19 @@ var _ = Describe("the shared look", func() {
 		Expect(css).ToNot(MatchRegexp(`url\(\s*['"]?(https?:)?//`))
 	})
 
+	It("lets a step name wrap in the sidebar rather than cut it short", func() {
+		// AuroraBoot's sidebar wraps its labels. At 240px a cut name read
+		// "Timezone and keyb..." and "When the install fini...".
+		css := read("style.css")
+		for _, sel := range []string{".rail button", ".rail .step-title"} {
+			for _, m := range regexp.MustCompile(`(?m)^`+regexp.QuoteMeta(sel)+`\s*\{([^}]*)\}`).FindAllStringSubmatch(css, -1) {
+				Expect(m[1]).ToNot(ContainSubstring("nowrap"), sel)
+				Expect(m[1]).ToNot(ContainSubstring("ellipsis"), sel)
+			}
+		}
+		Expect(css).To(MatchRegexp(`(?m)^\.rail \.step-title\s*\{`))
+	})
+
 	It("serves the stylesheet, the theme script and the logo", func() {
 		srv := newServer(Options{})
 		for path, ctype := range map[string]string{"/style.css": "text/css", "/theme.js": "javascript", "/kairos-logo.svg": "image/svg+xml"} {
