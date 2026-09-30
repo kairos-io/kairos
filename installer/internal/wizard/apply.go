@@ -112,10 +112,18 @@ func applyHostname(out *Answers, values map[string]string) []FieldError {
 func applyLocale(step Step, out *Answers, values map[string]string) []FieldError {
 	var errs []FieldError
 	tz, km := get(values, FieldTimezone), get(values, FieldKeymap)
-	if tz != "" && (!validTimezone(tz) || !offered(step.Fields[0], tz)) {
+	// The timezone field is absent on an image with no time zone database,
+	// where nothing could honour the answer, so a value submitted for it is
+	// refused rather than written into a link that would dangle.
+	tzField, tzOffered := fieldByID(step, FieldTimezone)
+	switch {
+	case tz != "" && !tzOffered:
+		errs = append(errs, fieldErr(FieldTimezone, "This image ships no time zone database, so the timezone cannot be set.")...)
+	case tz != "" && (!validTimezone(tz) || !offered(tzField, tz)):
 		errs = append(errs, fieldErr(FieldTimezone, "%s is not a timezone this image knows.", tz)...)
 	}
-	if km != "" && (!validKeymap(km) || !offered(step.Fields[1], km)) {
+	kmField, _ := fieldByID(step, FieldKeymap)
+	if km != "" && (!validKeymap(km) || !offered(kmField, km)) {
 		errs = append(errs, fieldErr(FieldKeymap, "%s is not a keyboard layout this image knows.", km)...)
 	}
 	out.Timezone, out.Keymap = tz, km
@@ -190,6 +198,18 @@ func applyFinish(step Step, out *Answers, values map[string]string) []FieldError
 	}
 	out.FinishAction = v
 	return nil
+}
+
+// fieldByID finds one of a step's fields. A step does not always carry the
+// same fields: the locale step drops the timezone on an image that has no
+// time zone database.
+func fieldByID(s Step, id string) (Field, bool) {
+	for _, f := range s.Fields {
+		if f.ID == id {
+			return f, true
+		}
+	}
+	return Field{}, false
 }
 
 // offered reports whether v is one of f's choices. Only Choice and

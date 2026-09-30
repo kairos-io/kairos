@@ -105,25 +105,46 @@ func hostnameStep() Step {
 }
 
 func localeStep(env Env) Step {
-	return Step{
+	s := Step{
 		ID: StepLocale, Title: "Timezone and keyboard", Optional: true,
-		Help:   "Both apply from the first boot of the installed system.",
-		Fields: []Field{choiceOrText(FieldTimezone, "Timezone", "Europe/Rome", env.Timezones()), choiceOrText(FieldKeymap, "Keyboard layout", "us", env.Keymaps())},
+		Help: "Both apply from the first boot of the installed system.",
 	}
+	// The timezone is applied by linking /etc/localtime at a zoneinfo file,
+	// so an image that ships no time zone database cannot honour any answer:
+	// the link would dangle and the system would stay on UTC while the
+	// summary claimed otherwise. Offer the field only when the database is
+	// there, and say why when it is not.
+	if zones := env.Timezones(); len(zones) > 0 {
+		s.Fields = append(s.Fields, choiceOf(FieldTimezone, "Timezone", zones))
+	} else {
+		s.Title = "Keyboard"
+		s.Help = "It applies from the first boot of the installed system."
+		s.Notice = "This image ships no time zone database, so the system runs on UTC and the timezone cannot be set here."
+	}
+	// A keymap is written to a file that is inert when nothing reads it, so
+	// free text stays useful on an image whose keymaps this installer cannot
+	// enumerate.
+	s.Fields = append(s.Fields, choiceOrText(FieldKeymap, "Keyboard layout", "us", env.Keymaps()))
+	return s
 }
 
-// choiceOrText offers values as a list when the image has them, and as free
-// text when it does not, so an image without zoneinfo or keymaps can still
-// take a value.
-func choiceOrText(id, label, placeholder string, values []string) Field {
-	if len(values) == 0 {
-		return Field{ID: id, Kind: KindText, Label: label, Placeholder: placeholder}
-	}
+// choiceOf offers values as a list.
+func choiceOf(id, label string, values []string) Field {
 	f := Field{ID: id, Kind: KindChoice, Label: label}
 	for _, v := range values {
 		f.Choices = append(f.Choices, Choice{Value: v, Label: v})
 	}
 	return f
+}
+
+// choiceOrText offers values as a list when the image has them, and as free
+// text when it does not, so an image whose keymaps cannot be enumerated can
+// still take one.
+func choiceOrText(id, label, placeholder string, values []string) Field {
+	if len(values) == 0 {
+		return Field{ID: id, Kind: KindText, Label: label, Placeholder: placeholder}
+	}
+	return choiceOf(id, label, values)
 }
 
 // ExtensionsStep builds the extensions step on its own, so a frontend can

@@ -113,10 +113,14 @@ var _ = Describe("Render, the settings added with the wizard", func() {
 		Expect(parse(out)).To(ContainElement(HaveKeyWithValue("hostname", "edge-01")))
 	})
 
-	It("links the timezone to /etc/localtime", func() {
+	It("links the timezone to /etc/localtime, only where the zone file exists", func() {
 		out, err := wizard.Render(wizard.Answers{Disk: "/dev/sda", Timezone: "Europe/Rome"})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(out).To(ContainSubstring("ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime"))
+		// ln -sf writes the link whether or not the target is there, and a
+		// dangling /etc/localtime leaves the system on UTC while the
+		// summary says otherwise. See kairos-io/kairos#5079.
+		Expect(out).To(ContainSubstring("[ -e /usr/share/zoneinfo/Europe/Rome ]"))
 	})
 
 	It("writes the keymap for systemd, and for openrc only where conf.d exists", func() {

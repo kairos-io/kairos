@@ -107,10 +107,12 @@ var _ = Describe("Steps", func() {
 		Expect(ids(wizard.Steps(context.Background(), e))).To(Equal([]string{wizard.StepDisk, wizard.StepFinish}))
 	})
 
-	It("falls back to free text when the image has no zoneinfo or keymaps", func() {
+	It("drops the timezone and falls back to free text for the keymap when the image has no zoneinfo or keymaps", func() {
 		s, _ := wizard.StepByID(wizard.Steps(context.Background(), fakeEnv{}), wizard.StepLocale)
+		Expect(s.Fields).To(HaveLen(1))
+		Expect(s.Fields[0].ID).To(Equal(wizard.FieldKeymap))
 		Expect(s.Fields[0].Kind).To(Equal(wizard.KindText))
-		Expect(s.Fields[1].Kind).To(Equal(wizard.KindText))
+		Expect(s.Notice).To(ContainSubstring("no time zone database"))
 	})
 
 	It("keeps live media extensions and carries a notice when no catalog was read", func() {

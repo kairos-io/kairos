@@ -184,20 +184,26 @@ var _ = Describe("Apply locale on an image without lists", func() {
 	var steps []Step
 	BeforeEach(func() { steps = Steps(context.Background(), emptyEnv{}) })
 
-	It("offers text fields, so the charset checks are the only guard", func() {
+	It("drops the timezone and offers the keymap as text, so the charset checks are its only guard", func() {
 		step, _ := StepByID(steps, StepLocale)
+		Expect(step.Fields).To(HaveLen(1))
+		Expect(step.Fields[0].ID).To(Equal(FieldKeymap))
 		Expect(step.Fields[0].Kind).To(Equal(KindText))
-		Expect(step.Fields[1].Kind).To(Equal(KindText))
 	})
 
-	DescribeTable("timezone and keymap as free text",
+	// An image with no zone table cannot honour any timezone, so every
+	// timezone is refused here, well-formed or not. The keymap is still
+	// free text and keeps its charset guard.
+	DescribeTable("keymap as free text, timezone refused outright",
 		func(tz, km string, ok bool) {
 			_, errs := Apply(steps, Answers{}, StepLocale, map[string]string{FieldTimezone: tz, FieldKeymap: km})
 			Expect(errs == nil).To(Equal(ok), "%v", errs)
 		},
-		Entry("zoneinfo name with plus", "Etc/GMT+5", "", true),
 		Entry("keymap with hyphen", "", "de-latin1", true),
-		Entry("both plain", "Europe/Rome", "us", true),
+		Entry("keymap plain", "", "us", true),
+		Entry("no answer at all", "", "", true),
+		Entry("zoneinfo name with plus", "Etc/GMT+5", "", false),
+		Entry("well-formed timezone", "Europe/Rome", "us", false),
 		Entry("path traversal", "../../etc/shadow", "", false),
 		Entry("dot dot inside", "Europe/../Rome", "", false),
 		Entry("absolute path", "/etc/passwd", "", false),
@@ -206,6 +212,13 @@ var _ = Describe("Apply locale on an image without lists", func() {
 		Entry("newline in keymap", "", "it\nKEYMAP=us", false),
 		Entry("space in keymap", "", "it us", false),
 	)
+
+	It("says why the timezone was refused, rather than calling it unknown", func() {
+		_, errs := Apply(steps, Answers{}, StepLocale, map[string]string{FieldTimezone: "Europe/Rome"})
+		Expect(errs).To(HaveLen(1))
+		Expect(errs[0].Field).To(Equal(FieldTimezone))
+		Expect(errs[0].Message).To(ContainSubstring("no time zone database"))
+	})
 
 	It("returns the answers unchanged when one locale value is bad", func() {
 		in := Answers{Timezone: "UTC", Keymap: "us"}

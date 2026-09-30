@@ -67,8 +67,15 @@ func Render(a Answers) (string, error) {
 	if a.Timezone != "" {
 		// checkWritten only lets a zoneinfo name through, so this cannot
 		// be anything but a path under /usr/share/zoneinfo.
+		//
+		// Gated, because ln -sf writes the link whether or not the target
+		// exists: an image with no time zone database would get a dangling
+		// /etc/localtime and still run on UTC. Steps does not offer a
+		// timezone on such an image, but Render also takes answers the web
+		// UI sends straight from the browser.
 		add(initramfsStage, schema.Stage{
 			Name:     "Set the timezone",
+			If:       fmt.Sprintf("[ -e /usr/share/zoneinfo/%s ]", a.Timezone),
 			Commands: []string{fmt.Sprintf("ln -sf /usr/share/zoneinfo/%s /etc/localtime", a.Timezone)},
 		})
 	}
