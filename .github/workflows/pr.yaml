@@ -131,9 +131,9 @@ jobs:
           fi
 
           # uki: paths that can change the UKI boot flow (agent uki
-          # pkg, uki_ actions, installer, immucore mounts, sysext, and
-          # the UKI test reusable itself).
-          if echo "$changed" | grep -qE '^(agent/pkg/uki/|agent/pkg/action/uki_|installer/|immucore/pkg/mounts/|sysext/|\.github/workflows/_uki-test\.yaml$)'; then
+          # pkg, sysext/bootentries actions, installer, immucore mounts,
+          # and the UKI test reusable itself).
+          if echo "$changed" | grep -qE '^(agent/pkg/uki/|agent/pkg/action/(sysext|bootentries)\.go$|installer/|immucore/internal/mount/|\.github/workflows/_uki-test\.yaml$)'; then
             echo "uki=true" >> "$GITHUB_OUTPUT"
           else
             echo "uki=false" >> "$GITHUB_OUTPUT"
@@ -314,7 +314,7 @@ jobs:
 
   build-iso:
     needs: [build-image-kairos-init, changes]
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.iso == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -452,7 +452,7 @@ jobs:
 
   test-core:
     needs: [build-iso, changes]
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.iso == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -500,7 +500,7 @@ jobs:
   # variant computed as core because kubernetes_distro is empty).
   test-core-fips:
     needs: [build-iso, changes]
-    if: needs.changes.outputs.docs_only != 'true'
+    if: needs.changes.outputs.iso == 'true' && needs.changes.outputs.docs_only != 'true'
     strategy:
       fail-fast: false
       matrix:
