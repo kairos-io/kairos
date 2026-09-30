@@ -459,6 +459,13 @@ enabled: true`,
 		Description: "Print machine state information, e.g. `state get uuid` returns the machine uuid",
 		Aliases:     []string{},
 		Action: func(c *cli.Context) error {
+			// `state` takes no arguments of its own. Without this an unknown
+			// subcommand falls through to here, prints the state and exits 0,
+			// so a caller cannot tell a typo from the command it meant to run.
+			if c.Args().Present() {
+				return fmt.Errorf("unknown subcommand %q for \"state\"", c.Args().First())
+			}
+
 			runtime, err := state.NewRuntime()
 			if err != nil {
 				return err
@@ -468,16 +475,6 @@ enabled: true`,
 			return err
 		},
 		Subcommands: []*cli.Command{
-			{
-				Name:        "apply",
-				Usage:       "Applies a machine state",
-				Description: "Applies machine configuration in runtimes",
-				Aliases:     []string{"a"},
-				Action: func(c *cli.Context) error {
-					// TODO
-					return nil
-				},
-			},
 			{
 				Name:        "get",
 				Usage:       "get specific ",
